@@ -47,6 +47,12 @@ class ConnectionManager {
   /// Get count of connected clients
   int get clientCount => _clients.length;
 
+  /// Clear all connected clients (used when server stops)
+  void clearAll() {
+    _clients.clear();
+    print('All clients cleared from connection manager');
+  }
+
   /// Clean up stale connections (no heartbeat for 60 seconds)
   void cleanupStaleConnections() {
     final now = DateTime.now();

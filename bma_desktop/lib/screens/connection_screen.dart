@@ -3,6 +3,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'dart:convert';
 import '../services/desktop_tailscale_service.dart';
 import '../services/server/http_server.dart';
+import '../services/desktop_state_service.dart';
 
 class ConnectionScreen extends StatefulWidget {
   const ConnectionScreen({super.key});
@@ -14,6 +15,7 @@ class ConnectionScreen extends StatefulWidget {
 class _ConnectionScreenState extends State<ConnectionScreen> {
   final DesktopTailscaleService _tailscaleService = DesktopTailscaleService();
   final BmaHttpServer _httpServer = BmaHttpServer();
+  final DesktopStateService _stateService = DesktopStateService();
 
   String? _tailscaleIP;
   bool _isLoading = true;
@@ -192,8 +194,12 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
                 ),
                 const SizedBox(height: 32),
                 ElevatedButton(
-                  onPressed: () {
-                    Navigator.pushReplacementNamed(context, '/dashboard');
+                  onPressed: () async {
+                    // Mark setup as complete
+                    await _stateService.markSetupComplete();
+                    if (mounted) {
+                      Navigator.pushReplacementNamed(context, '/dashboard');
+                    }
                   },
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(

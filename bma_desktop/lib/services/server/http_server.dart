@@ -60,6 +60,20 @@ class BmaHttpServer {
   Future<void> stop() async {
     await _server?.close(force: true);
     _server = null;
+
+    // Clear all connected clients since server is stopping
+    _connectionManager.clearAll();
+
+    // Close all WebSocket connections
+    for (final client in _webSocketClients) {
+      try {
+        await client.sink.close();
+      } catch (e) {
+        // Ignore errors when closing
+      }
+    }
+    _webSocketClients.clear();
+
     print('BMA Server stopped');
   }
 

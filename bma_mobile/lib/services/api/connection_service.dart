@@ -140,9 +140,8 @@ class ConnectionService {
   Future<bool> tryRestoreConnection() async {
     final prefs = await SharedPreferences.getInstance();
     final serverJson = prefs.getString('server_info');
-    final sessionId = prefs.getString('session_id');
 
-    if (serverJson == null || sessionId == null) {
+    if (serverJson == null) {
       return false;
     }
 
@@ -156,22 +155,40 @@ class ConnectionService {
 
       _apiClient = ApiClient(serverInfo: serverInfo);
       _serverInfo = serverInfo;
-      _sessionId = sessionId;
 
-      // Test if connection still valid
+      // Test if server is reachable
       await _apiClient!.ping();
 
+      // Re-register with server to get fresh session
+      final connectRequest = ConnectRequest(
+        deviceId: await _getDeviceId(),
+        deviceName: await _getDeviceName(),
+        appVersion: '1.0.0',
+        platform: Platform.isAndroid ? 'android' : 'ios',
+      );
+
+      final response = await _apiClient!.connect(connectRequest);
+      _sessionId = response.sessionId;
       _isConnected = true;
+
+      // Save new session info
+      await _saveConnectionInfo(serverInfo, _sessionId!);
+
+      // Start heartbeat
       _startHeartbeat();
 
       // Reconnect WebSocket
       await _webSocketService.connect(serverInfo);
 
       print('Connection restored to: ${serverInfo.name}');
+      print('New Session ID: $_sessionId');
       return true;
     } catch (e) {
       print('Failed to restore connection: $e');
-      await _clearConnectionInfo();
+      // Don't clear connection info - let user retry!
+      // Only clear it when user explicitly chooses "Scan New QR"
+      _apiClient = null;
+      _isConnected = false;
       return false;
     }
   }
