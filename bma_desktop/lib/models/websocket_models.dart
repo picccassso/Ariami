@@ -1,4 +1,5 @@
 /// WebSocket message models for real-time communication
+library;
 
 // ============================================================================
 // MESSAGE TYPES
@@ -55,10 +56,9 @@ class WsMessage {
 /// Library updated notification
 class LibraryUpdatedMessage extends WsMessage {
   LibraryUpdatedMessage({
-    Map<String, dynamic>? data,
+    super.data,
   }) : super(
           type: WsMessageType.libraryUpdated,
-          data: data,
         );
 
   factory LibraryUpdatedMessage.fromWsMessage(WsMessage message) {

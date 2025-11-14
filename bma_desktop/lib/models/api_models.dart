@@ -1,4 +1,5 @@
 /// API request and response models for BMA communication protocol
+library;
 
 // ============================================================================
 // CONNECTION MODELS

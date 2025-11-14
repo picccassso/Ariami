@@ -5,6 +5,7 @@ import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_router/shelf_router.dart';
 import 'package:shelf_web_socket/shelf_web_socket.dart';
 import 'connection_manager.dart';
+import 'streaming_service.dart';
 import '../../models/websocket_models.dart';
 
 /// HTTP server for BMA desktop application (Singleton)
@@ -16,9 +17,13 @@ class BmaHttpServer {
 
   HttpServer? _server;
   final ConnectionManager _connectionManager = ConnectionManager();
+  final StreamingService _streamingService = StreamingService();
   String? _tailscaleIp;
   int _port = 8080;
   final List<dynamic> _webSocketClients = [];
+
+  // Store music folder path (set from desktop state)
+  String? _musicFolderPath;
 
   /// Check if server is running
   bool get isRunning => _server != null;
@@ -103,8 +108,8 @@ class BmaHttpServer {
     router.get('/api/albums', _handleGetAlbums);
     router.get('/api/songs', _handleGetSongs);
 
-    // Streaming endpoint
-    router.get('/api/stream/<songId>', _handleStream);
+    // Streaming endpoint - captures everything after /api/stream/
+    router.get('/api/stream/<path|.*>', _handleStream);
 
     // WebSocket endpoint
     router.get('/api/ws', webSocketHandler(_handleWebSocket));
@@ -285,15 +290,55 @@ class BmaHttpServer {
     );
   }
 
-  /// Handle stream request (placeholder for Phase 6)
-  Response _handleStream(Request request, String songId) {
-    return Response.notFound(
-      jsonEncode({
-        'error': 'Not implemented',
-        'message': 'Streaming will be implemented in Phase 6',
-      }),
-      headers: {'Content-Type': 'application/json'},
-    );
+  /// Handle stream request
+  Future<Response> _handleStream(Request request, String path) async {
+    // Validate path is provided
+    if (path.isEmpty) {
+      return Response.badRequest(
+        body: jsonEncode({
+          'error': 'Invalid request',
+          'message': 'File path is required',
+        }),
+        headers: {'Content-Type': 'application/json'},
+      );
+    }
+
+    // For now, treat path parameter as file path
+    // In future phases, this will look up the file path from database by song ID
+    final File audioFile = File(path);
+
+    // Check if file exists
+    if (!await audioFile.exists()) {
+      return Response.notFound(
+        jsonEncode({
+          'error': 'File not found',
+          'message': 'Audio file does not exist: $path',
+        }),
+        headers: {'Content-Type': 'application/json'},
+      );
+    }
+
+    // Check if file is in allowed music folder (security check)
+    if (_musicFolderPath != null) {
+      final canonicalPath = audioFile.absolute.path;
+      if (!canonicalPath.startsWith(_musicFolderPath!)) {
+        return Response.forbidden(
+          jsonEncode({
+            'error': 'Forbidden',
+            'message': 'File is outside music library',
+          }),
+          headers: {'Content-Type': 'application/json'},
+        );
+      }
+    }
+
+    // Stream the file
+    return await _streamingService.streamFile(audioFile, request);
+  }
+
+  /// Set music folder path for security validation
+  void setMusicFolderPath(String path) {
+    _musicFolderPath = path;
   }
 
   /// Handle WebSocket connection

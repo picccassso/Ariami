@@ -1,4 +1,5 @@
 /// Server information model for connection
+library;
 
 class ServerInfo {
   final String server; // IP address

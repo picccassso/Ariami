@@ -46,6 +46,10 @@ dependencies:
   permission_handler: ^11.3.1
   web_socket_channel: ^3.0.1
 
+  # Audio playback
+  just_audio: ^0.9.39
+  audio_service: ^0.18.15
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

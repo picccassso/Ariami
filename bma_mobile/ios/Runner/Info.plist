@@ -49,5 +49,9 @@
 	<string>Camera permission is required to scan QR codes from your desktop server</string>
 	<key>NSUserNotificationsUsageDescription</key>
 	<string>Notifications are used to show playback controls and currently playing track</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+	</array>
 </dict>
 </plist>

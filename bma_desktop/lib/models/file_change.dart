@@ -1,4 +1,5 @@
 /// Models for file system change detection
+library;
 
 /// Types of file system changes
 enum FileChangeType {
