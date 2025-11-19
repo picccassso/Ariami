@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../models/api_models.dart';
+import '../../services/api/connection_service.dart';
 
 /// Search result item for songs
 class SearchResultSongItem extends StatelessWidget {
@@ -17,13 +18,7 @@ class SearchResultSongItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListTile(
-      leading: CircleAvatar(
-        backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
-        child: Icon(
-          Icons.music_note,
-          color: Theme.of(context).primaryColor,
-        ),
-      ),
+      leading: _buildAlbumArt(context),
       title: Text(
         song.title,
         style: const TextStyle(
@@ -50,6 +45,49 @@ class SearchResultSongItem extends StatelessWidget {
         ),
       ),
       onTap: onTap,
+    );
+  }
+
+  /// Build album artwork or placeholder
+  Widget _buildAlbumArt(BuildContext context) {
+    final connectionService = ConnectionService();
+
+    // If song has an albumId, try to show album artwork
+    if (song.albumId != null && connectionService.apiClient != null) {
+      final artworkUrl = '${connectionService.apiClient!.baseUrl}/artwork/${song.albumId}';
+
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(4),
+        child: SizedBox(
+          width: 48,
+          height: 48,
+          child: Image.network(
+            artworkUrl,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) {
+              return _buildPlaceholder(context);
+            },
+            loadingBuilder: (context, child, loadingProgress) {
+              if (loadingProgress == null) return child;
+              return _buildPlaceholder(context);
+            },
+          ),
+        ),
+      );
+    }
+
+    // No album art available
+    return _buildPlaceholder(context);
+  }
+
+  /// Build placeholder circle avatar
+  Widget _buildPlaceholder(BuildContext context) {
+    return CircleAvatar(
+      backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
+      child: Icon(
+        Icons.music_note,
+        color: Theme.of(context).primaryColor,
+      ),
     );
   }
 

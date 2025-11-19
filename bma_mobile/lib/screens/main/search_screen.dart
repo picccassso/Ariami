@@ -63,8 +63,22 @@ class _SearchScreenState extends State<SearchScreen> {
 
       final library = await _connectionService.apiClient!.getLibrary();
 
+      // Collect all songs: standalone songs + songs from albums
+      final allSongs = <SongModel>[...library.songs];
+
+      // Fetch songs from each album for comprehensive search
+      for (final album in library.albums) {
+        try {
+          final albumDetail = await _connectionService.apiClient!.getAlbumDetail(album.id);
+          allSongs.addAll(albumDetail.songs);
+        } catch (e) {
+          // If fetching album detail fails, skip it
+          print('[SearchScreen] Failed to load album ${album.id}: $e');
+        }
+      }
+
       setState(() {
-        _allSongs = library.songs;
+        _allSongs = allSongs;
         _allAlbums = library.albums;
         _isLoading = false;
       });
