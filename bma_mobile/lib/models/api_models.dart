@@ -57,7 +57,7 @@ class ConnectResponse {
       status: json['status'] as String,
       sessionId: json['sessionId'] as String,
       serverVersion: json['serverVersion'] as String,
-      features: (json['features'] as List<dynamic>).cast<String>(),
+      features: (json['features'] as List<dynamic>? ?? []).cast<String>(),
     );
   }
 
@@ -244,16 +244,16 @@ class LibraryResponse {
 
   factory LibraryResponse.fromJson(Map<String, dynamic> json) {
     return LibraryResponse(
-      albums: (json['albums'] as List<dynamic>)
+      albums: (json['albums'] as List<dynamic>? ?? [])
           .map((e) => AlbumModel.fromJson(e as Map<String, dynamic>))
           .toList(),
-      songs: (json['songs'] as List<dynamic>)
+      songs: (json['songs'] as List<dynamic>? ?? [])
           .map((e) => SongModel.fromJson(e as Map<String, dynamic>))
           .toList(),
-      playlists: (json['playlists'] as List<dynamic>)
+      playlists: (json['playlists'] as List<dynamic>? ?? [])
           .map((e) => PlaylistModel.fromJson(e as Map<String, dynamic>))
           .toList(),
-      lastUpdated: json['lastUpdated'] as String,
+      lastUpdated: json['lastUpdated'] as String? ?? '',
     );
   }
 
@@ -273,6 +273,7 @@ class AlbumDetailResponse {
   final String title;
   final String artist;
   final String? year;
+  final String? coverArt;
   final List<SongModel> songs;
 
   AlbumDetailResponse({
@@ -280,6 +281,7 @@ class AlbumDetailResponse {
     required this.title,
     required this.artist,
     this.year,
+    this.coverArt,
     required this.songs,
   });
 
@@ -289,7 +291,8 @@ class AlbumDetailResponse {
       title: json['title'] as String,
       artist: json['artist'] as String,
       year: json['year'] as String?,
-      songs: (json['songs'] as List<dynamic>)
+      coverArt: json['coverArt'] as String?,
+      songs: (json['songs'] as List<dynamic>? ?? [])
           .map((e) => SongModel.fromJson(e as Map<String, dynamic>))
           .toList(),
     );
@@ -301,6 +304,7 @@ class AlbumDetailResponse {
       'title': title,
       'artist': artist,
       'year': year,
+      'coverArt': coverArt,
       'songs': songs.map((e) => e.toJson()).toList(),
     };
   }

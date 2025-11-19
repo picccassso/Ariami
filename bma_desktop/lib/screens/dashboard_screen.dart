@@ -34,6 +34,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final prefs = await SharedPreferences.getInstance();
     _musicFolderPath = prefs.getString('music_folder_path');
 
+    // Fix existing bad paths with /Volumes/Macintosh HD prefix
+    if (_musicFolderPath != null && _musicFolderPath!.startsWith('/Volumes/Macintosh HD')) {
+      _musicFolderPath = _musicFolderPath!.replaceFirst('/Volumes/Macintosh HD', '');
+      await prefs.setString('music_folder_path', _musicFolderPath!);
+      print('[Dashboard] Fixed bad music folder path: $_musicFolderPath');
+    }
+
     // Get Tailscale IP and server status
     await _updateServerStatus();
 
@@ -53,6 +60,69 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _tailscaleIP = ip;
       _connectedClients = clientCount;
     });
+  }
+
+  Future<void> _rescanLibrary() async {
+    if (_musicFolderPath == null || _musicFolderPath!.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please select a music folder first'),
+            duration: Duration(seconds: 3),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+      return;
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Scanning music library...'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
+
+    print('[Dashboard] Manual rescan triggered: $_musicFolderPath');
+
+    try {
+      await _httpServer.libraryManager.scanMusicFolder(_musicFolderPath!);
+
+      print('[Dashboard] Rescan completed successfully');
+      print('[Dashboard] Library albums: ${_httpServer.libraryManager.library?.totalAlbums ?? 0}');
+      print('[Dashboard] Library songs: ${_httpServer.libraryManager.library?.totalSongs ?? 0}');
+
+      // IMPORTANT: Update UI to reflect new library stats
+      if (mounted) {
+        setState(() {
+          // Trigger rebuild to show updated library statistics
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Scan complete! Found ${_httpServer.libraryManager.library?.totalAlbums ?? 0} albums, '
+              '${_httpServer.libraryManager.library?.totalSongs ?? 0} songs',
+            ),
+            duration: const Duration(seconds: 3),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      print('[Dashboard] Rescan error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Scan failed: $e'),
+            duration: const Duration(seconds: 3),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _toggleServer() async {
@@ -84,7 +154,44 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }
 
       try {
+        // Start the HTTP server
         await _httpServer.start(tailscaleIp: ip, port: 8080);
+
+        // Debug: Check music folder path
+        print('[Dashboard] Music folder path: "$_musicFolderPath"');
+        print('[Dashboard] Is null: ${_musicFolderPath == null}');
+        print('[Dashboard] Is empty: ${_musicFolderPath?.isEmpty ?? true}');
+
+        // Trigger library scan if music folder is set
+        if (_musicFolderPath != null && _musicFolderPath!.isNotEmpty) {
+          print('[Dashboard] Triggering library scan: $_musicFolderPath');
+          // Scan in background, don't await
+          _httpServer.libraryManager.scanMusicFolder(_musicFolderPath!).then((_) {
+            print('[Dashboard] Library scan completed');
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Music library scan completed'),
+                  duration: Duration(seconds: 2),
+                ),
+              );
+            }
+          }).catchError((e) {
+            print('[Dashboard] Library scan error: $e');
+          });
+        } else {
+          print('[Dashboard] ERROR: Music folder path not set! Cannot scan library.');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Warning: Music folder not set'),
+                duration: Duration(seconds: 3),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          }
+        }
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -107,6 +214,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
 
     await _updateServerStatus();
+  }
+
+  String _formatDateTime(DateTime dateTime) {
+    final now = DateTime.now();
+    final difference = now.difference(dateTime);
+
+    if (difference.inSeconds < 60) {
+      return 'Just now';
+    } else if (difference.inMinutes < 60) {
+      return '${difference.inMinutes} min ago';
+    } else if (difference.inHours < 24) {
+      return '${difference.inHours} hours ago';
+    } else {
+      return '${dateTime.day}/${dateTime.month}/${dateTime.year} ${dateTime.hour}:${dateTime.minute.toString().padLeft(2, '0')}';
+    }
   }
 
   Widget _buildInfoCard({
@@ -231,6 +353,42 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                   const SizedBox(height: 32),
 
+                  // Library Statistics
+                  const Text(
+                    'Library Statistics',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  _buildInfoCard(
+                    title: 'Albums',
+                    value: _httpServer.libraryManager.library?.totalAlbums.toString() ?? '0',
+                    icon: Icons.album,
+                    valueColor: (_httpServer.libraryManager.library?.totalAlbums ?? 0) > 0
+                        ? Colors.blue
+                        : Colors.grey,
+                  ),
+                  const SizedBox(height: 16),
+                  _buildInfoCard(
+                    title: 'Songs',
+                    value: _httpServer.libraryManager.library?.totalSongs.toString() ?? '0',
+                    icon: Icons.music_note,
+                    valueColor: (_httpServer.libraryManager.library?.totalSongs ?? 0) > 0
+                        ? Colors.blue
+                        : Colors.grey,
+                  ),
+                  const SizedBox(height: 16),
+                  _buildInfoCard(
+                    title: 'Last Scan',
+                    value: _httpServer.libraryManager.lastScanTime != null
+                        ? _formatDateTime(_httpServer.libraryManager.lastScanTime!)
+                        : 'Never',
+                    icon: Icons.access_time,
+                  ),
+                  const SizedBox(height: 32),
+
                   // Quick Actions
                   const Text(
                     'Quick Actions',
@@ -268,6 +426,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         ),
                       ),
                     ],
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: _musicFolderPath != null && _musicFolderPath!.isNotEmpty
+                          ? _rescanLibrary
+                          : null,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Rescan Music Library'),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        backgroundColor: Colors.blue,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
                   ),
                 ],
               ),

@@ -35,16 +35,39 @@ class _FolderSelectionScreenState extends State<FolderSelectionScreen> {
     });
 
     try {
-      String? selectedDirectory = await FilePicker.platform.getDirectoryPath();
+      // Use confirmDialogText to force user interaction for macOS permissions
+      String? selectedDirectory = await FilePicker.platform.getDirectoryPath(
+        dialogTitle: 'Select Music Folder',
+        lockParentWindow: true,
+      );
 
       if (selectedDirectory != null) {
+        // Fix macOS path issue: Remove /Volumes/Macintosh HD prefix if present
+        String fixedPath = selectedDirectory;
+        if (fixedPath.startsWith('/Volumes/Macintosh HD')) {
+          fixedPath = fixedPath.replaceFirst('/Volumes/Macintosh HD', '');
+          print('[FolderSelection] Fixed path: $selectedDirectory -> $fixedPath');
+        }
+
         setState(() {
-          _selectedFolderPath = selectedDirectory;
+          _selectedFolderPath = fixedPath;
         });
 
         // Save to shared preferences
         final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('music_folder_path', selectedDirectory);
+        await prefs.setString('music_folder_path', fixedPath);
+
+        print('[FolderSelection] Saved music folder path: $fixedPath');
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Folder selected successfully! You can now scan your library.'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {

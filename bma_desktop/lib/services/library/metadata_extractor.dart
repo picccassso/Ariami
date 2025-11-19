@@ -1,10 +1,12 @@
 import 'dart:io';
 import 'package:dart_tags/dart_tags.dart';
+import 'package:audioplayers/audioplayers.dart';
 import '../../models/song_metadata.dart';
 
 /// Service for extracting metadata from audio files
 class MetadataExtractor {
   final TagProcessor _tagProcessor = TagProcessor();
+  AudioPlayer? _durationPlayer;
 
   /// Extracts metadata from a single audio file
   ///
@@ -38,6 +40,11 @@ class MetadataExtractor {
         // Try to extract common fields
         final tagMap = tag.tags;
 
+        // DEBUG: Print all available tag keys for first file
+        if (title == null) {
+          print('[MetadataExtractor] Available tag keys: ${tagMap.keys.toList()}');
+        }
+
         title = title ?? _getTagValue(tagMap, ['title', 'TIT2']);
         artist = artist ?? _getTagValue(tagMap, ['artist', 'TPE1']);
         album = album ?? _getTagValue(tagMap, ['album', 'TALB']);
@@ -69,15 +76,52 @@ class MetadataExtractor {
           ); // Handle "1/2" format
         }
 
-        // Extract duration (in seconds)
-        // Note: dart_tags doesn't provide easy access to duration
-        // Duration will remain null for now
+        // Extract duration using audioplayers
+        duration ??= await _extractDuration(filePath);
 
         // Extract album art
         if (albumArt == null) {
-          final picture = _getTagValue(tagMap, ['picture', 'APIC']);
-          if (picture != null && picture is List) {
-            albumArt = List<int>.from(picture);
+          // Try multiple possible keys for album art
+          final picture = _getTagValue(tagMap, ['picture', 'APIC', 'PIC', 'METADATA_BLOCK_PICTURE']);
+
+          if (picture != null) {
+            if (picture is List) {
+              albumArt = List<int>.from(picture);
+              print('[MetadataExtractor] ✅ Found album art (${albumArt!.length} bytes)');
+            } else if (picture is Map) {
+              // dart_tags returns picture as Map with picture type as key
+              // e.g., {"Cover (front)": AttachedPicture}
+              final pictureKeys = picture.keys.toList();
+              print('[MetadataExtractor] Picture Map keys: $pictureKeys');
+
+              // Try to get the first value (usually the image data)
+              if (pictureKeys.isNotEmpty) {
+                final imageData = picture[pictureKeys.first];
+                print('[MetadataExtractor] Image data type: ${imageData?.runtimeType}');
+
+                if (imageData is List) {
+                  albumArt = List<int>.from(imageData);
+                  print('[MetadataExtractor] ✅ Found album art from Map (${albumArt!.length} bytes)');
+                } else {
+                  // It's an AttachedPicture object - get the imageData property
+                  try {
+                    // Access imageData property via reflection
+                    final dynamic attachedPicture = imageData;
+                    final pictureData = attachedPicture.imageData;
+                    if (pictureData is List) {
+                      albumArt = List<int>.from(pictureData);
+                      print('[MetadataExtractor] ✅ Found album art from AttachedPicture (${albumArt!.length} bytes)');
+                    } else {
+                      print('[MetadataExtractor] ⚠️ AttachedPicture.imageData is not a List: ${pictureData?.runtimeType}');
+                    }
+                  } catch (e) {
+                    print('[MetadataExtractor] ⚠️ Error extracting from AttachedPicture: $e');
+                  }
+                }
+              }
+            } else {
+              print('[MetadataExtractor] ⚠️ Unexpected picture format: ${picture.runtimeType}');
+            }
           }
         }
       }
@@ -226,5 +270,39 @@ class MetadataExtractor {
       return fileName;
     }
     return fileName.substring(0, lastDot);
+  }
+
+  /// Extract audio duration using audioplayers
+  Future<int?> _extractDuration(String filePath) async {
+    try {
+      // Reuse the same player instance to avoid channel conflicts
+      _durationPlayer ??= AudioPlayer();
+
+      await _durationPlayer!.setSourceDeviceFile(filePath);
+
+      // Wait for duration to be available
+      await Future.delayed(const Duration(milliseconds: 150));
+
+      final duration = await _durationPlayer!.getDuration();
+
+      // Release the source but don't stop/dispose (causes channel errors)
+      await _durationPlayer!.release();
+
+      return duration?.inSeconds;
+    } catch (e) {
+      // If duration extraction fails, return null silently
+      return null;
+    }
+  }
+
+  /// Cleanup method to dispose of the audio player
+  /// Call this when done extracting metadata for all files
+  Future<void> dispose() async {
+    try {
+      await _durationPlayer?.dispose();
+      _durationPlayer = null;
+    } catch (e) {
+      // Ignore disposal errors
+    }
   }
 }

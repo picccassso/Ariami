@@ -45,13 +45,14 @@ class ApiClient {
   /// Get complete music library
   Future<LibraryResponse> getLibrary() async {
     final response = await _get('/library');
+    print('[ApiClient] Library response: $response');
     return LibraryResponse.fromJson(response);
   }
 
   /// Get all albums
   Future<List<AlbumModel>> getAlbums() async {
     final response = await _get('/albums');
-    final albums = (response['albums'] as List<dynamic>)
+    final albums = (response['albums'] as List<dynamic>? ?? [])
         .map((e) => AlbumModel.fromJson(e as Map<String, dynamic>))
         .toList();
     return albums;
@@ -66,7 +67,7 @@ class ApiClient {
   /// Get all songs
   Future<List<SongModel>> getSongs() async {
     final response = await _get('/songs');
-    final songs = (response['songs'] as List<dynamic>)
+    final songs = (response['songs'] as List<dynamic>? ?? [])
         .map((e) => SongModel.fromJson(e as Map<String, dynamic>))
         .toList();
     return songs;

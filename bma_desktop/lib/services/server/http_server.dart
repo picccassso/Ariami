@@ -7,6 +7,7 @@ import 'package:shelf_web_socket/shelf_web_socket.dart';
 import 'connection_manager.dart';
 import 'streaming_service.dart';
 import '../../models/websocket_models.dart';
+import '../library/library_manager.dart';
 
 /// HTTP server for BMA desktop application (Singleton)
 class BmaHttpServer {
@@ -18,6 +19,7 @@ class BmaHttpServer {
   HttpServer? _server;
   final ConnectionManager _connectionManager = ConnectionManager();
   final StreamingService _streamingService = StreamingService();
+  final LibraryManager _libraryManager = LibraryManager();
   String? _tailscaleIp;
   int _port = 8080;
   final List<dynamic> _webSocketClients = [];
@@ -106,7 +108,9 @@ class BmaHttpServer {
     // Library endpoints
     router.get('/api/library', _handleGetLibrary);
     router.get('/api/albums', _handleGetAlbums);
+    router.get('/api/albums/<albumId>', _handleGetAlbumDetail);
     router.get('/api/songs', _handleGetSongs);
+    router.get('/api/artwork/<albumId>', _handleGetArtwork);
 
     // Streaming endpoint - captures everything after /api/stream/
     router.get('/api/stream/<path|.*>', _handleStream);
@@ -256,14 +260,18 @@ class BmaHttpServer {
     }
   }
 
-  /// Handle get library request (placeholder for Phase 5)
+  /// Handle get library request
   Response _handleGetLibrary(Request request) {
+    final baseUrl = 'http://$_tailscaleIp:$_port';
+    final libraryJson = _libraryManager.toApiJson(baseUrl);
+
+    // Debug logging
+    print('[HttpServer] Library request - Albums: ${(libraryJson['albums'] as List).length}, Songs: ${(libraryJson['songs'] as List).length}');
+    print('[HttpServer] Library manager has library: ${_libraryManager.library != null}');
+    print('[HttpServer] Last scan time: ${_libraryManager.lastScanTime}');
+
     return Response.ok(
-      jsonEncode({
-        'albums': [],
-        'totalSongs': 0,
-        'timestamp': DateTime.now().toIso8601String(),
-      }),
+      jsonEncode(libraryJson),
       headers: {'Content-Type': 'application/json'},
     );
   }
@@ -290,6 +298,64 @@ class BmaHttpServer {
     );
   }
 
+  /// Handle get album detail request
+  Response _handleGetAlbumDetail(Request request, String albumId) {
+    final baseUrl = 'http://$_tailscaleIp:$_port';
+    final albumDetail = _libraryManager.getAlbumDetail(albumId, baseUrl);
+
+    if (albumDetail == null) {
+      return Response.notFound(
+        jsonEncode({
+          'error': {
+            'code': 'ALBUM_NOT_FOUND',
+            'message': 'Album not found: $albumId',
+          },
+        }),
+        headers: {'Content-Type': 'application/json'},
+      );
+    }
+
+    return Response.ok(
+      jsonEncode(albumDetail),
+      headers: {'Content-Type': 'application/json'},
+    );
+  }
+
+  /// Handle get album artwork request
+  Response _handleGetArtwork(Request request, String albumId) {
+    print('[HttpServer] ========== GET ARTWORK ==========');
+    print('[HttpServer] Album ID: $albumId');
+
+    final artworkData = _libraryManager.getAlbumArtwork(albumId);
+
+    if (artworkData == null) {
+      print('[HttpServer] ERROR: Artwork not found for album: $albumId');
+      print('[HttpServer] =====================================');
+      return Response.notFound(
+        jsonEncode({
+          'error': {
+            'code': 'ARTWORK_NOT_FOUND',
+            'message': 'Artwork not found for album: $albumId',
+          },
+        }),
+        headers: {'Content-Type': 'application/json'},
+      );
+    }
+
+    print('[HttpServer] Artwork found! Size: ${artworkData.length} bytes');
+    print('[HttpServer] Returning image/jpeg');
+    print('[HttpServer] =====================================');
+
+    // Return the image data (usually JPEG or PNG)
+    return Response.ok(
+      artworkData,
+      headers: {
+        'Content-Type': 'image/jpeg', // Most album art is JPEG
+        'Cache-Control': 'public, max-age=31536000', // Cache for 1 year
+      },
+    );
+  }
+
   /// Handle stream request
   Future<Response> _handleStream(Request request, String path) async {
     // Validate path is provided
@@ -297,15 +363,25 @@ class BmaHttpServer {
       return Response.badRequest(
         body: jsonEncode({
           'error': 'Invalid request',
-          'message': 'File path is required',
+          'message': 'Song ID is required',
         }),
         headers: {'Content-Type': 'application/json'},
       );
     }
 
-    // For now, treat path parameter as file path
-    // In future phases, this will look up the file path from database by song ID
-    final File audioFile = File(path);
+    // Look up file path from library by song ID
+    final filePath = _libraryManager.getSongFilePath(path);
+    if (filePath == null) {
+      return Response.notFound(
+        jsonEncode({
+          'error': 'Song not found',
+          'message': 'Song ID not found in library: $path',
+        }),
+        headers: {'Content-Type': 'application/json'},
+      );
+    }
+
+    final File audioFile = File(filePath);
 
     // Check if file exists
     if (!await audioFile.exists()) {
@@ -422,4 +498,7 @@ class BmaHttpServer {
 
   /// Get connection manager
   ConnectionManager get connectionManager => _connectionManager;
+
+  /// Get library manager
+  LibraryManager get libraryManager => _libraryManager;
 }

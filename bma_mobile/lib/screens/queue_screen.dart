@@ -48,7 +48,7 @@ class _QueueScreenState extends State<QueueScreen> {
           if (widget.queue.isNotEmpty)
             Container(
               padding: const EdgeInsets.all(16),
-              color: Theme.of(context).colorScheme.surfaceVariant,
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [

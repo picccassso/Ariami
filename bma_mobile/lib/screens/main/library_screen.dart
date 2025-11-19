@@ -1,47 +1,379 @@
 import 'package:flutter/material.dart';
+import '../../models/api_models.dart';
+import '../../services/api/connection_service.dart';
+import '../../widgets/library/collapsible_section.dart';
+import '../../widgets/library/album_grid_item.dart';
+import '../../widgets/library/song_list_item.dart';
+import '../../widgets/library/playlist_card.dart';
+import '../album_detail_screen.dart';
 
-class LibraryScreen extends StatelessWidget {
+/// Main library screen with collapsible sections for Playlists, Albums, and Songs
+class LibraryScreen extends StatefulWidget {
   const LibraryScreen({super.key});
+
+  @override
+  State<LibraryScreen> createState() => _LibraryScreenState();
+}
+
+class _LibraryScreenState extends State<LibraryScreen> {
+  final ConnectionService _connectionService = ConnectionService();
+
+  List<PlaylistModel> _playlists = [];
+  List<AlbumModel> _albums = [];
+  List<SongModel> _songs = [];
+
+  bool _isLoading = true;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLibrary();
+  }
+
+  /// Load library data from server
+  Future<void> _loadLibrary() async {
+    if (_connectionService.apiClient == null) {
+      setState(() {
+        _isLoading = false;
+        _errorMessage = 'Not connected to server';
+      });
+      return;
+    }
+
+    try {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+
+      print('[LibraryScreen] Fetching library from server...');
+      final library = await _connectionService.apiClient!.getLibrary();
+      print('[LibraryScreen] Library loaded successfully');
+      print('[LibraryScreen] Playlists: ${library.playlists.length}');
+      print('[LibraryScreen] Albums: ${library.albums.length}');
+      print('[LibraryScreen] Songs: ${library.songs.length}');
+
+      setState(() {
+        _playlists = library.playlists;
+        _albums = library.albums;
+        _songs = library.songs;
+        _isLoading = false;
+      });
+    } catch (e, stackTrace) {
+      print('[LibraryScreen] ERROR loading library: $e');
+      print('[LibraryScreen] Stack trace: $stackTrace');
+      setState(() {
+        _isLoading = false;
+        _errorMessage = 'Failed to load library: $e';
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Library'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadLibrary,
+            tooltip: 'Refresh Library',
+          ),
+        ],
       ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+      body: _buildBody(),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_isLoading) {
+      return const Center(
+        child: CircularProgressIndicator(),
+      );
+    }
+
+    if (_errorMessage != null) {
+      return _buildErrorState();
+    }
+
+    if (_playlists.isEmpty && _albums.isEmpty && _songs.isEmpty) {
+      return _buildEmptyState();
+    }
+
+    return RefreshIndicator(
+      onRefresh: _loadLibrary,
+      child: CustomScrollView(
+        slivers: [
+          // Playlists Section
+          SliverToBoxAdapter(
+            child: CollapsibleSection(
+              title: 'Playlists',
+              initiallyExpanded: true,
+              child: _buildPlaylistsGrid(),
+            ),
+          ),
+
+          // Albums Section
+          SliverToBoxAdapter(
+            child: CollapsibleSection(
+              title: 'Albums',
+              initiallyExpanded: true,
+              child: _buildAlbumsGrid(),
+            ),
+          ),
+
+          // Songs Section
+          SliverToBoxAdapter(
+            child: CollapsibleSection(
+              title: 'Songs',
+              initiallyExpanded: false,
+              child: _buildSongsList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Build playlists grid
+  Widget _buildPlaylistsGrid() {
+    if (_playlists.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: GridView.count(
+          crossAxisCount: 2,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          mainAxisSpacing: 16,
+          crossAxisSpacing: 16,
+          childAspectRatio: 0.85,
           children: [
-            Icon(
-              Icons.library_music,
-              size: 100,
-              color: Colors.grey[400],
-            ),
-            const SizedBox(height: 24),
-            Text(
-              'Your Music Library',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Colors.grey[700],
-              ),
-            ),
-            const SizedBox(height: 16),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 40.0),
-              child: Text(
-                'Your music collection will appear here',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey[600],
-                ),
-                textAlign: TextAlign.center,
-              ),
+            CreatePlaylistCard(
+              onTap: _createNewPlaylist,
             ),
           ],
         ),
+      );
+    }
+
+    // Playlists exist - show Create New + playlists
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: _getGridColumnCount(context),
+          mainAxisSpacing: 16,
+          crossAxisSpacing: 16,
+          childAspectRatio: 0.85,
+        ),
+        itemCount: _playlists.length + 1, // +1 for Create New
+        itemBuilder: (context, index) {
+          if (index == 0) {
+            // First item is "Create New Playlist"
+            return CreatePlaylistCard(
+              onTap: _createNewPlaylist,
+            );
+          }
+
+          final playlist = _playlists[index - 1];
+          return PlaylistCard(
+            playlist: playlist,
+            onTap: () => _openPlaylist(playlist),
+          );
+        },
       ),
     );
+  }
+
+  /// Build albums grid
+  Widget _buildAlbumsGrid() {
+    if (_albums.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.all(16.0),
+        child: Text(
+          'No albums found',
+          style: TextStyle(color: Colors.grey),
+          textAlign: TextAlign.center,
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: _getGridColumnCount(context),
+          mainAxisSpacing: 16,
+          crossAxisSpacing: 16,
+          childAspectRatio: 0.75,
+        ),
+        itemCount: _albums.length,
+        itemBuilder: (context, index) {
+          final album = _albums[index];
+          return AlbumGridItem(
+            album: album,
+            onTap: () => _openAlbum(album),
+          );
+        },
+      ),
+    );
+  }
+
+  /// Build songs list
+  Widget _buildSongsList() {
+    if (_songs.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.all(16.0),
+        child: Text(
+          'No standalone songs found',
+          style: TextStyle(color: Colors.grey),
+          textAlign: TextAlign.center,
+        ),
+      );
+    }
+
+    return ListView.separated(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: _songs.length,
+      separatorBuilder: (context, index) => Divider(
+        height: 1,
+        color: Colors.grey[300],
+      ),
+      itemBuilder: (context, index) {
+        final song = _songs[index];
+        return SongListItem(
+          song: song,
+          onTap: () => _playSong(song),
+          onLongPress: () => _showSongOptions(song),
+        );
+      },
+    );
+  }
+
+  /// Build error state
+  Widget _buildErrorState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.error_outline,
+            size: 64,
+            color: Colors.grey[400],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            _errorMessage!,
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.grey[600],
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 24),
+          ElevatedButton(
+            onPressed: _loadLibrary,
+            child: const Text('Retry'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Build empty state
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.library_music,
+            size: 100,
+            color: Colors.grey[400],
+          ),
+          const SizedBox(height: 24),
+          Text(
+            'Your Music Library',
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey[700],
+            ),
+          ),
+          const SizedBox(height: 16),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 40.0),
+            child: Text(
+              'Add music to your desktop library to see it here',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey[600],
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Get grid column count based on screen width
+  int _getGridColumnCount(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    if (width > 600) {
+      return 3; // Tablet
+    }
+    return 2; // Phone
+  }
+
+  // ============================================================================
+  // ACTION HANDLERS
+  // ============================================================================
+
+  void _createNewPlaylist() {
+    // TODO: Implement in Task 7.5
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Create playlist feature coming in Task 7.5'),
+      ),
+    );
+  }
+
+  void _openPlaylist(PlaylistModel playlist) {
+    // TODO: Implement in Task 7.5
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Opening "${playlist.name}" - coming in Task 7.5'),
+      ),
+    );
+  }
+
+  void _openAlbum(AlbumModel album) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AlbumDetailScreen(album: album),
+      ),
+    );
+  }
+
+  void _playSong(SongModel song) {
+    // TODO: Connect to existing playback system from Phase 6
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Playing "${song.title}"'),
+      ),
+    );
+  }
+
+  void _showSongOptions(SongModel song) {
+    // Long press handler - menu shown in SongListItem widget
   }
 }

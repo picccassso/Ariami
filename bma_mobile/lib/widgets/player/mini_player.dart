@@ -39,7 +39,7 @@ class MiniPlayer extends StatelessWidget {
     return Container(
       height: 60,
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceVariant,
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.1),
@@ -57,7 +57,7 @@ class MiniPlayer extends StatelessWidget {
                 ? position.inMilliseconds / duration.inMilliseconds
                 : 0.0,
             minHeight: 2,
-            backgroundColor: Theme.of(context).colorScheme.surfaceVariant,
+            backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
             valueColor: AlwaysStoppedAnimation<Color>(
               Theme.of(context).colorScheme.primary,
             ),

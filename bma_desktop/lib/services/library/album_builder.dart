@@ -113,12 +113,32 @@ class AlbumBuilder {
 
   /// Determines if an album is a compilation (Various Artists)
   bool _isCompilation(List<SongMetadata> songs, String albumArtist) {
+    final albumTitle = songs.first.album ?? 'Unknown';
+
     // Check if album artist is "Various Artists"
     if (albumArtist.toLowerCase().contains('various')) {
+      print('[AlbumBuilder] "$albumTitle" -> Various Artists (albumArtist tag)');
       return true;
     }
 
-    // Check if songs have different artists (3+ different artists = compilation)
+    // Check if all songs have the same album artist
+    // If they do, it's NOT a compilation (even if track artists differ due to features)
+    final albumArtists = <String>{};
+    for (final song in songs) {
+      final songAlbumArtist = song.albumArtist?.trim().toLowerCase();
+      if (songAlbumArtist != null && songAlbumArtist.isNotEmpty) {
+        albumArtists.add(songAlbumArtist);
+      }
+    }
+
+    // If all songs have the same album artist, it's not a compilation
+    if (albumArtists.length == 1) {
+      print('[AlbumBuilder] "$albumTitle" -> $albumArtist (consistent albumArtist)');
+      return false;
+    }
+
+    // If album artists are inconsistent or missing, check track artists
+    // Only mark as compilation if there are MANY different artists (5+)
     final artists = <String>{};
     for (final song in songs) {
       final artist = song.artist?.trim();
@@ -127,7 +147,15 @@ class AlbumBuilder {
       }
     }
 
-    return artists.length >= 3;
+    final isCompilation = artists.length >= 5; // Increased threshold from 3 to 5
+    if (isCompilation) {
+      print('[AlbumBuilder] "$albumTitle" -> Various Artists (${artists.length} different track artists)');
+      print('[AlbumBuilder]   Artists: $artists');
+    } else {
+      print('[AlbumBuilder] "$albumTitle" -> $albumArtist (${artists.length} track artists, not a compilation)');
+    }
+
+    return isCompilation;
   }
 
   /// Finds the most common year among songs
