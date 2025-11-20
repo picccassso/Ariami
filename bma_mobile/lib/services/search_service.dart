@@ -1,11 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/api_models.dart';
 
-/// Search service with ranking algorithm and recent searches
+/// Search service with ranking algorithm and recent songs
 class SearchService {
-  static const String _recentSearchesKey = 'recent_searches';
-  static const int _maxRecentSearches = 10;
+  static const String _recentSongsKey = 'recent_songs';
+  static const int _maxRecentSongs = 30;
 
   /// Search songs and albums with ranking algorithm
   /// Returns SearchResults with songs first, then albums
@@ -93,48 +94,67 @@ class SearchService {
   }
 
   // ============================================================================
-  // RECENT SEARCHES
+  // RECENT SONGS
   // ============================================================================
 
-  /// Get recent searches (last 10)
-  Future<List<String>> getRecentSearches() async {
+  /// Get recent songs (last 30)
+  Future<List<SongModel>> getRecentSongs() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getStringList(_recentSearchesKey) ?? [];
+    final jsonList = prefs.getStringList(_recentSongsKey) ?? [];
+
+    return jsonList.map((jsonStr) {
+      final json = jsonDecode(jsonStr) as Map<String, dynamic>;
+      return SongModel.fromJson(json);
+    }).toList();
   }
 
-  /// Add search to recent searches (max 10)
-  Future<void> addRecentSearch(String query) async {
-    if (query.trim().isEmpty) return;
-
+  /// Add song to recent songs (max 30)
+  Future<void> addRecentSong(SongModel song) async {
     final prefs = await SharedPreferences.getInstance();
-    final recent = prefs.getStringList(_recentSearchesKey) ?? [];
+    final jsonList = prefs.getStringList(_recentSongsKey) ?? [];
+
+    // Convert to SongModel list
+    final recentSongs = jsonList.map((jsonStr) {
+      final json = jsonDecode(jsonStr) as Map<String, dynamic>;
+      return SongModel.fromJson(json);
+    }).toList();
 
     // Remove if already exists (to move it to front)
-    recent.remove(query);
+    recentSongs.removeWhere((s) => s.id == song.id);
 
     // Add to front
-    recent.insert(0, query);
+    recentSongs.insert(0, song);
 
-    // Keep only last 10
-    if (recent.length > _maxRecentSearches) {
-      recent.removeRange(_maxRecentSearches, recent.length);
+    // Keep only last 30
+    if (recentSongs.length > _maxRecentSongs) {
+      recentSongs.removeRange(_maxRecentSongs, recentSongs.length);
     }
 
-    await prefs.setStringList(_recentSearchesKey, recent);
+    // Convert back to JSON strings
+    final updatedJsonList = recentSongs.map((s) => jsonEncode(s.toJson())).toList();
+    await prefs.setStringList(_recentSongsKey, updatedJsonList);
   }
 
-  /// Clear all recent searches
-  Future<void> clearRecentSearches() async {
+  /// Clear all recent songs
+  Future<void> clearRecentSongs() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_recentSearchesKey);
+    await prefs.remove(_recentSongsKey);
   }
 
-  /// Remove a specific recent search
-  Future<void> removeRecentSearch(String query) async {
+  /// Remove a specific recent song
+  Future<void> removeRecentSong(String songId) async {
     final prefs = await SharedPreferences.getInstance();
-    final recent = prefs.getStringList(_recentSearchesKey) ?? [];
-    recent.remove(query);
-    await prefs.setStringList(_recentSearchesKey, recent);
+    final jsonList = prefs.getStringList(_recentSongsKey) ?? [];
+
+    final recentSongs = jsonList.map((jsonStr) {
+      final json = jsonDecode(jsonStr) as Map<String, dynamic>;
+      return SongModel.fromJson(json);
+    }).toList();
+
+    recentSongs.removeWhere((s) => s.id == songId);
+
+    final updatedJsonList = recentSongs.map((s) => jsonEncode(s.toJson())).toList();
+    await prefs.setStringList(_recentSongsKey, updatedJsonList);
   }
 }
 

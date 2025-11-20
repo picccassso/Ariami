@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../models/api_models.dart';
+import '../../models/song.dart';
 import '../../services/api/connection_service.dart';
 import '../../services/search_service.dart';
+import '../../services/playback_manager.dart';
 import '../../widgets/search/search_result_song_item.dart';
 import '../../widgets/search/search_result_album_item.dart';
-import '../../widgets/search/recent_search_item.dart';
 import '../album_detail_screen.dart';
 
 /// Search screen with real-time search and recent searches
@@ -18,13 +19,14 @@ class SearchScreen extends StatefulWidget {
 class _SearchScreenState extends State<SearchScreen> {
   final ConnectionService _connectionService = ConnectionService();
   final SearchService _searchService = SearchService();
+  final PlaybackManager _playbackManager = PlaybackManager();
   final DebouncedSearch _debouncer = DebouncedSearch();
   final TextEditingController _searchController = TextEditingController();
 
   List<SongModel> _allSongs = [];
   List<AlbumModel> _allAlbums = [];
   SearchResults? _searchResults;
-  List<String> _recentSearches = [];
+  List<SongModel> _recentSongs = [];
 
   bool _isLoading = false;
   bool _isSearching = false;
@@ -34,7 +36,7 @@ class _SearchScreenState extends State<SearchScreen> {
   void initState() {
     super.initState();
     _loadLibrary();
-    _loadRecentSearches();
+    _loadRecentSongs();
     _searchController.addListener(_onSearchChanged);
   }
 
@@ -69,7 +71,8 @@ class _SearchScreenState extends State<SearchScreen> {
       // Fetch songs from each album for comprehensive search
       for (final album in library.albums) {
         try {
-          final albumDetail = await _connectionService.apiClient!.getAlbumDetail(album.id);
+          final albumDetail = await _connectionService.apiClient!
+              .getAlbumDetail(album.id);
           allSongs.addAll(albumDetail.songs);
         } catch (e) {
           // If fetching album detail fails, skip it
@@ -90,11 +93,11 @@ class _SearchScreenState extends State<SearchScreen> {
     }
   }
 
-  /// Load recent searches from storage
-  Future<void> _loadRecentSearches() async {
-    final recent = await _searchService.getRecentSearches();
+  /// Load recent songs from storage
+  Future<void> _loadRecentSongs() async {
+    final recent = await _searchService.getRecentSongs();
     setState(() {
-      _recentSearches = recent;
+      _recentSongs = recent;
     });
   }
 
@@ -129,10 +132,9 @@ class _SearchScreenState extends State<SearchScreen> {
     });
   }
 
-  /// Execute search from recent searches
-  Future<void> _executeRecentSearch(String query) async {
-    _searchController.text = query;
-    // Search will be triggered by _onSearchChanged listener
+  /// Play song from recent songs
+  Future<void> _playRecentSong(SongModel song) async {
+    await _playSong(song);
   }
 
   /// Clear search
@@ -144,22 +146,16 @@ class _SearchScreenState extends State<SearchScreen> {
     });
   }
 
-  /// Save search to recent searches
-  Future<void> _saveSearch(String query) async {
-    await _searchService.addRecentSearch(query);
-    await _loadRecentSearches();
+  /// Save song to recent songs
+  Future<void> _saveSong(SongModel song) async {
+    await _searchService.addRecentSong(song);
+    await _loadRecentSongs();
   }
 
-  /// Clear all recent searches
-  Future<void> _clearRecentSearches() async {
-    await _searchService.clearRecentSearches();
-    await _loadRecentSearches();
-  }
-
-  /// Remove specific recent search
-  Future<void> _removeRecentSearch(String query) async {
-    await _searchService.removeRecentSearch(query);
-    await _loadRecentSearches();
+  /// Clear all recent songs
+  Future<void> _clearRecentSongs() async {
+    await _searchService.clearRecentSongs();
+    await _loadRecentSongs();
   }
 
   @override
@@ -189,9 +185,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
   Widget _buildBody() {
     if (_isLoading) {
-      return const Center(
-        child: CircularProgressIndicator(),
-      );
+      return const Center(child: CircularProgressIndicator());
     }
 
     if (_errorMessage != null) {
@@ -210,9 +204,7 @@ class _SearchScreenState extends State<SearchScreen> {
   /// Build search results view
   Widget _buildSearchResults() {
     if (_isSearching) {
-      return const Center(
-        child: CircularProgressIndicator(),
-      );
+      return const Center(child: CircularProgressIndicator());
     }
 
     if (_searchResults == null || _searchResults!.isEmpty) {
@@ -234,14 +226,16 @@ class _SearchScreenState extends State<SearchScreen> {
               ),
             ),
           ),
-          ..._searchResults!.songs.map((song) => SearchResultSongItem(
-                song: song,
-                searchQuery: _searchController.text,
-                onTap: () {
-                  _saveSearch(_searchController.text);
-                  _playSong(song);
-                },
-              )),
+          ..._searchResults!.songs.map(
+            (song) => SearchResultSongItem(
+              song: song,
+              searchQuery: _searchController.text,
+              onTap: () {
+                _saveSong(song);
+                _playSong(song);
+              },
+            ),
+          ),
           const SizedBox(height: 16),
         ],
 
@@ -258,22 +252,23 @@ class _SearchScreenState extends State<SearchScreen> {
               ),
             ),
           ),
-          ..._searchResults!.albums.map((album) => SearchResultAlbumItem(
-                album: album,
-                searchQuery: _searchController.text,
-                onTap: () {
-                  _saveSearch(_searchController.text);
-                  _openAlbum(album);
-                },
-              )),
+          ..._searchResults!.albums.map(
+            (album) => SearchResultAlbumItem(
+              album: album,
+              searchQuery: _searchController.text,
+              onTap: () {
+                _openAlbum(album);
+              },
+            ),
+          ),
         ],
       ],
     );
   }
 
-  /// Build recent searches view
+  /// Build recent songs view
   Widget _buildRecentSearches() {
-    if (_recentSearches.isEmpty) {
+    if (_recentSongs.isEmpty) {
       return _buildStartSearchingState();
     }
 
@@ -286,7 +281,7 @@ class _SearchScreenState extends State<SearchScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Recent Searches',
+                'Recently Played',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
@@ -294,22 +289,23 @@ class _SearchScreenState extends State<SearchScreen> {
                 ),
               ),
               TextButton(
-                onPressed: _clearRecentSearches,
+                onPressed: _clearRecentSongs,
                 child: const Text('Clear All'),
               ),
             ],
           ),
         ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0),
-          child: Wrap(
-            children: _recentSearches
-                .map((query) => RecentSearchItem(
-                      query: query,
-                      onTap: () => _executeRecentSearch(query),
-                      onRemove: () => _removeRecentSearch(query),
-                    ))
-                .toList(),
+        Expanded(
+          child: ListView.builder(
+            itemCount: _recentSongs.length,
+            itemBuilder: (context, index) {
+              final song = _recentSongs[index];
+              return SearchResultSongItem(
+                song: song,
+                searchQuery: '',
+                onTap: () => _playRecentSong(song),
+              );
+            },
           ),
         ),
       ],
@@ -322,11 +318,7 @@ class _SearchScreenState extends State<SearchScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.search,
-            size: 100,
-            color: Colors.grey[400],
-          ),
+          Icon(Icons.search, size: 100, color: Colors.grey[400]),
           const SizedBox(height: 24),
           Text(
             'Search Music',
@@ -341,10 +333,7 @@ class _SearchScreenState extends State<SearchScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 40.0),
             child: Text(
               'Search for songs, albums, and artists',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey[600],
-              ),
+              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
               textAlign: TextAlign.center,
             ),
           ),
@@ -359,11 +348,7 @@ class _SearchScreenState extends State<SearchScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.search_off,
-            size: 100,
-            color: Colors.grey[400],
-          ),
+          Icon(Icons.search_off, size: 100, color: Colors.grey[400]),
           const SizedBox(height: 24),
           Text(
             'No Results Found',
@@ -378,10 +363,7 @@ class _SearchScreenState extends State<SearchScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 40.0),
             child: Text(
               'Try searching with different keywords',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey[600],
-              ),
+              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
               textAlign: TextAlign.center,
             ),
           ),
@@ -396,25 +378,15 @@ class _SearchScreenState extends State<SearchScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.error_outline,
-            size: 64,
-            color: Colors.grey[400],
-          ),
+          Icon(Icons.error_outline, size: 64, color: Colors.grey[400]),
           const SizedBox(height: 16),
           Text(
             _errorMessage!,
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.grey[600],
-            ),
+            style: TextStyle(fontSize: 16, color: Colors.grey[600]),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 24),
-          ElevatedButton(
-            onPressed: _loadLibrary,
-            child: const Text('Retry'),
-          ),
+          ElevatedButton(onPressed: _loadLibrary, child: const Text('Retry')),
         ],
       ),
     );
@@ -424,21 +396,28 @@ class _SearchScreenState extends State<SearchScreen> {
   // ACTION HANDLERS
   // ============================================================================
 
-  void _playSong(SongModel song) {
-    // TODO: Connect to existing playback system from Phase 6
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Playing "${song.title}"'),
-      ),
+  Future<void> _playSong(SongModel song) async {
+    // Convert SongModel to Song and play
+    final playSong = Song(
+      id: song.id,
+      title: song.title,
+      artist: song.artist,
+      album: null,
+      albumId: song.albumId,
+      duration: Duration(seconds: song.duration),
+      filePath: song.id,
+      fileSize: 0,
+      modifiedTime: DateTime.now(),
+      trackNumber: song.trackNumber,
     );
+
+    await _playbackManager.playSong(playSong);
   }
 
   void _openAlbum(AlbumModel album) {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => AlbumDetailScreen(album: album),
-      ),
+      MaterialPageRoute(builder: (context) => AlbumDetailScreen(album: album)),
     );
   }
 }

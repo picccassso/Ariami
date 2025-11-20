@@ -4,6 +4,7 @@ class Song {
   final String title;
   final String artist;
   final String? album;
+  final String? albumId;
   final String? albumArtist;
   final int? trackNumber;
   final int? discNumber;
@@ -19,6 +20,7 @@ class Song {
     required this.title,
     required this.artist,
     this.album,
+    this.albumId,
     this.albumArtist,
     this.trackNumber,
     this.discNumber,
@@ -37,6 +39,7 @@ class Song {
       title: json['title'] as String,
       artist: json['artist'] as String,
       album: json['album'] as String?,
+      albumId: json['albumId'] as String?,
       albumArtist: json['albumArtist'] as String?,
       trackNumber: json['trackNumber'] as int?,
       discNumber: json['discNumber'] as int?,
@@ -56,6 +59,7 @@ class Song {
       'title': title,
       'artist': artist,
       'album': album,
+      'albumId': albumId,
       'albumArtist': albumArtist,
       'trackNumber': trackNumber,
       'discNumber': discNumber,
@@ -74,6 +78,7 @@ class Song {
     String? title,
     String? artist,
     String? album,
+    String? albumId,
     String? albumArtist,
     int? trackNumber,
     int? discNumber,
@@ -89,6 +94,7 @@ class Song {
       title: title ?? this.title,
       artist: artist ?? this.artist,
       album: album ?? this.album,
+      albumId: albumId ?? this.albumId,
       albumArtist: albumArtist ?? this.albumArtist,
       trackNumber: trackNumber ?? this.trackNumber,
       discNumber: discNumber ?? this.discNumber,

@@ -87,7 +87,7 @@ class MetadataExtractor {
           if (picture != null) {
             if (picture is List) {
               albumArt = List<int>.from(picture);
-              print('[MetadataExtractor] ✅ Found album art (${albumArt!.length} bytes)');
+              print('[MetadataExtractor] ✅ Found album art (${albumArt.length} bytes)');
             } else if (picture is Map) {
               // dart_tags returns picture as Map with picture type as key
               // e.g., {"Cover (front)": AttachedPicture}
@@ -101,7 +101,7 @@ class MetadataExtractor {
 
                 if (imageData is List) {
                   albumArt = List<int>.from(imageData);
-                  print('[MetadataExtractor] ✅ Found album art from Map (${albumArt!.length} bytes)');
+                  print('[MetadataExtractor] ✅ Found album art from Map (${albumArt.length} bytes)');
                 } else {
                   // It's an AttachedPicture object - get the imageData property
                   try {
@@ -110,7 +110,7 @@ class MetadataExtractor {
                     final pictureData = attachedPicture.imageData;
                     if (pictureData is List) {
                       albumArt = List<int>.from(pictureData);
-                      print('[MetadataExtractor] ✅ Found album art from AttachedPicture (${albumArt!.length} bytes)');
+                      print('[MetadataExtractor] ✅ Found album art from AttachedPicture (${albumArt.length} bytes)');
                     } else {
                       print('[MetadataExtractor] ⚠️ AttachedPicture.imageData is not a List: ${pictureData?.runtimeType}');
                     }

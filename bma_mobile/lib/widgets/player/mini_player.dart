@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../models/song.dart';
+import '../../services/api/connection_service.dart';
 
 /// Mini player widget that appears at the bottom during playback
 class MiniPlayer extends StatelessWidget {
@@ -73,20 +74,8 @@ class MiniPlayer extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 8.0),
                   child: Row(
                     children: [
-                      // Album artwork placeholder
-                      Container(
-                        width: 45,
-                        height: 45,
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.primary.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Icon(
-                          Icons.music_note,
-                          color: Theme.of(context).colorScheme.primary,
-                          size: 24,
-                        ),
-                      ),
+                      // Album artwork
+                      _buildAlbumArt(context),
 
                       const SizedBox(width: 12),
 
@@ -160,6 +149,49 @@ class MiniPlayer extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// Build album artwork widget
+  Widget _buildAlbumArt(BuildContext context) {
+    final connectionService = ConnectionService();
+
+    if (currentSong?.albumId != null && connectionService.apiClient != null) {
+      final artworkUrl = '${connectionService.apiClient!.baseUrl}/artwork/${currentSong!.albumId}';
+
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(4),
+        child: Image.network(
+          artworkUrl,
+          width: 45,
+          height: 45,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) => _buildPlaceholder(context),
+          loadingBuilder: (context, child, loadingProgress) {
+            if (loadingProgress == null) return child;
+            return _buildPlaceholder(context);
+          },
+        ),
+      );
+    }
+
+    return _buildPlaceholder(context);
+  }
+
+  /// Build placeholder artwork
+  Widget _buildPlaceholder(BuildContext context) {
+    return Container(
+      width: 45,
+      height: 45,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Icon(
+        Icons.music_note,
+        color: Theme.of(context).colorScheme.primary,
+        size: 24,
       ),
     );
   }

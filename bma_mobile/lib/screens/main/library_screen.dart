@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../models/api_models.dart';
+import '../../models/song.dart';
 import '../../services/api/connection_service.dart';
+import '../../services/playback_manager.dart';
 import '../../widgets/library/collapsible_section.dart';
 import '../../widgets/library/album_grid_item.dart';
 import '../../widgets/library/song_list_item.dart';
@@ -17,6 +19,7 @@ class LibraryScreen extends StatefulWidget {
 
 class _LibraryScreenState extends State<LibraryScreen> {
   final ConnectionService _connectionService = ConnectionService();
+  final PlaybackManager _playbackManager = PlaybackManager();
 
   List<PlaylistModel> _playlists = [];
   List<AlbumModel> _albums = [];
@@ -364,13 +367,69 @@ class _LibraryScreenState extends State<LibraryScreen> {
     );
   }
 
-  void _playSong(SongModel song) {
-    // TODO: Connect to existing playback system from Phase 6
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Playing "${song.title}"'),
-      ),
+  void _playSong(SongModel song) async {
+    print('==========================================================');
+    print('[LibraryScreen] _playSong called for: ${song.title}');
+    print('[LibraryScreen] Song details - ID: ${song.id}, Artist: ${song.artist}, Duration: ${song.duration}s');
+    print('==========================================================');
+
+    // Show snackbar FIRST to confirm method is called
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Attempting to play "${song.title}"...'),
+          duration: const Duration(seconds: 2),
+          backgroundColor: Colors.blue,
+        ),
+      );
+    }
+
+    // Convert SongModel to Song for playback
+    // NOTE: Using song.id as filePath - desktop server uses ID as file identifier
+    final playSong = Song(
+      id: song.id,
+      title: song.title,
+      artist: song.artist,
+      album: null, // SongModel doesn't have album name, only albumId
+      albumId: song.albumId, // Add albumId for artwork
+      duration: Duration(seconds: song.duration),
+      filePath: song.id, // Use ID as filePath for streaming endpoint
+      fileSize: 0, // Not provided in SongModel
+      modifiedTime: DateTime.now(), // Not provided in SongModel
+      trackNumber: song.trackNumber,
     );
+
+    print('[LibraryScreen] Converted to playback Song model');
+    print('[LibraryScreen] PlaybackManager instance: $_playbackManager');
+    print('[LibraryScreen] About to call playSong()...');
+
+    try {
+      await _playbackManager.playSong(playSong);
+      print('[LibraryScreen] ✅ PlaybackManager.playSong() completed successfully!');
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ Now playing "${song.title}"'),
+            duration: const Duration(seconds: 1),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e, stackTrace) {
+      print('[LibraryScreen] ❌ ERROR in playSong: $e');
+      print('[LibraryScreen] Stack trace: $stackTrace');
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Failed: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
   }
 
   void _showSongOptions(SongModel song) {
