@@ -23,6 +23,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void initState() {
     super.initState();
     _loadData();
+    // Listen for library scan completion
+    _httpServer.libraryManager.addScanCompleteListener(_onLibraryScanComplete);
+  }
+
+  @override
+  void dispose() {
+    _httpServer.libraryManager.removeScanCompleteListener(_onLibraryScanComplete);
+    super.dispose();
+  }
+
+  void _onLibraryScanComplete() {
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   Future<void> _loadData() async {
@@ -47,6 +61,44 @@ class _DashboardScreenState extends State<DashboardScreen> {
     setState(() {
       _isLoading = false;
     });
+
+    // Auto-start server if not already running
+    if (!_httpServer.isRunning) {
+      await _autoStartServer();
+    }
+  }
+
+  /// Automatically start server on app launch
+  Future<void> _autoStartServer() async {
+    final ip = await _tailscaleService.getTailscaleIp();
+    if (ip == null) {
+      print('[Dashboard] Auto-start skipped: Tailscale not connected');
+      return;
+    }
+
+    try {
+      print('[Dashboard] Auto-starting server on $ip:8080');
+      await _httpServer.start(tailscaleIp: ip, port: 8080);
+
+      // Trigger library scan if music folder is set
+      if (_musicFolderPath != null && _musicFolderPath!.isNotEmpty) {
+        print('[Dashboard] Auto-triggering library scan: $_musicFolderPath');
+        _httpServer.libraryManager.scanMusicFolder(_musicFolderPath!).then((_) {
+          print('[Dashboard] Auto library scan completed');
+          if (mounted) {
+            setState(() {});
+          }
+        }).catchError((e) {
+          print('[Dashboard] Auto library scan error: $e');
+        });
+      }
+
+      if (mounted) {
+        setState(() {});
+      }
+    } catch (e) {
+      print('[Dashboard] Auto-start server failed: $e');
+    }
   }
 
   Future<void> _updateServerStatus() async {

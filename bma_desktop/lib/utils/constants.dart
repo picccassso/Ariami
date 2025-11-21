@@ -13,11 +13,9 @@ class AppTheme {
       primary: Colors.white,
       secondary: Colors.white70,
       surface: _darkGrey,
-      background: _pureBlack,
       onPrimary: _pureBlack,
       onSecondary: _pureBlack,
       onSurface: Colors.white,
-      onBackground: Colors.white,
     ),
     appBarTheme: const AppBarTheme(
       backgroundColor: _pureBlack,
@@ -53,11 +51,9 @@ class AppTheme {
       primary: Colors.white,
       secondary: Colors.white70,
       surface: _darkGrey,
-      background: _pureBlack,
       onPrimary: _pureBlack,
       onSecondary: _pureBlack,
       onSurface: Colors.white,
-      onBackground: Colors.white,
     ),
     appBarTheme: const AppBarTheme(
       backgroundColor: _pureBlack,

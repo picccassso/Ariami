@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import '../services/desktop_tailscale_service.dart';
 import '../services/server/http_server.dart';
@@ -58,6 +59,18 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
 
       // Start HTTP server (singleton will prevent double-start)
       await _httpServer.start(tailscaleIp: ip, port: 8080);
+
+      // Trigger library scan if music folder is set
+      final prefs = await SharedPreferences.getInstance();
+      final musicFolderPath = prefs.getString('music_folder_path');
+      if (musicFolderPath != null && musicFolderPath.isNotEmpty) {
+        print('[ConnectionScreen] Triggering library scan: $musicFolderPath');
+        _httpServer.libraryManager.scanMusicFolder(musicFolderPath).then((_) {
+          print('[ConnectionScreen] Library scan completed');
+        }).catchError((e) {
+          print('[ConnectionScreen] Library scan error: $e');
+        });
+      }
 
       setState(() {
         _tailscaleIP = ip;
@@ -152,11 +165,12 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      Text(
+                      SelectableText(
                         _tailscaleIP!,
                         style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
+                          color: Colors.black87,
                         ),
                       ),
                     ],

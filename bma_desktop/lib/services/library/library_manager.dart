@@ -22,8 +22,28 @@ class LibraryManager {
   DateTime? _lastScanTime;
   bool _isScanning = false;
 
+  /// Callbacks to notify when library scan completes
+  final List<void Function()> _onScanCompleteCallbacks = [];
+
   /// Get the current library structure
   LibraryStructure? get library => _library;
+
+  /// Register a callback to be notified when scan completes
+  void addScanCompleteListener(void Function() callback) {
+    _onScanCompleteCallbacks.add(callback);
+  }
+
+  /// Remove a scan complete listener
+  void removeScanCompleteListener(void Function() callback) {
+    _onScanCompleteCallbacks.remove(callback);
+  }
+
+  /// Notify all listeners that scan is complete
+  void _notifyScanComplete() {
+    for (final callback in _onScanCompleteCallbacks) {
+      callback();
+    }
+  }
 
   /// Get the last scan timestamp
   DateTime? get lastScanTime => _lastScanTime;
@@ -91,6 +111,9 @@ class LibraryManager {
       // Clean up the metadata extractor's audio player
       await extractor.dispose();
       print('[LibraryManager] Metadata extractor disposed');
+
+      // Notify listeners that scan is complete
+      _notifyScanComplete();
     } catch (e, stackTrace) {
       print('[LibraryManager] ERROR during scan: $e');
       print('[LibraryManager] Stack trace: $stackTrace');

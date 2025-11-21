@@ -125,14 +125,18 @@ class _FolderSelectionScreenState extends State<FolderSelectionScreen> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Icon(Icons.folder, color: Colors.blue),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 12),
                       Expanded(
-                        child: Text(
+                        child: SelectableText(
                           _selectedFolderPath!,
-                          style: const TextStyle(fontSize: 14),
-                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.black87,
+                          ),
                         ),
                       ),
                     ],
