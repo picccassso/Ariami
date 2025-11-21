@@ -5,6 +5,7 @@ import 'dart:convert';
 import '../services/desktop_tailscale_service.dart';
 import '../services/server/http_server.dart';
 import '../services/desktop_state_service.dart';
+import 'scanning_screen.dart';
 
 class ConnectionScreen extends StatefulWidget {
   const ConnectionScreen({super.key});
@@ -60,23 +61,33 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
       // Start HTTP server (singleton will prevent double-start)
       await _httpServer.start(tailscaleIp: ip, port: 8080);
 
-      // Trigger library scan if music folder is set
+      // Check if we need to scan before showing the QR code
       final prefs = await SharedPreferences.getInstance();
       final musicFolderPath = prefs.getString('music_folder_path');
-      if (musicFolderPath != null && musicFolderPath.isNotEmpty) {
-        print('[ConnectionScreen] Triggering library scan: $musicFolderPath');
-        _httpServer.libraryManager.scanMusicFolder(musicFolderPath).then((_) {
-          print('[ConnectionScreen] Library scan completed');
-        }).catchError((e) {
-          print('[ConnectionScreen] Library scan error: $e');
-        });
+
+      if (musicFolderPath != null && musicFolderPath.isNotEmpty && mounted) {
+        print('[ConnectionScreen] Navigating to scanning screen: $musicFolderPath');
+        // Replace with scanning screen, which will then navigate forward to /connection
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ScanningScreen(
+              musicFolderPath: musicFolderPath,
+              nextRoute: '/connection',
+            ),
+          ),
+        );
+        return; // Don't update state, we're navigating away
       }
 
-      setState(() {
-        _tailscaleIP = ip;
-        _serverStarted = true;
-        _isLoading = false;
-      });
+      // No scan needed, just show QR code
+      if (mounted) {
+        setState(() {
+          _tailscaleIP = ip;
+          _serverStarted = true;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
       setState(() {
         _errorMessage = 'Error starting server: $e';

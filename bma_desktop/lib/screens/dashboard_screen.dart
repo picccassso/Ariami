@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/server/http_server.dart';
 import '../services/desktop_tailscale_service.dart';
+import 'scanning_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -80,21 +81,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
       print('[Dashboard] Auto-starting server on $ip:8080');
       await _httpServer.start(tailscaleIp: ip, port: 8080);
 
-      // Trigger library scan if music folder is set
-      if (_musicFolderPath != null && _musicFolderPath!.isNotEmpty) {
-        print('[Dashboard] Auto-triggering library scan: $_musicFolderPath');
-        _httpServer.libraryManager.scanMusicFolder(_musicFolderPath!).then((_) {
-          print('[Dashboard] Auto library scan completed');
-          if (mounted) {
-            setState(() {});
-          }
-        }).catchError((e) {
-          print('[Dashboard] Auto library scan error: $e');
-        });
-      }
-
       if (mounted) {
         setState(() {});
+      }
+
+      // Navigate to scanning screen if music folder is set and library is empty
+      if (_musicFolderPath != null &&
+          _musicFolderPath!.isNotEmpty &&
+          _httpServer.libraryManager.library == null &&
+          mounted) {
+        print('[Dashboard] Auto-navigating to scanning screen: $_musicFolderPath');
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ScanningScreen(musicFolderPath: _musicFolderPath!),
+          ),
+        );
       }
     } catch (e) {
       print('[Dashboard] Auto-start server failed: $e');
@@ -128,52 +130,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
       return;
     }
 
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Scanning music library...'),
-          duration: Duration(seconds: 2),
-        ),
-      );
-    }
-
     print('[Dashboard] Manual rescan triggered: $_musicFolderPath');
 
-    try {
-      await _httpServer.libraryManager.scanMusicFolder(_musicFolderPath!);
-
-      print('[Dashboard] Rescan completed successfully');
-      print('[Dashboard] Library albums: ${_httpServer.libraryManager.library?.totalAlbums ?? 0}');
-      print('[Dashboard] Library songs: ${_httpServer.libraryManager.library?.totalSongs ?? 0}');
-
-      // IMPORTANT: Update UI to reflect new library stats
-      if (mounted) {
-        setState(() {
-          // Trigger rebuild to show updated library statistics
-        });
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Scan complete! Found ${_httpServer.libraryManager.library?.totalAlbums ?? 0} albums, '
-              '${_httpServer.libraryManager.library?.totalSongs ?? 0} songs',
-            ),
-            duration: const Duration(seconds: 3),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      print('[Dashboard] Rescan error: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Scan failed: $e'),
-            duration: const Duration(seconds: 3),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+    // Navigate to scanning screen
+    if (mounted) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ScanningScreen(musicFolderPath: _musicFolderPath!),
+        ),
+      );
     }
   }
 
