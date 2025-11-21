@@ -321,16 +321,11 @@ class BmaHttpServer {
     );
   }
 
-  /// Handle get album artwork request
-  Response _handleGetArtwork(Request request, String albumId) {
-    print('[HttpServer] ========== GET ARTWORK ==========');
-    print('[HttpServer] Album ID: $albumId');
-
-    final artworkData = _libraryManager.getAlbumArtwork(albumId);
+  /// Handle get album artwork request (lazy extraction with caching)
+  Future<Response> _handleGetArtwork(Request request, String albumId) async {
+    final artworkData = await _libraryManager.getAlbumArtwork(albumId);
 
     if (artworkData == null) {
-      print('[HttpServer] ERROR: Artwork not found for album: $albumId');
-      print('[HttpServer] =====================================');
       return Response.notFound(
         jsonEncode({
           'error': {
@@ -341,10 +336,6 @@ class BmaHttpServer {
         headers: {'Content-Type': 'application/json'},
       );
     }
-
-    print('[HttpServer] Artwork found! Size: ${artworkData.length} bytes');
-    print('[HttpServer] Returning image/jpeg');
-    print('[HttpServer] =====================================');
 
     // Return the image data (usually JPEG or PNG)
     return Response.ok(

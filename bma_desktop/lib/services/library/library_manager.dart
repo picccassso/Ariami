@@ -22,6 +22,15 @@ class LibraryManager {
   DateTime? _lastScanTime;
   bool _isScanning = false;
 
+  /// Cache for lazily extracted album artwork
+  final Map<String, List<int>?> _artworkCache = {};
+
+  /// Cache for lazily extracted song durations (songId -> duration in seconds)
+  final Map<String, int?> _durationCache = {};
+
+  /// Metadata extractor instance for lazy extraction
+  final MetadataExtractor _metadataExtractor = MetadataExtractor();
+
   /// Callbacks to notify when library scan completes
   final List<void Function()> _onScanCompleteCallbacks = [];
 
@@ -98,15 +107,6 @@ class LibraryManager {
       print('[LibraryManager] Albums: ${_library!.totalAlbums}');
       print('[LibraryManager] Standalone songs: ${_library!.standaloneSongs.length}');
       print('[LibraryManager] Total songs: ${_library!.totalSongs}');
-
-      // Debug: Check which albums have artwork
-      print('[LibraryManager] ========== ARTWORK DEBUG ==========');
-      for (final album in _library!.albums.values) {
-        print('[LibraryManager] Album: ${album.title}');
-        print('[LibraryManager]   artworkPath: ${album.artworkPath}');
-        print('[LibraryManager]   Has artwork: ${album.artworkPath != null}');
-      }
-      print('[LibraryManager] ===================================');
 
       // Clean up the metadata extractor's audio player
       await extractor.dispose();
@@ -279,54 +279,62 @@ class LibraryManager {
     return null;
   }
 
-  /// Get album artwork by album ID
-  List<int>? getAlbumArtwork(String albumId) {
-    print('[LibraryManager] ========== GET ALBUM ARTWORK ==========');
-    print('[LibraryManager] Album ID: $albumId');
+  /// Get album artwork by album ID (lazy extraction with caching)
+  Future<List<int>?> getAlbumArtwork(String albumId) async {
+    // Check cache first
+    if (_artworkCache.containsKey(albumId)) {
+      return _artworkCache[albumId];
+    }
 
     if (_library == null) {
-      print('[LibraryManager] ERROR: Library is null');
       return null;
     }
 
     final album = _library!.albums[albumId];
     if (album == null) {
-      print('[LibraryManager] ERROR: Album not found');
       return null;
     }
 
-    print('[LibraryManager] Album found: ${album.title}');
-    print('[LibraryManager] Artwork path: ${album.artworkPath}');
-
-    if (album.artworkPath == null) {
-      print('[LibraryManager] ERROR: No artworkPath for this album');
-      return null;
-    }
-
-    // Find the song with artwork
-    print('[LibraryManager] Searching ${album.songs.length} songs for artwork...');
+    // Try to extract artwork from the first song in the album
     for (final song in album.songs) {
-      print('[LibraryManager]   Checking song: ${song.title}');
-      print('[LibraryManager]     File path: ${song.filePath}');
-      print('[LibraryManager]     Has albumArt: ${song.albumArt != null}');
-      print('[LibraryManager]     AlbumArt size: ${song.albumArt?.length ?? 0} bytes');
-
-      if (song.filePath == album.artworkPath && song.albumArt != null) {
-        print('[LibraryManager] ✅ FOUND ARTWORK! Size: ${song.albumArt!.length} bytes');
-        print('[LibraryManager] =======================================');
-        return song.albumArt;
+      final artwork = await _metadataExtractor.extractArtwork(song.filePath);
+      if (artwork != null) {
+        // Cache and return
+        _artworkCache[albumId] = artwork;
+        return artwork;
       }
     }
 
-    print('[LibraryManager] ERROR: No song matched artworkPath');
-    print('[LibraryManager] =======================================');
+    // No artwork found, cache null to avoid repeated extraction attempts
+    _artworkCache[albumId] = null;
     return null;
+  }
+
+  /// Get song duration by song ID (lazy extraction with caching)
+  Future<int?> getSongDuration(String songId) async {
+    // Check cache first
+    if (_durationCache.containsKey(songId)) {
+      return _durationCache[songId];
+    }
+
+    // Find the song file path
+    final filePath = getSongFilePath(songId);
+    if (filePath == null) {
+      return null;
+    }
+
+    // Extract duration
+    final duration = await _metadataExtractor.extractDuration(filePath);
+    _durationCache[songId] = duration;
+    return duration;
   }
 
   /// Clear library data
   void clear() {
     _library = null;
     _lastScanTime = null;
+    _artworkCache.clear();
+    _durationCache.clear();
     print('[LibraryManager] Library cleared');
   }
 }

@@ -89,14 +89,8 @@ class AlbumBuilder {
     // Find the most common year
     final year = _getMostCommonYear(songs);
 
-    // Find album artwork path (from first song with artwork)
-    String? artworkPath;
-    for (final song in songs) {
-      if (song.albumArt != null) {
-        artworkPath = song.filePath; // We'll use the file path to reference artwork
-        break;
-      }
-    }
+    // Use first song's file path as artwork source (artwork extracted lazily on demand)
+    final artworkPath = songs.isNotEmpty ? songs.first.filePath : null;
 
     // Generate unique ID for the album
     final albumId = _generateAlbumId(albumTitle, finalArtist);

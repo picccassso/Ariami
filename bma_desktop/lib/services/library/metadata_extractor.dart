@@ -6,7 +6,6 @@ import '../../models/song_metadata.dart';
 /// Service for extracting metadata from audio files
 class MetadataExtractor {
   final TagProcessor _tagProcessor = TagProcessor();
-  AudioPlayer? _durationPlayer;
 
   /// Extracts metadata from a single audio file
   ///
@@ -37,13 +36,7 @@ class MetadataExtractor {
       List<int>? albumArt;
 
       for (final tag in tags) {
-        // Try to extract common fields
         final tagMap = tag.tags;
-
-        // DEBUG: Print all available tag keys for first file
-        if (title == null) {
-          print('[MetadataExtractor] Available tag keys: ${tagMap.keys.toList()}');
-        }
 
         title = title ?? _getTagValue(tagMap, ['title', 'TIT2']);
         artist = artist ?? _getTagValue(tagMap, ['artist', 'TPE1']);
@@ -76,54 +69,7 @@ class MetadataExtractor {
           ); // Handle "1/2" format
         }
 
-        // Extract duration using audioplayers
-        duration ??= await _extractDuration(filePath);
-
-        // Extract album art
-        if (albumArt == null) {
-          // Try multiple possible keys for album art
-          final picture = _getTagValue(tagMap, ['picture', 'APIC', 'PIC', 'METADATA_BLOCK_PICTURE']);
-
-          if (picture != null) {
-            if (picture is List) {
-              albumArt = List<int>.from(picture);
-              print('[MetadataExtractor] ✅ Found album art (${albumArt.length} bytes)');
-            } else if (picture is Map) {
-              // dart_tags returns picture as Map with picture type as key
-              // e.g., {"Cover (front)": AttachedPicture}
-              final pictureKeys = picture.keys.toList();
-              print('[MetadataExtractor] Picture Map keys: $pictureKeys');
-
-              // Try to get the first value (usually the image data)
-              if (pictureKeys.isNotEmpty) {
-                final imageData = picture[pictureKeys.first];
-                print('[MetadataExtractor] Image data type: ${imageData?.runtimeType}');
-
-                if (imageData is List) {
-                  albumArt = List<int>.from(imageData);
-                  print('[MetadataExtractor] ✅ Found album art from Map (${albumArt.length} bytes)');
-                } else {
-                  // It's an AttachedPicture object - get the imageData property
-                  try {
-                    // Access imageData property via reflection
-                    final dynamic attachedPicture = imageData;
-                    final pictureData = attachedPicture.imageData;
-                    if (pictureData is List) {
-                      albumArt = List<int>.from(pictureData);
-                      print('[MetadataExtractor] ✅ Found album art from AttachedPicture (${albumArt.length} bytes)');
-                    } else {
-                      print('[MetadataExtractor] ⚠️ AttachedPicture.imageData is not a List: ${pictureData?.runtimeType}');
-                    }
-                  } catch (e) {
-                    print('[MetadataExtractor] ⚠️ Error extracting from AttachedPicture: $e');
-                  }
-                }
-              }
-            } else {
-              print('[MetadataExtractor] ⚠️ Unexpected picture format: ${picture.runtimeType}');
-            }
-          }
-        }
+        // Skip duration and album art extraction during scan - done lazily on demand
       }
 
       // Create metadata object
@@ -272,37 +218,80 @@ class MetadataExtractor {
     return fileName.substring(0, lastDot);
   }
 
-  /// Extract audio duration using audioplayers
-  Future<int?> _extractDuration(String filePath) async {
+  /// Extract audio duration using audioplayers (lazy extraction)
+  ///
+  /// This is called on-demand when duration is requested, not during scan.
+  /// Returns duration in seconds or null if extraction fails.
+  Future<int?> extractDuration(String filePath) async {
     try {
-      // Reuse the same player instance to avoid channel conflicts
-      _durationPlayer ??= AudioPlayer();
+      // Create a fresh player for each extraction to avoid channel conflicts
+      final player = AudioPlayer();
 
-      await _durationPlayer!.setSourceDeviceFile(filePath);
+      await player.setSourceDeviceFile(filePath);
 
       // Wait for duration to be available
-      await Future.delayed(const Duration(milliseconds: 150));
+      Duration? duration;
+      for (int i = 0; i < 10; i++) {
+        duration = await player.getDuration();
+        if (duration != null && duration.inSeconds > 0) break;
+        await Future.delayed(const Duration(milliseconds: 20));
+      }
 
-      final duration = await _durationPlayer!.getDuration();
-
-      // Release the source but don't stop/dispose (causes channel errors)
-      await _durationPlayer!.release();
+      // Dispose the player after use
+      await player.dispose();
 
       return duration?.inSeconds;
     } catch (e) {
-      // If duration extraction fails, return null silently
       return null;
     }
   }
 
-  /// Cleanup method to dispose of the audio player
-  /// Call this when done extracting metadata for all files
+  /// Cleanup method - no longer needed but kept for API compatibility
   Future<void> dispose() async {
+    // No resources to clean up - duration extraction now uses fresh players
+  }
+
+  /// Extracts album artwork from a single audio file (lazy extraction)
+  ///
+  /// This is called on-demand when artwork is requested, not during scan.
+  /// Returns the artwork bytes or null if no artwork found.
+  Future<List<int>?> extractArtwork(String filePath) async {
     try {
-      await _durationPlayer?.dispose();
-      _durationPlayer = null;
+      final file = File(filePath);
+      final tags = await _tagProcessor.getTagsFromByteArray(file.readAsBytes());
+
+      for (final tag in tags) {
+        final tagMap = tag.tags;
+        final picture = _getTagValue(tagMap, ['picture', 'APIC', 'PIC', 'METADATA_BLOCK_PICTURE']);
+
+        if (picture != null) {
+          if (picture is List) {
+            return List<int>.from(picture);
+          } else if (picture is Map) {
+            final pictureKeys = picture.keys.toList();
+            if (pictureKeys.isNotEmpty) {
+              final imageData = picture[pictureKeys.first];
+              if (imageData is List) {
+                return List<int>.from(imageData);
+              } else {
+                // It's an AttachedPicture object - get the imageData property
+                try {
+                  final dynamic attachedPicture = imageData;
+                  final pictureData = attachedPicture.imageData;
+                  if (pictureData is List) {
+                    return List<int>.from(pictureData);
+                  }
+                } catch (e) {
+                  // Failed to extract from AttachedPicture
+                }
+              }
+            }
+          }
+        }
+      }
+      return null;
     } catch (e) {
-      // Ignore disposal errors
+      return null;
     }
   }
 }
