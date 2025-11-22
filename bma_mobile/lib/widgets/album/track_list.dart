@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../models/api_models.dart';
+import '../../screens/playlist/add_to_playlist_screen.dart';
 
 /// Track list item for album detail view
 /// Shows track number, title, duration, and overflow menu
@@ -153,9 +154,8 @@ class TrackListItem extends StatelessWidget {
         // TODO: Integrate with playback queue
         break;
       case 'add_playlist':
-        message = 'Add to playlist - coming in Task 7.5';
-        // TODO: Implement in Task 7.5
-        break;
+        AddToPlaylistScreen.showForSong(context, track.id, albumId: track.albumId);
+        return; // Don't show snackbar
       default:
         return;
     }

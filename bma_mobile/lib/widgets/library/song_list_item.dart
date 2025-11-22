@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../models/api_models.dart';
+import '../../screens/playlist/add_to_playlist_screen.dart';
 
 /// Song list item widget
 /// Displays song title, artist, and duration in a list row
@@ -112,7 +113,7 @@ class SongListItem extends StatelessWidget {
                 title: const Text('Add to Playlist'),
                 onTap: () {
                   Navigator.pop(context);
-                  // TODO: Add to playlist functionality (Task 7.5)
+                  AddToPlaylistScreen.showForSong(context, song.id, albumId: song.albumId);
                 },
               ),
               ListTile(

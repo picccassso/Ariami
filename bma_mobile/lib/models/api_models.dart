@@ -195,26 +195,44 @@ class SongModel {
   }
 }
 
-/// Playlist information
+/// Playlist information (full model for local storage)
 class PlaylistModel {
   final String id;
   final String name;
-  final int songCount;
-  final int duration; // in seconds
+  final String? description;
+  final List<String> songIds;
+  /// Map of songId to albumId for artwork lookup
+  final Map<String, String> songAlbumIds;
+  final DateTime createdAt;
+  final DateTime modifiedAt;
 
   PlaylistModel({
     required this.id,
     required this.name,
-    required this.songCount,
-    required this.duration,
+    this.description,
+    required this.songIds,
+    this.songAlbumIds = const {},
+    required this.createdAt,
+    required this.modifiedAt,
   });
+
+  /// Computed property: number of songs
+  int get songCount => songIds.length;
 
   factory PlaylistModel.fromJson(Map<String, dynamic> json) {
     return PlaylistModel(
       id: json['id'] as String,
       name: json['name'] as String,
-      songCount: json['songCount'] as int,
-      duration: json['duration'] as int,
+      description: json['description'] as String?,
+      songIds: (json['songIds'] as List<dynamic>? ?? []).cast<String>(),
+      songAlbumIds: (json['songAlbumIds'] as Map<String, dynamic>? ?? {})
+          .map((k, v) => MapEntry(k, v as String)),
+      createdAt: json['createdAt'] != null
+          ? DateTime.parse(json['createdAt'] as String)
+          : DateTime.now(),
+      modifiedAt: json['modifiedAt'] != null
+          ? DateTime.parse(json['modifiedAt'] as String)
+          : DateTime.now(),
     );
   }
 
@@ -222,9 +240,33 @@ class PlaylistModel {
     return {
       'id': id,
       'name': name,
-      'songCount': songCount,
-      'duration': duration,
+      'description': description,
+      'songIds': songIds,
+      'songAlbumIds': songAlbumIds,
+      'createdAt': createdAt.toIso8601String(),
+      'modifiedAt': modifiedAt.toIso8601String(),
     };
+  }
+
+  /// Create a copy with updated fields
+  PlaylistModel copyWith({
+    String? id,
+    String? name,
+    String? description,
+    List<String>? songIds,
+    Map<String, String>? songAlbumIds,
+    DateTime? createdAt,
+    DateTime? modifiedAt,
+  }) {
+    return PlaylistModel(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      description: description ?? this.description,
+      songIds: songIds ?? this.songIds,
+      songAlbumIds: songAlbumIds ?? this.songAlbumIds,
+      createdAt: createdAt ?? this.createdAt,
+      modifiedAt: modifiedAt ?? this.modifiedAt,
+    );
   }
 }
 

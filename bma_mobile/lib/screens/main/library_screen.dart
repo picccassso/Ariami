@@ -3,11 +3,14 @@ import '../../models/api_models.dart';
 import '../../models/song.dart';
 import '../../services/api/connection_service.dart';
 import '../../services/playback_manager.dart';
+import '../../services/playlist_service.dart';
 import '../../widgets/library/collapsible_section.dart';
 import '../../widgets/library/album_grid_item.dart';
 import '../../widgets/library/song_list_item.dart';
 import '../../widgets/library/playlist_card.dart';
 import '../album_detail_screen.dart';
+import '../playlist/create_playlist_screen.dart';
+import '../playlist/playlist_detail_screen.dart';
 
 /// Main library screen with collapsible sections for Playlists, Albums, and Songs
 class LibraryScreen extends StatefulWidget {
@@ -20,8 +23,8 @@ class LibraryScreen extends StatefulWidget {
 class _LibraryScreenState extends State<LibraryScreen> {
   final ConnectionService _connectionService = ConnectionService();
   final PlaybackManager _playbackManager = PlaybackManager();
+  final PlaylistService _playlistService = PlaylistService();
 
-  List<PlaylistModel> _playlists = [];
   List<AlbumModel> _albums = [];
   List<SongModel> _songs = [];
 
@@ -32,6 +35,18 @@ class _LibraryScreenState extends State<LibraryScreen> {
   void initState() {
     super.initState();
     _loadLibrary();
+    _playlistService.loadPlaylists();
+    _playlistService.addListener(_onPlaylistsChanged);
+  }
+
+  @override
+  void dispose() {
+    _playlistService.removeListener(_onPlaylistsChanged);
+    super.dispose();
+  }
+
+  void _onPlaylistsChanged() {
+    setState(() {});
   }
 
   /// Load library data from server
@@ -53,12 +68,10 @@ class _LibraryScreenState extends State<LibraryScreen> {
       print('[LibraryScreen] Fetching library from server...');
       final library = await _connectionService.apiClient!.getLibrary();
       print('[LibraryScreen] Library loaded successfully');
-      print('[LibraryScreen] Playlists: ${library.playlists.length}');
       print('[LibraryScreen] Albums: ${library.albums.length}');
       print('[LibraryScreen] Songs: ${library.songs.length}');
 
       setState(() {
-        _playlists = library.playlists;
         _albums = library.albums;
         _songs = library.songs;
         _isLoading = false;
@@ -102,7 +115,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
       return _buildErrorState();
     }
 
-    if (_playlists.isEmpty && _albums.isEmpty && _songs.isEmpty) {
+    if (_playlistService.playlists.isEmpty && _albums.isEmpty && _songs.isEmpty) {
       return _buildEmptyState();
     }
 
@@ -141,9 +154,31 @@ class _LibraryScreenState extends State<LibraryScreen> {
     );
   }
 
+  /// Get artwork URLs for a playlist based on its songs
+  List<String> _getPlaylistArtworkUrls(PlaylistModel playlist) {
+    if (_connectionService.apiClient == null) return [];
+
+    final baseUrl = _connectionService.apiClient!.baseUrl;
+
+    // Get unique album IDs from playlist's stored songAlbumIds (up to 4)
+    final albumIds = <String>[];
+    for (final songId in playlist.songIds) {
+      final albumId = playlist.songAlbumIds[songId];
+      if (albumId != null && !albumIds.contains(albumId)) {
+        albumIds.add(albumId);
+        if (albumIds.length >= 4) break;
+      }
+    }
+
+    // Convert to artwork URLs
+    return albumIds.map((id) => '$baseUrl/artwork/$id').toList();
+  }
+
   /// Build playlists grid
   Widget _buildPlaylistsGrid() {
-    if (_playlists.isEmpty) {
+    final playlists = _playlistService.playlists;
+
+    if (playlists.isEmpty) {
       return Padding(
         padding: const EdgeInsets.all(16.0),
         child: GridView.count(
@@ -152,7 +187,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
           physics: const NeverScrollableScrollPhysics(),
           mainAxisSpacing: 16,
           crossAxisSpacing: 16,
-          childAspectRatio: 0.85,
+          childAspectRatio: 0.75,
           children: [
             CreatePlaylistCard(
               onTap: _createNewPlaylist,
@@ -172,9 +207,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
           crossAxisCount: _getGridColumnCount(context),
           mainAxisSpacing: 16,
           crossAxisSpacing: 16,
-          childAspectRatio: 0.85,
+          childAspectRatio: 0.75,
         ),
-        itemCount: _playlists.length + 1, // +1 for Create New
+        itemCount: playlists.length + 1, // +1 for Create New
         itemBuilder: (context, index) {
           if (index == 0) {
             // First item is "Create New Playlist"
@@ -183,10 +218,11 @@ class _LibraryScreenState extends State<LibraryScreen> {
             );
           }
 
-          final playlist = _playlists[index - 1];
+          final playlist = playlists[index - 1];
           return PlaylistCard(
             playlist: playlist,
             onTap: () => _openPlaylist(playlist),
+            artworkUrls: _getPlaylistArtworkUrls(playlist),
           );
         },
       ),
@@ -341,20 +377,24 @@ class _LibraryScreenState extends State<LibraryScreen> {
   // ACTION HANDLERS
   // ============================================================================
 
-  void _createNewPlaylist() {
-    // TODO: Implement in Task 7.5
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Create playlist feature coming in Task 7.5'),
-      ),
-    );
+  Future<void> _createNewPlaylist() async {
+    final playlist = await CreatePlaylistScreen.show(context);
+    if (playlist != null && mounted) {
+      // Navigate to the newly created playlist
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => PlaylistDetailScreen(playlistId: playlist.id),
+        ),
+      );
+    }
   }
 
   void _openPlaylist(PlaylistModel playlist) {
-    // TODO: Implement in Task 7.5
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Opening "${playlist.name}" - coming in Task 7.5'),
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PlaylistDetailScreen(playlistId: playlist.id),
       ),
     );
   }
