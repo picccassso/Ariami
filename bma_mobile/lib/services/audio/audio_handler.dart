@@ -87,9 +87,9 @@ class BmaAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     }
   }
 
-  /// Play a song from a stream URL
-  Future<void> playSong(Song song, String streamUrl) async {
-    print('[BmaAudioHandler] playSong() called');
+  /// Load a song without starting playback (for seeking before play)
+  Future<void> loadSong(Song song, String streamUrl) async {
+    print('[BmaAudioHandler] loadSong() called');
     print('[BmaAudioHandler] Song: ${song.title} by ${song.artist}');
     print('[BmaAudioHandler] Stream URL: $streamUrl');
 
@@ -102,8 +102,26 @@ class BmaAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       // Update the media item in the notification
       this.mediaItem.add(mediaItem);
 
-      // Set the audio source
+      // Set the audio source WITHOUT starting playback
       await _player.setUrl(streamUrl);
+
+      print('[BmaAudioHandler] Song loaded successfully (not playing)');
+    } catch (e, stackTrace) {
+      print('[BmaAudioHandler] Error in loadSong: $e');
+      print('[BmaAudioHandler] Stack trace: $stackTrace');
+      rethrow;
+    }
+  }
+
+  /// Play a song from a stream URL
+  Future<void> playSong(Song song, String streamUrl) async {
+    print('[BmaAudioHandler] playSong() called');
+    print('[BmaAudioHandler] Song: ${song.title} by ${song.artist}');
+    print('[BmaAudioHandler] Stream URL: $streamUrl');
+
+    try {
+      // Load the song first
+      await loadSong(song, streamUrl);
 
       // Start playback
       await _player.play();

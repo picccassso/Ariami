@@ -14,7 +14,7 @@ class MainNavigationScreen extends StatefulWidget {
   State<MainNavigationScreen> createState() => _MainNavigationScreenState();
 }
 
-class _MainNavigationScreenState extends State<MainNavigationScreen> {
+class _MainNavigationScreenState extends State<MainNavigationScreen> with WidgetsBindingObserver {
   int _currentIndex = 0;
   final PlaybackManager _playbackManager = PlaybackManager();
 
@@ -31,6 +31,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     // Initialize playback manager and listen to changes
     _playbackManager.initialize();
     _playbackManager.addListener(_onPlaybackStateChanged);
@@ -38,13 +39,23 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _playbackManager.removeListener(_onPlaybackStateChanged);
+    _playbackManager.dispose();
     super.dispose();
   }
 
   void _onPlaybackStateChanged() {
     // Rebuild UI when playback state changes
     setState(() {});
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Persist playback state when app goes to background/closed
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive || state == AppLifecycleState.detached) {
+      _playbackManager.saveStateImmediately();
+    }
   }
 
   void _onTabTapped(int index) {

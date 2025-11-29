@@ -18,6 +18,24 @@ class AudioPlayerService {
     print('[AudioPlayerService] ========================================');
   }
 
+  /// Load a song without starting playback (for seeking before play)
+  Future<void> loadSong(Song song, String streamUrl) async {
+    print('[AudioPlayerService] loadSong() called');
+
+    // Check if audioHandler is initialized
+    if (audioHandler == null) {
+      print('[AudioPlayerService] ERROR: audioHandler is null - AudioService not initialized');
+      throw Exception('AudioService not initialized. Background audio is not available.');
+    }
+
+    try {
+      await audioHandler!.loadSong(song, streamUrl);
+    } catch (e) {
+      print('[AudioPlayerService] Error loading song: $e');
+      rethrow;
+    }
+  }
+
   /// Play audio from URL with song metadata
   /// This is the NEW method that should be used - it provides metadata for the notification
   Future<void> playSong(Song song, String streamUrl) async {

@@ -12,6 +12,12 @@ class ShuffleService<T> {
   /// Check if shuffle is enabled
   bool get isShuffled => _isShuffled;
 
+  /// Get original queue (unshuffled order)
+  List<T> get originalQueue => List.unmodifiable(_originalQueue);
+
+  /// Get shuffled queue
+  List<T> get shuffledQueue => List.unmodifiable(_shuffledQueue);
+
   /// Get current queue (shuffled or original)
   List<T> get currentQueue => _isShuffled ? _shuffledQueue : _originalQueue;
 
