@@ -8,9 +8,7 @@ import '../../widgets/library/collapsible_section.dart';
 import '../../widgets/library/album_grid_item.dart';
 import '../../widgets/library/song_list_item.dart';
 import '../../widgets/library/playlist_card.dart';
-import '../album_detail_screen.dart';
 import '../playlist/create_playlist_screen.dart';
-import '../playlist/playlist_detail_screen.dart';
 
 /// Main library screen with collapsible sections for Playlists, Albums, and Songs
 class LibraryScreen extends StatefulWidget {
@@ -297,6 +295,31 @@ class _LibraryScreenState extends State<LibraryScreen> {
     );
   }
 
+  /// Attempt to reconnect and reload library
+  Future<void> _retryConnection() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    // First try to restore connection
+    final restored = await _connectionService.tryRestoreConnection();
+
+    if (restored) {
+      // Connection restored - load library
+      await _loadLibrary();
+    } else {
+      // Still can't connect - navigate to reconnect screen
+      if (mounted) {
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          '/reconnect',
+          (route) => false,
+        );
+      }
+    }
+  }
+
   /// Build error state
   Widget _buildErrorState() {
     return Center(
@@ -319,7 +342,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
           ),
           const SizedBox(height: 24),
           ElevatedButton(
-            onPressed: _loadLibrary,
+            onPressed: _retryConnection,
             child: const Text('Retry'),
           ),
         ],
@@ -380,32 +403,17 @@ class _LibraryScreenState extends State<LibraryScreen> {
   Future<void> _createNewPlaylist() async {
     final playlist = await CreatePlaylistScreen.show(context);
     if (playlist != null && mounted) {
-      // Navigate to the newly created playlist
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => PlaylistDetailScreen(playlistId: playlist.id),
-        ),
-      );
+      // Navigate to the newly created playlist using nested navigator
+      Navigator.of(context).pushNamed('/playlist', arguments: playlist.id);
     }
   }
 
   void _openPlaylist(PlaylistModel playlist) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => PlaylistDetailScreen(playlistId: playlist.id),
-      ),
-    );
+    Navigator.of(context).pushNamed('/playlist', arguments: playlist.id);
   }
 
   void _openAlbum(AlbumModel album) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => AlbumDetailScreen(album: album),
-      ),
-    );
+    Navigator.of(context).pushNamed('/album', arguments: album);
   }
 
   void _playSong(SongModel song) async {
@@ -413,17 +421,6 @@ class _LibraryScreenState extends State<LibraryScreen> {
     print('[LibraryScreen] _playSong called for: ${song.title}');
     print('[LibraryScreen] Song details - ID: ${song.id}, Artist: ${song.artist}, Duration: ${song.duration}s');
     print('==========================================================');
-
-    // Show snackbar FIRST to confirm method is called
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Attempting to play "${song.title}"...'),
-          duration: const Duration(seconds: 2),
-          backgroundColor: Colors.blue,
-        ),
-      );
-    }
 
     // Convert SongModel to Song for playback
     // NOTE: Using song.id as filePath - desktop server uses ID as file identifier
@@ -447,29 +444,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
     try {
       await _playbackManager.playSong(playSong);
       print('[LibraryScreen] ✅ PlaybackManager.playSong() completed successfully!');
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('✅ Now playing "${song.title}"'),
-            duration: const Duration(seconds: 1),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
     } catch (e, stackTrace) {
       print('[LibraryScreen] ❌ ERROR in playSong: $e');
       print('[LibraryScreen] Stack trace: $stackTrace');
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('❌ Failed: $e'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
     }
   }
 

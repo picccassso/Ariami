@@ -29,28 +29,32 @@ class PlayerSecondaryControls extends StatelessWidget {
         children: [
           // Shuffle button
           IconButton(
-            icon: Icon(
-              Icons.shuffle,
-              color: isShuffleEnabled
-                  ? Theme.of(context).colorScheme.primary
-                  : Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
+            icon: const Icon(Icons.shuffle),
             onPressed: onToggleShuffle,
             tooltip: isShuffleEnabled ? 'Shuffle on' : 'Shuffle off',
             iconSize: 24,
+            style: isShuffleEnabled
+                ? IconButton.styleFrom(
+                    backgroundColor:
+                        Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
+                    foregroundColor: Theme.of(context).colorScheme.primary,
+                  )
+                : null,
           ),
 
           // Repeat button
           IconButton(
-            icon: Icon(
-              _getRepeatIcon(),
-              color: repeatMode != RepeatMode.none
-                  ? Theme.of(context).colorScheme.primary
-                  : Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
+            icon: Icon(_getRepeatIcon()),
             onPressed: onToggleRepeat,
             tooltip: _getRepeatTooltip(),
             iconSize: 24,
+            style: repeatMode != RepeatMode.none
+                ? IconButton.styleFrom(
+                    backgroundColor:
+                        Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
+                    foregroundColor: Theme.of(context).colorScheme.primary,
+                  )
+                : null,
           ),
 
           // Queue button

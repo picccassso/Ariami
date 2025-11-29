@@ -23,6 +23,10 @@ class ConnectionService {
 
   final WebSocketService _webSocketService = WebSocketService();
 
+  // Stream controller to broadcast connection state changes
+  final StreamController<bool> _connectionStateController =
+      StreamController<bool>.broadcast();
+
   /// Check if connected to server
   bool get isConnected => _isConnected;
 
@@ -37,6 +41,12 @@ class ConnectionService {
 
   /// Get WebSocket message stream
   Stream<WsMessage> get webSocketMessages => _webSocketService.messages;
+
+  /// Stream of connection state changes (true = connected, false = disconnected)
+  Stream<bool> get connectionStateStream => _connectionStateController.stream;
+
+  /// Check if we have saved server info (even if not currently connected)
+  bool get hasServerInfo => _serverInfo != null;
 
   // ============================================================================
   // CONNECTION MANAGEMENT
@@ -86,6 +96,7 @@ class ConnectionService {
       final response = await _apiClient!.connect(connectRequest);
       _sessionId = response.sessionId;
       _isConnected = true;
+      _connectionStateController.add(true); // Broadcast connected state
 
       // Save connection info
       await _saveConnectionInfo(serverInfo, _sessionId!);
@@ -94,6 +105,8 @@ class ConnectionService {
       _startHeartbeat();
 
       // Connect WebSocket for real-time updates
+      _webSocketService.onReconnected = _handleWebSocketReconnect;
+      _webSocketService.onDisconnected = _handleWebSocketDisconnect;
       await _webSocketService.connect(serverInfo);
 
       print('Connected to server: ${serverInfo.name}');
@@ -129,6 +142,7 @@ class ConnectionService {
     _serverInfo = null;
     _sessionId = null;
     _isConnected = false;
+    _connectionStateController.add(false); // Broadcast disconnected state
 
     // Clear saved connection info
     await _clearConnectionInfo();
@@ -170,6 +184,7 @@ class ConnectionService {
       final response = await _apiClient!.connect(connectRequest);
       _sessionId = response.sessionId;
       _isConnected = true;
+      _connectionStateController.add(true); // Broadcast connected state
 
       // Save new session info
       await _saveConnectionInfo(serverInfo, _sessionId!);
@@ -178,6 +193,8 @@ class ConnectionService {
       _startHeartbeat();
 
       // Reconnect WebSocket
+      _webSocketService.onReconnected = _handleWebSocketReconnect;
+      _webSocketService.onDisconnected = _handleWebSocketDisconnect;
       await _webSocketService.connect(serverInfo);
 
       print('Connection restored to: ${serverInfo.name}');
@@ -187,9 +204,76 @@ class ConnectionService {
       print('Failed to restore connection: $e');
       // Don't clear connection info - let user retry!
       // Only clear it when user explicitly chooses "Scan New QR"
+      // Keep _serverInfo so we know where to reconnect
       _apiClient = null;
       _isConnected = false;
+      // Note: Don't broadcast here - _handleConnectionLoss will do it
       return false;
+    }
+  }
+
+  /// Load server info from storage without attempting connection
+  /// Used to check if we have saved server info
+  Future<void> loadServerInfoFromStorage() async {
+    if (_serverInfo != null) return; // Already loaded
+
+    final prefs = await SharedPreferences.getInstance();
+    final serverJson = prefs.getString('server_info');
+
+    if (serverJson != null) {
+      try {
+        _serverInfo = ServerInfo.fromJson(
+          Map<String, dynamic>.from(
+            const JsonDecoder().convert(serverJson) as Map,
+          ),
+        );
+        print('Loaded server info from storage: ${_serverInfo?.name}');
+      } catch (e) {
+        print('Failed to parse stored server info: $e');
+      }
+    }
+  }
+
+  // ============================================================================
+  // WEBSOCKET RECONNECT HANDLER
+  // ============================================================================
+
+  /// Called when WebSocket reconnects after being disconnected
+  /// This attempts to restore the full REST API connection
+  void _handleWebSocketReconnect() async {
+    print('WebSocket reconnected - attempting full connection restore...');
+
+    // If we're already connected, no need to do anything
+    if (_isConnected && _apiClient != null) {
+      print('Already connected, skipping restore');
+      return;
+    }
+
+    // Try to restore the full connection (REST API + session)
+    final restored = await tryRestoreConnection();
+
+    if (restored) {
+      print('Full connection restored via WebSocket reconnect');
+      // connectionStateStream will be notified by tryRestoreConnection
+    } else {
+      print('Failed to restore full connection after WebSocket reconnect');
+    }
+  }
+
+  /// Called when WebSocket disconnects
+  /// This immediately notifies the UI to show the reconnect screen
+  void _handleWebSocketDisconnect() {
+    print('WebSocket disconnect detected - marking connection as lost');
+
+    // Only handle if we thought we were connected
+    if (_isConnected) {
+      _isConnected = false;
+      _stopHeartbeat();
+      _apiClient = null;
+      _sessionId = null;
+
+      // Broadcast disconnected state immediately so UI can react
+      _connectionStateController.add(false);
     }
   }
 
@@ -239,11 +323,13 @@ class ConnectionService {
     // Try to restore connection
     final restored = await tryRestoreConnection();
     if (!restored) {
-      print('Reconnection failed');
-      await _clearConnectionInfo();
+      print('Reconnection failed - keeping server info for manual retry');
+      // DON'T clear server info! User should be able to retry without re-scanning QR
+      // Only clear runtime state
       _apiClient = null;
-      _serverInfo = null;
       _sessionId = null;
+      // Broadcast disconnected state so UI can navigate to reconnect screen
+      _connectionStateController.add(false);
     }
   }
 
@@ -274,13 +360,7 @@ class ConnectionService {
     final prefs = await SharedPreferences.getInstance();
     String? deviceId = prefs.getString('device_id');
 
-    if (deviceId == null) {
-      // Generate new device ID
-      deviceId = 'mobile_${DateTime.now().millisecondsSinceEpoch}';
-      await prefs.setString('device_id', deviceId);
-    }
-
-    return deviceId;
+    return deviceId ?? 'unknown-device';
   }
 
   /// Get device name

@@ -37,15 +37,17 @@ class PlaybackControls extends StatelessWidget {
       children: [
         // Shuffle button
         IconButton(
-          icon: Icon(
-            Icons.shuffle,
-            color: isShuffleEnabled
-                ? Theme.of(context).colorScheme.primary
-                : Theme.of(context).iconTheme.color,
-          ),
+          icon: const Icon(Icons.shuffle),
           iconSize: 28,
           onPressed: onToggleShuffle,
           tooltip: isShuffleEnabled ? 'Shuffle: On' : 'Shuffle: Off',
+          style: isShuffleEnabled
+              ? IconButton.styleFrom(
+                  backgroundColor:
+                      Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
+                  foregroundColor: Theme.of(context).colorScheme.primary,
+                )
+              : null,
         ),
 
         // Previous button
@@ -100,13 +102,17 @@ class PlaybackControls extends StatelessWidget {
         IconButton(
           icon: Icon(
             repeatMode == RepeatMode.one ? Icons.repeat_one : Icons.repeat,
-            color: repeatMode != RepeatMode.none
-                ? Theme.of(context).colorScheme.primary
-                : Theme.of(context).iconTheme.color,
           ),
           iconSize: 28,
           onPressed: onToggleRepeat,
           tooltip: 'Repeat: ${repeatMode.displayName}',
+          style: repeatMode != RepeatMode.none
+              ? IconButton.styleFrom(
+                  backgroundColor:
+                      Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
+                  foregroundColor: Theme.of(context).colorScheme.primary,
+                )
+              : null,
         ),
       ],
     );

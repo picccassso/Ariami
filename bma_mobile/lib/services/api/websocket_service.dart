@@ -13,6 +13,14 @@ class WebSocketService {
   Timer? _reconnectTimer;
   Timer? _pingTimer;
 
+  /// Callback for when WebSocket reconnects after being disconnected
+  /// Used to notify ConnectionService to restore full connection
+  void Function()? onReconnected;
+
+  /// Callback for when WebSocket disconnects
+  /// Used to notify ConnectionService immediately
+  void Function()? onDisconnected;
+
   /// Stream controller for incoming messages
   final StreamController<WsMessage> _messageController =
       StreamController<WsMessage>.broadcast();
@@ -112,6 +120,12 @@ class WebSocketService {
   void _handleDisconnect() {
     print('WebSocket disconnected');
     _isConnected = false;
+
+    // Notify ConnectionService immediately
+    if (onDisconnected != null) {
+      onDisconnected!();
+    }
+
     _scheduleReconnect();
   }
 
@@ -182,7 +196,15 @@ class WebSocketService {
     if (_serverInfo == null) return;
 
     print('Attempting WebSocket reconnect...');
+
+    final wasConnected = _isConnected;
     await connect(_serverInfo!);
+
+    // If we successfully reconnected, notify ConnectionService
+    if (_isConnected && !wasConnected && onReconnected != null) {
+      print('WebSocket reconnected - notifying ConnectionService');
+      onReconnected!();
+    }
   }
 
   /// Stop reconnect timer

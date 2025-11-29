@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'main/library_screen.dart';
-import 'main/search_screen.dart';
-import 'main/settings_screen.dart';
+import 'package:flutter/services.dart';
+import 'main/library_navigator.dart';
+import 'main/search_navigator.dart';
+import 'main/settings_navigator.dart';
 import '../widgets/player/mini_player.dart';
 import '../screens/full_player_screen.dart';
 import '../services/playback_manager.dart';
@@ -17,12 +18,15 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _currentIndex = 0;
   final PlaybackManager _playbackManager = PlaybackManager();
 
-  // List of screens for each tab
-  final List<Widget> _screens = const [
-    LibraryScreen(),
-    SearchScreen(),
-    SettingsScreen(),
-  ];
+  void _goToLibrary() {
+    setState(() {
+      _currentIndex = 0;
+    });
+  }
+
+  void _exitApp() {
+    SystemNavigator.pop();
+  }
 
   @override
   void initState() {
@@ -57,6 +61,19 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     );
   }
 
+  Widget _buildCurrentScreen() {
+    switch (_currentIndex) {
+      case 0:
+        return LibraryNavigator(onBackAtRoot: _exitApp);
+      case 1:
+        return SearchNavigator(onBackAtRoot: _goToLibrary);
+      case 2:
+        return SettingsNavigator(onBackAtRoot: _goToLibrary);
+      default:
+        return LibraryNavigator(onBackAtRoot: _exitApp);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -64,9 +81,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         children: [
           // Main content area
           Expanded(
-            child: _screens[_currentIndex],
+            child: _buildCurrentScreen(),
           ),
-
           // Mini player connected to real playback
           MiniPlayer(
             currentSong: _playbackManager.currentSong,

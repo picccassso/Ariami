@@ -6,7 +6,6 @@ import '../../services/search_service.dart';
 import '../../services/playback_manager.dart';
 import '../../widgets/search/search_result_song_item.dart';
 import '../../widgets/search/search_result_album_item.dart';
-import '../album_detail_screen.dart';
 
 /// Search screen with real-time search and recent searches
 class SearchScreen extends StatefulWidget {
@@ -372,6 +371,31 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
+  /// Attempt to reconnect and reload library
+  Future<void> _retryConnection() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    // First try to restore connection
+    final restored = await _connectionService.tryRestoreConnection();
+
+    if (restored) {
+      // Connection restored - load library
+      await _loadLibrary();
+    } else {
+      // Still can't connect - navigate to reconnect screen
+      if (mounted) {
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          '/reconnect',
+          (route) => false,
+        );
+      }
+    }
+  }
+
   /// Build error state
   Widget _buildErrorState() {
     return Center(
@@ -386,7 +410,7 @@ class _SearchScreenState extends State<SearchScreen> {
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 24),
-          ElevatedButton(onPressed: _loadLibrary, child: const Text('Retry')),
+          ElevatedButton(onPressed: _retryConnection, child: const Text('Retry')),
         ],
       ),
     );
@@ -415,9 +439,6 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   void _openAlbum(AlbumModel album) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => AlbumDetailScreen(album: album)),
-    );
+    Navigator.of(context).pushNamed('/album', arguments: album);
   }
 }

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../models/api_models.dart';
+import '../../models/song.dart';
 import '../../screens/playlist/add_to_playlist_screen.dart';
+import '../../services/playback_manager.dart';
 
 /// Song list item widget
 /// Displays song title, artist, and duration in a list row
@@ -101,11 +103,19 @@ class SongListItem extends StatelessWidget {
                 },
               ),
               ListTile(
+                leading: const Icon(Icons.skip_next),
+                title: const Text('Play Next'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _handlePlayNext(context);
+                },
+              ),
+              ListTile(
                 leading: const Icon(Icons.queue_music),
                 title: const Text('Add to Queue'),
                 onTap: () {
                   Navigator.pop(context);
-                  // TODO: Add to queue functionality (Phase 6 feature)
+                  _handleAddToQueue(context);
                 },
               ),
               ListTile(
@@ -129,5 +139,47 @@ class SongListItem extends StatelessWidget {
         );
       },
     );
+  }
+
+  /// Handle play next action
+  void _handlePlayNext(BuildContext context) {
+    final playbackManager = PlaybackManager();
+
+    // Convert SongModel to Song object
+    final convertedSong = Song(
+      id: song.id,
+      title: song.title,
+      artist: song.artist,
+      album: null,
+      albumId: song.albumId,
+      duration: Duration(seconds: song.duration),
+      filePath: song.id,
+      fileSize: 0,
+      modifiedTime: DateTime.now(),
+      trackNumber: song.trackNumber,
+    );
+
+    playbackManager.playNext(convertedSong);
+  }
+
+  /// Handle add to queue action
+  void _handleAddToQueue(BuildContext context) {
+    final playbackManager = PlaybackManager();
+
+    // Convert SongModel to Song object
+    final convertedSong = Song(
+      id: song.id,
+      title: song.title,
+      artist: song.artist,
+      album: null,
+      albumId: song.albumId,
+      duration: Duration(seconds: song.duration),
+      filePath: song.id,
+      fileSize: 0,
+      modifiedTime: DateTime.now(),
+      trackNumber: song.trackNumber,
+    );
+
+    playbackManager.addToQueue(convertedSong);
   }
 }

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/api/connection_service.dart';
 
@@ -11,10 +12,48 @@ class ReconnectScreen extends StatefulWidget {
 class _ReconnectScreenState extends State<ReconnectScreen> {
   final ConnectionService _connectionService = ConnectionService();
   bool _isReconnecting = false;
+  bool _isLoadingServerInfo = true;
   String? _errorMessage;
+  StreamSubscription<bool>? _connectionSubscription;
 
   String get _serverName => _connectionService.serverInfo?.name ?? 'Unknown Server';
   String get _serverAddress => _connectionService.serverInfo?.server ?? 'Unknown Address';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadServerInfo();
+    _listenToConnectionChanges();
+  }
+
+  @override
+  void dispose() {
+    _connectionSubscription?.cancel();
+    super.dispose();
+  }
+
+  /// Listen for connection state changes to auto-navigate when reconnected
+  void _listenToConnectionChanges() {
+    _connectionSubscription = _connectionService.connectionStateStream.listen(
+      (isConnected) {
+        if (isConnected && mounted) {
+          // Connection restored automatically! Navigate to main app
+          print('Connection restored automatically - navigating to main app');
+          Navigator.pushReplacementNamed(context, '/main');
+        }
+      },
+    );
+  }
+
+  /// Load server info from storage if not already loaded
+  Future<void> _loadServerInfo() async {
+    await _connectionService.loadServerInfoFromStorage();
+    if (mounted) {
+      setState(() {
+        _isLoadingServerInfo = false;
+      });
+    }
+  }
 
   Future<void> _attemptReconnect() async {
     setState(() {
@@ -58,6 +97,15 @@ class _ReconnectScreenState extends State<ReconnectScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Show loading while fetching server info
+    if (_isLoadingServerInfo) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
     return Scaffold(
       body: SafeArea(
         child: Center(

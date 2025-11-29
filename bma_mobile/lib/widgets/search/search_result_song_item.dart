@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../models/api_models.dart';
+import '../../models/song.dart';
 import '../../screens/playlist/add_to_playlist_screen.dart';
 import '../../services/api/connection_service.dart';
+import '../../services/playback_manager.dart';
 
 /// Search result item for songs
 class SearchResultSongItem extends StatelessWidget {
@@ -101,26 +103,35 @@ class SearchResultSongItem extends StatelessWidget {
 
   /// Handle menu action selection
   void _handleMenuAction(BuildContext context, String action) {
-    String message;
+    final playbackManager = PlaybackManager();
+
+    // Convert SongModel to Song object
+    final convertedSong = Song(
+      id: song.id,
+      title: song.title,
+      artist: song.artist,
+      album: null,
+      albumId: song.albumId,
+      duration: Duration(seconds: song.duration),
+      filePath: song.id,
+      fileSize: 0,
+      modifiedTime: DateTime.now(),
+      trackNumber: song.trackNumber,
+    );
+
     switch (action) {
       case 'play_next':
-        message = 'Added "${song.title}" to play next';
-        // TODO: Integrate with playback queue
+        playbackManager.playNext(convertedSong);
         break;
       case 'add_queue':
-        message = 'Added "${song.title}" to queue';
-        // TODO: Integrate with playback queue
+        playbackManager.addToQueue(convertedSong);
         break;
       case 'add_playlist':
         AddToPlaylistScreen.showForSong(context, song.id, albumId: song.albumId);
-        return; // Don't show snackbar
+        return;
       default:
         return;
     }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
   }
 
   /// Build album artwork or placeholder
@@ -158,7 +169,7 @@ class SearchResultSongItem extends StatelessWidget {
   /// Build placeholder circle avatar
   Widget _buildPlaceholder(BuildContext context) {
     return CircleAvatar(
-      backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
+      backgroundColor: Theme.of(context).primaryColor.withValues(alpha: 0.1),
       child: Icon(
         Icons.music_note,
         color: Theme.of(context).primaryColor,

@@ -52,9 +52,6 @@ class _CreatePlaylistScreenState extends State<CreatePlaylistScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to create playlist: $e')),
-        );
         setState(() => _isCreating = false);
       }
     }

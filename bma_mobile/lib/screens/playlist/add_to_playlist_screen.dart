@@ -203,13 +203,6 @@ class _AddToPlaylistScreenState extends State<AddToPlaylistScreen> {
       setState(() {
         _addedSongIds.add(songId);
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Song added to playlist'),
-          backgroundColor: Colors.green,
-          duration: Duration(seconds: 1),
-        ),
-      );
     }
   }
 }
@@ -261,12 +254,6 @@ class _AddSongToPlaylistsSheetState extends State<_AddSongToPlaylistsSheet> {
         albumId: widget.albumId,
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Added to "${playlist.name}"'),
-            backgroundColor: Colors.green,
-          ),
-        );
         Navigator.pop(context);
       }
     }
@@ -275,12 +262,6 @@ class _AddSongToPlaylistsSheetState extends State<_AddSongToPlaylistsSheet> {
   Future<void> _addToPlaylist(PlaylistModel playlist) async {
     // Check if song is already in playlist
     if (playlist.songIds.contains(widget.songId)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Song is already in "${playlist.name}"'),
-          backgroundColor: Colors.orange,
-        ),
-      );
       return;
     }
 
@@ -291,12 +272,6 @@ class _AddSongToPlaylistsSheetState extends State<_AddSongToPlaylistsSheet> {
     );
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Added to "${playlist.name}"'),
-          backgroundColor: Colors.green,
-        ),
-      );
       Navigator.pop(context);
     }
   }

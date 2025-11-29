@@ -92,6 +92,8 @@ class _QueueScreenState extends State<QueueScreen> {
                   newIndex -= 1;
                 }
                 widget.onReorder?.call(oldIndex, newIndex);
+                // Rebuild the queue screen to reflect changes
+                setState(() {});
               },
               onTap: widget.onTap,
               onRemove: widget.onRemove,

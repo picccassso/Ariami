@@ -132,6 +132,12 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
 
   /// Build album information section
   Widget _buildAlbumInfo() {
+    // Calculate total duration from loaded songs
+    final totalDuration = _albumDetail != null
+        ? _albumDetail!.songs.fold<int>(0, (sum, song) => sum + song.duration)
+        : widget.album.duration;
+    final songCount = _albumDetail?.songs.length ?? widget.album.songCount;
+
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: Column(
@@ -176,7 +182,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
 
               // Number of songs
               Text(
-                '${widget.album.songCount} ${widget.album.songCount == 1 ? 'song' : 'songs'}',
+                '$songCount ${songCount == 1 ? 'song' : 'songs'}',
                 style: TextStyle(
                   fontSize: 14,
                   color: Colors.grey[600],
@@ -188,7 +194,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
 
               // Total duration
               Text(
-                _formatDuration(widget.album.duration),
+                _formatDuration(totalDuration),
                 style: TextStyle(
                   fontSize: 14,
                   color: Colors.grey[600],
@@ -212,26 +218,18 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
             children: [
               // Play All (primary action)
               Expanded(
-                child: ElevatedButton.icon(
+                child: FilledButton(
                   onPressed: _playAll,
-                  icon: const Icon(Icons.play_arrow),
-                  label: const Text('Play All'),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
+                  child: const Icon(Icons.play_arrow),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 12),
 
               // Shuffle
               Expanded(
-                child: OutlinedButton.icon(
+                child: OutlinedButton(
                   onPressed: _shuffleAll,
-                  icon: const Icon(Icons.shuffle),
-                  label: const Text('Shuffle'),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
+                  child: const Icon(Icons.shuffle),
                 ),
               ),
             ],
@@ -269,6 +267,31 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
     );
   }
 
+  /// Attempt to reconnect and reload album detail
+  Future<void> _retryConnection() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    // First try to restore connection
+    final restored = await _connectionService.tryRestoreConnection();
+
+    if (restored) {
+      // Connection restored - load album detail
+      await _loadAlbumDetail();
+    } else {
+      // Still can't connect - navigate to reconnect screen
+      if (mounted) {
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          '/reconnect',
+          (route) => false,
+        );
+      }
+    }
+  }
+
   /// Build error state
   Widget _buildErrorState() {
     return Center(
@@ -291,7 +314,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
           ),
           const SizedBox(height: 24),
           ElevatedButton(
-            onPressed: _loadAlbumDetail,
+            onPressed: _retryConnection,
             child: const Text('Retry'),
           ),
         ],
@@ -388,10 +411,29 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
   }
 
   void _addToQueue() {
-    // TODO: Integrate with playback queue from Phase 6
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Added album to queue')),
-    );
+    if (_albumDetail == null || _albumDetail!.songs.isEmpty) {
+      return;
+    }
+
+    // Convert all album songs to Song objects
+    final allSongs = _albumDetail!.songs.map((songModel) => Song(
+      id: songModel.id,
+      title: songModel.title,
+      artist: songModel.artist,
+      album: widget.album.title,
+      albumId: widget.album.id,
+      duration: Duration(seconds: songModel.duration),
+      filePath: songModel.id,
+      fileSize: 0,
+      modifiedTime: DateTime.now(),
+      trackNumber: songModel.trackNumber,
+    )).toList();
+
+    try {
+      _playbackManager.addAllToQueue(allSongs);
+    } catch (e) {
+      print('[AlbumDetailScreen] Error adding to queue: $e');
+    }
   }
 
   void _addToPlaylist() {

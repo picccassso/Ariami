@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import '../services/playback_manager.dart';
+import '../models/repeat_mode.dart';
 import '../widgets/player/player_top_bar.dart';
 import '../widgets/player/player_artwork.dart';
 import '../widgets/player/player_info.dart';
 import '../widgets/player/player_seek_bar.dart';
 import '../widgets/player/player_secondary_controls.dart';
+import 'playlist/add_to_playlist_screen.dart';
+import 'queue_screen.dart';
 
 /// Full-screen immersive player with gestures and complete controls
 /// Implements Phase 7.4 specification
@@ -37,6 +40,26 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
     setState(() {});
   }
 
+  void _openQueue() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => QueueScreen(
+          queue: _playbackManager.queue,
+          onReorder: (oldIndex, newIndex) {
+            _playbackManager.queue.moveSong(oldIndex, newIndex);
+          },
+          onTap: (index) {
+            _playbackManager.queue.jumpToIndex(index);
+          },
+          onRemove: (index) {
+            _playbackManager.queue.removeSong(index);
+          },
+          onClear: _playbackManager.queue.clear,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -52,7 +75,7 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
           // Top bar (still show minimize button)
           PlayerTopBar(
             onMinimize: () => Navigator.pop(context),
-            onOpenQueue: null, // TODO: Implement queue screen
+            onOpenQueue: _openQueue,
           ),
           // Empty state message
           Expanded(
@@ -97,7 +120,7 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
             // Top Bar - Minimize arrow, "Now Playing", overflow menu
             PlayerTopBar(
               onMinimize: () => Navigator.pop(context),
-              onOpenQueue: null, // TODO: Implement queue screen
+              onOpenQueue: _openQueue,
             ),
 
             const SizedBox(height: 16),
@@ -148,7 +171,17 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
               repeatMode: _playbackManager.repeatMode,
               onToggleShuffle: _playbackManager.toggleShuffle,
               onToggleRepeat: _playbackManager.toggleRepeat,
-              onOpenQueue: null, // TODO: Implement queue screen
+              onOpenQueue: _openQueue,
+              onAddToPlaylist: () {
+                final song = _playbackManager.currentSong;
+                if (song != null) {
+                  AddToPlaylistScreen.showForSong(
+                    context,
+                    song.id,
+                    albumId: song.albumId,
+                  );
+                }
+              },
             ),
 
             const SizedBox(height: 24),
@@ -216,7 +249,10 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
           IconButton(
             icon: const Icon(Icons.skip_next),
             iconSize: 48,
-            onPressed: _playbackManager.hasNext ? _playbackManager.skipNext : null,
+            onPressed: (_playbackManager.hasNext ||
+                        (_playbackManager.repeatMode == RepeatMode.all && _playbackManager.queue.isNotEmpty))
+                ? _playbackManager.skipNext
+                : null,
             tooltip: 'Next',
           ),
         ],

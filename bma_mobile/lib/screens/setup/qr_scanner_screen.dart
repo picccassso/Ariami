@@ -67,14 +67,6 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
   void _showError(String message) {
     if (!mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red[700],
-        duration: const Duration(seconds: 3),
-      ),
-    );
-
     setState(() {
       _isProcessing = false;
     });

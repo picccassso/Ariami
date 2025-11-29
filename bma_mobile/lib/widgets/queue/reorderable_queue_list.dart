@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../models/song.dart';
+import '../../services/api/connection_service.dart';
 
 /// Reorderable list widget for the playback queue
 class ReorderableQueueList extends StatelessWidget {
@@ -115,7 +116,7 @@ class QueueItem extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
             color: isCurrentlyPlaying
-                ? Theme.of(context).colorScheme.primary.withOpacity(0.7)
+                ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.7)
                 : Theme.of(context).colorScheme.onSurfaceVariant,
           ),
         ),
@@ -129,13 +130,19 @@ class QueueItem extends StatelessWidget {
                   ),
             ),
             const SizedBox(width: 8),
-            ReorderableDragStartListener(
-              index: index,
-              child: Icon(
+            if (isCurrentlyPlaying)
+              Icon(
                 Icons.drag_handle,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                color: Theme.of(context).colorScheme.surfaceContainerHigh,
+              )
+            else
+              ReorderableDragStartListener(
+                index: index,
+                child: Icon(
+                  Icons.drag_handle,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               ),
-            ),
           ],
         ),
         onTap: onTap,
@@ -145,24 +152,87 @@ class QueueItem extends StatelessWidget {
 
   Widget _buildLeading(BuildContext context) {
     if (isCurrentlyPlaying) {
-      return Icon(
-        Icons.play_circle,
-        color: Theme.of(context).colorScheme.primary,
-        size: 32,
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(4),
+        child: Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.primaryContainer,
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // Album artwork or placeholder
+              if (song.albumId != null)
+                Image.network(
+                  '${ConnectionService().apiClient?.baseUrl ?? 'http://localhost:3000'}/artwork/${song.albumId}',
+                  fit: BoxFit.cover,
+                  width: 48,
+                  height: 48,
+                  errorBuilder: (context, error, stackTrace) =>
+                      _buildPlaceholder(context),
+                )
+              else
+                _buildPlaceholder(context),
+              // Play icon overlay when currently playing
+              if (isCurrentlyPlaying)
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Icon(
+                    Icons.play_circle_filled,
+                    color: Theme.of(context).colorScheme.primary,
+                    size: 28,
+                  ),
+                ),
+            ],
+          ),
+        ),
       );
     }
 
-    // Show track number or index
-    final displayNumber = song.trackNumber ?? (index + 1);
-    return SizedBox(
-      width: 32,
-      child: Center(
-        child: Text(
-          displayNumber.toString(),
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
+    // Show album artwork
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(4),
+      child: Container(
+        width: 48,
+        height: 48,
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surfaceContainerHigh,
+          borderRadius: BorderRadius.circular(4),
         ),
+        child: song.albumId != null
+            ? Image.network(
+                '${ConnectionService().apiClient?.baseUrl ?? 'http://localhost:3000'}/artwork/${song.albumId}',
+                fit: BoxFit.cover,
+                width: 48,
+                height: 48,
+                errorBuilder: (context, error, stackTrace) =>
+                    _buildPlaceholder(context),
+              )
+            : _buildPlaceholder(context),
+      ),
+    );
+  }
+
+  Widget _buildPlaceholder(BuildContext context) {
+    return Container(
+      width: 48,
+      height: 48,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Icon(
+        Icons.music_note,
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+        size: 24,
       ),
     );
   }

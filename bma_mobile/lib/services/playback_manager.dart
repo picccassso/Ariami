@@ -6,6 +6,7 @@ import '../models/repeat_mode.dart';
 import 'audio/audio_player_service.dart';
 import 'audio/shuffle_service.dart';
 import 'api/connection_service.dart';
+import '../main.dart' show audioHandler;
 
 /// Central playback manager that integrates Phase 6 audio services
 /// with Phase 7 UI components. Provides a single source of truth for
@@ -30,6 +31,8 @@ class PlaybackManager extends ChangeNotifier {
   StreamSubscription<Duration>? _positionSubscription;
   StreamSubscription<Duration?>? _durationSubscription;
   StreamSubscription? _playerStateSubscription;
+  StreamSubscription<void>? _skipNextSubscription;
+  StreamSubscription<void>? _skipPreviousSubscription;
 
   // Getters
   Song? get currentSong => _queue.currentSong;
@@ -63,6 +66,18 @@ class PlaybackManager extends ChangeNotifier {
       if (state.processingState.toString() == 'ProcessingState.completed') {
         _onSongCompleted();
       }
+    });
+
+    // Listen to skip next button from notification
+    _skipNextSubscription = audioHandler?.onSkipNext.listen((_) {
+      print('[PlaybackManager] Skip Next pressed from notification');
+      skipNext();
+    });
+
+    // Listen to skip previous button from notification
+    _skipPreviousSubscription = audioHandler?.onSkipPrevious.listen((_) {
+      print('[PlaybackManager] Skip Previous pressed from notification');
+      skipPrevious();
     });
   }
 
@@ -241,18 +256,24 @@ class PlaybackManager extends ChangeNotifier {
       // Shuffle remaining songs in queue (keeping current song at position 0)
       final shuffled = _shuffleService.enableShuffle(_queue.songs, _queue.currentSong);
 
-      // Rebuild queue with shuffled songs
-      _queue = PlaybackQueue();
-      for (final song in shuffled) {
-        _queue.addSong(song);
-      }
+      // Rebuild queue with shuffled songs, current song is at index 0
+      _queue.setQueue(shuffled, currentIndex: 0);
     } else if (!_isShuffleEnabled && _shuffleService.isShuffled) {
       // Restore original order
       final original = _shuffleService.disableShuffle(_queue.currentSong);
-      _queue = PlaybackQueue();
-      for (final song in original) {
-        _queue.addSong(song);
+
+      // Find where the current song is in the original queue
+      final currentSong = _queue.currentSong;
+      int newIndex = 0;
+      if (currentSong != null) {
+        final foundIndex = original.indexOf(currentSong);
+        if (foundIndex != -1) {
+          newIndex = foundIndex;
+        }
       }
+
+      // Rebuild queue with original order, maintaining current song position
+      _queue.setQueue(original, currentIndex: newIndex);
     }
 
     notifyListeners();
@@ -295,11 +316,14 @@ class PlaybackManager extends ChangeNotifier {
       // Build stream URL for the song
       final streamUrl = '${_connectionService.apiClient!.baseUrl}/stream/${song.filePath}';
       print('[PlaybackManager] Stream URL: $streamUrl');
-      print('[PlaybackManager] Calling AudioPlayerService.play()...');
+      print('[PlaybackManager] Calling AudioPlayerService.playSong() with metadata...');
 
-      await _audioPlayer.play(streamUrl);
+      // CHANGED: Now using playSong() instead of play() to provide song metadata
+      // This enables the foreground service notification with proper song info
+      await _audioPlayer.playSong(song, streamUrl);
 
-      print('[PlaybackManager] AudioPlayerService.play() returned successfully!');
+      print('[PlaybackManager] AudioPlayerService.playSong() returned successfully!');
+      print('[PlaybackManager] Foreground service notification should now be visible');
       print('[PlaybackManager] isPlaying: ${_audioPlayer.isPlaying}');
       print('[PlaybackManager] isLoading: ${_audioPlayer.isLoading}');
     } catch (e, stackTrace) {
@@ -335,6 +359,8 @@ class PlaybackManager extends ChangeNotifier {
     _positionSubscription?.cancel();
     _durationSubscription?.cancel();
     _playerStateSubscription?.cancel();
+    _skipNextSubscription?.cancel();
+    _skipPreviousSubscription?.cancel();
     super.dispose();
   }
 }
