@@ -9,6 +9,7 @@ import 'audio/playback_state_manager.dart';
 import 'api/connection_service.dart';
 import 'offline/offline_playback_service.dart';
 import 'cache/cache_manager.dart';
+import 'stats/streaming_stats_service.dart';
 import '../main.dart' show audioHandler;
 
 /// Central playback manager that integrates Phase 6 audio services
@@ -27,6 +28,7 @@ class PlaybackManager extends ChangeNotifier {
   final PlaybackStateManager _stateManager = PlaybackStateManager();
   final OfflinePlaybackService _offlineService = OfflinePlaybackService();
   final CacheManager _cacheManager = CacheManager();
+  final StreamingStatsService _statsService = StreamingStatsService();
 
   // State
   PlaybackQueue _queue = PlaybackQueue();
@@ -79,7 +81,9 @@ class PlaybackManager extends ChangeNotifier {
 
       // Auto-advance when song completes
       if (state.processingState.toString() == 'ProcessingState.completed') {
-        _onSongCompleted();
+        _onSongCompleted().catchError((e) {
+          print('[PlaybackManager] Error in _onSongCompleted: $e');
+        });
       }
     });
 
@@ -208,6 +212,8 @@ class PlaybackManager extends ChangeNotifier {
   Future<void> togglePlayPause() async {
     try {
       if (isPlaying) {
+        // Pausing - stop stats tracking
+        await _statsService.onSongStopped();
         await _audioPlayer.pause();
         await _saveState(); // Save state when pausing
       } else {
@@ -217,6 +223,8 @@ class PlaybackManager extends ChangeNotifier {
         if (duration == null || _restoredPosition != null) {
           await _playCurrentSong();
         } else {
+          // Resuming - restart stats tracking
+          _statsService.onSongStarted(currentSong!);
           await _audioPlayer.resume();
         }
       }
@@ -229,6 +237,9 @@ class PlaybackManager extends ChangeNotifier {
   /// Skip to next song
   Future<void> skipNext() async {
     try {
+      // Stop tracking current song
+      await _statsService.onSongStopped();
+
       if (!_queue.hasNext) {
         // Check repeat mode
         if (_repeatMode == RepeatMode.all && _queue.songs.isNotEmpty) {
@@ -238,6 +249,7 @@ class PlaybackManager extends ChangeNotifier {
         } else if (_repeatMode == RepeatMode.one) {
           // Replay current song
           await seek(Duration.zero);
+          _statsService.onSongStarted(currentSong!);
           await _audioPlayer.resume();
         }
         return;
@@ -262,6 +274,9 @@ class PlaybackManager extends ChangeNotifier {
       }
 
       if (!_queue.hasPrevious) return;
+
+      // Stop tracking current song
+      await _statsService.onSongStopped();
 
       _queue.moveToPrevious();
       await _playCurrentSong();
@@ -323,6 +338,8 @@ class PlaybackManager extends ChangeNotifier {
 
   /// Clear the queue and stop playback
   Future<void> clearQueue() async {
+    // Stop tracking current song
+    await _statsService.onSongStopped();
     await _audioPlayer.stop();
     _queue.clear();
     await _stateManager.clearCompletePlaybackState(); // Clear saved state
@@ -411,6 +428,11 @@ class PlaybackManager extends ChangeNotifier {
         // No restored position - play normally from the beginning
         await _audioPlayer.playSong(song, audioUrl);
       }
+
+      // Track stats for this song playback
+      print('[PlaybackManager] About to call onSongStarted for: ${song.title}');
+      _statsService.onSongStarted(song);
+      print('[PlaybackManager] onSongStarted called successfully');
     } catch (e, stackTrace) {
       print('[PlaybackManager] ERROR in _playCurrentSong: $e');
       print('[PlaybackManager] Stack trace: $stackTrace');
@@ -436,21 +458,25 @@ class PlaybackManager extends ChangeNotifier {
   }
 
   /// Internal: Handle song completion
-  void _onSongCompleted() {
+  Future<void> _onSongCompleted() async {
     print('[PlaybackManager] Song completed');
 
     if (_repeatMode == RepeatMode.one) {
-      // Replay the same song
-      _playCurrentSong();
+      // Replay the same song - finalize current first
+      await _statsService.onSongStopped();
+      await _playCurrentSong();
     } else if (_queue.hasNext) {
-      // Move to next song
-      skipNext();
+      // Move to next song - skipNext() will handle finalization
+      // Don't call onSongStopped() here to avoid double-call
+      await skipNext();
     } else if (_repeatMode == RepeatMode.all && _queue.songs.isNotEmpty) {
-      // Restart from beginning
+      // Restart from beginning - finalize current first
+      await _statsService.onSongStopped();
       _queue.jumpToIndex(0);
-      _playCurrentSong();
+      await _playCurrentSong();
     } else {
-      // Queue finished, stop
+      // Queue finished, stop - finalize current first
+      await _statsService.onSongStopped();
       _audioPlayer.stop();
       notifyListeners();
     }

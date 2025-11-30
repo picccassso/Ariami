@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../../services/api/connection_service.dart';
 import '../../services/offline/offline_playback_service.dart';
+import '../../services/stats/streaming_stats_service.dart';
 import '../../widgets/settings/settings_section.dart';
 import '../../widgets/settings/settings_tile.dart';
 
@@ -17,6 +18,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _version = 'Loading...';
   final OfflinePlaybackService _offlineService = OfflinePlaybackService();
   final ConnectionService _connectionService = ConnectionService();
+  final StreamingStatsService _statsService = StreamingStatsService();
   bool _isOfflineModeEnabled = false;
   bool _isReconnecting = false;
   StreamSubscription<bool>? _offlineSubscription;
@@ -184,8 +186,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 title: 'Listening Statistics',
                 subtitle: 'View your listening habits',
                 onTap: () {
-                  // TODO: Navigate to streaming stats screen (Task 8.5)
-                  _showPlaceholder('Streaming Statistics');
+                  Navigator.of(context).pushNamed('/stats');
                 },
               ),
               SettingsTile(
@@ -193,7 +194,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 title: 'Reset Statistics',
                 subtitle: 'Clear all play counts and data',
                 onTap: () {
-                  // TODO: Implement reset stats (Task 8.5)
                   _showResetStatsDialog();
                 },
               ),
@@ -250,12 +250,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              // TODO: Implement reset stats (Task 8.5)
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Statistics reset - Coming soon')),
-              );
+            onPressed: () async {
+              await _statsService.resetAllStats();
+              if (mounted) {
+                Navigator.of(context).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Statistics reset')),
+                );
+              }
             },
             child: const Text(
               'Reset',

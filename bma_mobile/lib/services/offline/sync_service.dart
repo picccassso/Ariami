@@ -90,7 +90,7 @@ class SyncService {
       }
     });
 
-    print('[SyncService] Initialized - ${pendingActionsCount} pending actions');
+    print('[SyncService] Initialized - $pendingActionsCount pending actions');
   }
 
   /// Load pending actions from storage
@@ -142,7 +142,7 @@ class SyncService {
       lastQueued: action,
     ));
 
-    print('[SyncService] Action queued: ${type.name} - ${pendingActionsCount} pending');
+    print('[SyncService] Action queued: ${type.name} - $pendingActionsCount pending');
   }
 
   /// Queue a playlist creation
@@ -200,7 +200,7 @@ class SyncService {
       return;
     }
 
-    print('[SyncService] Processing ${pendingActionsCount} pending actions...');
+    print('[SyncService] Processing $pendingActionsCount pending actions...');
 
     _syncStatusController.add(SyncStatus(
       pending: pendingActionsCount,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'settings_screen.dart';
 import '../settings/connection_settings_screen.dart';
 import '../settings/downloads_screen.dart';
+import '../settings/streaming_stats_screen.dart';
 
 /// A navigator key for the settings tab's nested navigation
 final GlobalKey<NavigatorState> settingsNavigatorKey = GlobalKey<NavigatorState>();
@@ -43,6 +44,9 @@ class SettingsNavigator extends StatelessWidget {
               break;
             case '/downloads':
               page = const DownloadsScreen();
+              break;
+            case '/stats':
+              page = const StreamingStatsScreen();
               break;
             // Add more routes here as settings sub-screens are added
             default:

@@ -14,6 +14,7 @@ import 'services/audio/audio_handler.dart';
 import 'services/offline/offline_playback_service.dart';
 import 'services/download/download_manager.dart';
 import 'services/cache/cache_manager.dart';
+import 'services/stats/streaming_stats_service.dart';
 
 // Global audio handler instance - accessible throughout the app
 // Nullable because initialization might fail on some devices
@@ -89,6 +90,7 @@ class _MyAppState extends State<MyApp> {
   final OfflinePlaybackService _offlineService = OfflinePlaybackService();
   final DownloadManager _downloadManager = DownloadManager();
   final CacheManager _cacheManager = CacheManager();
+  final StreamingStatsService _statsService = StreamingStatsService();
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
   bool _isLoading = true;
   Widget? _initialScreen;
@@ -97,9 +99,14 @@ class _MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
-    _initializeServices();
-    _determineInitialScreen();
+    _initializeAndDetermineScreen();
     _listenToConnectionChanges();
+  }
+
+  /// Initialize services and determine initial screen (must be sequential)
+  Future<void> _initializeAndDetermineScreen() async {
+    await _initializeServices();
+    await _determineInitialScreen();
   }
 
   /// Initialize background services
@@ -110,7 +117,9 @@ class _MyAppState extends State<MyApp> {
     await _downloadManager.initialize();
     // Initialize cache manager for artwork and song caching
     await _cacheManager.initialize();
-    print('[Main] Offline, Download, and Cache services initialized');
+    // Initialize streaming stats service for play tracking
+    await _statsService.initialize();
+    print('[Main] Offline, Download, Cache, and Stats services initialized');
   }
 
   @override
