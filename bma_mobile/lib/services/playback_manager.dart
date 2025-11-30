@@ -203,35 +203,22 @@ class PlaybackManager extends ChangeNotifier {
   /// Toggle play/pause
   Future<void> togglePlayPause() async {
     try {
-      print('🟡 [DEBUG] togglePlayPause() called');
-      print('🟡 [DEBUG] isPlaying: $isPlaying');
-      print('🟡 [DEBUG] currentSong: ${currentSong?.title}');
-      print('🟡 [DEBUG] duration: $duration');
-      print('🟡 [DEBUG] _restoredPosition: $_restoredPosition');
-
       if (isPlaying) {
-        print('🟡 [DEBUG] Pausing...');
         await _audioPlayer.pause();
         await _saveState(); // Save state when pausing
       } else {
-        if (currentSong == null) {
-          print('🟡 [DEBUG] ❌ No current song, returning');
-          return;
-        }
+        if (currentSong == null) return;
 
         // If no song is loaded yet OR we have a restored position to seek to, load/reload the song
         if (duration == null || _restoredPosition != null) {
-          print('🟡 [DEBUG] ✅ Duration is NULL or restored position exists - calling _playCurrentSong()...');
           await _playCurrentSong();
         } else {
-          print('🟡 [DEBUG] ⚠️ Duration is NOT null and no restored position - calling resume()');
-          print('🟡 [DEBUG] Duration value: $duration');
           await _audioPlayer.resume();
         }
       }
       notifyListeners();
     } catch (e) {
-      print('🟡 [DEBUG] ❌ Error: $e');
+      print('[PlaybackManager] Error in togglePlayPause: $e');
     }
   }
 
@@ -361,53 +348,29 @@ class PlaybackManager extends ChangeNotifier {
     try {
       // Build stream URL for the song
       final streamUrl = '${_connectionService.apiClient!.baseUrl}/stream/${song.filePath}';
-      print('[PlaybackManager] Stream URL: $streamUrl');
-
-      print('🔴 [DEBUG] Checking _restoredPosition...');
-      print('🔴 [DEBUG] _restoredPosition value: $_restoredPosition');
 
       // If we have a restored position, load without playing, seek, then play
       if (_restoredPosition != null) {
-        print('🔴 [DEBUG] ✅ _restoredPosition is NOT null!');
-        print('🔴 [DEBUG] Will load song, seek to ${_restoredPosition!.inSeconds}s, then play');
-
         // Load the song WITHOUT starting playback
-        print('[PlaybackManager] Calling AudioPlayerService.loadSong() (no auto-play)...');
         await _audioPlayer.loadSong(song, streamUrl);
 
         // Wait for the audio player to be fully ready before seeking
-        print('🔴 [DEBUG] Waiting 500ms for stream to be ready...');
         await Future.delayed(const Duration(milliseconds: 500));
 
         // Seek to the restored position BEFORE starting playback
-        print('🔴 [DEBUG] Seeking to: ${_restoredPosition!.inSeconds}s (${_restoredPosition!.inMilliseconds}ms)');
         await _audioPlayer.seek(_restoredPosition!);
-
-        print('🔴 [DEBUG] Position AFTER seek: ${_audioPlayer.position.inSeconds}s');
 
         // Notify listeners so UI updates with the new position
         notifyListeners();
 
         // NOW start playback from the seeked position
-        print('🔴 [DEBUG] Starting playback from seeked position...');
         await _audioPlayer.resume();
 
-        print('🔴 [DEBUG] ✅ Playback started! Clearing _restoredPosition...');
         _restoredPosition = null; // Clear so it doesn't affect next song
-        print('🔴 [DEBUG] _restoredPosition cleared (now null)');
       } else {
         // No restored position - play normally from the beginning
-        print('🔴 [DEBUG] ❌ _restoredPosition is NULL - playing normally from start');
-        print('[PlaybackManager] Calling AudioPlayerService.playSong() with metadata...');
-
         await _audioPlayer.playSong(song, streamUrl);
-
-        print('[PlaybackManager] AudioPlayerService.playSong() returned successfully!');
       }
-
-      print('[PlaybackManager] Foreground service notification should now be visible');
-      print('[PlaybackManager] isPlaying: ${_audioPlayer.isPlaying}');
-      print('[PlaybackManager] isLoading: ${_audioPlayer.isLoading}');
     } catch (e, stackTrace) {
       print('[PlaybackManager] ERROR in _playCurrentSong: $e');
       print('[PlaybackManager] Stack trace: $stackTrace');
@@ -439,15 +402,7 @@ class PlaybackManager extends ChangeNotifier {
   /// Save current playback state to device storage
   Future<void> _saveState() async {
     // Skip if queue is empty
-    if (_queue.isEmpty) {
-      return;
-    }
-
-    print('🔵 [DEBUG] _saveState() called');
-    print('🔵 [DEBUG] Current song: ${_queue.currentSong?.title}');
-    print('🔵 [DEBUG] Current position: ${position.inSeconds}s (${position.inMilliseconds}ms)');
-    print('🔵 [DEBUG] Queue size: ${_queue.length}');
-    print('🔵 [DEBUG] Shuffle enabled: $_isShuffleEnabled');
+    if (_queue.isEmpty) return;
 
     // Get original queue if shuffled
     List<Song>? originalQueue;
@@ -473,21 +428,8 @@ class PlaybackManager extends ChangeNotifier {
   /// Restore saved playback state from device storage
   Future<void> _restoreState() async {
     try {
-      print('🟢 [DEBUG] _restoreState() called');
-
       final savedState = await _stateManager.loadCompletePlaybackState();
-
-      if (savedState == null) {
-        print('🟢 [DEBUG] No saved state found');
-        return;
-      }
-
-      print('🟢 [DEBUG] Saved state loaded!');
-      print('🟢 [DEBUG] Queue size: ${savedState.queue.length}');
-      print('🟢 [DEBUG] Current song: ${savedState.queue.currentSong?.title}');
-      print('🟢 [DEBUG] Saved position: ${savedState.position.inSeconds}s (${savedState.position.inMilliseconds}ms)');
-      print('🟢 [DEBUG] Shuffle: ${savedState.isShuffleEnabled}');
-      print('🟢 [DEBUG] Repeat: ${savedState.repeatMode}');
+      if (savedState == null) return;
 
       // Restore queue
       _queue = savedState.queue;
@@ -509,23 +451,16 @@ class PlaybackManager extends ChangeNotifier {
       if (_queue.currentSong != null && savedState.position > Duration.zero) {
         _restoredPosition = savedState.position;
         _pendingUiPosition = savedState.position;
-        print('🟢 [DEBUG] ✅ _restoredPosition SET to: ${_restoredPosition!.inSeconds}s');
-        print('🟢 [DEBUG] Ready to resume: ${_queue.currentSong!.title}');
-      } else {
-        print('🟢 [DEBUG] ❌ _restoredPosition NOT set (position was zero or no song)');
       }
 
       notifyListeners();
     } catch (e) {
-      print('🟢 [DEBUG] ❌ Error restoring state: $e');
+      print('[PlaybackManager] Error restoring state: $e');
     }
   }
 
   @override
   void dispose() {
-    // Save state one final time before disposing
-    _saveState();
-
     _saveTimer?.cancel();
     _positionSubscription?.cancel();
     _durationSubscription?.cancel();

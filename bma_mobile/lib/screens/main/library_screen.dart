@@ -174,9 +174,13 @@ class _LibraryScreenState extends State<LibraryScreen> {
 
   /// Build playlists grid
   Widget _buildPlaylistsGrid() {
-    final playlists = _playlistService.playlists;
+    // Separate Liked Songs from regular playlists
+    final likedSongsPlaylist = _playlistService.getPlaylist(PlaylistService.likedSongsId);
+    final regularPlaylists = _playlistService.playlists
+        .where((p) => p.id != PlaylistService.likedSongsId)
+        .toList();
 
-    if (playlists.isEmpty) {
+    if (regularPlaylists.isEmpty && likedSongsPlaylist == null) {
       return Padding(
         padding: const EdgeInsets.all(16.0),
         child: GridView.count(
@@ -195,7 +199,14 @@ class _LibraryScreenState extends State<LibraryScreen> {
       );
     }
 
-    // Playlists exist - show Create New + playlists
+    // Calculate total item count: Create New + Liked Songs (if exists) + regular playlists
+    int itemCount = 1; // Create New
+    if (likedSongsPlaylist != null && likedSongsPlaylist.songIds.isNotEmpty) {
+      itemCount++; // Liked Songs
+    }
+    itemCount += regularPlaylists.length; // Regular playlists
+
+    // Playlists exist - show Create New + Liked Songs (if exists) + regular playlists
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: GridView.builder(
@@ -207,7 +218,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
           crossAxisSpacing: 16,
           childAspectRatio: 0.75,
         ),
-        itemCount: playlists.length + 1, // +1 for Create New
+        itemCount: itemCount,
         itemBuilder: (context, index) {
           if (index == 0) {
             // First item is "Create New Playlist"
@@ -216,7 +227,21 @@ class _LibraryScreenState extends State<LibraryScreen> {
             );
           }
 
-          final playlist = playlists[index - 1];
+          // Second item is Liked Songs (if it exists and has songs)
+          final hasLikedSongs = likedSongsPlaylist != null &&
+                                 likedSongsPlaylist.songIds.isNotEmpty;
+          if (hasLikedSongs && index == 1) {
+            return PlaylistCard(
+              playlist: likedSongsPlaylist,
+              onTap: () => _openPlaylist(likedSongsPlaylist),
+              artworkUrls: _getPlaylistArtworkUrls(likedSongsPlaylist),
+              isLikedSongs: true, // Special flag for styling
+            );
+          }
+
+          // Regular playlists start after Create New and optionally Liked Songs
+          final playlistIndex = hasLikedSongs ? index - 2 : index - 1;
+          final playlist = regularPlaylists[playlistIndex];
           return PlaylistCard(
             playlist: playlist,
             onTap: () => _openPlaylist(playlist),

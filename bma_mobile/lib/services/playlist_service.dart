@@ -8,6 +8,7 @@ import '../models/api_models.dart';
 /// Handles CRUD operations and persistence via SharedPreferences
 class PlaylistService extends ChangeNotifier {
   static const String _storageKey = 'bma_playlists';
+  static const String likedSongsId = '__LIKED_SONGS__';
   static final PlaylistService _instance = PlaylistService._internal();
 
   factory PlaylistService() => _instance;
@@ -193,6 +194,68 @@ class PlaylistService extends ChangeNotifier {
 
     await _savePlaylists();
     notifyListeners();
+  }
+
+  /// Get or create the Liked Songs playlist
+  Future<PlaylistModel> getLikedSongsPlaylist() async {
+    // Ensure playlists are loaded
+    if (!_isLoaded) {
+      await loadPlaylists();
+    }
+
+    // Check if Liked Songs playlist already exists
+    final existingPlaylist = getPlaylist(likedSongsId);
+    if (existingPlaylist != null) {
+      return existingPlaylist;
+    }
+
+    // Create Liked Songs playlist
+    final now = DateTime.now();
+    final likedSongsPlaylist = PlaylistModel(
+      id: likedSongsId,
+      name: 'Liked Songs',
+      description: 'Your favorite tracks',
+      songIds: [],
+      createdAt: now,
+      modifiedAt: now,
+    );
+
+    _playlists.insert(0, likedSongsPlaylist);
+    await _savePlaylists();
+    notifyListeners();
+
+    return likedSongsPlaylist;
+  }
+
+  /// Check if a song is liked (in Liked Songs playlist)
+  bool isLikedSong(String songId) {
+    if (!_isLoaded) return false;
+
+    final likedPlaylist = getPlaylist(likedSongsId);
+    if (likedPlaylist == null) return false;
+
+    return likedPlaylist.songIds.contains(songId);
+  }
+
+  /// Toggle a song's liked status
+  Future<void> toggleLikedSong(String songId, String? albumId) async {
+    // Ensure Liked Songs playlist exists
+    await getLikedSongsPlaylist();
+
+    if (isLikedSong(songId)) {
+      // Remove from Liked Songs
+      await removeSongFromPlaylist(
+        playlistId: likedSongsId,
+        songId: songId,
+      );
+    } else {
+      // Add to Liked Songs
+      await addSongToPlaylist(
+        playlistId: likedSongsId,
+        songId: songId,
+        albumId: albumId,
+      );
+    }
   }
 
   /// Clear all playlists (for testing)

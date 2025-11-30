@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/playback_manager.dart';
+import '../services/playlist_service.dart';
 import '../models/repeat_mode.dart';
 import '../widgets/player/player_top_bar.dart';
 import '../widgets/player/player_artwork.dart';
@@ -20,24 +21,40 @@ class FullPlayerScreen extends StatefulWidget {
 
 class _FullPlayerScreenState extends State<FullPlayerScreen> {
   final PlaybackManager _playbackManager = PlaybackManager();
-  bool _isFavorite = false;
+  final PlaylistService _playlistService = PlaylistService();
 
   @override
   void initState() {
     super.initState();
     // Listen to playback state changes
     _playbackManager.addListener(_onPlaybackStateChanged);
+    // Listen to playlist changes (for liked songs)
+    _playlistService.loadPlaylists();
+    _playlistService.addListener(_onPlaylistsChanged);
   }
 
   @override
   void dispose() {
     _playbackManager.removeListener(_onPlaybackStateChanged);
+    _playlistService.removeListener(_onPlaylistsChanged);
     super.dispose();
   }
 
   void _onPlaybackStateChanged() {
     // Rebuild when playback state changes
     setState(() {});
+  }
+
+  void _onPlaylistsChanged() {
+    // Rebuild when playlists change (liked songs status)
+    setState(() {});
+  }
+
+  /// Check if current song is liked
+  bool get _isFavorite {
+    final currentSong = _playbackManager.currentSong;
+    if (currentSong == null) return false;
+    return _playlistService.isLikedSong(currentSong.id);
   }
 
   void _openQueue() {
@@ -141,11 +158,14 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
             PlayerInfo(
               song: _playbackManager.currentSong!,
               isFavorite: _isFavorite,
-              onToggleFavorite: () {
-                setState(() {
-                  _isFavorite = !_isFavorite;
-                });
-                // TODO: Persist favorite state (future feature)
+              onToggleFavorite: () async {
+                final song = _playbackManager.currentSong;
+                if (song != null) {
+                  await _playlistService.toggleLikedSong(
+                    song.id,
+                    song.albumId,
+                  );
+                }
               },
             ),
 

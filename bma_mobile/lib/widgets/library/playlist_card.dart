@@ -10,11 +10,15 @@ class PlaylistCard extends StatelessWidget {
   /// List of artwork URLs for the collage (up to 4)
   final List<String> artworkUrls;
 
+  /// Whether this is the special "Liked Songs" playlist
+  final bool isLikedSongs;
+
   const PlaylistCard({
     super.key,
     required this.playlist,
     required this.onTap,
     this.artworkUrls = const [],
+    this.isLikedSongs = false,
   });
 
   @override
@@ -139,6 +143,27 @@ class PlaylistCard extends StatelessWidget {
 
   /// Fallback gradient with icon
   Widget _buildFallbackArt() {
+    // Special styling for Liked Songs
+    if (isLikedSongs) {
+      return Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Colors.pink[400]!, Colors.red[700]!],
+          ),
+        ),
+        child: const Icon(
+          Icons.favorite,
+          size: 48,
+          color: Colors.white,
+        ),
+      );
+    }
+
+    // Regular playlist fallback
     final colorIndex = playlist.name.hashCode % 5;
     final gradients = [
       [Colors.purple[400]!, Colors.purple[700]!],
