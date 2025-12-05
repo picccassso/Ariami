@@ -123,8 +123,10 @@ class BmaAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       // Load the song first
       await loadSong(song, streamUrl);
 
-      // Start playback
-      await _player.play();
+      // Start playback (don't await - let it complete asynchronously)
+      // The play() Future may not complete immediately, but playback will start
+      // and state changes are tracked through stream listeners
+      _player.play();
 
       print('[BmaAudioHandler] Playback started successfully');
     } catch (e, stackTrace) {

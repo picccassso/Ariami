@@ -7,6 +7,9 @@ class SongStats {
   final DateTime? lastPlayed;
   final String? songTitle;
   final String? songArtist;
+  final String? albumId;
+  final String? album;
+  final String? albumArtist;
 
   const SongStats({
     required this.songId,
@@ -16,6 +19,9 @@ class SongStats {
     this.lastPlayed,
     this.songTitle,
     this.songArtist,
+    this.albumId,
+    this.album,
+    this.albumArtist,
   });
 
   /// Format total time as "1h 20m" or "20m" (no leading zeros)
@@ -44,6 +50,9 @@ class SongStats {
           : null,
       songTitle: json['songTitle'] as String?,
       songArtist: json['songArtist'] as String?,
+      albumId: json['albumId'] as String?,
+      album: json['album'] as String?,
+      albumArtist: json['albumArtist'] as String?,
     );
   }
 
@@ -57,6 +66,9 @@ class SongStats {
       'lastPlayed': lastPlayed?.toIso8601String(),
       'songTitle': songTitle,
       'songArtist': songArtist,
+      'albumId': albumId,
+      'album': album,
+      'albumArtist': albumArtist,
     };
   }
 
@@ -69,6 +81,9 @@ class SongStats {
     DateTime? lastPlayed,
     String? songTitle,
     String? songArtist,
+    String? albumId,
+    String? album,
+    String? albumArtist,
   }) {
     return SongStats(
       songId: songId ?? this.songId,
@@ -78,6 +93,9 @@ class SongStats {
       lastPlayed: lastPlayed ?? this.lastPlayed,
       songTitle: songTitle ?? this.songTitle,
       songArtist: songArtist ?? this.songArtist,
+      albumId: albumId ?? this.albumId,
+      album: album ?? this.album,
+      albumArtist: albumArtist ?? this.albumArtist,
     );
   }
 

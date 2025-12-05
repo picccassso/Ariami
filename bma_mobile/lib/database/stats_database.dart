@@ -1,118 +1,299 @@
-import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sqflite/sqflite.dart';
+import 'package:path/path.dart';
 import '../models/song_stats.dart';
 
-/// Database layer for managing streaming statistics persistence
+/// SQLite database layer for managing streaming statistics persistence
 class StatsDatabase {
-  static const String _statsKeyPrefix = 'stats_song_';
-  static const String _allSongsKey = 'stats_all_song_ids';
+  static const String _databaseName = 'streaming_stats.db';
+  static const int _databaseVersion = 2;
+  static const String _tableName = 'song_stats';
 
-  final SharedPreferences _prefs;
+  Database? _database;
 
-  StatsDatabase(this._prefs);
+  /// Get database instance (lazy initialization)
+  Future<Database> get database async {
+    if (_database != null) return _database!;
+    _database = await _initDatabase();
+    return _database!;
+  }
+
+  /// Initialize database
+  Future<Database> _initDatabase() async {
+    final databasesPath = await getDatabasesPath();
+    final path = join(databasesPath, _databaseName);
+
+    return await openDatabase(
+      path,
+      version: _databaseVersion,
+      onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
+    );
+  }
+
+  /// Create database schema
+  Future<void> _onCreate(Database db, int version) async {
+    await db.execute('''
+      CREATE TABLE $_tableName (
+        song_id TEXT PRIMARY KEY,
+        song_title TEXT,
+        song_artist TEXT,
+        play_count INTEGER NOT NULL DEFAULT 0,
+        total_seconds INTEGER NOT NULL DEFAULT 0,
+        first_played INTEGER,
+        last_played INTEGER,
+        album_id TEXT,
+        album TEXT,
+        album_artist TEXT
+      )
+    ''');
+
+    // Create index for sorting by play count
+    await db.execute('''
+      CREATE INDEX idx_play_count ON $_tableName (play_count DESC)
+    ''');
+  }
+
+  /// Handle database upgrades
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      // Add album columns for version 2
+      await db.execute('ALTER TABLE $_tableName ADD COLUMN album_id TEXT');
+      await db.execute('ALTER TABLE $_tableName ADD COLUMN album TEXT');
+      await db.execute('ALTER TABLE $_tableName ADD COLUMN album_artist TEXT');
+      print('[StatsDatabase] Migrated to version 2: Added album columns');
+    }
+  }
 
   /// Create instance from platform
   static Future<StatsDatabase> create() async {
-    final prefs = await SharedPreferences.getInstance();
-    return StatsDatabase(prefs);
+    final db = StatsDatabase();
+    await db.database; // Initialize database
+    return db;
   }
 
   // ============================================================================
   // SONG STATS MANAGEMENT
   // ============================================================================
 
-  /// Save stats for a single song
+  /// Save or update stats for a single song (upsert with transaction)
   Future<void> saveSongStats(SongStats stats) async {
-    final key = '$_statsKeyPrefix${stats.songId}';
-    final json = jsonEncode(stats.toJson());
-    await _prefs.setString(key, json);
+    final db = await database;
 
-    // Add to list of all song IDs if not already there
-    final allIds = _prefs.getStringList(_allSongsKey) ?? [];
-    if (!allIds.contains(stats.songId)) {
-      allIds.add(stats.songId);
-      await _prefs.setStringList(_allSongsKey, allIds);
+    try {
+      await db.insert(
+        _tableName,
+        {
+          'song_id': stats.songId,
+          'song_title': stats.songTitle,
+          'song_artist': stats.songArtist,
+          'play_count': stats.playCount,
+          'total_seconds': stats.totalTime.inSeconds,
+          'first_played': stats.firstPlayed?.millisecondsSinceEpoch,
+          'last_played': stats.lastPlayed?.millisecondsSinceEpoch,
+          'album_id': stats.albumId,
+          'album': stats.album,
+          'album_artist': stats.albumArtist,
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    } catch (e) {
+      // Log error but don't throw - graceful degradation
+      print('Error saving song stats: $e');
+    }
+  }
+
+  /// Save multiple stats at once (batch operation with transaction)
+  Future<void> saveAllStats(List<SongStats> statsList) async {
+    final db = await database;
+
+    try {
+      await db.transaction((txn) async {
+        final batch = txn.batch();
+
+        for (final stats in statsList) {
+          batch.insert(
+            _tableName,
+            {
+              'song_id': stats.songId,
+              'song_title': stats.songTitle,
+              'song_artist': stats.songArtist,
+              'play_count': stats.playCount,
+              'total_seconds': stats.totalTime.inSeconds,
+              'first_played': stats.firstPlayed?.millisecondsSinceEpoch,
+              'last_played': stats.lastPlayed?.millisecondsSinceEpoch,
+              'album_id': stats.albumId,
+              'album': stats.album,
+              'album_artist': stats.albumArtist,
+            },
+            conflictAlgorithm: ConflictAlgorithm.replace,
+          );
+        }
+
+        await batch.commit(noResult: true);
+      });
+    } catch (e) {
+      print('Error saving all stats: $e');
     }
   }
 
   /// Get stats for a single song (returns null if not found)
-  SongStats? getSongStats(String songId) {
-    final key = '$_statsKeyPrefix$songId';
-    final json = _prefs.getString(key);
-    if (json == null) return null;
-    return SongStats.fromJson(jsonDecode(json) as Map<String, dynamic>);
+  Future<SongStats?> getSongStats(String songId) async {
+    final db = await database;
+
+    try {
+      final results = await db.query(
+        _tableName,
+        where: 'song_id = ?',
+        whereArgs: [songId],
+        limit: 1,
+      );
+
+      if (results.isEmpty) return null;
+      return _songStatsFromMap(results.first);
+    } catch (e) {
+      print('Error getting song stats: $e');
+      return null;
+    }
   }
 
-  /// Get all songs with stats
-  List<SongStats> getAllStats() {
-    final allIds = _prefs.getStringList(_allSongsKey) ?? [];
-    final stats = <SongStats>[];
+  /// Get all songs with stats (only songs with play_count > 0)
+  Future<List<SongStats>> getAllStats() async {
+    final db = await database;
 
-    for (final songId in allIds) {
-      final stat = getSongStats(songId);
-      if (stat != null && stat.playCount > 0) {
-        stats.add(stat);
-      }
+    try {
+      final results = await db.query(
+        _tableName,
+        where: 'play_count > 0',
+        orderBy: 'play_count DESC',
+      );
+
+      return results.map(_songStatsFromMap).toList();
+    } catch (e) {
+      print('Error getting all stats: $e');
+      return [];
     }
-
-    return stats;
   }
 
   /// Get top songs by play count (limited to top N)
-  List<SongStats> getTopSongs({int limit = 20}) {
-    final allStats = getAllStats();
-    // Sort by play count descending
-    allStats.sort((a, b) => b.playCount.compareTo(a.playCount));
-    return allStats.take(limit).toList();
-  }
+  Future<List<SongStats>> getTopSongs({int limit = 20}) async {
+    final db = await database;
 
-  /// Get total stats across all songs
-  ({int totalSongsPlayed, Duration totalTimeStreamed}) getTotalStats() {
-    final allStats = getAllStats();
-    int totalSongs = allStats.length;
-    Duration totalTime = Duration.zero;
+    try {
+      final results = await db.query(
+        _tableName,
+        where: 'play_count > 0',
+        orderBy: 'play_count DESC',
+        limit: limit,
+      );
 
-    for (final stat in allStats) {
-      totalTime += stat.totalTime;
+      return results.map(_songStatsFromMap).toList();
+    } catch (e) {
+      print('Error getting top songs: $e');
+      return [];
     }
-
-    return (totalSongsPlayed: totalSongs, totalTimeStreamed: totalTime);
   }
 
-  /// Get average listening time per day
-  Duration getAverageDailyTime() {
-    final total = getTotalStats();
+  /// Get total stats across all songs (aggregate query)
+  Future<({int totalSongsPlayed, Duration totalTimeStreamed})> getTotalStats() async {
+    final db = await database;
+
+    try {
+      final result = await db.rawQuery('''
+        SELECT
+          COUNT(*) as song_count,
+          SUM(total_seconds) as total_seconds
+        FROM $_tableName
+        WHERE play_count > 0
+      ''');
+
+      if (result.isEmpty) {
+        return (totalSongsPlayed: 0, totalTimeStreamed: Duration.zero);
+      }
+
+      final row = result.first;
+      final songCount = row['song_count'] as int? ?? 0;
+      final totalSeconds = row['total_seconds'] as int? ?? 0;
+
+      return (
+        totalSongsPlayed: songCount,
+        totalTimeStreamed: Duration(seconds: totalSeconds),
+      );
+    } catch (e) {
+      print('Error getting total stats: $e');
+      return (totalSongsPlayed: 0, totalTimeStreamed: Duration.zero);
+    }
+  }
+
+  /// Get average listening time per day (estimated over 30 days)
+  Future<Duration> getAverageDailyTime() async {
+    final total = await getTotalStats();
     if (total.totalSongsPlayed == 0) return Duration.zero;
 
-    // Estimate daily average based on total time and assumed listening days
     // Simple approach: assume 30 days of activity
     return Duration(seconds: total.totalTimeStreamed.inSeconds ~/ 30);
   }
 
-  /// Reset all statistics
+  /// Reset all statistics (delete all records)
   Future<void> resetAllStats() async {
-    final allIds = _prefs.getStringList(_allSongsKey) ?? [];
-    for (final songId in allIds) {
-      final key = '$_statsKeyPrefix$songId';
-      await _prefs.remove(key);
+    final db = await database;
+
+    try {
+      await db.delete(_tableName);
+    } catch (e) {
+      print('Error resetting all stats: $e');
     }
-    await _prefs.remove(_allSongsKey);
   }
 
   /// Delete stats for a single song
   Future<void> deleteSongStats(String songId) async {
-    final key = '$_statsKeyPrefix$songId';
-    await _prefs.remove(key);
+    final db = await database;
 
-    // Remove from list of all song IDs
-    final allIds = _prefs.getStringList(_allSongsKey) ?? [];
-    allIds.remove(songId);
-    await _prefs.setStringList(_allSongsKey, allIds);
+    try {
+      await db.delete(
+        _tableName,
+        where: 'song_id = ?',
+        whereArgs: [songId],
+      );
+    } catch (e) {
+      print('Error deleting song stats: $e');
+    }
   }
 
   /// Check if a song has been played
-  bool hasBeenPlayed(String songId) {
-    final stats = getSongStats(songId);
+  Future<bool> hasBeenPlayed(String songId) async {
+    final stats = await getSongStats(songId);
     return stats != null && stats.playCount > 0;
+  }
+
+  /// Close database connection
+  Future<void> close() async {
+    if (_database != null) {
+      await _database!.close();
+      _database = null;
+    }
+  }
+
+  // ============================================================================
+  // HELPER METHODS
+  // ============================================================================
+
+  /// Convert database map to SongStats object
+  SongStats _songStatsFromMap(Map<String, dynamic> map) {
+    return SongStats(
+      songId: map['song_id'] as String,
+      playCount: map['play_count'] as int? ?? 0,
+      totalTime: Duration(seconds: map['total_seconds'] as int? ?? 0),
+      firstPlayed: map['first_played'] != null
+          ? DateTime.fromMillisecondsSinceEpoch(map['first_played'] as int)
+          : null,
+      lastPlayed: map['last_played'] != null
+          ? DateTime.fromMillisecondsSinceEpoch(map['last_played'] as int)
+          : null,
+      songTitle: map['song_title'] as String?,
+      songArtist: map['song_artist'] as String?,
+      albumId: map['album_id'] as String?,
+      album: map['album'] as String?,
+      albumArtist: map['album_artist'] as String?,
+    );
   }
 }

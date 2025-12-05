@@ -256,6 +256,9 @@ class PlaybackManager extends ChangeNotifier {
       }
 
       _queue.moveToNext();
+      // Clear restored position so new song starts from beginning
+      _restoredPosition = null;
+      _pendingUiPosition = null;
       await _playCurrentSong();
       notifyListeners();
       await _saveState(); // Save state after skipping to next song
@@ -279,6 +282,9 @@ class PlaybackManager extends ChangeNotifier {
       await _statsService.onSongStopped();
 
       _queue.moveToPrevious();
+      // Clear restored position so new song starts from beginning
+      _restoredPosition = null;
+      _pendingUiPosition = null;
       await _playCurrentSong();
       notifyListeners();
       await _saveState(); // Save state after skipping to previous song

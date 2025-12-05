@@ -4,7 +4,7 @@ import '../../models/song.dart';
 import '../../models/song_stats.dart';
 import '../../database/stats_database.dart';
 
-/// Service for tracking streaming statistics across the app
+/// Service for tracking streaming statistics across the app with SQLite persistence
 class StreamingStatsService extends ChangeNotifier {
   // Singleton pattern
   static final StreamingStatsService _instance =
@@ -16,6 +16,9 @@ class StreamingStatsService extends ChangeNotifier {
 
   // Dependencies
   late StatsDatabase _database;
+
+  // In-memory cache for instant UI updates
+  final Map<String, SongStats> _statsCache = {};
 
   // Playback tracking
   Timer? _playbackTimer;
@@ -29,17 +32,32 @@ class StreamingStatsService extends ChangeNotifier {
 
   /// Initialize the service
   Future<void> initialize() async {
-    // Initialize stream controller first (before any emissions)
-    _topSongsStreamController = StreamController<List<SongStats>>.broadcast();
+    // Initialize stream controller with onListen callback
+    // This ensures new subscribers immediately receive current data
+    _topSongsStreamController = StreamController<List<SongStats>>.broadcast(
+      onListen: () {
+        // Re-emit current state when new subscribers join
+        _emitTopSongs();
+      },
+    );
 
     _database = await StatsDatabase.create();
+
+    // Load all stats from SQLite into memory cache
+    _statsCache.clear();
+    final allStats = await _database.getAllStats();
+    for (final stat in allStats) {
+      _statsCache[stat.songId] = stat;
+    }
+
     _emitTopSongs();
-    print('[StreamingStatsService] Initialized');
+    print('[StreamingStatsService] Initialized with ${_statsCache.length} cached songs');
   }
 
   /// Called when a song starts playing
   void onSongStarted(Song song) {
     print('[StreamingStatsService] Song started: ${song.title}');
+    print('[StreamingStatsService] Is first song? ${_currentSong == null}');
 
     // If a song is already playing, stop tracking it first
     if (_currentSong != null) {
@@ -56,8 +74,10 @@ class StreamingStatsService extends ChangeNotifier {
 
     // Start 30-second timer - use async callback to allow awaiting
     _playbackTimer = Timer(const Duration(seconds: 30), () async {
+      print('[StreamingStatsService] 30-second timer fired for: ${_currentSong?.title ?? "NULL"}');
       await _recordPlay();
     });
+    print('[StreamingStatsService] Timer set for 30 seconds');
   }
 
   /// Internal: Finalize the current song's stats without awaiting (for onSongStarted)
@@ -100,15 +120,17 @@ class StreamingStatsService extends ChangeNotifier {
 
   /// Internal: Record a play when 30 seconds have been reached
   Future<void> _recordPlay() async {
+    print('[StreamingStatsService] _recordPlay called - _currentSong: ${_currentSong?.title ?? "NULL"}');
+
     if (_currentSong == null) {
-      print('[StreamingStatsService] _recordPlay called but no current song');
+      print('[StreamingStatsService] ERROR: _recordPlay called but no current song');
       return;
     }
 
     print('[StreamingStatsService] Recording play for: ${_currentSong!.title}');
 
     final songId = _currentSong!.id;
-    final existingStats = _database.getSongStats(songId) ??
+    final existingStats = _statsCache[songId] ??
         SongStats(
           songId: songId,
           playCount: 0,
@@ -122,12 +144,24 @@ class StreamingStatsService extends ChangeNotifier {
       lastPlayed: DateTime.now(),
       songTitle: _currentSong?.title,
       songArtist: _currentSong?.artist,
+      albumId: _currentSong?.albumId,
+      album: _currentSong?.album,
+      albumArtist: _currentSong?.albumArtist,
     );
 
-    print('[StreamingStatsService] Saving play count: ${updatedStats.playCount}');
+    // Update in-memory cache IMMEDIATELY
+    _statsCache[songId] = updatedStats;
+
+    print('[StreamingStatsService] Play count incremented: ${updatedStats.playCount}');
+    print('[StreamingStatsService] Cache now has ${_statsCache.length} songs');
+
+    // Write to database IMMEDIATELY (no debouncing)
     await _database.saveSongStats(updatedStats);
-    print('[StreamingStatsService] Play count saved successfully');
+    print('[StreamingStatsService] Stats saved to database');
+
+    // Emit to UI instantly
     _emitTopSongs();
+    print('[StreamingStatsService] Emitted top songs to stream');
   }
 
   /// Internal: Update total streaming time
@@ -138,7 +172,7 @@ class StreamingStatsService extends ChangeNotifier {
     }
 
     final songId = _currentSong!.id;
-    final existingStats = _database.getSongStats(songId) ??
+    final existingStats = _statsCache[songId] ??
         SongStats(
           songId: songId,
           playCount: 0,
@@ -157,50 +191,80 @@ class StreamingStatsService extends ChangeNotifier {
       lastPlayed: DateTime.now(),
       songTitle: _currentSong?.title,
       songArtist: _currentSong?.artist,
+      albumId: _currentSong?.albumId,
+      album: _currentSong?.album,
+      albumArtist: _currentSong?.albumArtist,
     );
 
-    print('[StreamingStatsService] Saving streaming time...');
+    // Update in-memory cache IMMEDIATELY
+    _statsCache[songId] = updatedStats;
+
+    // Write to database IMMEDIATELY (no debouncing)
     await _database.saveSongStats(updatedStats);
-    print('[StreamingStatsService] Streaming time saved successfully');
+
+    // Emit to UI instantly
     _emitTopSongs();
   }
 
-  /// Get all stats
+  /// Get all stats (from in-memory cache for instant access)
   List<SongStats> getAllStats() {
-    return _database.getAllStats();
+    return _statsCache.values
+        .where((stat) => stat.playCount > 0)
+        .toList();
   }
 
-  /// Get top songs (default 20)
+  /// Get top songs (default 20) from in-memory cache
   List<SongStats> getTopSongs({int limit = 20}) {
-    return _database.getTopSongs(limit: limit);
+    final allStats = getAllStats();
+    // Sort by play count descending
+    allStats.sort((a, b) => b.playCount.compareTo(a.playCount));
+    return allStats.take(limit).toList();
   }
 
-  /// Get total statistics
+  /// Get total statistics from in-memory cache
   ({int totalSongsPlayed, Duration totalTimeStreamed}) getTotalStats() {
-    return _database.getTotalStats();
+    final allStats = getAllStats();
+    int totalSongs = allStats.length;
+    Duration totalTime = Duration.zero;
+
+    for (final stat in allStats) {
+      totalTime += stat.totalTime;
+    }
+
+    return (totalSongsPlayed: totalSongs, totalTimeStreamed: totalTime);
   }
 
-  /// Get average daily listening time
+  /// Get average daily listening time (computed from in-memory cache)
   Duration getAverageDailyTime() {
-    return _database.getAverageDailyTime();
+    final stats = getTotalStats();  // Uses in-memory cache, instant
+    if (stats.totalSongsPlayed == 0) return Duration.zero;
+
+    // Estimate daily average based on total time and assumed listening days
+    // Simple approach: assume 30 days of activity
+    return Duration(seconds: stats.totalTimeStreamed.inSeconds ~/ 30);
   }
 
   /// Reset all statistics
   Future<void> resetAllStats() async {
     print('[StreamingStatsService] Resetting all stats');
+    _statsCache.clear();
     await _database.resetAllStats();
     _emitTopSongs();
     notifyListeners();
   }
 
-  /// Get stats for a specific song
+  /// Get stats for a specific song from in-memory cache
   SongStats? getSongStats(String songId) {
-    return _database.getSongStats(songId);
+    return _statsCache[songId];
   }
 
   /// Emit updated top songs to stream
   void _emitTopSongs() {
     final topSongs = getTopSongs();
+    print('[StreamingStatsService] _emitTopSongs: emitting ${topSongs.length} songs to stream');
+    if (topSongs.isNotEmpty) {
+      print('[StreamingStatsService] Top song: ${topSongs.first.songTitle} (${topSongs.first.playCount} plays)');
+    }
     _topSongsStreamController.add(topSongs);
     notifyListeners();
   }

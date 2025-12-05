@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/song_stats.dart';
 import '../../services/stats/streaming_stats_service.dart';
+import '../../services/api/connection_service.dart';
 
 /// Screen displaying streaming statistics and listening data
 class StreamingStatsScreen extends StatefulWidget {
@@ -12,6 +13,7 @@ class StreamingStatsScreen extends StatefulWidget {
 
 class _StreamingStatsScreenState extends State<StreamingStatsScreen> {
   final StreamingStatsService _statsService = StreamingStatsService();
+  final ConnectionService _connectionService = ConnectionService();
 
   @override
   void initState() {
@@ -54,48 +56,54 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen> {
 
   /// Build the overview card showing total stats
   Widget _buildOverviewCard() {
-    final stats = _statsService.getTotalStats();
-    final avgDaily = _statsService.getAverageDailyTime();
+    // Use ListenableBuilder to listen for changes in the stats service
+    return ListenableBuilder(
+      listenable: _statsService,
+      builder: (context, _) {
+        final stats = _statsService.getTotalStats();
+        final avgDaily = _statsService.getAverageDailyTime();
 
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Card(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Your Listening Stats',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // Stats grid
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
+        return Padding(
+          padding: const EdgeInsets.all(16),
+          child: Card(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildStatItem(
-                    label: 'Songs Played',
-                    value: stats.totalSongsPlayed.toString(),
+                  const Text(
+                    'Your Listening Stats',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                  _buildStatItem(
-                    label: 'Total Time',
-                    value: _formatDuration(stats.totalTimeStreamed),
-                  ),
-                  _buildStatItem(
-                    label: 'Daily Avg',
-                    value: _formatDuration(avgDaily),
+                  const SizedBox(height: 16),
+
+                  // Stats grid
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _buildStatItem(
+                        label: 'Songs Played',
+                        value: stats.totalSongsPlayed.toString(),
+                      ),
+                      _buildStatItem(
+                        label: 'Total Time',
+                        value: _formatDuration(stats.totalTimeStreamed),
+                      ),
+                      _buildStatItem(
+                        label: 'Daily Avg',
+                        value: _formatDuration(avgDaily),
+                      ),
+                    ],
                   ),
                 ],
               ),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -139,14 +147,56 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen> {
         StreamBuilder<List<SongStats>>(
           stream: _statsService.topSongsStream,
           builder: (context, snapshot) {
+            // Handle error state
+            if (snapshot.hasError) {
+              return Padding(
+                padding: const EdgeInsets.all(32),
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.error_outline, size: 48, color: Colors.red[300]),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Error loading stats',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.red[600],
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+
+            // Handle loading state
+            if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+              return const Padding(
+                padding: EdgeInsets.all(32),
+                child: Center(
+                  child: CircularProgressIndicator(),
+                ),
+              );
+            }
+
+            // Handle empty state
             if (!snapshot.hasData || snapshot.data!.isEmpty) {
               return Padding(
                 padding: const EdgeInsets.all(32),
                 child: Center(
-                  child: Text(
-                    'No stats yet. Start listening to see your top songs!',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.grey[600]),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.music_note, size: 48, color: Colors.grey[400]),
+                      const SizedBox(height: 16),
+                      Text(
+                        'No stats yet. Start listening to see your top songs!',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.grey[600]),
+                      ),
+                    ],
                   ),
                 ),
               );
@@ -170,29 +220,76 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen> {
 
   /// Build a single top song item
   Widget _buildTopSongItem(SongStats stat, int rank) {
+    final baseUrl = _connectionService.apiClient?.baseUrl;
+
+    // Debug logging for album artwork
+    print('[StreamingStatsScreen] Building song item: ${stat.songTitle}');
+    print('[StreamingStatsScreen] - albumId: ${stat.albumId}');
+    print('[StreamingStatsScreen] - album: ${stat.album}');
+    print('[StreamingStatsScreen] - baseUrl: $baseUrl');
+    if (stat.albumId != null && baseUrl != null) {
+      print('[StreamingStatsScreen] - Full artwork URL: $baseUrl/api/artwork/${stat.albumId}');
+    }
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
         children: [
-          // Rank badge
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: _getRankColor(rank),
-              borderRadius: BorderRadius.circular(16),
+          // Album artwork
+          if (stat.albumId != null && baseUrl != null)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.network(
+                '$baseUrl/artwork/${stat.albumId}',
+                width: 56,
+                height: 56,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      Icons.album,
+                      color: Colors.grey[600],
+                      size: 32,
+                    ),
+                  );
+                },
+              ),
+            )
+          else
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                Icons.album,
+                color: Colors.grey[600],
+                size: 32,
+              ),
             ),
-            child: Center(
-              child: Text(
-                '$rank',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
+          const SizedBox(width: 12),
+
+          // Rank number
+          SizedBox(
+            width: 24,
+            child: Text(
+              '$rank.',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+                color: Colors.grey[700],
               ),
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
 
           // Song info
           Expanded(
@@ -230,14 +327,6 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen> {
         ],
       ),
     );
-  }
-
-  /// Get color for rank badge
-  Color _getRankColor(int rank) {
-    if (rank == 1) return Colors.amber[700]!; // Gold
-    if (rank == 2) return Colors.grey[400]!; // Silver
-    if (rank == 3) return Colors.orange[700]!; // Bronze
-    return Colors.blue;
   }
 
   /// Format duration as "1h 20m" or "20m"
