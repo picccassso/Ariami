@@ -33,8 +33,6 @@ dart run bin/bma_cli.dart start
 cd bma_mobile && flutter run
 ```
 
-For detailed commands and development instructions, see [CLAUDE.md](CLAUDE.md).
-
 ## Server Features (Desktop & CLI)
 
 - **Library Management**
@@ -114,15 +112,6 @@ BMA/
 └── context/           # Development documentation
 
 ```
-
-## Development
-
-See [CLAUDE.md](CLAUDE.md) for comprehensive development documentation including:
-- Build and test commands for all platforms
-- Architecture and communication patterns
-- API endpoint documentation
-- Code organization and key dependencies
-- Debugging tips and common issues
 
 ## Requirements
 
