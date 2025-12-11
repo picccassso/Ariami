@@ -49,11 +49,12 @@ class _TailscaleCheckScreenState extends State<TailscaleCheckScreen> {
         title: const Text('Tailscale Setup'),
       ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
               // Status Icon
               _buildStatusIcon(),
               const SizedBox(height: 32),
@@ -72,9 +73,9 @@ class _TailscaleCheckScreenState extends State<TailscaleCheckScreen> {
               // Status Description
               Text(
                 _getStatusDescription(),
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 16,
-                  color: Colors.grey[700],
+                  color: Colors.white70,
                   height: 1.5,
                 ),
                 textAlign: TextAlign.center,
@@ -92,6 +93,7 @@ class _TailscaleCheckScreenState extends State<TailscaleCheckScreen> {
               _buildActionButtons(),
             ],
           ),
+        ),
         ),
       ),
     );
@@ -160,17 +162,19 @@ class _TailscaleCheckScreenState extends State<TailscaleCheckScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.blue[50],
+        color: Colors.blue[900]!.withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.blue[700]!, width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Setup Instructions:',
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
+              color: Colors.blue[100],
             ),
           ),
           const SizedBox(height: 12),
@@ -179,11 +183,11 @@ class _TailscaleCheckScreenState extends State<TailscaleCheckScreen> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('• ', style: TextStyle(fontSize: 16)),
+                    const Text('• ', style: TextStyle(fontSize: 16, color: Colors.white70)),
                     Expanded(
                       child: Text(
                         instruction,
-                        style: const TextStyle(fontSize: 14),
+                        style: const TextStyle(fontSize: 14, color: Colors.white70),
                       ),
                     ),
                   ],
