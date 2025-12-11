@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import 'package:bma_core/bma_core.dart';
 import '../services/desktop_tailscale_service.dart';
-import '../services/server/http_server.dart';
 import '../services/desktop_state_service.dart';
 import 'scanning_screen.dart';
 
@@ -77,7 +77,7 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
       }
 
       // Start HTTP server (singleton will prevent double-start)
-      await _httpServer.start(tailscaleIp: ip, port: 8080);
+      await _httpServer.start(advertisedIp: ip, port: 8080);
 
       // Check if we need to scan before showing the QR code
       final prefs = await SharedPreferences.getInstance();

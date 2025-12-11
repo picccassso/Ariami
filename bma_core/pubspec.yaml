@@ -1,0 +1,29 @@
+name: bma_core
+description: Shared core library for BMA (Basic Music App) - platform-agnostic services and models
+version: 1.0.0
+publish_to: 'none'
+
+environment:
+  sdk: ^3.9.2
+
+dependencies:
+  # HTTP server framework
+  shelf: ^1.4.0
+  shelf_router: ^1.1.0
+  shelf_web_socket: ^1.0.4
+  shelf_static: ^1.1.0
+
+  # Music metadata extraction
+  dart_tags: ^0.4.1
+
+  # Utilities
+  crypto: ^3.0.3
+  watcher: ^1.1.0
+  path: ^1.8.0
+
+  # Logging
+  logging: ^1.2.0
+
+dev_dependencies:
+  lints: ^5.0.0
+  test: ^1.25.0

@@ -1,6 +1,5 @@
 import 'dart:io';
-import 'package:bma_desktop/services/library/folder_watcher.dart';
-import 'package:bma_desktop/models/file_change.dart';
+import 'package:bma_core/bma_core.dart';
 
 void main() async {
   print('=== Folder Watcher Test ===\n');
