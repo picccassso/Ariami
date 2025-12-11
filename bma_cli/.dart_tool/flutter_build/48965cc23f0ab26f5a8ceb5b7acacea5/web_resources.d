@@ -1,0 +1,1 @@
+ /Users/alex/Desktop/BMA/bma_cli/build/web/manifest.json:  /Users/alex/Desktop/BMA/bma_cli/web/index.html /Users/alex/Desktop/BMA/bma_cli/web/manifest.json

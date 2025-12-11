@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../services/server/http_server.dart';
+import 'package:bma_core/bma_core.dart';
 import '../services/desktop_tailscale_service.dart';
 import 'scanning_screen.dart';
 
@@ -90,7 +90,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     try {
       print('[Dashboard] Auto-starting server on $ip:8080');
-      await _httpServer.start(tailscaleIp: ip, port: 8080);
+      await _httpServer.start(advertisedIp: ip, port: 8080);
 
       if (mounted) {
         setState(() {});
@@ -184,7 +184,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
       try {
         // Start the HTTP server
-        await _httpServer.start(tailscaleIp: ip, port: 8080);
+        await _httpServer.start(advertisedIp: ip, port: 8080);
 
         // Debug: Check music folder path
         print('[Dashboard] Music folder path: "$_musicFolderPath"');
