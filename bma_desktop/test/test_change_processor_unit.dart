@@ -1,8 +1,4 @@
-import 'package:bma_desktop/models/file_change.dart';
-import 'package:bma_desktop/models/song_metadata.dart';
-import 'package:bma_desktop/models/library_structure.dart';
-import 'package:bma_desktop/models/album.dart';
-import 'package:bma_desktop/services/library/change_processor.dart';
+import 'package:bma_core/bma_core.dart';
 
 void main() async {
   print('=== Change Processor Unit Test ===\n');

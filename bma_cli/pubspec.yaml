@@ -1,0 +1,47 @@
+name: bma_cli
+description: CLI version of BMA - Basic Music App for headless servers
+version: 1.0.0
+publish_to: 'none'
+
+environment:
+  sdk: ^3.9.2
+
+dependencies:
+  # Flutter SDK for web UI
+  flutter:
+    sdk: flutter
+
+  # Shared core library
+  bma_core:
+    path: ../bma_core
+
+  # CLI argument parsing
+  args: ^2.4.0
+
+  # File system paths
+  path: ^1.8.0
+  path_provider: ^2.1.0
+
+  # Browser launching
+  url_launcher: ^6.1.0
+
+  # Configuration storage
+  shared_preferences: ^2.2.0
+
+  # Static file serving (for web UI in Phase 5)
+  shelf_static: ^1.1.0
+
+  # QR code generation (web-compatible)
+  qr_flutter: ^4.1.0
+
+  # HTTP client for web API calls
+  http: ^1.1.0
+
+dev_dependencies:
+  lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+
+executables:
+  bma_cli:

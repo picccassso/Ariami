@@ -10,7 +10,7 @@ packages:
     source: hosted
     version: "2.13.0"
   audioplayers:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: audioplayers
       sha256: c05c6147124cd63e725e861335a8b4d57300b80e6e92cea7c145c739223bbaef
@@ -65,6 +65,13 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.1.0"
+  bma_core:
+    dependency: "direct main"
+    description:
+      path: "../bma_core"
+      relative: true
+    source: path
+    version: "1.0.0"
   boolean_selector:
     dependency: transitive
     description:
@@ -106,7 +113,7 @@ packages:
     source: hosted
     version: "3.1.2"
   crypto:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: crypto
       sha256: c8ea0233063ba03258fbcf2ca4d6dadfefe14f02fab57702265467a19f27fadf
@@ -122,7 +129,7 @@ packages:
     source: hosted
     version: "1.0.8"
   dart_tags:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: dart_tags
       sha256: "2dbe297845ff979581b404bf6fac9278466cecac20b8e5ae3c3d30a46f418632"
@@ -272,6 +279,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "5.1.1"
+  logging:
+    dependency: transitive
+    description:
+      name: logging
+      sha256: c8245ada5f1717ed44271ed1c26b8ce85ca3228fd2ffdb75468ab01979309d61
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.3.0"
   matcher:
     dependency: transitive
     description:
@@ -305,7 +320,7 @@ packages:
     source: hosted
     version: "1.16.0"
   path:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: path
       sha256: "75cca69d1490965be98c73ceaea117e8a04dd21217b37b292c9ddbec0d955bc5"
@@ -489,7 +504,7 @@ packages:
     source: hosted
     version: "2.4.1"
   shelf:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: shelf
       sha256: e7dd780a7ffb623c57850b33f43309312fc863fb6aa3d276a754bb299839ef12
@@ -497,7 +512,7 @@ packages:
     source: hosted
     version: "1.4.2"
   shelf_router:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: shelf_router
       sha256: f5e5d492440a7fb165fe1e2e1a623f31f734d3370900070b2b1e0d0428d59864
@@ -505,7 +520,7 @@ packages:
     source: hosted
     version: "1.1.4"
   shelf_web_socket:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: shelf_web_socket
       sha256: "9ca081be41c60190ebcb4766b2486a7d50261db7bd0f5d9615f2d653637a84c1"
@@ -630,7 +645,7 @@ packages:
     source: hosted
     version: "15.0.2"
   watcher:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: watcher
       sha256: "592ab6e2892f67760543fb712ff0177f4ec76c031f02f5b4ff8d3fc5eb9fb61a"

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../services/server/http_server.dart';
+import 'package:bma_core/bma_core.dart';
 
 class ScanningScreen extends StatefulWidget {
   final String musicFolderPath;
