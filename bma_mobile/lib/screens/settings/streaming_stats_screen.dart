@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/song_stats.dart';
+import '../../models/artist_stats.dart';
+import '../../models/album_stats.dart';
 import '../../services/stats/streaming_stats_service.dart';
 import '../../services/api/connection_service.dart';
 import '../../widgets/common/cached_artwork.dart';
@@ -12,15 +14,31 @@ class StreamingStatsScreen extends StatefulWidget {
   State<StreamingStatsScreen> createState() => _StreamingStatsScreenState();
 }
 
-class _StreamingStatsScreenState extends State<StreamingStatsScreen> {
+class _StreamingStatsScreenState extends State<StreamingStatsScreen>
+    with SingleTickerProviderStateMixin {
   final StreamingStatsService _statsService = StreamingStatsService();
   final ConnectionService _connectionService = ConnectionService();
+
+  late TabController _tabController;
+  int _currentTabIndex = 0;
 
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+    _tabController.addListener(() {
+      setState(() {
+        _currentTabIndex = _tabController.index;
+      });
+    });
     // Request fresh data when screen loads
     _statsService.refreshTopSongs();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   @override
@@ -35,34 +53,105 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen> {
             tooltip: 'Reset statistics',
           ),
         ],
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(text: 'Tracks'),
+            Tab(text: 'Artists'),
+            Tab(text: 'Albums'),
+          ],
+        ),
       ),
       body: RefreshIndicator(
         onRefresh: () async {
           // Refresh the UI
           setState(() {});
         },
-        child: ListView(
+        child: Column(
           children: [
-            // Overview card with totals
+            // Overview card with totals (dynamic based on tab)
             _buildOverviewCard(),
             const SizedBox(height: 16),
 
-            // Top songs section
-            _buildTopSongsSection(),
+            // Tab content
+            Expanded(
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildTracksTab(),
+                  _buildArtistsTab(),
+                  _buildAlbumsTab(),
+                ],
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  /// Build the overview card showing total stats
+  /// Build the overview card showing total stats (dynamic based on tab)
   Widget _buildOverviewCard() {
-    // Use ListenableBuilder to listen for changes in the stats service
     return ListenableBuilder(
       listenable: _statsService,
       builder: (context, _) {
-        final stats = _statsService.getTotalStats();
-        final avgDaily = _statsService.getAverageDailyTime();
+        String metric1Label;
+        String metric1Value;
+        String metric2Label;
+        String metric2Value;
+        String metric3Label;
+        String metric3Value;
+
+        switch (_currentTabIndex) {
+          case 0: // Tracks
+            final stats = _statsService.getTotalStats();
+            final avgDaily = _statsService.getAverageDailyTime();
+            metric1Label = 'Songs Played';
+            metric1Value = stats.totalSongsPlayed.toString();
+            metric2Label = 'Total Time';
+            metric2Value = _formatDuration(stats.totalTimeStreamed);
+            metric3Label = 'Daily Avg';
+            metric3Value = _formatDuration(avgDaily);
+            break;
+
+          case 1: // Artists
+            final artists = _statsService.getTopArtists(limit: 1000);
+            final totalTime = artists.fold<Duration>(
+              Duration.zero,
+              (sum, artist) => sum + artist.totalTime,
+            );
+            final avgDaily = Duration(seconds: totalTime.inSeconds ~/ 30);
+            metric1Label = 'Artists Played';
+            metric1Value = artists.length.toString();
+            metric2Label = 'Total Time';
+            metric2Value = _formatDuration(totalTime);
+            metric3Label = 'Daily Avg';
+            metric3Value = _formatDuration(avgDaily);
+            break;
+
+          case 2: // Albums
+            final albums = _statsService.getTopAlbums(limit: 1000);
+            final totalTime = albums.fold<Duration>(
+              Duration.zero,
+              (sum, album) => sum + album.totalTime,
+            );
+            final avgDaily = Duration(seconds: totalTime.inSeconds ~/ 30);
+            metric1Label = 'Albums Played';
+            metric1Value = albums.length.toString();
+            metric2Label = 'Total Time';
+            metric2Value = _formatDuration(totalTime);
+            metric3Label = 'Daily Avg';
+            metric3Value = _formatDuration(avgDaily);
+            break;
+
+          default:
+            metric1Label = 'Songs Played';
+            metric1Value = '0';
+            metric2Label = 'Total Time';
+            metric2Value = '0m';
+            metric3Label = 'Daily Avg';
+            metric3Value = '0m';
+        }
 
         return Padding(
           padding: const EdgeInsets.all(16),
@@ -80,23 +169,12 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-
-                  // Stats grid
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
-                      _buildStatItem(
-                        label: 'Songs Played',
-                        value: stats.totalSongsPlayed.toString(),
-                      ),
-                      _buildStatItem(
-                        label: 'Total Time',
-                        value: _formatDuration(stats.totalTimeStreamed),
-                      ),
-                      _buildStatItem(
-                        label: 'Daily Avg',
-                        value: _formatDuration(avgDaily),
-                      ),
+                      _buildStatItem(label: metric1Label, value: metric1Value),
+                      _buildStatItem(label: metric2Label, value: metric2Value),
+                      _buildStatItem(label: metric3Label, value: metric3Value),
                     ],
                   ),
                 ],
@@ -132,10 +210,9 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen> {
     );
   }
 
-  /// Build the top songs section
-  Widget _buildTopSongsSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  /// Build the tracks tab
+  Widget _buildTracksTab() {
+    return ListView(
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -148,59 +225,16 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen> {
         StreamBuilder<List<SongStats>>(
           stream: _statsService.topSongsStream,
           builder: (context, snapshot) {
-            // Handle error state
             if (snapshot.hasError) {
-              return Padding(
-                padding: const EdgeInsets.all(32),
-                child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.error_outline, size: 48, color: Colors.red[300]),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Error loading stats',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Colors.red[600],
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
+              return _buildErrorState();
             }
 
-            // Handle loading state
             if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
-              return const Padding(
-                padding: EdgeInsets.all(32),
-                child: Center(
-                  child: CircularProgressIndicator(),
-                ),
-              );
+              return _buildLoadingState();
             }
 
-            // Handle empty state
             if (!snapshot.hasData || snapshot.data!.isEmpty) {
-              return Padding(
-                padding: const EdgeInsets.all(32),
-                child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.music_note, size: 48, color: Colors.grey[400]),
-                      const SizedBox(height: 16),
-                      Text(
-                        'No stats yet. Start listening to see your top songs!',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.grey[600]),
-                      ),
-                    ],
-                  ),
-                ),
-              );
+              return _buildEmptyState('No stats yet. Start listening to see your top songs!');
             }
 
             final topSongs = snapshot.data!;
@@ -216,6 +250,147 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen> {
           },
         ),
       ],
+    );
+  }
+
+  /// Build the artists tab
+  Widget _buildArtistsTab() {
+    return ListView(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Text(
+            'Your Top Artists',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+        ),
+        const SizedBox(height: 12),
+        StreamBuilder<List<ArtistStats>>(
+          stream: _statsService.topArtistsStream,
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return _buildErrorState();
+            }
+
+            if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+              return _buildLoadingState();
+            }
+
+            if (!snapshot.hasData || snapshot.data!.isEmpty) {
+              return _buildEmptyState('No stats yet. Start listening to see your top artists!');
+            }
+
+            final topArtists = snapshot.data!;
+            return ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: topArtists.length,
+              itemBuilder: (context, index) {
+                final stat = topArtists[index];
+                return _buildTopArtistItem(stat, index + 1);
+              },
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  /// Build the albums tab
+  Widget _buildAlbumsTab() {
+    return ListView(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Text(
+            'Your Top Albums',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+        ),
+        const SizedBox(height: 12),
+        StreamBuilder<List<AlbumStats>>(
+          stream: _statsService.topAlbumsStream,
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return _buildErrorState();
+            }
+
+            if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+              return _buildLoadingState();
+            }
+
+            if (!snapshot.hasData || snapshot.data!.isEmpty) {
+              return _buildEmptyState('No stats yet. Start listening to see your top albums!');
+            }
+
+            final topAlbums = snapshot.data!;
+            return ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: topAlbums.length,
+              itemBuilder: (context, index) {
+                final stat = topAlbums[index];
+                return _buildTopAlbumItem(stat, index + 1);
+              },
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  /// Build reusable error state
+  Widget _buildErrorState() {
+    return Padding(
+      padding: const EdgeInsets.all(32),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.error_outline, size: 48, color: Colors.red[300]),
+            const SizedBox(height: 16),
+            Text(
+              'Error loading stats',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.red[600],
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Build reusable loading state
+  Widget _buildLoadingState() {
+    return const Padding(
+      padding: EdgeInsets.all(32),
+      child: Center(
+        child: CircularProgressIndicator(),
+      ),
+    );
+  }
+
+  /// Build reusable empty state
+  Widget _buildEmptyState(String message) {
+    return Padding(
+      padding: const EdgeInsets.all(32),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.music_note, size: 48, color: Colors.grey[400]),
+            const SizedBox(height: 16),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey[600]),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -289,6 +464,153 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen> {
                 const SizedBox(height: 4),
                 Text(
                   '${stat.playCount} ${stat.playCount == 1 ? 'play' : 'plays'} • ${stat.formattedTime}',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.grey[500],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Build a single top artist item
+  Widget _buildTopArtistItem(ArtistStats stat, int rank) {
+    final baseUrl = _connectionService.apiClient?.baseUrl;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: [
+          // Random album artwork (uses cache)
+          CachedArtwork(
+            albumId: stat.randomAlbumId ?? '',
+            artworkUrl: baseUrl != null && stat.randomAlbumId != null
+                ? '$baseUrl/artwork/${stat.randomAlbumId}'
+                : null,
+            width: 56,
+            height: 56,
+            fit: BoxFit.cover,
+            borderRadius: BorderRadius.circular(8),
+            fallbackIcon: Icons.person,
+            fallbackIconSize: 32,
+          ),
+          const SizedBox(width: 12),
+
+          // Rank number
+          SizedBox(
+            width: 24,
+            child: Text(
+              '$rank.',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+                color: Colors.grey[700],
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+
+          // Artist info
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  stat.artistName,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  '${stat.uniqueSongsCount} ${stat.uniqueSongsCount == 1 ? 'song' : 'songs'}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${stat.playCount} ${stat.playCount == 1 ? 'play' : 'plays'} • ${stat.formattedTime}',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.grey[500],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Build a single top album item
+  Widget _buildTopAlbumItem(AlbumStats stat, int rank) {
+    final baseUrl = _connectionService.apiClient?.baseUrl;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: [
+          // Album artwork (uses cache)
+          CachedArtwork(
+            albumId: stat.albumId,
+            artworkUrl: baseUrl != null
+                ? '$baseUrl/artwork/${stat.albumId}'
+                : null,
+            width: 56,
+            height: 56,
+            fit: BoxFit.cover,
+            borderRadius: BorderRadius.circular(8),
+            fallbackIconSize: 32,
+          ),
+          const SizedBox(width: 12),
+
+          // Rank number
+          SizedBox(
+            width: 24,
+            child: Text(
+              '$rank.',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+                color: Colors.grey[700],
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+
+          // Album info
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  stat.albumName ?? 'Unknown Album',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  stat.albumArtist ?? 'Unknown Artist',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${stat.uniqueSongsCount} ${stat.uniqueSongsCount == 1 ? 'song' : 'songs'} • ${stat.formattedTime}',
                   style: TextStyle(
                     fontSize: 11,
                     color: Colors.grey[500],
