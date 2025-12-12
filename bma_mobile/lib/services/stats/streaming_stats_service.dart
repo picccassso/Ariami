@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../../models/song.dart';
 import '../../models/song_stats.dart';
+import '../../models/artist_stats.dart';
+import '../../models/album_stats.dart';
 import '../../database/stats_database.dart';
 
 /// Service for tracking streaming statistics across the app with SQLite persistence
@@ -27,8 +29,12 @@ class StreamingStatsService extends ChangeNotifier {
 
   // Streams for UI updates (initialized at startup)
   late StreamController<List<SongStats>> _topSongsStreamController;
+  late StreamController<List<ArtistStats>> _topArtistsStreamController;
+  late StreamController<List<AlbumStats>> _topAlbumsStreamController;
 
   Stream<List<SongStats>> get topSongsStream => _topSongsStreamController.stream;
+  Stream<List<ArtistStats>> get topArtistsStream => _topArtistsStreamController.stream;
+  Stream<List<AlbumStats>> get topAlbumsStream => _topAlbumsStreamController.stream;
 
   /// Initialize the service
   Future<void> initialize() async {
@@ -38,6 +44,18 @@ class StreamingStatsService extends ChangeNotifier {
       onListen: () {
         // Re-emit current state when new subscribers join
         _emitTopSongs();
+      },
+    );
+
+    _topArtistsStreamController = StreamController<List<ArtistStats>>.broadcast(
+      onListen: () {
+        _emitTopArtists();
+      },
+    );
+
+    _topAlbumsStreamController = StreamController<List<AlbumStats>>.broadcast(
+      onListen: () {
+        _emitTopAlbums();
       },
     );
 
@@ -51,6 +69,8 @@ class StreamingStatsService extends ChangeNotifier {
     }
 
     _emitTopSongs();
+    _emitTopArtists();
+    _emitTopAlbums();
     print('[StreamingStatsService] Initialized with ${_statsCache.length} cached songs');
   }
 
@@ -221,6 +241,102 @@ class StreamingStatsService extends ChangeNotifier {
     return allStats.take(limit).toList();
   }
 
+  /// Get top artists (default 20) aggregated from in-memory cache
+  List<ArtistStats> getTopArtists({int limit = 20}) {
+    final allStats = getAllStats();
+
+    // Aggregate by artist name (album_artist ?? song_artist)
+    final Map<String, ArtistStats> artistMap = {};
+
+    for (final songStat in allStats) {
+      final artistName = songStat.albumArtist ?? songStat.songArtist ?? 'Unknown Artist';
+
+      if (artistMap.containsKey(artistName)) {
+        final existing = artistMap[artistName]!;
+        artistMap[artistName] = existing.copyWith(
+          playCount: existing.playCount + songStat.playCount,
+          totalTime: Duration(seconds: existing.totalTime.inSeconds + songStat.totalTime.inSeconds),
+          lastPlayed: _laterDate(existing.lastPlayed, songStat.lastPlayed),
+          firstPlayed: _earlierDate(existing.firstPlayed, songStat.firstPlayed),
+          uniqueSongsCount: existing.uniqueSongsCount + 1,
+        );
+      } else {
+        artistMap[artistName] = ArtistStats(
+          artistName: artistName,
+          playCount: songStat.playCount,
+          totalTime: songStat.totalTime,
+          firstPlayed: songStat.firstPlayed,
+          lastPlayed: songStat.lastPlayed,
+          randomAlbumId: songStat.albumId,
+          uniqueSongsCount: 1,
+        );
+      }
+    }
+
+    final artistList = artistMap.values.toList();
+    // Sort by total time descending (requirement: rank by listening time)
+    artistList.sort((a, b) => b.totalTime.compareTo(a.totalTime));
+    return artistList.take(limit).toList();
+  }
+
+  /// Get top albums (default 20) aggregated from in-memory cache
+  List<AlbumStats> getTopAlbums({int limit = 20}) {
+    final allStats = getAllStats();
+
+    // Aggregate by album ID
+    final Map<String, AlbumStats> albumMap = {};
+
+    for (final songStat in allStats) {
+      if (songStat.albumId == null || songStat.albumId!.isEmpty) continue;
+
+      final albumId = songStat.albumId!;
+
+      if (albumMap.containsKey(albumId)) {
+        final existing = albumMap[albumId]!;
+        albumMap[albumId] = existing.copyWith(
+          // Fill in albumArtist if we find a non-null value
+          albumArtist: existing.albumArtist ?? songStat.albumArtist ?? songStat.songArtist,
+          playCount: existing.playCount + songStat.playCount,
+          totalTime: Duration(seconds: existing.totalTime.inSeconds + songStat.totalTime.inSeconds),
+          lastPlayed: _laterDate(existing.lastPlayed, songStat.lastPlayed),
+          firstPlayed: _earlierDate(existing.firstPlayed, songStat.firstPlayed),
+          uniqueSongsCount: existing.uniqueSongsCount + 1,
+        );
+      } else {
+        albumMap[albumId] = AlbumStats(
+          albumId: albumId,
+          albumName: songStat.album,
+          // Use albumArtist, fallback to songArtist (same pattern as Artists)
+          albumArtist: songStat.albumArtist ?? songStat.songArtist,
+          playCount: songStat.playCount,
+          totalTime: songStat.totalTime,
+          firstPlayed: songStat.firstPlayed,
+          lastPlayed: songStat.lastPlayed,
+          uniqueSongsCount: 1,
+        );
+      }
+    }
+
+    final albumList = albumMap.values.toList();
+    // Sort by total time descending (requirement: rank by listening time)
+    albumList.sort((a, b) => b.totalTime.compareTo(a.totalTime));
+    return albumList.take(limit).toList();
+  }
+
+  /// Helper: Return the later of two dates
+  DateTime? _laterDate(DateTime? a, DateTime? b) {
+    if (a == null) return b;
+    if (b == null) return a;
+    return a.isAfter(b) ? a : b;
+  }
+
+  /// Helper: Return the earlier of two dates
+  DateTime? _earlierDate(DateTime? a, DateTime? b) {
+    if (a == null) return b;
+    if (b == null) return a;
+    return a.isBefore(b) ? a : b;
+  }
+
   /// Get total statistics from in-memory cache
   ({int totalSongsPlayed, Duration totalTimeStreamed}) getTotalStats() {
     final allStats = getAllStats();
@@ -266,7 +382,24 @@ class StreamingStatsService extends ChangeNotifier {
       print('[StreamingStatsService] Top song: ${topSongs.first.songTitle} (${topSongs.first.playCount} plays)');
     }
     _topSongsStreamController.add(topSongs);
+
+    // Also emit updated artists and albums (they depend on same cache)
+    _emitTopArtists();
+    _emitTopAlbums();
+
     notifyListeners();
+  }
+
+  /// Emit updated top artists to stream
+  void _emitTopArtists() {
+    final topArtists = getTopArtists();
+    _topArtistsStreamController.add(topArtists);
+  }
+
+  /// Emit updated top albums to stream
+  void _emitTopAlbums() {
+    final topAlbums = getTopAlbums();
+    _topAlbumsStreamController.add(topAlbums);
   }
 
   /// Public refresh method for UI to request updated stats
@@ -278,6 +411,8 @@ class StreamingStatsService extends ChangeNotifier {
   void dispose() {
     _playbackTimer?.cancel();
     _topSongsStreamController.close();
+    _topArtistsStreamController.close();
+    _topAlbumsStreamController.close();
     super.dispose();
   }
 }
