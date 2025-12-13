@@ -1,4 +1,7 @@
-# BMA (Basic Music App)
+<div align="center">
+  <img src="BMA_icon.png" alt="BMA Logo" width="200"/>
+  <h1>BMA (Basic Music App)</h1>
+</div>
 
 A cross-platform personal music streaming system built with Flutter. Host your own music library and stream to your devices from anywhere using Tailscale for secure connectivity.
 
