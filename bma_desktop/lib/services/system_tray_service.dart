@@ -77,11 +77,11 @@ class SystemTrayService with TrayListener {
         for (int i = 0; i < 8; i++) {
           projectDir = path.dirname(projectDir);
         }
-        return path.join(projectDir, 'assets', 'app_icon.png');
+        return path.join(projectDir, 'assets', 'BMA_icon.png');
       }
       // In release mode, the icon is bundled in flutter_assets
       final resourcesDir = path.join(executableDir, '..', 'Frameworks', 'App.framework', 'Resources', 'flutter_assets', 'assets');
-      return path.join(resourcesDir, 'app_icon.png');
+      return path.join(resourcesDir, 'BMA_icon.png');
     } else if (Platform.isWindows) {
       if (kDebugMode) {
         // In debug mode, executable is at: /project/build/windows/runner/Debug/app.exe
@@ -102,10 +102,10 @@ class SystemTrayService with TrayListener {
         for (int i = 0; i < 5; i++) {
           projectDir = path.dirname(projectDir);
         }
-        return path.join(projectDir, 'assets', 'app_icon.png');
+        return path.join(projectDir, 'assets', 'BMA_icon.png');
       }
       // In release mode, look for icon in flutter_assets
-      return path.join(executableDir, 'data', 'flutter_assets', 'assets', 'app_icon.png');
+      return path.join(executableDir, 'data', 'flutter_assets', 'assets', 'BMA_icon.png');
     }
     return '';
   }
