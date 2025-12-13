@@ -237,15 +237,20 @@ class PlaybackManager extends ChangeNotifier {
   /// Skip to next song
   Future<void> skipNext() async {
     try {
-      // Stop tracking current song
-      await _statsService.onSongStopped();
-
       if (!_queue.hasNext) {
         // Check repeat mode
         if (_repeatMode == RepeatMode.all && _queue.songs.isNotEmpty) {
-          // Restart from beginning
-          _queue.jumpToIndex(0);
-          await _playCurrentSong();
+          // Find first available song from beginning when wrapping
+          final nextIndex = await _findNextAvailableSongIndexFrom(0);
+          if (nextIndex != null) {
+            await _statsService.onSongStopped();
+            _queue.jumpToIndex(nextIndex);
+            _restoredPosition = null;
+            _pendingUiPosition = null;
+            await _playCurrentSong();
+            notifyListeners();
+            await _saveState();
+          }
         } else if (_repeatMode == RepeatMode.one) {
           // Replay current song
           await seek(Duration.zero);
@@ -255,7 +260,17 @@ class PlaybackManager extends ChangeNotifier {
         return;
       }
 
-      _queue.moveToNext();
+      // Find next available song
+      final nextIndex = await _findNextAvailableSongIndex();
+      if (nextIndex == null) {
+        print('[PlaybackManager] No available next song found');
+        return;
+      }
+
+      // Stop tracking current song
+      await _statsService.onSongStopped();
+
+      _queue.jumpToIndex(nextIndex);
       // Clear restored position so new song starts from beginning
       _restoredPosition = null;
       _pendingUiPosition = null;
@@ -278,10 +293,17 @@ class PlaybackManager extends ChangeNotifier {
 
       if (!_queue.hasPrevious) return;
 
+      // Find previous available song when offline
+      final previousIndex = await _findPreviousAvailableSongIndex();
+      if (previousIndex == null) {
+        print('[PlaybackManager] No available previous song found');
+        return;
+      }
+
       // Stop tracking current song
       await _statsService.onSongStopped();
 
-      _queue.moveToPrevious();
+      _queue.jumpToIndex(previousIndex);
       // Clear restored position so new song starts from beginning
       _restoredPosition = null;
       _pendingUiPosition = null;
@@ -433,8 +455,20 @@ class PlaybackManager extends ChangeNotifier {
           break;
 
         case PlaybackSource.unavailable:
-          print('[PlaybackManager] ERROR: Song not available - offline and not downloaded/cached');
-          throw Exception('Song not available offline. Download or play it while online first.');
+          print('[PlaybackManager] Song not available offline, searching for next available song...');
+          // Try to find and play the next available song
+          final nextAvailableIndex = await _findNextAvailableSongIndex();
+          if (nextAvailableIndex != null) {
+            print('[PlaybackManager] Found available song at index $nextAvailableIndex, skipping to it');
+            _queue.jumpToIndex(nextAvailableIndex);
+            await _playCurrentSong(); // Recursive call to play the available song
+          } else {
+            // No songs available, stop playback
+            print('[PlaybackManager] No available songs in queue, stopping playback');
+            await _audioPlayer.stop();
+            notifyListeners();
+          }
+          return; // Don't continue with playback logic
       }
 
       // If we have a restored position, load without playing, seek, then play
@@ -486,6 +520,91 @@ class PlaybackManager extends ChangeNotifier {
     }).catchError((e) {
       print('[PlaybackManager] Failed to start background cache: $e');
     });
+  }
+
+  /// Internal: Find the next available song in the queue (starting from current index + 1)
+  /// Returns the index of the next available song, or null if none found
+  Future<int?> _findNextAvailableSongIndex() async {
+    final songs = _queue.songs;
+    final currentIndex = _queue.currentIndex;
+
+    // If online, just return the next index
+    if (!_offlineService.isOffline) {
+      return currentIndex < songs.length - 1 ? currentIndex + 1 : null;
+    }
+
+    // Search forward from current position
+    for (int i = currentIndex + 1; i < songs.length; i++) {
+      final isAvailable = await _offlineService.isSongAvailableOffline(songs[i].id);
+      if (isAvailable) {
+        return i;
+      }
+    }
+
+    // If repeat all is enabled, wrap around and search from beginning
+    if (_repeatMode == RepeatMode.all) {
+      for (int i = 0; i < currentIndex; i++) {
+        final isAvailable = await _offlineService.isSongAvailableOffline(songs[i].id);
+        if (isAvailable) {
+          return i;
+        }
+      }
+    }
+
+    return null; // No available songs found
+  }
+
+  /// Internal: Find the next available song starting from a specific index
+  /// Used when wrapping around in repeat-all mode
+  Future<int?> _findNextAvailableSongIndexFrom(int startIndex) async {
+    final songs = _queue.songs;
+
+    // If online, just return the start index
+    if (!_offlineService.isOffline) {
+      return startIndex < songs.length ? startIndex : null;
+    }
+
+    // Search from start index
+    for (int i = startIndex; i < songs.length; i++) {
+      final isAvailable = await _offlineService.isSongAvailableOffline(songs[i].id);
+      if (isAvailable) {
+        return i;
+      }
+    }
+
+    return null;
+  }
+
+  /// Internal: Find the previous available song in the queue (starting from current index - 1)
+  /// Returns the index of the previous available song, or null if none found
+  Future<int?> _findPreviousAvailableSongIndex() async {
+    final songs = _queue.songs;
+    final currentIndex = _queue.currentIndex;
+
+    // If online, just return the previous index
+    if (!_offlineService.isOffline) {
+      return currentIndex > 0 ? currentIndex - 1 : null;
+    }
+
+    // Search backward from current position
+    for (int i = currentIndex - 1; i >= 0; i--) {
+      final isAvailable = await _offlineService.isSongAvailableOffline(songs[i].id);
+      if (isAvailable) {
+        return i;
+      }
+    }
+
+    // If repeat all is enabled, wrap around and search from end
+    if (_repeatMode == RepeatMode.all) {
+      for (int i = songs.length - 1; i > currentIndex; i--) {
+        final isAvailable = await _offlineService.isSongAvailableOffline(songs[i].id);
+        if (isAvailable) {
+          return i;
+        }
+      }
+    }
+
+    return null; // No available songs found
   }
 
   /// Internal: Handle song completion
