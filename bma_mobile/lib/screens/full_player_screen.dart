@@ -164,6 +164,9 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
                   await _playlistService.toggleLikedSong(
                     song.id,
                     song.albumId,
+                    title: song.title,
+                    artist: song.artist,
+                    duration: song.duration.inSeconds,
                   );
                 }
               },
@@ -199,6 +202,9 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
                     context,
                     song.id,
                     albumId: song.albumId,
+                    title: song.title,
+                    artist: song.artist,
+                    duration: song.duration.inSeconds,
                   );
                 }
               },

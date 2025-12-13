@@ -16,7 +16,7 @@ class _ConnectionSettingsScreenState extends State<ConnectionSettingsScreen> {
   final ConnectionService _connectionService = ConnectionService();
   final OfflinePlaybackService _offlineService = OfflinePlaybackService();
   late Stream<bool> _connectionStream;
-  StreamSubscription<bool>? _offlineSubscription;
+  StreamSubscription<OfflineMode>? _offlineSubscription;
   bool _isOfflineModeEnabled = false;
 
   @override
@@ -26,7 +26,7 @@ class _ConnectionSettingsScreenState extends State<ConnectionSettingsScreen> {
     _isOfflineModeEnabled = _offlineService.isOfflineModeEnabled;
     
     // Listen to offline state changes
-    _offlineSubscription = _offlineService.offlineStateStream.listen((_) {
+    _offlineSubscription = _offlineService.offlineModeStream.listen((_) {
       if (mounted) {
         setState(() {
           _isOfflineModeEnabled = _offlineService.isOfflineModeEnabled;

@@ -34,6 +34,9 @@ class AddToPlaylistScreen extends StatefulWidget {
     BuildContext context,
     String songId, {
     String? albumId,
+    String? title,
+    String? artist,
+    int? duration,
   }) {
     return showModalBottomSheet(
       context: context,
@@ -49,6 +52,9 @@ class AddToPlaylistScreen extends StatefulWidget {
         builder: (context, scrollController) => _AddSongToPlaylistsSheet(
           songId: songId,
           albumId: albumId,
+          title: title,
+          artist: artist,
+          duration: duration,
           scrollController: scrollController,
         ),
       ),
@@ -136,9 +142,9 @@ class _AddToPlaylistScreenState extends State<AddToPlaylistScreen> {
               ? const Icon(Icons.check, color: Colors.green)
               : IconButton(
                   icon: const Icon(Icons.add),
-                  onPressed: () => _addSongToPlaylist(song.id, song.albumId),
+                  onPressed: () => _addSongToPlaylist(song),
                 ),
-          onTap: isAdded ? null : () => _addSongToPlaylist(song.id, song.albumId),
+          onTap: isAdded ? null : () => _addSongToPlaylist(song),
         );
       },
     );
@@ -190,18 +196,21 @@ class _AddToPlaylistScreenState extends State<AddToPlaylistScreen> {
     );
   }
 
-  Future<void> _addSongToPlaylist(String songId, String? albumId) async {
+  Future<void> _addSongToPlaylist(SongModel song) async {
     if (widget.playlistId == null) return;
 
     await _playlistService.addSongToPlaylist(
       playlistId: widget.playlistId!,
-      songId: songId,
-      albumId: albumId,
+      songId: song.id,
+      albumId: song.albumId,
+      title: song.title,
+      artist: song.artist,
+      duration: song.duration,
     );
 
     if (mounted) {
       setState(() {
-        _addedSongIds.add(songId);
+        _addedSongIds.add(song.id);
       });
     }
   }
@@ -211,11 +220,17 @@ class _AddToPlaylistScreenState extends State<AddToPlaylistScreen> {
 class _AddSongToPlaylistsSheet extends StatefulWidget {
   final String songId;
   final String? albumId;
+  final String? title;
+  final String? artist;
+  final int? duration;
   final ScrollController scrollController;
 
   const _AddSongToPlaylistsSheet({
     required this.songId,
     this.albumId,
+    this.title,
+    this.artist,
+    this.duration,
     required this.scrollController,
   });
 
@@ -252,6 +267,9 @@ class _AddSongToPlaylistsSheetState extends State<_AddSongToPlaylistsSheet> {
         playlistId: playlist.id,
         songId: widget.songId,
         albumId: widget.albumId,
+        title: widget.title,
+        artist: widget.artist,
+        duration: widget.duration,
       );
       if (mounted) {
         Navigator.pop(context);
@@ -269,6 +287,9 @@ class _AddSongToPlaylistsSheetState extends State<_AddSongToPlaylistsSheet> {
       playlistId: playlist.id,
       songId: widget.songId,
       albumId: widget.albumId,
+      title: widget.title,
+      artist: widget.artist,
+      duration: widget.duration,
     );
 
     if (mounted) {

@@ -240,7 +240,14 @@ class TrackListItem extends StatelessWidget {
         playbackManager.addToQueue(song);
         break;
       case 'add_playlist':
-        AddToPlaylistScreen.showForSong(context, track.id, albumId: track.albumId);
+        AddToPlaylistScreen.showForSong(
+          context,
+          track.id,
+          albumId: track.albumId,
+          title: track.title,
+          artist: track.artist,
+          duration: track.duration,
+        );
         return;
       case 'download':
         _handleDownload(context);

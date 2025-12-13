@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../services/cache/cache_manager.dart';
+import '../../services/offline/offline_playback_service.dart';
 
 /// A widget that displays album artwork with automatic caching
 /// 
@@ -60,6 +61,7 @@ class CachedArtwork extends StatefulWidget {
 
 class _CachedArtworkState extends State<CachedArtwork> {
   final CacheManager _cacheManager = CacheManager();
+  final OfflinePlaybackService _offlineService = OfflinePlaybackService();
 
   String? _localPath;
   bool _isLoading = true;
@@ -116,7 +118,19 @@ class _CachedArtworkState extends State<CachedArtwork> {
         return;
       }
 
-      // Not cached but have URL, try to cache from network
+      // Check if offline - don't fetch from network in offline mode
+      if (_offlineService.isOffline) {
+        // Offline and not cached - show fallback
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+            _hasError = true;
+          });
+        }
+        return;
+      }
+
+      // Not cached but have URL and online, try to cache from network
       cachedPath = await _cacheManager.cacheArtwork(
         widget.albumId,
         widget.artworkUrl!,
@@ -164,8 +178,8 @@ class _CachedArtworkState extends State<CachedArtwork> {
           return _buildFallback();
         },
       );
-    } else if (!_hasError && widget.artworkUrl != null) {
-      // Fallback to network image (caching may have failed)
+    } else if (!_hasError && widget.artworkUrl != null && !_offlineService.isOffline) {
+      // Fallback to network image (caching may have failed) - only when online
       imageWidget = Image.network(
         widget.artworkUrl!,
         width: widget.width,

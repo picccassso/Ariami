@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/api_models.dart';
+import '../../services/api/connection_service.dart';
+import '../common/cached_artwork.dart';
 
 /// Playlist card widget
 /// Displays playlist with dynamic mosaic artwork based on songs
@@ -8,8 +10,9 @@ class PlaylistCard extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
 
-  /// List of artwork URLs for the collage (up to 4)
-  final List<String> artworkUrls;
+  /// List of album IDs for the collage artwork (up to 4)
+  /// CachedArtwork will handle fetching/caching and offline mode
+  final List<String> albumIds;
 
   /// Whether this is the special "Liked Songs" playlist
   final bool isLikedSongs;
@@ -19,7 +22,7 @@ class PlaylistCard extends StatelessWidget {
     required this.playlist,
     required this.onTap,
     this.onLongPress,
-    this.artworkUrls = const [],
+    this.albumIds = const [],
     this.isLikedSongs = false,
   });
 
@@ -89,19 +92,19 @@ class PlaylistCard extends StatelessWidget {
 
   /// Build playlist artwork - collage or fallback
   Widget _buildPlaylistArt() {
-    if (artworkUrls.isEmpty) {
+    if (albumIds.isEmpty) {
       return _buildFallbackArt();
     }
 
-    if (artworkUrls.length == 1) {
+    if (albumIds.length == 1) {
       // Single artwork
-      return _buildArtworkImage(artworkUrls[0]);
-    } else if (artworkUrls.length == 2 || artworkUrls.length == 3) {
+      return _buildArtworkImage(albumIds[0]);
+    } else if (albumIds.length == 2 || albumIds.length == 3) {
       // Two artworks side by side
       return Row(
         children: [
-          Expanded(child: _buildArtworkImage(artworkUrls[0])),
-          Expanded(child: _buildArtworkImage(artworkUrls[1])),
+          Expanded(child: _buildArtworkImage(albumIds[0])),
+          Expanded(child: _buildArtworkImage(albumIds[1])),
         ],
       );
     } else {
@@ -111,16 +114,16 @@ class PlaylistCard extends StatelessWidget {
           Expanded(
             child: Row(
               children: [
-                Expanded(child: _buildArtworkImage(artworkUrls[0])),
-                Expanded(child: _buildArtworkImage(artworkUrls[1])),
+                Expanded(child: _buildArtworkImage(albumIds[0])),
+                Expanded(child: _buildArtworkImage(albumIds[1])),
               ],
             ),
           ),
           Expanded(
             child: Row(
               children: [
-                Expanded(child: _buildArtworkImage(artworkUrls[2])),
-                Expanded(child: _buildArtworkImage(artworkUrls[3])),
+                Expanded(child: _buildArtworkImage(albumIds[2])),
+                Expanded(child: _buildArtworkImage(albumIds[3])),
               ],
             ),
           ),
@@ -129,18 +132,20 @@ class PlaylistCard extends StatelessWidget {
     }
   }
 
-  /// Build a single artwork image
-  Widget _buildArtworkImage(String url) {
-    return Image.network(
-      url,
+  /// Build a single artwork image using CachedArtwork
+  Widget _buildArtworkImage(String albumId) {
+    final connectionService = ConnectionService();
+    
+    // Build URL only if online
+    final artworkUrl = connectionService.apiClient != null
+        ? '${connectionService.apiClient!.baseUrl}/artwork/$albumId'
+        : null;
+
+    return CachedArtwork(
+      albumId: albumId,
+      artworkUrl: artworkUrl,
       fit: BoxFit.cover,
-      width: double.infinity,
-      height: double.infinity,
-      errorBuilder: (context, error, stackTrace) => _buildFallbackArt(),
-      loadingBuilder: (context, child, loadingProgress) {
-        if (loadingProgress == null) return child;
-        return _buildFallbackArt();
-      },
+      fallback: _buildFallbackArt(),
     );
   }
 
