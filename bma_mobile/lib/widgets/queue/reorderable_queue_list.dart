@@ -1,9 +1,12 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../models/song.dart';
 import '../../services/api/connection_service.dart';
+import '../../services/offline/offline_playback_service.dart';
+import '../common/cached_artwork.dart';
 
 /// Reorderable list widget for the playback queue
-class ReorderableQueueList extends StatelessWidget {
+class ReorderableQueueList extends StatefulWidget {
   final List<Song> songs;
   final int currentIndex;
   final Function(int oldIndex, int newIndex) onReorder;
@@ -20,8 +23,69 @@ class ReorderableQueueList extends StatelessWidget {
   });
 
   @override
+  State<ReorderableQueueList> createState() => _ReorderableQueueListState();
+}
+
+class _ReorderableQueueListState extends State<ReorderableQueueList> {
+  final OfflinePlaybackService _offlineService = OfflinePlaybackService();
+  
+  /// Map of song ID -> availability (true = available offline or online)
+  Map<String, bool> _availabilityMap = {};
+  
+  StreamSubscription<bool>? _offlineStateSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkSongAvailability();
+    
+    // Listen to offline state changes to rebuild availability
+    _offlineStateSubscription = _offlineService.offlineStateStream.listen((_) {
+      _checkSongAvailability();
+    });
+  }
+
+  @override
+  void didUpdateWidget(ReorderableQueueList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Re-check availability when songs list changes
+    if (oldWidget.songs != widget.songs) {
+      _checkSongAvailability();
+    }
+  }
+
+  @override
+  void dispose() {
+    _offlineStateSubscription?.cancel();
+    super.dispose();
+  }
+
+  /// Check availability for all songs in the queue
+  Future<void> _checkSongAvailability() async {
+    final newAvailability = <String, bool>{};
+    final isOffline = _offlineService.isOffline;
+
+    for (final song in widget.songs) {
+      if (isOffline) {
+        // When offline, check if song is downloaded or cached
+        final isAvailable = await _offlineService.isSongAvailableOffline(song.id);
+        newAvailability[song.id] = isAvailable;
+      } else {
+        // When online, all songs are available
+        newAvailability[song.id] = true;
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        _availabilityMap = newAvailability;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (songs.isEmpty) {
+    if (widget.songs.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -44,19 +108,22 @@ class ReorderableQueueList extends StatelessWidget {
     }
 
     return ReorderableListView.builder(
-      itemCount: songs.length,
-      onReorder: onReorder,
+      itemCount: widget.songs.length,
+      onReorder: widget.onReorder,
       itemBuilder: (context, index) {
-        final song = songs[index];
-        final isCurrentlyPlaying = index == currentIndex;
+        final song = widget.songs[index];
+        final isCurrentlyPlaying = index == widget.currentIndex;
+        // Default to available if not yet checked (avoids flicker)
+        final isAvailable = _availabilityMap[song.id] ?? true;
 
         return QueueItem(
           key: ValueKey(song.id),
           song: song,
           index: index,
           isCurrentlyPlaying: isCurrentlyPlaying,
-          onTap: onTap != null ? () => onTap!(index) : null,
-          onRemove: onRemove != null ? () => onRemove!(index) : null,
+          isAvailable: isAvailable,
+          onTap: widget.onTap != null ? () => widget.onTap!(index) : null,
+          onRemove: widget.onRemove != null ? () => widget.onRemove!(index) : null,
         );
       },
     );
@@ -68,6 +135,7 @@ class QueueItem extends StatelessWidget {
   final Song song;
   final int index;
   final bool isCurrentlyPlaying;
+  final bool isAvailable;
   final VoidCallback? onTap;
   final VoidCallback? onRemove;
 
@@ -76,14 +144,18 @@ class QueueItem extends StatelessWidget {
     required this.song,
     required this.index,
     required this.isCurrentlyPlaying,
+    this.isAvailable = true,
     this.onTap,
     this.onRemove,
   });
 
   @override
   Widget build(BuildContext context) {
+    final opacity = isAvailable ? 1.0 : 0.4;
+
     return Dismissible(
       key: ValueKey(song.id),
+      // Always allow swipe-to-remove, even for unavailable songs
       direction: onRemove != null
           ? DismissDirection.endToStart
           : DismissDirection.none,
@@ -97,60 +169,85 @@ class QueueItem extends StatelessWidget {
         ),
       ),
       onDismissed: (_) => onRemove?.call(),
-      child: ListTile(
-        leading: _buildLeading(context),
-        title: Text(
-          song.title,
-          style: TextStyle(
-            fontWeight: isCurrentlyPlaying ? FontWeight.bold : FontWeight.normal,
-            color: isCurrentlyPlaying
-                ? Theme.of(context).colorScheme.primary
-                : null,
-          ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        subtitle: Text(
-          song.artist,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            color: isCurrentlyPlaying
-                ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.7)
-                : Theme.of(context).colorScheme.onSurfaceVariant,
-          ),
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              _formatDuration(song.duration),
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
+      child: Opacity(
+        opacity: opacity,
+        child: ListTile(
+          leading: _buildLeading(context),
+          title: Text(
+            song.title,
+            style: TextStyle(
+              fontWeight: isCurrentlyPlaying ? FontWeight.bold : FontWeight.normal,
+              color: isCurrentlyPlaying
+                  ? Theme.of(context).colorScheme.primary
+                  : (isAvailable ? null : Colors.grey),
             ),
-            const SizedBox(width: 8),
-            if (isCurrentlyPlaying)
-              Icon(
-                Icons.drag_handle,
-                color: Theme.of(context).colorScheme.surfaceContainerHigh,
-              )
-            else
-              ReorderableDragStartListener(
-                index: index,
-                child: Icon(
-                  Icons.drag_handle,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          subtitle: Text(
+            song.artist,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: isCurrentlyPlaying
+                  ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.7)
+                  : Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                _formatDuration(song.duration),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
               ),
-          ],
+              const SizedBox(width: 8),
+              _buildDragHandle(context),
+            ],
+          ),
+          // Disable tap when unavailable
+          onTap: isAvailable ? onTap : null,
         ),
-        onTap: onTap,
+      ),
+    );
+  }
+
+  /// Build drag handle - disabled when currently playing or unavailable
+  Widget _buildDragHandle(BuildContext context) {
+    // Currently playing song can't be dragged
+    if (isCurrentlyPlaying) {
+      return Icon(
+        Icons.drag_handle,
+        color: Theme.of(context).colorScheme.surfaceContainerHigh,
+      );
+    }
+
+    // Unavailable songs can't be dragged
+    if (!isAvailable) {
+      return Icon(
+        Icons.drag_handle,
+        color: Theme.of(context).colorScheme.outline,
+      );
+    }
+
+    // Normal songs can be dragged
+    return ReorderableDragStartListener(
+      index: index,
+      child: Icon(
+        Icons.drag_handle,
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
       ),
     );
   }
 
   Widget _buildLeading(BuildContext context) {
+    final connectionService = ConnectionService();
+    final artworkUrl = song.albumId != null && connectionService.apiClient != null
+        ? '${connectionService.apiClient!.baseUrl}/artwork/${song.albumId}'
+        : null;
+
     if (isCurrentlyPlaying) {
       return ClipRRect(
         borderRadius: BorderRadius.circular(4),
@@ -164,61 +261,56 @@ class QueueItem extends StatelessWidget {
           child: Stack(
             alignment: Alignment.center,
             children: [
-              // Album artwork or placeholder
+              // Album artwork using CachedArtwork
               if (song.albumId != null)
-                Image.network(
-                  '${ConnectionService().apiClient?.baseUrl ?? 'http://localhost:3000'}/artwork/${song.albumId}',
-                  fit: BoxFit.cover,
+                CachedArtwork(
+                  albumId: song.albumId!,
+                  artworkUrl: artworkUrl,
                   width: 48,
                   height: 48,
-                  errorBuilder: (context, error, stackTrace) =>
-                      _buildPlaceholder(context),
+                  fit: BoxFit.cover,
+                  fallback: _buildPlaceholder(context),
+                  fallbackIcon: Icons.music_note,
+                  fallbackIconSize: 24,
                 )
               else
                 _buildPlaceholder(context),
               // Play icon overlay when currently playing
-              if (isCurrentlyPlaying)
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.5),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Icon(
-                    Icons.play_circle_filled,
-                    color: Theme.of(context).colorScheme.primary,
-                    size: 28,
-                  ),
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(4),
                 ),
+                child: Icon(
+                  Icons.play_circle_filled,
+                  color: Theme.of(context).colorScheme.primary,
+                  size: 28,
+                ),
+              ),
             ],
           ),
         ),
       );
     }
 
-    // Show album artwork
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(4),
-      child: Container(
+    // Show album artwork using CachedArtwork
+    if (song.albumId != null) {
+      return CachedArtwork(
+        albumId: song.albumId!,
+        artworkUrl: artworkUrl,
         width: 48,
         height: 48,
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerHigh,
-          borderRadius: BorderRadius.circular(4),
-        ),
-        child: song.albumId != null
-            ? Image.network(
-                '${ConnectionService().apiClient?.baseUrl ?? 'http://localhost:3000'}/artwork/${song.albumId}',
-                fit: BoxFit.cover,
-                width: 48,
-                height: 48,
-                errorBuilder: (context, error, stackTrace) =>
-                    _buildPlaceholder(context),
-              )
-            : _buildPlaceholder(context),
-      ),
-    );
+        fit: BoxFit.cover,
+        borderRadius: BorderRadius.circular(4),
+        fallback: _buildPlaceholder(context),
+        fallbackIcon: Icons.music_note,
+        fallbackIconSize: 24,
+      );
+    }
+
+    return _buildPlaceholder(context);
   }
 
   Widget _buildPlaceholder(BuildContext context) {
