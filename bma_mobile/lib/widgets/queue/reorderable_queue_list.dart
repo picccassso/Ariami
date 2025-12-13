@@ -28,19 +28,19 @@ class ReorderableQueueList extends StatefulWidget {
 
 class _ReorderableQueueListState extends State<ReorderableQueueList> {
   final OfflinePlaybackService _offlineService = OfflinePlaybackService();
-  
+
   /// Map of song ID -> availability (true = available offline or online)
   Map<String, bool> _availabilityMap = {};
-  
-  StreamSubscription<bool>? _offlineStateSubscription;
+
+  StreamSubscription<OfflineMode>? _offlineStateSubscription;
 
   @override
   void initState() {
     super.initState();
     _checkSongAvailability();
-    
+
     // Listen to offline state changes to rebuild availability
-    _offlineStateSubscription = _offlineService.offlineStateStream.listen((_) {
+    _offlineStateSubscription = _offlineService.offlineModeStream.listen((_) {
       _checkSongAvailability();
     });
   }

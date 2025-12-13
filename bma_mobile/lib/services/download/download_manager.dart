@@ -201,6 +201,21 @@ class DownloadManager {
     _startNextDownload();
   }
 
+  /// Retry a failed download
+  Future<void> retryDownload(String taskId) async {
+    await _ensureInitialized();
+
+    final task = _queue.getTask(taskId);
+    if (task == null || task.status != DownloadStatus.failed) return;
+
+    task.status = DownloadStatus.pending;
+    task.retryCount = 0;
+    task.errorMessage = null;
+    _queue.updateTask(task);
+
+    _startNextDownload();
+  }
+
   /// Cancel a download
   void cancelDownload(String taskId) {
     // Cancel HTTP request

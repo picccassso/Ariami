@@ -4,6 +4,13 @@ import '../api/connection_service.dart';
 import '../download/download_manager.dart';
 import '../cache/cache_manager.dart';
 
+/// Offline mode types
+enum OfflineMode {
+  online,          // Connected to server, streaming available
+  manualOffline,   // User explicitly disabled connection (no auto-reconnect)
+  autoOffline,     // Connection lost, auto-reconnect attempts ongoing
+}
+
 /// Playback source options
 enum PlaybackSource {
   stream,      // Stream from server
@@ -24,24 +31,31 @@ class OfflinePlaybackService {
   final CacheManager _cacheManager = CacheManager();
 
   // Offline mode state
-  bool _offlineModeEnabled = false;
+  OfflineMode _offlineMode = OfflineMode.online;
   bool _preferDownloaded = true;
+  bool _isInitialized = false;
 
   // Stream controller for offline state changes
-  final StreamController<bool> _offlineStateController =
-      StreamController<bool>.broadcast();
+  final StreamController<OfflineMode> _offlineStateController =
+      StreamController<OfflineMode>.broadcast();
 
-  /// Stream of offline state changes (true = offline mode active)
-  Stream<bool> get offlineStateStream => _offlineStateController.stream;
+  /// Stream of offline mode changes
+  Stream<OfflineMode> get offlineModeStream => _offlineStateController.stream;
 
-  /// Whether offline mode is currently enabled
-  bool get isOfflineModeEnabled => _offlineModeEnabled;
+  /// Current offline mode
+  OfflineMode get offlineMode => _offlineMode;
+
+  /// Whether offline mode is currently enabled (manual or auto)
+  bool get isOfflineModeEnabled => _offlineMode != OfflineMode.online;
+
+  /// Whether manual offline mode is enabled (user choice, no auto-reconnect)
+  bool get isManualOfflineModeEnabled => _offlineMode == OfflineMode.manualOffline;
 
   /// Whether to prefer downloaded files over streaming
   bool get preferDownloaded => _preferDownloaded;
 
-  /// Check if currently offline (either forced or no connection)
-  bool get isOffline => _offlineModeEnabled || !_connectionService.isConnected;
+  /// Check if currently offline (manual or auto)
+  bool get isOffline => _offlineMode != OfflineMode.online;
 
   // ============================================================================
   // INITIALIZATION
@@ -49,32 +63,89 @@ class OfflinePlaybackService {
 
   /// Initialize the service and load saved settings
   Future<void> initialize() async {
+    // Only initialize once - subsequent calls are no-ops
+    if (_isInitialized) {
+      print('[OfflinePlaybackService] Already initialized - skipping');
+      return;
+    }
+    _isInitialized = true;
+
     final prefs = await SharedPreferences.getInstance();
-    _offlineModeEnabled = prefs.getBool('offline_mode_enabled') ?? false;
+
+    // Don't persist manual offline mode across app restarts
+    // Always start in online mode and let connection attempts determine state
+    _offlineMode = OfflineMode.online;
+
     _preferDownloaded = prefs.getBool('prefer_downloaded') ?? true;
 
-    // Listen to connection state changes
+    // Listen to connection state changes (auto offline handling)
     _connectionService.connectionStateStream.listen((isConnected) {
-      // Notify listeners when connection state affects offline status
-      _offlineStateController.add(isOffline);
+      // Only auto-transition if not in manual offline mode
+      if (_offlineMode != OfflineMode.manualOffline) {
+        if (!isConnected && _offlineMode == OfflineMode.online) {
+          // Connection lost - auto offline
+          _setMode(OfflineMode.autoOffline);
+        } else if (isConnected && _offlineMode == OfflineMode.autoOffline) {
+          // Connection restored - back to online
+          _setMode(OfflineMode.online);
+        }
+      }
+
+      _offlineStateController.add(_offlineMode);
     });
 
-    print('[OfflinePlaybackService] Initialized - Offline mode: $_offlineModeEnabled');
+    print('[OfflinePlaybackService] Initialized - Mode: $_offlineMode');
   }
 
   // ============================================================================
   // OFFLINE MODE CONTROL
   // ============================================================================
 
+  /// Enable manual offline mode (user toggle)
+  /// Tells ConnectionService to disconnect fully
+  Future<void> setManualOfflineMode(bool enabled) async {
+    if (enabled) {
+      // User wants to go offline manually
+      _setMode(OfflineMode.manualOffline);
+      print('[OfflinePlaybackService] Manual offline mode enabled');
+    } else {
+      // User wants to go back online - attempt reconnect
+      print('[OfflinePlaybackService] Manual offline mode disabled - attempting reconnect');
+
+      // Transition to online optimistically (ConnectionService will handle reconnect)
+      _setMode(OfflineMode.online);
+    }
+  }
+
+  /// Internal method to set mode and broadcast
+  void _setMode(OfflineMode mode) {
+    _offlineMode = mode;
+    _offlineStateController.add(mode);
+  }
+
+  /// Called by ConnectionService when connection is automatically lost
+  /// Only transitions if not in manual offline mode
+  Future<void> notifyConnectionLost() async {
+    if (_offlineMode != OfflineMode.manualOffline) {
+      _setMode(OfflineMode.autoOffline);
+      print('[OfflinePlaybackService] Auto offline mode enabled (connection lost)');
+    }
+  }
+
+  /// Called by ConnectionService when connection is automatically restored
+  /// Only transitions if in auto offline mode
+  Future<void> notifyConnectionRestored() async {
+    if (_offlineMode == OfflineMode.autoOffline) {
+      _setMode(OfflineMode.online);
+      print('[OfflinePlaybackService] Online mode restored (connection regained)');
+    }
+  }
+
   /// Enable or disable offline mode
+  @Deprecated('Use setManualOfflineMode() instead')
   Future<void> setOfflineMode(bool enabled) async {
-    _offlineModeEnabled = enabled;
-
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('offline_mode_enabled', enabled);
-
-    _offlineStateController.add(isOffline);
-    print('[OfflinePlaybackService] Offline mode: $enabled');
+    // Map to new API for backward compatibility
+    await setManualOfflineMode(enabled);
   }
 
   /// Set preference for downloaded files

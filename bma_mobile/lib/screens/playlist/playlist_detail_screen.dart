@@ -7,6 +7,7 @@ import '../../services/playlist_service.dart';
 import '../../services/playback_manager.dart';
 import '../../services/offline/offline_playback_service.dart';
 import '../../services/download/download_manager.dart';
+import '../../widgets/common/cached_artwork.dart';
 import 'add_to_playlist_screen.dart';
 
 /// Helper to convert SongModel to Song with required placeholder values
@@ -165,10 +166,17 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
     }
   }
 
-  /// Resolve song IDs to SongModel objects by fetching from server
+  /// Resolve song IDs to SongModel objects
+  /// When offline, builds from downloaded song metadata
+  /// When online, fetches from server
   Future<List<SongModel>> _resolveSongs(List<String> songIds) async {
-    if (_connectionService.apiClient == null || songIds.isEmpty) {
+    if (songIds.isEmpty) {
       return [];
+    }
+
+    // Check if offline - use downloaded song metadata instead of server
+    if (_offlineService.isOffline || _connectionService.apiClient == null) {
+      return _resolveSongsFromDownloads(songIds);
     }
 
     try {
@@ -203,8 +211,53 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
           .toList();
     } catch (e) {
       print('[PlaylistDetailScreen] Error resolving songs: $e');
-      return [];
+      // Fallback to downloads if server fetch fails
+      return _resolveSongsFromDownloads(songIds);
     }
+  }
+
+  /// Build SongModel objects from downloaded song metadata or stored playlist metadata
+  /// Used when offline to display playlist songs
+  /// Shows ALL songs - downloaded ones with full metadata, others with stored metadata (grayed out)
+  List<SongModel> _resolveSongsFromDownloads(List<String> songIds) {
+    final downloadedSongs = <String, SongModel>{};
+
+    // Build SongModel from each completed download task
+    for (final task in _downloadManager.queue) {
+      if (task.status == DownloadStatus.completed) {
+        downloadedSongs[task.songId] = SongModel(
+          id: task.songId,
+          title: task.title,
+          artist: task.artist,
+          albumId: task.albumId,
+          duration: task.duration,
+          trackNumber: task.trackNumber,
+        );
+      }
+    }
+
+    // Return ALL songs in playlist order
+    // Downloaded songs get full metadata from download task
+    // Others get metadata stored in playlist (if available)
+    return songIds.map((id) {
+      if (downloadedSongs.containsKey(id)) {
+        return downloadedSongs[id]!;
+      } else {
+        // Use metadata stored in playlist for non-downloaded songs
+        final albumId = _playlist?.songAlbumIds[id];
+        final title = _playlist?.songTitles[id] ?? 'Unknown Song';
+        final artist = _playlist?.songArtists[id] ?? 'Unknown Artist';
+        final duration = _playlist?.songDurations[id] ?? 0;
+        return SongModel(
+          id: id,
+          title: title,
+          artist: artist,
+          albumId: albumId,
+          duration: duration,
+          trackNumber: null,
+        );
+      }
+    }).toList();
   }
 
   /// Play all songs from playlist
@@ -577,8 +630,8 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
       }
     }
 
-    // If we have album artwork, show collage
-    if (albumIds.isNotEmpty && _connectionService.apiClient != null) {
+    // If we have album IDs, show collage (CachedArtwork handles offline)
+    if (albumIds.isNotEmpty) {
       return _buildArtworkCollage(albumIds);
     }
 
@@ -588,17 +641,15 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
 
   /// Build artwork collage based on number of albums
   Widget _buildArtworkCollage(List<String> albumIds) {
-    final baseUrl = _connectionService.apiClient!.baseUrl;
-
     if (albumIds.length == 1) {
       // Single artwork
-      return _buildArtworkImage('$baseUrl/artwork/${albumIds[0]}');
+      return _buildHeaderArtwork(albumIds[0]);
     } else if (albumIds.length == 2 || albumIds.length == 3) {
       // Two artworks side by side
       return Row(
         children: [
-          Expanded(child: _buildArtworkImage('$baseUrl/artwork/${albumIds[0]}')),
-          Expanded(child: _buildArtworkImage('$baseUrl/artwork/${albumIds[1]}')),
+          Expanded(child: _buildHeaderArtwork(albumIds[0])),
+          Expanded(child: _buildHeaderArtwork(albumIds[1])),
         ],
       );
     } else {
@@ -608,20 +659,16 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
           Expanded(
             child: Row(
               children: [
-                Expanded(
-                    child: _buildArtworkImage('$baseUrl/artwork/${albumIds[0]}')),
-                Expanded(
-                    child: _buildArtworkImage('$baseUrl/artwork/${albumIds[1]}')),
+                Expanded(child: _buildHeaderArtwork(albumIds[0])),
+                Expanded(child: _buildHeaderArtwork(albumIds[1])),
               ],
             ),
           ),
           Expanded(
             child: Row(
               children: [
-                Expanded(
-                    child: _buildArtworkImage('$baseUrl/artwork/${albumIds[2]}')),
-                Expanded(
-                    child: _buildArtworkImage('$baseUrl/artwork/${albumIds[3]}')),
+                Expanded(child: _buildHeaderArtwork(albumIds[2])),
+                Expanded(child: _buildHeaderArtwork(albumIds[3])),
               ],
             ),
           ),
@@ -630,16 +677,18 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
     }
   }
 
-  /// Build a single artwork image for the header
-  Widget _buildArtworkImage(String url) {
-    return Image.network(
-      url,
+  /// Build a single artwork image for the header using CachedArtwork
+  Widget _buildHeaderArtwork(String albumId) {
+    // Build URL only if online
+    final artworkUrl = _connectionService.apiClient != null
+        ? '${_connectionService.apiClient!.baseUrl}/artwork/$albumId'
+        : null;
+
+    return CachedArtwork(
+      albumId: albumId,
+      artworkUrl: artworkUrl,
       fit: BoxFit.cover,
-      errorBuilder: (context, error, stackTrace) => _buildFallbackHeader(),
-      loadingBuilder: (context, child, loadingProgress) {
-        if (loadingProgress == null) return child;
-        return _buildFallbackHeader();
-      },
+      fallback: _buildFallbackHeader(),
     );
   }
 
@@ -903,27 +952,22 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
     );
   }
 
-  /// Build album artwork or placeholder
+  /// Build album artwork or placeholder using CachedArtwork
   Widget _buildAlbumArt(SongModel song) {
-    if (song.albumId != null && _connectionService.apiClient != null) {
-      final artworkUrl =
-          '${_connectionService.apiClient!.baseUrl}/artwork/${song.albumId}';
+    if (song.albumId != null) {
+      // Build URL only if online
+      final artworkUrl = _connectionService.apiClient != null
+          ? '${_connectionService.apiClient!.baseUrl}/artwork/${song.albumId}'
+          : null;
 
-      return ClipRRect(
+      return CachedArtwork(
+        albumId: song.albumId!,
+        artworkUrl: artworkUrl,
+        width: 48,
+        height: 48,
+        fit: BoxFit.cover,
         borderRadius: BorderRadius.circular(4),
-        child: SizedBox(
-          width: 48,
-          height: 48,
-          child: Image.network(
-            artworkUrl,
-            fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) => _buildPlaceholder(),
-            loadingBuilder: (context, child, loadingProgress) {
-              if (loadingProgress == null) return child;
-              return _buildPlaceholder();
-            },
-          ),
-        ),
+        fallback: _buildPlaceholder(),
       );
     }
     return _buildPlaceholder();

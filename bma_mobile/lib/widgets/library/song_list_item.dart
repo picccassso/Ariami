@@ -158,7 +158,14 @@ class SongListItem extends StatelessWidget {
                 title: const Text('Add to Playlist'),
                 onTap: () {
                   Navigator.pop(context);
-                  AddToPlaylistScreen.showForSong(context, song.id, albumId: song.albumId);
+                  AddToPlaylistScreen.showForSong(
+                    context,
+                    song.id,
+                    albumId: song.albumId,
+                    title: song.title,
+                    artist: song.artist,
+                    duration: song.duration,
+                  );
                 },
               ),
               ListTile(

@@ -717,6 +717,9 @@ class _AlbumPlaylistPickerState extends State<_AlbumPlaylistPicker> {
           playlistId: playlist.id,
           songId: song.id,
           albumId: song.albumId,
+          title: song.title,
+          artist: song.artist,
+          duration: song.duration,
         );
         addedCount++;
       }

@@ -21,7 +21,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final StreamingStatsService _statsService = StreamingStatsService();
   bool _isOfflineModeEnabled = false;
   bool _isReconnecting = false;
-  StreamSubscription<bool>? _offlineSubscription;
+  StreamSubscription<OfflineMode>? _offlineSubscription;
 
   @override
   void initState() {
@@ -52,7 +52,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
 
     // Listen for offline state changes
-    _offlineSubscription = _offlineService.offlineStateStream.listen((_) {
+    _offlineSubscription = _offlineService.offlineModeStream.listen((_) {
       if (mounted) {
         setState(() {
           _isOfflineModeEnabled = _offlineService.isOfflineModeEnabled;
@@ -74,31 +74,48 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  /// Get subtitle text based on current offline mode state
+  String _getOfflineModeSubtitle() {
+    final mode = _offlineService.offlineMode;
+    switch (mode) {
+      case OfflineMode.online:
+        return 'Connected to server';
+      case OfflineMode.manualOffline:
+        return 'Manually disconnected';
+      case OfflineMode.autoOffline:
+        return 'Connection lost - will auto-reconnect';
+    }
+  }
+
   /// Handle offline mode toggle - attempts to reconnect when turning off
   Future<void> _handleOfflineModeToggle(bool enabled) async {
     if (enabled) {
-      // Turning ON offline mode - just enable it
-      await _offlineService.setOfflineMode(true);
+      // Turning ON offline mode - set manual offline mode FIRST, then disconnect
+      // Order is critical: setManualOfflineMode must be called before disconnect
+      // to prevent race condition where connectionStateStream listener fires
+      await _offlineService.setManualOfflineMode(true);
+      await _connectionService.disconnect(isManual: true);
       setState(() {
         _isOfflineModeEnabled = true;
       });
     } else {
-      // Turning OFF offline mode - attempt to reconnect
+      // Turning OFF offline mode - disable manual offline and attempt to reconnect
       setState(() {
         _isReconnecting = true;
       });
 
+      await _offlineService.setManualOfflineMode(false);
       final restored = await _connectionService.tryRestoreConnection();
 
       if (restored) {
-        // Connection restored - disable offline mode
-        await _offlineService.setOfflineMode(false);
+        // Connection restored
         setState(() {
           _isOfflineModeEnabled = false;
           _isReconnecting = false;
         });
       } else {
-        // Reconnection failed - keep offline mode enabled
+        // Reconnection failed - put back into manual offline mode
+        await _offlineService.setManualOfflineMode(true);
         setState(() {
           _isReconnecting = false;
         });
@@ -142,9 +159,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 title: 'Offline Mode',
                 subtitle: _isReconnecting
                     ? 'Reconnecting...'
-                    : (_isOfflineModeEnabled
-                        ? 'Only downloaded songs available'
-                        : 'Stream music from server'),
+                    : _getOfflineModeSubtitle(),
                 trailing: _isReconnecting
                     ? const SizedBox(
                         width: 24,

@@ -42,7 +42,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
   Set<String> _downloadedSongIds = {};
   Set<String> _cachedSongIds = {};
   Set<String> _albumsWithDownloads = {};
-  StreamSubscription<bool>? _offlineSubscription;
+  StreamSubscription<OfflineMode>? _offlineSubscription;
   StreamSubscription<void>? _cacheSubscription;
 
   @override
@@ -55,7 +55,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
     _loadCachedSongs();
 
     // Listen to offline state changes - reload library appropriately
-    _offlineSubscription = _offlineService.offlineStateStream.listen((_) {
+    _offlineSubscription = _offlineService.offlineModeStream.listen((_) {
       _loadLibrary(); // Reload with proper offline/online handling
     });
 
@@ -346,12 +346,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
     );
   }
 
-  /// Get artwork URLs for a playlist based on its songs
-  List<String> _getPlaylistArtworkUrls(PlaylistModel playlist) {
-    if (_connectionService.apiClient == null) return [];
-
-    final baseUrl = _connectionService.apiClient!.baseUrl;
-
+  /// Get album IDs for a playlist's artwork collage
+  /// Returns up to 4 unique album IDs from the playlist's songs
+  List<String> _getPlaylistAlbumIds(PlaylistModel playlist) {
     // Get unique album IDs from playlist's stored songAlbumIds (up to 4)
     final albumIds = <String>[];
     for (final songId in playlist.songIds) {
@@ -361,9 +358,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
         if (albumIds.length >= 4) break;
       }
     }
-
-    // Convert to artwork URLs
-    return albumIds.map((id) => '$baseUrl/artwork/$id').toList();
+    return albumIds;
   }
 
   /// Build playlists grid
@@ -429,7 +424,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
               playlist: likedSongsPlaylist,
               onTap: () => _openPlaylist(likedSongsPlaylist),
               onLongPress: () => _showPlaylistContextMenu(likedSongsPlaylist),
-              artworkUrls: _getPlaylistArtworkUrls(likedSongsPlaylist),
+              albumIds: _getPlaylistAlbumIds(likedSongsPlaylist),
               isLikedSongs: true, // Special flag for styling
             );
           }
@@ -441,7 +436,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
             playlist: playlist,
             onTap: () => _openPlaylist(playlist),
             onLongPress: () => _showPlaylistContextMenu(playlist),
-            artworkUrls: _getPlaylistArtworkUrls(playlist),
+            albumIds: _getPlaylistAlbumIds(playlist),
           );
         },
       ),

@@ -118,8 +118,9 @@ class WebSocketService {
     print('WebSocket error: $error');
     _isConnected = false;
     
-    // Only schedule reconnect if not in offline mode
-    if (!_offlineService.isOfflineModeEnabled) {
+    // Only skip reconnect if in MANUAL offline mode
+    // Auto offline should still attempt reconnection
+    if (!_offlineService.isManualOfflineModeEnabled) {
       _scheduleReconnect();
     }
   }
@@ -190,9 +191,10 @@ class WebSocketService {
   void _scheduleReconnect() {
     if (_serverInfo == null) return;
     
-    // Don't reconnect if offline mode is enabled
-    if (_offlineService.isOfflineModeEnabled) {
-      print('Offline mode enabled - skipping WebSocket reconnect');
+    // Don't reconnect if MANUAL offline mode is enabled
+    // Auto offline should still attempt reconnection
+    if (_offlineService.isManualOfflineModeEnabled) {
+      print('Manual offline mode enabled - skipping WebSocket reconnect');
       return;
     }
 
@@ -210,9 +212,10 @@ class WebSocketService {
   Future<void> _attemptReconnect() async {
     if (_serverInfo == null) return;
     
-    // Check again in case offline mode was enabled while waiting
-    if (_offlineService.isOfflineModeEnabled) {
-      print('Offline mode enabled - aborting WebSocket reconnect');
+    // Check again in case MANUAL offline mode was enabled while waiting
+    // Auto offline should still attempt reconnection
+    if (_offlineService.isManualOfflineModeEnabled) {
+      print('Manual offline mode enabled - aborting WebSocket reconnect');
       return;
     }
 

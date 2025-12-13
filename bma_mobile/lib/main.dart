@@ -133,12 +133,15 @@ class _MyAppState extends State<MyApp> {
     _connectionSubscription = _connectionService.connectionStateStream.listen(
       (isConnected) {
         if (!isConnected && _connectionService.hasServerInfo) {
-          // Connection lost - check if offline mode is enabled
-          if (_offlineService.isOfflineModeEnabled) {
-            // Offline mode enabled - stay in the app, don't navigate to reconnect
-            print('Connection lost but offline mode enabled - staying in app');
+          // Connection lost - check offline mode state
+          if (_offlineService.isManualOfflineModeEnabled) {
+            // Manual offline mode - user chose to go offline, stay in app
+            print('Connection lost but manual offline mode enabled - staying in app');
+          } else if (_offlineService.offlineMode == OfflineMode.autoOffline) {
+            // Auto offline mode - connection lost, stay in app and auto-reconnect
+            print('Auto offline mode - staying in app, will auto-reconnect');
           } else {
-            // Offline mode not enabled - navigate to reconnect screen
+            // Not in any offline mode - navigate to reconnect screen
             print('Connection lost - navigating to reconnect screen');
             _navigatorKey.currentState?.pushNamedAndRemoveUntil(
               '/reconnect',
@@ -169,8 +172,9 @@ class _MyAppState extends State<MyApp> {
         _initialScreen = const MainNavigationScreen();
       } else if (_connectionService.serverInfo != null) {
         // Has saved server info but couldn't connect
-        // Auto-enable offline mode and go to main app with offline content
-        _offlineService.setOfflineMode(true);
+        // Notify connection lost (will auto-enable auto offline mode)
+        // User can still use downloaded content and app will auto-reconnect when possible
+        _offlineService.notifyConnectionLost();
         _initialScreen = const MainNavigationScreen();
       } else {
         // No saved connection - go to welcome/setup flow

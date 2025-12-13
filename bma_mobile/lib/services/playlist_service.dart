@@ -119,10 +119,14 @@ class PlaylistService extends ChangeNotifier {
   }
 
   /// Add a song to a playlist
+  /// Stores song metadata (title, artist, duration) for offline display
   Future<void> addSongToPlaylist({
     required String playlistId,
     required String songId,
     String? albumId,
+    String? title,
+    String? artist,
+    int? duration,
   }) async {
     final index = _playlists.indexWhere((p) => p.id == playlistId);
     if (index == -1) return;
@@ -134,13 +138,29 @@ class PlaylistService extends ChangeNotifier {
 
     final updatedSongIds = List<String>.from(playlist.songIds)..add(songId);
     final updatedSongAlbumIds = Map<String, String>.from(playlist.songAlbumIds);
+    final updatedSongTitles = Map<String, String>.from(playlist.songTitles);
+    final updatedSongArtists = Map<String, String>.from(playlist.songArtists);
+    final updatedSongDurations = Map<String, int>.from(playlist.songDurations);
+
     if (albumId != null) {
       updatedSongAlbumIds[songId] = albumId;
+    }
+    if (title != null) {
+      updatedSongTitles[songId] = title;
+    }
+    if (artist != null) {
+      updatedSongArtists[songId] = artist;
+    }
+    if (duration != null) {
+      updatedSongDurations[songId] = duration;
     }
 
     _playlists[index] = playlist.copyWith(
       songIds: updatedSongIds,
       songAlbumIds: updatedSongAlbumIds,
+      songTitles: updatedSongTitles,
+      songArtists: updatedSongArtists,
+      songDurations: updatedSongDurations,
       modifiedAt: DateTime.now(),
     );
 
@@ -238,7 +258,14 @@ class PlaylistService extends ChangeNotifier {
   }
 
   /// Toggle a song's liked status
-  Future<void> toggleLikedSong(String songId, String? albumId) async {
+  /// Pass song metadata for offline display when liking
+  Future<void> toggleLikedSong(
+    String songId,
+    String? albumId, {
+    String? title,
+    String? artist,
+    int? duration,
+  }) async {
     // Ensure Liked Songs playlist exists
     await getLikedSongsPlaylist();
 
@@ -254,6 +281,9 @@ class PlaylistService extends ChangeNotifier {
         playlistId: likedSongsId,
         songId: songId,
         albumId: albumId,
+        title: title,
+        artist: artist,
+        duration: duration,
       );
     }
   }

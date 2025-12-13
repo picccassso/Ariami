@@ -21,6 +21,7 @@ class ConnectionService {
   String? _sessionId;
   Timer? _heartbeatTimer;
   bool _isConnected = false;
+  bool _isManuallyDisconnected = false;
 
   final WebSocketService _webSocketService = WebSocketService();
 
@@ -99,6 +100,9 @@ class ConnectionService {
       _isConnected = true;
       _connectionStateController.add(true); // Broadcast connected state
 
+      // Notify offline service that connection is restored
+      await OfflinePlaybackService().notifyConnectionRestored();
+
       // Save connection info
       await _saveConnectionInfo(serverInfo, _sessionId!);
 
@@ -121,7 +125,10 @@ class ConnectionService {
   }
 
   /// Disconnect from server
-  Future<void> disconnect() async {
+  /// @param isManual - true if user initiated disconnect (manual offline)
+  Future<void> disconnect({bool isManual = false}) async {
+    _isManuallyDisconnected = isManual;
+
     if (_apiClient != null && _sessionId != null) {
       try {
         // Send disconnect request
@@ -140,19 +147,24 @@ class ConnectionService {
 
     // Clear state
     _apiClient = null;
-    _serverInfo = null;
     _sessionId = null;
     _isConnected = false;
     _connectionStateController.add(false); // Broadcast disconnected state
 
-    // Clear saved connection info
-    await _clearConnectionInfo();
-
-    print('Disconnected from server');
+    // Keep serverInfo in memory for potential reconnection
+    // Don't clear saved connection info - user may want to reconnect later
+    // Only clear it when user explicitly chooses "Scan New QR"
+    print(isManual ? 'Disconnected from server (manual)' : 'Disconnected from server (auto)');
   }
 
   /// Try to restore previous connection
   Future<bool> tryRestoreConnection() async {
+    // Don't attempt reconnect if in manual offline mode
+    if (OfflinePlaybackService().isManualOfflineModeEnabled) {
+      print('Manual offline mode enabled - skipping reconnect attempt');
+      return false;
+    }
+
     final prefs = await SharedPreferences.getInstance();
     final serverJson = prefs.getString('server_info');
 
@@ -194,6 +206,9 @@ class ConnectionService {
       _sessionId = response.sessionId;
       _isConnected = true;
       _connectionStateController.add(true); // Broadcast connected state
+
+      // Notify offline service that connection is restored
+      await OfflinePlaybackService().notifyConnectionRestored();
 
       // Save new session info
       await _saveConnectionInfo(serverInfo, _sessionId!);
@@ -294,20 +309,28 @@ class ConnectionService {
   /// Called when WebSocket disconnects
   /// This automatically enables offline mode so user can continue using the app
   void _handleWebSocketDisconnect() async {
-    print('WebSocket disconnect detected - enabling offline mode');
+    print('WebSocket disconnect detected');
 
     // Only handle if we thought we were connected
     if (_isConnected) {
       _isConnected = false;
-      _stopHeartbeat();
       _apiClient = null;
       _sessionId = null;
 
-      // Auto-enable offline mode so user stays in the app
-      await OfflinePlaybackService().setOfflineMode(true);
+      // Notify offline service (auto offline)
+      await OfflinePlaybackService().notifyConnectionLost();
 
       // Broadcast disconnected state
       _connectionStateController.add(false);
+
+      // Keep heartbeat running during auto offline for reconnection attempts
+      // Only stop heartbeat if manual offline mode
+      if (OfflinePlaybackService().isManualOfflineModeEnabled) {
+        print('Manual offline - stopping heartbeat');
+        _stopHeartbeat();
+      } else {
+        print('Auto offline - keeping heartbeat active for auto-reconnect');
+      }
     }
   }
 
@@ -333,6 +356,28 @@ class ConnectionService {
 
   /// Send heartbeat ping to server
   Future<void> _sendHeartbeat() async {
+    // Don't send heartbeat if manually disconnected
+    if (_isManuallyDisconnected) return;
+
+    // Don't send heartbeat if manual offline mode is enabled
+    if (OfflinePlaybackService().isManualOfflineModeEnabled) {
+      print('Heartbeat skipped - manual offline mode enabled');
+      return;
+    }
+
+    // Check if we're in auto offline mode (disconnected but should auto-reconnect)
+    if (!_isConnected && OfflinePlaybackService().offlineMode == OfflineMode.autoOffline) {
+      print('Auto offline mode - attempting to restore connection...');
+      final restored = await tryRestoreConnection();
+      if (restored) {
+        print('✅ Connection restored via auto-reconnect!');
+      } else {
+        print('Reconnection attempt failed, will retry in 30s');
+      }
+      return;
+    }
+
+    // Normal connected mode - send ping
     if (_apiClient == null) return;
 
     try {
@@ -340,24 +385,33 @@ class ConnectionService {
       print('Heartbeat sent');
     } catch (e) {
       print('Heartbeat failed: $e');
-      // Connection lost - try to reconnect
+      // Connection lost - handle auto offline
       await _handleConnectionLoss();
     }
   }
 
   /// Handle connection loss - auto-enable offline mode
   Future<void> _handleConnectionLoss() async {
-    print('Connection lost - enabling offline mode');
+    print('Connection lost - enabling auto offline mode');
     _isConnected = false;
-    _stopHeartbeat();
     _apiClient = null;
     _sessionId = null;
 
-    // Auto-enable offline mode so user stays in the app
-    await OfflinePlaybackService().setOfflineMode(true);
+    // Notify OfflinePlaybackService (won't transition if manual offline)
+    await OfflinePlaybackService().notifyConnectionLost();
 
     // Broadcast disconnected state
     _connectionStateController.add(false);
+
+    // Keep heartbeat running during auto offline for reconnection attempts
+    // Heartbeat will call tryRestoreConnection() periodically
+    // Only stop heartbeat if manual offline mode
+    if (OfflinePlaybackService().isManualOfflineModeEnabled) {
+      print('Manual offline - stopping heartbeat');
+      _stopHeartbeat();
+    } else {
+      print('Auto offline - keeping heartbeat active for auto-reconnect');
+    }
   }
 
   // ============================================================================

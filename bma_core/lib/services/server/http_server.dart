@@ -843,7 +843,7 @@ class BmaHttpServer {
   void _sendWebSocketMessage(dynamic webSocket, WsMessage message) {
     try {
       final jsonString = jsonEncode(message.toJson());
-      webSocket.add(jsonString);
+      webSocket.sink.add(jsonString);
     } catch (e) {
       print('Error sending WebSocket message: $e');
     }

@@ -37,7 +37,7 @@ class _SearchScreenState extends State<SearchScreen> {
   bool _isSearching = false;
   bool _isOffline = false;
   String? _errorMessage;
-  StreamSubscription<bool>? _offlineSubscription;
+  StreamSubscription<OfflineMode>? _offlineSubscription;
 
   @override
   void initState() {
@@ -48,7 +48,7 @@ class _SearchScreenState extends State<SearchScreen> {
     _searchController.addListener(_onSearchChanged);
     
     // Listen to offline state changes
-    _offlineSubscription = _offlineService.offlineStateStream.listen((_) {
+    _offlineSubscription = _offlineService.offlineModeStream.listen((_) {
       final wasOffline = _isOffline;
       setState(() {
         _isOffline = _offlineService.isOfflineModeEnabled;

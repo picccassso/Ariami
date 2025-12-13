@@ -79,12 +79,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
   }
 
   void _retryDownload(String taskId) {
-    final task = _downloadManager.queue.firstWhere((t) => t.id == taskId);
-    if (task.canRetry()) {
-      task.status = DownloadStatus.pending;
-      task.retryCount = 0;
-      _downloadManager.resumeDownload(taskId);
-    }
+    _downloadManager.retryDownload(taskId);
   }
 
   Future<void> _clearAllDownloads() async {
@@ -1286,6 +1281,19 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
         TextButton.icon(
           onPressed: () => _cancelDownload(task.id),
           icon: const Icon(Icons.delete_outline, size: 18),
+          label: const Text('Remove'),
+          style: TextButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            foregroundColor: Colors.red,
+          ),
+        ),
+      );
+    } else if (task.status == DownloadStatus.pending) {
+      buttons.add(
+        TextButton.icon(
+          onPressed: () => _cancelDownload(task.id),
+          icon: const Icon(Icons.close, size: 18),
           label: const Text('Remove'),
           style: TextButton.styleFrom(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),

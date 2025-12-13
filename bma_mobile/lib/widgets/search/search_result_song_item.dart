@@ -139,7 +139,14 @@ class SearchResultSongItem extends StatelessWidget {
         playbackManager.addToQueue(convertedSong);
         break;
       case 'add_playlist':
-        AddToPlaylistScreen.showForSong(context, song.id, albumId: song.albumId);
+        AddToPlaylistScreen.showForSong(
+          context,
+          song.id,
+          albumId: song.albumId,
+          title: song.title,
+          artist: song.artist,
+          duration: song.duration,
+        );
         return;
       case 'download':
         _handleDownload(context);

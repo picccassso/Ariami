@@ -203,6 +203,12 @@ class PlaylistModel {
   final List<String> songIds;
   /// Map of songId to albumId for artwork lookup
   final Map<String, String> songAlbumIds;
+  /// Map of songId to song title for offline display
+  final Map<String, String> songTitles;
+  /// Map of songId to artist name for offline display
+  final Map<String, String> songArtists;
+  /// Map of songId to duration (seconds) for offline display
+  final Map<String, int> songDurations;
   final DateTime createdAt;
   final DateTime modifiedAt;
 
@@ -212,6 +218,9 @@ class PlaylistModel {
     this.description,
     required this.songIds,
     this.songAlbumIds = const {},
+    this.songTitles = const {},
+    this.songArtists = const {},
+    this.songDurations = const {},
     required this.createdAt,
     required this.modifiedAt,
   });
@@ -227,6 +236,12 @@ class PlaylistModel {
       songIds: (json['songIds'] as List<dynamic>? ?? []).cast<String>(),
       songAlbumIds: (json['songAlbumIds'] as Map<String, dynamic>? ?? {})
           .map((k, v) => MapEntry(k, v as String)),
+      songTitles: (json['songTitles'] as Map<String, dynamic>? ?? {})
+          .map((k, v) => MapEntry(k, v as String)),
+      songArtists: (json['songArtists'] as Map<String, dynamic>? ?? {})
+          .map((k, v) => MapEntry(k, v as String)),
+      songDurations: (json['songDurations'] as Map<String, dynamic>? ?? {})
+          .map((k, v) => MapEntry(k, v as int)),
       createdAt: json['createdAt'] != null
           ? DateTime.parse(json['createdAt'] as String)
           : DateTime.now(),
@@ -243,6 +258,9 @@ class PlaylistModel {
       'description': description,
       'songIds': songIds,
       'songAlbumIds': songAlbumIds,
+      'songTitles': songTitles,
+      'songArtists': songArtists,
+      'songDurations': songDurations,
       'createdAt': createdAt.toIso8601String(),
       'modifiedAt': modifiedAt.toIso8601String(),
     };
@@ -255,6 +273,9 @@ class PlaylistModel {
     String? description,
     List<String>? songIds,
     Map<String, String>? songAlbumIds,
+    Map<String, String>? songTitles,
+    Map<String, String>? songArtists,
+    Map<String, int>? songDurations,
     DateTime? createdAt,
     DateTime? modifiedAt,
   }) {
@@ -264,6 +285,9 @@ class PlaylistModel {
       description: description ?? this.description,
       songIds: songIds ?? this.songIds,
       songAlbumIds: songAlbumIds ?? this.songAlbumIds,
+      songTitles: songTitles ?? this.songTitles,
+      songArtists: songArtists ?? this.songArtists,
+      songDurations: songDurations ?? this.songDurations,
       createdAt: createdAt ?? this.createdAt,
       modifiedAt: modifiedAt ?? this.modifiedAt,
     );
