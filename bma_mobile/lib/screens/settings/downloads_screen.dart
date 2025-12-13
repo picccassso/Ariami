@@ -23,6 +23,10 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
   int _cacheLimitMB = 500;
   StreamSubscription<void>? _cacheSubscription;
 
+  // Track which albums are expanded in the Downloaded section
+  // Uses albumId as key, 'singles' for songs without album
+  final Set<String> _expandedAlbums = {};
+
   @override
   void initState() {
     super.initState();
@@ -210,10 +214,9 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                     isDark,
                   ),
 
-                  // Completed downloads section
-                  ..._buildSection(
+                  // Completed downloads section - grouped by album
+                  ..._buildDownloadedSection(
                     context,
-                    'Downloaded',
                     queue
                         .where((t) => t.status == DownloadStatus.completed)
                         .toList(),
@@ -508,6 +511,527 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
         return _buildDownloadItem(context, task, isDark, isLast);
       }),
     ];
+  }
+
+  /// Group completed downloads by album
+  Map<String?, List<DownloadTask>> _groupByAlbum(List<DownloadTask> tasks) {
+    final Map<String?, List<DownloadTask>> grouped = {};
+    for (final task in tasks) {
+      final key = task.albumId; // null key = Singles
+      grouped.putIfAbsent(key, () => []).add(task);
+    }
+    // Sort songs within each album by track number
+    for (final songs in grouped.values) {
+      songs.sort((a, b) => (a.trackNumber ?? 0).compareTo(b.trackNumber ?? 0));
+    }
+    return grouped;
+  }
+
+  /// Calculate total size in bytes for a list of tasks
+  int _calculateTotalBytes(List<DownloadTask> tasks) {
+    return tasks.fold(0, (sum, task) => sum + task.bytesDownloaded);
+  }
+
+  /// Format bytes to human-readable string
+  String _formatBytes(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    if (bytes < 1024 * 1024 * 1024) {
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    }
+    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
+  }
+
+  /// Build the Downloaded section with album grouping
+  List<Widget> _buildDownloadedSection(
+    BuildContext context,
+    List<DownloadTask> completedTasks,
+    bool isDark,
+  ) {
+    if (completedTasks.isEmpty) return [];
+
+    final grouped = _groupByAlbum(completedTasks);
+    final widgets = <Widget>[];
+
+    // Section header
+    widgets.add(
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
+        child: Text(
+          'Downloaded',
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: Colors.blue[700],
+            letterSpacing: 0.5,
+          ),
+        ),
+      ),
+    );
+
+    // Sort albums: albums with names first (alphabetically), then Singles (null) at the end
+    final sortedKeys = grouped.keys.toList()
+      ..sort((a, b) {
+        if (a == null && b == null) return 0;
+        if (a == null) return 1; // null (Singles) goes last
+        if (b == null) return -1;
+        // Sort by album name
+        final nameA = grouped[a]!.first.albumName ?? '';
+        final nameB = grouped[b]!.first.albumName ?? '';
+        return nameA.compareTo(nameB);
+      });
+
+    // Build album cards
+    for (int i = 0; i < sortedKeys.length; i++) {
+      final albumId = sortedKeys[i];
+      final songs = grouped[albumId]!;
+      final isLast = i == sortedKeys.length - 1;
+
+      if (albumId == null) {
+        // Singles section
+        widgets.add(_buildSinglesCard(context, songs, isDark, isLast));
+      } else {
+        // Album card
+        widgets.add(_buildAlbumCard(context, albumId, songs, isDark, isLast));
+      }
+    }
+
+    return widgets;
+  }
+
+  /// Build an album card with expand/collapse functionality
+  Widget _buildAlbumCard(
+    BuildContext context,
+    String albumId,
+    List<DownloadTask> songs,
+    bool isDark,
+    bool isLast,
+  ) {
+    final isExpanded = _expandedAlbums.contains(albumId);
+    final firstSong = songs.first;
+    final albumName = firstSong.albumName ?? 'Unknown Album';
+    final albumArtist = firstSong.albumArtist ?? firstSong.artist;
+    final totalBytes = _calculateTotalBytes(songs);
+    final artworkUrl = firstSong.albumArt;
+
+    return Column(
+      children: [
+        Container(
+          color: isDark ? Colors.grey[900] : Colors.white,
+          child: Column(
+            children: [
+              // Album header
+              InkWell(
+                onTap: () {
+                  setState(() {
+                    if (isExpanded) {
+                      _expandedAlbums.remove(albumId);
+                    } else {
+                      _expandedAlbums.add(albumId);
+                    }
+                  });
+                },
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Row(
+                    children: [
+                      // Album artwork
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: SizedBox(
+                          width: 56,
+                          height: 56,
+                          child: artworkUrl.isNotEmpty
+                              ? Image.network(
+                                  artworkUrl,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) =>
+                                      Container(
+                                    color: isDark
+                                        ? Colors.grey[800]
+                                        : Colors.grey[200],
+                                    child: Icon(
+                                      Icons.album,
+                                      color: isDark
+                                          ? Colors.grey[600]
+                                          : Colors.grey[400],
+                                      size: 28,
+                                    ),
+                                  ),
+                                )
+                              : Container(
+                                  color: isDark
+                                      ? Colors.grey[800]
+                                      : Colors.grey[200],
+                                  child: Icon(
+                                    Icons.album,
+                                    color: isDark
+                                        ? Colors.grey[600]
+                                        : Colors.grey[400],
+                                    size: 28,
+                                  ),
+                                ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      // Album info
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              albumName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                color: isDark ? Colors.white : Colors.black87,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              albumArtist,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: isDark
+                                    ? Colors.grey[400]
+                                    : Colors.grey[600],
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${songs.length} song${songs.length != 1 ? 's' : ''} • ${_formatBytes(totalBytes)}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: isDark
+                                    ? Colors.grey[500]
+                                    : Colors.grey[500],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Delete album button
+                      IconButton(
+                        icon: Icon(
+                          Icons.delete_outline,
+                          color: Colors.red[400],
+                          size: 22,
+                        ),
+                        onPressed: () => _confirmDeleteAlbum(
+                          context,
+                          albumId,
+                          albumName,
+                          songs.length,
+                        ),
+                        tooltip: 'Delete album',
+                      ),
+                      // Expand/collapse icon
+                      Icon(
+                        isExpanded
+                            ? Icons.keyboard_arrow_up
+                            : Icons.keyboard_arrow_down,
+                        color: isDark ? Colors.grey[400] : Colors.grey[600],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              // Expanded songs list
+              if (isExpanded)
+                Container(
+                  color: isDark ? Colors.grey[850] : Colors.grey[50],
+                  child: Column(
+                    children: songs.asMap().entries.map((entry) {
+                      final index = entry.key;
+                      final song = entry.value;
+                      final isLastSong = index == songs.length - 1;
+                      return _buildAlbumSongItem(
+                          context, song, isDark, isLastSong);
+                    }).toList(),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        if (!isLast)
+          Divider(
+            height: 1,
+            thickness: 0.5,
+            color: isDark ? Colors.grey[800] : Colors.grey[200],
+          ),
+      ],
+    );
+  }
+
+  /// Build the Singles card for songs without an album
+  Widget _buildSinglesCard(
+    BuildContext context,
+    List<DownloadTask> songs,
+    bool isDark,
+    bool isLast,
+  ) {
+    const singlesKey = 'singles';
+    final isExpanded = _expandedAlbums.contains(singlesKey);
+    final totalBytes = _calculateTotalBytes(songs);
+
+    return Column(
+      children: [
+        Container(
+          color: isDark ? Colors.grey[900] : Colors.white,
+          child: Column(
+            children: [
+              // Singles header
+              InkWell(
+                onTap: () {
+                  setState(() {
+                    if (isExpanded) {
+                      _expandedAlbums.remove(singlesKey);
+                    } else {
+                      _expandedAlbums.add(singlesKey);
+                    }
+                  });
+                },
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Row(
+                    children: [
+                      // Music note icon
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: Container(
+                          width: 56,
+                          height: 56,
+                          color: isDark ? Colors.grey[800] : Colors.grey[200],
+                          child: Icon(
+                            Icons.music_note,
+                            color:
+                                isDark ? Colors.grey[500] : Colors.grey[400],
+                            size: 28,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      // Singles info
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Singles',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                color: isDark ? Colors.white : Colors.black87,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Songs without album',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: isDark
+                                    ? Colors.grey[400]
+                                    : Colors.grey[600],
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${songs.length} song${songs.length != 1 ? 's' : ''} • ${_formatBytes(totalBytes)}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: isDark
+                                    ? Colors.grey[500]
+                                    : Colors.grey[500],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Delete all singles button
+                      IconButton(
+                        icon: Icon(
+                          Icons.delete_outline,
+                          color: Colors.red[400],
+                          size: 22,
+                        ),
+                        onPressed: () => _confirmDeleteAlbum(
+                          context,
+                          null,
+                          'Singles',
+                          songs.length,
+                        ),
+                        tooltip: 'Delete all singles',
+                      ),
+                      // Expand/collapse icon
+                      Icon(
+                        isExpanded
+                            ? Icons.keyboard_arrow_up
+                            : Icons.keyboard_arrow_down,
+                        color: isDark ? Colors.grey[400] : Colors.grey[600],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              // Expanded songs list
+              if (isExpanded)
+                Container(
+                  color: isDark ? Colors.grey[850] : Colors.grey[50],
+                  child: Column(
+                    children: songs.asMap().entries.map((entry) {
+                      final index = entry.key;
+                      final song = entry.value;
+                      final isLastSong = index == songs.length - 1;
+                      return _buildAlbumSongItem(
+                          context, song, isDark, isLastSong);
+                    }).toList(),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        if (!isLast)
+          Divider(
+            height: 1,
+            thickness: 0.5,
+            color: isDark ? Colors.grey[800] : Colors.grey[200],
+          ),
+      ],
+    );
+  }
+
+  /// Build a song item within an expanded album
+  Widget _buildAlbumSongItem(
+    BuildContext context,
+    DownloadTask task,
+    bool isDark,
+    bool isLast,
+  ) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(
+            children: [
+              // Track number or music note
+              SizedBox(
+                width: 24,
+                child: Text(
+                  task.trackNumber != null ? '${task.trackNumber}' : '•',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: isDark ? Colors.grey[500] : Colors.grey[600],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              // Song info
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      task.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: isDark ? Colors.white : Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      task.artist,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isDark ? Colors.grey[500] : Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // File size
+              Text(
+                _formatBytes(task.bytesDownloaded),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: isDark ? Colors.grey[500] : Colors.grey[600],
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Delete button
+              IconButton(
+                icon: Icon(
+                  Icons.close,
+                  color: Colors.red[400],
+                  size: 18,
+                ),
+                onPressed: () => _cancelDownload(task.id),
+                tooltip: 'Remove song',
+                constraints: const BoxConstraints(
+                  minWidth: 32,
+                  minHeight: 32,
+                ),
+                padding: EdgeInsets.zero,
+              ),
+            ],
+          ),
+        ),
+        if (!isLast)
+          Padding(
+            padding: const EdgeInsets.only(left: 52),
+            child: Divider(
+              height: 1,
+              thickness: 0.5,
+              color: isDark ? Colors.grey[800] : Colors.grey[200],
+            ),
+          ),
+      ],
+    );
+  }
+
+  /// Confirm deletion of an album's downloads
+  Future<void> _confirmDeleteAlbum(
+    BuildContext context,
+    String? albumId,
+    String albumName,
+    int songCount,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Delete $albumName'),
+        content: Text(
+          'Are you sure you want to delete $songCount downloaded song${songCount != 1 ? 's' : ''} from "$albumName"? This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await _downloadManager.deleteAlbumDownloads(albumId);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Deleted downloads from "$albumName"')),
+        );
+      }
+    }
   }
 
   Widget _buildDownloadItem(
