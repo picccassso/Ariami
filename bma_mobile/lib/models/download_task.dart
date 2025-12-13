@@ -19,7 +19,7 @@ class DownloadTask {
   DownloadStatus status;
   double progress; // 0.0 to 1.0
   int bytesDownloaded;
-  final int totalBytes;
+  int totalBytes; // Mutable - updated from HTTP response during download
   String? errorMessage;
   int retryCount;
 

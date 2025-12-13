@@ -252,6 +252,9 @@ class DownloadManager {
         cancelToken: cancelToken,
         onReceiveProgress: (received, total) {
           task.bytesDownloaded = received;
+          if (total > 0) {
+            task.totalBytes = total;
+          }
           task.progress = total > 0 ? received / total : 0.0;
           _queue.updateTask(task);
 
@@ -384,6 +387,26 @@ class DownloadManager {
     await _database.clearAllDownloads();
 
     print('All downloads cleared');
+  }
+
+  /// Delete all downloads for a specific album
+  /// Pass null albumId to delete all "Singles" (songs without an album)
+  Future<void> deleteAlbumDownloads(String? albumId) async {
+    await _ensureInitialized();
+
+    // Find all tasks matching the albumId
+    final tasksToDelete = _queue.queue
+        .where((task) =>
+            task.albumId == albumId &&
+            task.status == DownloadStatus.completed)
+        .toList();
+
+    // Cancel/delete each task
+    for (final task in tasksToDelete) {
+      cancelDownload(task.id);
+    }
+
+    print('Deleted ${tasksToDelete.length} downloads for album: ${albumId ?? "Singles"}');
   }
 
   /// Get download settings
