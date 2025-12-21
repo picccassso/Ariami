@@ -34,7 +34,22 @@ class SystemTrayService with TrayListener {
         return;
       }
       
-      await trayManager.setIcon(iconPath);
+      // On macOS, tray_manager may have issues with certain paths
+      // Copy to temp directory as a workaround
+      String finalIconPath = iconPath;
+      if (Platform.isMacOS && !kDebugMode) {
+        try {
+          final tempDir = Directory.systemTemp;
+          final tempIconFile = File('${tempDir.path}/bma_tray_icon.png');
+          await iconFile.copy(tempIconFile.path);
+          finalIconPath = tempIconFile.path;
+          print('[Tray] Copied icon to temp: $finalIconPath');
+        } catch (e) {
+          print('[Tray] Failed to copy icon to temp, using original: $e');
+        }
+      }
+      
+      await trayManager.setIcon(finalIconPath);
       
       // Set up the context menu
       Menu menu = Menu(
@@ -80,8 +95,11 @@ class SystemTrayService with TrayListener {
         return path.join(projectDir, 'assets', 'BMA_icon.png');
       }
       // In release mode, the icon is bundled in flutter_assets
-      final resourcesDir = path.join(executableDir, '..', 'Frameworks', 'App.framework', 'Resources', 'flutter_assets', 'assets');
-      return path.join(resourcesDir, 'BMA_icon.png');
+      // Use path.normalize to resolve the '..' and get a clean absolute path
+      final resourcesDir = path.normalize(path.join(executableDir, '..', 'Frameworks', 'App.framework', 'Resources', 'flutter_assets', 'assets'));
+      final iconPath = path.join(resourcesDir, 'BMA_icon.png');
+      // Resolve to absolute path to ensure tray_manager can find it
+      return File(iconPath).absolute.path;
     } else if (Platform.isWindows) {
       if (kDebugMode) {
         // In debug mode, executable is at: /project/build/windows/runner/Debug/app.exe
