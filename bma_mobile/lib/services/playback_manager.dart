@@ -117,6 +117,10 @@ class PlaybackManager extends ChangeNotifier {
     print('[PlaybackManager] FilePath: ${song.filePath}');
     print('[PlaybackManager] Duration: ${song.duration}');
 
+    // Clear restored position - this is a NEW song, start from beginning
+    _restoredPosition = null;
+    _pendingUiPosition = null;
+
     try {
       // Create new queue with just this song
       print('[PlaybackManager] Creating new queue...');
@@ -144,6 +148,10 @@ class PlaybackManager extends ChangeNotifier {
     try {
       if (songs.isEmpty) return;
 
+      // Clear restored position - these are NEW songs, start from beginning
+      _restoredPosition = null;
+      _pendingUiPosition = null;
+
       // Create new queue with all songs
       _queue = PlaybackQueue();
       for (final song in songs) {
@@ -168,6 +176,10 @@ class PlaybackManager extends ChangeNotifier {
   Future<void> playShuffled(List<Song> songs) async {
     try {
       if (songs.isEmpty) return;
+
+      // Clear restored position - these are NEW songs, start from beginning
+      _restoredPosition = null;
+      _pendingUiPosition = null;
 
       // Shuffle the list using shuffle service
       final shuffled = _shuffleService.enableShuffle(songs, null);
