@@ -253,11 +253,17 @@ class StreamingStatsService extends ChangeNotifier {
 
       if (artistMap.containsKey(artistName)) {
         final existing = artistMap[artistName]!;
+        // Prefer album artwork, but capture song ID as fallback for standalone songs
+        final newRandomAlbumId = existing.randomAlbumId ?? songStat.albumId;
+        final newRandomSongId = existing.randomSongId ?? 
+            (songStat.albumId == null ? songStat.songId : null);
         artistMap[artistName] = existing.copyWith(
           playCount: existing.playCount + songStat.playCount,
           totalTime: Duration(seconds: existing.totalTime.inSeconds + songStat.totalTime.inSeconds),
           lastPlayed: _laterDate(existing.lastPlayed, songStat.lastPlayed),
           firstPlayed: _earlierDate(existing.firstPlayed, songStat.firstPlayed),
+          randomAlbumId: newRandomAlbumId,
+          randomSongId: newRandomSongId,
           uniqueSongsCount: existing.uniqueSongsCount + 1,
         );
       } else {
@@ -268,6 +274,8 @@ class StreamingStatsService extends ChangeNotifier {
           firstPlayed: songStat.firstPlayed,
           lastPlayed: songStat.lastPlayed,
           randomAlbumId: songStat.albumId,
+          // For standalone songs, store songId as fallback for artwork
+          randomSongId: songStat.albumId == null ? songStat.songId : null,
           uniqueSongsCount: 1,
         );
       }

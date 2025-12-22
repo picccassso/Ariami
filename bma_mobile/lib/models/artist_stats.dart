@@ -5,7 +5,8 @@ class ArtistStats {
   final Duration totalTime;
   final DateTime? firstPlayed;
   final DateTime? lastPlayed;
-  final String? randomAlbumId; // For displaying artwork
+  final String? randomAlbumId; // For displaying artwork (album songs)
+  final String? randomSongId; // For displaying artwork (standalone songs fallback)
   final int uniqueSongsCount;
 
   const ArtistStats({
@@ -15,6 +16,7 @@ class ArtistStats {
     this.firstPlayed,
     this.lastPlayed,
     this.randomAlbumId,
+    this.randomSongId,
     required this.uniqueSongsCount,
   });
 
@@ -38,6 +40,7 @@ class ArtistStats {
     DateTime? firstPlayed,
     DateTime? lastPlayed,
     String? randomAlbumId,
+    String? randomSongId,
     int? uniqueSongsCount,
   }) {
     return ArtistStats(
@@ -47,6 +50,7 @@ class ArtistStats {
       firstPlayed: firstPlayed ?? this.firstPlayed,
       lastPlayed: lastPlayed ?? this.lastPlayed,
       randomAlbumId: randomAlbumId ?? this.randomAlbumId,
+      randomSongId: randomSongId ?? this.randomSongId,
       uniqueSongsCount: uniqueSongsCount ?? this.uniqueSongsCount,
     );
   }

@@ -417,12 +417,11 @@ class PlaybackManager extends ChangeNotifier {
           print('[PlaybackManager] Playing from downloaded file: $audioUrl');
           
           // Get cached artwork for offline playback
-          if (song.albumId != null) {
-            final cachedArtworkPath = await _cacheManager.getArtworkPath(song.albumId!);
-            if (cachedArtworkPath != null) {
-              artworkUri = Uri.file(cachedArtworkPath);
-              print('[PlaybackManager] Using cached artwork: $artworkUri');
-            }
+          final localCacheId = song.albumId ?? 'song_${song.id}';
+          final cachedArtworkPath = await _cacheManager.getArtworkPath(localCacheId);
+          if (cachedArtworkPath != null) {
+            artworkUri = Uri.file(cachedArtworkPath);
+            print('[PlaybackManager] Using cached artwork: $artworkUri');
           }
           break;
 
@@ -434,14 +433,13 @@ class PlaybackManager extends ChangeNotifier {
           }
           audioUrl = 'file://$cachedPath';
           print('[PlaybackManager] Playing from cached file: $audioUrl');
-          
+
           // Get cached artwork for offline playback
-          if (song.albumId != null) {
-            final cachedArtworkPath = await _cacheManager.getArtworkPath(song.albumId!);
-            if (cachedArtworkPath != null) {
-              artworkUri = Uri.file(cachedArtworkPath);
-              print('[PlaybackManager] Using cached artwork: $artworkUri');
-            }
+          final cachedCacheId = song.albumId ?? 'song_${song.id}';
+          final cachedArtworkPathForCached = await _cacheManager.getArtworkPath(cachedCacheId);
+          if (cachedArtworkPathForCached != null) {
+            artworkUri = Uri.file(cachedArtworkPathForCached);
+            print('[PlaybackManager] Using cached artwork: $artworkUri');
           }
           break;
 
@@ -459,8 +457,11 @@ class PlaybackManager extends ChangeNotifier {
           // Use server URL for artwork when streaming
           if (song.albumId != null) {
             artworkUri = Uri.parse('${_connectionService.apiClient!.baseUrl}/artwork/${song.albumId}');
-            print('[PlaybackManager] Using server artwork: $artworkUri');
+          } else {
+            // Standalone song - use song artwork endpoint
+            artworkUri = Uri.parse('${_connectionService.apiClient!.baseUrl}/song-artwork/${song.id}');
           }
+          print('[PlaybackManager] Using server artwork: $artworkUri');
 
           // Trigger background caching of the song for offline use
           _cacheSongInBackground(song);

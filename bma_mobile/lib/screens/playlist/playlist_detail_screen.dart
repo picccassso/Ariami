@@ -621,18 +621,29 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   }
 
   Widget _buildPlaylistHeader() {
-    // Get unique album IDs from songs for artwork
-    final albumIds = <String>[];
+    // Get unique artwork IDs from songs for artwork collage
+    // - Album songs: use albumId
+    // - Standalone songs: use "song_{songId}" prefix
+    final artworkIds = <String>[];
     for (final song in _songs) {
-      if (song.albumId != null && !albumIds.contains(song.albumId)) {
-        albumIds.add(song.albumId!);
-        if (albumIds.length >= 4) break;
+      if (song.albumId != null) {
+        // Song belongs to an album
+        if (!artworkIds.contains(song.albumId)) {
+          artworkIds.add(song.albumId!);
+        }
+      } else {
+        // Standalone song - use song ID with prefix
+        final songArtworkId = 'song_${song.id}';
+        if (!artworkIds.contains(songArtworkId)) {
+          artworkIds.add(songArtworkId);
+        }
       }
+      if (artworkIds.length >= 4) break;
     }
 
-    // If we have album IDs, show collage (CachedArtwork handles offline)
-    if (albumIds.isNotEmpty) {
-      return _buildArtworkCollage(albumIds);
+    // If we have artwork IDs, show collage (CachedArtwork handles offline)
+    if (artworkIds.isNotEmpty) {
+      return _buildArtworkCollage(artworkIds);
     }
 
     // Fallback to gradient with icon
@@ -678,14 +689,25 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   }
 
   /// Build a single artwork image for the header using CachedArtwork
-  Widget _buildHeaderArtwork(String albumId) {
-    // Build URL only if online
-    final artworkUrl = _connectionService.apiClient != null
-        ? '${_connectionService.apiClient!.baseUrl}/artwork/$albumId'
-        : null;
+  /// Handles both album IDs and standalone song IDs (prefixed with "song_")
+  Widget _buildHeaderArtwork(String artworkId) {
+    // Determine artwork URL based on ID type
+    String? artworkUrl;
+    if (artworkId.startsWith('song_')) {
+      // Standalone song - use song artwork endpoint
+      final songId = artworkId.substring(5); // Remove "song_" prefix
+      artworkUrl = _connectionService.apiClient != null
+          ? '${_connectionService.apiClient!.baseUrl}/song-artwork/$songId'
+          : null;
+    } else {
+      // Album - use album artwork endpoint
+      artworkUrl = _connectionService.apiClient != null
+          ? '${_connectionService.apiClient!.baseUrl}/artwork/$artworkId'
+          : null;
+    }
 
     return CachedArtwork(
-      albumId: albumId,
+      albumId: artworkId, // Used as cache key
       artworkUrl: artworkUrl,
       fit: BoxFit.cover,
       fallback: _buildFallbackHeader(),
@@ -953,24 +975,35 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   }
 
   /// Build album artwork or placeholder using CachedArtwork
+  /// Handles both album songs and standalone songs
   Widget _buildAlbumArt(SongModel song) {
+    // Determine artwork URL and cache ID based on whether song has albumId
+    String? artworkUrl;
+    String cacheId;
+
     if (song.albumId != null) {
-      // Build URL only if online
-      final artworkUrl = _connectionService.apiClient != null
+      // Song belongs to an album - use album artwork endpoint
+      artworkUrl = _connectionService.apiClient != null
           ? '${_connectionService.apiClient!.baseUrl}/artwork/${song.albumId}'
           : null;
-
-      return CachedArtwork(
-        albumId: song.albumId!,
-        artworkUrl: artworkUrl,
-        width: 48,
-        height: 48,
-        fit: BoxFit.cover,
-        borderRadius: BorderRadius.circular(4),
-        fallback: _buildPlaceholder(),
-      );
+      cacheId = song.albumId!;
+    } else {
+      // Standalone song - use song artwork endpoint
+      artworkUrl = _connectionService.apiClient != null
+          ? '${_connectionService.apiClient!.baseUrl}/song-artwork/${song.id}'
+          : null;
+      cacheId = 'song_${song.id}';
     }
-    return _buildPlaceholder();
+
+    return CachedArtwork(
+      albumId: cacheId, // Used as cache key
+      artworkUrl: artworkUrl,
+      width: 48,
+      height: 48,
+      fit: BoxFit.cover,
+      borderRadius: BorderRadius.circular(4),
+      fallback: _buildPlaceholder(),
+    );
   }
 
   /// Placeholder for missing artwork

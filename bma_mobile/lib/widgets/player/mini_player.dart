@@ -158,24 +158,38 @@ class MiniPlayer extends StatelessWidget {
   Widget _buildAlbumArt(BuildContext context) {
     final connectionService = ConnectionService();
 
-    if (currentSong?.albumId != null) {
-      final artworkUrl = connectionService.apiClient != null
-          ? '${connectionService.apiClient!.baseUrl}/artwork/${currentSong!.albumId}'
-          : null;
-
-      return CachedArtwork(
-        albumId: currentSong!.albumId!,
-        artworkUrl: artworkUrl,
-        width: 45,
-        height: 45,
-        borderRadius: BorderRadius.circular(4),
-        fallback: _buildPlaceholder(context),
-        fallbackIcon: Icons.music_note,
-        fallbackIconSize: 24,
-      );
+    if (currentSong == null) {
+      return _buildPlaceholder(context);
     }
 
-    return _buildPlaceholder(context);
+    // Determine artwork URL based on whether song has albumId
+    String? artworkUrl;
+    String cacheId;
+
+    if (currentSong!.albumId != null) {
+      // Song belongs to an album - use album artwork endpoint
+      artworkUrl = connectionService.apiClient != null
+          ? '${connectionService.apiClient!.baseUrl}/artwork/${currentSong!.albumId}'
+          : null;
+      cacheId = currentSong!.albumId!;
+    } else {
+      // Standalone song - use song artwork endpoint
+      artworkUrl = connectionService.apiClient != null
+          ? '${connectionService.apiClient!.baseUrl}/song-artwork/${currentSong!.id}'
+          : null;
+      cacheId = 'song_${currentSong!.id}';
+    }
+
+    return CachedArtwork(
+      albumId: cacheId,
+      artworkUrl: artworkUrl,
+      width: 45,
+      height: 45,
+      borderRadius: BorderRadius.circular(4),
+      fallback: _buildPlaceholder(context),
+      fallbackIcon: Icons.music_note,
+      fallbackIconSize: 24,
+    );
   }
 
   /// Build placeholder artwork

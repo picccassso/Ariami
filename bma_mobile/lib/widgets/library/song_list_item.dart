@@ -5,6 +5,7 @@ import '../../screens/playlist/add_to_playlist_screen.dart';
 import '../../services/playback_manager.dart';
 import '../../services/download/download_manager.dart';
 import '../../services/api/connection_service.dart';
+import '../common/cached_artwork.dart';
 
 /// Song list item widget
 /// Displays song title, artist, and duration in a list row
@@ -33,81 +34,138 @@ class SongListItem extends StatelessWidget {
 
     return Opacity(
       opacity: opacity,
-      child: InkWell(
+      child: ListTile(
         onTap: isAvailable ? onTap : null,
         onLongPress: onLongPress,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-          child: Row(
-            children: [
-              // Offline availability indicator
-              if (isDownloaded) ...[
-                // Downloaded (protected) - green checkmark
-                Icon(
-                  Icons.download_done,
-                  size: 16,
-                  color: Colors.green[600],
-                ),
-                const SizedBox(width: 8),
-              ] else if (isCached) ...[
-                // Cached (may be evicted) - blue/grey cloud
-                Icon(
-                  Icons.cloud_done,
-                  size: 16,
-                  color: Colors.blue[400],
-                ),
-                const SizedBox(width: 8),
-              ],
-              // Song info (title and artist)
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Song title
-                    Text(
-                      song.title,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                        color: isAvailable ? null : Colors.grey,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 4),
-                    // Artist name
-                    Text(
-                      song.artist,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey[600],
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 16),
-              // Duration
-              Text(
-                _formatDuration(song.duration),
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[600],
-                ),
-              ),
-              // Overflow menu button
-              IconButton(
-                icon: const Icon(Icons.more_vert),
-                onPressed: () => _showSongMenu(context),
-                padding: const EdgeInsets.all(8),
-                constraints: const BoxConstraints(),
-              ),
-            ],
+        leading: _buildLeading(context),
+        title: Text(
+          song.title,
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w500,
+            color: isAvailable ? null : Colors.grey,
           ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        subtitle: Text(
+          song.artist,
+          style: TextStyle(
+            fontSize: 14,
+            color: Colors.grey[600],
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              _formatDuration(song.duration),
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[600],
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.more_vert),
+              onPressed: () => _showSongMenu(context),
+              padding: const EdgeInsets.all(8),
+              constraints: const BoxConstraints(),
+            ),
+          ],
         ),
       ),
+    );
+  }
+
+  /// Build leading widget with artwork and download/cache indicator
+  Widget _buildLeading(BuildContext context) {
+    return Stack(
+      children: [
+        _buildAlbumArt(context),
+        if (isDownloaded)
+          Positioned(
+            bottom: 0,
+            right: 0,
+            child: Container(
+              padding: const EdgeInsets.all(2),
+              decoration: BoxDecoration(
+                color: Colors.green[600],
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.download_done,
+                size: 10,
+                color: Colors.white,
+              ),
+            ),
+          )
+        else if (isCached)
+          Positioned(
+            bottom: 0,
+            right: 0,
+            child: Container(
+              padding: const EdgeInsets.all(2),
+              decoration: BoxDecoration(
+                color: Colors.blue[400],
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.cloud_done,
+                size: 10,
+                color: Colors.white,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  /// Build album artwork or placeholder using CachedArtwork
+  Widget _buildAlbumArt(BuildContext context) {
+    final connectionService = ConnectionService();
+
+    // Determine artwork URL based on whether song has albumId
+    String? artworkUrl;
+    String cacheId;
+
+    if (song.albumId != null) {
+      // Song belongs to an album - use album artwork endpoint
+      artworkUrl = connectionService.apiClient != null
+          ? '${connectionService.apiClient!.baseUrl}/artwork/${song.albumId}'
+          : null;
+      cacheId = song.albumId!;
+    } else {
+      // Standalone song - use song artwork endpoint
+      artworkUrl = connectionService.apiClient != null
+          ? '${connectionService.apiClient!.baseUrl}/song-artwork/${song.id}'
+          : null;
+      cacheId = 'song_${song.id}'; // Prefix to differentiate from album IDs
+    }
+
+    return CachedArtwork(
+      albumId: cacheId, // Used as cache key
+      artworkUrl: artworkUrl,
+      width: 48,
+      height: 48,
+      borderRadius: BorderRadius.circular(4),
+      fallback: _buildPlaceholder(),
+      fallbackIcon: Icons.music_note,
+      fallbackIconSize: 24,
+    );
+  }
+
+  /// Build placeholder for missing artwork
+  Widget _buildPlaceholder() {
+    return Container(
+      width: 48,
+      height: 48,
+      decoration: BoxDecoration(
+        color: Colors.grey[200],
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: const Icon(Icons.music_note, color: Colors.grey),
     );
   }
 
