@@ -183,20 +183,20 @@ class _LibraryScreenState extends State<LibraryScreen> {
     final albumMap = <String, List<DownloadTask>>{}; // Group songs by album
     
     for (final task in completedTasks) {
-      // Create SongModel from DownloadTask
-      final song = SongModel(
-        id: task.songId,
-        title: task.title,
-        artist: task.artist,
-        albumId: task.albumId,
-        duration: task.duration,
-        trackNumber: task.trackNumber,
-      );
-      songs.add(song);
-      
       // Group by album for building album list
       if (task.albumId != null) {
         albumMap.putIfAbsent(task.albumId!, () => []).add(task);
+      } else {
+        // Only add standalone songs (no album) to the songs list
+        final song = SongModel(
+          id: task.songId,
+          title: task.title,
+          artist: task.artist,
+          albumId: task.albumId,
+          duration: task.duration,
+          trackNumber: task.trackNumber,
+        );
+        songs.add(song);
       }
     }
     
@@ -504,11 +504,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
     if (songsToShow.isEmpty) {
       return Padding(
         padding: const EdgeInsets.all(16.0),
-        child: Text(
-          _showDownloadedOnly
-              ? 'No downloaded songs'
-              : 'No standalone songs found',
-          style: const TextStyle(color: Colors.grey),
+        child: const Text(
+          'No standalone songs found',
+          style: TextStyle(color: Colors.grey),
           textAlign: TextAlign.center,
         ),
       );

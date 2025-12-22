@@ -1,14 +1,11 @@
 import 'dart:convert';
-import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as path;
 import 'package:bma_core/models/library_structure.dart';
 import 'package:bma_core/models/album.dart';
 import 'package:bma_core/models/song_metadata.dart';
-import 'package:bma_core/services/library/file_scanner.dart';
 import 'package:bma_core/services/library/metadata_extractor.dart';
-import 'package:bma_core/services/library/album_builder.dart';
-import 'package:bma_core/services/library/duplicate_detector.dart';
+import 'package:bma_core/services/library/library_scanner_isolate.dart';
 
 /// Singleton service that manages the music library
 /// Scans the music folder and provides library data to HTTP server
@@ -61,6 +58,9 @@ class LibraryManager {
   bool get isScanning => _isScanning;
 
   /// Scan the music folder and build library structure
+  /// 
+  /// This runs in a background isolate to prevent UI blocking.
+  /// Progress updates are logged and the scan complete callback is fired when done.
   Future<void> scanMusicFolder(String folderPath) async {
     if (_isScanning) {
       print('[LibraryManager] Scan already in progress');
@@ -68,57 +68,33 @@ class LibraryManager {
     }
 
     _isScanning = true;
-    print('[LibraryManager] Starting library scan: $folderPath');
+    print('[LibraryManager] Starting library scan (background isolate): $folderPath');
 
     try {
-      // Step 1: Scan for audio files
-      print('[LibraryManager] Step 1: Scanning for audio files...');
-      final audioFiles = await _collectAudioFiles(folderPath);
-      print('[LibraryManager] Found ${audioFiles.length} audio files');
+      // Run the scan in a background isolate
+      final result = await LibraryScannerIsolate.scan(
+        folderPath,
+        onProgress: (progress) {
+          // Log progress updates from the isolate
+          print('[LibraryManager] [${progress.stage}] ${progress.message} '
+              '(${progress.percentage.toStringAsFixed(1)}%)');
+        },
+      );
 
-      // Step 2: Extract metadata and duration
-      print('[LibraryManager] Step 2: Extracting metadata and duration...');
-      final extractor = MetadataExtractor();
-      final songs = <SongMetadata>[];
-      for (final filePath in audioFiles) {
-        try {
-          var metadata = await extractor.extractMetadata(filePath);
-          // Extract duration separately (supports MP3 files)
-          final duration = await extractor.extractDuration(filePath);
-          if (duration != null) {
-            metadata = metadata.copyWith(duration: duration);
-          }
-          songs.add(metadata);
-        } catch (e) {
-          print('[LibraryManager] Failed to extract metadata from $filePath: $e');
-        }
+      if (result != null) {
+        _library = result;
+        _lastScanTime = DateTime.now();
+
+        print('[LibraryManager] Library scan complete!');
+        print('[LibraryManager] Albums: ${_library!.totalAlbums}');
+        print('[LibraryManager] Standalone songs: ${_library!.standaloneSongs.length}');
+        print('[LibraryManager] Total songs: ${_library!.totalSongs}');
+
+        // Notify listeners that scan is complete
+        _notifyScanComplete();
+      } else {
+        print('[LibraryManager] Scan returned null - possible error in isolate');
       }
-      print('[LibraryManager] Extracted metadata for ${songs.length} songs');
-
-      // Step 3: Detect and filter duplicates
-      print('[LibraryManager] Step 3: Detecting duplicates...');
-      final duplicateDetector = DuplicateDetector();
-      final duplicateGroups = await duplicateDetector.detectDuplicates(songs);
-      final uniqueSongs = duplicateDetector.filterDuplicates(songs, duplicateGroups);
-      print('[LibraryManager] ${uniqueSongs.length} unique songs after duplicate filtering');
-
-      // Step 4: Build album structure
-      print('[LibraryManager] Step 4: Building album structure...');
-      final albumBuilder = AlbumBuilder();
-      _library = albumBuilder.buildLibrary(uniqueSongs);
-      _lastScanTime = DateTime.now();
-
-      print('[LibraryManager] Library scan complete!');
-      print('[LibraryManager] Albums: ${_library!.totalAlbums}');
-      print('[LibraryManager] Standalone songs: ${_library!.standaloneSongs.length}');
-      print('[LibraryManager] Total songs: ${_library!.totalSongs}');
-
-      // Clean up the metadata extractor's audio player
-      await extractor.dispose();
-      print('[LibraryManager] Metadata extractor disposed');
-
-      // Notify listeners that scan is complete
-      _notifyScanComplete();
     } catch (e, stackTrace) {
       print('[LibraryManager] ERROR during scan: $e');
       print('[LibraryManager] Stack trace: $stackTrace');
@@ -126,25 +102,6 @@ class LibraryManager {
     } finally {
       _isScanning = false;
     }
-  }
-
-  /// Manually collect audio files from directory
-  Future<List<String>> _collectAudioFiles(String folderPath) async {
-    final files = <String>[];
-    final rootDir = Directory(folderPath);
-
-    if (!await rootDir.exists()) return files;
-
-    await for (final entity in rootDir.list(recursive: true, followLinks: false)) {
-      if (entity is File) {
-        final ext = path.extension(entity.path).toLowerCase();
-        if (FileScanner.supportedExtensions.contains(ext)) {
-          files.add(entity.path);
-        }
-      }
-    }
-
-    return files;
   }
 
   /// Convert library to API JSON format for mobile app

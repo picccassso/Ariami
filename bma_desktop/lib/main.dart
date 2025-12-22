@@ -47,6 +47,7 @@ class _MyAppState extends State<MyApp> with WindowListener {
   final SystemTrayService _trayService = SystemTrayService();
   bool _isLoading = true;
   bool _setupComplete = false;
+  bool _startupComplete = false; // Guards against early window close events
 
   @override
   void initState() {
@@ -56,11 +57,24 @@ class _MyAppState extends State<MyApp> with WindowListener {
   }
 
   Future<void> _initializeApp() async {
-    // Initialize system tray
-    await _trayService.initialize();
-    
+    // Initialize system tray with error handling
+    // This can fail when launched from Finder due to path resolution issues
+    try {
+      await _trayService.initialize();
+    } catch (e) {
+      print('[Main] Warning: Failed to initialize system tray: $e');
+      // Continue without tray - app should still work
+    }
+
     // Check setup state
     await _checkSetupState();
+
+    // Allow hide-to-tray after a delay
+    // This prevents phantom window close events during startup from hiding the app
+    Future.delayed(const Duration(seconds: 3), () {
+      _startupComplete = true;
+      print('[Main] Startup complete - hide-to-tray now enabled');
+    });
   }
 
   @override
@@ -73,6 +87,11 @@ class _MyAppState extends State<MyApp> with WindowListener {
   /// Intercept window close event - hide to tray instead of quitting.
   @override
   void onWindowClose() async {
+    // Ignore close events during startup to prevent phantom events from Finder/Spotlight
+    if (!_startupComplete) {
+      print('[Window] Ignoring close event during startup protection period');
+      return;
+    }
     print('[Window] Close intercepted - hiding to tray');
     // Hide window to tray instead of closing
     await _trayService.hideWindow();

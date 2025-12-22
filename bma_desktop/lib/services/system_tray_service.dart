@@ -98,8 +98,8 @@ class SystemTrayService with TrayListener {
       // Use path.normalize to resolve the '..' and get a clean absolute path
       final resourcesDir = path.normalize(path.join(executableDir, '..', 'Frameworks', 'App.framework', 'Resources', 'flutter_assets', 'assets'));
       final iconPath = path.join(resourcesDir, 'BMA_icon.png');
-      // Resolve to absolute path to ensure tray_manager can find it
-      return File(iconPath).absolute.path;
+      // Return normalized path directly - avoid .absolute which can throw
+      return path.normalize(iconPath);
     } else if (Platform.isWindows) {
       if (kDebugMode) {
         // In debug mode, executable is at: /project/build/windows/runner/Debug/app.exe

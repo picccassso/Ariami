@@ -122,6 +122,20 @@ class MetadataExtractor {
     return null;
   }
 
+  /// Extracts metadata and duration from a single audio file in one call
+  /// 
+  /// This is more efficient than calling extractMetadata and extractDuration
+  /// separately as it reduces the number of method calls and allows for
+  /// potential future optimizations like shared file reads.
+  Future<SongMetadata> extractMetadataWithDuration(String filePath) async {
+    var metadata = await extractMetadata(filePath);
+    final duration = await extractDuration(filePath);
+    if (duration != null) {
+      metadata = metadata.copyWith(duration: duration);
+    }
+    return metadata;
+  }
+
   /// Extracts metadata from multiple files in batches
   ///
   /// Yields batches of [SongMetadata] as they are processed
