@@ -189,26 +189,34 @@ class SearchResultSongItem extends StatelessWidget {
   Widget _buildAlbumArt(BuildContext context) {
     final connectionService = ConnectionService();
 
-    // If song has an albumId, use CachedArtwork
+    // Determine artwork URL based on whether song has albumId
+    String? artworkUrl;
+    String cacheId;
+
     if (song.albumId != null) {
-      final artworkUrl = connectionService.apiClient != null
+      // Song belongs to an album - use album artwork endpoint
+      artworkUrl = connectionService.apiClient != null
           ? '${connectionService.apiClient!.baseUrl}/artwork/${song.albumId}'
           : null;
-
-      return CachedArtwork(
-        albumId: song.albumId!,
-        artworkUrl: artworkUrl,
-        width: 48,
-        height: 48,
-        borderRadius: BorderRadius.circular(4),
-        fallback: _buildPlaceholder(context),
-        fallbackIcon: Icons.music_note,
-        fallbackIconSize: 24,
-      );
+      cacheId = song.albumId!;
+    } else {
+      // Standalone song - use song artwork endpoint
+      artworkUrl = connectionService.apiClient != null
+          ? '${connectionService.apiClient!.baseUrl}/song-artwork/${song.id}'
+          : null;
+      cacheId = 'song_${song.id}';
     }
 
-    // No album art available
-    return _buildPlaceholder(context);
+    return CachedArtwork(
+      albumId: cacheId,
+      artworkUrl: artworkUrl,
+      width: 48,
+      height: 48,
+      borderRadius: BorderRadius.circular(4),
+      fallback: _buildPlaceholder(context),
+      fallbackIcon: Icons.music_note,
+      fallbackIconSize: 24,
+    );
   }
 
   /// Build placeholder circle avatar

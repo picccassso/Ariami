@@ -61,25 +61,34 @@ class PlayerArtwork extends StatelessWidget {
   Widget _buildArtwork(BuildContext context) {
     final connectionService = ConnectionService();
 
-    // Try to load album artwork if song has albumId
+    // Determine artwork URL based on whether song has albumId
+    String? artworkUrl;
+    String cacheId;
+
     if (song.albumId != null) {
-      final albumArtworkUrl = connectionService.apiClient != null
+      // Song belongs to an album - use album artwork endpoint
+      artworkUrl = connectionService.apiClient != null
           ? '${connectionService.apiClient!.baseUrl}/artwork/${song.albumId}'
           : null;
-
-      return CachedArtwork(
-        albumId: song.albumId!,
-        artworkUrl: albumArtworkUrl,
-        fit: BoxFit.contain,
-        width: 350,
-        height: 350,
-        fallback: _buildPlaceholder(context),
-        fallbackIcon: Icons.music_note,
-        fallbackIconSize: 120,
-      );
+      cacheId = song.albumId!;
+    } else {
+      // Standalone song - use song artwork endpoint
+      artworkUrl = connectionService.apiClient != null
+          ? '${connectionService.apiClient!.baseUrl}/song-artwork/${song.id}'
+          : null;
+      cacheId = 'song_${song.id}';
     }
 
-    return _buildPlaceholder(context);
+    return CachedArtwork(
+      albumId: cacheId,
+      artworkUrl: artworkUrl,
+      fit: BoxFit.contain,
+      width: 350,
+      height: 350,
+      fallback: _buildPlaceholder(context),
+      fallbackIcon: Icons.music_note,
+      fallbackIconSize: 120,
+    );
   }
 
   /// Build placeholder artwork

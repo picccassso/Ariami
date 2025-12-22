@@ -192,6 +192,7 @@ class BmaHttpServer {
     router.get('/api/albums/<albumId>', _handleGetAlbumDetail);
     router.get('/api/songs', _handleGetSongs);
     router.get('/api/artwork/<albumId>', _handleGetArtwork);
+    router.get('/api/song-artwork/<songId>', _handleGetSongArtwork);
 
     // Streaming endpoint - captures everything after /api/stream/
     router.get('/api/stream/<path|.*>', _handleStream);
@@ -654,6 +655,32 @@ class BmaHttpServer {
           'error': {
             'code': 'ARTWORK_NOT_FOUND',
             'message': 'Artwork not found for album: $albumId',
+          },
+        }),
+        headers: {'Content-Type': 'application/json'},
+      );
+    }
+
+    // Return the image data (usually JPEG or PNG)
+    return Response.ok(
+      artworkData,
+      headers: {
+        'Content-Type': 'image/jpeg', // Most album art is JPEG
+        'Cache-Control': 'public, max-age=31536000', // Cache for 1 year
+      },
+    );
+  }
+
+  /// Handle get song artwork request (for standalone songs)
+  Future<Response> _handleGetSongArtwork(Request request, String songId) async {
+    final artworkData = await _libraryManager.getSongArtwork(songId);
+
+    if (artworkData == null) {
+      return Response.notFound(
+        jsonEncode({
+          'error': {
+            'code': 'ARTWORK_NOT_FOUND',
+            'message': 'Artwork not found for song: $songId',
           },
         }),
         headers: {'Content-Type': 'application/json'},

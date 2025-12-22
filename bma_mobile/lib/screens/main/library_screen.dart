@@ -346,19 +346,29 @@ class _LibraryScreenState extends State<LibraryScreen> {
     );
   }
 
-  /// Get album IDs for a playlist's artwork collage
-  /// Returns up to 4 unique album IDs from the playlist's songs
-  List<String> _getPlaylistAlbumIds(PlaylistModel playlist) {
-    // Get unique album IDs from playlist's stored songAlbumIds (up to 4)
-    final albumIds = <String>[];
+  /// Get artwork IDs for a playlist's artwork collage
+  /// Returns up to 4 unique IDs from the playlist's songs
+  /// - Album songs: returns albumId
+  /// - Standalone songs: returns "song_{songId}" prefix
+  List<String> _getPlaylistArtworkIds(PlaylistModel playlist) {
+    final artworkIds = <String>[];
     for (final songId in playlist.songIds) {
       final albumId = playlist.songAlbumIds[songId];
-      if (albumId != null && !albumIds.contains(albumId)) {
-        albumIds.add(albumId);
-        if (albumIds.length >= 4) break;
+      if (albumId != null) {
+        // Song belongs to an album - use album ID
+        if (!artworkIds.contains(albumId)) {
+          artworkIds.add(albumId);
+        }
+      } else {
+        // Standalone song - use song ID with prefix
+        final songArtworkId = 'song_$songId';
+        if (!artworkIds.contains(songArtworkId)) {
+          artworkIds.add(songArtworkId);
+        }
       }
+      if (artworkIds.length >= 4) break;
     }
-    return albumIds;
+    return artworkIds;
   }
 
   /// Build playlists grid
@@ -424,7 +434,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
               playlist: likedSongsPlaylist,
               onTap: () => _openPlaylist(likedSongsPlaylist),
               onLongPress: () => _showPlaylistContextMenu(likedSongsPlaylist),
-              albumIds: _getPlaylistAlbumIds(likedSongsPlaylist),
+              albumIds: _getPlaylistArtworkIds(likedSongsPlaylist),
               isLikedSongs: true, // Special flag for styling
             );
           }
@@ -436,7 +446,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
             playlist: playlist,
             onTap: () => _openPlaylist(playlist),
             onLongPress: () => _showPlaylistContextMenu(playlist),
-            albumIds: _getPlaylistAlbumIds(playlist),
+            albumIds: _getPlaylistArtworkIds(playlist),
           );
         },
       ),

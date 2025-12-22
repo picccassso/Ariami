@@ -69,18 +69,24 @@ class BmaAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   /// Get album art URI from stream URL
   /// Constructs the album art URL based on the server URL
   Uri? _getAlbumArtUri(Song song, String streamUrl) {
-    if (song.albumId == null) return null;
-
     try {
       // Extract base URL from stream URL
       // streamUrl format: "http://server:port/api/stream/path/to/file.mp3"
       final uri = Uri.parse(streamUrl);
       final baseUrl = '${uri.scheme}://${uri.host}:${uri.port}';
 
-      // Construct album art URL (use /api/artwork/ endpoint to match server)
-      final albumArtUrl = '$baseUrl/api/artwork/${song.albumId}';
-      print('[BmaAudioHandler] Album art URL: $albumArtUrl');
-      return Uri.parse(albumArtUrl);
+      // Construct artwork URL based on whether song has albumId
+      String artworkUrl;
+      if (song.albumId != null) {
+        // Song belongs to an album - use album artwork endpoint
+        artworkUrl = '$baseUrl/api/artwork/${song.albumId}';
+      } else {
+        // Standalone song - use song artwork endpoint
+        artworkUrl = '$baseUrl/api/song-artwork/${song.id}';
+      }
+
+      print('[BmaAudioHandler] Album art URL: $artworkUrl');
+      return Uri.parse(artworkUrl);
     } catch (e) {
       print('[BmaAudioHandler] Error constructing album art URI: $e');
       return null;

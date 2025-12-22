@@ -85,6 +85,20 @@ class _CachedArtworkState extends State<CachedArtwork> {
   Future<void> _loadArtwork() async {
     if (!mounted) return;
 
+    // Check memory cache FIRST (synchronous - no flash!)
+    final memoryPath = _cacheManager.getArtworkPathSync(widget.albumId);
+    if (memoryPath != null) {
+      if (mounted) {
+        setState(() {
+          _localPath = memoryPath;
+          _isLoading = false;
+          _hasError = false;
+        });
+      }
+      return;
+    }
+
+    // Not in memory, need async lookup - show loading state
     setState(() {
       _isLoading = true;
       _hasError = false;
@@ -92,7 +106,7 @@ class _CachedArtworkState extends State<CachedArtwork> {
     });
 
     try {
-      // ALWAYS check cache first - this works even when offline with no URL
+      // Check disk cache - this works even when offline with no URL
       var cachedPath = await _cacheManager.getArtworkPath(widget.albumId);
 
       if (cachedPath != null && await File(cachedPath).exists()) {

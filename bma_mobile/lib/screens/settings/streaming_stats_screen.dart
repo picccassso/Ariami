@@ -398,13 +398,18 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
   Widget _buildTopSongItem(SongStats stat, int rank) {
     final baseUrl = _connectionService.apiClient?.baseUrl;
 
-    // Debug logging for album artwork
-    print('[StreamingStatsScreen] Building song item: ${stat.songTitle}');
-    print('[StreamingStatsScreen] - albumId: ${stat.albumId}');
-    print('[StreamingStatsScreen] - album: ${stat.album}');
-    print('[StreamingStatsScreen] - baseUrl: $baseUrl');
-    if (stat.albumId != null && baseUrl != null) {
-      print('[StreamingStatsScreen] - Full artwork URL: $baseUrl/api/artwork/${stat.albumId}');
+    // Determine artwork URL and cache ID based on whether song has albumId
+    String? artworkUrl;
+    String cacheId;
+
+    if (stat.albumId != null) {
+      // Song belongs to an album - use album artwork endpoint
+      artworkUrl = baseUrl != null ? '$baseUrl/artwork/${stat.albumId}' : null;
+      cacheId = stat.albumId!;
+    } else {
+      // Standalone song - use song artwork endpoint
+      artworkUrl = baseUrl != null ? '$baseUrl/song-artwork/${stat.songId}' : null;
+      cacheId = 'song_${stat.songId}';
     }
 
     return Padding(
@@ -413,10 +418,8 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
         children: [
           // Album artwork (uses cache for offline support)
           CachedArtwork(
-            albumId: stat.albumId ?? '',
-            artworkUrl: baseUrl != null && stat.albumId != null
-                ? '$baseUrl/artwork/${stat.albumId}'
-                : null,
+            albumId: cacheId, // Used as cache key
+            artworkUrl: artworkUrl,
             width: 56,
             height: 56,
             fit: BoxFit.cover,
@@ -481,16 +484,33 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
   Widget _buildTopArtistItem(ArtistStats stat, int rank) {
     final baseUrl = _connectionService.apiClient?.baseUrl;
 
+    // Determine artwork URL and cache ID
+    // Prefer album artwork, fall back to song artwork for standalone songs
+    String? artworkUrl;
+    String cacheId;
+
+    if (stat.randomAlbumId != null) {
+      // Use album artwork
+      artworkUrl = baseUrl != null ? '$baseUrl/artwork/${stat.randomAlbumId}' : null;
+      cacheId = stat.randomAlbumId!;
+    } else if (stat.randomSongId != null) {
+      // Fallback to standalone song artwork
+      artworkUrl = baseUrl != null ? '$baseUrl/song-artwork/${stat.randomSongId}' : null;
+      cacheId = 'song_${stat.randomSongId}';
+    } else {
+      // No artwork available
+      artworkUrl = null;
+      cacheId = '';
+    }
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
         children: [
-          // Random album artwork (uses cache)
+          // Artist artwork (uses cache)
           CachedArtwork(
-            albumId: stat.randomAlbumId ?? '',
-            artworkUrl: baseUrl != null && stat.randomAlbumId != null
-                ? '$baseUrl/artwork/${stat.randomAlbumId}'
-                : null,
+            albumId: cacheId, // Used as cache key
+            artworkUrl: artworkUrl,
             width: 56,
             height: 56,
             fit: BoxFit.cover,

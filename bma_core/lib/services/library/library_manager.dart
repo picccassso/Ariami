@@ -25,6 +25,9 @@ class LibraryManager {
   /// Cache for lazily extracted song durations (songId -> duration in seconds)
   final Map<String, int?> _durationCache = {};
 
+  /// Cache for lazily extracted song artwork (for standalone songs)
+  final Map<String, List<int>?> _songArtworkCache = {};
+
   /// Metadata extractor instance for lazy extraction
   final MetadataExtractor _metadataExtractor = MetadataExtractor();
 
@@ -315,12 +318,35 @@ class LibraryManager {
     return duration;
   }
 
+  /// Get song artwork by song ID (lazy extraction with caching)
+  /// Used for standalone songs that don't belong to an album
+  Future<List<int>?> getSongArtwork(String songId) async {
+    // Check cache first
+    if (_songArtworkCache.containsKey(songId)) {
+      return _songArtworkCache[songId];
+    }
+
+    // Find the song file path
+    final filePath = getSongFilePath(songId);
+    if (filePath == null) {
+      return null;
+    }
+
+    // Extract artwork from the song file
+    final artwork = await _metadataExtractor.extractArtwork(filePath);
+
+    // Cache and return (including null to avoid repeated extraction attempts)
+    _songArtworkCache[songId] = artwork;
+    return artwork;
+  }
+
   /// Clear library data
   void clear() {
     _library = null;
     _lastScanTime = null;
     _artworkCache.clear();
     _durationCache.clear();
+    _songArtworkCache.clear();
     print('[LibraryManager] Library cleared');
   }
 }

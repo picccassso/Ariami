@@ -133,16 +133,27 @@ class PlaylistCard extends StatelessWidget {
   }
 
   /// Build a single artwork image using CachedArtwork
-  Widget _buildArtworkImage(String albumId) {
+  /// Handles both album IDs and standalone song IDs (prefixed with "song_")
+  Widget _buildArtworkImage(String artworkId) {
     final connectionService = ConnectionService();
     
-    // Build URL only if online
-    final artworkUrl = connectionService.apiClient != null
-        ? '${connectionService.apiClient!.baseUrl}/artwork/$albumId'
-        : null;
+    // Determine artwork URL based on ID type
+    String? artworkUrl;
+    if (artworkId.startsWith('song_')) {
+      // Standalone song - use song artwork endpoint
+      final songId = artworkId.substring(5); // Remove "song_" prefix
+      artworkUrl = connectionService.apiClient != null
+          ? '${connectionService.apiClient!.baseUrl}/song-artwork/$songId'
+          : null;
+    } else {
+      // Album - use album artwork endpoint
+      artworkUrl = connectionService.apiClient != null
+          ? '${connectionService.apiClient!.baseUrl}/artwork/$artworkId'
+          : null;
+    }
 
     return CachedArtwork(
-      albumId: albumId,
+      albumId: artworkId, // Used as cache key
       artworkUrl: artworkUrl,
       fit: BoxFit.cover,
       fallback: _buildFallbackArt(),

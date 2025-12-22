@@ -244,9 +244,24 @@ class QueueItem extends StatelessWidget {
 
   Widget _buildLeading(BuildContext context) {
     final connectionService = ConnectionService();
-    final artworkUrl = song.albumId != null && connectionService.apiClient != null
-        ? '${connectionService.apiClient!.baseUrl}/artwork/${song.albumId}'
-        : null;
+
+    // Determine artwork URL and cache ID based on whether song has albumId
+    String? artworkUrl;
+    String cacheId;
+
+    if (song.albumId != null) {
+      // Song belongs to an album - use album artwork endpoint
+      artworkUrl = connectionService.apiClient != null
+          ? '${connectionService.apiClient!.baseUrl}/artwork/${song.albumId}'
+          : null;
+      cacheId = song.albumId!;
+    } else {
+      // Standalone song - use song artwork endpoint
+      artworkUrl = connectionService.apiClient != null
+          ? '${connectionService.apiClient!.baseUrl}/song-artwork/${song.id}'
+          : null;
+      cacheId = 'song_${song.id}';
+    }
 
     if (isCurrentlyPlaying) {
       return ClipRRect(
@@ -261,20 +276,17 @@ class QueueItem extends StatelessWidget {
           child: Stack(
             alignment: Alignment.center,
             children: [
-              // Album artwork using CachedArtwork
-              if (song.albumId != null)
-                CachedArtwork(
-                  albumId: song.albumId!,
-                  artworkUrl: artworkUrl,
-                  width: 48,
-                  height: 48,
-                  fit: BoxFit.cover,
-                  fallback: _buildPlaceholder(context),
-                  fallbackIcon: Icons.music_note,
-                  fallbackIconSize: 24,
-                )
-              else
-                _buildPlaceholder(context),
+              // Album/song artwork using CachedArtwork
+              CachedArtwork(
+                albumId: cacheId, // Used as cache key
+                artworkUrl: artworkUrl,
+                width: 48,
+                height: 48,
+                fit: BoxFit.cover,
+                fallback: _buildPlaceholder(context),
+                fallbackIcon: Icons.music_note,
+                fallbackIconSize: 24,
+              ),
               // Play icon overlay when currently playing
               Container(
                 width: 48,
@@ -295,22 +307,18 @@ class QueueItem extends StatelessWidget {
       );
     }
 
-    // Show album artwork using CachedArtwork
-    if (song.albumId != null) {
-      return CachedArtwork(
-        albumId: song.albumId!,
-        artworkUrl: artworkUrl,
-        width: 48,
-        height: 48,
-        fit: BoxFit.cover,
-        borderRadius: BorderRadius.circular(4),
-        fallback: _buildPlaceholder(context),
-        fallbackIcon: Icons.music_note,
-        fallbackIconSize: 24,
-      );
-    }
-
-    return _buildPlaceholder(context);
+    // Show artwork using CachedArtwork
+    return CachedArtwork(
+      albumId: cacheId, // Used as cache key
+      artworkUrl: artworkUrl,
+      width: 48,
+      height: 48,
+      fit: BoxFit.cover,
+      borderRadius: BorderRadius.circular(4),
+      fallback: _buildPlaceholder(context),
+      fallbackIcon: Icons.music_note,
+      fallbackIconSize: 24,
+    );
   }
 
   Widget _buildPlaceholder(BuildContext context) {

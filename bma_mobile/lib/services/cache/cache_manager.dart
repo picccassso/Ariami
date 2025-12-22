@@ -23,6 +23,9 @@ class CacheManager {
   final Set<String> _pendingArtwork = {};
   final Set<String> _pendingSongs = {};
 
+  // In-memory cache of artwork paths for instant synchronous lookups
+  final Map<String, String> _artworkPathCache = {};
+
   // Stream controller for cache updates
   final StreamController<void> _cacheUpdateController =
       StreamController<void>.broadcast();
@@ -130,6 +133,9 @@ class CacheManager {
 
       _cacheUpdateController.add(null);
 
+      // Store in memory cache for future instant lookups
+      _artworkPathCache[albumId] = filePath;
+
       print('[CacheManager] Cached artwork: $albumId (${entry.getFormattedSize()})');
       return filePath;
     } catch (e) {
@@ -142,15 +148,28 @@ class CacheManager {
 
   /// Get cached artwork path if exists
   Future<String?> getArtworkPath(String albumId) async {
+    // Check memory cache first (instant)
+    if (_artworkPathCache.containsKey(albumId)) {
+      return _artworkPathCache[albumId];
+    }
+
     await _ensureInitialized();
 
     final entry = await _database.getCacheEntry(albumId, CacheType.artwork);
     if (entry != null && await File(entry.path).exists()) {
       // Touch to update last accessed time
       await _database.touchCacheEntry(albumId, CacheType.artwork);
+      // Store in memory cache for future instant lookups
+      _artworkPathCache[albumId] = entry.path;
       return entry.path;
     }
     return null;
+  }
+
+  /// Get cached artwork path synchronously from memory cache
+  /// Returns null if not in memory (may still be on disk)
+  String? getArtworkPathSync(String albumId) {
+    return _artworkPathCache[albumId];
   }
 
   /// Check if artwork is cached
@@ -320,6 +339,9 @@ class CacheManager {
     // Clear database entries
     await _database.clearAllCacheEntries();
 
+    // Clear memory cache
+    _artworkPathCache.clear();
+
     _cacheUpdateController.add(null);
     print('[CacheManager] All cache cleared');
   }
@@ -330,6 +352,9 @@ class CacheManager {
 
     await _clearDirectory(_artworkCachePath!);
     await _database.clearEntriesByType(CacheType.artwork);
+
+    // Clear memory cache
+    _artworkPathCache.clear();
 
     _cacheUpdateController.add(null);
     print('[CacheManager] Artwork cache cleared');

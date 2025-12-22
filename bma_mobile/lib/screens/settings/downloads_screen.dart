@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../models/download_task.dart';
 import '../../services/download/download_manager.dart';
 import '../../services/cache/cache_manager.dart';
+import '../../services/api/connection_service.dart';
+import '../../widgets/common/cached_artwork.dart';
 
 class DownloadsScreen extends StatefulWidget {
   const DownloadsScreen({super.key});
@@ -772,6 +774,14 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
     const singlesKey = 'singles';
     final isExpanded = _expandedAlbums.contains(singlesKey);
     final totalBytes = _calculateTotalBytes(songs);
+    final connectionService = ConnectionService();
+
+    // Get first song for cover artwork
+    final firstSong = songs.isNotEmpty ? songs.first : null;
+    final artworkUrl = firstSong != null && connectionService.apiClient != null
+        ? '${connectionService.apiClient!.baseUrl}/song-artwork/${firstSong.songId}'
+        : null;
+    final cacheId = firstSong != null ? 'song_${firstSong.songId}' : '';
 
     return Column(
       children: [
@@ -794,19 +804,30 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                   padding: const EdgeInsets.all(12),
                   child: Row(
                     children: [
-                      // Music note icon
+                      // First song's artwork or fallback
                       ClipRRect(
                         borderRadius: BorderRadius.circular(6),
-                        child: Container(
+                        child: SizedBox(
                           width: 56,
                           height: 56,
-                          color: isDark ? Colors.grey[800] : Colors.grey[200],
-                          child: Icon(
-                            Icons.music_note,
-                            color:
-                                isDark ? Colors.grey[500] : Colors.grey[400],
-                            size: 28,
-                          ),
+                          child: firstSong != null
+                              ? CachedArtwork(
+                                  albumId: cacheId,
+                                  artworkUrl: artworkUrl,
+                                  width: 56,
+                                  height: 56,
+                                  fit: BoxFit.cover,
+                                  fallbackIcon: Icons.music_note,
+                                  fallbackIconSize: 28,
+                                )
+                              : Container(
+                                  color: isDark ? Colors.grey[800] : Colors.grey[200],
+                                  child: Icon(
+                                    Icons.music_note,
+                                    color: isDark ? Colors.grey[500] : Colors.grey[400],
+                                    size: 28,
+                                  ),
+                                ),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -906,21 +927,46 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
     bool isDark,
     bool isLast,
   ) {
+    final connectionService = ConnectionService();
+
+    // Determine artwork URL and cache ID based on whether song has albumId
+    String? artworkUrl;
+    String cacheId;
+
+    if (task.albumId != null) {
+      // Song belongs to an album - use album artwork endpoint
+      artworkUrl = connectionService.apiClient != null
+          ? '${connectionService.apiClient!.baseUrl}/artwork/${task.albumId}'
+          : null;
+      cacheId = task.albumId!;
+    } else {
+      // Standalone song - use song artwork endpoint
+      artworkUrl = connectionService.apiClient != null
+          ? '${connectionService.apiClient!.baseUrl}/song-artwork/${task.songId}'
+          : null;
+      cacheId = 'song_${task.songId}';
+    }
+
     return Column(
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           child: Row(
             children: [
-              // Track number or music note
-              SizedBox(
-                width: 24,
-                child: Text(
-                  task.trackNumber != null ? '${task.trackNumber}' : '•',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: isDark ? Colors.grey[500] : Colors.grey[600],
+              // Song artwork
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: SizedBox(
+                  width: 40,
+                  height: 40,
+                  child: CachedArtwork(
+                    albumId: cacheId,
+                    artworkUrl: artworkUrl,
+                    width: 40,
+                    height: 40,
+                    fit: BoxFit.cover,
+                    fallbackIcon: Icons.music_note,
+                    fallbackIconSize: 20,
                   ),
                 ),
               ),
