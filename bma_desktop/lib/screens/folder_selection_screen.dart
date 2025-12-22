@@ -41,10 +41,6 @@ class _FolderSelectionScreenState extends State<FolderSelectionScreen> {
         lockParentWindow: true,
       );
 
-      if (selectedDirectory == null) {
-        return;
-      }
-
       // Fix macOS path issue: Remove /Volumes/Macintosh HD prefix if present
       String fixedPath = selectedDirectory;
       if (fixedPath.startsWith('/Volumes/Macintosh HD')) {
