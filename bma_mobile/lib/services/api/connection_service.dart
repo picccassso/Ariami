@@ -154,11 +154,7 @@ class ConnectionService {
     // Keep serverInfo in memory for potential reconnection
     // Don't clear saved connection info - user may want to reconnect later
     // Only clear it when user explicitly chooses "Scan New QR"
-    print(
-      isManual
-          ? 'Disconnected from server (manual)'
-          : 'Disconnected from server (auto)',
-    );
+    print(isManual ? 'Disconnected from server (manual)' : 'Disconnected from server (auto)');
   }
 
   /// Try to restore previous connection
@@ -192,10 +188,7 @@ class ConnectionService {
       }
 
       // Server is reachable - try full connection with reduced timeout
-      _apiClient = ApiClient(
-        serverInfo: serverInfo,
-        timeout: const Duration(seconds: 3),
-      );
+      _apiClient = ApiClient(serverInfo: serverInfo, timeout: const Duration(seconds: 3));
       _serverInfo = serverInfo;
 
       // Test if server API is responding
@@ -272,10 +265,7 @@ class ConnectionService {
   /// Quick check if server is reachable at TCP level
   /// Returns true if we can establish a socket connection
   /// Used for fast-fail detection when server is completely unreachable
-  Future<bool> _isServerReachable(
-    ServerInfo serverInfo, {
-    Duration timeout = const Duration(milliseconds: 1500),
-  }) async {
+  Future<bool> _isServerReachable(ServerInfo serverInfo, {Duration timeout = const Duration(milliseconds: 1500)}) async {
     try {
       final socket = await Socket.connect(
         serverInfo.server,
@@ -376,8 +366,7 @@ class ConnectionService {
     }
 
     // Check if we're in auto offline mode (disconnected but should auto-reconnect)
-    if (!_isConnected &&
-        OfflinePlaybackService().offlineMode == OfflineMode.autoOffline) {
+    if (!_isConnected && OfflinePlaybackService().offlineMode == OfflineMode.autoOffline) {
       print('Auto offline mode - attempting to restore connection...');
       final restored = await tryRestoreConnection();
       if (restored) {
@@ -430,16 +419,17 @@ class ConnectionService {
   // ============================================================================
 
   /// Save connection info to SharedPreferences
-  Future<void> _saveConnectionInfo(
-    ServerInfo serverInfo,
-    String sessionId,
-  ) async {
+  Future<void> _saveConnectionInfo(ServerInfo serverInfo, String sessionId) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(
-      'server_info',
-      const JsonEncoder().convert(serverInfo.toJson()),
-    );
+    await prefs.setString('server_info', const JsonEncoder().convert(serverInfo.toJson()));
     await prefs.setString('session_id', sessionId);
+  }
+
+  /// Clear saved connection info
+  Future<void> _clearConnectionInfo() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('server_info');
+    await prefs.remove('session_id');
   }
 
   // ============================================================================
