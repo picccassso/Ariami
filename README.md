@@ -5,6 +5,45 @@
 
 A cross-platform personal music streaming system built with Flutter. Host your own music library and stream to your devices from anywhere using Tailscale for secure connectivity.
 
+## App Photos
+
+<details>
+<summary>BMA CLI</summary>
+
+![BMA CLI Terminal](app_photos/BMA%20CLI/terminal.png)
+![BMA CLI Dashboard](app_photos/BMA%20CLI/dashboard.png)
+
+</details>
+
+<details>
+<summary>BMA Desktop</summary>
+
+![BMA Desktop Main 1](app_photos/BMA%20Desktop/main_1.png)
+![BMA Desktop Main 2](app_photos/BMA%20Desktop/main_2.png)
+![BMA Desktop Main 3](app_photos/BMA%20Desktop/main_3.png)
+
+</details>
+
+<details>
+<summary>BMA Mobile</summary>
+
+![BMA Mobile Library 1](app_photos/BMA%20Mobile/library_1.jpg)
+![BMA Mobile Library 2 Offline](app_photos/BMA%20Mobile/library_2_offline.jpg)
+![BMA Mobile Library 3](app_photos/BMA%20Mobile/library_3.jpg)
+![BMA Mobile Main Player 1](app_photos/BMA%20Mobile/main_player_1.jpg)
+![BMA Mobile Queue 1](app_photos/BMA%20Mobile/queue_1.jpg)
+![BMA Mobile Search 1](app_photos/BMA%20Mobile/search_1.jpg)
+![BMA Mobile Search 2](app_photos/BMA%20Mobile/search_2.jpg)
+![BMA Mobile Settings 1](app_photos/BMA%20Mobile/settings_1.jpg)
+![BMA Mobile Settings 2](app_photos/BMA%20Mobile/settings_2.jpg)
+![BMA Mobile Streaming Stats 1](app_photos/BMA%20Mobile/streaming_stats_1.jpg)
+![BMA Mobile Streaming Stats 2](app_photos/BMA%20Mobile/streaming_stats_2.jpg)
+![BMA Mobile Downloads 1](app_photos/BMA%20Mobile/downloads_1.jpg)
+![BMA Mobile Downloads 2](app_photos/BMA%20Mobile/downloads_2.jpg)
+![BMA Mobile Downloads 3](app_photos/BMA%20Mobile/downloads_3.jpg)
+
+</details>
+
 ## Architecture
 
 BMA consists of three components:
