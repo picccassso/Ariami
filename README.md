@@ -10,17 +10,23 @@ A cross-platform personal music streaming system built with Flutter. Host your o
 <details>
 <summary>BMA CLI</summary>
 
-![BMA CLI Terminal](app_photos/BMA%20CLI/terminal.png)
-![BMA CLI Dashboard](app_photos/BMA%20CLI/dashboard.png)
+<p align="center">
+  <img src="app_photos/BMA%20CLI/terminal.png" alt="BMA CLI Terminal" width="45%">
+  <img src="app_photos/BMA%20CLI/dashboard.png" alt="BMA CLI Dashboard" width="45%">
+</p>
 
 </details>
 
 <details>
 <summary>BMA Desktop</summary>
 
-![BMA Desktop Main 1](app_photos/BMA%20Desktop/main_1.png)
-![BMA Desktop Main 2](app_photos/BMA%20Desktop/main_2.png)
-![BMA Desktop Main 3](app_photos/BMA%20Desktop/main_3.png)
+<p align="center">
+  <img src="app_photos/BMA%20Desktop/main_1.png" alt="BMA Desktop Main 1" width="45%">
+  <img src="app_photos/BMA%20Desktop/main_2.png" alt="BMA Desktop Main 2" width="45%">
+</p>
+<p align="center">
+  <img src="app_photos/BMA%20Desktop/main_3.png" alt="BMA Desktop Main 3" width="45%">
+</p>
 
 </details>
 
@@ -29,42 +35,64 @@ A cross-platform personal music streaming system built with Flutter. Host your o
 
 ### Library
 
-![BMA Mobile Library 1](app_photos/BMA%20Mobile/library_1.png)
-![BMA Mobile Library 2](app_photos/BMA%20Mobile/library_2.png)
-![BMA Mobile Library 3](app_photos/BMA%20Mobile/library_3.png)
-![BMA Mobile Library 4 Offline](app_photos/BMA%20Mobile/library_4_offline.png)
-![BMA Mobile Library 5](app_photos/BMA%20Mobile/library_5.png)
-![BMA Mobile Library 6](app_photos/BMA%20Mobile/library_6.png)
+<p align="center">
+  <img src="app_photos/BMA%20Mobile/library_1.png" alt="BMA Mobile Library 1" width="45%">
+  <img src="app_photos/BMA%20Mobile/library_2.png" alt="BMA Mobile Library 2" width="45%">
+</p>
+<p align="center">
+  <img src="app_photos/BMA%20Mobile/library_3.png" alt="BMA Mobile Library 3" width="45%">
+  <img src="app_photos/BMA%20Mobile/library_4_offline.png" alt="BMA Mobile Library 4 Offline" width="45%">
+</p>
+<p align="center">
+  <img src="app_photos/BMA%20Mobile/library_5.png" alt="BMA Mobile Library 5" width="45%">
+  <img src="app_photos/BMA%20Mobile/library_6.png" alt="BMA Mobile Library 6" width="45%">
+</p>
 
 ### Main Player
 
-![BMA Mobile Main Player 1](app_photos/BMA%20Mobile/main_player_1.png)
+<p align="center">
+  <img src="app_photos/BMA%20Mobile/main_player_1.png" alt="BMA Mobile Main Player 1" width="45%">
+</p>
 
 ### Queue
 
-![BMA Mobile Queue 1](app_photos/BMA%20Mobile/queue_1.png)
+<p align="center">
+  <img src="app_photos/BMA%20Mobile/queue_1.png" alt="BMA Mobile Queue 1" width="45%">
+</p>
 
 ### Search
 
-![BMA Mobile Search 1](app_photos/BMA%20Mobile/search_1.png)
-![BMA Mobile Search 2](app_photos/BMA%20Mobile/search_2.png)
+<p align="center">
+  <img src="app_photos/BMA%20Mobile/search_1.png" alt="BMA Mobile Search 1" width="45%">
+  <img src="app_photos/BMA%20Mobile/search_2.png" alt="BMA Mobile Search 2" width="45%">
+</p>
 
 ### Settings
 
-![BMA Mobile Settings 1 Connected](app_photos/BMA%20Mobile/settings_1_connected.png)
-![BMA Mobile Settings 2 Disconnected](app_photos/BMA%20Mobile/settings_2_disconnected.png)
-![BMA Mobile Settings 3](app_photos/BMA%20Mobile/settings_3.png)
+<p align="center">
+  <img src="app_photos/BMA%20Mobile/settings_1_connected.png" alt="BMA Mobile Settings 1 Connected" width="45%">
+  <img src="app_photos/BMA%20Mobile/settings_2_disconnected.png" alt="BMA Mobile Settings 2 Disconnected" width="45%">
+</p>
+<p align="center">
+  <img src="app_photos/BMA%20Mobile/settings_3.png" alt="BMA Mobile Settings 3" width="45%">
+</p>
 
 ### Streaming Stats
 
-![BMA Mobile Streaming Stats 1](app_photos/BMA%20Mobile/streaming_stats_1.png)
-![BMA Mobile Streaming Stats 2](app_photos/BMA%20Mobile/streaming_stats_2.png)
+<p align="center">
+  <img src="app_photos/BMA%20Mobile/streaming_stats_1.png" alt="BMA Mobile Streaming Stats 1" width="45%">
+  <img src="app_photos/BMA%20Mobile/streaming_stats_2.png" alt="BMA Mobile Streaming Stats 2" width="45%">
+</p>
 
 ### Downloads
 
-![BMA Mobile Downloads 1](app_photos/BMA%20Mobile/downloads_1.png)
-![BMA Mobile Downloads 2](app_photos/BMA%20Mobile/downloads_2.png)
-![BMA Mobile Downloads 3](app_photos/BMA%20Mobile/downloads_3.png)
+<p align="center">
+  <img src="app_photos/BMA%20Mobile/downloads_1.png" alt="BMA Mobile Downloads 1" width="45%">
+  <img src="app_photos/BMA%20Mobile/downloads_2.png" alt="BMA Mobile Downloads 2" width="45%">
+</p>
+<p align="center">
+  <img src="app_photos/BMA%20Mobile/downloads_3.png" alt="BMA Mobile Downloads 3" width="45%">
+</p>
 
 </details>
 
