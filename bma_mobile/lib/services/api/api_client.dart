@@ -133,13 +133,16 @@ class ApiClient {
 
   /// Handle HTTP response
   Map<String, dynamic> _handleResponse(http.Response response) {
+    // Explicitly decode as UTF-8 to handle non-ASCII characters correctly
+    final body = utf8.decode(response.bodyBytes);
+
     if (response.statusCode >= 200 && response.statusCode < 300) {
       // Success
-      return jsonDecode(response.body) as Map<String, dynamic>;
+      return jsonDecode(body) as Map<String, dynamic>;
     } else {
       // Error response
       try {
-        final errorJson = jsonDecode(response.body) as Map<String, dynamic>;
+        final errorJson = jsonDecode(body) as Map<String, dynamic>;
         final errorResponse = ErrorResponse.fromJson(errorJson);
         throw ApiException(
           code: errorResponse.error.code,

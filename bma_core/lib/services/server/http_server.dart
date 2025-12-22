@@ -243,7 +243,7 @@ class BmaHttpServer {
               'error': 'Internal server error',
               'message': e.toString(),
             }),
-            headers: {'Content-Type': 'application/json'},
+            headers: {'Content-Type': 'application/json; charset=utf-8'},
           );
         }
       };
@@ -266,7 +266,7 @@ class BmaHttpServer {
         'server': Platform.localHostname,
         'version': '1.0.0',
       }),
-      headers: {'Content-Type': 'application/json'},
+      headers: {'Content-Type': 'application/json; charset=utf-8'},
     );
   }
 
@@ -277,7 +277,7 @@ class BmaHttpServer {
         final status = await _tailscaleStatusCallback!();
         return Response.ok(
           jsonEncode(status),
-          headers: {'Content-Type': 'application/json'},
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
         );
       } catch (e) {
         return Response.internalServerError(
@@ -285,7 +285,7 @@ class BmaHttpServer {
             'error': 'Failed to get Tailscale status',
             'message': e.toString(),
           }),
-          headers: {'Content-Type': 'application/json'},
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
         );
       }
     } else {
@@ -296,7 +296,7 @@ class BmaHttpServer {
           'isRunning': false,
           'ip': null,
         }),
-        headers: {'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -315,14 +315,14 @@ class BmaHttpServer {
               'error': 'Missing required field',
               'message': 'path is required',
             }),
-            headers: {'Content-Type': 'application/json'},
+            headers: {'Content-Type': 'application/json; charset=utf-8'},
           );
         }
 
         final success = await _setMusicFolderCallback!(path);
         return Response.ok(
           jsonEncode({'success': success}),
-          headers: {'Content-Type': 'application/json'},
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
         );
       } catch (e) {
         return Response.internalServerError(
@@ -330,13 +330,13 @@ class BmaHttpServer {
             'error': 'Failed to set music folder',
             'message': e.toString(),
           }),
-          headers: {'Content-Type': 'application/json'},
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
         );
       }
     } else {
       return Response.ok(
         jsonEncode({'success': false, 'message': 'Setup not configured'}),
-        headers: {'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -351,7 +351,7 @@ class BmaHttpServer {
             'success': success,
             'message': success ? 'Scan started' : 'Failed to start scan',
           }),
-          headers: {'Content-Type': 'application/json'},
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
         );
       } catch (e) {
         return Response.internalServerError(
@@ -359,13 +359,13 @@ class BmaHttpServer {
             'error': 'Failed to start scan',
             'message': e.toString(),
           }),
-          headers: {'Content-Type': 'application/json'},
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
         );
       }
     } else {
       return Response.ok(
         jsonEncode({'success': false, 'message': 'Setup not configured'}),
-        headers: {'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -377,7 +377,7 @@ class BmaHttpServer {
         final status = await _getScanStatusCallback!();
         return Response.ok(
           jsonEncode(status),
-          headers: {'Content-Type': 'application/json'},
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
         );
       } catch (e) {
         return Response.internalServerError(
@@ -385,7 +385,7 @@ class BmaHttpServer {
             'error': 'Failed to get scan status',
             'message': e.toString(),
           }),
-          headers: {'Content-Type': 'application/json'},
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
         );
       }
     } else {
@@ -398,7 +398,7 @@ class BmaHttpServer {
           'albumsFound': 0,
           'currentStatus': 'Not configured',
         }),
-        headers: {'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -410,7 +410,7 @@ class BmaHttpServer {
         final success = await _markSetupCompleteCallback!();
         return Response.ok(
           jsonEncode({'success': success}),
-          headers: {'Content-Type': 'application/json'},
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
         );
       } catch (e) {
         return Response.internalServerError(
@@ -418,13 +418,13 @@ class BmaHttpServer {
             'error': 'Failed to mark setup complete',
             'message': e.toString(),
           }),
-          headers: {'Content-Type': 'application/json'},
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
         );
       }
     } else {
       return Response.ok(
         jsonEncode({'success': false, 'message': 'Setup not configured'}),
-        headers: {'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -436,7 +436,7 @@ class BmaHttpServer {
         final isComplete = await _getSetupStatusCallback!();
         return Response.ok(
           jsonEncode({'isComplete': isComplete}),
-          headers: {'Content-Type': 'application/json'},
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
         );
       } catch (e) {
         return Response.internalServerError(
@@ -444,14 +444,14 @@ class BmaHttpServer {
             'error': 'Failed to get setup status',
             'message': e.toString(),
           }),
-          headers: {'Content-Type': 'application/json'},
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
         );
       }
     } else {
       // If no callback configured, assume setup is not complete
       return Response.ok(
         jsonEncode({'isComplete': false}),
-        headers: {'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -473,7 +473,7 @@ class BmaHttpServer {
         'serverRunning': true,
       }),
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/json; charset=utf-8',
         'Cache-Control': 'no-cache, no-store, must-revalidate',
       },
     );
@@ -484,7 +484,7 @@ class BmaHttpServer {
     final serverInfo = getServerInfo();
     return Response.ok(
       jsonEncode(serverInfo),
-      headers: {'Content-Type': 'application/json'},
+      headers: {'Content-Type': 'application/json; charset=utf-8'},
     );
   }
 
@@ -503,7 +503,7 @@ class BmaHttpServer {
             'error': 'Missing required fields',
             'message': 'deviceId and deviceName are required',
           }),
-          headers: {'Content-Type': 'application/json'},
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
         );
       }
 
@@ -525,7 +525,7 @@ class BmaHttpServer {
           'serverVersion': '1.0.0',
           'features': ['library', 'streaming', 'websocket'],
         }),
-        headers: {'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
       );
     } catch (e) {
       return Response.badRequest(
@@ -533,7 +533,7 @@ class BmaHttpServer {
           'error': 'Invalid request',
           'message': e.toString(),
         }),
-        headers: {'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -552,7 +552,7 @@ class BmaHttpServer {
             'error': 'Missing required field',
             'message': 'deviceId is required',
           }),
-          headers: {'Content-Type': 'application/json'},
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
         );
       }
 
@@ -571,7 +571,7 @@ class BmaHttpServer {
           'status': 'disconnected',
           'deviceId': deviceId,
         }),
-        headers: {'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
       );
     } catch (e) {
       return Response.badRequest(
@@ -579,7 +579,7 @@ class BmaHttpServer {
           'error': 'Invalid request',
           'message': e.toString(),
         }),
-        headers: {'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -596,7 +596,7 @@ class BmaHttpServer {
 
     return Response.ok(
       jsonEncode(libraryJson),
-      headers: {'Content-Type': 'application/json'},
+      headers: {'Content-Type': 'application/json; charset=utf-8'},
     );
   }
 
@@ -607,7 +607,7 @@ class BmaHttpServer {
         'albums': [],
         'timestamp': DateTime.now().toIso8601String(),
       }),
-      headers: {'Content-Type': 'application/json'},
+      headers: {'Content-Type': 'application/json; charset=utf-8'},
     );
   }
 
@@ -618,7 +618,7 @@ class BmaHttpServer {
         'songs': [],
         'timestamp': DateTime.now().toIso8601String(),
       }),
-      headers: {'Content-Type': 'application/json'},
+      headers: {'Content-Type': 'application/json; charset=utf-8'},
     );
   }
 
@@ -635,13 +635,13 @@ class BmaHttpServer {
             'message': 'Album not found: $albumId',
           },
         }),
-        headers: {'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
       );
     }
 
     return Response.ok(
       jsonEncode(albumDetail),
-      headers: {'Content-Type': 'application/json'},
+      headers: {'Content-Type': 'application/json; charset=utf-8'},
     );
   }
 
@@ -657,7 +657,7 @@ class BmaHttpServer {
             'message': 'Artwork not found for album: $albumId',
           },
         }),
-        headers: {'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
       );
     }
 
@@ -683,7 +683,7 @@ class BmaHttpServer {
             'message': 'Artwork not found for song: $songId',
           },
         }),
-        headers: {'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
       );
     }
 
@@ -706,7 +706,7 @@ class BmaHttpServer {
           'error': 'Invalid request',
           'message': 'Song ID is required',
         }),
-        headers: {'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
       );
     }
 
@@ -718,7 +718,7 @@ class BmaHttpServer {
           'error': 'Song not found',
           'message': 'Song ID not found in library: $path',
         }),
-        headers: {'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
       );
     }
 
@@ -731,7 +731,7 @@ class BmaHttpServer {
           'error': 'File not found',
           'message': 'Audio file does not exist: $path',
         }),
-        headers: {'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
       );
     }
 
@@ -744,7 +744,7 @@ class BmaHttpServer {
             'error': 'Forbidden',
             'message': 'File is outside music library',
           }),
-          headers: {'Content-Type': 'application/json'},
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
         );
       }
     }
@@ -762,7 +762,7 @@ class BmaHttpServer {
           'error': 'Invalid request',
           'message': 'Song ID is required',
         }),
-        headers: {'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
       );
     }
 
@@ -774,7 +774,7 @@ class BmaHttpServer {
           'error': 'Song not found',
           'message': 'Song ID not found in library: $path',
         }),
-        headers: {'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
       );
     }
 
@@ -787,7 +787,7 @@ class BmaHttpServer {
           'error': 'File not found',
           'message': 'Audio file does not exist: $path',
         }),
-        headers: {'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
       );
     }
 
@@ -800,7 +800,7 @@ class BmaHttpServer {
             'error': 'Forbidden',
             'message': 'File is outside music library',
           }),
-          headers: {'Content-Type': 'application/json'},
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
         );
       }
     }
@@ -815,10 +815,26 @@ class BmaHttpServer {
       headers: {
         'Content-Type': 'audio/mpeg', // Assuming MP3 files
         'Content-Length': fileSize.toString(),
-        'Content-Disposition': 'attachment; filename="$fileName"',
+        'Content-Disposition': _encodeContentDisposition(fileName),
         'Cache-Control': 'public, max-age=3600', // Cache for 1 hour during download
       },
     );
+  }
+
+  /// Encodes a filename for Content-Disposition header (RFC 5987)
+  /// Provides ASCII-safe fallback and UTF-8 encoded filename for proper
+  /// handling of non-ASCII characters (accents, Korean, Chinese, etc.)
+  String _encodeContentDisposition(String filename) {
+    // ASCII-safe fallback: replace non-ASCII chars with underscore
+    final asciiFallback = filename.runes
+        .map((r) => r < 128 ? String.fromCharCode(r) : '_')
+        .join()
+        .replaceAll('"', "'");
+
+    // RFC 5987 percent-encode the UTF-8 filename
+    final utf8Encoded = Uri.encodeComponent(filename);
+
+    return 'attachment; filename="$asciiFallback"; filename*=UTF-8\'\'$utf8Encoded';
   }
 
   /// Set music folder path for security validation
