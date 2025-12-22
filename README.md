@@ -27,20 +27,44 @@ A cross-platform personal music streaming system built with Flutter. Host your o
 <details>
 <summary>BMA Mobile</summary>
 
-![BMA Mobile Library 1](app_photos/BMA%20Mobile/library_1.jpg)
-![BMA Mobile Library 2 Offline](app_photos/BMA%20Mobile/library_2_offline.jpg)
-![BMA Mobile Library 3](app_photos/BMA%20Mobile/library_3.jpg)
-![BMA Mobile Main Player 1](app_photos/BMA%20Mobile/main_player_1.jpg)
-![BMA Mobile Queue 1](app_photos/BMA%20Mobile/queue_1.jpg)
-![BMA Mobile Search 1](app_photos/BMA%20Mobile/search_1.jpg)
-![BMA Mobile Search 2](app_photos/BMA%20Mobile/search_2.jpg)
-![BMA Mobile Settings 1](app_photos/BMA%20Mobile/settings_1.jpg)
-![BMA Mobile Settings 2](app_photos/BMA%20Mobile/settings_2.jpg)
-![BMA Mobile Streaming Stats 1](app_photos/BMA%20Mobile/streaming_stats_1.jpg)
-![BMA Mobile Streaming Stats 2](app_photos/BMA%20Mobile/streaming_stats_2.jpg)
-![BMA Mobile Downloads 1](app_photos/BMA%20Mobile/downloads_1.jpg)
-![BMA Mobile Downloads 2](app_photos/BMA%20Mobile/downloads_2.jpg)
-![BMA Mobile Downloads 3](app_photos/BMA%20Mobile/downloads_3.jpg)
+### Library
+
+![BMA Mobile Library 1](app_photos/BMA%20Mobile/library_1.png)
+![BMA Mobile Library 2](app_photos/BMA%20Mobile/library_2.png)
+![BMA Mobile Library 3](app_photos/BMA%20Mobile/library_3.png)
+![BMA Mobile Library 4 Offline](app_photos/BMA%20Mobile/library_4_offline.png)
+![BMA Mobile Library 5](app_photos/BMA%20Mobile/library_5.png)
+![BMA Mobile Library 6](app_photos/BMA%20Mobile/library_6.png)
+
+### Main Player
+
+![BMA Mobile Main Player 1](app_photos/BMA%20Mobile/main_player_1.png)
+
+### Queue
+
+![BMA Mobile Queue 1](app_photos/BMA%20Mobile/queue_1.png)
+
+### Search
+
+![BMA Mobile Search 1](app_photos/BMA%20Mobile/search_1.png)
+![BMA Mobile Search 2](app_photos/BMA%20Mobile/search_2.png)
+
+### Settings
+
+![BMA Mobile Settings 1 Connected](app_photos/BMA%20Mobile/settings_1_connected.png)
+![BMA Mobile Settings 2 Disconnected](app_photos/BMA%20Mobile/settings_2_disconnected.png)
+![BMA Mobile Settings 3](app_photos/BMA%20Mobile/settings_3.png)
+
+### Streaming Stats
+
+![BMA Mobile Streaming Stats 1](app_photos/BMA%20Mobile/streaming_stats_1.png)
+![BMA Mobile Streaming Stats 2](app_photos/BMA%20Mobile/streaming_stats_2.png)
+
+### Downloads
+
+![BMA Mobile Downloads 1](app_photos/BMA%20Mobile/downloads_1.png)
+![BMA Mobile Downloads 2](app_photos/BMA%20Mobile/downloads_2.png)
+![BMA Mobile Downloads 3](app_photos/BMA%20Mobile/downloads_3.png)
 
 </details>
 
