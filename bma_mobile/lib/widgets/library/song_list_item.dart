@@ -227,14 +227,6 @@ class SongListItem extends StatelessWidget {
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.person),
-                title: const Text('Go to Artist'),
-                onTap: () {
-                  Navigator.pop(context);
-                  // TODO: Artist view (future feature)
-                },
-              ),
-              ListTile(
                 leading: const Icon(Icons.download),
                 title: const Text('Download'),
                 onTap: () {

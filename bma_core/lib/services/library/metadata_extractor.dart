@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:dart_tags/dart_tags.dart';
 import 'package:bma_core/models/song_metadata.dart';
@@ -38,12 +39,13 @@ class MetadataExtractor {
       for (final tag in tags) {
         final tagMap = tag.tags;
 
-        title = title ?? _getTagValue(tagMap, ['title', 'TIT2']);
-        artist = artist ?? _getTagValue(tagMap, ['artist', 'TPE1']);
-        album = album ?? _getTagValue(tagMap, ['album', 'TALB']);
-        albumArtist =
-            albumArtist ?? _getTagValue(tagMap, ['albumartist', 'TPE2']);
-        genre = genre ?? _getTagValue(tagMap, ['genre', 'TCON']);
+        title = title ?? _fixEncoding(_getTagValue(tagMap, ['title', 'TIT2']));
+        artist =
+            artist ?? _fixEncoding(_getTagValue(tagMap, ['artist', 'TPE1']));
+        album = album ?? _fixEncoding(_getTagValue(tagMap, ['album', 'TALB']));
+        albumArtist = albumArtist ??
+            _fixEncoding(_getTagValue(tagMap, ['albumartist', 'TPE2']));
+        genre = genre ?? _fixEncoding(_getTagValue(tagMap, ['genre', 'TCON']));
 
         // Extract year
         final yearStr = _getTagValue(tagMap, ['year', 'TYER', 'TDRC']);
@@ -120,6 +122,32 @@ class MetadataExtractor {
       }
     }
     return null;
+  }
+
+  /// Fixes mojibake (UTF-8 bytes misread as Latin-1)
+  /// Detects patterns like "Ã¡" (should be "á") and repairs them
+  /// This happens when ID3 tags claim Latin-1 encoding but contain UTF-8 bytes
+  String? _fixEncoding(dynamic value) {
+    if (value == null) return null;
+    final str = value.toString();
+    if (str.isEmpty) return str;
+
+    // Check for common mojibake patterns (UTF-8 interpreted as Latin-1)
+    // These occur when 2-byte UTF-8 sequences are read as Latin-1
+    // Ã (0xC3) is the first byte of many UTF-8 accented chars
+    // Â (0xC2) is the first byte of other UTF-8 sequences
+    if (!str.contains('Ã') && !str.contains('Â')) {
+      return str; // No mojibake detected
+    }
+
+    try {
+      // Re-encode as Latin-1, then decode as UTF-8
+      final latin1Bytes = latin1.encode(str);
+      return utf8.decode(latin1Bytes);
+    } catch (e) {
+      // If conversion fails, return original
+      return str;
+    }
   }
 
   /// Extracts metadata and duration from a single audio file in one call
