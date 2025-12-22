@@ -528,10 +528,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       itemCount: songsToShow.length,
-      separatorBuilder: (context, index) => Divider(
-        height: 1,
-        color: Colors.grey[300],
-      ),
+      separatorBuilder: (context, index) => const SizedBox.shrink(),
       itemBuilder: (context, index) {
         final song = songsToShow[index];
         final isDownloaded = _downloadedSongIds.contains(song.id);

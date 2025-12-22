@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../models/api_models.dart';
 import '../../services/api/connection_service.dart';
 import '../../services/playlist_service.dart';
+import '../../widgets/common/cached_artwork.dart';
 import 'create_playlist_screen.dart';
 
 /// Screen for adding songs to a playlist
@@ -154,33 +155,35 @@ class _AddToPlaylistScreenState extends State<AddToPlaylistScreen> {
   Widget _buildAlbumArt(SongModel song) {
     final connectionService = ConnectionService();
 
-    // If song has an albumId, try to show album artwork
-    if (song.albumId != null && connectionService.apiClient != null) {
-      final artworkUrl =
-          '${connectionService.apiClient!.baseUrl}/artwork/${song.albumId}';
+    // Determine artwork URL and cache ID based on whether song has albumId
+    String? artworkUrl;
+    String cacheId;
 
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(4),
-        child: SizedBox(
-          width: 48,
-          height: 48,
-          child: Image.network(
-            artworkUrl,
-            fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) {
-              return _buildPlaceholder();
-            },
-            loadingBuilder: (context, child, loadingProgress) {
-              if (loadingProgress == null) return child;
-              return _buildPlaceholder();
-            },
-          ),
-        ),
-      );
+    if (song.albumId != null) {
+      // Song belongs to an album - use album artwork endpoint
+      artworkUrl = connectionService.apiClient != null
+          ? '${connectionService.apiClient!.baseUrl}/artwork/${song.albumId}'
+          : null;
+      cacheId = song.albumId!;
+    } else {
+      // Standalone song - use song artwork endpoint
+      artworkUrl = connectionService.apiClient != null
+          ? '${connectionService.apiClient!.baseUrl}/song-artwork/${song.id}'
+          : null;
+      cacheId = 'song_${song.id}';
     }
 
-    // No album art available
-    return _buildPlaceholder();
+    return CachedArtwork(
+      albumId: cacheId, // Used as cache key
+      artworkUrl: artworkUrl,
+      width: 48,
+      height: 48,
+      fit: BoxFit.cover,
+      borderRadius: BorderRadius.circular(4),
+      fallback: _buildPlaceholder(),
+      fallbackIcon: Icons.music_note,
+      fallbackIconSize: 24,
+    );
   }
 
   /// Build placeholder for missing artwork
