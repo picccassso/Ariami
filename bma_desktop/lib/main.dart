@@ -48,6 +48,9 @@ class _MyAppState extends State<MyApp> with WindowListener {
   bool _isLoading = true;
   bool _setupComplete = false;
   bool _startupComplete = false; // Guards against early window close events
+  
+  /// Global key for navigator access from window close callback
+  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
 
   @override
   void initState() {
@@ -84,7 +87,7 @@ class _MyAppState extends State<MyApp> with WindowListener {
     super.dispose();
   }
 
-  /// Intercept window close event - hide to tray instead of quitting.
+  /// Intercept window close event - show confirmation dialog.
   @override
   void onWindowClose() async {
     // Ignore close events during startup to prevent phantom events from Finder/Spotlight
@@ -92,9 +95,67 @@ class _MyAppState extends State<MyApp> with WindowListener {
       print('[Window] Ignoring close event during startup protection period');
       return;
     }
-    print('[Window] Close intercepted - hiding to tray');
-    // Hide window to tray instead of closing
-    await _trayService.hideWindow();
+    print('[Window] Close intercepted - showing confirmation dialog');
+    
+    // Show confirmation dialog
+    await _showCloseConfirmationDialog();
+  }
+
+  /// Show dialog asking user what to do when closing the app
+  Future<void> _showCloseConfirmationDialog() async {
+    final context = _navigatorKey.currentContext;
+    if (context == null) {
+      // Fallback: if no context, just hide to tray
+      print('[Window] No context available, falling back to hide');
+      await _trayService.hideWindow();
+      return;
+    }
+
+    final result = await showDialog<String>(
+      context: context,
+      barrierDismissible: true,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('Close BMA Desktop?'),
+          content: const Text(
+            'The server is running. What would you like to do?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop('cancel'),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop('minimize'),
+              child: const Text('Minimize to Tray'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop('quit'),
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.red,
+              ),
+              child: const Text('Quit'),
+            ),
+          ],
+        );
+      },
+    );
+
+    switch (result) {
+      case 'quit':
+        print('[Window] User chose to quit');
+        await _trayService.quitApp();
+        break;
+      case 'minimize':
+        print('[Window] User chose to minimize to tray');
+        await _trayService.hideWindow();
+        break;
+      case 'cancel':
+      default:
+        print('[Window] User cancelled close');
+        // Do nothing - stay visible
+        break;
+    }
   }
 
   Future<void> _checkSetupState() async {
@@ -108,6 +169,7 @@ class _MyAppState extends State<MyApp> with WindowListener {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: _navigatorKey,
       title: 'BMA Desktop',
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
