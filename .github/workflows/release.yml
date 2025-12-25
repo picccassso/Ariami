@@ -20,12 +20,12 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.27.4'
+          flutter-version: '3.29.2'
           cache: true
 
       - name: Get dependencies
         run: |
-          cd bma_core && dart pub get && cd ..
+          cd bma_core && dart pub get
           cd bma_desktop && flutter pub get
 
       - name: Build macOS (Universal)
@@ -82,12 +82,12 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.27.4'
+          flutter-version: '3.29.2'
           cache: true
 
       - name: Get dependencies
         run: |
-          cd bma_core && dart pub get && cd ..
+          cd bma_core && dart pub get
           cd bma_desktop && flutter pub get
 
       - name: Build Windows
@@ -139,12 +139,12 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.27.4'
+          flutter-version: '3.29.2'
           cache: true
 
       - name: Get dependencies
         run: |
-          cd bma_core && dart pub get && cd ..
+          cd bma_core && dart pub get
           cd bma_desktop && flutter pub get
 
       - name: Build Linux
