@@ -84,8 +84,18 @@ class _ScanningScreenState extends State<ScanningScreen> {
         // Mark setup as complete
         await _setupService.markSetupComplete();
 
-        // Auto-navigate to QR code screen after 1 second
-        await Future.delayed(const Duration(seconds: 1));
+        // Trigger transition to background mode
+        // This spawns a background daemon and shuts down the foreground server
+        // The browser will briefly disconnect then auto-reconnect
+        print('Triggering transition to background mode...');
+        final result = await _setupService.transitionToBackground();
+        print('Transition result: $result');
+
+        // Wait for background server to be ready
+        // - 500ms for foreground shutdown delay
+        // - time for port to be released
+        // - background server startup and potential retry
+        await Future.delayed(const Duration(seconds: 3));
         if (mounted) {
           Navigator.pushReplacementNamed(context, '/qr-code');
         }

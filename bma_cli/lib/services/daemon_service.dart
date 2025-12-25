@@ -138,12 +138,28 @@ class DaemonService {
     }
   }
 
+  /// Detect if running as compiled executable or via dart run
+  /// Returns (executable, args) tuple for spawning background process
+  (String, List<String>) _buildBackgroundCommand(List<String> flags) {
+    final script = Platform.script;
+    final executable = Platform.resolvedExecutable;
+
+    // If script ends with .dart, we're running via dart run
+    if (script.path.endsWith('.dart')) {
+      // Running via dart run
+      return (executable, ['run', script.toFilePath(), ...flags]);
+    } else {
+      // Running as compiled executable
+      return (executable, flags);
+    }
+  }
+
   /// Start the server in the background
   /// Returns the process PID
-  Future<int?> startServerInBackground(List<String> args) async {
+  Future<int?> startServerInBackground(List<String> flags) async {
     try {
-      // Get the current executable path
-      final executable = Platform.resolvedExecutable;
+      // Build correct command based on execution mode
+      final (executable, args) = _buildBackgroundCommand(flags);
 
       // Start the process in detached mode
       final process = await Process.start(

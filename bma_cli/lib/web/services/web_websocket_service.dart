@@ -69,10 +69,10 @@ class WebWebSocketService {
   void _scheduleReconnect() {
     _reconnectTimer?.cancel();
 
-    print('[WebWS] Reconnecting in 5 seconds...');
+    print('[WebWS] Reconnecting in 1 second...');
 
     _reconnectTimer = Timer(
-      const Duration(seconds: 5),
+      const Duration(seconds: 1),
       () => connect(),
     );
   }

@@ -16,8 +16,32 @@ void main(List<String> arguments) async {
     }
 
     // Run server directly (background mode)
+    // Retry binding with exponential backoff if port is busy
+    // (handles race condition during transition from foreground to background)
     final runner = ServerRunner();
-    await runner.run(port: port, isSetupMode: false);
+    const maxRetries = 10;
+    const initialDelayMs = 100;
+
+    for (int attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        await runner.run(port: port, isSetupMode: false);
+        break; // Success - exit the loop
+      } catch (e) {
+        final isAddressInUse = e.toString().contains('Address already in use') ||
+            e.toString().contains('SocketException');
+
+        if (isAddressInUse && attempt < maxRetries) {
+          // Exponential backoff: 100ms, 200ms, 400ms, 800ms, ...
+          final delayMs = initialDelayMs * (1 << (attempt - 1));
+          print('Port $port in use, retrying in ${delayMs}ms (attempt $attempt/$maxRetries)...');
+          await Future.delayed(Duration(milliseconds: delayMs));
+        } else {
+          // Either not a port-in-use error, or we've exhausted retries
+          print('Failed to start server: $e');
+          exit(1);
+        }
+      }
+    }
     return;
   }
 
