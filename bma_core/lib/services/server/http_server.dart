@@ -41,6 +41,7 @@ class BmaHttpServer {
   Future<Map<String, dynamic>> Function()? _getScanStatusCallback;
   Future<bool> Function()? _markSetupCompleteCallback;
   Future<bool> Function()? _getSetupStatusCallback;
+  Future<Map<String, dynamic>> Function()? _transitionToBackgroundCallback;
 
   /// Check if server is running
   bool get isRunning => _server != null;
@@ -68,6 +69,11 @@ class BmaHttpServer {
     _getScanStatusCallback = getScanStatus;
     _markSetupCompleteCallback = markSetupComplete;
     _getSetupStatusCallback = getSetupStatus;
+  }
+
+  /// Set callback for transitioning from foreground to background mode (CLI use)
+  void setTransitionToBackgroundCallback(Future<Map<String, dynamic>> Function() callback) {
+    _transitionToBackgroundCallback = callback;
   }
 
   /// Start the HTTP server
@@ -175,6 +181,7 @@ class BmaHttpServer {
     router.post('/api/setup/start-scan', _handleStartScan);
     router.get('/api/setup/scan-status', _handleGetScanStatus);
     router.post('/api/setup/complete', _handleMarkSetupComplete);
+    router.post('/api/setup/transition-to-background', _handleTransitionToBackground);
 
     // Stats endpoint (for dashboard)
     router.get('/api/stats', _handleGetStats);
@@ -451,6 +458,32 @@ class BmaHttpServer {
       // If no callback configured, assume setup is not complete
       return Response.ok(
         jsonEncode({'isComplete': false}),
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
+      );
+    }
+  }
+
+  /// Handle transition to background mode request (CLI use)
+  Future<Response> _handleTransitionToBackground(Request request) async {
+    if (_transitionToBackgroundCallback != null) {
+      try {
+        final result = await _transitionToBackgroundCallback!();
+        return Response.ok(
+          jsonEncode(result),
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
+        );
+      } catch (e) {
+        return Response.internalServerError(
+          body: jsonEncode({
+            'error': 'Failed to transition to background',
+            'message': e.toString(),
+          }),
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
+        );
+      }
+    } else {
+      return Response.ok(
+        jsonEncode({'success': false, 'message': 'Transition not configured'}),
         headers: {'Content-Type': 'application/json; charset=utf-8'},
       );
     }

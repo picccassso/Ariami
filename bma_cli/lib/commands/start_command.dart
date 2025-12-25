@@ -53,12 +53,8 @@ class StartCommand {
       print('Starting BMA CLI server in background...');
       print('');
 
-      // Get the current executable path
-      final executable = Platform.resolvedExecutable;
-
       // Start server in background with --server-mode flag
       final pid = await _daemonService.startServerInBackground([
-        executable,
         '--server-mode',
         '--port', port.toString(),
       ]);

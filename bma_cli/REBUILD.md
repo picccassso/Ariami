@@ -3,7 +3,7 @@
 ## Quick Rebuild (most cases)
 
 ```bash
-cd /Users/alex/Desktop/BMA/bma_cli
+cd bma_cli
 flutter build web -t lib/web/main.dart
 ```
 
@@ -14,7 +14,7 @@ Then hard refresh browser: **Cmd+Shift+R** (Mac) or **Ctrl+Shift+R** (Windows/Li
 ## Full Clean Rebuild (when quick rebuild doesn't work)
 
 ```bash
-cd /Users/alex/Desktop/BMA/bma_cli
+cd bma_cli
 flutter clean
 flutter pub get
 flutter build web -t lib/web/main.dart
@@ -29,9 +29,10 @@ Then in browser:
 ## Nuclear Option (everything fresh)
 
 ```bash
-cd /Users/alex/Desktop/BMA/bma_cli
+cd bma_cli
 
-# Stop any running server first (Ctrl+C or kill the process)
+# Stop any running server first
+dart run bin/bma_cli.dart stop  # or Ctrl+C if running in foreground
 
 # Remove all build artifacts
 flutter clean
@@ -68,7 +69,7 @@ This removes:
 ## One-Liner for Terminal
 
 ```bash
-cd /Users/alex/Desktop/BMA/bma_cli && flutter clean && flutter pub get && flutter build web -t lib/web/main.dart
+cd bma_cli && flutter clean && flutter pub get && flutter build web -t lib/web/main.dart
 ```
 
 ---
@@ -78,7 +79,7 @@ cd /Users/alex/Desktop/BMA/bma_cli && flutter clean && flutter pub get && flutte
 Build a standalone binary that runs without Dart installed:
 
 ```bash
-cd /Users/alex/Desktop/BMA/bma_cli
+cd bma_cli
 
 # Build web UI first
 flutter build web -t lib/web/main.dart

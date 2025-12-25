@@ -99,4 +99,30 @@ class WebSetupService {
       return false;
     }
   }
+
+  /// Trigger transition from foreground to background mode
+  ///
+  /// This causes the foreground server to spawn a background daemon
+  /// and then shut down. The browser will briefly disconnect and
+  /// automatically reconnect to the new background server.
+  ///
+  /// Returns a map with:
+  /// - 'success': bool indicating if transition was initiated
+  /// - 'message': String description
+  /// - 'pid': int process ID of background server (on success)
+  Future<Map<String, dynamic>> transitionToBackground() async {
+    try {
+      final response = await http.post(
+        Uri.parse('/api/setup/transition-to-background'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      }
+      return {'success': false, 'message': 'HTTP ${response.statusCode}'};
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
 }
