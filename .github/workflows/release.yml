@@ -26,7 +26,7 @@ jobs:
       - name: Get dependencies
         run: |
           cd bma_core && dart pub get
-          cd bma_desktop && flutter pub get
+          cd ../bma_desktop && flutter pub get
 
       - name: Build macOS (Universal)
         run: |
@@ -88,7 +88,7 @@ jobs:
       - name: Get dependencies
         run: |
           cd bma_core && dart pub get
-          cd bma_desktop && flutter pub get
+          cd ../bma_desktop && flutter pub get
 
       - name: Build Windows
         run: |
@@ -145,7 +145,7 @@ jobs:
       - name: Get dependencies
         run: |
           cd bma_core && dart pub get
-          cd bma_desktop && flutter pub get
+          cd ../bma_desktop && flutter pub get
 
       - name: Build Linux
         run: |
