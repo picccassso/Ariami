@@ -98,18 +98,17 @@ A cross-platform personal music streaming system built with Flutter. Host your o
 
 ## Architecture
 
-BMA consists of three components:
+BMA consists of three components that work together:
 
-- **Desktop App** (`bma_desktop`) - GUI server for macOS, Linux, and Windows that indexes your music folder and streams to connected clients
-- **CLI App** (`bma_cli`) - Headless server with web-based setup UI for dedicated servers and Raspberry Pi deployments
-- **Mobile App** (`bma_mobile`) - Client application for Android and iOS that connects to either server to browse and play your music
-
-All server apps share a common core library (`bma_core`) containing platform-agnostic music library management and HTTP server functionality.
+- **bma_desktop** - GUI server (macOS, Linux, Windows) with system tray integration
+- **bma_cli** - Headless server with web UI for servers and Raspberry Pi
+- **bma_mobile** - Mobile client (Android, iOS) for browsing and streaming
+- **bma_core** - Shared platform-agnostic core library
 
 ## Quick Start
 
 ```bash
-# Get dependencies
+# Install dependencies
 cd bma_core && dart pub get && cd ..
 cd bma_mobile && flutter pub get && cd ..
 cd bma_desktop && flutter pub get && cd ..
@@ -127,59 +126,61 @@ dart run bin/bma_cli.dart start
 cd bma_mobile && flutter run
 ```
 
-## Server Features (Desktop & CLI)
+## Features
 
-- **Library Management**
-  - Automatic music library scanning with metadata extraction (MP3, M4A, FLAC, OGG, WAV, AIFF, and more)
-  - Album categorization with compilation detection
-  - Duplicate filtering based on file hash and metadata matching
-  - Real-time folder monitoring for automatic library updates
-  - Pure Dart MP3 duration parser (handles large embedded artwork)
+### Server (Desktop & CLI)
 
-- **Streaming & Connectivity**
-  - HTTP audio streaming with range request support for seeking
-  - WebSocket support for real-time updates
-  - QR code generation for easy mobile device pairing
-  - Tailscale integration for secure remote access
-  - Session-based connection management
+**Library Management:**
+- Automatic scanning with metadata extraction (MP3, M4A, FLAC, OGG, WAV, AIFF, more)
+- Album categorization with compilation detection
+- Duplicate filtering based on file hash and metadata
+- Real-time folder monitoring for automatic updates
+- Pure Dart MP3 duration parser (handles large embedded artwork)
 
-- **CLI-Specific Features**
-  - Background daemon mode for headless operation
-  - Web-based setup interface
-  - Automatic browser launching on first run
-  - Process management (start, stop, status commands)
-  - Custom port configuration
+**Streaming & Connectivity:**
+- HTTP audio streaming with range request support for seeking
+- WebSocket support for real-time updates
+- QR code generation for easy mobile pairing
+- Tailscale integration for secure remote access
+- Session-based connection management
 
-- **Desktop-Specific Features**
-  - System tray integration with background operation
-  - Dynamic dock icon control (macOS)
-  - GUI-based setup and configuration
+**CLI-Specific:**
+- Background daemon mode for headless operation
+- Automatic transition to background after first-time setup
+- Web-based setup interface
+- Process management (start, stop, status commands)
+- Custom port configuration
 
-## Mobile Features
+**Desktop-Specific:**
+- System tray integration with background operation
+- Dynamic dock icon control (macOS)
+- GUI-based setup and configuration
 
-- **Connectivity**
-  - QR code scanning to connect to server
-  - Automatic connection management with heartbeat
-  - Tailscale support for secure remote connections
-  - Automatic offline mode detection
+### Mobile
 
-- **Library & Playback**
-  - Library browsing (albums, songs, playlists)
-  - Advanced search with ranking (exact, prefix, substring matching)
-  - Audio streaming with background playback support
-  - Full playback controls (play/pause, skip, shuffle, repeat)
-  - Queue management with drag-to-reorder
+**Connectivity:**
+- QR code scanning to connect to server
+- Automatic connection management with heartbeat
+- Tailscale support for secure remote connections
+- Automatic offline mode detection
 
-- **UI**
-  - Mini player and full-screen player views
-  - Album detail views with track listings
-  - Playlist management (create, edit, reorder, delete)
+**Library & Playback:**
+- Library browsing (albums, songs, playlists)
+- Advanced search with ranking (exact, prefix, substring matching)
+- Audio streaming with background playback support
+- Full playback controls (play/pause, skip, shuffle, repeat)
+- Queue management with drag-to-reorder
 
-- **Offline & Storage**
-  - Download songs and albums for offline playback
-  - Smart caching with LRU eviction for artwork and frequently played songs
-  - SQLite database for downloads, cache, and statistics
-  - Streaming statistics (play counts, total listening time)
+**Offline & Storage:**
+- Download songs and albums for offline playback
+- Smart caching with LRU eviction for artwork and frequently played songs
+- SQLite database for downloads, cache, and statistics
+- Streaming statistics (play counts, total listening time)
+
+**UI:**
+- Mini player and full-screen player views
+- Album detail views with track listings
+- Playlist management (create, edit, reorder, delete)
 
 ## Tech Stack
 
