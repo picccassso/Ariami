@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../models/song.dart';
 import '../../services/api/connection_service.dart';
+import '../../services/color_extraction_service.dart';
 import '../common/cached_artwork.dart';
 
 /// Mini player widget that appears at the bottom during playback
-class MiniPlayer extends StatelessWidget {
+class MiniPlayer extends StatefulWidget {
   final Song? currentSong;
   final bool isPlaying;
   final bool isVisible;
@@ -33,18 +34,55 @@ class MiniPlayer extends StatelessWidget {
   });
 
   @override
+  State<MiniPlayer> createState() => _MiniPlayerState();
+}
+
+class _MiniPlayerState extends State<MiniPlayer> {
+  final ColorExtractionService _colorService = ColorExtractionService();
+
+  @override
+  void initState() {
+    super.initState();
+    _colorService.addListener(_onColorsChanged);
+  }
+
+  @override
+  void dispose() {
+    _colorService.removeListener(_onColorsChanged);
+    super.dispose();
+  }
+
+  void _onColorsChanged() {
+    setState(() {});
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (!isVisible || currentSong == null) {
+    if (!widget.isVisible || widget.currentSong == null) {
       return const SizedBox.shrink();
     }
 
-    return Container(
+    final colors = _colorService.currentColors;
+    final surfaceColor = Theme.of(context).colorScheme.surfaceContainerHighest;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 500),
+      curve: Curves.easeInOut,
       height: 60,
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        gradient: LinearGradient(
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+          colors: [
+            colors.primary.withValues(alpha: 0.3),
+            colors.secondary.withValues(alpha: 0.2),
+            surfaceColor,
+          ],
+          stops: const [0.0, 0.5, 1.0],
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 8,
             offset: const Offset(0, -2),
           ),
@@ -55,11 +93,11 @@ class MiniPlayer extends StatelessWidget {
         children: [
           // Progress bar
           LinearProgressIndicator(
-            value: duration.inMilliseconds > 0
-                ? position.inMilliseconds / duration.inMilliseconds
+            value: widget.duration.inMilliseconds > 0
+                ? widget.position.inMilliseconds / widget.duration.inMilliseconds
                 : 0.0,
             minHeight: 2,
-            backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+            backgroundColor: Colors.transparent,
             valueColor: AlwaysStoppedAnimation<Color>(
               Theme.of(context).colorScheme.primary,
             ),
@@ -70,7 +108,7 @@ class MiniPlayer extends StatelessWidget {
             child: Material(
               color: Colors.transparent,
               child: InkWell(
-                onTap: onTap,
+                onTap: widget.onTap,
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 8.0),
                   child: Row(
@@ -87,7 +125,7 @@ class MiniPlayer extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              currentSong!.title,
+                              widget.currentSong!.title,
                               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                                     fontWeight: FontWeight.w500,
                                   ),
@@ -95,7 +133,7 @@ class MiniPlayer extends StatelessWidget {
                               overflow: TextOverflow.ellipsis,
                             ),
                             Text(
-                              currentSong!.artist,
+                              widget.currentSong!.artist,
                               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                                   ),
@@ -111,7 +149,7 @@ class MiniPlayer extends StatelessWidget {
                       // Control buttons
                       IconButton(
                         icon: const Icon(Icons.skip_previous),
-                        onPressed: hasPrevious ? onSkipPrevious : null,
+                        onPressed: widget.hasPrevious ? widget.onSkipPrevious : null,
                         iconSize: 28,
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(
@@ -122,9 +160,9 @@ class MiniPlayer extends StatelessWidget {
 
                       IconButton(
                         icon: Icon(
-                          isPlaying ? Icons.pause : Icons.play_arrow,
+                          widget.isPlaying ? Icons.pause : Icons.play_arrow,
                         ),
-                        onPressed: onPlayPause,
+                        onPressed: widget.onPlayPause,
                         iconSize: 32,
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(
@@ -135,7 +173,7 @@ class MiniPlayer extends StatelessWidget {
 
                       IconButton(
                         icon: const Icon(Icons.skip_next),
-                        onPressed: hasNext ? onSkipNext : null,
+                        onPressed: widget.hasNext ? widget.onSkipNext : null,
                         iconSize: 28,
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(
@@ -158,7 +196,7 @@ class MiniPlayer extends StatelessWidget {
   Widget _buildAlbumArt(BuildContext context) {
     final connectionService = ConnectionService();
 
-    if (currentSong == null) {
+    if (widget.currentSong == null) {
       return _buildPlaceholder(context);
     }
 
@@ -166,18 +204,18 @@ class MiniPlayer extends StatelessWidget {
     String? artworkUrl;
     String cacheId;
 
-    if (currentSong!.albumId != null) {
+    if (widget.currentSong!.albumId != null) {
       // Song belongs to an album - use album artwork endpoint
       artworkUrl = connectionService.apiClient != null
-          ? '${connectionService.apiClient!.baseUrl}/artwork/${currentSong!.albumId}'
+          ? '${connectionService.apiClient!.baseUrl}/artwork/${widget.currentSong!.albumId}'
           : null;
-      cacheId = currentSong!.albumId!;
+      cacheId = widget.currentSong!.albumId!;
     } else {
       // Standalone song - use song artwork endpoint
       artworkUrl = connectionService.apiClient != null
-          ? '${connectionService.apiClient!.baseUrl}/song-artwork/${currentSong!.id}'
+          ? '${connectionService.apiClient!.baseUrl}/song-artwork/${widget.currentSong!.id}'
           : null;
-      cacheId = 'song_${currentSong!.id}';
+      cacheId = 'song_${widget.currentSong!.id}';
     }
 
     return CachedArtwork(
@@ -198,7 +236,7 @@ class MiniPlayer extends StatelessWidget {
       width: 45,
       height: 45,
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(4),
       ),
       child: Icon(

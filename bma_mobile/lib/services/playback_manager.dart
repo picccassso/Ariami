@@ -10,6 +10,7 @@ import 'api/connection_service.dart';
 import 'offline/offline_playback_service.dart';
 import 'cache/cache_manager.dart';
 import 'stats/streaming_stats_service.dart';
+import 'color_extraction_service.dart';
 import '../main.dart' show audioHandler;
 
 /// Central playback manager that integrates Phase 6 audio services
@@ -511,6 +512,9 @@ class PlaybackManager extends ChangeNotifier {
       print('[PlaybackManager] About to call onSongStarted for: ${song.title}');
       _statsService.onSongStarted(song);
       print('[PlaybackManager] onSongStarted called successfully');
+
+      // Extract colors from artwork for player gradient background
+      ColorExtractionService().extractColorsForSong(song);
     } catch (e, stackTrace) {
       print('[PlaybackManager] ERROR in _playCurrentSong: $e');
       print('[PlaybackManager] Stack trace: $stackTrace');
