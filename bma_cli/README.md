@@ -41,9 +41,9 @@ dart compile exe bin/bma_cli.dart -o bma_cli
 
 ## Usage
 
-### First Run
+### First Run (Auto-Transition to Background)
 
-On first run, the server runs in foreground mode and automatically opens a browser to the web setup interface:
+On first run, the server starts in foreground mode and automatically opens a browser to the web setup interface:
 
 ```bash
 ./bma_cli start
@@ -52,12 +52,19 @@ On first run, the server runs in foreground mode and automatically opens a brows
 Follow the web setup wizard to:
 1. Configure Tailscale (optional)
 2. Select your music folder
-3. Wait for library scanning
-4. View QR code for mobile app connection
+3. Wait for library scanning to complete
+
+**After scanning completes**, the server automatically:
+- Spawns a background daemon process
+- Shuts down the foreground process
+- Returns your terminal prompt
+- Browser briefly disconnects then reconnects to the background server
+
+You can now close the terminal - the server continues running in the background!
 
 ### Subsequent Runs
 
-After initial setup, the server runs as a background daemon:
+After initial setup, the server always runs as a background daemon:
 
 ```bash
 # Start server in background
@@ -89,10 +96,29 @@ Files:
 
 ## Commands
 
-- `start` - Start the server (foreground on first run, background after setup)
+- `start` - Start the server (auto-transitions to background after first-time setup)
 - `stop` - Stop the background server gracefully
 - `status` - Check if server is running and show PID
 - `--port <port>` - Specify custom port (default: 8080)
+
+## Auto-Transition Feature
+
+The CLI features intelligent process management:
+
+**First-time setup:**
+1. Runs in foreground with web UI for configuration
+2. After library scan completes, automatically spawns background daemon
+3. Foreground process exits cleanly, returning terminal prompt
+4. Browser reconnects to background server seamlessly
+
+**Subsequent runs:**
+- Always starts as background daemon
+- No terminal blocking
+- Manages PID file automatically
+
+This works correctly for both:
+- Development: `dart run bin/bma_cli.dart start`
+- Production: `./bma_cli start` (compiled executable)
 
 ## Web Interface
 

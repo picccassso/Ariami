@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:bma_core/bma_core.dart';
 import 'services/cli_state_service.dart';
 import 'services/cli_tailscale_service.dart';
+import 'services/daemon_service.dart';
 
 /// ServerRunner handles the actual execution of the BMA server
 /// Can run in both foreground (setup) and background modes
@@ -11,8 +12,10 @@ class ServerRunner {
   final CliStateService _stateService = CliStateService();
   final LibraryManager _libraryManager = LibraryManager();
   final CliTailscaleService _tailscaleService = CliTailscaleService();
+  final DaemonService _daemonService = DaemonService();
 
   bool _isShuttingDown = false;
+  int _serverPort = 8080;
 
   /// Run the BMA server
   ///
@@ -20,6 +23,7 @@ class ServerRunner {
   /// - [isSetupMode]: If true, server runs for setup without library scanning
   Future<void> run({required int port, required bool isSetupMode}) async {
     print('BMA Server starting...');
+    _serverPort = port;
 
     try {
       // Set up signal handlers for graceful shutdown
@@ -39,6 +43,11 @@ class ServerRunner {
         markSetupComplete: _handleMarkSetupComplete,
         getSetupStatus: _handleGetSetupStatus,
       );
+
+      // Configure transition callback for setup mode
+      if (isSetupMode) {
+        _httpServer.setTransitionToBackgroundCallback(_handleTransitionToBackground);
+      }
 
       // Detect best IP for advertising to mobile clients (Tailscale > LAN > localhost)
       final advertisedIp = await _tailscaleService.getBestAdvertisedIp();
@@ -276,5 +285,61 @@ class ServerRunner {
   /// Setup callback: Check if setup is complete
   Future<bool> _handleGetSetupStatus() async {
     return await _stateService.isSetupComplete();
+  }
+
+  /// Handle transition from foreground setup mode to background daemon mode
+  Future<Map<String, dynamic>> _handleTransitionToBackground() async {
+    print('[ServerRunner] Transitioning to background mode...');
+
+    try {
+      // Spawn background process with --server-mode flag
+      final pid = await _daemonService.startServerInBackground([
+        '--server-mode',
+        '--port',
+        _serverPort.toString(),
+      ]);
+
+      if (pid == null) {
+        print('[ServerRunner] ERROR: Failed to spawn background process');
+        return {
+          'success': false,
+          'message': 'Failed to spawn background process',
+        };
+      }
+
+      // Save server state for status command
+      await _daemonService.saveServerState({
+        'port': _serverPort,
+        'pid': pid,
+        'started_at': DateTime.now().toIso8601String(),
+      });
+
+      print('[ServerRunner] Background process spawned with PID: $pid');
+      print('[ServerRunner] Scheduling foreground shutdown...');
+
+      // Schedule foreground shutdown after short delay to allow response to be sent
+      Future.delayed(const Duration(milliseconds: 500), () async {
+        print('[ServerRunner] Triggering shutdown of foreground process...');
+        _triggerShutdown();
+
+        // Wait for shutdown to complete
+        await Future.delayed(const Duration(milliseconds: 500));
+
+        // Explicitly exit (signal handlers keep isolate alive otherwise)
+        exit(0);
+      });
+
+      return {
+        'success': true,
+        'message': 'Transitioning to background mode',
+        'pid': pid,
+      };
+    } catch (e) {
+      print('[ServerRunner] Transition error: $e');
+      return {
+        'success': false,
+        'message': 'Transition failed: $e',
+      };
+    }
   }
 }
