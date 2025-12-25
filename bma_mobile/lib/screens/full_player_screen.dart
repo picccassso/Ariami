@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/playback_manager.dart';
 import '../services/playlist_service.dart';
+import '../services/color_extraction_service.dart';
 import '../models/repeat_mode.dart';
 import '../widgets/player/player_top_bar.dart';
 import '../widgets/player/player_artwork.dart';
@@ -22,6 +23,7 @@ class FullPlayerScreen extends StatefulWidget {
 class _FullPlayerScreenState extends State<FullPlayerScreen> {
   final PlaybackManager _playbackManager = PlaybackManager();
   final PlaylistService _playlistService = PlaylistService();
+  final ColorExtractionService _colorService = ColorExtractionService();
 
   @override
   void initState() {
@@ -31,13 +33,24 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
     // Listen to playlist changes (for liked songs)
     _playlistService.loadPlaylists();
     _playlistService.addListener(_onPlaylistsChanged);
+    // Listen to color changes for gradient background
+    _colorService.addListener(_onColorsChanged);
+    // Trigger color extraction for current song if already playing
+    if (_playbackManager.currentSong != null) {
+      _colorService.extractColorsForSong(_playbackManager.currentSong);
+    }
   }
 
   @override
   void dispose() {
     _playbackManager.removeListener(_onPlaybackStateChanged);
     _playlistService.removeListener(_onPlaylistsChanged);
+    _colorService.removeListener(_onColorsChanged);
     super.dispose();
+  }
+
+  void _onColorsChanged() {
+    setState(() {});
   }
 
   void _onPlaybackStateChanged() {
@@ -79,8 +92,28 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = _colorService.currentColors;
+
     return Scaffold(
-      body: _playbackManager.currentSong == null ? _buildEmptyState() : _buildPlayer(),
+      body: AnimatedContainer(
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeInOut,
+        decoration: BoxDecoration(
+          gradient: RadialGradient(
+            center: Alignment.topCenter,
+            radius: 1.5,
+            colors: [
+              colors.primary.withValues(alpha: 0.6),
+              colors.secondary.withValues(alpha: 0.3),
+              Colors.black,
+            ],
+            stops: const [0.0, 0.4, 1.0],
+          ),
+        ),
+        child: _playbackManager.currentSong == null
+            ? _buildEmptyState()
+            : _buildPlayer(),
+      ),
     );
   }
 
