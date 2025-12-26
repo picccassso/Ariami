@@ -103,8 +103,8 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
             center: Alignment.topCenter,
             radius: 1.5,
             colors: [
-              colors.primary.withValues(alpha: 0.6),
-              colors.secondary.withValues(alpha: 0.3),
+              colors.primary.withValues(alpha: 0.85),
+              colors.secondary.withValues(alpha: 0.65),
               Colors.black,
             ],
             stops: const [0.0, 0.4, 1.0],

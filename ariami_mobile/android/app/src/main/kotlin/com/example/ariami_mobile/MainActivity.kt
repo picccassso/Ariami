@@ -1,4 +1,4 @@
-package com.example.bma_mobile
+package com.example.ariami_mobile
 
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine

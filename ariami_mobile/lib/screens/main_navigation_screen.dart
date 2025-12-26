@@ -4,6 +4,7 @@ import 'main/library_navigator.dart';
 import 'main/search_navigator.dart';
 import 'main/settings_navigator.dart';
 import '../widgets/player/mini_player.dart';
+import '../widgets/download/download_progress_bar.dart';
 import '../screens/full_player_screen.dart';
 import '../services/playback_manager.dart';
 
@@ -59,9 +60,25 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
   }
 
   void _onTabTapped(int index) {
-    setState(() {
-      _currentIndex = index;
-    });
+    if (index == _currentIndex) {
+      // Tapping the current tab - pop nested navigator to root
+      switch (index) {
+        case 0:
+          libraryNavigatorKey.currentState?.popUntil((route) => route.isFirst);
+          break;
+        case 1:
+          searchNavigatorKey.currentState?.popUntil((route) => route.isFirst);
+          break;
+        case 2:
+          settingsNavigatorKey.currentState?.popUntil((route) => route.isFirst);
+          break;
+      }
+    } else {
+      // Switching to a different tab
+      setState(() {
+        _currentIndex = index;
+      });
+    }
   }
 
   void _openFullPlayer() {
@@ -108,6 +125,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
             position: _playbackManager.position,
             duration: _playbackManager.duration ?? Duration.zero,
           ),
+          // Download progress bar (between mini player and bottom nav)
+          const DownloadProgressBar(),
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(

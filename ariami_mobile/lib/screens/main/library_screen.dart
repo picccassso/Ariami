@@ -44,6 +44,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
   Set<String> _albumsWithDownloads = {};
   StreamSubscription<OfflineMode>? _offlineSubscription;
   StreamSubscription<void>? _cacheSubscription;
+  StreamSubscription<bool>? _connectionSubscription;
 
   @override
   void initState() {
@@ -59,6 +60,15 @@ class _LibraryScreenState extends State<LibraryScreen> {
       _loadLibrary(); // Reload with proper offline/online handling
     });
 
+    // Listen to connection state changes - reload when reconnected
+    _connectionSubscription = _connectionService.connectionStateStream.listen((isConnected) {
+      if (isConnected) {
+        print('[LibraryScreen] Connection restored - refreshing library');
+        _loadLibrary(); // Reload library data from server
+        _loadDownloadedSongs(); // Refresh download status
+      }
+    });
+
     // Listen to cache updates
     _cacheSubscription = _cacheManager.cacheUpdateStream.listen((_) {
       _loadCachedSongs();
@@ -69,6 +79,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
   void dispose() {
     _playlistService.removeListener(_onPlaylistsChanged);
     _offlineSubscription?.cancel();
+    _connectionSubscription?.cancel();
     _cacheSubscription?.cancel();
     super.dispose();
   }
@@ -157,6 +168,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
         _albums = library.albums;
         _songs = library.songs;
         _isLoading = false;
+        _showDownloadedOnly = false; // Reset filter when back online
       });
 
       // Reload downloaded songs to map them to albums
@@ -164,10 +176,27 @@ class _LibraryScreenState extends State<LibraryScreen> {
     } catch (e, stackTrace) {
       print('[LibraryScreen] ERROR loading library: $e');
       print('[LibraryScreen] Stack trace: $stackTrace');
-      setState(() {
-        _isLoading = false;
-        _errorMessage = 'Failed to load library: $e';
-      });
+
+      // If it's a network/timeout error, gracefully fall back to offline mode
+      // This handles the race condition when network drops before ConnectionService detects it
+      if (e.toString().contains('Network error') ||
+          e.toString().contains('TimeoutException') ||
+          e.toString().contains('SocketException')) {
+        print('[LibraryScreen] Network error detected - falling back to offline mode');
+        await _loadDownloadedSongs();
+        _buildLibraryFromDownloads();
+        setState(() {
+          _isLoading = false;
+          _errorMessage = null;  // Don't show error - just use offline mode
+          _showDownloadedOnly = true;
+        });
+      } else {
+        // Some other error (not network-related) - show it to user
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'Failed to load library: $e';
+        });
+      }
     }
   }
 

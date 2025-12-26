@@ -25,6 +25,11 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
   int _cacheLimitMB = 500;
   StreamSubscription<void>? _cacheSubscription;
 
+  // Progress tracking for smooth UI updates
+  StreamSubscription<DownloadProgress>? _progressSubscription;
+  final Map<String, DownloadProgress> _currentProgress = {};
+  DateTime _lastProgressUpdate = DateTime.now();
+
   // Track which albums are expanded in the Downloaded section
   // Uses albumId as key, 'singles' for songs without album
   final Set<String> _expandedAlbums = {};
@@ -43,6 +48,22 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
     // Listen to cache updates
     _cacheSubscription = _cacheManager.cacheUpdateStream.listen((_) {
       _loadCacheStats();
+    });
+
+    // Listen to progress updates (separate from queue changes)
+    _progressSubscription = _downloadManager.progressStream.listen((progress) {
+      // Store latest progress
+      _currentProgress[progress.taskId] = progress;
+
+      // Throttle UI updates to ~10 FPS (100ms intervals) for smooth rendering
+      final now = DateTime.now();
+      if (now.difference(_lastProgressUpdate).inMilliseconds >= 100) {
+        if (mounted) {
+          setState(() {
+            _lastProgressUpdate = now;
+          });
+        }
+      }
     });
   }
 
@@ -65,6 +86,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
   @override
   void dispose() {
     _cacheSubscription?.cancel();
+    _progressSubscription?.cancel();
     super.dispose();
   }
 
@@ -638,36 +660,15 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                         child: SizedBox(
                           width: 56,
                           height: 56,
-                          child: artworkUrl.isNotEmpty
-                              ? Image.network(
-                                  artworkUrl,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) =>
-                                      Container(
-                                    color: isDark
-                                        ? Colors.grey[800]
-                                        : Colors.grey[200],
-                                    child: Icon(
-                                      Icons.album,
-                                      color: isDark
-                                          ? Colors.grey[600]
-                                          : Colors.grey[400],
-                                      size: 28,
-                                    ),
-                                  ),
-                                )
-                              : Container(
-                                  color: isDark
-                                      ? Colors.grey[800]
-                                      : Colors.grey[200],
-                                  child: Icon(
-                                    Icons.album,
-                                    color: isDark
-                                        ? Colors.grey[600]
-                                        : Colors.grey[400],
-                                    size: 28,
-                                  ),
-                                ),
+                          child: CachedArtwork(
+                            albumId: albumId,
+                            artworkUrl: artworkUrl.isNotEmpty ? artworkUrl : null,
+                            width: 56,
+                            height: 56,
+                            fit: BoxFit.cover,
+                            fallbackIcon: Icons.album,
+                            fallbackIconSize: 28,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -1134,7 +1135,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                       ClipRRect(
                         borderRadius: BorderRadius.circular(4),
                         child: LinearProgressIndicator(
-                          value: task.progress,
+                          value: _currentProgress[task.id]?.progress ?? task.progress,
                           minHeight: 4,
                           backgroundColor:
                               isDark ? Colors.grey[800] : Colors.grey[200],
@@ -1148,7 +1149,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            '${task.getPercentage()}% • ${task.getFormattedBytes()} / ${task.getFormattedTotalBytes()}',
+                            '${_currentProgress[task.id]?.percentage ?? task.getPercentage()}% • ${_formatBytes(_currentProgress[task.id]?.bytesDownloaded ?? task.bytesDownloaded)} / ${_formatBytes(_currentProgress[task.id]?.totalBytes ?? task.totalBytes)}',
                             style: TextStyle(
                               fontSize: 11,
                               color: isDark ? Colors.grey[500] : Colors.grey[600],
@@ -1160,7 +1161,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                   )
                 else if (task.status == DownloadStatus.paused)
                   Text(
-                    'Paused • ${task.getPercentage()}%',
+                    'Paused • ${_currentProgress[task.id]?.percentage ?? task.getPercentage()}%',
                     style: TextStyle(
                       fontSize: 12,
                       color: Colors.orange[600],
@@ -1360,7 +1361,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
           width: 20,
           height: 20,
           child: CircularProgressIndicator(
-            value: task.progress,
+            value: _currentProgress[task.id]?.progress ?? task.progress,
             strokeWidth: 2,
           ),
         );
