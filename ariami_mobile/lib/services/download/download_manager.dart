@@ -19,6 +19,7 @@ class DownloadManager {
 
   final DownloadQueue _queue = DownloadQueue();
   final Map<String, CancelToken> _activeDownloads = {};
+  final Map<String, double> _activeProgress = {}; // Track progress separately to avoid queue updates
   final StreamController<DownloadProgress> _progressController =
       StreamController<DownloadProgress>.broadcast();
   final StreamController<List<DownloadTask>> _queueController =
@@ -183,6 +184,7 @@ class DownloadManager {
     // Cancel the HTTP request
     _activeDownloads[taskId]?.cancel();
     _activeDownloads.remove(taskId);
+    _activeProgress.remove(taskId); // Cleanup progress tracking
 
     task.status = DownloadStatus.paused;
     _queue.updateTask(task);
@@ -221,6 +223,7 @@ class DownloadManager {
     // Cancel HTTP request
     _activeDownloads[taskId]?.cancel();
     _activeDownloads.remove(taskId);
+    _activeProgress.remove(taskId); // Cleanup progress tracking
 
     // Remove from queue
     _queue.dequeue(taskId);
@@ -266,13 +269,17 @@ class DownloadManager {
         filePath,
         cancelToken: cancelToken,
         onReceiveProgress: (received, total) {
+          // Update task progress fields (for later use when status changes)
           task.bytesDownloaded = received;
           if (total > 0) {
             task.totalBytes = total;
           }
           task.progress = total > 0 ? received / total : 0.0;
-          _queue.updateTask(task);
 
+          // Store progress locally - do NOT update queue (avoids excessive rebuilds)
+          _activeProgress[task.id] = task.progress;
+
+          // Emit progress event for UI (lightweight, doesn't trigger queue rebuild)
           _progressController.add(DownloadProgress(
             taskId: task.id,
             progress: task.progress,
@@ -292,7 +299,7 @@ class DownloadManager {
       task.status = DownloadStatus.completed;
       task.progress = 1.0;
       task.bytesDownloaded = fileSize;
-      _queue.updateTask(task);
+      _queue.updateTask(task); // Update queue on status change
 
       _progressController.add(DownloadProgress(
         taskId: task.id,
@@ -302,6 +309,7 @@ class DownloadManager {
       ));
 
       _activeDownloads.remove(task.id);
+      _activeProgress.remove(task.id); // Cleanup progress tracking
 
       // Continue with next download
       _startNextDownload();
@@ -317,6 +325,7 @@ class DownloadManager {
     print('Download error: ${task.id} - $error');
 
     _activeDownloads.remove(task.id);
+    _activeProgress.remove(task.id); // Cleanup progress tracking
 
     if (task.canRetry()) {
       task.retryCount++;
@@ -387,6 +396,12 @@ class DownloadManager {
     return _queue.getStats();
   }
 
+  /// Get current progress for a task (from active progress tracking)
+  /// Returns null if task is not actively downloading
+  double? getTaskProgress(String taskId) {
+    return _activeProgress[taskId];
+  }
+
   /// Clear all downloads
   Future<void> clearAllDownloads() async {
     await _ensureInitialized();
@@ -396,6 +411,7 @@ class DownloadManager {
       token.cancel();
     }
     _activeDownloads.clear();
+    _activeProgress.clear(); // Cleanup all progress tracking
 
     // Clear queue and database
     _queue.clear();

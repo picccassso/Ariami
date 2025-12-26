@@ -135,8 +135,8 @@ class WebSocketService {
       onDisconnected!();
     }
 
-    // Don't schedule reconnect here - ConnectionService enables offline mode
-    // Reconnection will only happen when user explicitly disables offline mode
+    // Schedule reconnect for auto-offline mode (manual offline won't reconnect)
+    _scheduleReconnect();
   }
 
   // ============================================================================

@@ -74,8 +74,8 @@ class _MiniPlayerState extends State<MiniPlayer> {
           begin: Alignment.centerLeft,
           end: Alignment.centerRight,
           colors: [
-            colors.primary.withValues(alpha: 0.3),
-            colors.secondary.withValues(alpha: 0.2),
+            colors.primary.withValues(alpha: 0.75),
+            colors.secondary.withValues(alpha: 0.55),
             surfaceColor,
           ],
           stops: const [0.0, 0.5, 1.0],

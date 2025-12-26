@@ -15,6 +15,7 @@ import 'services/offline/offline_playback_service.dart';
 import 'services/download/download_manager.dart';
 import 'services/cache/cache_manager.dart';
 import 'services/stats/streaming_stats_service.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 
 // Global audio handler instance - accessible throughout the app
 // Nullable because initialization might fail on some devices
@@ -95,12 +96,15 @@ class _MyAppState extends State<MyApp> {
   bool _isLoading = true;
   Widget? _initialScreen;
   StreamSubscription<bool>? _connectionSubscription;
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
+  Timer? _networkDebounceTimer;
 
   @override
   void initState() {
     super.initState();
     _initializeAndDetermineScreen();
     _listenToConnectionChanges();
+    _listenToNetworkChanges();
   }
 
   /// Initialize services and determine initial screen (must be sequential)
@@ -125,6 +129,8 @@ class _MyAppState extends State<MyApp> {
   @override
   void dispose() {
     _connectionSubscription?.cancel();
+    _connectivitySubscription?.cancel();
+    _networkDebounceTimer?.cancel();
     super.dispose();
   }
 
@@ -151,6 +157,41 @@ class _MyAppState extends State<MyApp> {
         }
       },
     );
+  }
+
+  /// Listen for network connectivity changes
+  void _listenToNetworkChanges() {
+    _connectivitySubscription = Connectivity().onConnectivityChanged.listen(
+      (List<ConnectivityResult> results) {
+        // Debounce rapid network transitions (WiFi ↔ cellular)
+        _networkDebounceTimer?.cancel();
+        _networkDebounceTimer = Timer(const Duration(milliseconds: 500), () {
+          _handleNetworkChange(results);
+        });
+      },
+    );
+  }
+
+  /// Handle network connectivity change
+  void _handleNetworkChange(List<ConnectivityResult> results) {
+    // Check if we have any network connectivity
+    final hasNetwork = results.any((result) =>
+      result == ConnectivityResult.wifi ||
+      result == ConnectivityResult.mobile ||
+      result == ConnectivityResult.ethernet
+    );
+
+    print('Network change detected: $results (hasNetwork: $hasNetwork)');
+
+    if (hasNetwork) {
+      // Network became available - try reconnection if needed
+      if (!_connectionService.isConnected &&
+          _connectionService.hasServerInfo &&
+          !_offlineService.isManualOfflineModeEnabled) {
+        print('Network available and not connected - attempting reconnection...');
+        _connectionService.tryRestoreConnection();
+      }
+    }
   }
 
   Future<void> _determineInitialScreen() async {

@@ -25,7 +25,7 @@ class WelcomeScreen extends StatelessWidget {
 
                     // App Name
                     Text(
-                      'Basic Music App',
+                      'Ariami',
                       style: TextStyle(
                         fontSize: orientation == Orientation.portrait ? 32 : 28,
                         fontWeight: FontWeight.bold,
