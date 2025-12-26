@@ -8,7 +8,7 @@ A cross-platform personal music streaming system built with Flutter. Host your o
 ## App Photos
 
 <details>
-<summary>BMA CLI</summary>
+<summary>Ariami CLI</summary>
 
 <p align="center">
   <img src="app_photos/BMA%20CLI/terminal.png" alt="BMA CLI Terminal" width="45%">
@@ -18,7 +18,7 @@ A cross-platform personal music streaming system built with Flutter. Host your o
 </details>
 
 <details>
-<summary>BMA Desktop</summary>
+<summary>Ariami Desktop</summary>
 
 <p align="center">
   <img src="app_photos/BMA%20Desktop/main_1.png" alt="BMA Desktop Main 1" width="45%">
@@ -31,7 +31,7 @@ A cross-platform personal music streaming system built with Flutter. Host your o
 </details>
 
 <details>
-<summary>BMA Mobile</summary>
+<summary>Ariami Mobile</summary>
 
 ### Library
 
