@@ -1,215 +1,216 @@
 <div align="center">
   <img src="Arami_icon.png" alt="Ariami Logo" width="200"/>
   <h1>Ariami</h1>
+  <p><strong>Stream your music like Spotify. Except you own it.</strong></p>
 </div>
 
-A cross-platform personal music streaming system built with Flutter. Host your own music library and stream to your devices from anywhere using Tailscale for secure connectivity.
+Self-hosted music streaming that actually works. No subscription fees. No privacy concerns. No vendor lock-in.
 
-## App Photos
+Point your server at your music folder, scan a QR code on your phone, and you're streaming. Your entire library, anywhere you go.
 
-<details>
-<summary>Ariami CLI</summary>
-
-<p align="center">
-  <img src="app_photos/BMA%20CLI/terminal.png" alt="BMA CLI Terminal" width="45%">
-  <img src="app_photos/BMA%20CLI/dashboard.png" alt="BMA CLI Dashboard" width="45%">
-</p>
-
-</details>
-
-<details>
-<summary>Ariami Desktop</summary>
-
-<p align="center">
-  <img src="app_photos/BMA%20Desktop/main_1.png" alt="BMA Desktop Main 1" width="45%">
-  <img src="app_photos/BMA%20Desktop/main_2.png" alt="BMA Desktop Main 2" width="45%">
-</p>
-<p align="center">
-  <img src="app_photos/BMA%20Desktop/main_3.png" alt="BMA Desktop Main 3" width="45%">
-</p>
-
-</details>
-
-<details>
-<summary>Ariami Mobile</summary>
-
-### Library
-
-<p align="center">
-  <img src="app_photos/BMA%20Mobile/library_1.png" alt="BMA Mobile Library 1" width="45%">
-  <img src="app_photos/BMA%20Mobile/library_2.png" alt="BMA Mobile Library 2" width="45%">
-</p>
-<p align="center">
-  <img src="app_photos/BMA%20Mobile/library_3.png" alt="BMA Mobile Library 3" width="45%">
-  <img src="app_photos/BMA%20Mobile/library_4_offline.png" alt="BMA Mobile Library 4 Offline" width="45%">
-</p>
-<p align="center">
-  <img src="app_photos/BMA%20Mobile/library_5.png" alt="BMA Mobile Library 5" width="45%">
-  <img src="app_photos/BMA%20Mobile/library_6.png" alt="BMA Mobile Library 6" width="45%">
-</p>
-
-### Main Player
-
-<p align="center">
-  <img src="app_photos/BMA%20Mobile/main_player_1.png" alt="BMA Mobile Main Player 1" width="45%">
-</p>
-
-### Queue
-
-<p align="center">
-  <img src="app_photos/BMA%20Mobile/queue_1.png" alt="BMA Mobile Queue 1" width="45%">
-</p>
-
-### Search
-
-<p align="center">
-  <img src="app_photos/BMA%20Mobile/search_1.png" alt="BMA Mobile Search 1" width="45%">
-  <img src="app_photos/BMA%20Mobile/search_2.png" alt="BMA Mobile Search 2" width="45%">
-</p>
-
-### Settings
-
-<p align="center">
-  <img src="app_photos/BMA%20Mobile/settings_1_connected.png" alt="BMA Mobile Settings 1 Connected" width="45%">
-  <img src="app_photos/BMA%20Mobile/settings_2_disconnected.png" alt="BMA Mobile Settings 2 Disconnected" width="45%">
-</p>
-<p align="center">
-  <img src="app_photos/BMA%20Mobile/settings_3.png" alt="BMA Mobile Settings 3" width="45%">
-</p>
-
-### Streaming Stats
-
-<p align="center">
-  <img src="app_photos/BMA%20Mobile/streaming_stats_1.png" alt="BMA Mobile Streaming Stats 1" width="45%">
-  <img src="app_photos/BMA%20Mobile/streaming_stats_2.png" alt="BMA Mobile Streaming Stats 2" width="45%">
-</p>
-
-### Downloads
-
-<p align="center">
-  <img src="app_photos/BMA%20Mobile/downloads_1.png" alt="BMA Mobile Downloads 1" width="45%">
-  <img src="app_photos/BMA%20Mobile/downloads_2.png" alt="BMA Mobile Downloads 2" width="45%">
-</p>
-<p align="center">
-  <img src="app_photos/BMA%20Mobile/downloads_3.png" alt="BMA Mobile Downloads 3" width="45%">
-</p>
-
-</details>
-
-## Architecture
-
-Ariami consists of three components that work together:
-
-- **ariami_desktop** - GUI server (macOS, Linux, Windows) with system tray integration
-- **ariami_cli** - Headless server with web UI for servers and Raspberry Pi
-- **ariami_mobile** - Mobile client (Android, iOS) for browsing and streaming
-- **ariami_core** - Shared platform-agnostic core library
+---
 
 ## Quick Start
 
+1. **Download** - Get the [server app](../../releases) for your platform (Desktop GUI or CLI for servers)
+2. **Install Tailscale** - Free secure networking ([tailscale.com](https://tailscale.com))
+3. **Point to music** - Select your music folder, server auto-indexes everything
+4. **Install mobile app** - Download from [releases](../../releases)
+5. **Scan QR code** - Connect instantly, start streaming
+
+No port forwarding. No reverse proxy. No nginx configs. Just music.
+
+---
+
+## Why Use This?
+
+**You already own the music.** Whether it's ripped CDs, Bandcamp purchases, or DRM-free downloads, you paid for it. Why pay again monthly to stream it?
+
+**Runs on a Raspberry Pi.** $50 hardware, one-time cost. Put it in a closet and forget about it. Supports Pi 3 or newer.
+
+**Actually works offline.** Download songs to your phone. Airplane mode? Subway? Works the same. Play counts and stats sync when you reconnect.
+
+**Doesn't touch your files.** Read-only access. Your music library stays exactly as it is. No database corruption, no file modifications.
+
+**Zero compromises on features:**
+- Background playback with lock screen controls
+- Gapless playback and crossfade
+- Smart playlists and queue management
+- Download albums for offline listening
+- Streaming stats (play counts, listening time)
+- Multi-device support (iOS, Android, macOS, Windows, Linux)
+
+---
+
+## Key Features
+
+### Server (Desktop & CLI)
+- **Auto-indexing** - Scans MP3, FLAC, M4A, OGG, WAV, AIFF, and more
+- **Smart album grouping** - Handles compilations and multi-disc albums correctly
+- **Live library updates** - Add files to your folder, they appear instantly
+- **Tailscale integration** - Secure remote access without exposing ports
+- **Lightweight** - Runs on Raspberry Pi 3+ without breaking a sweat
+
+### Mobile (iOS & Android)
+- **Offline mode** - Downloads don't expire, no check-ins required
+- **Smart caching** - Frequently played songs and artwork cached automatically
+- **Queue management** - Drag to reorder, shuffle, repeat modes
+- **Search** - Fast search across your entire library
+- **Background playback** - OS-native lock screen controls and notifications
+
+---
+
+## Screenshots
+
+<details>
+<summary>Mobile App</summary>
+
+### Library & Player
+<p align="center">
+  <img src="app_photos/BMA%20Mobile/library_1.png" alt="Library View" width="30%">
+  <img src="app_photos/BMA%20Mobile/main_player_1.png" alt="Player" width="30%">
+  <img src="app_photos/BMA%20Mobile/queue_1.png" alt="Queue" width="30%">
+</p>
+
+### Search & Downloads
+<p align="center">
+  <img src="app_photos/BMA%20Mobile/search_1.png" alt="Search" width="30%">
+  <img src="app_photos/BMA%20Mobile/downloads_1.png" alt="Downloads" width="30%">
+  <img src="app_photos/BMA%20Mobile/streaming_stats_1.png" alt="Stats" width="30%">
+</p>
+
+### Offline Mode
+<p align="center">
+  <img src="app_photos/BMA%20Mobile/library_4_offline.png" alt="Offline Library" width="30%">
+</p>
+
+</details>
+
+<details>
+<summary>Desktop App</summary>
+
+<p align="center">
+  <img src="app_photos/BMA%20Desktop/main_1.png" alt="Desktop Main" width="45%">
+  <img src="app_photos/BMA%20Desktop/main_2.png" alt="Desktop Dashboard" width="45%">
+</p>
+
+</details>
+
+<details>
+<summary>CLI (Web Interface)</summary>
+
+<p align="center">
+  <img src="app_photos/BMA%20CLI/dashboard.png" alt="CLI Dashboard" width="45%">
+  <img src="app_photos/BMA%20CLI/terminal.png" alt="CLI Terminal" width="45%">
+</p>
+
+</details>
+
+---
+
+## Raspberry Pi Deployment
+
+Perfect for a Pi 3 or newer sitting in your closet:
+
 ```bash
-# Install dependencies
+# Install on Raspberry Pi
+curl -O [release-url]/ariami_cli
+chmod +x ariami_cli
+./ariami_cli start
+
+# Web interface opens automatically
+# Scan QR code on phone, done
+```
+
+The CLI runs as a background daemon. Automatic restart on boot, graceful shutdown handling, web-based configuration.
+
+**Hardware requirements:**
+- Raspberry Pi 3 or newer (Pi 4 recommended)
+- SD card with Raspberry Pi OS
+- External drive for music (USB works fine)
+
+---
+
+## Architecture
+
+Ariami has four components:
+
+- **ariami_core** - Shared Dart library (music indexing, HTTP server, streaming)
+- **ariami_desktop** - GUI server for macOS/Windows/Linux with system tray
+- **ariami_cli** - Headless server for Linux servers and Raspberry Pi
+- **ariami_mobile** - iOS/Android client app
+
+Single Flutter codebase across all platforms. The server components use `ariami_core` for the heavy lifting (library scanning, HTTP/WebSocket APIs, audio streaming with range request support).
+
+---
+
+## Installation
+
+### Server
+
+**Desktop (GUI):**
+Download from [releases](../../releases) for your platform (macOS, Windows, Linux).
+
+**CLI (Raspberry Pi / Servers):**
+```bash
+# Download and compile
+git clone https://github.com/alexuae-ua/ariami.git
+cd ariami/ariami_cli
+flutter build web -t lib/web/main.dart
+dart compile exe bin/ariami_cli.dart -o ariami_cli
+
+# Run
+./ariami_cli start
+```
+
+### Mobile
+
+Download from [releases](../../releases) or build from source:
+
+```bash
+cd ariami_mobile
+flutter build apk        # Android
+flutter build ios        # iOS
+```
+
+---
+
+## Development
+
+**Requirements:**
+- Dart SDK: ^3.9.2
+- Flutter: Latest stable
+
+**Setup:**
+```bash
+# Get dependencies
 cd ariami_core && dart pub get && cd ..
 cd ariami_mobile && flutter pub get && cd ..
 cd ariami_desktop && flutter pub get && cd ..
 cd ariami_cli && flutter pub get && cd ..
 
-# Run desktop server (GUI)
+# Run desktop server
 cd ariami_desktop && flutter run -d macos
-
-# Or run CLI server (headless)
-cd ariami_cli
-flutter build web -t lib/web/main.dart
-dart run bin/ariami_cli.dart start
 
 # Run mobile app
 cd ariami_mobile && flutter run
 ```
 
-## Features
+See [GUIDE.md](GUIDE.md) for detailed development documentation.
 
-### Server (Desktop & CLI)
-
-**Library Management:**
-- Automatic scanning with metadata extraction (MP3, M4A, FLAC, OGG, WAV, AIFF, more)
-- Album categorization with compilation detection
-- Duplicate filtering based on file hash and metadata
-- Real-time folder monitoring for automatic updates
-- Pure Dart MP3 duration parser (handles large embedded artwork)
-
-**Streaming & Connectivity:**
-- HTTP audio streaming with range request support for seeking
-- WebSocket support for real-time updates
-- QR code generation for easy mobile pairing
-- Tailscale integration for secure remote access
-- Session-based connection management
-
-**CLI-Specific:**
-- Background daemon mode for headless operation
-- Automatic transition to background after first-time setup
-- Web-based setup interface
-- Process management (start, stop, status commands)
-- Custom port configuration
-
-**Desktop-Specific:**
-- System tray integration with background operation
-- Dynamic dock icon control (macOS)
-- GUI-based setup and configuration
-
-### Mobile
-
-**Connectivity:**
-- QR code scanning to connect to server
-- Automatic connection management with heartbeat
-- Tailscale support for secure remote connections
-- Automatic offline mode detection
-
-**Library & Playback:**
-- Library browsing (albums, songs, playlists)
-- Advanced search with ranking (exact, prefix, substring matching)
-- Audio streaming with background playback support
-- Full playback controls (play/pause, skip, shuffle, repeat)
-- Queue management with drag-to-reorder
-
-**Offline & Storage:**
-- Download songs and albums for offline playback
-- Smart caching with LRU eviction for artwork and frequently played songs
-- SQLite database for downloads, cache, and statistics
-- Streaming statistics (play counts, total listening time)
-
-**UI:**
-- Mini player and full-screen player views
-- Album detail views with track listings
-- Playlist management (create, edit, reorder, delete)
+---
 
 ## Tech Stack
 
-- **Frontend**: Flutter for cross-platform UI (mobile, desktop, web)
-- **Backend**: Shelf HTTP server framework with REST API and WebSocket support
-- **Audio**: just_audio and audio_service for mobile playback with background support
-- **Metadata**: dart_tags for ID3/Vorbis tag extraction
-- **Networking**: Tailscale for secure device-to-device connectivity
-- **Storage**: SQLite (mobile), SharedPreferences (all platforms)
-- **File Monitoring**: watcher package for real-time library updates
+- **Flutter** - Cross-platform UI (iOS, Android, macOS, Windows, Linux, Web)
+- **Shelf** - HTTP server with REST APIs and WebSocket support
+- **just_audio** - Mobile audio playback with background support
+- **dart_tags** - Metadata extraction (ID3/Vorbis tags)
+- **Tailscale** - Secure device-to-device networking
+- **SQLite** - Mobile storage (cache, downloads, stats)
 
-## Project Structure
+---
 
-```
-Ariami/
-├── ariami_core/       # Shared platform-agnostic library (Dart package)
-│   ├── services/      # Library management, HTTP server, streaming
-│   └── models/        # Shared data models
-├── ariami_desktop/    # GUI server app (Flutter)
-├── ariami_cli/        # Headless server app (Flutter + Dart CLI)
-│   ├── bin/           # CLI entry point
-│   └── lib/web/       # Flutter web setup UI
-├── ariami_mobile/     # Mobile client app (Flutter)
-└── context/           # Development documentation
+## License
 
-```
-
-## Requirements
-
-- Dart SDK: ^3.9.2
-- Flutter: Latest stable version
-- For CLI deployment: Linux, macOS, or Windows (supports Raspberry Pi)
+MIT License - See [LICENSE](LICENSE) for details.
