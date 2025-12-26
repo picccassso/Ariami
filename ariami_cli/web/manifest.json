@@ -1,0 +1,11 @@
+{
+  "name": "Ariami CLI",
+  "short_name": "Ariami CLI",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "description": "Ariami - Music streaming server command line interface",
+  "orientation": "portrait-primary",
+  "prefer_related_applications": false
+}
