@@ -10,13 +10,26 @@ import '../../services/download/download_manager.dart';
 import '../../widgets/common/cached_artwork.dart';
 import 'add_to_playlist_screen.dart';
 
-/// Helper to convert SongModel to Song with required placeholder values
-Song _songModelToSong(SongModel s) {
+/// Helper to convert SongModel to Song with album info lookup
+/// Uses album info map to populate album name and artist
+Song _songModelToSong(SongModel s, Map<String, ({String name, String artist})> albumInfoMap) {
+  String? albumName;
+  String? albumArtist;
+
+  // Lookup album info if song has albumId
+  if (s.albumId != null && albumInfoMap.containsKey(s.albumId)) {
+    final albumInfo = albumInfoMap[s.albumId]!;
+    albumName = albumInfo.name;
+    albumArtist = albumInfo.artist;
+  }
+
   return Song(
     id: s.id,
     title: s.title,
     artist: s.artist,
+    album: albumName,
     albumId: s.albumId,
+    albumArtist: albumArtist,
     duration: Duration(seconds: s.duration),
     trackNumber: s.trackNumber,
     filePath: s.id, // Use song ID as placeholder
@@ -51,6 +64,9 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   String? _errorMessage;
   bool _isReorderMode = false;
   Set<String> _downloadedSongIds = {};
+
+  // Map of albumId to album info (name, artist) for stats tracking
+  final Map<String, ({String name, String artist})> _albumInfoMap = {};
 
   @override
   void initState() {
@@ -169,6 +185,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   /// Resolve song IDs to SongModel objects
   /// When offline, builds from downloaded song metadata
   /// When online, fetches from server
+  /// Also populates _albumInfoMap for stats tracking
   Future<List<SongModel>> _resolveSongs(List<String> songIds) async {
     if (songIds.isEmpty) {
       return [];
@@ -191,11 +208,15 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
         allSongs[song.id] = song;
       }
 
-      // Get songs from each album
+      // Get songs from each album and build album info map
       for (final album in library.albums) {
         try {
           final albumDetail =
               await _connectionService.apiClient!.getAlbumDetail(album.id);
+
+          // Store album info for stats tracking
+          _albumInfoMap[album.id] = (name: album.title, artist: album.artist);
+
           for (final song in albumDetail.songs) {
             allSongs[song.id] = song;
           }
@@ -282,7 +303,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
       return;
     }
 
-    final songs = songsToPlay.map(_songModelToSong).toList();
+    final songs = songsToPlay.map((s) => _songModelToSong(s, _albumInfoMap)).toList();
     await _playbackManager.playSongs(songs, startIndex: 0);
   }
 
@@ -308,7 +329,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
       return;
     }
 
-    final songs = songsToPlay.map(_songModelToSong).toList();
+    final songs = songsToPlay.map((s) => _songModelToSong(s, _albumInfoMap)).toList();
     await _playbackManager.playShuffled(songs);
   }
 
@@ -329,7 +350,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
       startIndex = index;
     }
 
-    final songs = songsToPlay.map(_songModelToSong).toList();
+    final songs = songsToPlay.map((s) => _songModelToSong(s, _albumInfoMap)).toList();
     await _playbackManager.playSongs(songs, startIndex: startIndex);
   }
 

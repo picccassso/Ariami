@@ -1,10 +1,10 @@
-# BMA Setup Guide
+# Ariami Setup Guide
 
-Welcome to **BMA (Basic Music App)** - a cross-platform personal music streaming system.
+Welcome to **Ariami** - a cross-platform personal music streaming system.
 
-## What is BMA?
+## What is Ariami?
 
-BMA lets you stream your personal music library from a server (your desktop or a headless server) to your mobile device. It consists of:
+Ariami lets you stream your personal music library from a server (your desktop or a headless server) to your mobile device. It consists of:
 
 - **Desktop App** - A GUI server for macOS, Linux, or Windows
 - **CLI App** - A headless server for Raspberry Pi or remote servers
@@ -15,11 +15,11 @@ BMA lets you stream your personal music library from a server (your desktop or a
 
 Before you begin, ensure you have:
 
-- **Dart SDK**: Version 3.9.2 or higher
+- **Dart SDK**: Version 3.5.0 or higher
   - Download from: https://dart.dev/get-dart
   - Verify installation: `dart --version`
 
-- **Flutter SDK**: Latest stable version
+- **Flutter SDK**: Latest stable version (currently 3.29.2)
   - Download from: https://flutter.dev/docs/get-started/install
   - Verify installation: `flutter --version`
 
@@ -44,7 +44,7 @@ Before you begin, ensure you have:
 ### 1. Clone or Navigate to the Project
 
 ```bash
-cd /path/to/BMA
+cd /path/to/Ariami
 ```
 
 ### 2. Install Dependencies
@@ -53,16 +53,16 @@ Run these commands from the project root to set up all packages:
 
 ```bash
 # Core library (required by desktop and CLI)
-cd bma_core && dart pub get && cd ..
+cd ariami_core && dart pub get && cd ..
 
 # Mobile app
-cd bma_mobile && flutter pub get && cd ..
+cd ariami_mobile && flutter pub get && cd ..
 
 # Desktop app
-cd bma_desktop && flutter pub get && cd ..
+cd ariami_desktop && flutter pub get && cd ..
 
 # CLI app
-cd bma_cli && flutter pub get && cd ..
+cd ariami_cli && flutter pub get && cd ..
 ```
 
 ### 3. Verify Your Setup
@@ -82,7 +82,7 @@ You should see available devices/emulators listed.
 The desktop app provides a GUI for your music server.
 
 ```bash
-cd bma_desktop
+cd ariami_desktop
 
 # On macOS
 flutter run -d macos
@@ -105,13 +105,13 @@ flutter run -d windows
 The CLI app is ideal for headless servers or Raspberry Pi.
 
 ```bash
-cd bma_cli
+cd ariami_cli
 
 # Build the web UI (required first time)
 flutter build web -t lib/web/main.dart
 
 # Start the server
-dart run bin/bma_cli.dart start
+dart run bin/ariami_cli.dart start
 ```
 
 **First-time setup:**
@@ -123,18 +123,18 @@ dart run bin/bma_cli.dart start
 
 **Subsequent runs:**
 ```bash
-dart run bin/bma_cli.dart start   # Runs in background
-dart run bin/bma_cli.dart status  # Check server status
-dart run bin/bma_cli.dart stop    # Stop the server
+dart run bin/ariami_cli.dart start   # Runs in background
+dart run bin/ariami_cli.dart status  # Check server status
+dart run bin/ariami_cli.dart stop    # Stop the server
 ```
 
 **Compile to executable (optional):**
 ```bash
-cd bma_cli
-dart compile exe bin/bma_cli.dart -o bma_cli
+cd ariami_cli
+dart compile exe bin/ariami_cli.dart -o ariami_cli
 
 # Now you can run it directly
-./bma_cli start
+./ariami_cli start
 ```
 
 ### Running the Mobile App
@@ -142,7 +142,7 @@ dart compile exe bin/bma_cli.dart -o bma_cli
 Once your server (desktop or CLI) is running:
 
 ```bash
-cd bma_mobile
+cd ariami_mobile
 
 # Run on connected device/emulator
 flutter run
@@ -164,14 +164,14 @@ flutter run -d <device-id>
 
 **Android APK:**
 ```bash
-cd bma_mobile
+cd ariami_mobile
 flutter build apk
 # Output: build/app/outputs/flutter-apk/app-release.apk
 ```
 
 **iOS:**
 ```bash
-cd bma_mobile
+cd ariami_mobile
 flutter build ios
 # Open in Xcode for signing and distribution
 ```
@@ -180,21 +180,21 @@ flutter build ios
 
 **macOS:**
 ```bash
-cd bma_desktop
+cd ariami_desktop
 flutter build macos
-# Output: build/macos/Build/Products/Release/bma_desktop.app
+# Output: build/macos/Build/Products/Release/ariami_desktop.app
 ```
 
 **Linux:**
 ```bash
-cd bma_desktop
+cd ariami_desktop
 flutter build linux
 # Output: build/linux/x64/release/bundle/
 ```
 
 **Windows:**
 ```bash
-cd bma_desktop
+cd ariami_desktop
 flutter build windows
 # Output: build/windows/x64/runner/Release/
 ```
@@ -202,17 +202,17 @@ flutter build windows
 ### CLI App
 
 ```bash
-cd bma_cli
+cd ariami_cli
 
 # Build web UI first
 flutter build web -t lib/web/main.dart
 
 # Compile to executable
-dart compile exe bin/bma_cli.dart -o bma_cli
+dart compile exe bin/ariami_cli.dart -o ariami_cli
 
 # Optional: Install globally
-sudo cp bma_cli /usr/local/bin/
-chmod +x /usr/local/bin/bma_cli
+sudo cp ariami_cli /usr/local/bin/
+chmod +x /usr/local/bin/ariami_cli
 ```
 
 ## Common Workflows
@@ -226,7 +226,7 @@ chmod +x /usr/local/bin/bma_cli
 3. **For code analysis**:
    ```bash
    flutter analyze  # In Flutter packages
-   dart analyze     # In bma_core
+   dart analyze     # In ariami_core
    ```
 
 ### Testing
@@ -234,11 +234,11 @@ chmod +x /usr/local/bin/bma_cli
 **Run all tests:**
 ```bash
 # In Flutter packages (mobile, desktop, CLI)
-cd bma_mobile  # or bma_desktop or bma_cli
+cd ariami_mobile  # or ariami_desktop or ariami_cli
 flutter test
 
 # In Dart package (core)
-cd bma_core
+cd ariami_core
 dart test
 ```
 
@@ -253,7 +253,7 @@ dart test test/library_test.dart
 If you encounter build issues:
 
 ```bash
-cd bma_mobile  # or any package
+cd ariami_mobile  # or any package
 flutter clean
 flutter pub get
 ```
@@ -261,24 +261,24 @@ flutter pub get
 ## Project Structure
 
 ```
-BMA/
-├── bma_core/          # Shared library logic
+Ariami/
+├── ariami_core/          # Shared library logic
 │   ├── lib/
 │   │   ├── services/  # Library & server services
 │   │   └── models/    # Data models
 │   └── test/
-├── bma_mobile/        # Mobile client app
+├── ariami_mobile/        # Mobile client app
 │   ├── lib/
 │   │   ├── screens/   # UI screens
 │   │   ├── services/  # API, audio, cache, etc.
 │   │   └── widgets/   # Reusable components
 │   └── test/
-├── bma_desktop/       # Desktop server app
+├── ariami_desktop/       # Desktop server app
 │   ├── lib/
 │   │   ├── screens/   # Setup & dashboard UI
 │   │   └── services/  # Desktop-specific services
 │   └── test/
-└── bma_cli/           # CLI server app
+└── ariami_cli/           # CLI server app
     ├── bin/           # CLI entry point
     ├── lib/
     │   ├── commands/  # start, stop, status
@@ -294,7 +294,7 @@ BMA/
 ```bash
 # Clear pub cache and reinstall
 flutter pub cache clean
-cd bma_mobile && flutter pub get
+cd ariami_mobile && flutter pub get
 ```
 
 ### "No devices detected"
@@ -323,14 +323,14 @@ flutter doctor  # Check for issues
 
 ```bash
 # Ensure web UI is built
-cd bma_cli
+cd ariami_cli
 flutter build web -t lib/web/main.dart
 
 # Check for port conflicts
 lsof -i :8080  # See what's using port 8080
 
 # Try a different port
-dart run bin/bma_cli.dart start --port 8081
+dart run bin/ariami_cli.dart start --port 8081
 ```
 
 ### Mobile App Can't Connect to Server
@@ -338,7 +338,7 @@ dart run bin/bma_cli.dart start --port 8081
 1. **Check server is running**:
    ```bash
    # For CLI
-   dart run bin/bma_cli.dart status
+   dart run bin/ariami_cli.dart status
    ```
 
 2. **Verify network connectivity**:
@@ -358,8 +358,8 @@ dart run bin/bma_cli.dart start --port 8081
 
 1. **Check mobile logs**:
    ```bash
-   cd bma_mobile
-   flutter logs | grep "BMA:"
+   cd ariami_mobile
+   flutter logs | grep "Ariami:"
    ```
 
 2. **Verify permissions** - Storage and network access
@@ -372,20 +372,20 @@ dart run bin/bma_cli.dart start --port 8081
 
 **Mobile:**
 ```bash
-cd bma_mobile
+cd ariami_mobile
 flutter run -v  # Verbose logging
 ```
 
 **Desktop:**
 ```bash
-cd bma_desktop
+cd ariami_desktop
 flutter run -v -d macos  # or linux/windows
 ```
 
 **CLI:**
 ```bash
-cd bma_cli
-dart run bin/bma_cli.dart start  # Foreground mode to see logs
+cd ariami_cli
+dart run bin/ariami_cli.dart start  # Foreground mode to see logs
 ```
 
 ### Verify Installation
@@ -398,7 +398,7 @@ dart --version     # Check Dart version
 ### Check Dependencies
 
 ```bash
-cd bma_mobile  # or any package
+cd ariami_mobile  # or any package
 flutter pub outdated  # Check for outdated packages
 ```
 

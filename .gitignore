@@ -95,21 +95,21 @@ test/.test_coverage.dart
 .test_coverage.dart
 
 # CLI app specific
-bma_cli/build/
-bma_cli/.dart_tool/
+ariami_cli/build/
+ariami_cli/.dart_tool/
 
 # Desktop app specific
-bma_desktop/build/
-bma_desktop/.dart_tool/
+ariami_desktop/build/
+ariami_desktop/.dart_tool/
 
 # Mobile app specific
-bma_mobile/build/
-bma_mobile/.dart_tool/
-bma_mobile/android/app/google-services.json
+ariami_mobile/build/
+ariami_mobile/.dart_tool/
+ariami_mobile/android/app/google-services.json
 
 # Core library specific
-bma_core/build/
-bma_core/.dart_tool/
+ariami_core/build/
+ariami_core/.dart_tool/
 
 # Context folder - keep documentation but ignore temp files
 context/.DS_Store
@@ -128,7 +128,7 @@ Music/
 *.app
 
 # CLI daemon files
-.bma_cli/
+.ariami_cli/
 
 # Logs
 *.log

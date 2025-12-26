@@ -67,6 +67,9 @@ dependencies:
   # Color extraction from images
   palette_generator: ^0.3.3+4
 
+  # Network connectivity monitoring
+  connectivity_plus: ^6.1.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

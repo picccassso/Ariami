@@ -25,12 +25,12 @@ jobs:
 
       - name: Get dependencies
         run: |
-          cd bma_core && dart pub get
-          cd ../bma_desktop && flutter pub get
+          cd ariami_core && dart pub get
+          cd ../ariami_desktop && flutter pub get
 
       - name: Build macOS (Universal)
         run: |
-          cd bma_desktop
+          cd ariami_desktop
           flutter build macos --release
 
       - name: Install create-dmg
@@ -47,22 +47,22 @@ jobs:
 
       - name: Create DMG
         run: |
-          cd bma_desktop
+          cd ariami_desktop
           create-dmg \
-            --volname "BMA Desktop" \
+            --volname "Ariami-Desktop" \
             --window-pos 200 120 \
             --window-size 600 400 \
             --icon-size 100 \
-            --icon "BMA Desktop.app" 150 185 \
+            --icon "Ariami-Desktop.app" 150 185 \
             --app-drop-link 450 185 \
-            "BMA-Desktop-${{ steps.version.outputs.version }}-macos.dmg" \
-            "build/macos/Build/Products/Release/BMA Desktop.app"
+            "Ariami-Desktop-${{ steps.version.outputs.version }}-macos.dmg" \
+            "build/macos/Build/Products/Release/Ariami-Desktop.app"
 
       - name: Upload to Release
         if: github.event_name == 'release'
         uses: softprops/action-gh-release@v1
         with:
-          files: bma_desktop/BMA-Desktop-${{ steps.version.outputs.version }}-macos.dmg
+          files: ariami_desktop/Ariami-Desktop-${{ steps.version.outputs.version }}-macos.dmg
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -70,8 +70,8 @@ jobs:
         if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
-          name: BMA-Desktop-${{ steps.version.outputs.version }}-macos
-          path: bma_desktop/BMA-Desktop-${{ steps.version.outputs.version }}-macos.dmg
+          name: Ariami-Desktop-${{ steps.version.outputs.version }}-macos
+          path: ariami_desktop/Ariami-Desktop-${{ steps.version.outputs.version }}-macos.dmg
 
   build-windows:
     runs-on: windows-latest
@@ -87,12 +87,12 @@ jobs:
 
       - name: Get dependencies
         run: |
-          cd bma_core && dart pub get
-          cd ../bma_desktop && flutter pub get
+          cd ariami_core && dart pub get
+          cd ../ariami_desktop && flutter pub get
 
       - name: Build Windows
         run: |
-          cd bma_desktop
+          cd ariami_desktop
           flutter build windows --release
 
       - name: Get version
@@ -107,14 +107,14 @@ jobs:
 
       - name: Create ZIP
         run: |
-          cd bma_desktop/build/windows/x64/runner/Release
-          Compress-Archive -Path * -DestinationPath "../../../../../BMA-Desktop-${{ steps.version.outputs.version }}-windows.zip"
+          cd ariami_desktop/build/windows/x64/runner/Release
+          Compress-Archive -Path * -DestinationPath "../../../../../Ariami-Desktop-${{ steps.version.outputs.version }}-windows.zip"
 
       - name: Upload to Release
         if: github.event_name == 'release'
         uses: softprops/action-gh-release@v1
         with:
-          files: bma_desktop/BMA-Desktop-${{ steps.version.outputs.version }}-windows.zip
+          files: ariami_desktop/Ariami-Desktop-${{ steps.version.outputs.version }}-windows.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -122,8 +122,8 @@ jobs:
         if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
-          name: BMA-Desktop-${{ steps.version.outputs.version }}-windows
-          path: bma_desktop/BMA-Desktop-${{ steps.version.outputs.version }}-windows.zip
+          name: Ariami-Desktop-${{ steps.version.outputs.version }}-windows
+          path: ariami_desktop/Ariami-Desktop-${{ steps.version.outputs.version }}-windows.zip
 
   build-linux:
     runs-on: ubuntu-latest
@@ -144,12 +144,12 @@ jobs:
 
       - name: Get dependencies
         run: |
-          cd bma_core && dart pub get
-          cd ../bma_desktop && flutter pub get
+          cd ariami_core && dart pub get
+          cd ../ariami_desktop && flutter pub get
 
       - name: Build Linux
         run: |
-          cd bma_desktop
+          cd ariami_desktop
           flutter build linux --release
 
       - name: Get version
@@ -168,7 +168,7 @@ jobs:
 
       - name: Create AppImage
         run: |
-          cd bma_desktop
+          cd ariami_desktop
 
           # Create AppDir structure
           mkdir -p AppDir/usr/bin
@@ -180,26 +180,26 @@ jobs:
           cp -r build/linux/x64/release/bundle/* AppDir/usr/bin/
 
           # Create desktop file
-          cat > AppDir/usr/share/applications/bma-desktop.desktop << EOF
+          cat > AppDir/usr/share/applications/ariami-desktop.desktop << EOF
           [Desktop Entry]
-          Name=BMA Desktop
-          Exec=bma_desktop
-          Icon=bma-desktop
+          Name=Ariami-Desktop
+          Exec=ariami_desktop
+          Icon=ariami-desktop
           Type=Application
           Categories=AudioVideo;Audio;
           EOF
 
           # Copy desktop file to AppDir root (required by AppImage)
-          cp AppDir/usr/share/applications/bma-desktop.desktop AppDir/
+          cp AppDir/usr/share/applications/ariami-desktop.desktop AppDir/
 
           # Copy icon (use existing asset or create placeholder)
           if [ -f "assets/app_icon.png" ]; then
-            cp assets/app_icon.png AppDir/usr/share/icons/hicolor/256x256/apps/bma-desktop.png
-            cp assets/app_icon.png AppDir/bma-desktop.png
+            cp assets/app_icon.png AppDir/usr/share/icons/hicolor/256x256/apps/ariami-desktop.png
+            cp assets/app_icon.png AppDir/ariami-desktop.png
           else
             # Create a simple placeholder icon if none exists
-            convert -size 256x256 xc:navy AppDir/usr/share/icons/hicolor/256x256/apps/bma-desktop.png 2>/dev/null || true
-            convert -size 256x256 xc:navy AppDir/bma-desktop.png 2>/dev/null || true
+            convert -size 256x256 xc:navy AppDir/usr/share/icons/hicolor/256x256/apps/ariami-desktop.png 2>/dev/null || true
+            convert -size 256x256 xc:navy AppDir/ariami-desktop.png 2>/dev/null || true
           fi
 
           # Create AppRun
@@ -209,19 +209,19 @@ jobs:
           HERE=${SELF%/*}
           export PATH="${HERE}/usr/bin:${PATH}"
           export LD_LIBRARY_PATH="${HERE}/usr/lib:${HERE}/usr/bin/lib:${LD_LIBRARY_PATH}"
-          exec "${HERE}/usr/bin/bma_desktop" "$@"
+          exec "${HERE}/usr/bin/ariami_desktop" "$@"
           EOF
           chmod +x AppDir/AppRun
 
           # Build AppImage (use --appimage-extract-and-run to avoid FUSE requirement)
           cd ..
-          ARCH=x86_64 ./appimagetool --appimage-extract-and-run bma_desktop/AppDir "bma_desktop/BMA-Desktop-${{ steps.version.outputs.version }}-linux.AppImage"
+          ARCH=x86_64 ./appimagetool --appimage-extract-and-run ariami_desktop/AppDir "ariami_desktop/Ariami-Desktop-${{ steps.version.outputs.version }}-linux.AppImage"
 
       - name: Upload to Release
         if: github.event_name == 'release'
         uses: softprops/action-gh-release@v1
         with:
-          files: bma_desktop/BMA-Desktop-${{ steps.version.outputs.version }}-linux.AppImage
+          files: ariami_desktop/Ariami-Desktop-${{ steps.version.outputs.version }}-linux.AppImage
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -229,5 +229,5 @@ jobs:
         if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
-          name: BMA-Desktop-${{ steps.version.outputs.version }}-linux
-          path: bma_desktop/BMA-Desktop-${{ steps.version.outputs.version }}-linux.AppImage
+          name: Ariami-Desktop-${{ steps.version.outputs.version }}-linux
+          path: ariami_desktop/Ariami-Desktop-${{ steps.version.outputs.version }}-linux.AppImage
