@@ -1,6 +1,6 @@
 <div align="center">
-  <img src="BMA_icon.png" alt="BMA Logo" width="200"/>
-  <h1>BMA (Basic Music App)</h1>
+  <img src="Arami_icon.png" alt="Ariami Logo" width="200"/>
+  <h1>Ariami</h1>
 </div>
 
 A cross-platform personal music streaming system built with Flutter. Host your own music library and stream to your devices from anywhere using Tailscale for secure connectivity.
@@ -98,32 +98,32 @@ A cross-platform personal music streaming system built with Flutter. Host your o
 
 ## Architecture
 
-BMA consists of three components that work together:
+Ariami consists of three components that work together:
 
-- **bma_desktop** - GUI server (macOS, Linux, Windows) with system tray integration
-- **bma_cli** - Headless server with web UI for servers and Raspberry Pi
-- **bma_mobile** - Mobile client (Android, iOS) for browsing and streaming
-- **bma_core** - Shared platform-agnostic core library
+- **ariami_desktop** - GUI server (macOS, Linux, Windows) with system tray integration
+- **ariami_cli** - Headless server with web UI for servers and Raspberry Pi
+- **ariami_mobile** - Mobile client (Android, iOS) for browsing and streaming
+- **ariami_core** - Shared platform-agnostic core library
 
 ## Quick Start
 
 ```bash
 # Install dependencies
-cd bma_core && dart pub get && cd ..
-cd bma_mobile && flutter pub get && cd ..
-cd bma_desktop && flutter pub get && cd ..
-cd bma_cli && flutter pub get && cd ..
+cd ariami_core && dart pub get && cd ..
+cd ariami_mobile && flutter pub get && cd ..
+cd ariami_desktop && flutter pub get && cd ..
+cd ariami_cli && flutter pub get && cd ..
 
 # Run desktop server (GUI)
-cd bma_desktop && flutter run -d macos
+cd ariami_desktop && flutter run -d macos
 
 # Or run CLI server (headless)
-cd bma_cli
+cd ariami_cli
 flutter build web -t lib/web/main.dart
-dart run bin/bma_cli.dart start
+dart run bin/ariami_cli.dart start
 
 # Run mobile app
-cd bma_mobile && flutter run
+cd ariami_mobile && flutter run
 ```
 
 ## Features
@@ -195,15 +195,15 @@ cd bma_mobile && flutter run
 ## Project Structure
 
 ```
-BMA/
-├── bma_core/          # Shared platform-agnostic library (Dart package)
+Ariami/
+├── ariami_core/       # Shared platform-agnostic library (Dart package)
 │   ├── services/      # Library management, HTTP server, streaming
 │   └── models/        # Shared data models
-├── bma_desktop/       # GUI server app (Flutter)
-├── bma_cli/           # Headless server app (Flutter + Dart CLI)
+├── ariami_desktop/    # GUI server app (Flutter)
+├── ariami_cli/        # Headless server app (Flutter + Dart CLI)
 │   ├── bin/           # CLI entry point
 │   └── lib/web/       # Flutter web setup UI
-├── bma_mobile/        # Mobile client app (Flutter)
+├── ariami_mobile/     # Mobile client app (Flutter)
 └── context/           # Development documentation
 
 ```
