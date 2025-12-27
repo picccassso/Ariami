@@ -358,14 +358,75 @@ class StreamingStatsService extends ChangeNotifier {
     return (totalSongsPlayed: totalSongs, totalTimeStreamed: totalTime);
   }
 
-  /// Get average daily listening time (computed from in-memory cache)
-  Duration getAverageDailyTime() {
-    final stats = getTotalStats();  // Uses in-memory cache, instant
-    if (stats.totalSongsPlayed == 0) return Duration.zero;
+  /// Get average daily listening time
+  /// Returns both calendar-day average and active-day average
+  ({Duration perCalendarDay, Duration perActiveDay, int activeDays}) getAverageDailyTime() {
+    final stats = getTotalStats();
+    if (stats.totalSongsPlayed == 0) {
+      return (
+        perCalendarDay: Duration.zero,
+        perActiveDay: Duration.zero,
+        activeDays: 0,
+      );
+    }
 
-    // Estimate daily average based on total time and assumed listening days
-    // Simple approach: assume 30 days of activity
-    return Duration(seconds: stats.totalTimeStreamed.inSeconds ~/ 30);
+    // Get all stats to calculate date range and active days from cache
+    final allStats = getAllStats();
+    if (allStats.isEmpty) {
+      return (
+        perCalendarDay: Duration.zero,
+        perActiveDay: Duration.zero,
+        activeDays: 0,
+      );
+    }
+
+    // Calculate date range from in-memory cache
+    DateTime? firstPlayed;
+    DateTime? lastPlayed;
+    final Set<String> uniqueDates = {};
+
+    for (final stat in allStats) {
+      if (stat.firstPlayed != null) {
+        if (firstPlayed == null || stat.firstPlayed!.isBefore(firstPlayed)) {
+          firstPlayed = stat.firstPlayed;
+        }
+      }
+      if (stat.lastPlayed != null) {
+        if (lastPlayed == null || stat.lastPlayed!.isAfter(lastPlayed)) {
+          lastPlayed = stat.lastPlayed;
+        }
+        // Track unique dates for active days count
+        final dateKey = '${stat.lastPlayed!.year}-${stat.lastPlayed!.month}-${stat.lastPlayed!.day}';
+        uniqueDates.add(dateKey);
+      }
+    }
+
+    // Fallback if no date data
+    if (firstPlayed == null || lastPlayed == null) {
+      return (
+        perCalendarDay: Duration.zero,
+        perActiveDay: Duration.zero,
+        activeDays: 0,
+      );
+    }
+
+    // Calculate calendar days average (Option 1)
+    final daysSinceStart = lastPlayed.difference(firstPlayed).inDays + 1;
+    final perCalendarDay = daysSinceStart > 0
+        ? Duration(seconds: (stats.totalTimeStreamed.inSeconds / daysSinceStart).round())
+        : stats.totalTimeStreamed;
+
+    // Calculate active days average (Option 2)
+    final activeDaysCount = uniqueDates.length;
+    final perActiveDay = activeDaysCount > 0
+        ? Duration(seconds: (stats.totalTimeStreamed.inSeconds / activeDaysCount).round())
+        : Duration.zero;
+
+    return (
+      perCalendarDay: perCalendarDay,
+      perActiveDay: perActiveDay,
+      activeDays: activeDaysCount,
+    );
   }
 
   /// Reset all statistics

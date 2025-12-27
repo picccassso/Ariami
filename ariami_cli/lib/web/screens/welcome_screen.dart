@@ -68,7 +68,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
             ),
             const SizedBox(height: 24),
             const Text(
-              'Basic Music App',
+              'Ariami',
               style: TextStyle(
                 fontSize: 32,
                 fontWeight: FontWeight.bold,
