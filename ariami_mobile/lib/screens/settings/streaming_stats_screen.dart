@@ -105,43 +105,43 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
         switch (_currentTabIndex) {
           case 0: // Tracks
             final stats = _statsService.getTotalStats();
-            final avgDaily = _statsService.getAverageDailyTime();
+            final avgData = _statsService.getAverageDailyTime();
             metric1Label = 'Songs Played';
             metric1Value = stats.totalSongsPlayed.toString();
             metric2Label = 'Total Time';
             metric2Value = _formatDuration(stats.totalTimeStreamed);
             metric3Label = 'Daily Avg';
-            metric3Value = _formatDuration(avgDaily);
+            metric3Value = _formatDuration(avgData.perCalendarDay);
             break;
 
           case 1: // Artists
+            final avgData = _statsService.getAverageDailyTime();
             final artists = _statsService.getTopArtists(limit: 1000);
             final totalTime = artists.fold<Duration>(
               Duration.zero,
               (sum, artist) => sum + artist.totalTime,
             );
-            final avgDaily = Duration(seconds: totalTime.inSeconds ~/ 30);
             metric1Label = 'Artists Played';
             metric1Value = artists.length.toString();
             metric2Label = 'Total Time';
             metric2Value = _formatDuration(totalTime);
             metric3Label = 'Daily Avg';
-            metric3Value = _formatDuration(avgDaily);
+            metric3Value = _formatDuration(avgData.perCalendarDay);
             break;
 
           case 2: // Albums
+            final avgData = _statsService.getAverageDailyTime();
             final albums = _statsService.getTopAlbums(limit: 1000);
             final totalTime = albums.fold<Duration>(
               Duration.zero,
               (sum, album) => sum + album.totalTime,
             );
-            final avgDaily = Duration(seconds: totalTime.inSeconds ~/ 30);
             metric1Label = 'Albums Played';
             metric1Value = albums.length.toString();
             metric2Label = 'Total Time';
             metric2Value = _formatDuration(totalTime);
             metric3Label = 'Daily Avg';
-            metric3Value = _formatDuration(avgDaily);
+            metric3Value = _formatDuration(avgData.perCalendarDay);
             break;
 
           default:
@@ -174,7 +174,13 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
                     children: [
                       _buildStatItem(label: metric1Label, value: metric1Value),
                       _buildStatItem(label: metric2Label, value: metric2Value),
-                      _buildStatItem(label: metric3Label, value: metric3Value),
+                      _buildStatItem(
+                        label: metric3Label,
+                        value: metric3Value,
+                        secondaryValue: _currentTabIndex == 0
+                            ? _getSecondaryAvgText()
+                            : null,
+                      ),
                     ],
                   ),
                 ],
@@ -187,7 +193,11 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
   }
 
   /// Build a single stat item in the grid
-  Widget _buildStatItem({required String label, required String value}) {
+  Widget _buildStatItem({
+    required String label,
+    required String value,
+    String? secondaryValue,
+  }) {
     return Column(
       children: [
         Text(
@@ -206,6 +216,18 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
             color: Colors.grey[600],
           ),
         ),
+        if (secondaryValue != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            secondaryValue,
+            style: TextStyle(
+              fontSize: 10,
+              color: Colors.grey[500],
+              fontStyle: FontStyle.italic,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
       ],
     );
   }
@@ -654,6 +676,14 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
     } else {
       return '${minutes}m';
     }
+  }
+
+  /// Get secondary average text showing active days metric
+  String? _getSecondaryAvgText() {
+    final avgData = _statsService.getAverageDailyTime();
+    if (avgData.activeDays == 0) return null;
+
+    return '${_formatDuration(avgData.perActiveDay)} on active days (${avgData.activeDays})';
   }
 
   /// Show reset confirmation dialog
