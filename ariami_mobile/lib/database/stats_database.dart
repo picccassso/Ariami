@@ -224,13 +224,73 @@ class StatsDatabase {
     }
   }
 
-  /// Get average listening time per day (estimated over 30 days)
+  /// Get average listening time per day (calendar days since first use)
   Future<Duration> getAverageDailyTime() async {
     final total = await getTotalStats();
     if (total.totalSongsPlayed == 0) return Duration.zero;
 
-    // Simple approach: assume 30 days of activity
-    return Duration(seconds: total.totalTimeStreamed.inSeconds ~/ 30);
+    final dateRange = await getDateRange();
+    if (dateRange.firstPlayed == null || dateRange.lastPlayed == null) {
+      // Fallback: no date data available
+      return Duration.zero;
+    }
+
+    // Calculate days between first and last play (inclusive)
+    final daysSinceStart = dateRange.lastPlayed!.difference(dateRange.firstPlayed!).inDays + 1;
+
+    // Prevent division by zero
+    if (daysSinceStart <= 0) return total.totalTimeStreamed;
+
+    // Use regular division for precision, round to nearest second
+    final avgSeconds = (total.totalTimeStreamed.inSeconds / daysSinceStart).round();
+    return Duration(seconds: avgSeconds);
+  }
+
+  /// Get date range of listening activity (earliest to latest play)
+  Future<({DateTime? firstPlayed, DateTime? lastPlayed})> getDateRange() async {
+    final db = await database;
+
+    try {
+      final result = await db.rawQuery('''
+        SELECT
+          MIN(first_played) as earliest,
+          MAX(last_played) as latest
+        FROM $_tableName
+        WHERE play_count > 0 AND first_played IS NOT NULL AND last_played IS NOT NULL
+      ''');
+
+      if (result.isEmpty || result.first['earliest'] == null) {
+        return (firstPlayed: null, lastPlayed: null);
+      }
+
+      final row = result.first;
+      return (
+        firstPlayed: DateTime.fromMillisecondsSinceEpoch(row['earliest'] as int),
+        lastPlayed: DateTime.fromMillisecondsSinceEpoch(row['latest'] as int),
+      );
+    } catch (e) {
+      print('Error getting date range: $e');
+      return (firstPlayed: null, lastPlayed: null);
+    }
+  }
+
+  /// Count number of unique days where music was played
+  Future<int> getActiveDaysCount() async {
+    final db = await database;
+
+    try {
+      final result = await db.rawQuery('''
+        SELECT COUNT(DISTINCT DATE(last_played / 1000, 'unixepoch')) as active_days
+        FROM $_tableName
+        WHERE play_count > 0 AND last_played IS NOT NULL
+      ''');
+
+      if (result.isEmpty) return 0;
+      return result.first['active_days'] as int? ?? 0;
+    } catch (e) {
+      print('Error counting active days: $e');
+      return 0;
+    }
   }
 
   /// Reset all statistics (delete all records)

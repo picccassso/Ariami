@@ -65,23 +65,65 @@ No port forwarding. No reverse proxy. No nginx configs. Just music.
 <details>
 <summary>Mobile App</summary>
 
-### Library & Player
+### Library View
 <p align="center">
-  <img src="app_photos/BMA%20Mobile/library_1.png" alt="Library View" width="30%">
-  <img src="app_photos/BMA%20Mobile/main_player_1.png" alt="Player" width="30%">
-  <img src="app_photos/BMA%20Mobile/queue_1.png" alt="Queue" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/library_view.png" alt="Library View" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/library_view_2.png" alt="Library View 2" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/library_view_3.png" alt="Library View 3" width="30%">
 </p>
 
-### Search & Downloads
+### Album Playlist View
 <p align="center">
-  <img src="app_photos/BMA%20Mobile/search_1.png" alt="Search" width="30%">
-  <img src="app_photos/BMA%20Mobile/downloads_1.png" alt="Downloads" width="30%">
-  <img src="app_photos/BMA%20Mobile/streaming_stats_1.png" alt="Stats" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/album_playlist_view_1.png" alt="Album Playlist 1" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/album_playlist_view_2.png" alt="Album Playlist 2" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/album_playlist_view_3.png" alt="Album Playlist 3" width="30%">
+</p>
+
+### Main Player View
+<p align="center">
+  <img src="app%20photos/Ariami%20Mobile/main_player_1.png" alt="Main Player 1" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/main_player_2.png" alt="Main Player 2" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/main_player_3.png" alt="Main Player 3" width="30%">
+</p>
+
+### Queue View
+<p align="center">
+  <img src="app%20photos/Ariami%20Mobile/queue_view_1.png" alt="Queue View" width="30%">
+</p>
+
+### Search View
+<p align="center">
+  <img src="app%20photos/Ariami%20Mobile/search_view_1.png" alt="Search View" width="30%">
 </p>
 
 ### Offline Mode
 <p align="center">
-  <img src="app_photos/BMA%20Mobile/library_4_offline.png" alt="Offline Library" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/offline_mode_1.png" alt="Offline Mode 1" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/offline_mode_2.png" alt="Offline Mode 2" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/offline_mode_3.png" alt="Offline Mode 3" width="30%">
+</p>
+
+### Settings View
+<p align="center">
+  <img src="app%20photos/Ariami%20Mobile/settings_view_1.png" alt="Settings 1" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/settings_view_2.png" alt="Settings 2" width="30%">
+</p>
+
+### Streaming Stats View
+<p align="center">
+  <img src="app%20photos/Ariami%20Mobile/streaming_stats_view_1.png" alt="Streaming Stats 1" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/streaming_stats_view_2.png" alt="Streaming Stats 2" width="30%">
+</p>
+
+### Downloads View
+<p align="center">
+  <img src="app%20photos/Ariami%20Mobile/downloads_view_1.png" alt="Downloads 1" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/downloads_view_2.png" alt="Downloads 2" width="30%">
+</p>
+
+### Connection Stats View
+<p align="center">
+  <img src="app%20photos/Ariami%20Mobile/connection_stats_view_1.png" alt="Connection Stats" width="30%">
 </p>
 
 </details>
@@ -90,8 +132,12 @@ No port forwarding. No reverse proxy. No nginx configs. Just music.
 <summary>Desktop App</summary>
 
 <p align="center">
-  <img src="app_photos/BMA%20Desktop/main_1.png" alt="Desktop Main" width="45%">
-  <img src="app_photos/BMA%20Desktop/main_2.png" alt="Desktop Dashboard" width="45%">
+  <img src="app%20photos/Ariami%20Desktop/main_1.png" alt="Desktop Main 1" width="45%">
+  <img src="app%20photos/Ariami%20Desktop/main_2.png" alt="Desktop Main 2" width="45%">
+</p>
+<p align="center">
+  <img src="app%20photos/Ariami%20Desktop/main_3.png" alt="Desktop Main 3" width="45%">
+  <img src="app%20photos/Ariami%20Desktop/main_4.png" alt="Desktop Main 4" width="45%">
 </p>
 
 </details>
@@ -100,8 +146,8 @@ No port forwarding. No reverse proxy. No nginx configs. Just music.
 <summary>CLI (Web Interface)</summary>
 
 <p align="center">
-  <img src="app_photos/BMA%20CLI/dashboard.png" alt="CLI Dashboard" width="45%">
-  <img src="app_photos/BMA%20CLI/terminal.png" alt="CLI Terminal" width="45%">
+  <img src="app%20photos/Ariami%20CLI/main_dashboard_1.png" alt="CLI Dashboard 1" width="45%">
+  <img src="app%20photos/Ariami%20CLI/main_dashboard_2.png" alt="CLI Dashboard 2" width="45%">
 </p>
 
 </details>
