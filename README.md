@@ -4,7 +4,7 @@
   <p><strong>Stream your music like Spotify. Except you own it.</strong></p>
 </div>
 
-Self-hosted music streaming that actually works. No subscription fees. No privacy concerns. No vendor lock-in.
+Self-hosted music streaming that actually works. Your own self-hosted Spotify/Apple Music server, for free!
 
 Point your server at your music folder, scan a QR code on your phone, and you're streaming. Your entire library, anywhere you go.
 
@@ -24,11 +24,9 @@ No port forwarding. No reverse proxy. No nginx configs. Just music.
 
 ## Why Use This?
 
-**You already own the music.** Whether it's ripped CDs, Bandcamp purchases, or DRM-free downloads, you paid for it. Why pay again monthly to stream it?
+**You already own the music.** Whether it's ripped CDs, Bandcamp purchases, or DRM-free downloads, you paid for it, and you should be able to stream it freely and easily.
 
-**Runs on a Raspberry Pi.** $50 hardware, one-time cost. Put it in a closet and forget about it. Supports Pi 3 or newer.
-
-**Actually works offline.** Download songs to your phone. Airplane mode? Subway? Works the same. Play counts and stats sync when you reconnect.
+**Actually works offline.** Download songs to your phone. Play counts and stats sync when you reconnect.
 
 **Doesn't touch your files.** Read-only access. Your music library stays exactly as it is. No database corruption, no file modifications.
 
@@ -49,7 +47,7 @@ No port forwarding. No reverse proxy. No nginx configs. Just music.
 - **Smart album grouping** - Handles compilations and multi-disc albums correctly
 - **Live library updates** - Add files to your folder, they appear instantly
 - **Tailscale integration** - Secure remote access without exposing ports
-- **Lightweight** - Runs on Raspberry Pi 3+ without breaking a sweat
+- **Lightweight** - Runs on low-end hardware (including Raspberry Pis!) without any problems!
 
 ### Mobile (iOS & Android)
 - **Offline mode** - Downloads don't expire, no check-ins required
