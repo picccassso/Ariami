@@ -12,12 +12,16 @@ class SearchResultSongItem extends StatelessWidget {
   final SongModel song;
   final VoidCallback onTap;
   final String? searchQuery;
+  final String? albumName;
+  final String? albumArtist;
 
   const SearchResultSongItem({
     super.key,
     required this.song,
     required this.onTap,
     this.searchQuery,
+    this.albumName,
+    this.albumArtist,
   });
 
   @override
@@ -177,6 +181,8 @@ class SearchResultSongItem extends StatelessWidget {
       title: song.title,
       artist: song.artist,
       albumId: song.albumId,
+      albumName: albumName,
+      albumArtist: albumArtist,
       albumArt: '',
       downloadUrl: downloadUrl,
       duration: song.duration,

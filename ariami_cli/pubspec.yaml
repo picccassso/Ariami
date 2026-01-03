@@ -1,6 +1,6 @@
 name: ariami_cli
 description: CLI version of Ariami for headless servers
-version: 1.0.0
+version: 1.0.1
 publish_to: 'none'
 
 environment:
