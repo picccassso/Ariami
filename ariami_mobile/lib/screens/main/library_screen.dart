@@ -31,8 +31,13 @@ class _LibraryScreenState extends State<LibraryScreen> {
   final DownloadManager _downloadManager = DownloadManager();
   final CacheManager _cacheManager = CacheManager();
 
+  // Online mode state (from server API)
   List<AlbumModel> _albums = [];
   List<SongModel> _songs = [];
+
+  // Offline mode state (built from downloads)
+  List<Song> _offlineSongs = [];
+  bool _isOfflineMode = false; // Track which list is active
 
   bool _isLoading = true;
   String? _errorMessage;
@@ -114,11 +119,22 @@ class _LibraryScreenState extends State<LibraryScreen> {
   Future<void> _loadCachedSongs() async {
     final cachedIds = <String>{};
 
-    // Check each song if it's cached
-    for (final song in _songs) {
-      final isCached = await _cacheManager.isSongCached(song.id);
-      if (isCached) {
-        cachedIds.add(song.id);
+    // Check songs from appropriate list based on mode
+    if (_isOfflineMode) {
+      // Check offline songs
+      for (final song in _offlineSongs) {
+        final isCached = await _cacheManager.isSongCached(song.id);
+        if (isCached) {
+          cachedIds.add(song.id);
+        }
+      }
+    } else {
+      // Check online songs
+      for (final song in _songs) {
+        final isCached = await _cacheManager.isSongCached(song.id);
+        if (isCached) {
+          cachedIds.add(song.id);
+        }
       }
     }
 
@@ -167,6 +183,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
       setState(() {
         _albums = library.albums;
         _songs = library.songs;
+        _isOfflineMode = false; // Mark that we're in online mode with SongModel
         _isLoading = false;
         _showDownloadedOnly = false; // Reset filter when back online
       });
@@ -200,30 +217,39 @@ class _LibraryScreenState extends State<LibraryScreen> {
     }
   }
 
-  /// Build _songs and _albums lists from downloaded tasks for offline display
+  /// Build _offlineSongs and _albums lists from downloaded tasks for offline display
   void _buildLibraryFromDownloads() {
     final queue = _downloadManager.queue;
     final completedTasks = queue.where((t) => t.status == DownloadStatus.completed).toList();
-    
+
     print('[LibraryScreen] Building library from ${completedTasks.length} downloaded songs');
-    
-    // Build songs list from download tasks
-    final songs = <SongModel>[];
+
+    // Build songs list from download tasks - use Song objects to preserve metadata
+    final songs = <Song>[];
     final albumMap = <String, List<DownloadTask>>{}; // Group songs by album
-    
+
     for (final task in completedTasks) {
       // Group by album for building album list
       if (task.albumId != null) {
         albumMap.putIfAbsent(task.albumId!, () => []).add(task);
       } else {
         // Only add standalone songs (no album) to the songs list
-        final song = SongModel(
+        // Use Song object to preserve all metadata from DownloadTask
+        final song = Song(
           id: task.songId,
           title: task.title,
           artist: task.artist,
+          album: task.albumName,           // ✅ Preserved from DownloadTask
           albumId: task.albumId,
-          duration: task.duration,
+          albumArtist: task.albumArtist,   // ✅ Preserved from DownloadTask
           trackNumber: task.trackNumber,
+          discNumber: null,                // Not stored in DownloadTask
+          year: null,                      // Not stored in DownloadTask
+          genre: null,                     // Not stored in DownloadTask
+          duration: Duration(seconds: task.duration),
+          filePath: task.songId,           // Use songId as filePath for local playback
+          fileSize: task.bytesDownloaded,
+          modifiedTime: DateTime.now(),
         );
         songs.add(song);
       }
@@ -261,12 +287,13 @@ class _LibraryScreenState extends State<LibraryScreen> {
     songs.sort((a, b) => a.title.compareTo(b.title));
     // Sort albums by title
     albums.sort((a, b) => a.title.compareTo(b.title));
-    
+
     setState(() {
-      _songs = songs;
+      _offlineSongs = songs;  // Use offline list for Song objects
       _albums = albums;
+      _isOfflineMode = true;  // Mark that we're in offline mode
     });
-    
+
     print('[LibraryScreen] Built ${songs.length} songs and ${albums.length} albums from downloads');
   }
 
@@ -336,7 +363,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
       return _buildErrorState();
     }
 
-    if (_playlistService.playlists.isEmpty && _albums.isEmpty && _songs.isEmpty) {
+    // Check if library is empty (consider both online and offline lists)
+    final songsEmpty = _isOfflineMode ? _offlineSongs.isEmpty : _songs.isEmpty;
+    if (_playlistService.playlists.isEmpty && _albums.isEmpty && songsEmpty) {
       return _buildEmptyState();
     }
 
@@ -535,6 +564,15 @@ class _LibraryScreenState extends State<LibraryScreen> {
 
   /// Build songs list
   Widget _buildSongsList() {
+    // Use offline songs if in offline mode, otherwise use online songs
+    if (_isOfflineMode) {
+      return _buildOfflineSongsList();
+    } else {
+      return _buildOnlineSongsList();
+    }
+  }
+
+  Widget _buildOnlineSongsList() {
     // Filter songs if showing downloaded only
     final songsToShow = _showDownloadedOnly
         ? _songs.where((s) => _downloadedSongIds.contains(s.id)).toList()
@@ -564,6 +602,26 @@ class _LibraryScreenState extends State<LibraryScreen> {
         final isCached = _cachedSongIds.contains(song.id);
         final isAvailable = !isOffline || isDownloaded || isCached;
 
+        // Lookup album info from _albums if song has albumId
+        String? albumName;
+        String? albumArtist;
+        if (song.albumId != null) {
+          final album = _albums.firstWhere(
+            (a) => a.id == song.albumId,
+            orElse: () => AlbumModel(
+              id: '',
+              title: '',
+              artist: '',
+              songCount: 0,
+              duration: 0,
+            ),
+          );
+          if (album.id.isNotEmpty) {
+            albumName = album.title;
+            albumArtist = album.artist;
+          }
+        }
+
         return SongListItem(
           song: song,
           onTap: isAvailable ? () => _playSong(song) : null,
@@ -571,9 +629,61 @@ class _LibraryScreenState extends State<LibraryScreen> {
           isDownloaded: isDownloaded,
           isCached: isCached,
           isAvailable: isAvailable,
+          albumName: albumName,
+          albumArtist: albumArtist,
         );
       },
     );
+  }
+
+  Widget _buildOfflineSongsList() {
+    if (_offlineSongs.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: const Text(
+          'No offline songs available',
+          style: TextStyle(color: Colors.grey),
+          textAlign: TextAlign.center,
+        ),
+      );
+    }
+
+    return ListView.separated(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: _offlineSongs.length,
+      separatorBuilder: (context, index) => const SizedBox.shrink(),
+      itemBuilder: (context, index) {
+        final song = _offlineSongs[index];
+        final isDownloaded = _downloadedSongIds.contains(song.id);
+        final isCached = _cachedSongIds.contains(song.id);
+
+        // Convert Song to SongModel for display widget
+        final songModel = SongModel(
+          id: song.id,
+          title: song.title,
+          artist: song.artist,
+          albumId: song.albumId,
+          duration: song.duration.inSeconds,
+          trackNumber: song.trackNumber,
+        );
+
+        return SongListItem(
+          song: songModel,
+          onTap: () => _playSongDirect(song), // Use Song directly
+          onLongPress: () => _showOfflineSongOptions(song),
+          isDownloaded: isDownloaded,
+          isCached: isCached,
+          isAvailable: true, // All offline songs are available
+          albumName: song.album,
+          albumArtist: song.albumArtist,
+        );
+      },
+    );
+  }
+
+  void _showOfflineSongOptions(Song song) {
+    // Long press handler for offline songs - menu shown in SongListItem widget
   }
 
   /// Attempt to reconnect and reload library
@@ -701,6 +811,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
     Navigator.of(context).pushNamed('/album', arguments: album);
   }
 
+  // Play from SongModel (online mode) - converts to Song
   void _playSong(SongModel song) async {
     print('==========================================================');
     print('[LibraryScreen] _playSong called for: ${song.title}');
@@ -723,11 +834,22 @@ class _LibraryScreenState extends State<LibraryScreen> {
     );
 
     print('[LibraryScreen] Converted to playback Song model');
+    await _playSongDirect(playSong);
+  }
+
+  // Play from Song directly (offline mode) - no conversion needed
+  Future<void> _playSongDirect(Song song) async {
+    print('==========================================================');
+    print('[LibraryScreen] _playSongDirect called for: ${song.title}');
+    print('[LibraryScreen] Song details - ID: ${song.id}, Artist: ${song.artist}');
+    print('[LibraryScreen] Album: ${song.album ?? "N/A"}, AlbumArtist: ${song.albumArtist ?? "N/A"}');
+    print('==========================================================');
+
     print('[LibraryScreen] PlaybackManager instance: $_playbackManager');
     print('[LibraryScreen] About to call playSong()...');
 
     try {
-      await _playbackManager.playSong(playSong);
+      await _playbackManager.playSong(song);
       print('[LibraryScreen] ✅ PlaybackManager.playSong() completed successfully!');
     } catch (e, stackTrace) {
       print('[LibraryScreen] ❌ ERROR in playSong: $e');
@@ -1010,17 +1132,22 @@ class _LibraryScreenState extends State<LibraryScreen> {
       final baseUrl = _connectionService.apiClient!.baseUrl;
 
       for (final songId in playlist.songIds) {
-        // Find song in our local library
+        // Try to find song in our local library, fallback to playlist's stored metadata
         final song = _songs.firstWhere(
           (s) => s.id == songId,
-          orElse: () => SongModel(id: songId, title: 'Unknown', artist: 'Unknown', duration: 0),
+          orElse: () => SongModel(
+            id: songId,
+            title: playlist.songTitles[songId] ?? 'Unknown',
+            artist: playlist.songArtists[songId] ?? 'Unknown',
+            duration: playlist.songDurations[songId] ?? 0,
+          ),
         );
 
         // Get album info if available
         final albumId = playlist.songAlbumIds[songId];
         String? albumName;
         String? albumArtist;
-        
+
         // Try to find album info from local albums
         if (albumId != null) {
           final albumMatch = _albums.where((a) => a.id == albumId);

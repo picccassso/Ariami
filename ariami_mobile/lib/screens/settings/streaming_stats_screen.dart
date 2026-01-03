@@ -174,13 +174,7 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
                     children: [
                       _buildStatItem(label: metric1Label, value: metric1Value),
                       _buildStatItem(label: metric2Label, value: metric2Value),
-                      _buildStatItem(
-                        label: metric3Label,
-                        value: metric3Value,
-                        secondaryValue: _currentTabIndex == 0
-                            ? _getSecondaryAvgText()
-                            : null,
-                      ),
+                      _buildStatItem(label: metric3Label, value: metric3Value),
                     ],
                   ),
                 ],
@@ -676,14 +670,6 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
     } else {
       return '${minutes}m';
     }
-  }
-
-  /// Get secondary average text showing active days metric
-  String? _getSecondaryAvgText() {
-    final avgData = _statsService.getAverageDailyTime();
-    if (avgData.activeDays == 0) return null;
-
-    return '${_formatDuration(avgData.perActiveDay)} on active days (${avgData.activeDays})';
   }
 
   /// Show reset confirmation dialog

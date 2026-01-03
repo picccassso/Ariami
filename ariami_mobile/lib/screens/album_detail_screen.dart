@@ -134,10 +134,19 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
   /// Build album detail from downloaded songs when offline
   void _buildAlbumDetailFromDownloads() {
     final queue = _downloadManager.queue;
-    final albumSongs = queue
-        .where((t) => 
-            t.status == DownloadStatus.completed && 
+    final downloadTasks = queue
+        .where((t) =>
+            t.status == DownloadStatus.completed &&
             t.albumId == widget.album.id)
+        .toList();
+
+    // Get album metadata from first task (if available)
+    final firstTask = downloadTasks.isNotEmpty ? downloadTasks.first : null;
+    final albumName = firstTask?.albumName ?? widget.album.title;
+    final albumArtist = firstTask?.albumArtist ?? widget.album.artist;
+
+    // Build song models from download tasks
+    final albumSongs = downloadTasks
         .map((t) => SongModel(
             id: t.songId,
             title: t.title,
@@ -152,12 +161,13 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
     albumSongs.sort((a, b) => (a.trackNumber ?? 999).compareTo(b.trackNumber ?? 999));
 
     print('[AlbumDetailScreen] Built ${albumSongs.length} songs from downloads');
+    print('[AlbumDetailScreen] Album: $albumName by $albumArtist');
 
     setState(() {
       _albumDetail = AlbumDetailResponse(
         id: widget.album.id,
-        title: widget.album.title,
-        artist: widget.album.artist,
+        title: albumName,  // Use from download task if available
+        artist: albumArtist,  // Use albumArtist from download task
         songs: albumSongs,
         coverArt: null, // No cover art available offline
         year: null,
@@ -610,12 +620,17 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
     }
 
     // Convert to Song models for queue
+    // Use _albumDetail if available (has updated metadata from downloads), otherwise use widget.album
+    final albumTitle = _albumDetail?.title ?? widget.album.title;
+    final albumArtistName = _albumDetail?.artist ?? widget.album.artist;
+
     final allSongs = songsForQueue.map((songModel) => Song(
       id: songModel.id,
       title: songModel.title,
-      artist: songModel.artist,
-      album: widget.album.title,
+      artist: songModel.artist,  // Song artist (may include features)
+      album: albumTitle,  // Album title
       albumId: widget.album.id,
+      albumArtist: albumArtistName,  // Album artist (main artist)
       duration: Duration(seconds: songModel.duration),
       filePath: songModel.id,
       fileSize: 0,
