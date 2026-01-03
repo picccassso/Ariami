@@ -12,11 +12,28 @@ Point your server at your music folder, scan a QR code on your phone, and you're
 
 ## Quick Start
 
-1. **Download** - Get the [server app](../../releases) for your platform (Desktop GUI or CLI for servers)
+### Desktop/Laptop Server
+
+1. **Download** - Get the [server app](https://github.com/picccassso/Ariami/releases) for your platform (Desktop GUI)
 2. **Install Tailscale** - Free secure networking ([tailscale.com](https://tailscale.com))
 3. **Point to music** - Select your music folder, server auto-indexes everything
-4. **Install mobile app** - Download from [releases](../../releases)
+4. **Install mobile app** - Download from [releases](https://github.com/picccassso/Ariami/releases)
 5. **Scan QR code** - Connect instantly, start streaming
+
+### Raspberry Pi Server
+
+```bash
+# Download and extract
+curl -L https://github.com/picccassso/Ariami/releases/download/v1.0.1/ariami-cli-raspberry-pi-arm64-v1.0.1.zip -o ariami-cli.zip
+unzip ariami-cli.zip
+cd ariami-cli-raspberry-pi-arm64-v1.0.1
+
+# Run the server
+chmod +x ariami_cli
+./ariami_cli start
+
+# Web interface opens automatically - scan QR code on phone, done
+```
 
 No port forwarding. No reverse proxy. No nginx configs. Just music.
 
@@ -152,29 +169,6 @@ No port forwarding. No reverse proxy. No nginx configs. Just music.
 
 ---
 
-## Raspberry Pi Deployment
-
-Perfect for a Pi 3 or newer sitting in your closet:
-
-```bash
-# Install on Raspberry Pi
-curl -O [release-url]/ariami_cli
-chmod +x ariami_cli
-./ariami_cli start
-
-# Web interface opens automatically
-# Scan QR code on phone, done
-```
-
-The CLI runs as a background daemon. Automatic restart on boot, graceful shutdown handling, web-based configuration.
-
-**Hardware requirements:**
-- Raspberry Pi 3 or newer (Pi 4 recommended)
-- SD card with Raspberry Pi OS
-- External drive for music (USB works fine)
-
----
-
 ## Architecture
 
 Ariami has four components:
@@ -193,13 +187,13 @@ Single Flutter codebase across all platforms. The server components use `ariami_
 ### Server
 
 **Desktop (GUI):**
-Download from [releases](../../releases) for your platform (macOS, Windows, Linux).
+Download from [releases](https://github.com/picccassso/Ariami/releases) for your platform (macOS, Windows, Linux).
 
 **CLI (Raspberry Pi / Servers):**
 ```bash
 # Download and compile
-git clone https://github.com/alexuae-ua/ariami.git
-cd ariami/ariami_cli
+git clone https://github.com/picccassso/Ariami.git
+cd Ariami/ariami_cli
 flutter build web -t lib/web/main.dart
 dart compile exe bin/ariami_cli.dart -o ariami_cli
 
@@ -209,7 +203,7 @@ dart compile exe bin/ariami_cli.dart -o ariami_cli
 
 ### Mobile
 
-Download from [releases](../../releases) or build from source:
+Download from [releases](https://github.com/picccassso/Ariami/releases) or build from source:
 
 ```bash
 cd ariami_mobile
@@ -241,6 +235,16 @@ cd ariami_mobile && flutter run
 ```
 
 See [GUIDE.md](GUIDE.md) for detailed development documentation.
+
+---
+
+## Latest Updates
+
+- **Korean/CJK Character Support**: Fixed character encoding for Korean, Japanese, and Chinese song titles.
+- **Raspberry Pi Release**: Pre-built ARM64 packages now available for easy installation (no Flutter/Dart SDK required)
+- **macOS Desktop**: Fixed server becoming unresponsive when minimized to tray (App Nap prevention now enabled)
+- **Offline Playback**: Downloaded songs now display correct metadata (title, artist, album) instead of "Unknown" when offline
+- **UI Polish**: Fixed persistent white highlight effect after navigation in settings
 
 ---
 
