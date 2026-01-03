@@ -27,10 +27,14 @@ class SettingsTile extends StatelessWidget {
     if (isMaterial) {
       // Material Design style for Android
       final isDark = Theme.of(context).brightness == Brightness.dark;
-      return Material(
+      return Ink(
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
+          splashFactory: NoSplash.splashFactory,
+          highlightColor: Colors.transparent,
+          hoverColor: Colors.transparent,
+          focusColor: Colors.transparent,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
             child: Row(

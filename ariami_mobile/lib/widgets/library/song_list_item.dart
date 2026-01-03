@@ -16,6 +16,8 @@ class SongListItem extends StatelessWidget {
   final bool isDownloaded;
   final bool isCached;
   final bool isAvailable;
+  final String? albumName;
+  final String? albumArtist;
 
   const SongListItem({
     super.key,
@@ -25,6 +27,8 @@ class SongListItem extends StatelessWidget {
     this.isDownloaded = false,
     this.isCached = false,
     this.isAvailable = true,
+    this.albumName,
+    this.albumArtist,
   });
 
   @override
@@ -313,6 +317,8 @@ class SongListItem extends StatelessWidget {
       title: song.title,
       artist: song.artist,
       albumId: song.albumId,
+      albumName: albumName,
+      albumArtist: albumArtist,
       albumArt: '',
       downloadUrl: downloadUrl,
       duration: song.duration,

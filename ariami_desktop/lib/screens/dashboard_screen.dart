@@ -1,4 +1,6 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ariami_core/ariami_core.dart';
 import '../services/desktop_tailscale_service.dart';
@@ -14,6 +16,9 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   final AriamiHttpServer _httpServer = AriamiHttpServer();
   final DesktopTailscaleService _tailscaleService = DesktopTailscaleService();
+
+  // Method channel for macOS-specific features (dock icon, App Nap)
+  static const _dockChannel = MethodChannel('ariami_desktop/dock');
 
   String? _musicFolderPath;
   String? _tailscaleIP;
@@ -91,6 +96,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
     try {
       print('[Dashboard] Auto-starting server on $ip:8080');
       await _httpServer.start(advertisedIp: ip, port: 8080);
+
+      // Prevent App Nap on macOS to keep server responsive when minimized
+      if (Platform.isMacOS) {
+        try {
+          await _dockChannel.invokeMethod('preventAppNap');
+          print('[Dashboard] App Nap prevention enabled');
+        } catch (e) {
+          print('[Dashboard] Failed to prevent App Nap: $e');
+        }
+      }
 
       if (mounted) {
         setState(() {});

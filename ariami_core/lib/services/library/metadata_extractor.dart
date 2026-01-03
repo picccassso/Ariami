@@ -127,23 +127,33 @@ class MetadataExtractor {
   /// Fixes mojibake (UTF-8 bytes misread as Latin-1)
   /// Detects patterns like "Ã¡" (should be "á") and repairs them
   /// This happens when ID3 tags claim Latin-1 encoding but contain UTF-8 bytes
+  ///
+  /// Handles various character sets:
+  /// - Western European (Spanish, French, etc.): Ã, Â patterns
+  /// - Korean (Hangul): ì, í, î patterns (3-byte UTF-8)
+  /// - Japanese/Chinese (CJK): Similar multi-byte patterns
   String? _fixEncoding(dynamic value) {
     if (value == null) return null;
     final str = value.toString();
     if (str.isEmpty) return str;
 
-    // Check for common mojibake patterns (UTF-8 interpreted as Latin-1)
-    // These occur when 2-byte UTF-8 sequences are read as Latin-1
-    // Ã (0xC3) is the first byte of many UTF-8 accented chars
-    // Â (0xC2) is the first byte of other UTF-8 sequences
-    if (!str.contains('Ã') && !str.contains('Â')) {
-      return str; // No mojibake detected
-    }
-
     try {
-      // Re-encode as Latin-1, then decode as UTF-8
+      // Always attempt to fix encoding by re-encoding as Latin-1 and decoding as UTF-8
+      // This will fix mojibake for all character sets (Western, Korean, Japanese, Chinese, etc.)
       final latin1Bytes = latin1.encode(str);
-      return utf8.decode(latin1Bytes);
+      final fixedStr = utf8.decode(latin1Bytes, allowMalformed: true);
+
+      // Only use the fixed version if it's different and appears to be valid
+      // Check if the fix actually changed something and produced valid UTF-8
+      if (fixedStr != str && fixedStr.isNotEmpty) {
+        // Verify the fixed string doesn't contain replacement characters
+        // which would indicate invalid UTF-8
+        if (!fixedStr.contains('�')) {
+          return fixedStr;
+        }
+      }
+
+      return str;
     } catch (e) {
       // If conversion fails, return original
       return str;

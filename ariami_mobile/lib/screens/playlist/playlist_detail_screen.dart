@@ -243,7 +243,23 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   List<SongModel> _resolveSongsFromDownloads(List<String> songIds) {
     final downloadedSongs = <String, SongModel>{};
 
-    // Build SongModel from each completed download task
+    // FIRST PASS: Populate _albumInfoMap from ALL completed downloads
+    // This ensures we have album info even if specific playlist songs aren't downloaded
+    // but other songs from the same album are downloaded
+    for (final task in _downloadManager.queue) {
+      if (task.status == DownloadStatus.completed &&
+          task.albumId != null &&
+          task.albumName != null) {
+        // Populate album info map from download task metadata
+        // Use albumArtist if available, fallback to artist
+        _albumInfoMap[task.albumId!] = (
+          name: task.albumName!,
+          artist: task.albumArtist ?? task.artist
+        );
+      }
+    }
+
+    // SECOND PASS: Build SongModel from each completed download task that's in the playlist
     for (final task in _downloadManager.queue) {
       if (task.status == DownloadStatus.completed) {
         downloadedSongs[task.songId] = SongModel(

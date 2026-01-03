@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../models/api_models.dart';
 import '../../services/api/connection_service.dart';
@@ -70,6 +71,10 @@ class _AddToPlaylistScreenState extends State<AddToPlaylistScreen> {
   final PlaylistService _playlistService = PlaylistService();
   final Set<String> _addedSongIds = {};
 
+  // Track song states: 'transitioning' or 'added'
+  final Map<String, String> _songStates = {};
+  final Map<String, Timer> _transitionTimers = {};
+
   @override
   void initState() {
     super.initState();
@@ -80,6 +85,11 @@ class _AddToPlaylistScreenState extends State<AddToPlaylistScreen> {
   @override
   void dispose() {
     _playlistService.removeListener(_onPlaylistsChanged);
+    // Cancel all active timers
+    for (var timer in _transitionTimers.values) {
+      timer.cancel();
+    }
+    _transitionTimers.clear();
     super.dispose();
   }
 
@@ -126,7 +136,32 @@ class _AddToPlaylistScreenState extends State<AddToPlaylistScreen> {
       itemCount: widget.availableSongs!.length,
       itemBuilder: (context, index) {
         final song = widget.availableSongs![index];
+        final songState = _songStates[song.id];
         final isAdded = _addedSongIds.contains(song.id);
+
+        Widget trailing;
+        VoidCallback? onTap;
+
+        if (songState == 'transitioning') {
+          // Show green checkmark during transition
+          trailing = const Icon(Icons.check, color: Colors.green);
+          onTap = null;
+        } else if (songState == 'added' || isAdded) {
+          // Show red minus button for removal
+          trailing = IconButton(
+            icon: const Icon(Icons.remove, color: Colors.red),
+            onPressed: () => _removeSongFromPlaylist(song),
+          );
+          onTap = () => _removeSongFromPlaylist(song);
+        } else {
+          // Show plus button to add
+          trailing = IconButton(
+            icon: const Icon(Icons.add),
+            onPressed: () => _addSongToPlaylist(song),
+          );
+          onTap = () => _addSongToPlaylist(song);
+        }
+
         return ListTile(
           leading: _buildAlbumArt(song),
           title: Text(
@@ -139,13 +174,8 @@ class _AddToPlaylistScreenState extends State<AddToPlaylistScreen> {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
-          trailing: isAdded
-              ? const Icon(Icons.check, color: Colors.green)
-              : IconButton(
-                  icon: const Icon(Icons.add),
-                  onPressed: () => _addSongToPlaylist(song),
-                ),
-          onTap: isAdded ? null : () => _addSongToPlaylist(song),
+          trailing: trailing,
+          onTap: onTap,
         );
       },
     );
@@ -214,6 +244,39 @@ class _AddToPlaylistScreenState extends State<AddToPlaylistScreen> {
     if (mounted) {
       setState(() {
         _addedSongIds.add(song.id);
+        _songStates[song.id] = 'transitioning';
+      });
+
+      // Cancel any existing timer for this song
+      _transitionTimers[song.id]?.cancel();
+
+      // Start 1-second timer to show minus button
+      _transitionTimers[song.id] = Timer(const Duration(seconds: 1), () {
+        if (mounted) {
+          setState(() {
+            _songStates[song.id] = 'added';
+          });
+        }
+      });
+    }
+  }
+
+  Future<void> _removeSongFromPlaylist(SongModel song) async {
+    if (widget.playlistId == null) return;
+
+    // Cancel any pending transition timer
+    _transitionTimers[song.id]?.cancel();
+    _transitionTimers.remove(song.id);
+
+    await _playlistService.removeSongFromPlaylist(
+      playlistId: widget.playlistId!,
+      songId: song.id,
+    );
+
+    if (mounted) {
+      setState(() {
+        _addedSongIds.remove(song.id);
+        _songStates.remove(song.id);
       });
     }
   }
@@ -245,6 +308,10 @@ class _AddSongToPlaylistsSheet extends StatefulWidget {
 class _AddSongToPlaylistsSheetState extends State<_AddSongToPlaylistsSheet> {
   final PlaylistService _playlistService = PlaylistService();
 
+  // Track playlist states: 'transitioning' or 'added'
+  final Map<String, String> _playlistStates = {};
+  final Map<String, Timer> _transitionTimers = {};
+
   @override
   void initState() {
     super.initState();
@@ -255,6 +322,11 @@ class _AddSongToPlaylistsSheetState extends State<_AddSongToPlaylistsSheet> {
   @override
   void dispose() {
     _playlistService.removeListener(_onPlaylistsChanged);
+    // Cancel all active timers
+    for (var timer in _transitionTimers.values) {
+      timer.cancel();
+    }
+    _transitionTimers.clear();
     super.dispose();
   }
 
@@ -296,7 +368,38 @@ class _AddSongToPlaylistsSheetState extends State<_AddSongToPlaylistsSheet> {
     );
 
     if (mounted) {
-      Navigator.pop(context);
+      setState(() {
+        _playlistStates[playlist.id] = 'transitioning';
+      });
+
+      // Cancel any existing timer for this playlist
+      _transitionTimers[playlist.id]?.cancel();
+
+      // Start 1-second timer to show minus button
+      _transitionTimers[playlist.id] = Timer(const Duration(seconds: 1), () {
+        if (mounted) {
+          setState(() {
+            _playlistStates[playlist.id] = 'added';
+          });
+        }
+      });
+    }
+  }
+
+  Future<void> _removeFromPlaylist(PlaylistModel playlist) async {
+    // Cancel any pending transition timer
+    _transitionTimers[playlist.id]?.cancel();
+    _transitionTimers.remove(playlist.id);
+
+    await _playlistService.removeSongFromPlaylist(
+      playlistId: playlist.id,
+      songId: widget.songId,
+    );
+
+    if (mounted) {
+      setState(() {
+        _playlistStates.remove(playlist.id);
+      });
     }
   }
 
@@ -369,6 +472,27 @@ class _AddSongToPlaylistsSheetState extends State<_AddSongToPlaylistsSheet> {
                     final playlist = playlists[index];
                     final isInPlaylist =
                         playlist.songIds.contains(widget.songId);
+                    final playlistState = _playlistStates[playlist.id];
+
+                    Widget trailing;
+                    VoidCallback? onTap;
+
+                    if (playlistState == 'transitioning') {
+                      // Show green checkmark during transition
+                      trailing = const Icon(Icons.check, color: Colors.green);
+                      onTap = null;
+                    } else if (playlistState == 'added' || isInPlaylist) {
+                      // Show red minus button for removal
+                      trailing = IconButton(
+                        icon: const Icon(Icons.remove, color: Colors.red),
+                        onPressed: () => _removeFromPlaylist(playlist),
+                      );
+                      onTap = () => _removeFromPlaylist(playlist);
+                    } else {
+                      // Show plus icon to add
+                      trailing = const Icon(Icons.add);
+                      onTap = () => _addToPlaylist(playlist);
+                    }
 
                     return ListTile(
                       leading: _buildPlaylistIcon(playlist),
@@ -376,10 +500,8 @@ class _AddSongToPlaylistsSheetState extends State<_AddSongToPlaylistsSheet> {
                       subtitle: Text(
                         '${playlist.songCount} song${playlist.songCount != 1 ? 's' : ''}',
                       ),
-                      trailing: isInPlaylist
-                          ? const Icon(Icons.check, color: Colors.green)
-                          : const Icon(Icons.add),
-                      onTap: () => _addToPlaylist(playlist),
+                      trailing: trailing,
+                      onTap: onTap,
                     );
                   },
                 ),

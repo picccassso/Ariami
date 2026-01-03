@@ -342,14 +342,33 @@ class _SearchScreenState extends State<SearchScreen> {
             ),
           ),
           ..._searchResults!.songs.map(
-            (song) => SearchResultSongItem(
-              song: song,
-              searchQuery: _searchController.text,
-              onTap: () {
-                _saveSong(song);
-                _playSong(song);
-              },
-            ),
+            (song) {
+              // Lookup album info from search results
+              String? albumName;
+              String? albumArtist;
+              if (song.albumId != null) {
+                try {
+                  final album = _searchResults!.albums.firstWhere(
+                    (a) => a.id == song.albumId,
+                  );
+                  albumName = album.title;
+                  albumArtist = album.artist;
+                } catch (_) {
+                  // Album not in search results, skip
+                }
+              }
+
+              return SearchResultSongItem(
+                song: song,
+                searchQuery: _searchController.text,
+                onTap: () {
+                  _saveSong(song);
+                  _playSong(song);
+                },
+                albumName: albumName,
+                albumArtist: albumArtist,
+              );
+            },
           ),
           const SizedBox(height: 16),
         ],
