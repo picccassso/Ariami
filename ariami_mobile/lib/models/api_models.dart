@@ -1,6 +1,8 @@
 /// API request and response models for Ariami communication protocol
 library;
 
+import '../utils/encoding_utils.dart';
+
 // ============================================================================
 // CONNECTION MODELS
 // ============================================================================
@@ -134,8 +136,8 @@ class AlbumModel {
   factory AlbumModel.fromJson(Map<String, dynamic> json) {
     return AlbumModel(
       id: json['id'] as String,
-      title: json['title'] as String,
-      artist: json['artist'] as String,
+      title: EncodingUtils.fixEncoding(json['title'] as String) ?? json['title'] as String,
+      artist: EncodingUtils.fixEncoding(json['artist'] as String) ?? json['artist'] as String,
       coverArt: json['coverArt'] as String?,
       songCount: json['songCount'] as int,
       duration: json['duration'] as int,
@@ -175,8 +177,8 @@ class SongModel {
   factory SongModel.fromJson(Map<String, dynamic> json) {
     return SongModel(
       id: json['id'] as String,
-      title: json['title'] as String,
-      artist: json['artist'] as String,
+      title: EncodingUtils.fixEncoding(json['title'] as String) ?? json['title'] as String,
+      artist: EncodingUtils.fixEncoding(json['artist'] as String) ?? json['artist'] as String,
       albumId: json['albumId'] as String?,
       duration: json['duration'] as int,
       trackNumber: json['trackNumber'] as int?,
@@ -231,15 +233,15 @@ class PlaylistModel {
   factory PlaylistModel.fromJson(Map<String, dynamic> json) {
     return PlaylistModel(
       id: json['id'] as String,
-      name: json['name'] as String,
-      description: json['description'] as String?,
+      name: EncodingUtils.fixEncoding(json['name'] as String) ?? json['name'] as String,
+      description: EncodingUtils.fixEncoding(json['description'] as String?),
       songIds: (json['songIds'] as List<dynamic>? ?? []).cast<String>(),
       songAlbumIds: (json['songAlbumIds'] as Map<String, dynamic>? ?? {})
           .map((k, v) => MapEntry(k, v as String)),
       songTitles: (json['songTitles'] as Map<String, dynamic>? ?? {})
-          .map((k, v) => MapEntry(k, v as String)),
+          .map((k, v) => MapEntry(k, EncodingUtils.fixEncoding(v.toString()) ?? v.toString())),
       songArtists: (json['songArtists'] as Map<String, dynamic>? ?? {})
-          .map((k, v) => MapEntry(k, v as String)),
+          .map((k, v) => MapEntry(k, EncodingUtils.fixEncoding(v.toString()) ?? v.toString())),
       songDurations: (json['songDurations'] as Map<String, dynamic>? ?? {})
           .map((k, v) => MapEntry(k, v as int)),
       createdAt: json['createdAt'] != null
@@ -354,8 +356,8 @@ class AlbumDetailResponse {
   factory AlbumDetailResponse.fromJson(Map<String, dynamic> json) {
     return AlbumDetailResponse(
       id: json['id'] as String,
-      title: json['title'] as String,
-      artist: json['artist'] as String,
+      title: EncodingUtils.fixEncoding(json['title'] as String) ?? json['title'] as String,
+      artist: EncodingUtils.fixEncoding(json['artist'] as String) ?? json['artist'] as String,
       year: json['year'] as String?,
       coverArt: json['coverArt'] as String?,
       songs: (json['songs'] as List<dynamic>? ?? [])

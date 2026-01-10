@@ -24,10 +24,10 @@ class AppTheme {
       surfaceTintColor: Colors.transparent,
     ),
     bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-      backgroundColor: _pureBlack,
+      backgroundColor: Colors.transparent,
       selectedItemColor: Colors.white,
       unselectedItemColor: Colors.white54,
-      elevation: 8,
+      elevation: 0,
     ),
     cardTheme: CardThemeData(
       color: _darkGrey,
@@ -62,10 +62,10 @@ class AppTheme {
       surfaceTintColor: Colors.transparent,
     ),
     bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-      backgroundColor: _pureBlack,
+      backgroundColor: Colors.transparent,
       selectedItemColor: Colors.white,
       unselectedItemColor: Colors.white54,
-      elevation: 8,
+      elevation: 0,
     ),
     cardTheme: CardThemeData(
       color: _darkGrey,

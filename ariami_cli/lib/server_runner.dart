@@ -29,8 +29,9 @@ class ServerRunner {
       // Set up signal handlers for graceful shutdown
       _setupSignalHandlers();
 
-      // Configure web assets path
-      _httpServer.setWebAssetsPath('build/web');
+      // Configure web assets path (dev: build/web, release: web)
+      final webPath = Directory('build/web').existsSync() ? 'build/web' : 'web';
+      _httpServer.setWebAssetsPath(webPath);
 
       // Configure Tailscale status callback
       _httpServer.setTailscaleStatusCallback(() => _tailscaleService.getStatus());
