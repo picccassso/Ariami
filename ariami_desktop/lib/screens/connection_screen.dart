@@ -57,8 +57,19 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
     try {
       // Check if server is already running
       if (_httpServer.isRunning) {
+        final existingIp = _httpServer.getServerInfo()['server'] as String?;
+
+        // Validate that we have a valid IP
+        if (existingIp == null || existingIp.isEmpty) {
+          setState(() {
+            _errorMessage = 'Server is running but has no valid IP.\nPlease restart the application.';
+            _isLoading = false;
+          });
+          return;
+        }
+
         setState(() {
-          _tailscaleIP = _httpServer.getServerInfo()['server'] as String?;
+          _tailscaleIP = existingIp;
           _serverStarted = true;
           _isLoading = false;
         });
@@ -119,6 +130,13 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
 
     // Generate server info for QR code (matching Phase 4 spec)
     final serverInfo = _httpServer.getServerInfo();
+
+    // Validate that server info has a valid IP before generating QR code
+    final serverIp = serverInfo['server'];
+    if (serverIp == null || serverIp.toString().isEmpty) {
+      return '';
+    }
+
     return jsonEncode(serverInfo);
   }
 
