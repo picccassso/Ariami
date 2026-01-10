@@ -19,10 +19,12 @@ class StartCommand {
       return;
     }
 
-    // Check if web build exists
-    final webBuildPath = Directory('build/web');
-    if (!await webBuildPath.exists()) {
-      print('ERROR: Web UI not built yet.');
+    // Check if web build exists (dev: build/web, release: web)
+    final devWebPath = Directory('build/web');
+    final releaseWebPath = Directory('web');
+
+    if (!await devWebPath.exists() && !await releaseWebPath.exists()) {
+      print('ERROR: Web UI not found.');
       print('Please build the web UI first:');
       print('  cd ariami_cli');
       print('  flutter build web -t lib/web/main.dart');

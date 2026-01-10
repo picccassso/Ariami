@@ -32,6 +32,7 @@ class _SearchScreenState extends State<SearchScreen> {
   List<AlbumModel> _allAlbums = [];
   SearchResults? _searchResults;
   List<SongModel> _recentSongs = [];
+  Set<String> _downloadedSongIds = {};
 
   bool _isLoading = false;
   bool _isSearching = false;
@@ -45,17 +46,19 @@ class _SearchScreenState extends State<SearchScreen> {
     _isOffline = _offlineService.isOfflineModeEnabled;
     _loadLibrary();
     _loadRecentSongs();
+    _loadDownloadedSongIds();
     _searchController.addListener(_onSearchChanged);
-    
+
     // Listen to offline state changes
     _offlineSubscription = _offlineService.offlineModeStream.listen((_) {
       final wasOffline = _isOffline;
       setState(() {
         _isOffline = _offlineService.isOfflineModeEnabled;
       });
-      // Reload library when offline state changes
+      // Reload library and download status when offline state changes
       if (wasOffline != _isOffline) {
         _loadLibrary();
+        _loadDownloadedSongIds();
       }
     });
   }
@@ -179,6 +182,22 @@ class _SearchScreenState extends State<SearchScreen> {
     final recent = await _searchService.getRecentSongs();
     setState(() {
       _recentSongs = recent;
+    });
+  }
+
+  /// Load downloaded song IDs for status tracking
+  void _loadDownloadedSongIds() {
+    final downloadedIds = <String>{};
+
+    // Get downloaded songs from download manager
+    for (final task in _downloadManager.queue) {
+      if (task.status == DownloadStatus.completed) {
+        downloadedIds.add(task.songId);
+      }
+    }
+
+    setState(() {
+      _downloadedSongIds = downloadedIds;
     });
   }
 
@@ -309,10 +328,7 @@ class _SearchScreenState extends State<SearchScreen> {
       return _buildSearchResults();
     }
 
-    // Show recent searches when not searching (or start searching state for offline)
-    if (_isOffline) {
-      return _buildOfflineStartSearchingState();
-    }
+    // Show recent searches in both online AND offline modes
     return _buildRecentSearches();
   }
 
@@ -367,6 +383,9 @@ class _SearchScreenState extends State<SearchScreen> {
                 },
                 albumName: albumName,
                 albumArtist: albumArtist,
+                isDownloaded: _downloadedSongIds.contains(song.id),
+                isCached: false,
+                isAvailable: !_isOffline || _downloadedSongIds.contains(song.id),
               );
             },
           ),
@@ -438,6 +457,9 @@ class _SearchScreenState extends State<SearchScreen> {
                 song: song,
                 searchQuery: '',
                 onTap: () => _playRecentSong(song),
+                isDownloaded: _downloadedSongIds.contains(song.id),
+                isCached: false,
+                isAvailable: !_isOffline || _downloadedSongIds.contains(song.id),
               );
             },
           ),
@@ -536,35 +558,6 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
-  /// Build "start searching" state for offline mode with downloads available
-  Widget _buildOfflineStartSearchingState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.search, size: 100, color: Colors.grey[400]),
-          const SizedBox(height: 24),
-          Text(
-            'Search Downloaded Music',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey[700],
-            ),
-          ),
-          const SizedBox(height: 16),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 40.0),
-            child: Text(
-              '${_allSongs.length} song${_allSongs.length == 1 ? '' : 's'} available offline',
-              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
-              textAlign: TextAlign.center,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   /// Attempt to reconnect and reload library
   Future<void> _retryConnection() async {

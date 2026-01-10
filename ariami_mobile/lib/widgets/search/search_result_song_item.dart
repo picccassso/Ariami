@@ -14,6 +14,9 @@ class SearchResultSongItem extends StatelessWidget {
   final String? searchQuery;
   final String? albumName;
   final String? albumArtist;
+  final bool isDownloaded;
+  final bool isCached;
+  final bool isAvailable;
 
   const SearchResultSongItem({
     super.key,
@@ -22,44 +25,57 @@ class SearchResultSongItem extends StatelessWidget {
     this.searchQuery,
     this.albumName,
     this.albumArtist,
+    this.isDownloaded = false,
+    this.isCached = false,
+    this.isAvailable = true,
   });
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      leading: _buildAlbumArt(context),
-      title: Text(
-        song.title,
-        style: const TextStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.w500,
-        ),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      ),
-      subtitle: Text(
-        song.artist,
-        style: TextStyle(
-          fontSize: 14,
-          color: Colors.grey[600],
-        ),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      ),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            _formatDuration(song.duration),
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey[600],
-            ),
+    // Apply opacity when song is not available (offline and not downloaded)
+    final opacity = isAvailable ? 1.0 : 0.5;
+
+    return Opacity(
+      opacity: opacity,
+      child: ListTile(
+        leading: _buildLeading(context),
+        title: Text(
+          song.title,
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w500,
+            color: isAvailable ? null : Colors.grey,
           ),
-          _buildOverflowMenu(context),
-        ],
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        subtitle: Text(
+          song.artist,
+          style: TextStyle(
+            fontSize: 14,
+            color: Colors.grey[600],
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              _formatDuration(song.duration),
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[600],
+              ),
+            ),
+            if (isAvailable)
+              _buildOverflowMenu(context)
+            else
+              const SizedBox(width: 48), // Placeholder for disabled menu
+          ],
+        ),
+        onTap: isAvailable ? onTap : null,
       ),
-      onTap: onTap,
     );
   }
 
@@ -188,6 +204,53 @@ class SearchResultSongItem extends StatelessWidget {
       duration: song.duration,
       trackNumber: song.trackNumber,
       totalBytes: 0,
+    );
+  }
+
+  /// Build leading widget with artwork and download/cache indicator
+  Widget _buildLeading(BuildContext context) {
+    return SizedBox(
+      width: 48,
+      height: 48,
+      child: Stack(
+        children: [
+          _buildAlbumArt(context),
+          if (isDownloaded)
+            Positioned(
+              bottom: 0,
+              right: 0,
+              child: Container(
+                padding: const EdgeInsets.all(2),
+                decoration: BoxDecoration(
+                  color: Colors.green[600],
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.download_done,
+                  size: 10,
+                  color: Colors.white,
+                ),
+              ),
+            )
+          else if (isCached)
+            Positioned(
+              bottom: 0,
+              right: 0,
+              child: Container(
+                padding: const EdgeInsets.all(2),
+                decoration: BoxDecoration(
+                  color: Colors.blue[400],
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.cloud_done,
+                  size: 10,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 
