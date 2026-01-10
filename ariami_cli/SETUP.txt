@@ -10,8 +10,8 @@ REQUIREMENTS
 INSTALLATION
 ------------
 1. Extract the archive:
-   unzip ariami-cli-raspberry-pi-arm64-v1.0.1.zip
-   cd ariami-cli-raspberry-pi-arm64-v1.0.1
+   unzip ariami-cli-raspberry-pi-arm64-v1.0.2.zip
+   cd ariami-cli-raspberry-pi-arm64-v1.0.2
 
 2. Make the binary executable:
    chmod +x ariami_cli
@@ -82,4 +82,4 @@ PROJECT
 -------
 Source code: https://github.com/picccassso/Ariami
 License: See repository
-Version: 1.0.1
+Version: 1.0.2
