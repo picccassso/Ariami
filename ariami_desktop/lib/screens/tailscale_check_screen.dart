@@ -26,11 +26,14 @@ class _TailscaleCheckScreenState extends State<TailscaleCheckScreen> {
     });
 
     try {
-      // Try multiple common Tailscale paths
+      // Try multiple common Tailscale paths (cross-platform)
       final possiblePaths = [
-        '/opt/homebrew/bin/tailscale',
-        '/usr/local/bin/tailscale',
-        '/usr/bin/tailscale',
+        '/opt/homebrew/bin/tailscale', // macOS Homebrew ARM
+        '/usr/local/bin/tailscale', // macOS Homebrew Intel
+        '/usr/bin/tailscale', // Linux
+        '/usr/sbin/tailscale', // Linux (some distros)
+        r'C:\Program Files\Tailscale\tailscale.exe', // Windows
+        r'C:\Program Files (x86)\Tailscale\tailscale.exe', // Windows 32-bit
       ];
 
       String? tailscalePath;
@@ -44,10 +47,31 @@ class _TailscaleCheckScreenState extends State<TailscaleCheckScreen> {
       }
 
       if (tailscalePath == null) {
-        // Try using 'which' as fallback
-        final whichResult = await Process.run('which', ['tailscale']);
-        if (whichResult.exitCode == 0) {
-          tailscalePath = whichResult.stdout.toString().trim();
+        // Try using 'which' on Unix-like systems
+        if (!Platform.isWindows) {
+          try {
+            final whichResult = await Process.run('which', ['tailscale']);
+            if (whichResult.exitCode == 0) {
+              tailscalePath = whichResult.stdout.toString().trim();
+            }
+          } catch (e) {
+            // Ignore and continue
+          }
+        }
+
+        // Try using 'where' on Windows
+        if (Platform.isWindows) {
+          try {
+            final whereResult = await Process.run('where', ['tailscale']);
+            if (whereResult.exitCode == 0) {
+              final path = whereResult.stdout.toString().trim();
+              if (path.isNotEmpty) {
+                tailscalePath = path.split('\n').first.trim();
+              }
+            }
+          } catch (e) {
+            // Ignore and continue
+          }
         }
       }
 

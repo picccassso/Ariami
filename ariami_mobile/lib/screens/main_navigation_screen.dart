@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'main/library_navigator.dart';
@@ -105,47 +106,67 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Column(
+      extendBody: true,
+      body: Stack(
         children: [
-          // Main content area
-          Expanded(
-            child: _buildCurrentScreen(),
+          // Main content area - can scroll behind nav bar
+          _buildCurrentScreen(),
+          // Mini player and download bar - positioned above nav bar
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: kBottomNavigationBarHeight,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Mini player connected to real playback
+                MiniPlayer(
+                  currentSong: _playbackManager.currentSong,
+                  isPlaying: _playbackManager.isPlaying,
+                  isVisible: _playbackManager.currentSong != null,
+                  onTap: _openFullPlayer,
+                  onPlayPause: _playbackManager.togglePlayPause,
+                  onSkipNext: _playbackManager.skipNext,
+                  onSkipPrevious: _playbackManager.skipPrevious,
+                  hasNext: _playbackManager.hasNext,
+                  hasPrevious: _playbackManager.hasPrevious,
+                  position: _playbackManager.position,
+                  duration: _playbackManager.duration ?? Duration.zero,
+                ),
+                // Download progress bar (between mini player and bottom nav)
+                const DownloadProgressBar(),
+              ],
+            ),
           ),
-          // Mini player connected to real playback
-          MiniPlayer(
-            currentSong: _playbackManager.currentSong,
-            isPlaying: _playbackManager.isPlaying,
-            isVisible: _playbackManager.currentSong != null,
-            onTap: _openFullPlayer,
-            onPlayPause: _playbackManager.togglePlayPause,
-            onSkipNext: _playbackManager.skipNext,
-            onSkipPrevious: _playbackManager.skipPrevious,
-            hasNext: _playbackManager.hasNext,
-            hasPrevious: _playbackManager.hasPrevious,
-            position: _playbackManager.position,
-            duration: _playbackManager.duration ?? Duration.zero,
-          ),
-          // Download progress bar (between mini player and bottom nav)
-          const DownloadProgressBar(),
         ],
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: _onTabTapped,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.library_music),
-            label: 'Library',
+      bottomNavigationBar: ClipRect(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.5),
+            ),
+            child: BottomNavigationBar(
+              currentIndex: _currentIndex,
+              onTap: _onTabTapped,
+              items: const [
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.library_music),
+                  label: 'Library',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.search),
+                  label: 'Search',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.settings),
+                  label: 'Settings',
+                ),
+              ],
+            ),
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.search),
-            label: 'Search',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.settings),
-            label: 'Settings',
-          ),
-        ],
+        ),
       ),
     );
   }

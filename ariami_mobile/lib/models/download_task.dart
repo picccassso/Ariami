@@ -1,6 +1,8 @@
 /// Download task model for tracking song downloads
 library;
 
+import '../utils/encoding_utils.dart';
+
 enum DownloadStatus { pending, downloading, paused, completed, failed, cancelled }
 
 class DownloadTask {
@@ -73,11 +75,11 @@ class DownloadTask {
     return DownloadTask(
       id: json['id'] as String,
       songId: json['songId'] as String,
-      title: json['title'] as String,
-      artist: json['artist'] as String,
+      title: EncodingUtils.fixEncoding(json['title'] as String) ?? json['title'] as String,
+      artist: EncodingUtils.fixEncoding(json['artist'] as String) ?? json['artist'] as String,
       albumId: json['albumId'] as String?,
-      albumName: json['albumName'] as String?,
-      albumArtist: json['albumArtist'] as String?,
+      albumName: EncodingUtils.fixEncoding(json['albumName'] as String?),
+      albumArtist: EncodingUtils.fixEncoding(json['albumArtist'] as String?),
       albumArt: json['albumArt'] as String,
       downloadUrl: json['downloadUrl'] as String,
       duration: json['duration'] as int? ?? 0,

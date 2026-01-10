@@ -1,3 +1,5 @@
+import '../utils/encoding_utils.dart';
+
 /// Represents a song in the music library
 class Song {
   final String id;
@@ -36,15 +38,15 @@ class Song {
   factory Song.fromJson(Map<String, dynamic> json) {
     return Song(
       id: json['id'] as String,
-      title: json['title'] as String,
-      artist: json['artist'] as String,
-      album: json['album'] as String?,
+      title: EncodingUtils.fixEncoding(json['title'] as String) ?? json['title'] as String,
+      artist: EncodingUtils.fixEncoding(json['artist'] as String) ?? json['artist'] as String,
+      album: EncodingUtils.fixEncoding(json['album'] as String?),
       albumId: json['albumId'] as String?,
-      albumArtist: json['albumArtist'] as String?,
+      albumArtist: EncodingUtils.fixEncoding(json['albumArtist'] as String?),
       trackNumber: json['trackNumber'] as int?,
       discNumber: json['discNumber'] as int?,
       year: json['year'] as int?,
-      genre: json['genre'] as String?,
+      genre: EncodingUtils.fixEncoding(json['genre'] as String?),
       duration: Duration(seconds: json['duration'] as int),
       filePath: json['filePath'] as String,
       fileSize: json['fileSize'] as int,

@@ -240,11 +240,10 @@ See [GUIDE.md](GUIDE.md) for detailed development documentation.
 
 ## Latest Updates
 
-- **Korean/CJK Character Support**: Fixed character encoding for Korean, Japanese, and Chinese song titles.
-- **Raspberry Pi Release**: Pre-built ARM64 packages now available for easy installation (no Flutter/Dart SDK required)
-- **macOS Desktop**: Fixed server becoming unresponsive when minimized to tray (App Nap prevention now enabled)
-- **Offline Playback**: Downloaded songs now display correct metadata (title, artist, album) instead of "Unknown" when offline
-- **UI Polish**: Fixed persistent white highlight effect after navigation in settings
+- **Windows Desktop Support**: Fixed Tailscale detection on Windows (was using Unix-only `which` command instead of Windows `where`)
+- **Transparent Navigation Bar**: Spotify-style frosted glass bottom navigation with blur effect on mobile app
+- **Offline Search Improvements**: Search history now displays properly in offline mode, with visual badges showing downloaded vs non-downloaded songs
+- **Korean/CJK Character Support**: Fixed character encoding for Korean, Japanese, and Chinese song titles in both online and offline modes
 
 ---
 
