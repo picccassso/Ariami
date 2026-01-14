@@ -195,6 +195,9 @@ class SongListItem extends StatelessWidget {
       context: context,
       builder: (BuildContext context) {
         return SafeArea(
+          minimum: EdgeInsets.only(
+            bottom: 64 + kBottomNavigationBarHeight, // Mini player + download bar + nav bar
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
