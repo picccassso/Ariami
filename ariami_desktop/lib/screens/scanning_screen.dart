@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
 import 'package:ariami_core/ariami_core.dart';
 
 class ScanningScreen extends StatefulWidget {
@@ -34,6 +36,11 @@ class _ScanningScreenState extends State<ScanningScreen> {
     });
 
     try {
+      // Configure metadata cache for fast re-scans
+      final appDir = await getApplicationSupportDirectory();
+      final cachePath = p.join(appDir.path, 'metadata_cache.json');
+      _httpServer.libraryManager.setCachePath(cachePath);
+
       await _httpServer.libraryManager.scanMusicFolder(widget.musicFolderPath);
 
       setState(() {

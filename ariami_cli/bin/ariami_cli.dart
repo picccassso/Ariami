@@ -24,7 +24,7 @@ void main(List<String> arguments) async {
 
     for (int attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        await runner.run(port: port, isSetupMode: false);
+        await runner.run(port: port, isSetupMode: false, isServerMode: true);
         break; // Success - exit the loop
       } catch (e) {
         final isAddressInUse = e.toString().contains('Address already in use') ||

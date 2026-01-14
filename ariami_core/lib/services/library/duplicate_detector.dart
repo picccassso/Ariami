@@ -69,20 +69,38 @@ class DuplicateDetector {
   }
 
   /// Finds duplicates by comparing file hashes
+  ///
+  /// Uses parallel hash calculation in batches for better performance
   Future<List<DuplicateGroup>> _findHashDuplicates(
     List<SongMetadata> songs,
   ) async {
     final hashMap = <String, List<SongMetadata>>{};
 
-    // Group songs by file hash
-    for (final song in songs) {
-      try {
-        final hash = await _calculateFileHash(song.filePath);
-        hashMap.putIfAbsent(hash, () => []);
-        hashMap[hash]!.add(song);
-      } catch (e) {
-        // Skip files that can't be hashed
-        continue;
+    // Calculate all hashes in parallel batches
+    const batchSize = 20; // Process 20 files concurrently
+    for (var i = 0; i < songs.length; i += batchSize) {
+      final batch = songs.sublist(
+        i,
+        i + batchSize > songs.length ? songs.length : i + batchSize,
+      );
+
+      // Calculate hashes for this batch in parallel
+      final hashFutures = batch.map((song) async {
+        try {
+          final hash = await _calculateFileHash(song.filePath);
+          return (song: song, hash: hash, error: false);
+        } catch (e) {
+          return (song: song, hash: '', error: true);
+        }
+      }).toList();
+
+      final results = await Future.wait(hashFutures);
+
+      // Group songs by hash
+      for (final result in results) {
+        if (result.error) continue; // Skip files that couldn't be hashed
+        hashMap.putIfAbsent(result.hash, () => []);
+        hashMap[result.hash]!.add(result.song);
       }
     }
 
@@ -104,57 +122,71 @@ class DuplicateDetector {
   }
 
   /// Finds duplicates by comparing metadata
+  ///
+  /// Uses hash table grouping for O(n) performance instead of O(n²)
   List<DuplicateGroup> _findMetadataDuplicates(List<SongMetadata> songs) {
     final groups = <DuplicateGroup>[];
+
+    // Step 1: Group songs by normalized artist+title key (O(n))
+    final candidateGroups = <String, List<SongMetadata>>{};
+    for (final song in songs) {
+      if (song.title == null) continue; // Skip songs without title
+      final key = _generateMetadataKey(song);
+      candidateGroups.putIfAbsent(key, () => []);
+      candidateGroups[key]!.add(song);
+    }
+
+    // Step 2: Process only groups with potential duplicates (O(k²) per small group)
     final processed = <String>{};
+    for (final candidates in candidateGroups.values) {
+      if (candidates.length < 2) continue; // No duplicates possible
 
-    for (var i = 0; i < songs.length; i++) {
-      if (processed.contains(songs[i].filePath)) continue;
+      // Within this small group, do detailed matching (album + duration tolerance)
+      for (var i = 0; i < candidates.length; i++) {
+        if (processed.contains(candidates[i].filePath)) continue;
 
-      final matches = <SongMetadata>[];
+        final matches = <SongMetadata>[];
+        for (var j = i + 1; j < candidates.length; j++) {
+          if (processed.contains(candidates[j].filePath)) continue;
 
-      for (var j = i + 1; j < songs.length; j++) {
-        if (processed.contains(songs[j].filePath)) continue;
-
-        if (_isMetadataMatch(songs[i], songs[j])) {
-          matches.add(songs[j]);
-          processed.add(songs[j].filePath);
+          if (_isDetailedMetadataMatch(candidates[i], candidates[j])) {
+            matches.add(candidates[j]);
+            processed.add(candidates[j].filePath);
+          }
         }
-      }
 
-      if (matches.isNotEmpty) {
-        final allMatches = [songs[i], ...matches];
-        final sorted = _sortByQuality(allMatches);
+        if (matches.isNotEmpty) {
+          final allMatches = [candidates[i], ...matches];
+          final sorted = _sortByQuality(allMatches);
 
-        groups.add(DuplicateGroup(
-          original: sorted.first,
-          duplicates: sorted.sublist(1),
-          matchType: DuplicateMatchType.metadata,
-          confidence: 0.85, // High confidence but not exact
-        ));
+          groups.add(DuplicateGroup(
+            original: sorted.first,
+            duplicates: sorted.sublist(1),
+            matchType: DuplicateMatchType.metadata,
+            confidence: 0.85, // High confidence but not exact
+          ));
 
-        processed.add(songs[i].filePath);
+          processed.add(candidates[i].filePath);
+        }
       }
     }
 
     return groups;
   }
 
-  /// Checks if two songs match by metadata
-  bool _isMetadataMatch(SongMetadata a, SongMetadata b) {
-    // Both must have title
-    if (a.title == null || b.title == null) return false;
+  /// Generates a normalized key for grouping potential duplicates
+  ///
+  /// Key is based on normalized artist + title for initial grouping
+  String _generateMetadataKey(SongMetadata song) {
+    final title = _normalizeString(song.title ?? '');
+    final artist = _normalizeString(song.artist ?? '');
+    return '$artist|$title';
+  }
 
-    // Compare titles (case insensitive, normalized)
-    final titleA = _normalizeString(a.title!);
-    final titleB = _normalizeString(b.title!);
-    if (titleA != titleB) return false;
-
-    // Compare artists (case insensitive, normalized)
-    final artistA = _normalizeString(a.artist ?? '');
-    final artistB = _normalizeString(b.artist ?? '');
-    if (artistA != artistB) return false;
-
+  /// Detailed match check for songs already grouped by artist+title
+  ///
+  /// Checks album compatibility and duration tolerance
+  bool _isDetailedMetadataMatch(SongMetadata a, SongMetadata b) {
     // Compare albums (optional, but if both have it, should match)
     if (a.album != null && b.album != null) {
       final albumA = _normalizeString(a.album!);

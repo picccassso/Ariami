@@ -1,3 +1,4 @@
+import 'dart:collection';
 import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as path;
@@ -6,6 +7,51 @@ import 'package:ariami_core/models/album.dart';
 import 'package:ariami_core/models/song_metadata.dart';
 import 'package:ariami_core/services/library/metadata_extractor.dart';
 import 'package:ariami_core/services/library/library_scanner_isolate.dart';
+import 'package:ariami_core/services/library/metadata_cache.dart';
+
+/// Simple LRU (Least Recently Used) cache implementation
+///
+/// Uses LinkedHashMap with access-order to track usage.
+/// Evicts least recently used entries when capacity is exceeded.
+class LruCache<K, V> {
+  final int maxSize;
+  final LinkedHashMap<K, V> _cache = LinkedHashMap<K, V>();
+
+  LruCache(this.maxSize);
+
+  /// Get a value from the cache, updating its access order
+  V? operator [](K key) {
+    if (!_cache.containsKey(key)) return null;
+    // Move to end (most recently used) by removing and re-adding
+    final value = _cache.remove(key);
+    if (value != null) {
+      _cache[key] = value;
+    }
+    return value;
+  }
+
+  /// Put a value in the cache, evicting oldest if necessary
+  void operator []=(K key, V value) {
+    // If key exists, remove it first (will be re-added at end)
+    if (_cache.containsKey(key)) {
+      _cache.remove(key);
+    }
+    _cache[key] = value;
+    // Evict oldest entries if over capacity
+    while (_cache.length > maxSize) {
+      _cache.remove(_cache.keys.first);
+    }
+  }
+
+  /// Check if key exists without updating access order
+  bool containsKey(K key) => _cache.containsKey(key);
+
+  /// Clear all entries
+  void clear() => _cache.clear();
+
+  /// Current number of entries
+  int get length => _cache.length;
+}
 
 /// Singleton service that manages the music library
 /// Scans the music folder and provides library data to HTTP server
@@ -19,14 +65,17 @@ class LibraryManager {
   DateTime? _lastScanTime;
   bool _isScanning = false;
 
-  /// Cache for lazily extracted album artwork
-  final Map<String, List<int>?> _artworkCache = {};
+  /// Persistent metadata cache for fast re-scans
+  MetadataCache? _metadataCache;
 
-  /// Cache for lazily extracted song durations (songId -> duration in seconds)
-  final Map<String, int?> _durationCache = {};
+  /// Cache for lazily extracted album artwork (LRU, max 50 albums ~25MB)
+  final LruCache<String, List<int>?> _artworkCache = LruCache(50);
 
-  /// Cache for lazily extracted song artwork (for standalone songs)
-  final Map<String, List<int>?> _songArtworkCache = {};
+  /// Cache for lazily extracted song durations (LRU, max 2000 songs ~16KB)
+  final LruCache<String, int?> _durationCache = LruCache(2000);
+
+  /// Cache for lazily extracted song artwork for standalone songs (LRU, max 100 ~50MB)
+  final LruCache<String, List<int>?> _songArtworkCache = LruCache(100);
 
   /// Metadata extractor instance for lazy extraction
   final MetadataExtractor _metadataExtractor = MetadataExtractor();
@@ -60,8 +109,25 @@ class LibraryManager {
   /// Check if currently scanning
   bool get isScanning => _isScanning;
 
+  /// Set the path for persistent metadata cache
+  ///
+  /// Call this before scanning to enable cache. Path should be in a
+  /// writable config directory (e.g., ~/.ariami_cli/ or app data).
+  void setCachePath(String cachePath) {
+    _metadataCache = MetadataCache(cachePath);
+    print('[LibraryManager] Metadata cache path set: $cachePath');
+  }
+
+  /// Force clear the metadata cache (for "Force Rescan" feature)
+  Future<void> clearMetadataCache() async {
+    if (_metadataCache != null) {
+      await _metadataCache!.clear();
+      print('[LibraryManager] Metadata cache cleared');
+    }
+  }
+
   /// Scan the music folder and build library structure
-  /// 
+  ///
   /// This runs in a background isolate to prevent UI blocking.
   /// Progress updates are logged and the scan complete callback is fired when done.
   Future<void> scanMusicFolder(String folderPath) async {
@@ -74,6 +140,14 @@ class LibraryManager {
     print('[LibraryManager] Starting library scan (background isolate): $folderPath');
 
     try {
+      // Load existing metadata cache if available
+      Map<String, Map<String, dynamic>>? cacheData;
+      if (_metadataCache != null) {
+        await _metadataCache!.load();
+        cacheData = _metadataCache!.exportForIsolate();
+        print('[LibraryManager] Loaded ${cacheData.length} cached entries');
+      }
+
       // Run the scan in a background isolate
       final result = await LibraryScannerIsolate.scan(
         folderPath,
@@ -82,11 +156,19 @@ class LibraryManager {
           print('[LibraryManager] [${progress.stage}] ${progress.message} '
               '(${progress.percentage.toStringAsFixed(1)}%)');
         },
+        cacheData: cacheData,
       );
 
-      if (result != null) {
-        _library = result;
+      if (result.library != null) {
+        _library = result.library;
         _lastScanTime = DateTime.now();
+
+        // Save updated cache
+        if (_metadataCache != null && result.updatedCache != null) {
+          _metadataCache!.importFromIsolate(result.updatedCache!);
+          await _metadataCache!.save();
+          print('[LibraryManager] Cache stats: ${result.cacheHits} hits, ${result.cacheMisses} extractions');
+        }
 
         print('[LibraryManager] Library scan complete!');
         print('[LibraryManager] Albums: ${_library!.totalAlbums}');

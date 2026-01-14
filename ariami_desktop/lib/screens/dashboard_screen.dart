@@ -2,6 +2,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
 import 'package:ariami_core/ariami_core.dart';
 import '../services/desktop_tailscale_service.dart';
 import 'scanning_screen.dart';
@@ -71,6 +73,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
       await prefs.setString('music_folder_path', _musicFolderPath!);
       print('[Dashboard] Fixed bad music folder path: $_musicFolderPath');
     }
+
+    // Configure metadata cache for fast re-scans
+    final appDir = await getApplicationSupportDirectory();
+    final cachePath = p.join(appDir.path, 'metadata_cache.json');
+    _httpServer.libraryManager.setCachePath(cachePath);
 
     // Get Tailscale IP and server status
     await _updateServerStatus();
