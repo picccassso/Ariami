@@ -204,6 +204,9 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
               }
 
               return ListView(
+                padding: EdgeInsets.only(
+                  bottom: 64 + kBottomNavigationBarHeight, // Mini player + download bar + nav bar
+                ),
                 children: [
                   // Downloads statistics card
                   _buildStatisticsCard(context, isDark),

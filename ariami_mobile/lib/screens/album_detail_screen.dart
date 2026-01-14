@@ -240,6 +240,13 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
             childCount: _albumDetail!.songs.length,
           ),
         ),
+
+        // Bottom padding for mini player + download bar + nav bar
+        SliverPadding(
+          padding: EdgeInsets.only(
+            bottom: 64 + kBottomNavigationBarHeight,
+          ),
+        ),
       ],
     );
   }
@@ -833,6 +840,9 @@ class _AlbumPlaylistPickerState extends State<_AlbumPlaylistPicker> {
                       )
                     : ListView.builder(
                         controller: scrollController,
+                        padding: EdgeInsets.only(
+                          bottom: 64 + kBottomNavigationBarHeight, // Mini player + download bar + nav bar
+                        ),
                         itemCount: playlists.length,
                         itemBuilder: (context, index) {
                           final playlist = playlists[index];

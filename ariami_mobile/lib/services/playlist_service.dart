@@ -294,4 +294,29 @@ class PlaylistService extends ChangeNotifier {
     await _savePlaylists();
     notifyListeners();
   }
+
+  /// Import playlists (merge mode - skip existing IDs)
+  /// Returns the number of playlists actually imported
+  Future<int> importPlaylists(List<PlaylistModel> playlists) async {
+    int imported = 0;
+    for (final playlist in playlists) {
+      // Skip if playlist with same ID already exists
+      if (getPlaylist(playlist.id) != null) continue;
+      _playlists.add(playlist);
+      imported++;
+    }
+    if (imported > 0) {
+      await _savePlaylists();
+      notifyListeners();
+    }
+    return imported;
+  }
+
+  /// Replace all playlists (replace mode)
+  Future<void> replaceAllPlaylists(List<PlaylistModel> playlists) async {
+    _playlists = List.from(playlists);
+    _isLoaded = true;
+    await _savePlaylists();
+    notifyListeners();
+  }
 }

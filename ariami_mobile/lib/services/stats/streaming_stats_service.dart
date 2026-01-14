@@ -438,6 +438,21 @@ class StreamingStatsService extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Reload stats from database into memory cache (after import)
+  Future<void> reloadFromDatabase() async {
+    print('[StreamingStatsService] Reloading stats from database');
+    _statsCache.clear();
+    final allStats = await _database.getAllStats();
+    for (final stat in allStats) {
+      _statsCache[stat.songId] = stat;
+    }
+    _emitTopSongs();
+    _emitTopArtists();
+    _emitTopAlbums();
+    notifyListeners();
+    print('[StreamingStatsService] Reloaded ${_statsCache.length} songs from database');
+  }
+
   /// Get stats for a specific song from in-memory cache
   SongStats? getSongStats(String songId) {
     return _statsCache[songId];

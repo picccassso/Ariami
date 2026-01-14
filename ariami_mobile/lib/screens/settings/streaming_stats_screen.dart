@@ -229,6 +229,9 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
   /// Build the tracks tab
   Widget _buildTracksTab() {
     return ListView(
+      padding: EdgeInsets.only(
+        bottom: 64 + kBottomNavigationBarHeight, // Mini player + download bar + nav bar
+      ),
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -272,6 +275,9 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
   /// Build the artists tab
   Widget _buildArtistsTab() {
     return ListView(
+      padding: EdgeInsets.only(
+        bottom: 64 + kBottomNavigationBarHeight, // Mini player + download bar + nav bar
+      ),
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -315,6 +321,9 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
   /// Build the albums tab
   Widget _buildAlbumsTab() {
     return ListView(
+      padding: EdgeInsets.only(
+        bottom: 64 + kBottomNavigationBarHeight, // Mini player + download bar + nav bar
+      ),
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),

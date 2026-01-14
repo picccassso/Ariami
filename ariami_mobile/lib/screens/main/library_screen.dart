@@ -399,6 +399,14 @@ class _LibraryScreenState extends State<LibraryScreen> {
               child: _buildSongsList(),
             ),
           ),
+
+          // Bottom padding to prevent content from being hidden behind mini player + nav bar
+          // Mini player: 60px + Download bar: 4px + Nav bar height
+          SliverPadding(
+            padding: EdgeInsets.only(
+              bottom: 64 + kBottomNavigationBarHeight,
+            ),
+          ),
         ],
       ),
     );
@@ -867,6 +875,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
       context: context,
       builder: (BuildContext context) {
         return SafeArea(
+          minimum: EdgeInsets.only(
+            bottom: 64 + kBottomNavigationBarHeight, // Mini player + download bar + nav bar
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -957,6 +968,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
       context: context,
       builder: (BuildContext context) {
         return SafeArea(
+          minimum: EdgeInsets.only(
+            bottom: 64 + kBottomNavigationBarHeight, // Mini player + download bar + nav bar
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [

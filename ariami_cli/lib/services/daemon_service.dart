@@ -161,7 +161,13 @@ class DaemonService {
       // Build correct command based on execution mode
       final (executable, args) = _buildBackgroundCommand(flags);
 
-      // Start the process in detached mode
+      // On Linux, use nohup + setsid for proper daemonization
+      // ProcessStartMode.detached doesn't fully detach on Linux
+      if (Platform.isLinux) {
+        return await _startServerOnLinux(executable, args);
+      }
+
+      // On macOS/Windows, ProcessStartMode.detached works correctly
       final process = await Process.start(
         executable,
         args,
@@ -174,6 +180,51 @@ class DaemonService {
       return process.pid;
     } catch (e) {
       print('Error starting server in background: $e');
+      return null;
+    }
+  }
+
+  /// Linux-specific daemon spawning using nohup + setsid
+  /// This properly detaches the process from the terminal session
+  Future<int?> _startServerOnLinux(String executable, List<String> args) async {
+    try {
+      // Get the working directory (where the executable is located)
+      final executableFile = File(executable);
+      final workingDir = executableFile.parent.path;
+
+      // Build the command string
+      final argsString = args.map((a) => '"$a"').join(' ');
+
+      // Use setsid to create new session, nohup to ignore SIGHUP
+      // Redirect output to /dev/null, run in background, echo PID
+      final shellCommand = 'cd "$workingDir" && nohup setsid "$executable" $argsString > /dev/null 2>&1 & echo \$!';
+
+      // Run through bash to get proper shell features
+      final result = await Process.run(
+        '/bin/bash',
+        ['-c', shellCommand],
+      );
+
+      if (result.exitCode != 0) {
+        print('Failed to start background process: ${result.stderr}');
+        return null;
+      }
+
+      // Parse the PID from stdout
+      final pidString = result.stdout.toString().trim();
+      final pid = int.tryParse(pidString);
+
+      if (pid == null) {
+        print('Failed to parse PID from output: $pidString');
+        return null;
+      }
+
+      // Save the PID
+      await saveServerPid(pid);
+
+      return pid;
+    } catch (e) {
+      print('Error starting server on Linux: $e');
       return null;
     }
   }
