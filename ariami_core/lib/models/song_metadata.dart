@@ -113,6 +113,52 @@ class SongMetadata {
     return title != null && artist == null && album == null;
   }
 
+  /// Convert to JSON map for caching
+  ///
+  /// Note: albumArt is excluded to keep cache size manageable.
+  /// Artwork is extracted lazily on demand.
+  Map<String, dynamic> toJson() {
+    return {
+      'filePath': filePath,
+      if (title != null) 'title': title,
+      if (artist != null) 'artist': artist,
+      if (albumArtist != null) 'albumArtist': albumArtist,
+      if (album != null) 'album': album,
+      if (year != null) 'year': year,
+      if (trackNumber != null) 'trackNumber': trackNumber,
+      if (discNumber != null) 'discNumber': discNumber,
+      if (genre != null) 'genre': genre,
+      if (duration != null) 'duration': duration,
+      if (bitrate != null) 'bitrate': bitrate,
+      if (comment != null) 'comment': comment,
+      if (fileSize != null) 'fileSize': fileSize,
+      if (modifiedTime != null) 'modifiedTime': modifiedTime!.toIso8601String(),
+    };
+  }
+
+  /// Create from JSON map
+  factory SongMetadata.fromJson(Map<String, dynamic> json) {
+    return SongMetadata(
+      filePath: json['filePath'] as String,
+      title: json['title'] as String?,
+      artist: json['artist'] as String?,
+      albumArtist: json['albumArtist'] as String?,
+      album: json['album'] as String?,
+      year: json['year'] as int?,
+      trackNumber: json['trackNumber'] as int?,
+      discNumber: json['discNumber'] as int?,
+      genre: json['genre'] as String?,
+      duration: json['duration'] as int?,
+      bitrate: json['bitrate'] as int?,
+      comment: json['comment'] as String?,
+      fileSize: json['fileSize'] as int?,
+      modifiedTime: json['modifiedTime'] != null
+          ? DateTime.parse(json['modifiedTime'] as String)
+          : null,
+      // albumArt is not cached - extracted lazily
+    );
+  }
+
   @override
   String toString() {
     return 'SongMetadata(title: $title, artist: $artist, album: $album, '

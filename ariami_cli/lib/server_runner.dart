@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:async';
+import 'package:path/path.dart' as p;
 import 'package:ariami_core/ariami_core.dart';
 import 'services/cli_state_service.dart';
 import 'services/cli_tailscale_service.dart';
@@ -17,17 +18,29 @@ class ServerRunner {
   bool _isShuttingDown = false;
   int _serverPort = 8080;
 
+  // Store signal subscriptions so we can cancel them during transition
+  StreamSubscription<ProcessSignal>? _sigtermSubscription;
+  StreamSubscription<ProcessSignal>? _sigintSubscription;
+
   /// Run the Ariami server
   ///
   /// - [port]: Server port (default: 8080)
   /// - [isSetupMode]: If true, server runs for setup without library scanning
-  Future<void> run({required int port, required bool isSetupMode}) async {
+  /// - [isServerMode]: If true, running as background daemon (write own PID)
+  Future<void> run({required int port, required bool isSetupMode, bool isServerMode = false}) async {
     print('Ariami Server starting...');
     _serverPort = port;
 
     try {
       // Set up signal handlers for graceful shutdown
       _setupSignalHandlers();
+
+      // In server mode, write our own PID to the file (fixes Linux daemon PID tracking)
+      // The shell command that spawned us may have recorded the wrong PID
+      if (isServerMode) {
+        await _daemonService.saveServerPid(pid);
+        print('Server PID: $pid');
+      }
 
       // Configure web assets path (dev: build/web, release: web)
       final webPath = Directory('build/web').existsSync() ? 'build/web' : 'web';
@@ -62,6 +75,10 @@ class ServerRunner {
       );
       print('✓ HTTP server started successfully');
       print('✓ Server accessible at: http://$advertisedIp:$port');
+
+      // Configure metadata cache for fast re-scans
+      final cachePath = p.join(CliStateService.getConfigDir(), 'metadata_cache.json');
+      _libraryManager.setCachePath(cachePath);
 
       // If not in setup mode, initialize library
       if (!isSetupMode) {
@@ -130,25 +147,34 @@ class ServerRunner {
         // Ignore cleanup errors
       }
 
-      exit(1);
+      // Rethrow so caller can handle (e.g., retry logic in server mode)
+      rethrow;
     }
   }
 
   /// Set up signal handlers for graceful shutdown
   void _setupSignalHandlers() {
     // Handle SIGTERM (kill command, systemd stop, etc.)
-    ProcessSignal.sigterm.watch().listen((signal) {
+    _sigtermSubscription = ProcessSignal.sigterm.watch().listen((signal) {
       print('');
       print('Received SIGTERM signal, shutting down gracefully...');
       _triggerShutdown();
     });
 
     // Handle SIGINT (Ctrl+C)
-    ProcessSignal.sigint.watch().listen((signal) {
+    _sigintSubscription = ProcessSignal.sigint.watch().listen((signal) {
       print('');
       print('Received SIGINT signal (Ctrl+C), shutting down gracefully...');
       _triggerShutdown();
     });
+  }
+
+  /// Cancel signal handlers to allow clean exit
+  Future<void> _cancelSignalHandlers() async {
+    await _sigtermSubscription?.cancel();
+    await _sigintSubscription?.cancel();
+    _sigtermSubscription = null;
+    _sigintSubscription = null;
   }
 
   /// Completer that completes when shutdown is requested
@@ -293,6 +319,12 @@ class ServerRunner {
     print('[ServerRunner] Transitioning to background mode...');
 
     try {
+      // IMPORTANT: Stop HTTP server FIRST to release the port
+      // This allows the background process to bind immediately without retries
+      print('[ServerRunner] Stopping HTTP server to release port...');
+      await _httpServer.stop();
+      print('[ServerRunner] Port released');
+
       // Spawn background process with --server-mode flag
       final pid = await _daemonService.startServerInBackground([
         '--server-mode',
@@ -302,10 +334,9 @@ class ServerRunner {
 
       if (pid == null) {
         print('[ServerRunner] ERROR: Failed to spawn background process');
-        return {
-          'success': false,
-          'message': 'Failed to spawn background process',
-        };
+        // Can't return response since server is stopped, just exit with error
+        await _cancelSignalHandlers();
+        exit(1);
       }
 
       // Save server state for status command
@@ -316,31 +347,29 @@ class ServerRunner {
       });
 
       print('[ServerRunner] Background process spawned with PID: $pid');
-      print('[ServerRunner] Scheduling foreground shutdown...');
+      print('');
+      print('═══════════════════════════════════════════════════════');
+      print('  Setup complete! Server is now running in background.');
+      print('');
+      print('  You can safely close this terminal window.');
+      print('');
+      print('  To check status:  ./ariami_cli status');
+      print('  To stop server:   ./ariami_cli stop');
+      print('═══════════════════════════════════════════════════════');
+      print('');
 
-      // Schedule foreground shutdown after short delay to allow response to be sent
-      Future.delayed(const Duration(milliseconds: 500), () async {
-        print('[ServerRunner] Triggering shutdown of foreground process...');
-        _triggerShutdown();
+      // Cancel signal handlers to allow clean exit (they keep the isolate alive)
+      await _cancelSignalHandlers();
 
-        // Wait for shutdown to complete
-        await Future.delayed(const Duration(milliseconds: 500));
-
-        // Explicitly exit (signal handlers keep isolate alive otherwise)
-        exit(0);
-      });
-
-      return {
-        'success': true,
-        'message': 'Transitioning to background mode',
-        'pid': pid,
-      };
+      // Exit immediately - background is now running
+      // NOTE: On Linux/Raspberry Pi, Dart's Process.run() may not return immediately
+      // due to file descriptor inheritance. The user can safely close the terminal.
+      exit(0);
     } catch (e) {
       print('[ServerRunner] Transition error: $e');
-      return {
-        'success': false,
-        'message': 'Transition failed: $e',
-      };
+      // Can't return response, just exit with error
+      await _cancelSignalHandlers();
+      exit(1);
     }
   }
 }

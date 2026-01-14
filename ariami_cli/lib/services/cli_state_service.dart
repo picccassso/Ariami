@@ -31,6 +31,11 @@ class CliStateService {
     return path.join(getConfigDir(), 'server.json');
   }
 
+  /// Get the server log file path
+  static String getLogFilePath() {
+    return path.join(getConfigDir(), 'server.log');
+  }
+
   /// Ensure config directory exists
   Future<void> ensureConfigDir() async {
     final configDir = Directory(getConfigDir());

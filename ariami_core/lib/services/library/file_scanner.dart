@@ -13,8 +13,8 @@ class FileScanner {
 
   /// Scans a directory recursively for audio files
   ///
-  /// Yields [ScanProgress] events as the scan progresses
-  /// Returns a stream that completes when scanning is done
+  /// Yields [ScanProgress] events as the scan progresses.
+  /// Uses single-pass traversal for efficiency.
   Stream<ScanProgress> scanDirectory(String path) async* {
     final foundFiles = <String>[];
     final errors = <ScanError>[];
@@ -32,58 +32,40 @@ class FileScanner {
       return;
     }
 
-    // Build directory tree first for accurate progress tracking
-    final allDirectories = <Directory>[];
+    // Single-pass traversal: collect files and count directories simultaneously
     try {
       await for (final entity in rootDir.list(recursive: true, followLinks: false)) {
-        if (entity is Directory && !_isHiddenOrSystem(entity.path)) {
-          allDirectories.add(entity);
-        }
-      }
-    } catch (e) {
-      // If we can't list directories, just scan the root
-      allDirectories.add(rootDir);
-    }
+        if (entity is Directory) {
+          if (!_isHiddenOrSystem(entity.path)) {
+            directoriesScanned++;
+          }
+        } else if (entity is File) {
+          // Skip files in hidden directories
+          if (_isHiddenOrSystem(entity.path)) continue;
 
-    final totalDirectories = allDirectories.isEmpty ? 1 : allDirectories.length;
+          final filePath = entity.path;
+          if (_isSupportedAudioFile(filePath)) {
+            foundFiles.add(filePath);
 
-    // Add root directory to scan
-    if (allDirectories.isEmpty) {
-      allDirectories.add(rootDir);
-    }
-
-    // Scan each directory
-    for (final directory in allDirectories) {
-      try {
-        await for (final entity in directory.list(followLinks: false)) {
-          if (entity is File) {
-            final filePath = entity.path;
-            if (_isSupportedAudioFile(filePath)) {
-              foundFiles.add(filePath);
-
-              // Yield progress every 100 files or at the end
-              if (foundFiles.length % 100 == 0 ||
-                  directoriesScanned == totalDirectories - 1) {
-                yield ScanProgress(
-                  filesFound: foundFiles.length,
-                  directoriesScanned: directoriesScanned + 1,
-                  currentPath: filePath,
-                  percentage: (directoriesScanned + 1) / totalDirectories,
-                );
-              }
+            // Yield progress every 100 files
+            if (foundFiles.length % 100 == 0) {
+              yield ScanProgress(
+                filesFound: foundFiles.length,
+                directoriesScanned: directoriesScanned,
+                currentPath: filePath,
+                // Use file count for progress (more meaningful than directory count)
+                percentage: 0.5, // Approximate - we don't know total until done
+              );
             }
           }
         }
-        directoriesScanned++;
-      } catch (e) {
-        // Handle permission errors and continue scanning
-        errors.add(ScanError(
-          path: directory.path,
-          message: e.toString(),
-          type: _categorizeError(e),
-        ));
-        directoriesScanned++;
       }
+    } catch (e) {
+      errors.add(ScanError(
+        path: path,
+        message: e.toString(),
+        type: _categorizeError(e),
+      ));
     }
 
     // Yield final progress
@@ -93,6 +75,47 @@ class FileScanner {
       currentPath: '',
       percentage: 1.0,
     );
+  }
+
+  /// Collects all audio files in a single pass (internal use)
+  ///
+  /// Returns a record with found files, directory count, and errors.
+  Future<({List<String> files, int directories, List<ScanError> errors})>
+      _collectAudioFiles(String path) async {
+    final foundFiles = <String>[];
+    final errors = <ScanError>[];
+    int directoriesScanned = 0;
+
+    final rootDir = Directory(path);
+    if (!await rootDir.exists()) {
+      return (files: foundFiles, directories: 0, errors: errors);
+    }
+
+    try {
+      await for (final entity
+          in rootDir.list(recursive: true, followLinks: false)) {
+        if (entity is Directory) {
+          if (!_isHiddenOrSystem(entity.path)) {
+            directoriesScanned++;
+          }
+        } else if (entity is File) {
+          // Skip files in hidden directories
+          if (_isHiddenOrSystem(entity.path)) continue;
+
+          if (_isSupportedAudioFile(entity.path)) {
+            foundFiles.add(entity.path);
+          }
+        }
+      }
+    } catch (e) {
+      errors.add(ScanError(
+        path: path,
+        message: e.toString(),
+        type: _categorizeError(e),
+      ));
+    }
+
+    return (files: foundFiles, directories: directoriesScanned, errors: errors);
   }
 
   /// Checks if a file path has a supported audio extension
@@ -137,47 +160,21 @@ class FileScanner {
 
   /// Scans a directory and returns the complete result
   ///
-  /// This is a convenience method that collects all progress updates
-  /// and returns the final result
+  /// Uses single-pass traversal for efficiency - no redundant directory scans.
   Future<ScanResult> scanDirectoryComplete(String path) async {
     final startTime = DateTime.now();
-    final foundFiles = <String>[];
-    final errors = <ScanError>[];
-    int totalDirectories = 0;
 
-    await for (final progress in scanDirectory(path)) {
-      totalDirectories = progress.directoriesScanned;
-
-      // Collect files by rescanning (in a real implementation,
-      // you might want to modify scanDirectory to also yield the files)
-    }
-
-    // Perform a final scan to collect all files
-    final rootDir = Directory(path);
-    if (await rootDir.exists()) {
-      try {
-        await for (final entity in rootDir.list(recursive: true, followLinks: false)) {
-          if (entity is File && _isSupportedAudioFile(entity.path)) {
-            foundFiles.add(entity.path);
-          }
-        }
-      } catch (e) {
-        errors.add(ScanError(
-          path: path,
-          message: e.toString(),
-          type: _categorizeError(e),
-        ));
-      }
-    }
+    // Single-pass collection (no redundant traversals)
+    final result = await _collectAudioFiles(path);
 
     final endTime = DateTime.now();
     final duration = endTime.difference(startTime);
 
     return ScanResult(
-      filePaths: foundFiles,
-      totalDirectories: totalDirectories,
+      filePaths: result.files,
+      totalDirectories: result.directories,
       scanDuration: duration,
-      errors: errors,
+      errors: result.errors,
     );
   }
 }
