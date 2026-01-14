@@ -343,6 +343,9 @@ class _SearchScreenState extends State<SearchScreen> {
     }
 
     return ListView(
+      padding: EdgeInsets.only(
+        bottom: 64 + kBottomNavigationBarHeight, // Mini player + download bar + nav bar
+      ),
       children: [
         // Songs Section
         if (_searchResults!.songs.isNotEmpty) ...[
@@ -450,6 +453,9 @@ class _SearchScreenState extends State<SearchScreen> {
         ),
         Expanded(
           child: ListView.builder(
+            padding: EdgeInsets.only(
+              bottom: 64 + kBottomNavigationBarHeight, // Mini player + download bar + nav bar
+            ),
             itemCount: _recentSongs.length,
             itemBuilder: (context, index) {
               final song = _recentSongs[index];

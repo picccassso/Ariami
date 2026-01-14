@@ -24,9 +24,9 @@ Point your server at your music folder, scan a QR code on your phone, and you're
 
 ```bash
 # Download and extract
-curl -L https://github.com/picccassso/Ariami/releases/download/v1.0.1/ariami-cli-raspberry-pi-arm64-v1.0.1.zip -o ariami-cli.zip
+curl -L https://github.com/picccassso/Ariami/releases/download/v1.0.2/ariami-cli-raspberry-pi-arm64-v1.0.2.zip -o ariami-cli.zip
 unzip ariami-cli.zip
-cd ariami-cli-raspberry-pi-arm64-v1.0.1
+cd ariami-cli-raspberry-pi-arm64-v1.0.2
 
 # Run the server
 chmod +x ariami_cli
@@ -240,11 +240,9 @@ See [GUIDE.md](GUIDE.md) for detailed development documentation.
 
 ## Latest Updates
 
-- **Windows Desktop Support**: Fixed Tailscale detection on Windows (was using Unix-only `which` command instead of Windows `where`)
-- **Transparent Navigation Bar**: Spotify-style frosted glass bottom navigation with blur effect on mobile app
-- **Offline Search Improvements**: Search history now displays properly in offline mode, with visual badges showing downloaded vs non-downloaded songs
-- **Korean/CJK Character Support**: Fixed character encoding for Korean, Japanese, and Chinese song titles in both online and offline modes
+**14 of Jan 2026**
 
+- **Playlist & Stats Import/Export Implemented**: Playlists & Stats can now be imported and exported as a .json file.)
 ---
 
 ## Tech Stack

@@ -141,6 +141,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: Container(
         color: isDark ? Colors.black : Colors.grey[50],
         child: ListView(
+          padding: EdgeInsets.only(
+            bottom: 64 + kBottomNavigationBarHeight, // Mini player + download bar + nav bar
+          ),
           children: [
           // Connection section
           SettingsSection(
@@ -184,6 +187,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 subtitle: 'View storage and downloaded songs',
                 onTap: () {
                   Navigator.of(context).pushNamed('/downloads');
+                },
+              ),
+              SettingsTile(
+                icon: Icons.import_export,
+                title: 'Import / Export',
+                subtitle: 'Import or Export Stats & Playlists',
+                onTap: () {
+                  Navigator.of(context).pushNamed('/import-export');
                 },
               ),
             ],

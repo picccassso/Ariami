@@ -108,6 +108,9 @@ class _ReorderableQueueListState extends State<ReorderableQueueList> {
     }
 
     return ReorderableListView.builder(
+      padding: EdgeInsets.only(
+        bottom: 64 + kBottomNavigationBarHeight, // Mini player + download bar + nav bar
+      ),
       itemCount: widget.songs.length,
       onReorder: widget.onReorder,
       itemBuilder: (context, index) {

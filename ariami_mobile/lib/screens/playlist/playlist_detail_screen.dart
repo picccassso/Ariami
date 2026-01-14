@@ -649,9 +649,11 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
             ),
           ),
 
-        // Bottom padding
-        const SliverToBoxAdapter(
-          child: SizedBox(height: 100),
+        // Bottom padding for mini player + download bar + nav bar
+        SliverPadding(
+          padding: EdgeInsets.only(
+            bottom: 64 + kBottomNavigationBarHeight,
+          ),
         ),
       ],
     );
