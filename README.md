@@ -243,6 +243,8 @@ See [GUIDE.md](GUIDE.md) for detailed development documentation.
 **14 of Jan 2026**
 
 - **Playlist & Stats Import/Export Implemented**: Playlists & Stats can now be imported and exported as a .json file.)
+- **Raspberry Pi Fix**: Fixed Issue where server wouldn't go into background on Raspberry Pis.
+
 ---
 
 ## Tech Stack
