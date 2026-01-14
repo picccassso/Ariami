@@ -52,9 +52,11 @@ class Mp3DurationParser {
   ];
 
   /// Parse an MP3 file and return its duration in seconds
-  /// 
+  ///
   /// Returns null if the file cannot be parsed or is not a valid MP3.
+  /// Uses a single file open/close cycle for efficiency.
   Future<int?> getDuration(String filePath) async {
+    RandomAccessFile? raf;
     try {
       final file = File(filePath);
       if (!await file.exists()) return null;
@@ -62,18 +64,21 @@ class Mp3DurationParser {
       final fileSize = await file.length();
       if (fileSize < 10) return null;
 
-      // Step 1: Read just enough bytes to determine ID3v2 tag size
-      final headerBytes = await _readBytes(file, 0, 10);
+      // Open file once for all reads
+      raf = await file.open(mode: FileMode.read);
+
+      // Step 1: Read ID3v2 header (10 bytes) to determine tag size
+      final headerBytes = await raf.read(10);
       final audioDataOffset = _skipId3v2Header(headerBytes);
 
       // Step 2: Calculate audio data size and validate
       final audioDataSize = fileSize - audioDataOffset;
       if (audioDataSize < 10) return null; // No audio data
 
-      // Step 3: Read audio data portion (after ID3 tag)
-      // Read up to 64KB of audio data to find frame headers
+      // Step 3: Seek to audio data and read (up to 64KB)
+      await raf.setPosition(audioDataOffset);
       final readSize = audioDataSize < 65536 ? audioDataSize : 65536;
-      final bytes = await _readBytes(file, audioDataOffset, readSize.toInt());
+      final bytes = await raf.read(readSize.toInt());
 
       // Step 4: Find first valid frame header (searching from offset 0 in audio buffer)
       final frameHeader = _findFirstFrameHeader(bytes, 0);
@@ -81,7 +86,7 @@ class Mp3DurationParser {
 
       // Try to find XING/VBRI header for VBR files
       final vbrInfo = _parseVbrHeader(bytes, frameHeader);
-      
+
       if (vbrInfo != null && vbrInfo.totalFrames > 0) {
         // VBR: Calculate from total frames
         final samplesPerFrame = _getSamplesPerFrame(frameHeader.version, frameHeader.layer);
@@ -102,18 +107,9 @@ class Mp3DurationParser {
     } catch (e) {
       // Silently fail - duration is optional
       return null;
-    }
-  }
-
-  /// Read bytes from file
-  Future<Uint8List> _readBytes(File file, int start, int length) async {
-    final raf = await file.open(mode: FileMode.read);
-    try {
-      await raf.setPosition(start);
-      final bytes = await raf.read(length);
-      return bytes;
     } finally {
-      await raf.close();
+      // Always close file handle
+      await raf?.close();
     }
   }
 

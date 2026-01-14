@@ -41,11 +41,21 @@ class ScanResultMessage {
   final String? error;
   final DateTime scanTime;
 
+  /// Updated cache data to save (filePath -> {mtime, size, metadata})
+  final Map<String, Map<String, dynamic>>? updatedCache;
+
+  /// Statistics about cache usage
+  final int cacheHits;
+  final int cacheMisses;
+
   const ScanResultMessage({
     required this.type,
     this.library,
     this.error,
     required this.scanTime,
+    this.updatedCache,
+    this.cacheHits = 0,
+    this.cacheMisses = 0,
   });
 }
 
@@ -54,27 +64,51 @@ class ScanParams {
   final String folderPath;
   final SendPort sendPort;
 
+  /// Existing cache data (filePath -> {mtime, size, metadata})
+  /// Passed as serializable Map for isolate communication
+  final Map<String, Map<String, dynamic>>? cacheData;
+
   const ScanParams({
     required this.folderPath,
     required this.sendPort,
+    this.cacheData,
   });
 }
 
 /// Library scanner that runs in a background isolate
-/// 
+///
 /// This prevents UI blocking during library scans by moving all
 /// heavy I/O and processing to a separate isolate.
 class LibraryScannerIsolate {
+  /// Calculates optimal batch size based on available CPU cores
+  ///
+  /// Lower-power devices (fewer cores) get smaller batches to avoid
+  /// overwhelming the system. Higher-core systems can process more
+  /// files concurrently.
+  static int _calculateBatchSize() {
+    final cores = Platform.numberOfProcessors;
+    if (cores <= 2) {
+      return 8; // Low-power devices (Pi 3, older systems)
+    } else if (cores <= 4) {
+      return 15; // Mid-range (Pi 4/5, typical laptops)
+    } else if (cores <= 8) {
+      return 25; // Powerful desktops
+    } else {
+      return 35; // High-end workstations
+    }
+  }
   /// Spawn an isolate to scan the library and return the result
-  /// 
+  ///
   /// Progress updates are sent via [onProgress] callback.
-  /// Returns the scanned [LibraryStructure] or null on error.
-  static Future<LibraryStructure?> scan(
+  /// Pass [cacheData] from MetadataCache for fast re-scans.
+  /// Returns a record with the library and updated cache data.
+  static Future<({LibraryStructure? library, Map<String, Map<String, dynamic>>? updatedCache, int cacheHits, int cacheMisses})> scan(
     String folderPath, {
     void Function(ScanProgressMessage)? onProgress,
+    Map<String, Map<String, dynamic>>? cacheData,
   }) async {
     final receivePort = ReceivePort();
-    
+
     try {
       // Spawn the isolate
       await Isolate.spawn(
@@ -82,11 +116,15 @@ class LibraryScannerIsolate {
         ScanParams(
           folderPath: folderPath,
           sendPort: receivePort.sendPort,
+          cacheData: cacheData,
         ),
       );
 
       // Listen for messages from the isolate
       LibraryStructure? result;
+      Map<String, Map<String, dynamic>>? updatedCache;
+      int cacheHits = 0;
+      int cacheMisses = 0;
       String? errorMessage;
 
       await for (final message in receivePort) {
@@ -95,6 +133,9 @@ class LibraryScannerIsolate {
         } else if (message is ScanResultMessage) {
           if (message.type == ScanMessageType.complete) {
             result = message.library;
+            updatedCache = message.updatedCache;
+            cacheHits = message.cacheHits;
+            cacheMisses = message.cacheMisses;
           } else if (message.type == ScanMessageType.error) {
             errorMessage = message.error;
           }
@@ -104,13 +145,13 @@ class LibraryScannerIsolate {
 
       if (errorMessage != null) {
         print('[LibraryScannerIsolate] Scan failed: $errorMessage');
-        return null;
+        return (library: null, updatedCache: null, cacheHits: 0, cacheMisses: 0);
       }
 
-      return result;
+      return (library: result, updatedCache: updatedCache, cacheHits: cacheHits, cacheMisses: cacheMisses);
     } catch (e) {
       print('[LibraryScannerIsolate] Error spawning isolate: $e');
-      return null;
+      return (library: null, updatedCache: null, cacheHits: 0, cacheMisses: 0);
     } finally {
       receivePort.close();
     }
@@ -120,15 +161,23 @@ class LibraryScannerIsolate {
   static Future<void> _isolateEntryPoint(ScanParams params) async {
     final sendPort = params.sendPort;
     final folderPath = params.folderPath;
+    final existingCache = params.cacheData ?? {};
+
+    // Track cache statistics
+    int cacheHits = 0;
+    int cacheMisses = 0;
+
+    // Build updated cache as we go
+    final updatedCache = <String, Map<String, dynamic>>{};
 
     try {
       // Step 1: Collect audio files
       _sendProgress(sendPort, 'collecting', 0, 0, 0.0, 'Scanning for audio files...');
-      
+
       final audioFiles = await _collectAudioFiles(folderPath);
       final totalFiles = audioFiles.length;
-      
-      _sendProgress(sendPort, 'collecting', totalFiles, totalFiles, 10.0, 
+
+      _sendProgress(sendPort, 'collecting', totalFiles, totalFiles, 10.0,
           'Found $totalFiles audio files');
 
       if (totalFiles == 0) {
@@ -141,38 +190,59 @@ class LibraryScannerIsolate {
           type: ScanMessageType.complete,
           library: emptyLibrary,
           scanTime: DateTime.now(),
+          updatedCache: updatedCache,
+          cacheHits: 0,
+          cacheMisses: 0,
         ));
         return;
       }
 
-      // Step 2: Extract metadata (parallel batches)
-      _sendProgress(sendPort, 'metadata', 0, totalFiles, 10.0, 
+      // Step 2: Extract metadata (with cache support)
+      _sendProgress(sendPort, 'metadata', 0, totalFiles, 10.0,
           'Extracting metadata...');
-      
+
       final extractor = MetadataExtractor();
       final songs = <SongMetadata>[];
-      
-      const batchSize = 15;
+
+      final batchSize = _calculateBatchSize();
       for (var i = 0; i < totalFiles; i += batchSize) {
         final batchEnd = (i + batchSize < totalFiles) ? i + batchSize : totalFiles;
         final batch = audioFiles.sublist(i, batchEnd);
-        
-        // Process batch in parallel
+
+        // Process batch in parallel (with cache check)
         final results = await Future.wait(
-          batch.map((filePath) => _extractFileData(extractor, filePath)),
+          batch.map((filePath) => _extractOrUseCached(
+            extractor,
+            filePath,
+            existingCache,
+          )),
         );
-        
-        // Collect successful results
+
+        // Collect successful results and update cache
         for (final result in results) {
           if (result != null) {
-            songs.add(result);
+            songs.add(result.metadata);
+            // Store in updated cache
+            updatedCache[result.metadata.filePath] = {
+              'mtime': result.mtime,
+              'size': result.size,
+              'metadata': result.metadata.toJson(),
+            };
+            if (result.fromCache) {
+              cacheHits++;
+            } else {
+              cacheMisses++;
+            }
           }
         }
-        
+
         // Calculate progress (10% to 70% for metadata extraction)
         final metadataProgress = 10.0 + (batchEnd / totalFiles) * 60.0;
+        final cacheInfo = existingCache.isNotEmpty
+            ? ' (cache: $cacheHits hits, $cacheMisses misses)'
+            : '';
         _sendProgress(sendPort, 'metadata', batchEnd, totalFiles, metadataProgress,
-            'Processed $batchEnd/$totalFiles files');
+            'Processed $batchEnd/$totalFiles files$cacheInfo');
       }
 
       await extractor.dispose();
@@ -180,39 +250,94 @@ class LibraryScannerIsolate {
       // Step 3: Detect duplicates
       _sendProgress(sendPort, 'duplicates', 0, songs.length, 70.0,
           'Detecting duplicates...');
-      
+
       final duplicateDetector = DuplicateDetector();
       final duplicateGroups = await duplicateDetector.detectDuplicates(songs);
       final uniqueSongs = duplicateDetector.filterDuplicates(songs, duplicateGroups);
-      
+
       _sendProgress(sendPort, 'duplicates', uniqueSongs.length, songs.length, 85.0,
           '${uniqueSongs.length} unique songs after filtering');
 
       // Step 4: Build albums
       _sendProgress(sendPort, 'albums', 0, uniqueSongs.length, 85.0,
           'Building album structure...');
-      
+
       final albumBuilder = AlbumBuilder();
       final library = albumBuilder.buildLibrary(uniqueSongs);
-      
-      _sendProgress(sendPort, 'complete', library.totalSongs, library.totalSongs, 100.0,
-          'Scan complete: ${library.totalAlbums} albums, ${library.totalSongs} songs');
 
-      // Send the result
+      final cacheStats = existingCache.isNotEmpty
+          ? ' (cache: $cacheHits hits, $cacheMisses extractions)'
+          : '';
+      _sendProgress(sendPort, 'complete', library.totalSongs, library.totalSongs, 100.0,
+          'Scan complete: ${library.totalAlbums} albums, ${library.totalSongs} songs$cacheStats');
+
+      // Send the result with updated cache
       sendPort.send(ScanResultMessage(
         type: ScanMessageType.complete,
         library: library,
         scanTime: DateTime.now(),
+        updatedCache: updatedCache,
+        cacheHits: cacheHits,
+        cacheMisses: cacheMisses,
       ));
     } catch (e, stackTrace) {
       print('[LibraryScannerIsolate] ERROR in isolate: $e');
       print('[LibraryScannerIsolate] Stack trace: $stackTrace');
-      
+
       sendPort.send(ScanResultMessage(
         type: ScanMessageType.error,
         error: e.toString(),
         scanTime: DateTime.now(),
       ));
+    }
+  }
+
+  /// Result from cache-aware metadata extraction
+  static Future<({SongMetadata metadata, int mtime, int size, bool fromCache})?> _extractOrUseCached(
+    MetadataExtractor extractor,
+    String filePath,
+    Map<String, Map<String, dynamic>> cache,
+  ) async {
+    try {
+      final file = File(filePath);
+      final stat = await file.stat();
+      final currentMtime = stat.modified.millisecondsSinceEpoch;
+      final currentSize = stat.size;
+
+      // Check cache
+      final cached = cache[filePath];
+      if (cached != null) {
+        final cachedMtime = cached['mtime'] as int?;
+        final cachedSize = cached['size'] as int?;
+
+        // Validate cache entry
+        if (cachedMtime == currentMtime && cachedSize == currentSize) {
+          // Cache hit! Reconstruct metadata from cached JSON
+          final metadataJson = cached['metadata'] as Map<String, dynamic>?;
+          if (metadataJson != null) {
+            final metadata = SongMetadata.fromJson(metadataJson);
+            return (
+              metadata: metadata,
+              mtime: currentMtime,
+              size: currentSize,
+              fromCache: true,
+            );
+          }
+        }
+      }
+
+      // Cache miss - extract metadata
+      final metadata = await extractor.extractMetadataWithDuration(filePath);
+
+      return (
+        metadata: metadata,
+        mtime: currentMtime,
+        size: currentSize,
+        fromCache: false,
+      );
+    } catch (e) {
+      print('[LibraryScannerIsolate] Failed to process $filePath: $e');
+      return null;
     }
   }
 
@@ -252,20 +377,6 @@ class LibraryScannerIsolate {
     }
 
     return files;
-  }
-
-  /// Extract metadata from a single file
-  static Future<SongMetadata?> _extractFileData(
-    MetadataExtractor extractor,
-    String filePath,
-  ) async {
-    try {
-      return await extractor.extractMetadataWithDuration(filePath);
-    } catch (e) {
-      // Log but don't throw - just skip this file
-      print('[LibraryScannerIsolate] Failed to extract metadata from $filePath: $e');
-      return null;
-    }
   }
 }
 

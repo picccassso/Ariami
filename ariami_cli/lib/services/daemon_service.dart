@@ -196,8 +196,11 @@ class DaemonService {
       final argsString = args.map((a) => '"$a"').join(' ');
 
       // Use setsid to create new session, nohup to ignore SIGHUP
-      // Redirect output to /dev/null, run in background, echo PID
-      final shellCommand = 'cd "$workingDir" && nohup setsid "$executable" $argsString > /dev/null 2>&1 & echo \$!';
+      // Log output to file for debugging, run in background, echo PID
+      // IMPORTANT: Close stdin (</dev/null) and use disown to fully detach
+      // This ensures Process.run() returns immediately
+      final logPath = CliStateService.getLogFilePath();
+      final shellCommand = 'cd "$workingDir" && nohup setsid "$executable" $argsString </dev/null > "$logPath" 2>&1 & PID=\$!; disown \$PID; echo \$PID';
 
       // Run through bash to get proper shell features
       final result = await Process.run(

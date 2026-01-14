@@ -25,6 +25,15 @@ class ChangeProcessor {
     final modifiedSongIds = <String>{};
     final affectedAlbumIds = <String>{};
 
+    // Build reverse index for O(1) lookups (filePath -> albumId)
+    // This replaces O(A×S) linear search with O(1) hash map lookup
+    final filePathToAlbumId = <String, String>{};
+    for (final album in currentLibrary.albums.values) {
+      for (final song in album.songs) {
+        filePathToAlbumId[song.filePath] = album.id;
+      }
+    }
+
     // Group changes by type
     final addedFiles = <String>[];
     final removedFiles = <String>[];
@@ -56,8 +65,8 @@ class ChangeProcessor {
       final songId = _generateSongId(path);
       removedSongIds.add(songId);
 
-      // Find which album this song belonged to
-      final albumId = _findAlbumForSong(path, currentLibrary);
+      // Find which album this song belonged to (O(1) lookup)
+      final albumId = filePathToAlbumId[path];
       if (albumId != null) {
         affectedAlbumIds.add(albumId);
       }
@@ -98,7 +107,8 @@ class ChangeProcessor {
           modifiedSongIds.add(songId);
 
           // Find affected albums (could be old and new if metadata changed)
-          final oldAlbumId = _findAlbumForSong(metadata.filePath, currentLibrary);
+          // O(1) lookup using reverse index
+          final oldAlbumId = filePathToAlbumId[metadata.filePath];
           if (oldAlbumId != null) {
             affectedAlbumIds.add(oldAlbumId);
           }
@@ -144,17 +154,6 @@ class ChangeProcessor {
     final artist = (song.albumArtist ?? song.artist ?? 'Unknown Artist').trim();
 
     return '${album.toLowerCase()}|||${artist.toLowerCase()}';
-  }
-
-  /// Finds which album a song belongs to in the current library
-  String? _findAlbumForSong(String filePath, LibraryStructure library) {
-    // Search through all albums for this song
-    for (final album in library.albums.values) {
-      if (album.songs.any((song) => song.filePath == filePath)) {
-        return album.id;
-      }
-    }
-    return null;
   }
 
   /// Applies library updates to rebuild affected portions of the library

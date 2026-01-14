@@ -18,6 +18,7 @@ export 'services/library/file_scanner.dart';
 export 'services/library/folder_watcher.dart';
 export 'services/library/library_manager.dart';
 export 'services/library/library_scanner_isolate.dart';
+export 'services/library/metadata_cache.dart';
 export 'services/library/metadata_extractor.dart';
 
 // Server Services
