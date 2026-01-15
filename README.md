@@ -18,8 +18,9 @@ YouTube How To & Demonstration: [Right here!](https://youtu.be/ssIoGl-0JS8)
 
 1. **Download the server app** from [releases](https://github.com/picccassso/Ariami/releases) for your platform (macOS, Windows, Linux)
 2. **Download the mobile app** from [releases](https://github.com/picccassso/Ariami/releases) (Android APK / iOS)
-3. **Run the server** and select your music folder
-4. **Scan the QR code** with the mobile app - done!
+3. **Install Tailscale** on both devices.
+4. **Run the server** and select your music folder
+5. **Scan the QR code** with the mobile app - done!
 
 ### Raspberry Pi Server
 
