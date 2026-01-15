@@ -8,6 +8,8 @@ Self-hosted music streaming that actually works. Your own self-hosted Spotify/Ap
 
 Point your server at your music folder, scan a QR code on your phone, and you're streaming. Your entire library, anywhere you go.
 
+YouTube How To & Demonstration: [Right here!](https://youtu.be/ssIoGl-0JS8)
+
 ---
 
 ## Quick Start
