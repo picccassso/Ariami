@@ -11,6 +11,8 @@ class ImportExportScreen extends StatefulWidget {
 class _ImportExportScreenState extends State<ImportExportScreen> {
   final ImportExportService _importExportService = ImportExportService();
   bool _isLoading = false;
+  DateTime? _lastExportTime;
+  DateTime? _lastImportTime;
 
   @override
   void initState() {
@@ -20,6 +22,21 @@ class _ImportExportScreenState extends State<ImportExportScreen> {
 
   Future<void> _initService() async {
     await _importExportService.initialize();
+    if (mounted) {
+      setState(() {
+        _lastExportTime = _importExportService.lastExportTime;
+        _lastImportTime = _importExportService.lastImportTime;
+      });
+    }
+  }
+
+  String _formatDateTime(DateTime? dateTime) {
+    if (dateTime == null) return 'Never';
+    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    final hour = dateTime.hour > 12 ? dateTime.hour - 12 : (dateTime.hour == 0 ? 12 : dateTime.hour);
+    final period = dateTime.hour >= 12 ? 'PM' : 'AM';
+    final minute = dateTime.minute.toString().padLeft(2, '0');
+    return '${dateTime.day} ${months[dateTime.month - 1]} ${dateTime.year}, $hour:$minute $period';
   }
 
   Future<void> _export() async {
@@ -31,21 +48,9 @@ class _ImportExportScreenState extends State<ImportExportScreen> {
     setState(() => _isLoading = false);
 
     if (result.success) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Exported ${result.playlistCount} playlists and ${result.statsCount} song stats',
-          ),
-          duration: const Duration(seconds: 3),
-        ),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Export failed: ${result.error}'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      setState(() {
+        _lastExportTime = _importExportService.lastExportTime;
+      });
     }
   }
 
@@ -100,21 +105,9 @@ class _ImportExportScreenState extends State<ImportExportScreen> {
     setState(() => _isLoading = false);
 
     if (result.success) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Imported ${result.playlistsImported} playlists and ${result.statsImported} song stats',
-          ),
-          duration: const Duration(seconds: 3),
-        ),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Import failed: ${result.error}'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      setState(() {
+        _lastImportTime = _importExportService.lastImportTime;
+      });
     }
   }
 
@@ -163,6 +156,61 @@ class _ImportExportScreenState extends State<ImportExportScreen> {
                 ),
 
                 const Spacer(flex: 2),
+
+                // Last export/import timestamps
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.grey[900] : Colors.grey[200],
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Last export',
+                            style: TextStyle(
+                              color: isDark ? Colors.grey[400] : Colors.grey[600],
+                              fontSize: 14,
+                            ),
+                          ),
+                          Text(
+                            _formatDateTime(_lastExportTime),
+                            style: TextStyle(
+                              color: isDark ? Colors.white : Colors.black,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Last import',
+                            style: TextStyle(
+                              color: isDark ? Colors.grey[400] : Colors.grey[600],
+                              fontSize: 14,
+                            ),
+                          ),
+                          Text(
+                            _formatDateTime(_lastImportTime),
+                            style: TextStyle(
+                              color: isDark ? Colors.white : Colors.black,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
 
                 // Export Button
                 SizedBox(

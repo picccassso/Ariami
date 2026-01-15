@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_displaymode/flutter_displaymode.dart';
 import 'package:audio_service/audio_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'utils/constants.dart';
 import 'screens/welcome_screen.dart';
 import 'screens/setup/tailscale_check_screen.dart';
@@ -20,6 +21,10 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 // Global audio handler instance - accessible throughout the app
 // Nullable because initialization might fail on some devices
 AriamiAudioHandler? audioHandler;
+
+// Global SharedPreferences instance - pre-loaded for synchronous access
+// This eliminates flicker in widgets that need persisted state on first build
+late SharedPreferences sharedPrefs;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -75,6 +80,10 @@ void main() async {
   } catch (e) {
     // Ignore errors on unsupported devices
   }
+
+  // Pre-load SharedPreferences for synchronous access throughout the app
+  // This eliminates flicker in widgets that need persisted state on first build
+  sharedPrefs = await SharedPreferences.getInstance();
 
   runApp(const MyApp());
 }
