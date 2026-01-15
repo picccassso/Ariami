@@ -4,6 +4,7 @@ import '../../models/download_task.dart';
 import '../../services/download/download_manager.dart';
 import '../../services/cache/cache_manager.dart';
 import '../../services/api/connection_service.dart';
+import '../../services/playlist_service.dart';
 import '../../widgets/common/cached_artwork.dart';
 
 class DownloadsScreen extends StatefulWidget {
@@ -27,12 +28,25 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
 
   // Progress tracking for smooth UI updates
   StreamSubscription<DownloadProgress>? _progressSubscription;
+  StreamSubscription<List<DownloadTask>>? _queueSubscription;
   final Map<String, DownloadProgress> _currentProgress = {};
   DateTime _lastProgressUpdate = DateTime.now();
 
   // Track which albums are expanded in the Downloaded section
   // Uses albumId as key, 'singles' for songs without album
   final Set<String> _expandedAlbums = {};
+
+  // Download All section state
+  int _totalSongCount = 0;
+  int _totalAlbumCount = 0;
+  int _downloadedSongCount = 0;
+  int _downloadedAlbumCount = 0;
+  int _downloadedPlaylistSongCount = 0;
+  int _totalPlaylistSongCount = 0;
+  bool _isDownloadingAllSongs = false;
+  bool _isDownloadingAllAlbums = false;
+  bool _isDownloadingAllPlaylists = false;
+  bool _isLoadingCounts = true;
 
   @override
   void initState() {
@@ -65,6 +79,346 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
         }
       }
     });
+
+    // Listen to queue changes to refresh Download All counts when downloads complete
+    _queueSubscription = _downloadManager.queueStream.listen((_) {
+      // Refresh counts when queue changes (e.g., download completes)
+      _loadDownloadAllCounts();
+    });
+
+    // Load counts for Download All section
+    await _loadDownloadAllCounts();
+  }
+
+  Future<void> _loadDownloadAllCounts() async {
+    final connectionService = ConnectionService();
+    final playlistService = PlaylistService();
+
+    // Ensure download manager is initialized
+    if (!_downloadManager.isInitialized) {
+      await _downloadManager.initialize();
+    }
+
+    // Ensure playlist service is loaded
+    if (!playlistService.isLoaded) {
+      await playlistService.loadPlaylists();
+    }
+
+    // Get song and album counts from API if connected
+    if (connectionService.apiClient != null) {
+      try {
+        final library = await connectionService.apiClient!.getLibrary();
+
+        // Count downloaded songs
+        int downloadedSongs = 0;
+        for (final song in library.songs) {
+          if (await _downloadManager.isSongDownloaded(song.id)) {
+            downloadedSongs++;
+          }
+        }
+
+        // Count fully downloaded albums (all songs in album are downloaded)
+        int downloadedAlbums = 0;
+        final albumSongsMap = <String, List<String>>{};
+        for (final song in library.songs) {
+          if (song.albumId != null) {
+            albumSongsMap.putIfAbsent(song.albumId!, () => []).add(song.id);
+          }
+        }
+        for (final album in library.albums) {
+          final albumSongIds = albumSongsMap[album.id] ?? [];
+          if (albumSongIds.isNotEmpty) {
+            bool allDownloaded = true;
+            for (final songId in albumSongIds) {
+              if (!await _downloadManager.isSongDownloaded(songId)) {
+                allDownloaded = false;
+                break;
+              }
+            }
+            if (allDownloaded) {
+              downloadedAlbums++;
+            }
+          }
+        }
+
+        // Count downloaded playlist songs
+        final Set<String> allPlaylistSongIds = {};
+        for (final playlist in playlistService.playlists) {
+          allPlaylistSongIds.addAll(playlist.songIds);
+        }
+        for (final serverPlaylist in playlistService.visibleServerPlaylists) {
+          allPlaylistSongIds.addAll(serverPlaylist.songIds);
+        }
+
+        // Build a set of library song IDs for comparison
+        final librarySongIds = library.songs.map((s) => s.id).toSet();
+
+        int downloadedPlaylistSongs = 0;
+        for (final songId in allPlaylistSongIds) {
+          // Check if this playlist song ID exists in the library
+          // (playlist might reference songs not in library anymore)
+          if (!librarySongIds.contains(songId)) {
+            continue; // Skip orphaned playlist entries
+          }
+          if (await _downloadManager.isSongDownloaded(songId)) {
+            downloadedPlaylistSongs++;
+          }
+        }
+
+        // Recalculate total to only count valid playlist songs
+        final validPlaylistSongCount = allPlaylistSongIds.where((id) => librarySongIds.contains(id)).length;
+
+        if (mounted) {
+          setState(() {
+            _totalSongCount = library.songs.length;
+            _totalAlbumCount = library.albums.length;
+            _downloadedSongCount = downloadedSongs;
+            _downloadedAlbumCount = downloadedAlbums;
+            _totalPlaylistSongCount = validPlaylistSongCount;
+            _downloadedPlaylistSongCount = downloadedPlaylistSongs;
+            _isLoadingCounts = false;
+          });
+        }
+      } catch (e) {
+        // Error loading library counts - fail silently
+        if (mounted) {
+          setState(() {
+            _isLoadingCounts = false;
+          });
+        }
+      }
+    } else {
+      if (mounted) {
+        setState(() {
+          _isLoadingCounts = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _downloadAllSongs() async {
+    final connectionService = ConnectionService();
+    if (connectionService.apiClient == null) {
+      return;
+    }
+
+    setState(() {
+      _isDownloadingAllSongs = true;
+    });
+
+    try {
+      // Use getLibrary() instead of getSongs() as it returns the full library
+      final library = await connectionService.apiClient!.getLibrary();
+      int queuedCount = 0;
+
+      // Build album lookup map for album metadata
+      final albumMap = {for (final album in library.albums) album.id: album};
+
+      for (final song in library.songs) {
+        // Build download URL
+        final downloadUrl = '${connectionService.apiClient!.baseUrl}/download/${song.id}';
+
+        // Build artwork URL and get album metadata
+        String artworkUrl = '';
+        String? albumName;
+        String? albumArtist;
+        if (song.albumId != null) {
+          artworkUrl = '${connectionService.apiClient!.baseUrl}/artwork/${song.albumId}';
+          final album = albumMap[song.albumId];
+          if (album != null) {
+            albumName = album.title;
+            albumArtist = album.artist;
+          }
+        }
+
+        await _downloadManager.downloadSong(
+          songId: song.id,
+          title: song.title,
+          artist: song.artist,
+          albumId: song.albumId,
+          albumName: albumName,
+          albumArtist: albumArtist,
+          albumArt: artworkUrl,
+          downloadUrl: downloadUrl,
+          duration: song.duration,
+          trackNumber: song.trackNumber,
+          totalBytes: 0, // Will be determined during download
+        );
+        queuedCount++;
+
+        // Small delay to avoid overwhelming the server
+        if (queuedCount % 10 == 0) {
+          await Future.delayed(const Duration(milliseconds: 50));
+        }
+      }
+
+    } catch (e) {
+      // Silently handle errors
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isDownloadingAllSongs = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _downloadAllAlbums() async {
+    final connectionService = ConnectionService();
+    if (connectionService.apiClient == null) {
+      return;
+    }
+
+    setState(() {
+      _isDownloadingAllAlbums = true;
+    });
+
+    try {
+      // Use getLibrary() to get albums with their songs
+      final library = await connectionService.apiClient!.getLibrary();
+      int totalSongsQueued = 0;
+
+      // Build a map of albumId -> songs for quick lookup
+      final Map<String, List<dynamic>> albumSongsMap = {};
+      for (final song in library.songs) {
+        if (song.albumId != null) {
+          albumSongsMap.putIfAbsent(song.albumId!, () => []).add(song);
+        }
+      }
+
+      for (final album in library.albums) {
+        final albumSongs = albumSongsMap[album.id] ?? [];
+
+        // Build song maps for downloadAlbum
+        final songMaps = albumSongs.map((song) {
+          final downloadUrl = '${connectionService.apiClient!.baseUrl}/download/${song.id}';
+          final artworkUrl = '${connectionService.apiClient!.baseUrl}/artwork/${album.id}';
+
+          return {
+            'id': song.id,
+            'title': song.title,
+            'artist': song.artist,
+            'albumId': album.id,
+            'albumName': album.title,
+            'albumArtist': album.artist,
+            'albumArt': artworkUrl,
+            'downloadUrl': downloadUrl,
+            'duration': song.duration,
+            'trackNumber': song.trackNumber,
+            'fileSize': 0, // Will be determined during download
+          };
+        }).toList();
+
+        if (songMaps.isNotEmpty) {
+          await _downloadManager.downloadAlbum(
+            songs: songMaps,
+            albumId: album.id,
+            albumName: album.title,
+            albumArtist: album.artist,
+          );
+          totalSongsQueued += songMaps.length;
+
+          // Small delay to avoid overwhelming the server
+          if (totalSongsQueued % 10 == 0) {
+            await Future.delayed(const Duration(milliseconds: 50));
+          }
+        }
+      }
+
+    } catch (e) {
+      // Silently handle errors
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isDownloadingAllAlbums = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _downloadAllPlaylists() async {
+    final connectionService = ConnectionService();
+    final playlistService = PlaylistService();
+
+    if (connectionService.apiClient == null) {
+      return;
+    }
+
+    setState(() {
+      _isDownloadingAllPlaylists = true;
+    });
+
+    try {
+      // Collect all unique song IDs from all playlists
+      final Set<String> allSongIds = {};
+
+      // From local playlists
+      for (final playlist in playlistService.playlists) {
+        allSongIds.addAll(playlist.songIds);
+      }
+
+      // From visible server playlists
+      for (final serverPlaylist in playlistService.visibleServerPlaylists) {
+        allSongIds.addAll(serverPlaylist.songIds);
+      }
+
+      if (allSongIds.isEmpty) {
+        return;
+      }
+
+      // Fetch library to get song metadata
+      final library = await connectionService.apiClient!.getLibrary();
+      final songMap = {for (final s in library.songs) s.id: s};
+      final albumMap = {for (final album in library.albums) album.id: album};
+
+      int queuedCount = 0;
+      for (final songId in allSongIds) {
+        final song = songMap[songId];
+        if (song == null) continue;
+
+        final downloadUrl = '${connectionService.apiClient!.baseUrl}/download/${song.id}';
+        String artworkUrl = '';
+        String? albumName;
+        String? albumArtist;
+        if (song.albumId != null) {
+          artworkUrl = '${connectionService.apiClient!.baseUrl}/artwork/${song.albumId}';
+          final album = albumMap[song.albumId];
+          if (album != null) {
+            albumName = album.title;
+            albumArtist = album.artist;
+          }
+        }
+
+        await _downloadManager.downloadSong(
+          songId: song.id,
+          title: song.title,
+          artist: song.artist,
+          albumId: song.albumId,
+          albumName: albumName,
+          albumArtist: albumArtist,
+          albumArt: artworkUrl,
+          downloadUrl: downloadUrl,
+          duration: song.duration,
+          trackNumber: song.trackNumber,
+          totalBytes: 0, // Will be determined during download
+        );
+        queuedCount++;
+
+        // Small delay to avoid overwhelming the server
+        if (queuedCount % 10 == 0) {
+          await Future.delayed(const Duration(milliseconds: 50));
+        }
+      }
+
+    } catch (e) {
+      // Silently handle errors
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isDownloadingAllPlaylists = false;
+        });
+      }
+    }
   }
 
   Future<void> _loadCacheStats() async {
@@ -87,6 +441,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
   void dispose() {
     _cacheSubscription?.cancel();
     _progressSubscription?.cancel();
+    _queueSubscription?.cancel();
     super.dispose();
   }
 
@@ -129,11 +484,6 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
 
     if (confirmed == true) {
       await _downloadManager.clearAllDownloads();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('All downloads cleared')),
-        );
-      }
     }
   }
 
@@ -172,37 +522,6 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
             builder: (context, snapshot) {
               final queue = snapshot.data ?? [];
 
-              if (queue.isEmpty) {
-                return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.download_outlined,
-                        size: 64,
-                        color: Colors.grey[400],
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'No downloads yet',
-                        style: TextStyle(
-                          fontSize: 18,
-                          color: isDark ? Colors.grey[400] : Colors.grey[600],
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Start downloading songs to see them here',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: isDark ? Colors.grey[500] : Colors.grey[600],
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }
-
               return ListView(
                 padding: EdgeInsets.only(
                   bottom: 64 + kBottomNavigationBarHeight, // Mini player + download bar + nav bar
@@ -210,6 +529,9 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                 children: [
                   // Downloads statistics card
                   _buildStatisticsCard(context, isDark),
+
+                  // Download All section
+                  _buildDownloadAllCard(context, isDark),
 
                   // Cache section
                   _buildCacheSection(context, isDark),
@@ -418,12 +740,183 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
     if (confirmed == true) {
       await _cacheManager.clearAllCache();
       await _loadCacheStats();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Cache cleared')),
-        );
-      }
     }
+  }
+
+  Widget _buildDownloadAllCard(BuildContext context, bool isDark) {
+    return Card(
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      color: isDark ? Colors.grey[900] : Colors.white,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.download_for_offline_outlined,
+                  size: 20,
+                  color: isDark ? Colors.grey[400] : Colors.grey[600],
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Download All',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? Colors.white : Colors.black87,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // All Songs row
+            _buildDownloadAllRow(
+              context,
+              isDark: isDark,
+              icon: Icons.music_note_outlined,
+              label: 'All Songs',
+              downloadedCount: _downloadedSongCount,
+              totalCount: _totalSongCount,
+              countLabel: 'songs',
+              isLoading: _isLoadingCounts,
+              isDownloading: _isDownloadingAllSongs,
+              onDownload: _downloadAllSongs,
+            ),
+
+            const SizedBox(height: 12),
+
+            // All Albums row
+            _buildDownloadAllRow(
+              context,
+              isDark: isDark,
+              icon: Icons.album_outlined,
+              label: 'All Albums',
+              downloadedCount: _downloadedAlbumCount,
+              totalCount: _totalAlbumCount,
+              countLabel: 'albums',
+              isLoading: _isLoadingCounts,
+              isDownloading: _isDownloadingAllAlbums,
+              onDownload: _downloadAllAlbums,
+            ),
+
+            const SizedBox(height: 12),
+
+            // All Playlists row (shows songs in playlists, not playlist count)
+            _buildDownloadAllRow(
+              context,
+              isDark: isDark,
+              icon: Icons.playlist_play_outlined,
+              label: 'All Playlists',
+              downloadedCount: _downloadedPlaylistSongCount,
+              totalCount: _totalPlaylistSongCount,
+              countLabel: 'songs',
+              isLoading: _isLoadingCounts,
+              isDownloading: _isDownloadingAllPlaylists,
+              onDownload: _downloadAllPlaylists,
+            ),
+
+            const SizedBox(height: 8),
+
+            // Info text
+            Text(
+              'Downloads are queued and processed in the background.',
+              style: TextStyle(
+                fontSize: 11,
+                color: isDark ? Colors.grey[600] : Colors.grey[500],
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDownloadAllRow(
+    BuildContext context, {
+    required bool isDark,
+    required IconData icon,
+    required String label,
+    required int downloadedCount,
+    required int totalCount,
+    required String countLabel,
+    required bool isLoading,
+    required bool isDownloading,
+    required VoidCallback onDownload,
+  }) {
+    final bool allDownloaded = downloadedCount >= totalCount && totalCount > 0;
+    final bool hasItemsToDownload = totalCount > 0 && !allDownloaded;
+
+    return Row(
+      children: [
+        Icon(
+          icon,
+          size: 22,
+          color: isDark ? Colors.grey[500] : Colors.grey[600],
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 14,
+              color: isDark ? Colors.white : Colors.black87,
+            ),
+          ),
+        ),
+        if (isLoading)
+          SizedBox(
+            width: 100,
+            child: Text(
+              'Loading...',
+              textAlign: TextAlign.right,
+              style: TextStyle(
+                fontSize: 12,
+                color: isDark ? Colors.grey[600] : Colors.grey[500],
+              ),
+            ),
+          )
+        else
+          SizedBox(
+            width: 100,
+            child: Text(
+              '$downloadedCount / $totalCount $countLabel',
+              textAlign: TextAlign.right,
+              style: TextStyle(
+                fontSize: 12,
+                color: allDownloaded
+                    ? Colors.green[600]
+                    : (isDark ? Colors.grey[500] : Colors.grey[600]),
+              ),
+            ),
+          ),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 36,
+          height: 36,
+          child: isDownloading
+              ? const Padding(
+                  padding: EdgeInsets.all(8),
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : IconButton(
+                  icon: Icon(
+                    allDownloaded ? Icons.check : Icons.download_outlined,
+                    size: 20,
+                    color: (isLoading || !hasItemsToDownload)
+                        ? (isDark ? Colors.grey[700] : Colors.grey[400])
+                        : (isDark ? Colors.grey[400] : Colors.grey[700]),
+                  ),
+                  onPressed: (isLoading || !hasItemsToDownload) ? null : onDownload,
+                  tooltip: allDownloaded ? 'All downloaded' : 'Download $label',
+                  padding: EdgeInsets.zero,
+                ),
+        ),
+      ],
+    );
   }
 
   Widget _buildStatisticsCard(BuildContext context, bool isDark) {
@@ -1071,11 +1564,6 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
 
     if (confirmed == true) {
       await _downloadManager.deleteAlbumDownloads(albumId);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Deleted downloads from "$albumName"')),
-        );
-      }
     }
   }
 

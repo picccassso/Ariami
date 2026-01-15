@@ -5,6 +5,7 @@ library;
 export 'models/album.dart';
 export 'models/api_models.dart';
 export 'models/file_change.dart';
+export 'models/folder_playlist.dart';
 export 'models/library_structure.dart';
 export 'models/scan_result.dart';
 export 'models/song_metadata.dart';

@@ -1,6 +1,9 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
+import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as path;
+import 'package:ariami_core/models/folder_playlist.dart';
 import 'package:ariami_core/models/library_structure.dart';
 import 'package:ariami_core/models/song_metadata.dart';
 import 'package:ariami_core/services/library/file_scanner.dart';
@@ -171,14 +174,19 @@ class LibraryScannerIsolate {
     final updatedCache = <String, Map<String, dynamic>>{};
 
     try {
-      // Step 1: Collect audio files
+      // Step 1: Collect audio files and detect [PLAYLIST] folders
       _sendProgress(sendPort, 'collecting', 0, 0, 0.0, 'Scanning for audio files...');
 
-      final audioFiles = await _collectAudioFiles(folderPath);
+      final scanResult = await _collectAudioFiles(folderPath);
+      final audioFiles = scanResult.files;
+      final playlistFolders = scanResult.playlistFolders;
       final totalFiles = audioFiles.length;
 
+      final playlistInfo = playlistFolders.isNotEmpty
+          ? ', ${playlistFolders.length} playlist folder(s)'
+          : '';
       _sendProgress(sendPort, 'collecting', totalFiles, totalFiles, 10.0,
-          'Found $totalFiles audio files');
+          'Found $totalFiles audio files$playlistInfo');
 
       if (totalFiles == 0) {
         // No files found - return empty library
@@ -263,13 +271,44 @@ class LibraryScannerIsolate {
           'Building album structure...');
 
       final albumBuilder = AlbumBuilder();
-      final library = albumBuilder.buildLibrary(uniqueSongs);
+      final baseLibrary = albumBuilder.buildLibrary(uniqueSongs);
+
+      // Step 5: Build folder playlists
+      final folderPlaylistsList = <FolderPlaylist>[];
+      for (final entry in playlistFolders.entries) {
+        final folderPath = entry.key;
+        final filePaths = entry.value;
+
+        // Skip empty playlist folders
+        if (filePaths.isEmpty) continue;
+
+        // Convert file paths to song IDs
+        final songIds = filePaths.map((fp) => _generateSongId(fp)).toList();
+
+        final playlist = FolderPlaylist(
+          id: FolderPlaylist.generateId(folderPath),
+          name: FolderPlaylist.extractName(path.basename(folderPath)),
+          folderPath: folderPath,
+          songIds: songIds,
+        );
+        folderPlaylistsList.add(playlist);
+      }
+
+      // Create final library with playlists
+      final library = LibraryStructure(
+        albums: baseLibrary.albums,
+        standaloneSongs: baseLibrary.standaloneSongs,
+        folderPlaylists: folderPlaylistsList,
+      );
 
       final cacheStats = existingCache.isNotEmpty
           ? ' (cache: $cacheHits hits, $cacheMisses extractions)'
           : '';
+      final playlistStats = folderPlaylistsList.isNotEmpty
+          ? ', ${folderPlaylistsList.length} playlists'
+          : '';
       _sendProgress(sendPort, 'complete', library.totalSongs, library.totalSongs, 100.0,
-          'Scan complete: ${library.totalAlbums} albums, ${library.totalSongs} songs$cacheStats');
+          'Scan complete: ${library.totalAlbums} albums, ${library.totalSongs} songs$playlistStats$cacheStats');
 
       // Send the result with updated cache
       sendPort.send(ScanResultMessage(
@@ -360,23 +399,61 @@ class LibraryScannerIsolate {
     ));
   }
 
-  /// Collect audio files from directory
-  static Future<List<String>> _collectAudioFiles(String folderPath) async {
+  /// Collect audio files from directory and detect [PLAYLIST] folders
+  ///
+  /// Returns both the list of audio files and a map of playlist folders
+  /// to the files they contain.
+  static Future<({List<String> files, Map<String, List<String>> playlistFolders})> _collectAudioFiles(String folderPath) async {
     final files = <String>[];
+    final playlistFolders = <String, List<String>>{};
     final rootDir = Directory(folderPath);
 
-    if (!await rootDir.exists()) return files;
+    if (!await rootDir.exists()) {
+      return (files: files, playlistFolders: playlistFolders);
+    }
 
+    // First pass: find all [PLAYLIST] folders (top-level only, not nested)
+    final playlistPaths = <String>{};
+    await for (final entity in rootDir.list(recursive: true, followLinks: false)) {
+      if (entity is Directory) {
+        final folderName = path.basename(entity.path);
+        if (FolderPlaylist.isPlaylistFolder(folderName)) {
+          // Check this isn't nested inside another playlist folder
+          final isNested = playlistPaths.any((p) => entity.path.startsWith('$p${path.separator}'));
+          if (!isNested) {
+            playlistPaths.add(entity.path);
+            playlistFolders[entity.path] = [];
+          }
+        }
+      }
+    }
+
+    // Second pass: collect all audio files and assign to playlists
     await for (final entity in rootDir.list(recursive: true, followLinks: false)) {
       if (entity is File) {
         final ext = path.extension(entity.path).toLowerCase();
         if (FileScanner.supportedExtensions.contains(ext)) {
           files.add(entity.path);
+
+          // Check if this file belongs to a playlist folder
+          for (final playlistPath in playlistPaths) {
+            if (entity.path.startsWith('$playlistPath${path.separator}')) {
+              playlistFolders[playlistPath]!.add(entity.path);
+              break; // A file can only belong to one playlist
+            }
+          }
         }
       }
     }
 
-    return files;
+    return (files: files, playlistFolders: playlistFolders);
+  }
+
+  /// Generate a unique song ID from file path (must match LibraryManager)
+  static String _generateSongId(String filePath) {
+    final bytes = utf8.encode(filePath);
+    final hash = md5.convert(bytes);
+    return hash.toString().substring(0, 12);
   }
 }
 
