@@ -842,11 +842,31 @@ class AriamiHttpServer {
     final fileSize = await audioFile.length();
     final fileName = audioFile.path.split(Platform.pathSeparator).last;
 
+    // Get MIME type based on file extension
+    final mimeType = _streamingService.getAudioMimeType(audioFile.path);
+
+    // Open file with explicit handle management to prevent file handle leaks
+    final RandomAccessFile raf = await audioFile.open(mode: FileMode.read);
+
+    // Create stream that properly closes the file handle when done
+    Stream<List<int>> createFileStream() async* {
+      const int chunkSize = 64 * 1024; // 64 KB chunks
+      try {
+        while (true) {
+          final chunk = await raf.read(chunkSize);
+          if (chunk.isEmpty) break;
+          yield chunk;
+        }
+      } finally {
+        await raf.close();
+      }
+    }
+
     // Return the file as a download with appropriate headers
     return Response.ok(
-      audioFile.openRead(),
+      createFileStream(),
       headers: {
-        'Content-Type': 'audio/mpeg', // Assuming MP3 files
+        'Content-Type': mimeType,
         'Content-Length': fileSize.toString(),
         'Content-Disposition': _encodeContentDisposition(fileName),
         'Cache-Control': 'public, max-age=3600', // Cache for 1 hour during download
