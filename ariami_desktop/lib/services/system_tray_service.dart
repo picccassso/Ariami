@@ -92,12 +92,12 @@ class SystemTrayService with TrayListener {
         for (int i = 0; i < 8; i++) {
           projectDir = path.dirname(projectDir);
         }
-        return path.join(projectDir, 'assets', 'Arami_icon.png');
+        return path.join(projectDir, 'assets', 'Ariami_icon.png');
       }
       // In release mode, the icon is bundled in flutter_assets
       // Use path.normalize to resolve the '..' and get a clean absolute path
       final resourcesDir = path.normalize(path.join(executableDir, '..', 'Frameworks', 'App.framework', 'Resources', 'flutter_assets', 'assets'));
-      final iconPath = path.join(resourcesDir, 'Arami_icon.png');
+      final iconPath = path.join(resourcesDir, 'Ariami_icon.png');
       // Return normalized path directly - avoid .absolute which can throw
       return path.normalize(iconPath);
     } else if (Platform.isWindows) {
@@ -120,10 +120,10 @@ class SystemTrayService with TrayListener {
         for (int i = 0; i < 5; i++) {
           projectDir = path.dirname(projectDir);
         }
-        return path.join(projectDir, 'assets', 'Arami_icon.png');
+        return path.join(projectDir, 'assets', 'Ariami_icon.png');
       }
       // In release mode, look for icon in flutter_assets
-      return path.join(executableDir, 'data', 'flutter_assets', 'assets', 'Arami_icon.png');
+      return path.join(executableDir, 'data', 'flutter_assets', 'assets', 'Ariami_icon.png');
     }
     return '';
   }

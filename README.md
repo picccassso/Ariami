@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="Arami_icon.png" alt="Ariami Logo" width="200"/>
+  <img src="Ariami_icon.png" alt="Ariami Logo" width="200"/>
   <h1>Ariami</h1>
   <p><strong>Stream your music like Spotify. Except you own it.</strong></p>
 </div>
