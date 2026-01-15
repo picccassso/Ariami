@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../main.dart' show sharedPrefs;
 
 /// A collapsible section widget with animated expansion
 /// Used in the library screen to show/hide Playlists, Albums, and Songs sections
@@ -6,12 +7,15 @@ class CollapsibleSection extends StatefulWidget {
   final String title;
   final Widget child;
   final bool initiallyExpanded;
+  /// Optional key for persisting expanded/collapsed state across app restarts
+  final String? persistenceKey;
 
   const CollapsibleSection({
     super.key,
     required this.title,
     required this.child,
     this.initiallyExpanded = true,
+    this.persistenceKey,
   });
 
   @override
@@ -27,7 +31,15 @@ class _CollapsibleSectionState extends State<CollapsibleSection>
   @override
   void initState() {
     super.initState();
-    _isExpanded = widget.initiallyExpanded;
+
+    // Load persisted state synchronously if persistence key is provided
+    // Uses the pre-loaded sharedPrefs from main.dart - no async, no flicker
+    if (widget.persistenceKey != null) {
+      final savedState = sharedPrefs.getBool(widget.persistenceKey!);
+      _isExpanded = savedState ?? widget.initiallyExpanded;
+    } else {
+      _isExpanded = widget.initiallyExpanded;
+    }
 
     // Animation controller for expansion
     _animationController = AnimationController(
@@ -44,10 +56,15 @@ class _CollapsibleSectionState extends State<CollapsibleSection>
       curve: Curves.easeInOut,
     ));
 
-    // Set initial state
+    // Set initial animation state to match expanded state
     if (_isExpanded) {
       _animationController.value = 1.0;
     }
+  }
+
+  /// Save expanded/collapsed state to SharedPreferences
+  void _saveState() {
+    sharedPrefs.setBool(widget.persistenceKey!, _isExpanded);
   }
 
   @override
@@ -65,6 +82,11 @@ class _CollapsibleSectionState extends State<CollapsibleSection>
         _animationController.reverse();
       }
     });
+
+    // Persist state if persistence key is provided
+    if (widget.persistenceKey != null) {
+      _saveState();
+    }
   }
 
   @override
