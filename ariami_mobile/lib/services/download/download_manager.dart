@@ -20,6 +20,7 @@ class DownloadManager {
   final DownloadQueue _queue = DownloadQueue();
   final Map<String, CancelToken> _activeDownloads = {};
   final Map<String, double> _activeProgress = {}; // Track progress separately to avoid queue updates
+  bool _isDownloading = false; // Guard to prevent concurrent downloads
   final StreamController<DownloadProgress> _progressController =
       StreamController<DownloadProgress>.broadcast();
   final StreamController<List<DownloadTask>> _queueController =
@@ -237,12 +238,16 @@ class DownloadManager {
 
   /// Start downloading the next pending task
   void _startNextDownload() {
+    // Prevent concurrent downloads
+    if (_isDownloading) return;
+
     final nextTask = _queue.getNextPending();
     if (nextTask == null) {
       print('No more pending downloads');
       return;
     }
 
+    _isDownloading = true;
     _downloadTask(nextTask);
   }
 
@@ -311,11 +316,17 @@ class DownloadManager {
       _activeDownloads.remove(task.id);
       _activeProgress.remove(task.id); // Cleanup progress tracking
 
-      // Continue with next download
+      // Delay before starting next download to allow server file handles to close
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      // Mark as not downloading and continue with next
+      _isDownloading = false;
       _startNextDownload();
     } on DioException catch (e) {
+      _isDownloading = false;
       _handleDownloadError(task, e);
     } catch (e) {
+      _isDownloading = false;
       _handleDownloadError(task, Exception('Unknown error: $e'));
     }
   }
@@ -335,6 +346,7 @@ class DownloadManager {
 
       // Wait before retry
       await Future.delayed(const Duration(seconds: 5));
+      _isDownloading = true;
       _downloadTask(task);
     } else {
       task.status = DownloadStatus.failed;

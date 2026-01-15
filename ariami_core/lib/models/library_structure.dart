@@ -1,4 +1,5 @@
 import 'album.dart';
+import 'folder_playlist.dart';
 import 'song_metadata.dart';
 
 /// Represents the complete library structure with albums and standalone songs
@@ -9,9 +10,13 @@ class LibraryStructure {
   /// List of standalone songs (not part of any album)
   final List<SongMetadata> standaloneSongs;
 
+  /// List of folder-based playlists (from [PLAYLIST] folders)
+  final List<FolderPlaylist> folderPlaylists;
+
   const LibraryStructure({
     required this.albums,
     required this.standaloneSongs,
+    this.folderPlaylists = const [],
   });
 
   /// Total number of songs across all albums and standalone
@@ -101,8 +106,11 @@ class LibraryStructure {
     return artists;
   }
 
+  /// Total number of folder playlists
+  int get totalPlaylists => folderPlaylists.length;
+
   @override
   String toString() {
-    return 'LibraryStructure(albums: $totalAlbums, standalone: ${standaloneSongs.length}, total: $totalSongs songs)';
+    return 'LibraryStructure(albums: $totalAlbums, standalone: ${standaloneSongs.length}, playlists: $totalPlaylists, total: $totalSongs songs)';
   }
 }

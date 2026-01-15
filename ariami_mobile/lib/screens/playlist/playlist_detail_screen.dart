@@ -428,37 +428,93 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   }
 
   /// Delete playlist with confirmation
+  /// For imported playlists, shows option to restore server version
   Future<void> _deletePlaylist() async {
     if (_playlist == null) return;
 
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Playlist'),
-        content:
-            Text('Are you sure you want to delete "${_playlist!.name}"?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: FilledButton.styleFrom(
-              backgroundColor: Colors.red,
-            ),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
+    final isImported = _playlistService.isImportedFromServer(_playlist!.id);
 
-    if (confirm == true && mounted) {
-      // Remove listener before deleting to prevent double navigation
-      _playlistService.removeListener(_onPlaylistsChanged);
-      await _playlistService.deletePlaylist(_playlist!.id);
-      if (mounted) {
-        Navigator.of(context).pop();
+    if (isImported) {
+      // Show special dialog for imported playlists
+      final result = await showDialog<String>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Delete Imported Playlist'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('This playlist was imported from your server.'),
+              const SizedBox(height: 12),
+              Text(
+                'What would you like to do?',
+                style: TextStyle(fontWeight: FontWeight.w500),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, 'cancel'),
+              child: const Text('Cancel'),
+            ),
+            OutlinedButton.icon(
+              onPressed: () => Navigator.pop(context, 'restore'),
+              icon: const Icon(Icons.restore),
+              label: const Text('Delete & Restore Original'),
+            ),
+            FilledButton.icon(
+              onPressed: () => Navigator.pop(context, 'permanent'),
+              style: FilledButton.styleFrom(
+                backgroundColor: Colors.red,
+              ),
+              icon: const Icon(Icons.delete_forever),
+              label: const Text('Delete Permanently'),
+            ),
+          ],
+        ),
+      );
+
+      if (result != null && result != 'cancel' && mounted) {
+        _playlistService.removeListener(_onPlaylistsChanged);
+        await _playlistService.deleteImportedPlaylist(
+          _playlist!.id,
+          restoreServerVersion: result == 'restore',
+        );
+        if (mounted) {
+          Navigator.of(context).pop();
+        }
+      }
+    } else {
+      // Standard delete for regular playlists
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Delete Playlist'),
+          content:
+              Text('Are you sure you want to delete "${_playlist!.name}"?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: FilledButton.styleFrom(
+                backgroundColor: Colors.red,
+              ),
+              child: const Text('Delete'),
+            ),
+          ],
+        ),
+      );
+
+      if (confirm == true && mounted) {
+        // Remove listener before deleting to prevent double navigation
+        _playlistService.removeListener(_onPlaylistsChanged);
+        await _playlistService.deletePlaylist(_playlist!.id);
+        if (mounted) {
+          Navigator.of(context).pop();
+        }
       }
     }
   }

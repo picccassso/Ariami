@@ -244,6 +244,7 @@ See [GUIDE.md](GUIDE.md) for detailed development documentation.
 
 - **Playlist & Stats Import/Export Implemented**: Playlists & Stats can now be imported and exported as a .json file.)
 - **Raspberry Pi Fix**: Fixed Issue where server wouldn't go into background on Raspberry Pis.
+- **New Download Feature**: Added ability to download all songs/albums/playlists.
 
 ---
 

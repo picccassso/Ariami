@@ -179,6 +179,10 @@ class _LibraryScreenState extends State<LibraryScreen> {
       print('[LibraryScreen] Library loaded successfully');
       print('[LibraryScreen] Albums: ${library.albums.length}');
       print('[LibraryScreen] Songs: ${library.songs.length}');
+      print('[LibraryScreen] Server playlists: ${library.serverPlaylists.length}');
+
+      // Update PlaylistService with server playlists
+      _playlistService.updateServerPlaylists(library.serverPlaylists);
 
       setState(() {
         _albums = library.albums;
@@ -445,6 +449,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
         .where((p) => p.id != PlaylistService.likedSongsId)
         .toList();
 
+    // Check if there are visible server playlists to import
+    final hasServerPlaylists = _playlistService.hasVisibleServerPlaylists;
+
     if (regularPlaylists.isEmpty && likedSongsPlaylist == null) {
       return Padding(
         padding: const EdgeInsets.all(16.0),
@@ -459,19 +466,27 @@ class _LibraryScreenState extends State<LibraryScreen> {
             CreatePlaylistCard(
               onTap: _createNewPlaylist,
             ),
+            if (hasServerPlaylists)
+              ImportFromServerCard(
+                serverPlaylistCount: _playlistService.visibleServerPlaylists.length,
+                onTap: _showServerPlaylistsSheet,
+              ),
           ],
         ),
       );
     }
 
-    // Calculate total item count: Create New + Liked Songs (if exists) + regular playlists
+    // Calculate total item count: Create New + Import (if server playlists) + Liked Songs (if exists) + regular playlists
     int itemCount = 1; // Create New
+    if (hasServerPlaylists) {
+      itemCount++; // Import from Server
+    }
     if (likedSongsPlaylist != null && likedSongsPlaylist.songIds.isNotEmpty) {
       itemCount++; // Liked Songs
     }
     itemCount += regularPlaylists.length; // Regular playlists
 
-    // Playlists exist - show Create New + Liked Songs (if exists) + regular playlists
+    // Playlists exist - show Create New + Import (if available) + Liked Songs (if exists) + regular playlists
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: GridView.builder(
@@ -492,10 +507,21 @@ class _LibraryScreenState extends State<LibraryScreen> {
             );
           }
 
-          // Second item is Liked Songs (if it exists and has songs)
+          int currentIndex = 1;
+
+          // Second item is Import from Server (if server playlists exist)
+          if (hasServerPlaylists && index == currentIndex) {
+            return ImportFromServerCard(
+              serverPlaylistCount: _playlistService.visibleServerPlaylists.length,
+              onTap: _showServerPlaylistsSheet,
+            );
+          }
+          if (hasServerPlaylists) currentIndex++;
+
+          // Next is Liked Songs (if it exists and has songs)
           final hasLikedSongs = likedSongsPlaylist != null &&
                                  likedSongsPlaylist.songIds.isNotEmpty;
-          if (hasLikedSongs && index == 1) {
+          if (hasLikedSongs && index == currentIndex) {
             return PlaylistCard(
               playlist: likedSongsPlaylist,
               onTap: () => _openPlaylist(likedSongsPlaylist),
@@ -504,15 +530,17 @@ class _LibraryScreenState extends State<LibraryScreen> {
               isLikedSongs: true, // Special flag for styling
             );
           }
+          if (hasLikedSongs) currentIndex++;
 
-          // Regular playlists start after Create New and optionally Liked Songs
-          final playlistIndex = hasLikedSongs ? index - 2 : index - 1;
+          // Regular playlists start after the special items
+          final playlistIndex = index - currentIndex;
           final playlist = regularPlaylists[playlistIndex];
           return PlaylistCard(
             playlist: playlist,
             onTap: () => _openPlaylist(playlist),
             onLongPress: () => _showPlaylistContextMenu(playlist),
             albumIds: _getPlaylistArtworkIds(playlist),
+            isImportedFromServer: _playlistService.isRecentlyImported(playlist.id),
           );
         },
       ),
@@ -802,6 +830,160 @@ class _LibraryScreenState extends State<LibraryScreen> {
   // ============================================================================
   // ACTION HANDLERS
   // ============================================================================
+
+  /// Show bottom sheet with available server playlists to import
+  void _showServerPlaylistsSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (BuildContext context) {
+        final visiblePlaylists = _playlistService.visibleServerPlaylists;
+
+        return DraggableScrollableSheet(
+          initialChildSize: 0.5,
+          minChildSize: 0.3,
+          maxChildSize: 0.9,
+          expand: false,
+          builder: (context, scrollController) {
+            return Column(
+              children: [
+                // Handle bar
+                Container(
+                  margin: const EdgeInsets.symmetric(vertical: 12),
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[400],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                // Header
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    children: [
+                      Icon(Icons.cloud_download, color: Colors.blue[700]),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Import from Server',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Text(
+                    'Folder playlists found on your server. Tap to import as a local playlist.',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Divider(height: 1),
+                // Playlist list
+                Expanded(
+                  child: visiblePlaylists.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.check_circle, size: 48, color: Colors.green[400]),
+                              const SizedBox(height: 16),
+                              Text(
+                                'All playlists imported!',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      : ListView.builder(
+                          controller: scrollController,
+                          itemCount: visiblePlaylists.length,
+                          itemBuilder: (context, index) {
+                            final serverPlaylist = visiblePlaylists[index];
+                            return ListTile(
+                              leading: Container(
+                                width: 48,
+                                height: 48,
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                    colors: [Colors.blue[400]!, Colors.blue[700]!],
+                                  ),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: const Icon(Icons.folder, color: Colors.white),
+                              ),
+                              title: Text(serverPlaylist.name),
+                              subtitle: Text('${serverPlaylist.songCount} songs'),
+                              trailing: const Icon(Icons.download),
+                              onTap: () => _importServerPlaylist(serverPlaylist),
+                            );
+                          },
+                        ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  /// Import a server playlist as local
+  Future<void> _importServerPlaylist(ServerPlaylist serverPlaylist) async {
+    Navigator.pop(context); // Close bottom sheet
+
+    // Show loading indicator
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      // Get all songs to match IDs with metadata
+      final allSongs = _songs;
+
+      final localPlaylist = await _playlistService.importServerPlaylist(
+        serverPlaylist,
+        allSongs: allSongs,
+      );
+
+      if (mounted) {
+        Navigator.of(context, rootNavigator: true).pop(); // Close loading dialog
+
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Imported "${localPlaylist.name}" with ${localPlaylist.songCount} songs'),
+            action: SnackBarAction(
+              label: 'View',
+              onPressed: () => _openPlaylist(localPlaylist),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context); // Close loading
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to import: $e')),
+        );
+      }
+    }
+  }
 
   Future<void> _createNewPlaylist() async {
     final playlist = await CreatePlaylistScreen.show(context);

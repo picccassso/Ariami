@@ -173,6 +173,7 @@ class LibraryManager {
         print('[LibraryManager] Library scan complete!');
         print('[LibraryManager] Albums: ${_library!.totalAlbums}');
         print('[LibraryManager] Standalone songs: ${_library!.standaloneSongs.length}');
+        print('[LibraryManager] Folder playlists: ${_library!.totalPlaylists}');
         print('[LibraryManager] Total songs: ${_library!.totalSongs}');
 
         // Notify listeners that scan is complete
@@ -206,13 +207,25 @@ class LibraryManager {
         .map((album) => _albumToApiJson(album, baseUrl))
         .toList();
 
-    // Convert standalone songs to API format
-    final songsJson = _library!.standaloneSongs
-        .map((song) => _songToApiJson(song, baseUrl, null))
-        .toList();
+    // Convert ALL songs to API format (album songs + standalone songs)
+    final songsJson = <Map<String, dynamic>>[];
 
-    // Playlists are empty for now (will be implemented in Phase 7 Task 7.5)
-    final playlistsJson = <Map<String, dynamic>>[];
+    // Add songs from all valid albums
+    for (final album in _library!.albums.values.where((a) => a.isValid)) {
+      for (final song in album.sortedSongs) {
+        songsJson.add(_songToApiJson(song, baseUrl, album.id));
+      }
+    }
+
+    // Add standalone songs (not in any album)
+    for (final song in _library!.standaloneSongs) {
+      songsJson.add(_songToApiJson(song, baseUrl, null));
+    }
+
+    // Convert folder playlists to API format
+    final playlistsJson = _library!.folderPlaylists
+        .map((playlist) => playlist.toJson())
+        .toList();
 
     return {
       'albums': albumsJson,

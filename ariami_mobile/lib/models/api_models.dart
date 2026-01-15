@@ -296,17 +296,51 @@ class PlaylistModel {
   }
 }
 
+/// Server-side playlist (from [PLAYLIST] folders)
+/// Simpler than PlaylistModel - just contains song IDs, no local metadata
+class ServerPlaylist {
+  final String id;
+  final String name;
+  final List<String> songIds;
+  final int songCount;
+
+  ServerPlaylist({
+    required this.id,
+    required this.name,
+    required this.songIds,
+    required this.songCount,
+  });
+
+  factory ServerPlaylist.fromJson(Map<String, dynamic> json) {
+    return ServerPlaylist(
+      id: json['id'] as String,
+      name: EncodingUtils.fixEncoding(json['name'] as String) ?? json['name'] as String,
+      songIds: (json['songIds'] as List<dynamic>? ?? []).cast<String>(),
+      songCount: json['songCount'] as int? ?? 0,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'songIds': songIds,
+      'songCount': songCount,
+    };
+  }
+}
+
 /// Complete library response
 class LibraryResponse {
   final List<AlbumModel> albums;
   final List<SongModel> songs;
-  final List<PlaylistModel> playlists;
+  final List<ServerPlaylist> serverPlaylists;
   final String lastUpdated;
 
   LibraryResponse({
     required this.albums,
     required this.songs,
-    required this.playlists,
+    required this.serverPlaylists,
     required this.lastUpdated,
   });
 
@@ -318,8 +352,8 @@ class LibraryResponse {
       songs: (json['songs'] as List<dynamic>? ?? [])
           .map((e) => SongModel.fromJson(e as Map<String, dynamic>))
           .toList(),
-      playlists: (json['playlists'] as List<dynamic>? ?? [])
-          .map((e) => PlaylistModel.fromJson(e as Map<String, dynamic>))
+      serverPlaylists: (json['playlists'] as List<dynamic>? ?? [])
+          .map((e) => ServerPlaylist.fromJson(e as Map<String, dynamic>))
           .toList(),
       lastUpdated: json['lastUpdated'] as String? ?? '',
     );
@@ -329,7 +363,7 @@ class LibraryResponse {
     return {
       'albums': albums.map((e) => e.toJson()).toList(),
       'songs': songs.map((e) => e.toJson()).toList(),
-      'playlists': playlists.map((e) => e.toJson()).toList(),
+      'playlists': serverPlaylists.map((e) => e.toJson()).toList(),
       'lastUpdated': lastUpdated,
     };
   }

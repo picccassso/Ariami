@@ -17,6 +17,9 @@ class PlaylistCard extends StatelessWidget {
   /// Whether this is the special "Liked Songs" playlist
   final bool isLikedSongs;
 
+  /// Whether this playlist was imported from a server folder playlist
+  final bool isImportedFromServer;
+
   const PlaylistCard({
     super.key,
     required this.playlist,
@@ -24,6 +27,7 @@ class PlaylistCard extends StatelessWidget {
     this.onLongPress,
     this.albumIds = const [],
     this.isLikedSongs = false,
+    this.isImportedFromServer = false,
   });
 
   @override
@@ -61,15 +65,29 @@ class PlaylistCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Playlist name
-                Text(
-                  playlist.name,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                // Playlist name with optional imported indicator
+                Row(
+                  children: [
+                    if (isImportedFromServer) ...[
+                      Icon(
+                        Icons.cloud_done,
+                        size: 14,
+                        color: Colors.blue[400],
+                      ),
+                      const SizedBox(width: 4),
+                    ],
+                    Expanded(
+                      child: Text(
+                        playlist.name,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 2),
                 // Song count
@@ -291,6 +309,108 @@ class CreatePlaylistCard extends StatelessWidget {
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
                     color: Colors.grey[700],
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Import from Server card widget
+/// Shows when there are server folder playlists available to import
+class ImportFromServerCard extends StatelessWidget {
+  final int serverPlaylistCount;
+  final VoidCallback onTap;
+
+  const ImportFromServerCard({
+    super.key,
+    required this.serverPlaylistCount,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Import button with fixed square aspect ratio
+          AspectRatio(
+            aspectRatio: 1.0,
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(4),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Colors.blue[400]!, Colors.blue[700]!],
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.blue.withValues(alpha: 0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.cloud_download,
+                    size: 40,
+                    color: Colors.white,
+                  ),
+                  const SizedBox(height: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      '$serverPlaylistCount',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
+          // Label in expanded container
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Import from Server',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.blue[700],
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '$serverPlaylistCount available',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
