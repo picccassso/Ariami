@@ -47,9 +47,11 @@ class _LibraryScreenState extends State<LibraryScreen> {
   Set<String> _downloadedSongIds = {};
   Set<String> _cachedSongIds = {};
   Set<String> _albumsWithDownloads = {};
+  Set<String> _fullyDownloadedAlbumIds = {};
   StreamSubscription<OfflineMode>? _offlineSubscription;
   StreamSubscription<void>? _cacheSubscription;
   StreamSubscription<bool>? _connectionSubscription;
+  StreamSubscription<List<DownloadTask>>? _downloadSubscription;
 
   @override
   void initState() {
@@ -78,6 +80,11 @@ class _LibraryScreenState extends State<LibraryScreen> {
     _cacheSubscription = _cacheManager.cacheUpdateStream.listen((_) {
       _loadCachedSongs();
     });
+
+    // Listen to download queue changes - refresh download status when downloads complete
+    _downloadSubscription = _downloadManager.queueStream.listen((_) {
+      _loadDownloadedSongs();
+    });
   }
 
   @override
@@ -86,6 +93,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
     _offlineSubscription?.cancel();
     _connectionSubscription?.cancel();
     _cacheSubscription?.cancel();
+    _downloadSubscription?.cancel();
     super.dispose();
   }
 
@@ -98,6 +106,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
     final queue = _downloadManager.queue;
     final downloadedIds = <String>{};
     final albumsWithDownloads = <String>{};
+    final albumDownloadCounts = <String, int>{};
 
     for (final task in queue) {
       if (task.status == DownloadStatus.completed) {
@@ -105,13 +114,26 @@ class _LibraryScreenState extends State<LibraryScreen> {
         // Use albumId directly from download task
         if (task.albumId != null) {
           albumsWithDownloads.add(task.albumId!);
+          // Count downloaded songs per album
+          albumDownloadCounts[task.albumId!] = 
+              (albumDownloadCounts[task.albumId!] ?? 0) + 1;
         }
+      }
+    }
+
+    // Determine which albums are fully downloaded
+    final fullyDownloaded = <String>{};
+    for (final album in _albums) {
+      final downloadedCount = albumDownloadCounts[album.id] ?? 0;
+      if (downloadedCount >= album.songCount && album.songCount > 0) {
+        fullyDownloaded.add(album.id);
       }
     }
 
     setState(() {
       _downloadedSongIds = downloadedIds;
       _albumsWithDownloads = albumsWithDownloads;
+      _fullyDownloadedAlbumIds = fullyDownloaded;
     });
   }
 
@@ -152,6 +174,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
       print('[LibraryScreen] Offline mode enabled - building library from downloads');
       await _loadDownloadedSongs();
       _buildLibraryFromDownloads();
+      await _loadDownloadedSongs(); // Re-run to populate _fullyDownloadedAlbumIds now that _albums exists
       setState(() {
         _isLoading = false;
         _errorMessage = null;
@@ -382,6 +405,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
             child: CollapsibleSection(
               title: 'Playlists',
               initiallyExpanded: true,
+              persistenceKey: 'library_section_playlists',
               child: _buildPlaylistsGrid(),
             ),
           ),
@@ -391,6 +415,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
             child: CollapsibleSection(
               title: 'Albums',
               initiallyExpanded: true,
+              persistenceKey: 'library_section_albums',
               child: _buildAlbumsGrid(),
             ),
           ),
@@ -400,6 +425,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
             child: CollapsibleSection(
               title: 'Songs',
               initiallyExpanded: false,
+              persistenceKey: 'library_section_songs',
               child: _buildSongsList(),
             ),
           ),
@@ -1053,6 +1079,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
 
   /// Show context menu for album long press
   void _showAlbumContextMenu(AlbumModel album) {
+    final isFullyDownloaded = _fullyDownloadedAlbumIds.contains(album.id);
+    
     showModalBottomSheet(
       context: context,
       builder: (BuildContext context) {
@@ -1129,14 +1157,21 @@ class _LibraryScreenState extends State<LibraryScreen> {
                   _addAlbumToQueue(album);
                 },
               ),
-              ListTile(
-                leading: const Icon(Icons.download),
-                title: const Text('Download Album'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _downloadAlbum(album);
-                },
-              ),
+              if (isFullyDownloaded)
+                const ListTile(
+                  leading: Icon(Icons.check, color: Colors.white),
+                  title: Text('Downloaded'),
+                  enabled: false,
+                )
+              else
+                ListTile(
+                  leading: const Icon(Icons.download),
+                  title: const Text('Download Album'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _downloadAlbum(album);
+                  },
+                ),
             ],
           ),
         );
@@ -1146,6 +1181,10 @@ class _LibraryScreenState extends State<LibraryScreen> {
 
   /// Show context menu for playlist long press
   void _showPlaylistContextMenu(PlaylistModel playlist) {
+    // Check if all songs in playlist are downloaded
+    final isFullyDownloaded = playlist.songIds.isNotEmpty &&
+        playlist.songIds.every((id) => _downloadedSongIds.contains(id));
+    
     showModalBottomSheet(
       context: context,
       builder: (BuildContext context) {
@@ -1214,14 +1253,21 @@ class _LibraryScreenState extends State<LibraryScreen> {
                   _addPlaylistToQueue(playlist);
                 },
               ),
-              ListTile(
-                leading: const Icon(Icons.download),
-                title: const Text('Download Playlist'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _downloadPlaylist(playlist);
-                },
-              ),
+              if (isFullyDownloaded)
+                const ListTile(
+                  leading: Icon(Icons.check, color: Colors.white),
+                  title: Text('Downloaded'),
+                  enabled: false,
+                )
+              else
+                ListTile(
+                  leading: const Icon(Icons.download),
+                  title: const Text('Download Playlist'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _downloadPlaylist(playlist);
+                  },
+                ),
             ],
           ),
         );

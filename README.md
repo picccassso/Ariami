@@ -14,19 +14,18 @@ Point your server at your music folder, scan a QR code on your phone, and you're
 
 ### Desktop/Laptop Server
 
-1. **Download** - Get the [server app](https://github.com/picccassso/Ariami/releases) for your platform (Desktop GUI)
-2. **Install Tailscale** - Free secure networking ([tailscale.com](https://tailscale.com))
-3. **Point to music** - Select your music folder, server auto-indexes everything
-4. **Install mobile app** - Download from [releases](https://github.com/picccassso/Ariami/releases)
-5. **Scan QR code** - Connect instantly, start streaming
+1. **Download the server app** from [releases](https://github.com/picccassso/Ariami/releases) for your platform (macOS, Windows, Linux)
+2. **Download the mobile app** from [releases](https://github.com/picccassso/Ariami/releases) (Android APK / iOS)
+3. **Run the server** and select your music folder
+4. **Scan the QR code** with the mobile app - done!
 
 ### Raspberry Pi Server
 
 ```bash
 # Download and extract
-curl -L https://github.com/picccassso/Ariami/releases/download/v1.0.2/ariami-cli-raspberry-pi-arm64-v1.0.2.zip -o ariami-cli.zip
+curl -L https://github.com/picccassso/Ariami/releases/download/v1.5.0/ariami-cli-raspberry-pi-arm64-v1.5.0.zip -o ariami-cli.zip
 unzip ariami-cli.zip
-cd ariami-cli-raspberry-pi-arm64-v1.0.2
+cd ariami-cli-raspberry-pi-arm64-v1.5.0
 
 # Run the server
 chmod +x ariami_cli
@@ -34,8 +33,6 @@ chmod +x ariami_cli
 
 # Web interface opens automatically - scan QR code on phone, done
 ```
-
-No port forwarding. No reverse proxy. No nginx configs. Just music.
 
 ---
 
@@ -63,7 +60,6 @@ No port forwarding. No reverse proxy. No nginx configs. Just music.
 - **Auto-indexing** - Scans MP3, FLAC, M4A, OGG, WAV, AIFF, and more
 - **Smart album grouping** - Handles compilations and multi-disc albums correctly
 - **Live library updates** - Add files to your folder, they appear instantly
-- **Tailscale integration** - Secure remote access without exposing ports
 - **Lightweight** - Runs on low-end hardware (including Raspberry Pis!) without any problems!
 
 ### Mobile (iOS & Android)
@@ -82,16 +78,19 @@ No port forwarding. No reverse proxy. No nginx configs. Just music.
 
 ### Library View
 <p align="center">
-  <img src="app%20photos/Ariami%20Mobile/library_view.png" alt="Library View" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/library_view_1.png" alt="Library View 1" width="30%">
   <img src="app%20photos/Ariami%20Mobile/library_view_2.png" alt="Library View 2" width="30%">
   <img src="app%20photos/Ariami%20Mobile/library_view_3.png" alt="Library View 3" width="30%">
 </p>
 
-### Album Playlist View
+### Playlist View
 <p align="center">
-  <img src="app%20photos/Ariami%20Mobile/album_playlist_view_1.png" alt="Album Playlist 1" width="30%">
-  <img src="app%20photos/Ariami%20Mobile/album_playlist_view_2.png" alt="Album Playlist 2" width="30%">
-  <img src="app%20photos/Ariami%20Mobile/album_playlist_view_3.png" alt="Album Playlist 3" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/playlist_view_1.png" alt="Playlist View 1" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/playlist_view_2.png" alt="Playlist View 2" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/playlist_view_3.png" alt="Playlist View 3" width="30%">
+</p>
+<p align="center">
+  <img src="app%20photos/Ariami%20Mobile/playlist_view_4.png" alt="Playlist View 4" width="30%">
 </p>
 
 ### Main Player View
@@ -103,7 +102,8 @@ No port forwarding. No reverse proxy. No nginx configs. Just music.
 
 ### Queue View
 <p align="center">
-  <img src="app%20photos/Ariami%20Mobile/queue_view_1.png" alt="Queue View" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/queue_view_1.png" alt="Queue View 1" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/queue_view_2.png" alt="Queue View 2" width="30%">
 </p>
 
 ### Search View
@@ -141,6 +141,16 @@ No port forwarding. No reverse proxy. No nginx configs. Just music.
   <img src="app%20photos/Ariami%20Mobile/connection_stats_view_1.png" alt="Connection Stats" width="30%">
 </p>
 
+### Import/Export View
+<p align="center">
+  <img src="app%20photos/Ariami%20Mobile/import_export_view_1.png" alt="Import Export View" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/import_playlist_1.png" alt="Import Playlist 1" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/import_playlist_2.png" alt="Import Playlist 2" width="30%">
+</p>
+<p align="center">
+  <img src="app%20photos/Ariami%20Mobile/import_playlist_3.png" alt="Import Playlist 3" width="30%">
+</p>
+
 </details>
 
 <details>
@@ -169,93 +179,27 @@ No port forwarding. No reverse proxy. No nginx configs. Just music.
 
 ---
 
-## Architecture
+## Building from Source
 
-Ariami has four components:
+If you want to build from source, check the README in each package folder:
+- `ariami_desktop/` - Desktop server app
+- `ariami_cli/` - CLI server for Raspberry Pi / Linux servers
+- `ariami_mobile/` - Mobile client app
+- `ariami_core/` - Shared library
 
-- **ariami_core** - Shared Dart library (music indexing, HTTP server, streaming)
-- **ariami_desktop** - GUI server for macOS/Windows/Linux with system tray
-- **ariami_cli** - Headless server for Linux servers and Raspberry Pi
-- **ariami_mobile** - iOS/Android client app
-
-Single Flutter codebase across all platforms. The server components use `ariami_core` for the heavy lifting (library scanning, HTTP/WebSocket APIs, audio streaming with range request support).
-
----
-
-## Installation
-
-### Server
-
-**Desktop (GUI):**
-Download from [releases](https://github.com/picccassso/Ariami/releases) for your platform (macOS, Windows, Linux).
-
-**CLI (Raspberry Pi / Servers):**
-```bash
-# Download and compile
-git clone https://github.com/picccassso/Ariami.git
-cd Ariami/ariami_cli
-flutter build web -t lib/web/main.dart
-dart compile exe bin/ariami_cli.dart -o ariami_cli
-
-# Run
-./ariami_cli start
-```
-
-### Mobile
-
-Download from [releases](https://github.com/picccassso/Ariami/releases) or build from source:
-
-```bash
-cd ariami_mobile
-flutter build apk        # Android
-flutter build ios        # iOS
-```
+**Requirements:** Dart SDK ^3.5.0, Flutter (latest stable)
 
 ---
 
-## Development
+## Latest Updates (v1.5.0)
 
-**Requirements:**
-- Dart SDK: ^3.9.2
-- Flutter: Latest stable
-
-**Setup:**
-```bash
-# Get dependencies
-cd ariami_core && dart pub get && cd ..
-cd ariami_mobile && flutter pub get && cd ..
-cd ariami_desktop && flutter pub get && cd ..
-cd ariami_cli && flutter pub get && cd ..
-
-# Run desktop server
-cd ariami_desktop && flutter run -d macos
-
-# Run mobile app
-cd ariami_mobile && flutter run
-```
-
-See [GUIDE.md](GUIDE.md) for detailed development documentation.
-
----
-
-## Latest Updates
-
-**14 of Jan 2026**
-
-- **Playlist & Stats Import/Export Implemented**: Playlists & Stats can now be imported and exported as a .json file.)
-- **Raspberry Pi Fix**: Fixed Issue where server wouldn't go into background on Raspberry Pis.
-- **New Download Feature**: Added ability to download all songs/albums/playlists.
-
----
-
-## Tech Stack
-
-- **Flutter** - Cross-platform UI (iOS, Android, macOS, Windows, Linux, Web)
-- **Shelf** - HTTP server with REST APIs and WebSocket support
-- **just_audio** - Mobile audio playback with background support
-- **dart_tags** - Metadata extraction (ID3/Vorbis tags)
-- **Tailscale** - Secure device-to-device networking
-- **SQLite** - Mobile storage (cache, downloads, stats)
+- **Import/Export**: Export and import playlists & streaming stats via JSON file
+- **Download All**: Download your entire library (all songs, albums, or playlists) with one tap
+- **Concurrent Downloads**: Up to 10 simultaneous downloads (~10x faster)
+- **Performance Boost**: Library scanning 50-60% faster on first scan, 90%+ faster on re-scans
+- **Raspberry Pi Fix**: Server now properly runs in background after setup
+- **Downloaded Status**: Context menus show checkmark when album/playlist is fully downloaded
+- **Section Memory**: Library sections (Playlists/Albums/Songs) remember expanded/collapsed state
 
 ---
 

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/api_models.dart';
 import '../models/song_stats.dart';
 import '../database/stats_database.dart';
@@ -58,10 +59,34 @@ class ImportExportService {
   /// Data version for future compatibility
   static const int _dataVersion = 1;
 
+  /// Keys for SharedPreferences
+  static const String _lastExportKey = 'import_export_last_export';
+  static const String _lastImportKey = 'import_export_last_import';
+
+  /// Last export/import timestamps
+  DateTime? _lastExportTime;
+  DateTime? _lastImportTime;
+
+  DateTime? get lastExportTime => _lastExportTime;
+  DateTime? get lastImportTime => _lastImportTime;
+
   /// Initialize the service
   Future<void> initialize() async {
     if (_initialized) return;
     _statsDatabase = await StatsDatabase.create();
+
+    // Load timestamps from SharedPreferences
+    final prefs = await SharedPreferences.getInstance();
+    final exportTimeStr = prefs.getString(_lastExportKey);
+    final importTimeStr = prefs.getString(_lastImportKey);
+
+    if (exportTimeStr != null) {
+      _lastExportTime = DateTime.tryParse(exportTimeStr);
+    }
+    if (importTimeStr != null) {
+      _lastImportTime = DateTime.tryParse(importTimeStr);
+    }
+
     _initialized = true;
   }
 
@@ -113,6 +138,11 @@ class ImportExportService {
           error: 'Save cancelled',
         );
       }
+
+      // Save export timestamp
+      _lastExportTime = DateTime.now();
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_lastExportKey, _lastExportTime!.toIso8601String());
 
       return ExportResult(
         success: true,
@@ -217,6 +247,11 @@ class ImportExportService {
 
       // Refresh stats service cache
       await _statsService.reloadFromDatabase();
+
+      // Save import timestamp
+      _lastImportTime = DateTime.now();
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_lastImportKey, _lastImportTime!.toIso8601String());
 
       return ImportResult(
         success: true,

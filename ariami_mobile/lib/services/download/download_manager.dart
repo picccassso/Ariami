@@ -20,7 +20,8 @@ class DownloadManager {
   final DownloadQueue _queue = DownloadQueue();
   final Map<String, CancelToken> _activeDownloads = {};
   final Map<String, double> _activeProgress = {}; // Track progress separately to avoid queue updates
-  bool _isDownloading = false; // Guard to prevent concurrent downloads
+  int _activeDownloadCount = 0; // Track number of concurrent downloads
+  static const int _maxConcurrentDownloads = 10; // Max concurrent downloads allowed
   final StreamController<DownloadProgress> _progressController =
       StreamController<DownloadProgress>.broadcast();
   final StreamController<List<DownloadTask>> _queueController =
@@ -132,7 +133,7 @@ class DownloadManager {
     );
 
     _queue.enqueue(task);
-    _startNextDownload();
+    _fillDownloadSlots();
   }
 
   /// Download entire album
@@ -173,7 +174,7 @@ class DownloadManager {
 
     if (newTasks.isNotEmpty) {
       _queue.enqueueBatch(newTasks);
-      _startNextDownload();
+      _fillDownloadSlots();
     }
   }
 
@@ -201,7 +202,7 @@ class DownloadManager {
     task.status = DownloadStatus.pending;
     _queue.updateTask(task);
 
-    _startNextDownload();
+    _fillDownloadSlots();
   }
 
   /// Retry a failed download
@@ -216,7 +217,7 @@ class DownloadManager {
     task.errorMessage = null;
     _queue.updateTask(task);
 
-    _startNextDownload();
+    _fillDownloadSlots();
   }
 
   /// Cancel a download
@@ -236,27 +237,30 @@ class DownloadManager {
   // INTERNAL DOWNLOAD LOGIC
   // ============================================================================
 
-  /// Start downloading the next pending task
-  void _startNextDownload() {
-    // Prevent concurrent downloads
-    if (_isDownloading) return;
+  /// Fill available download slots with pending tasks
+  void _fillDownloadSlots() {
+    while (_activeDownloadCount < _maxConcurrentDownloads) {
+      final nextTask = _queue.getNextPending();
+      if (nextTask == null) {
+        if (_activeDownloadCount == 0) {
+          print('No more pending downloads');
+        }
+        return;
+      }
 
-    final nextTask = _queue.getNextPending();
-    if (nextTask == null) {
-      print('No more pending downloads');
-      return;
+      // Mark as downloading BEFORE incrementing to prevent double-pickup
+      nextTask.status = DownloadStatus.downloading;
+      _queue.updateTask(nextTask);
+
+      _activeDownloadCount++;
+      _downloadTask(nextTask);
     }
-
-    _isDownloading = true;
-    _downloadTask(nextTask);
   }
 
   /// Download a specific task
   Future<void> _downloadTask(DownloadTask task) async {
     try {
-      // Mark as downloading
-      task.status = DownloadStatus.downloading;
-      _queue.updateTask(task);
+      // Note: task.status is already set to downloading by _fillDownloadSlots()
 
       // Create cancel token for this download
       final cancelToken = CancelToken();
@@ -316,17 +320,15 @@ class DownloadManager {
       _activeDownloads.remove(task.id);
       _activeProgress.remove(task.id); // Cleanup progress tracking
 
-      // Delay before starting next download to allow server file handles to close
-      await Future.delayed(const Duration(milliseconds: 500));
-
-      // Mark as not downloading and continue with next
-      _isDownloading = false;
-      _startNextDownload();
+      // Decrement active count and fill available slots
+      _activeDownloadCount--;
+      await Future.delayed(const Duration(milliseconds: 50));
+      _fillDownloadSlots();
     } on DioException catch (e) {
-      _isDownloading = false;
+      _activeDownloadCount--;
       _handleDownloadError(task, e);
     } catch (e) {
-      _isDownloading = false;
+      _activeDownloadCount--;
       _handleDownloadError(task, Exception('Unknown error: $e'));
     }
   }
@@ -344,10 +346,9 @@ class DownloadManager {
       _queue.updateTask(task);
       print('Retrying download: ${task.title} (attempt ${task.retryCount}/${DownloadTask.maxRetries})');
 
-      // Wait before retry
+      // Wait before retry, then try to fill slots (retry goes back to pending queue)
       await Future.delayed(const Duration(seconds: 5));
-      _isDownloading = true;
-      _downloadTask(task);
+      _fillDownloadSlots();
     } else {
       task.status = DownloadStatus.failed;
       task.errorMessage = error.toString();
@@ -355,7 +356,8 @@ class DownloadManager {
       print('Download failed permanently: ${task.title}');
 
       // Continue with next download
-      _startNextDownload();
+      await Future.delayed(const Duration(milliseconds: 50));
+      _fillDownloadSlots();
     }
   }
 

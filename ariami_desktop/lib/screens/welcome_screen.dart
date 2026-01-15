@@ -10,14 +10,14 @@ class WelcomeScreen extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(
-              Icons.music_note,
-              size: 100,
-              color: Colors.blue,
+            Image.asset(
+              'assets/Ariami_icon.png',
+              width: 100,
+              height: 100,
             ),
             const SizedBox(height: 24),
             const Text(
-              'Basic Music App',
+              'Ariami',
               style: TextStyle(
                 fontSize: 32,
                 fontWeight: FontWeight.bold,
