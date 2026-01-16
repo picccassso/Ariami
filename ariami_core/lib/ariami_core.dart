@@ -7,6 +7,7 @@ export 'models/api_models.dart';
 export 'models/file_change.dart';
 export 'models/folder_playlist.dart';
 export 'models/library_structure.dart';
+export 'models/quality_preset.dart';
 export 'models/scan_result.dart';
 export 'models/song_metadata.dart';
 export 'models/websocket_models.dart';
@@ -26,3 +27,6 @@ export 'services/library/metadata_extractor.dart';
 export 'services/server/connection_manager.dart';
 export 'services/server/http_server.dart';
 export 'services/server/streaming_service.dart';
+
+// Transcoding Services
+export 'services/transcoding/transcoding_service.dart';

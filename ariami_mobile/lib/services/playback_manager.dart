@@ -11,6 +11,7 @@ import 'offline/offline_playback_service.dart';
 import 'cache/cache_manager.dart';
 import 'stats/streaming_stats_service.dart';
 import 'color_extraction_service.dart';
+import 'quality/quality_settings_service.dart';
 import '../main.dart' show audioHandler;
 
 /// Central playback manager that integrates Phase 6 audio services
@@ -30,6 +31,7 @@ class PlaybackManager extends ChangeNotifier {
   final OfflinePlaybackService _offlineService = OfflinePlaybackService();
   final CacheManager _cacheManager = CacheManager();
   final StreamingStatsService _statsService = StreamingStatsService();
+  final QualitySettingsService _qualityService = QualitySettingsService();
 
   // State
   PlaybackQueue _queue = PlaybackQueue();
@@ -452,9 +454,15 @@ class PlaybackManager extends ChangeNotifier {
             throw Exception('Not connected to server');
           }
           print('[PlaybackManager] Connected! Base URL: ${_connectionService.apiClient!.baseUrl}');
-          audioUrl = '${_connectionService.apiClient!.baseUrl}/stream/${song.filePath}';
-          print('[PlaybackManager] Streaming from server: $audioUrl');
-          
+
+          // Get streaming quality based on current network (WiFi vs mobile data)
+          final streamingQuality = _qualityService.getCurrentStreamingQuality();
+          audioUrl = _connectionService.apiClient!.getStreamUrlWithQuality(
+            song.filePath,
+            streamingQuality,
+          );
+          print('[PlaybackManager] Streaming from server: $audioUrl (quality: ${streamingQuality.name})');
+
           // Use server URL for artwork when streaming
           if (song.albumId != null) {
             artworkUri = Uri.parse('${_connectionService.apiClient!.baseUrl}/artwork/${song.albumId}');
@@ -526,13 +534,18 @@ class PlaybackManager extends ChangeNotifier {
   void _cacheSongInBackground(Song song) {
     if (_connectionService.apiClient == null) return;
 
-    // Construct the download URL for caching
-    final downloadUrl = '${_connectionService.apiClient!.baseUrl}/download/${song.id}';
+    // Construct the download URL for caching with quality setting
+    // Use download quality (not streaming quality) for cached files
+    final downloadQuality = _qualityService.getDownloadQuality();
+    final downloadUrl = _connectionService.apiClient!.getDownloadUrlWithQuality(
+      song.id,
+      downloadQuality,
+    );
 
     // Trigger background cache (non-blocking)
     _cacheManager.cacheSong(song.id, downloadUrl).then((started) {
       if (started) {
-        print('[PlaybackManager] Started background caching for: ${song.title}');
+        print('[PlaybackManager] Started background caching for: ${song.title} (quality: ${downloadQuality.name})');
       }
     }).catchError((e) {
       print('[PlaybackManager] Failed to start background cache: $e');

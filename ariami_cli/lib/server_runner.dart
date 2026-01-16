@@ -80,6 +80,23 @@ class ServerRunner {
       final cachePath = p.join(CliStateService.getConfigDir(), 'metadata_cache.json');
       _libraryManager.setCachePath(cachePath);
 
+      // Initialize transcoding service for quality-based streaming
+      final transcodingCachePath = p.join(CliStateService.getConfigDir(), 'transcoded_cache');
+      final transcodingService = TranscodingService(
+        cacheDirectory: transcodingCachePath,
+        maxCacheSizeMB: 2048, // 2GB cache limit
+      );
+      _httpServer.setTranscodingService(transcodingService);
+      print('Transcoding cache: $transcodingCachePath');
+
+      // Check FFmpeg availability
+      final ffmpegAvailable = await transcodingService.isFFmpegAvailable();
+      if (ffmpegAvailable) {
+        print('✓ FFmpeg available - transcoding enabled');
+      } else {
+        print('⚠ FFmpeg not found - transcoding disabled (will serve original files)');
+      }
+
       // If not in setup mode, initialize library
       if (!isSetupMode) {
         final musicPath = await _stateService.getMusicFolderPath();

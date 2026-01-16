@@ -5,6 +5,7 @@ import '../../screens/playlist/add_to_playlist_screen.dart';
 import '../../services/api/connection_service.dart';
 import '../../services/playback_manager.dart';
 import '../../services/download/download_manager.dart';
+import '../../services/quality/quality_settings_service.dart';
 import '../common/cached_artwork.dart';
 
 /// Track list item for album detail view
@@ -261,6 +262,7 @@ class TrackListItem extends StatelessWidget {
   void _handleDownload(BuildContext context) {
     final connectionService = ConnectionService();
     final downloadManager = DownloadManager();
+    final qualityService = QualitySettingsService();
 
     // Check if connected to server
     if (connectionService.apiClient == null) {
@@ -270,8 +272,12 @@ class TrackListItem extends StatelessWidget {
       return;
     }
 
-    // Construct download URL using actual server connection
-    final downloadUrl = '${connectionService.apiClient!.baseUrl}/download/${track.id}';
+    // Construct download URL with user's preferred download quality
+    final downloadQuality = qualityService.getDownloadQuality();
+    final downloadUrl = connectionService.apiClient!.getDownloadUrlWithQuality(
+      track.id,
+      downloadQuality,
+    );
 
     downloadManager.downloadSong(
       songId: track.id,
