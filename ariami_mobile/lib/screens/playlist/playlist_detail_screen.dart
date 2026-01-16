@@ -1,4 +1,8 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as path;
 import '../../models/api_models.dart';
 import '../../models/song.dart';
 import '../../models/download_task.dart';
@@ -370,7 +374,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
     await _playbackManager.playSongs(songs, startIndex: startIndex);
   }
 
-  /// Edit playlist name/description
+  /// Edit playlist name/description/image
   Future<void> _editPlaylist() async {
     if (_playlist == null) return;
 
@@ -378,41 +382,160 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
     final descController =
         TextEditingController(text: _playlist!.description ?? '');
 
+    // Track image state - null means no change, empty string means remove
+    String? newImagePath;
+    bool removeImage = false;
+
     final result = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Edit Playlist'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameController,
-              decoration: const InputDecoration(
-                labelText: 'Name',
-                border: OutlineInputBorder(),
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          // Determine what image to show
+          Widget imageWidget;
+          final currentImagePath = removeImage
+              ? null
+              : (newImagePath ?? _playlist!.customImagePath);
+
+          if (currentImagePath != null && File(currentImagePath).existsSync()) {
+            imageWidget = ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.file(
+                File(currentImagePath),
+                width: 120,
+                height: 120,
+                fit: BoxFit.cover,
+              ),
+            );
+          } else {
+            // Show placeholder
+            imageWidget = Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                color: Colors.grey[800],
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(
+                Icons.queue_music,
+                size: 48,
+                color: Colors.grey,
+              ),
+            );
+          }
+
+          return AlertDialog(
+            title: const Text('Edit Playlist'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Image preview and actions
+                  GestureDetector(
+                    onTap: () async {
+                      final result = await FilePicker.platform.pickFiles(
+                        type: FileType.image,
+                        allowMultiple: false,
+                      );
+                      if (result != null && result.files.isNotEmpty) {
+                        final pickedPath = result.files.first.path;
+                        if (pickedPath != null) {
+                          // Copy to app documents directory
+                          final appDir = await getApplicationDocumentsDirectory();
+                          final playlistImagesDir = Directory('${appDir.path}/playlist_images');
+                          if (!await playlistImagesDir.exists()) {
+                            await playlistImagesDir.create(recursive: true);
+                          }
+                          final ext = path.extension(pickedPath);
+                          final newFileName = '${_playlist!.id}_${DateTime.now().millisecondsSinceEpoch}$ext';
+                          final destPath = '${playlistImagesDir.path}/$newFileName';
+                          await File(pickedPath).copy(destPath);
+                          setDialogState(() {
+                            newImagePath = destPath;
+                            removeImage = false;
+                          });
+                        }
+                      }
+                    },
+                    child: imageWidget,
+                  ),
+                  const SizedBox(height: 8),
+                  // Change Photo button
+                  TextButton.icon(
+                    onPressed: () async {
+                      final result = await FilePicker.platform.pickFiles(
+                        type: FileType.image,
+                        allowMultiple: false,
+                      );
+                      if (result != null && result.files.isNotEmpty) {
+                        final pickedPath = result.files.first.path;
+                        if (pickedPath != null) {
+                          // Copy to app documents directory
+                          final appDir = await getApplicationDocumentsDirectory();
+                          final playlistImagesDir = Directory('${appDir.path}/playlist_images');
+                          if (!await playlistImagesDir.exists()) {
+                            await playlistImagesDir.create(recursive: true);
+                          }
+                          final ext = path.extension(pickedPath);
+                          final newFileName = '${_playlist!.id}_${DateTime.now().millisecondsSinceEpoch}$ext';
+                          final destPath = '${playlistImagesDir.path}/$newFileName';
+                          await File(pickedPath).copy(destPath);
+                          setDialogState(() {
+                            newImagePath = destPath;
+                            removeImage = false;
+                          });
+                        }
+                      }
+                    },
+                    icon: const Icon(Icons.camera_alt, size: 18),
+                    label: const Text('Change Photo'),
+                  ),
+                  // Remove image button (only show if there's an image)
+                  if ((newImagePath != null || _playlist!.customImagePath != null) && !removeImage)
+                    TextButton.icon(
+                      onPressed: () {
+                        setDialogState(() {
+                          removeImage = true;
+                          newImagePath = null;
+                        });
+                      },
+                      icon: const Icon(Icons.delete, size: 16),
+                      label: const Text('Remove Photo'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.red,
+                      ),
+                    ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: nameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Name',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: descController,
+                    decoration: const InputDecoration(
+                      labelText: 'Description (optional)',
+                      border: OutlineInputBorder(),
+                    ),
+                    maxLines: 2,
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: descController,
-              decoration: const InputDecoration(
-                labelText: 'Description (optional)',
-                border: OutlineInputBorder(),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('Cancel'),
               ),
-              maxLines: 2,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Save'),
-          ),
-        ],
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: const Text('Save'),
+              ),
+            ],
+          );
+        },
       ),
     );
 
@@ -423,6 +546,8 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
         description: descController.text.trim().isEmpty
             ? null
             : descController.text.trim(),
+        customImagePath: newImagePath,
+        clearCustomImage: removeImage,
       );
     }
   }
@@ -716,6 +841,29 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   }
 
   Widget _buildPlaylistHeader() {
+    // Priority 1: Custom user-selected image
+    if (_playlist?.customImagePath != null) {
+      final file = File(_playlist!.customImagePath!);
+      if (file.existsSync()) {
+        return Image.file(
+          file,
+          fit: BoxFit.cover,
+          width: double.infinity,
+          height: double.infinity,
+          errorBuilder: (context, error, stackTrace) {
+            // Fall back to collage/gradient if image fails to load
+            return _buildArtworkFromSongs();
+          },
+        );
+      }
+    }
+
+    // Priority 2: Album artwork collage or fallback
+    return _buildArtworkFromSongs();
+  }
+
+  /// Build artwork from songs (collage or fallback)
+  Widget _buildArtworkFromSongs() {
     // Get unique artwork IDs from songs for artwork collage
     // - Album songs: use albumId
     // - Standalone songs: use "song_{songId}" prefix
