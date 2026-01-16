@@ -1,6 +1,6 @@
 <div align="center">
   <img src="Ariami_icon.png" alt="Ariami Logo" width="200"/>
-  <h1>Ariami</h1>
+  <h1>Ariami - TESTING BRANCH</h1>
   <p><strong>Stream your music like Spotify. Except you own it.</strong></p>
 </div>
 
@@ -18,9 +18,8 @@ YouTube How To & Demonstration: [Right here!](https://youtu.be/ssIoGl-0JS8)
 
 1. **Download the server app** from [releases](https://github.com/picccassso/Ariami/releases) for your platform (macOS, Windows, Linux)
 2. **Download the mobile app** from [releases](https://github.com/picccassso/Ariami/releases) (Android APK / iOS)
-3. **Install Tailscale** on both devices.
-4. **Run the server** and select your music folder
-5. **Scan the QR code** with the mobile app - done!
+3. **Run the server** and select your music folder
+4. **Scan the QR code** with the mobile app - done!
 
 ### Raspberry Pi Server
 
@@ -194,7 +193,26 @@ If you want to build from source, check the README in each package folder:
 
 ---
 
-## Latest Updates (v1.5.0)
+## Testing Branch Latest Updates
+
+### Audio Transcoding
+
+Server-side audio transcoding is now available. This lets mobile users stream and download music at reduced quality levels, which saves a ton of bandwidth and makes playback smoother on bad connections.
+
+Three quality presets:
+- **High** - Original file, no transcoding
+- **Medium** - 128 kbps AAC (around 50% smaller)
+- **Low** - 64 kbps AAC (around 75% smaller)
+
+In my testing, a 1.5 GB library went down to 706 MB on medium and 351 MB on low. Pretty significant savings if you're downloading your whole library to your phone.
+
+You can configure separate quality settings for WiFi streaming, mobile data streaming, and downloads. The app automatically switches quality based on your network type. Go to Settings > Streaming Quality to set it up.
+
+The server uses FFmpeg for transcoding (must be installed on the host machine). Transcoded files are cached so it only transcodes once per song per quality level. If FFmpeg isn't available, it just serves the original file.
+
+---
+
+### Previous Updates (v1.5.0)
 
 - **Import/Export**: Export and import playlists & streaming stats via JSON file
 - **Download All**: Download your entire library (all songs, albums, or playlists) with one tap

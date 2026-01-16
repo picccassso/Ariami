@@ -5,6 +5,7 @@ import '../../services/download/download_manager.dart';
 import '../../services/cache/cache_manager.dart';
 import '../../services/api/connection_service.dart';
 import '../../services/playlist_service.dart';
+import '../../services/quality/quality_settings_service.dart';
 import '../../widgets/common/cached_artwork.dart';
 
 class DownloadsScreen extends StatefulWidget {
@@ -198,6 +199,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
 
   Future<void> _downloadAllSongs() async {
     final connectionService = ConnectionService();
+    final qualityService = QualitySettingsService();
     if (connectionService.apiClient == null) {
       return;
     }
@@ -214,9 +216,15 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
       // Build album lookup map for album metadata
       final albumMap = {for (final album in library.albums) album.id: album};
 
+      // Get user's preferred download quality
+      final downloadQuality = qualityService.getDownloadQuality();
+
       for (final song in library.songs) {
-        // Build download URL
-        final downloadUrl = '${connectionService.apiClient!.baseUrl}/download/${song.id}';
+        // Build download URL with quality parameter
+        final downloadUrl = connectionService.apiClient!.getDownloadUrlWithQuality(
+          song.id,
+          downloadQuality,
+        );
 
         // Build artwork URL and get album metadata
         String artworkUrl = '';
@@ -265,6 +273,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
 
   Future<void> _downloadAllAlbums() async {
     final connectionService = ConnectionService();
+    final qualityService = QualitySettingsService();
     if (connectionService.apiClient == null) {
       return;
     }
@@ -286,12 +295,18 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
         }
       }
 
+      // Get user's preferred download quality
+      final downloadQuality = qualityService.getDownloadQuality();
+
       for (final album in library.albums) {
         final albumSongs = albumSongsMap[album.id] ?? [];
 
         // Build song maps for downloadAlbum
         final songMaps = albumSongs.map((song) {
-          final downloadUrl = '${connectionService.apiClient!.baseUrl}/download/${song.id}';
+          final downloadUrl = connectionService.apiClient!.getDownloadUrlWithQuality(
+            song.id,
+            downloadQuality,
+          );
           final artworkUrl = '${connectionService.apiClient!.baseUrl}/artwork/${album.id}';
 
           return {
@@ -339,6 +354,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
   Future<void> _downloadAllPlaylists() async {
     final connectionService = ConnectionService();
     final playlistService = PlaylistService();
+    final qualityService = QualitySettingsService();
 
     if (connectionService.apiClient == null) {
       return;
@@ -371,12 +387,18 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
       final songMap = {for (final s in library.songs) s.id: s};
       final albumMap = {for (final album in library.albums) album.id: album};
 
+      // Get user's preferred download quality
+      final downloadQuality = qualityService.getDownloadQuality();
+
       int queuedCount = 0;
       for (final songId in allSongIds) {
         final song = songMap[songId];
         if (song == null) continue;
 
-        final downloadUrl = '${connectionService.apiClient!.baseUrl}/download/${song.id}';
+        final downloadUrl = connectionService.apiClient!.getDownloadUrlWithQuality(
+          song.id,
+          downloadQuality,
+        );
         String artworkUrl = '';
         String? albumName;
         String? albumArtist;

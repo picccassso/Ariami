@@ -190,6 +190,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 },
               ),
               SettingsTile(
+                icon: Icons.high_quality,
+                title: 'Streaming Quality',
+                subtitle: 'Configure audio quality settings',
+                onTap: () {
+                  Navigator.of(context).pushNamed('/quality');
+                },
+              ),
+              SettingsTile(
                 icon: Icons.import_export,
                 title: 'Import / Export',
                 subtitle: 'Import or Export Stats & Playlists',

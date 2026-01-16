@@ -8,6 +8,9 @@ import 'package:ariami_core/ariami_core.dart';
 import '../services/desktop_tailscale_service.dart';
 import 'scanning_screen.dart';
 
+/// Global transcoding service instance for desktop app
+TranscodingService? _transcodingService;
+
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
@@ -78,6 +81,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final appDir = await getApplicationSupportDirectory();
     final cachePath = p.join(appDir.path, 'metadata_cache.json');
     _httpServer.libraryManager.setCachePath(cachePath);
+
+    // Initialize transcoding service for quality-based streaming
+    if (_transcodingService == null) {
+      final transcodingCachePath = p.join(appDir.path, 'transcoded_cache');
+      _transcodingService = TranscodingService(
+        cacheDirectory: transcodingCachePath,
+        maxCacheSizeMB: 2048, // 2GB cache limit
+      );
+      _httpServer.setTranscodingService(_transcodingService!);
+      print('[Dashboard] Transcoding service initialized at: $transcodingCachePath');
+
+      // Check FFmpeg availability
+      _transcodingService!.isFFmpegAvailable().then((available) {
+        if (!available) {
+          print('[Dashboard] Warning: FFmpeg not found - transcoding will be disabled');
+        }
+      });
+    }
 
     // Get Tailscale IP and server status
     await _updateServerStatus();

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../../models/api_models.dart';
 import '../../models/server_info.dart';
+import '../../models/quality_settings.dart';
 
 /// HTTP API client for Ariami server communication
 class ApiClient {
@@ -83,9 +84,48 @@ class ApiClient {
   // STREAMING ENDPOINTS
   // ============================================================================
 
-  /// Get stream URL for a song
+  /// Get stream URL for a song (original quality)
   String getStreamUrl(String songId) {
     return '$baseUrl/stream/$songId';
+  }
+
+  /// Get stream URL for a song with specific quality
+  ///
+  /// [quality] - The streaming quality preset (high, medium, low)
+  /// High quality returns original file, medium/low returns transcoded AAC.
+  String getStreamUrlWithQuality(String songId, StreamingQuality quality) {
+    final baseStreamUrl = '$baseUrl/stream/$songId';
+
+    // High quality doesn't need a parameter (server returns original)
+    if (quality == StreamingQuality.high) {
+      return baseStreamUrl;
+    }
+
+    return '$baseStreamUrl?quality=${quality.toApiParam()}';
+  }
+
+  // ============================================================================
+  // DOWNLOAD ENDPOINTS
+  // ============================================================================
+
+  /// Get download URL for a song (original quality)
+  String getDownloadUrl(String songId) {
+    return '$baseUrl/download/$songId';
+  }
+
+  /// Get download URL for a song with specific quality
+  ///
+  /// [quality] - The download quality preset (high, medium, low)
+  /// High quality returns original file, medium/low returns transcoded AAC.
+  String getDownloadUrlWithQuality(String songId, StreamingQuality quality) {
+    final baseDownloadUrl = '$baseUrl/download/$songId';
+
+    // High quality doesn't need a parameter (server returns original)
+    if (quality == StreamingQuality.high) {
+      return baseDownloadUrl;
+    }
+
+    return '$baseDownloadUrl?quality=${quality.toApiParam()}';
   }
 
   // ============================================================================
