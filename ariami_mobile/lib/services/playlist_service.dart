@@ -269,11 +269,14 @@ class PlaylistService extends ChangeNotifier {
     }
   }
 
-  /// Update playlist name and/or description
+  /// Update playlist name, description, and/or custom image
+  /// Use clearCustomImage: true to remove the custom image
   Future<void> updatePlaylist({
     required String id,
     String? name,
     String? description,
+    String? customImagePath,
+    bool clearCustomImage = false,
   }) async {
     final index = _playlists.indexWhere((p) => p.id == id);
     if (index == -1) return;
@@ -282,6 +285,8 @@ class PlaylistService extends ChangeNotifier {
     _playlists[index] = playlist.copyWith(
       name: name ?? playlist.name,
       description: description,
+      customImagePath: customImagePath,
+      clearCustomImagePath: clearCustomImage,
       modifiedAt: DateTime.now(),
     );
 

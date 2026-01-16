@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../models/api_models.dart';
 import '../../services/api/connection_service.dart';
@@ -108,8 +109,31 @@ class PlaylistCard extends StatelessWidget {
     );
   }
 
-  /// Build playlist artwork - collage or fallback
+  /// Build playlist artwork - custom image, collage, or fallback
   Widget _buildPlaylistArt() {
+    // Priority 1: Custom user-selected image
+    if (playlist.customImagePath != null) {
+      final file = File(playlist.customImagePath!);
+      if (file.existsSync()) {
+        return Image.file(
+          file,
+          fit: BoxFit.cover,
+          width: double.infinity,
+          height: double.infinity,
+          errorBuilder: (context, error, stackTrace) {
+            // Fall back to collage/gradient if image fails to load
+            return _buildArtworkCollage();
+          },
+        );
+      }
+    }
+
+    // Priority 2: Album artwork collage or fallback
+    return _buildArtworkCollage();
+  }
+
+  /// Build album artwork collage from songs
+  Widget _buildArtworkCollage() {
     if (albumIds.isEmpty) {
       return _buildFallbackArt();
     }

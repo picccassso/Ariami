@@ -202,6 +202,8 @@ class PlaylistModel {
   final String id;
   final String name;
   final String? description;
+  /// Custom cover image path (user-selected photo)
+  final String? customImagePath;
   final List<String> songIds;
   /// Map of songId to albumId for artwork lookup
   final Map<String, String> songAlbumIds;
@@ -218,6 +220,7 @@ class PlaylistModel {
     required this.id,
     required this.name,
     this.description,
+    this.customImagePath,
     required this.songIds,
     this.songAlbumIds = const {},
     this.songTitles = const {},
@@ -235,6 +238,7 @@ class PlaylistModel {
       id: json['id'] as String,
       name: EncodingUtils.fixEncoding(json['name'] as String) ?? json['name'] as String,
       description: EncodingUtils.fixEncoding(json['description'] as String?),
+      customImagePath: json['customImagePath'] as String?,
       songIds: (json['songIds'] as List<dynamic>? ?? []).cast<String>(),
       songAlbumIds: (json['songAlbumIds'] as Map<String, dynamic>? ?? {})
           .map((k, v) => MapEntry(k, v as String)),
@@ -258,6 +262,7 @@ class PlaylistModel {
       'id': id,
       'name': name,
       'description': description,
+      'customImagePath': customImagePath,
       'songIds': songIds,
       'songAlbumIds': songAlbumIds,
       'songTitles': songTitles,
@@ -269,10 +274,13 @@ class PlaylistModel {
   }
 
   /// Create a copy with updated fields
+  /// Note: Use clearCustomImagePath: true to explicitly remove the custom image
   PlaylistModel copyWith({
     String? id,
     String? name,
     String? description,
+    String? customImagePath,
+    bool clearCustomImagePath = false,
     List<String>? songIds,
     Map<String, String>? songAlbumIds,
     Map<String, String>? songTitles,
@@ -285,6 +293,7 @@ class PlaylistModel {
       id: id ?? this.id,
       name: name ?? this.name,
       description: description ?? this.description,
+      customImagePath: clearCustomImagePath ? null : (customImagePath ?? this.customImagePath),
       songIds: songIds ?? this.songIds,
       songAlbumIds: songAlbumIds ?? this.songAlbumIds,
       songTitles: songTitles ?? this.songTitles,
