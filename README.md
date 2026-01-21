@@ -206,6 +206,18 @@ If you want to build from source, check the README in each package folder:
 
 ---
 
+## Latest Updates (v1.5.0)
+
+- **Import/Export**: Export and import playlists & streaming stats via JSON file
+- **Download All**: Download your entire library (all songs, albums, or playlists) with one tap
+- **Concurrent Downloads**: Up to 10 simultaneous downloads (~10x faster)
+- **Performance Boost**: Library scanning 50-60% faster on first scan, 90%+ faster on re-scans
+- **Raspberry Pi Fix**: Server now properly runs in background after setup
+- **Downloaded Status**: Context menus show checkmark when album/playlist is fully downloaded
+- **Section Memory**: Library sections (Playlists/Albums/Songs) remember expanded/collapsed state
+
+---
+
 ### 16/01/2026
 
 #### Audio Transcoding
