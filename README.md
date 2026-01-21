@@ -195,7 +195,19 @@ If you want to build from source, check the README in each package folder:
 
 ## Testing Branch Latest Updates
 
-### Audio Transcoding
+### 21/01/2026
+
+**Playlist Download Indicators** - Playlists now show a green download badge (matching albums) when they contain offline-available songs.
+
+**Playlist Loading Performance** - Fixed N+1 API call issue when loading playlists. Now uses a single `/api/library` call instead of fetching every album individually. ~98% reduction in API calls for large libraries.
+
+**Mini Player Aware UI** - Bottom sheets and scrollable screens now dynamically adjust padding when the mini player is visible, preventing content from being obscured.
+
+---
+
+### 16/01/2026
+
+#### Audio Transcoding
 
 Server-side audio transcoding is now available. This lets mobile users stream and download music at reduced quality levels, which saves a ton of bandwidth and makes playback smoother on bad connections.
 
@@ -209,18 +221,6 @@ In my testing, a 1.5 GB library went down to 706 MB on medium and 351 MB on low.
 You can configure separate quality settings for WiFi streaming, mobile data streaming, and downloads. The app automatically switches quality based on your network type. Go to Settings > Streaming Quality to set it up.
 
 The server uses FFmpeg for transcoding (must be installed on the host machine). Transcoded files are cached so it only transcodes once per song per quality level. If FFmpeg isn't available, it just serves the original file.
-
----
-
-### Previous Updates (v1.5.0)
-
-- **Import/Export**: Export and import playlists & streaming stats via JSON file
-- **Download All**: Download your entire library (all songs, albums, or playlists) with one tap
-- **Concurrent Downloads**: Up to 10 simultaneous downloads (~10x faster)
-- **Performance Boost**: Library scanning 50-60% faster on first scan, 90%+ faster on re-scans
-- **Raspberry Pi Fix**: Server now properly runs in background after setup
-- **Downloaded Status**: Context menus show checkmark when album/playlist is fully downloaded
-- **Section Memory**: Library sections (Playlists/Albums/Songs) remember expanded/collapsed state
 
 ---
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../models/quality_settings.dart';
 import '../../services/quality/quality_settings_service.dart';
 import '../../services/quality/network_monitor_service.dart';
+import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
 
 /// Screen for configuring streaming and download quality settings
 class QualitySettingsScreen extends StatefulWidget {
@@ -304,68 +305,66 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    showModalBottomSheet(
+    showMiniPlayerAwareBottomSheet(
       context: context,
       backgroundColor: isDark ? Colors.grey[900] : Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (context) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Text(
-                    '$title Quality',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: isDark ? Colors.white : Colors.black87,
-                    ),
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Text(
+                  '$title Quality',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? Colors.white : Colors.black87,
                   ),
                 ),
-                const SizedBox(height: 16),
-                ...StreamingQuality.values.map((quality) {
-                  final isSelected = quality == currentQuality;
-                  return ListTile(
-                    leading: Icon(
-                      _getQualityIcon(quality),
+              ),
+              const SizedBox(height: 16),
+              ...StreamingQuality.values.map((quality) {
+                final isSelected = quality == currentQuality;
+                return ListTile(
+                  leading: Icon(
+                    _getQualityIcon(quality),
+                    color: isSelected
+                        ? _getQualityColor(quality)
+                        : (isDark ? Colors.grey[500] : Colors.grey[600]),
+                  ),
+                  title: Text(
+                    quality.displayName,
+                    style: TextStyle(
+                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                       color: isSelected
                           ? _getQualityColor(quality)
-                          : (isDark ? Colors.grey[500] : Colors.grey[600]),
+                          : (isDark ? Colors.white : Colors.black87),
                     ),
-                    title: Text(
-                      quality.displayName,
-                      style: TextStyle(
-                        fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                        color: isSelected
-                            ? _getQualityColor(quality)
-                            : (isDark ? Colors.white : Colors.black87),
-                      ),
+                  ),
+                  subtitle: Text(
+                    quality.description,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isDark ? Colors.grey[500] : Colors.grey[600],
                     ),
-                    subtitle: Text(
-                      quality.description,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: isDark ? Colors.grey[500] : Colors.grey[600],
-                      ),
-                    ),
-                    trailing: isSelected
-                        ? Icon(Icons.check, color: _getQualityColor(quality))
-                        : null,
-                    onTap: () {
-                      Navigator.pop(context);
-                      onChanged(quality);
-                    },
-                  );
-                }),
-              ],
-            ),
+                  ),
+                  trailing: isSelected
+                      ? Icon(Icons.check, color: _getQualityColor(quality))
+                      : null,
+                  onTap: () {
+                    Navigator.pop(context);
+                    onChanged(quality);
+                  },
+                );
+              }),
+            ],
           ),
         );
       },

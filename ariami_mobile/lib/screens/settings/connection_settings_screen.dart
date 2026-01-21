@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../services/api/connection_service.dart';
 import '../../services/offline/offline_playback_service.dart';
 import '../../widgets/settings/connection_status_card.dart';
+import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
 
 class ConnectionSettingsScreen extends StatefulWidget {
   const ConnectionSettingsScreen({super.key});
@@ -121,6 +122,9 @@ class _ConnectionSettingsScreenState extends State<ConnectionSettingsScreen> {
       body: Container(
         color: isDark ? Colors.black : Colors.grey[50],
         child: ListView(
+          padding: EdgeInsets.only(
+            bottom: getMiniPlayerAwareBottomPadding(),
+          ),
           children: [
             // Offline Mode Banner
             if (_isOfflineModeEnabled) ...[
