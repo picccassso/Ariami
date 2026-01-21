@@ -274,6 +274,15 @@ class LibraryScannerIsolate {
       final baseLibrary = albumBuilder.buildLibrary(uniqueSongs);
 
       // Step 5: Build folder playlists
+      // First, build a map from duplicate file paths to their "original" paths
+      // This ensures playlist song IDs match the library (duplicates are filtered out)
+      final duplicateToOriginalPath = <String, String>{};
+      for (final group in duplicateGroups) {
+        for (final duplicate in group.duplicates) {
+          duplicateToOriginalPath[duplicate.filePath] = group.original.filePath;
+        }
+      }
+
       final folderPlaylistsList = <FolderPlaylist>[];
       for (final entry in playlistFolders.entries) {
         final folderPath = entry.key;
@@ -282,8 +291,12 @@ class LibraryScannerIsolate {
         // Skip empty playlist folders
         if (filePaths.isEmpty) continue;
 
-        // Convert file paths to song IDs
-        final songIds = filePaths.map((fp) => _generateSongId(fp)).toList();
+        // Convert file paths to song IDs, mapping duplicates to their originals
+        final songIds = filePaths.map((fp) {
+          // If this file is a duplicate, use the original's path for ID generation
+          final originalPath = duplicateToOriginalPath[fp] ?? fp;
+          return _generateSongId(originalPath);
+        }).toList();
 
         final playlist = FolderPlaylist(
           id: FolderPlaylist.generateId(folderPath),

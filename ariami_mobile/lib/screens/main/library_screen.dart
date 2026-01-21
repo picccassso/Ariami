@@ -48,6 +48,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
   Set<String> _cachedSongIds = {};
   Set<String> _albumsWithDownloads = {};
   Set<String> _fullyDownloadedAlbumIds = {};
+  Set<String> _playlistsWithDownloads = {};
   StreamSubscription<OfflineMode>? _offlineSubscription;
   StreamSubscription<void>? _cacheSubscription;
   StreamSubscription<bool>? _connectionSubscription;
@@ -130,10 +131,22 @@ class _LibraryScreenState extends State<LibraryScreen> {
       }
     }
 
+    // Determine which playlists have downloaded songs
+    final playlistsWithDownloads = <String>{};
+    for (final playlist in _playlistService.playlists) {
+      for (final songId in playlist.songIds) {
+        if (downloadedIds.contains(songId)) {
+          playlistsWithDownloads.add(playlist.id);
+          break; // At least one song downloaded, no need to check more
+        }
+      }
+    }
+
     setState(() {
       _downloadedSongIds = downloadedIds;
       _albumsWithDownloads = albumsWithDownloads;
       _fullyDownloadedAlbumIds = fullyDownloaded;
+      _playlistsWithDownloads = playlistsWithDownloads;
     });
   }
 
@@ -554,6 +567,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
               onLongPress: () => _showPlaylistContextMenu(likedSongsPlaylist),
               albumIds: _getPlaylistArtworkIds(likedSongsPlaylist),
               isLikedSongs: true, // Special flag for styling
+              hasDownloadedSongs: _playlistsWithDownloads.contains(likedSongsPlaylist.id),
             );
           }
           if (hasLikedSongs) currentIndex++;
@@ -567,6 +581,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
             onLongPress: () => _showPlaylistContextMenu(playlist),
             albumIds: _getPlaylistArtworkIds(playlist),
             isImportedFromServer: _playlistService.isRecentlyImported(playlist.id),
+            hasDownloadedSongs: _playlistsWithDownloads.contains(playlist.id),
           );
         },
       ),
@@ -1184,7 +1199,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
     // Check if all songs in playlist are downloaded
     final isFullyDownloaded = playlist.songIds.isNotEmpty &&
         playlist.songIds.every((id) => _downloadedSongIds.contains(id));
-    
+
     showModalBottomSheet(
       context: context,
       builder: (BuildContext context) {

@@ -21,6 +21,9 @@ class PlaylistCard extends StatelessWidget {
   /// Whether this playlist was imported from a server folder playlist
   final bool isImportedFromServer;
 
+  /// Whether this playlist has any downloaded songs
+  final bool hasDownloadedSongs;
+
   const PlaylistCard({
     super.key,
     required this.playlist,
@@ -29,6 +32,7 @@ class PlaylistCard extends StatelessWidget {
     this.albumIds = const [],
     this.isLikedSongs = false,
     this.isImportedFromServer = false,
+    this.hasDownloadedSongs = false,
   });
 
   @override
@@ -43,21 +47,43 @@ class PlaylistCard extends StatelessWidget {
           // Playlist cover art with fixed square aspect ratio (same as albums)
           AspectRatio(
             aspectRatio: 1.0,
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(4),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.2),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
+            child: Stack(
+              children: [
+                Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(4),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.2),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: _buildPlaylistArt(),
-              ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: _buildPlaylistArt(),
+                  ),
+                ),
+                // Download indicator badge
+                if (hasDownloadedSongs)
+                  Positioned(
+                    top: 4,
+                    right: 4,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: Colors.green[600],
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.download_done,
+                        size: 12,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
           const SizedBox(height: 4),

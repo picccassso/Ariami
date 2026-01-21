@@ -65,6 +65,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   PlaylistModel? _playlist;
   List<SongModel> _songs = [];
   bool _isLoading = true;
+  bool _isSongsLoading = false; // True while songs are being resolved in background
   String? _errorMessage;
   bool _isReorderMode = false;
   Set<String> _downloadedSongIds = {};
@@ -152,43 +153,67 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   }
 
   /// Load playlist and resolve song IDs to full song data
+  /// Shows playlist header immediately for smooth transition, then loads songs in background
   Future<void> _loadPlaylist() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
+    // First: Try to show playlist header immediately from cached data
+    // This provides instant visual feedback during screen transition
+    final cachedPlaylist = _playlistService.getPlaylist(widget.playlistId);
+    
+    if (cachedPlaylist != null) {
+      // Show header immediately without loading spinner
+      setState(() {
+        _playlist = cachedPlaylist;
+        _isLoading = false; // Don't show loading spinner for header
+        _isSongsLoading = true; // Songs are loading in background
+      });
+      
+      // Then resolve songs in background (this is now fast with local metadata)
+      final songs = await _resolveSongs(cachedPlaylist.songIds);
+      if (mounted) {
+        setState(() {
+          _songs = songs;
+          _isSongsLoading = false;
+        });
+      }
+    } else {
+      // Playlist not in cache - need to load from storage first
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
 
-    try {
-      await _playlistService.loadPlaylists();
-      final playlist = _playlistService.getPlaylist(widget.playlistId);
+      try {
+        await _playlistService.loadPlaylists();
+        final playlist = _playlistService.getPlaylist(widget.playlistId);
 
-      if (playlist == null) {
+        if (playlist == null) {
+          setState(() {
+            _isLoading = false;
+            _errorMessage = 'Playlist not found';
+          });
+          return;
+        }
+
+        // Resolve song IDs to full song data
+        final songs = await _resolveSongs(playlist.songIds);
+
+        setState(() {
+          _playlist = playlist;
+          _songs = songs;
+          _isLoading = false;
+        });
+      } catch (e) {
         setState(() {
           _isLoading = false;
-          _errorMessage = 'Playlist not found';
+          _errorMessage = 'Failed to load playlist: $e';
         });
-        return;
       }
-
-      // Resolve song IDs to full song data from server
-      final songs = await _resolveSongs(playlist.songIds);
-
-      setState(() {
-        _playlist = playlist;
-        _songs = songs;
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() {
-        _isLoading = false;
-        _errorMessage = 'Failed to load playlist: $e';
-      });
     }
   }
 
   /// Resolve song IDs to SongModel objects
-  /// When offline, builds from downloaded song metadata
-  /// When online, fetches from server
+  /// Uses locally-stored playlist metadata first for instant loading
+  /// Falls back to downloads/server only when necessary
   /// Also populates _albumInfoMap for stats tracking
   Future<List<SongModel>> _resolveSongs(List<String> songIds) async {
     if (songIds.isEmpty) {
@@ -200,45 +225,88 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
       return _resolveSongsFromDownloads(songIds);
     }
 
+    // OPTIMIZATION: Use locally-stored playlist metadata first
+    // This avoids N API calls to fetch individual album details
+    // The playlist already stores song titles, artists, durations, and album IDs
+    
+    // Build album info map from library response (already has album name/artist)
+    // This is a single API call vs N calls for each album
     try {
-      // Get full library to find songs
       final library = await _connectionService.apiClient!.getLibrary();
-
-      // Also get songs from albums
-      final allSongs = <String, SongModel>{};
-
-      // Add standalone songs
-      for (final song in library.songs) {
-        allSongs[song.id] = song;
-      }
-
-      // Get songs from each album and build album info map
+      
+      // Populate album info map from library response (no extra API calls needed!)
       for (final album in library.albums) {
-        try {
-          final albumDetail =
-              await _connectionService.apiClient!.getAlbumDetail(album.id);
-
-          // Store album info for stats tracking
-          _albumInfoMap[album.id] = (name: album.title, artist: album.artist);
-
-          for (final song in albumDetail.songs) {
-            allSongs[song.id] = song;
-          }
-        } catch (_) {
-          // Skip albums that fail to load
+        _albumInfoMap[album.id] = (name: album.title, artist: album.artist);
+      }
+      
+      // Also populate from downloads for any albums not in library response
+      for (final task in _downloadManager.queue) {
+        if (task.status == DownloadStatus.completed &&
+            task.albumId != null &&
+            task.albumName != null &&
+            !_albumInfoMap.containsKey(task.albumId)) {
+          _albumInfoMap[task.albumId!] = (
+            name: task.albumName!,
+            artist: task.albumArtist ?? task.artist
+          );
         }
       }
-
-      // Return songs in playlist order
-      return songIds
-          .where((id) => allSongs.containsKey(id))
-          .map((id) => allSongs[id]!)
-          .toList();
     } catch (e) {
-      print('[PlaylistDetailScreen] Error resolving songs: $e');
-      // Fallback to downloads if server fetch fails
-      return _resolveSongsFromDownloads(songIds);
+      print('[PlaylistDetailScreen] Error fetching library for album info: $e');
+      // Continue anyway - we can still show songs without album info
     }
+
+    // Build song models from playlist's stored metadata (instant, no API calls)
+    return _resolveSongsFromLocalMetadata(songIds);
+  }
+  
+  /// Build SongModel objects from playlist's locally-stored metadata
+  /// This is the optimized path - no server calls needed
+  List<SongModel> _resolveSongsFromLocalMetadata(List<String> songIds) {
+    // First, collect metadata from downloads (higher priority - more complete)
+    final downloadedSongs = <String, SongModel>{};
+    for (final task in _downloadManager.queue) {
+      if (task.status == DownloadStatus.completed) {
+        downloadedSongs[task.songId] = SongModel(
+          id: task.songId,
+          title: task.title,
+          artist: task.artist,
+          albumId: task.albumId,
+          duration: task.duration,
+          trackNumber: task.trackNumber,
+        );
+        
+        // Also update album info map from downloads
+        if (task.albumId != null && task.albumName != null) {
+          _albumInfoMap[task.albumId!] = (
+            name: task.albumName!,
+            artist: task.albumArtist ?? task.artist
+          );
+        }
+      }
+    }
+
+    // Return songs in playlist order using best available metadata
+    return songIds.map((id) {
+      // Prefer downloaded song metadata (more complete)
+      if (downloadedSongs.containsKey(id)) {
+        return downloadedSongs[id]!;
+      }
+      
+      // Fall back to playlist's stored metadata
+      final albumId = _playlist?.songAlbumIds[id];
+      final title = _playlist?.songTitles[id] ?? 'Unknown Song';
+      final artist = _playlist?.songArtists[id] ?? 'Unknown Artist';
+      final duration = _playlist?.songDurations[id] ?? 0;
+      return SongModel(
+        id: id,
+        title: title,
+        artist: artist,
+        albumId: albumId,
+        duration: duration,
+        trackNumber: null,
+      );
+    }).toList();
   }
 
   /// Build SongModel objects from downloaded song metadata or stored playlist metadata
@@ -670,25 +738,11 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
       try {
         final library = await _connectionService.apiClient!.getLibrary();
 
-        // Collect all songs (standalone + from albums)
+        // The /api/library endpoint already returns ALL songs (album + standalone)
+        // No need to fetch individual album details!
         final allSongs = <String, SongModel>{};
-
-        // Add standalone songs
         for (final song in library.songs) {
           allSongs[song.id] = song;
-        }
-
-        // Get songs from each album
-        for (final album in library.albums) {
-          try {
-            final albumDetail =
-                await _connectionService.apiClient!.getAlbumDetail(album.id);
-            for (final song in albumDetail.songs) {
-              allSongs[song.id] = song;
-            }
-          } catch (_) {
-            // Skip albums that fail to load
-          }
         }
 
         // Filter out songs already in playlist
@@ -801,8 +855,21 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
           child: _buildActionButtons(),
         ),
 
-        // Songs list (reorderable in reorder mode, regular otherwise)
-        if (_songs.isEmpty)
+        // Songs list - show loading indicator while songs are being fetched
+        if (_isSongsLoading)
+          const SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 32.0),
+              child: Center(
+                child: SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            ),
+          )
+        else if (_songs.isEmpty)
           SliverToBoxAdapter(
             child: _buildEmptyState(),
           )
