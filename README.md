@@ -194,18 +194,6 @@ If you want to build from source, check the README in each package folder:
 
 ---
 
-## Testing Branch Latest Updates
-
-### 21/01/2026
-
-**Playlist Download Indicators** - Playlists now show a green download badge (matching albums) when they contain offline-available songs.
-
-**Playlist Loading Performance** - Fixed N+1 API call issue when loading playlists. Now uses a single `/api/library` call instead of fetching every album individually. ~98% reduction in API calls for large libraries.
-
-**Mini Player Aware UI** - Bottom sheets and scrollable screens now dynamically adjust padding when the mini player is visible, preventing content from being obscured.
-
----
-
 ## Latest Updates (v1.5.0)
 
 - **Import/Export**: Export and import playlists & streaming stats via JSON file
@@ -217,6 +205,16 @@ If you want to build from source, check the README in each package folder:
 - **Section Memory**: Library sections (Playlists/Albums/Songs) remember expanded/collapsed state
 
 ---
+
+## Testing Branch Latest Updates
+
+### 21/01/2026
+
+**Playlist Download Indicators** - Playlists now show a green download badge (matching albums) when they contain offline-available songs.
+
+**Playlist Loading Performance** - Fixed N+1 API call issue when loading playlists. Now uses a single `/api/library` call instead of fetching every album individually. ~98% reduction in API calls for large libraries.
+
+**Mini Player Aware UI** - Bottom sheets and scrollable screens now dynamically adjust padding when the mini player is visible, preventing content from being obscured.
 
 ### 16/01/2026
 
