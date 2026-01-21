@@ -138,7 +138,7 @@ The script will:
 4. Compile ARM64 Linux binary using Docker (--platform linux/arm64)
 5. Create release directory structure
 6. Copy all necessary files (binary, web UI, SETUP.txt)
-7. Package everything into `ariami-cli-raspberry-pi-arm64-v1.5.0.zip`
+7. Package everything into `ariami-cli-raspberry-pi-arm64-v1.9.0_testing.zip`
 8. Verify the binary is correct architecture
 
 ### Why This Works on M2/M3 Macs
@@ -158,7 +158,7 @@ Same as Pi build - a ready-to-distribute zip file containing:
 
 To change the version number, edit `build-pi-release-mac.sh`:
 ```bash
-VERSION="1.5.0"  # Change this line
+VERSION="1.9.0_testing"  # Change this line
 ```
 
 ### Troubleshooting
