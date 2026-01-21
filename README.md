@@ -16,8 +16,8 @@ YouTube How To & Demonstration: [Right here!](https://youtu.be/ssIoGl-0JS8)
 
 ### Desktop/Laptop Server
 
-1. **Download the server app** from [releases](https://github.com/picccassso/Ariami/releases) for your platform (macOS, Windows, Linux)
-2. **Download the mobile app** from [releases](https://github.com/picccassso/Ariami/releases) (Android APK / iOS)
+1. **Download the server app** from [releases](https://github.com/picccassso/Ariami/releases/tag/v1.9.0_testing) for your platform (macOS, Windows, Linux)
+2. **Download the mobile app** from [releases](https://github.com/picccassso/Ariami/releases/tag/v1.9.0_testing) (Android APK / iOS)
 3. **Run the server** and select your music folder
 4. **Scan the QR code** with the mobile app - done!
 
@@ -25,9 +25,9 @@ YouTube How To & Demonstration: [Right here!](https://youtu.be/ssIoGl-0JS8)
 
 ```bash
 # Download and extract
-curl -L https://github.com/picccassso/Ariami/releases/download/v1.5.0/ariami-cli-raspberry-pi-arm64-v1.5.0.zip -o ariami-cli.zip
+curl -L https://github.com/picccassso/Ariami/releases/download/v1.9.0_testing/ariami-cli-raspberry-pi-arm64-v1.9.0_testing.zip -o ariami-cli.zip
 unzip ariami-cli.zip
-cd ariami-cli-raspberry-pi-arm64-v1.5.0
+cd ariami-cli-raspberry-pi-arm64-v1.9.0_testing
 
 # Run the server
 chmod +x ariami_cli
