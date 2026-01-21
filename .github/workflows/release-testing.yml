@@ -1,14 +1,12 @@
-name: Build and Release
+name: Build and Release (Testing)
 
 on:
-  release:
-    types: [created]
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version tag (e.g., v1.0.0)'
+        description: 'Version tag (e.g., v1.9.0_testing)'
         required: true
-        default: 'v0.0.0-test'
+        default: 'v1.9.0_testing'
 
 jobs:
   build-macos:
@@ -16,6 +14,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: testing
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -36,15 +36,6 @@ jobs:
       - name: Install create-dmg
         run: brew install create-dmg
 
-      - name: Get version
-        id: version
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
-          else
-            echo "version=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
-          fi
-
       - name: Create DMG
         run: |
           cd ariami_desktop
@@ -55,29 +46,22 @@ jobs:
             --icon-size 100 \
             --icon "Ariami-Desktop.app" 150 185 \
             --app-drop-link 450 185 \
-            "Ariami-Desktop-${{ steps.version.outputs.version }}-macos.dmg" \
+            "Ariami-Desktop-${{ github.event.inputs.version }}-macos.dmg" \
             "build/macos/Build/Products/Release/Ariami-Desktop.app"
 
-      - name: Upload to Release
-        if: github.event_name == 'release'
-        uses: softprops/action-gh-release@v1
-        with:
-          files: ariami_desktop/Ariami-Desktop-${{ steps.version.outputs.version }}-macos.dmg
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload Artifact (for manual runs)
-        if: github.event_name == 'workflow_dispatch'
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Ariami-Desktop-${{ steps.version.outputs.version }}-macos
-          path: ariami_desktop/Ariami-Desktop-${{ steps.version.outputs.version }}-macos.dmg
+          name: Ariami-Desktop-${{ github.event.inputs.version }}-macos
+          path: ariami_desktop/Ariami-Desktop-${{ github.event.inputs.version }}-macos.dmg
 
   build-windows:
     runs-on: windows-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: testing
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -95,41 +79,24 @@ jobs:
           cd ariami_desktop
           flutter build windows --release
 
-      - name: Get version
-        id: version
-        shell: bash
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
-          else
-            echo "version=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
-          fi
-
       - name: Create ZIP
         run: |
           cd ariami_desktop/build/windows/x64/runner/Release
-          Compress-Archive -Path * -DestinationPath "../../../../../Ariami-Desktop-${{ steps.version.outputs.version }}-windows.zip"
+          Compress-Archive -Path * -DestinationPath "../../../../../Ariami-Desktop-${{ github.event.inputs.version }}-windows.zip"
 
-      - name: Upload to Release
-        if: github.event_name == 'release'
-        uses: softprops/action-gh-release@v1
-        with:
-          files: ariami_desktop/Ariami-Desktop-${{ steps.version.outputs.version }}-windows.zip
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload Artifact (for manual runs)
-        if: github.event_name == 'workflow_dispatch'
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Ariami-Desktop-${{ steps.version.outputs.version }}-windows
-          path: ariami_desktop/Ariami-Desktop-${{ steps.version.outputs.version }}-windows.zip
+          name: Ariami-Desktop-${{ github.event.inputs.version }}-windows
+          path: ariami_desktop/Ariami-Desktop-${{ github.event.inputs.version }}-windows.zip
 
   build-linux:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: testing
 
       - name: Install Linux dependencies
         run: |
@@ -151,15 +118,6 @@ jobs:
         run: |
           cd ariami_desktop
           flutter build linux --release
-
-      - name: Get version
-        id: version
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
-          else
-            echo "version=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
-          fi
 
       - name: Download appimagetool
         run: |
@@ -215,19 +173,101 @@ jobs:
 
           # Build AppImage (use --appimage-extract-and-run to avoid FUSE requirement)
           cd ..
-          ARCH=x86_64 ./appimagetool --appimage-extract-and-run ariami_desktop/AppDir "ariami_desktop/Ariami-Desktop-${{ steps.version.outputs.version }}-linux.AppImage"
+          ARCH=x86_64 ./appimagetool --appimage-extract-and-run ariami_desktop/AppDir "ariami_desktop/Ariami-Desktop-${{ github.event.inputs.version }}-linux.AppImage"
 
-      - name: Upload to Release
-        if: github.event_name == 'release'
-        uses: softprops/action-gh-release@v1
-        with:
-          files: ariami_desktop/Ariami-Desktop-${{ steps.version.outputs.version }}-linux.AppImage
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload Artifact (for manual runs)
-        if: github.event_name == 'workflow_dispatch'
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Ariami-Desktop-${{ steps.version.outputs.version }}-linux
-          path: ariami_desktop/Ariami-Desktop-${{ steps.version.outputs.version }}-linux.AppImage
+          name: Ariami-Desktop-${{ github.event.inputs.version }}-linux
+          path: ariami_desktop/Ariami-Desktop-${{ github.event.inputs.version }}-linux.AppImage
+
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: testing
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.29.2'
+          cache: true
+
+      - name: Get dependencies
+        run: |
+          cd ariami_core && dart pub get
+          cd ../ariami_mobile && flutter pub get
+
+      - name: Build Android APK
+        run: |
+          cd ariami_mobile
+          flutter build apk --release
+
+      - name: Rename APK
+        run: |
+          mv ariami_mobile/build/app/outputs/flutter-apk/app-release.apk \
+             ariami_mobile/Ariami-Mobile-${{ github.event.inputs.version }}-android.apk
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Ariami-Mobile-${{ github.event.inputs.version }}-android
+          path: ariami_mobile/Ariami-Mobile-${{ github.event.inputs.version }}-android.apk
+
+  build-cli-raspberry-pi:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: testing
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Setup Flutter (for web UI build)
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.29.2'
+          cache: true
+
+      - name: Build Web UI
+        run: |
+          cd ariami_core && dart pub get
+          cd ../ariami_cli && flutter pub get
+          flutter build web -t lib/web/main.dart
+
+      - name: Build ARM64 binary in Docker
+        run: |
+          docker run --rm --platform linux/arm64 \
+            -v ${{ github.workspace }}:/workspace \
+            -w /workspace/ariami_cli \
+            dart:stable \
+            sh -c "dart pub get && dart compile exe bin/ariami_cli.dart -o ariami_cli"
+
+      - name: Create release package
+        run: |
+          cd ariami_cli
+          mkdir -p release
+          cp ariami_cli release/
+          cp -r build/web release/web
+          cp SETUP-RASPBERRY-PI.txt release/SETUP.txt
+          cd release
+          zip -r ../ariami-cli-raspberry-pi-arm64-${{ github.event.inputs.version }}.zip .
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ariami-cli-raspberry-pi-arm64-${{ github.event.inputs.version }}
+          path: ariami_cli/ariami-cli-raspberry-pi-arm64-${{ github.event.inputs.version }}.zip
