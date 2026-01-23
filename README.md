@@ -57,7 +57,6 @@ It is cross-platform so you can run this on your Mac/Windows/Linux machine, and 
 **Streaming and Audio**
 - Stream music from your server to any supported client.
 - Server-side audio transcoding for compatibility with different devices.
-- Gapless playback support (if applicable — remove if not accurate).
 
 **Apps and Platforms**
 - Native apps that are available for iOS, Android, macOS, Windows and Linux.
