@@ -74,14 +74,6 @@ class PlayerTopBar extends StatelessWidget {
                   // TODO: Implement in Task 7.5
                 },
               ),
-              ListTile(
-                leading: const Icon(Icons.share),
-                title: const Text('Share'),
-                onTap: () {
-                  Navigator.pop(context);
-                  // TODO: Future feature
-                },
-              ),
             ],
           ),
         );
