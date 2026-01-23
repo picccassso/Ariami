@@ -1,27 +1,21 @@
 <div align="center">
   <img src="Ariami_icon.png" alt="Ariami Logo" width="200"/>
-  <h1>Ariami - TESTING BRANCH</h1>
-  <p><strong>Stream your music like Spotify. Except you own it.</strong></p>
+  <h1>Ariami</h1>
 </div>
 
-Self-hosted music streaming that actually works. Your own self-hosted Spotify/Apple Music server, for free!
-
-Point your server at your music folder, scan a QR code on your phone, and you're streaming. Your entire library, anywhere you go.
-
-YouTube How To & Demonstration: [Right here!](https://youtu.be/ssIoGl-0JS8)
+Ariami is a self-hosted server and music player. 
 
 ---
 
-## Quick Start
+## Quick Start 
 
-### Desktop/Laptop Server
+1. **Download the server app** from [releases](https://github.com/picccassso/Ariami/releases) for your platform (macOS, Windows, Linux)
+2. **Download the mobile app** from [releases](https://github.com/picccassso/Ariami/releases) (Android APK / iOS)
+3. **Download and install Tailscale on both devices** from (https://tailscale.com/download)
+4. **Run the server and select music folder.**
+5. **Scan the QR code** with the mobile app and you're good to go.
 
-1. **Download the server app** from [releases](https://github.com/picccassso/Ariami/releases/tag/v1.9.0_testing) for your platform (macOS, Windows, Linux)
-2. **Download the mobile app** from [releases](https://github.com/picccassso/Ariami/releases/tag/v1.9.0_testing) (Android APK / iOS)
-3. **Run the server** and select your music folder
-4. **Scan the QR code** with the mobile app - done!
-
-### Raspberry Pi Server
+### For Raspberry Pi
 
 ```bash
 # Download and extract
@@ -33,43 +27,55 @@ cd ariami-cli-raspberry-pi-arm64-v1.9.0_testing
 chmod +x ariami_cli
 ./ariami_cli start
 
-# Web interface opens automatically - scan QR code on phone, done
+# Web interface opens automatically - scan QR code on phone, complete
 ```
 
 ---
 
-## Why Use This?
+## Why use Ariami?
 
-**You already own the music.** Whether it's ripped CDs, Bandcamp purchases, or DRM-free downloads, you paid for it, and you should be able to stream it freely and easily.
+Ariami is a very easy way to get into self-hosting. You do not need to setup port forwarding or pay for any subscription. It is very easy to setup. 
+It is cross-platform so you can run this on your Mac/Windows/Linux machine, and is packaged for Raspberry Pis as well. Also works on Android/iOS. (iOS is untested).
 
-**Actually works offline.** Download songs to your phone. Play counts and stats sync when you reconnect.
+## Features of Ariami:
 
-**Doesn't touch your files.** Read-only access. Your music library stays exactly as it is. No database corruption, no file modifications.
+**Music Library**
+- It automatically scans your music library.
+- It uses embedded tags so it doesn't rely on external data which could mess up your library.
+- Groups albums correctly.
+- Supports large libraries.
 
-**Zero compromises on features:**
-- Background playback with lock screen controls
-- Gapless playback and crossfade
-- Smart playlists and queue management
-- Download albums for offline listening
-- Streaming stats (play counts, listening time)
-- Multi-device support (iOS, Android, macOS, Windows, Linux)
+**Playlists**
+- Create and manage playlists manually from the app. Can easily edit them, edit the photo for them etc.
+- Folders with [PLAYLIST] in their name are treated as playlists. These appear in the app and can be imported to your phone for local playback.
 
----
+**Offline and Local Playback**
+- You can download all your music for local playback without needing to be connected to the server.
+- Imported playlists are stored locally on your phone.
+- Each song played automatically gets cached if not downloaded for smoother playback.
 
-## Key Features
+**Streaming and Audio**
+- Stream music from your server to any supported client.
+- Server-side audio transcoding for compatibility with different devices.
+- Gapless playback support (if applicable — remove if not accurate).
 
-### Server (Desktop & CLI)
-- **Auto-indexing** - Scans MP3, FLAC, M4A, OGG, WAV, AIFF, and more
-- **Smart album grouping** - Handles compilations and multi-disc albums correctly
-- **Live library updates** - Add files to your folder, they appear instantly
-- **Lightweight** - Runs on low-end hardware (including Raspberry Pis!) without any problems!
+**Apps and Platforms**
+- Native apps that are available for iOS, Android, macOS, Windows and Linux.
+- CLI version available for headless servers.
+- Consistent UI across devices. 
 
-### Mobile (iOS & Android)
-- **Offline mode** - Downloads don't expire, no check-ins required
-- **Smart caching** - Frequently played songs and artwork cached automatically
-- **Queue management** - Drag to reorder, shuffle, repeat modes
-- **Search** - Fast search across your entire library
-- **Background playback** - OS-native lock screen controls and notifications
+**Remote Access**
+- Secure access using Tailscale.
+- No port forwarding or anything of the sort.
+
+**Listening Data**
+- Tracks basic listening stats for songs/albums/artists. Also shows average daily listening time for each.
+- More detailed planned stats (such as specific days etc).
+
+**Planned**
+- Multi-user support
+- Additional Playlists tools
+- Ability for server to detect and transcode data in real time to optimise for different network connections (lower bit rate for worse WiFi/mobile data connections).
 
 ---
 
@@ -227,3 +233,4 @@ The server uses FFmpeg for transcoding (must be installed on the host machine). 
 ## License
 
 MIT License - See [LICENSE](LICENSE) for details.
+
