@@ -38,19 +38,29 @@ enum DuplicateMatchType {
 
 /// Service for detecting duplicate songs in the library
 class DuplicateDetector {
+  /// Stores computed hashes during detection for caching
+  final Map<String, String> _computedHashes = {};
+
+  /// Get the hashes computed during the last detectDuplicates call
+  Map<String, String> get computedHashes => Map.unmodifiable(_computedHashes);
+
   /// Detects all duplicates in a list of songs
   ///
-  /// Returns a list of duplicate groups found
+  /// Pass [cachedHashes] to use previously computed hashes (keyed by file path).
+  /// After calling, use [computedHashes] to get newly computed hashes for caching.
+  /// Returns a list of duplicate groups found.
   Future<List<DuplicateGroup>> detectDuplicates(
     List<SongMetadata> songs, {
     bool useHashMatching = true,
     bool useMetadataMatching = true,
+    Map<String, String>? cachedHashes,
   }) async {
+    _computedHashes.clear();
     final duplicateGroups = <DuplicateGroup>[];
 
     // Level 1: Exact hash matching
     if (useHashMatching) {
-      final hashGroups = await _findHashDuplicates(songs);
+      final hashGroups = await _findHashDuplicates(songs, cachedHashes ?? {});
       duplicateGroups.addAll(hashGroups);
     }
 
@@ -70,27 +80,69 @@ class DuplicateDetector {
 
   /// Finds duplicates by comparing file hashes
   ///
-  /// Uses parallel hash calculation in batches for better performance
+  /// Uses progressive detection: first groups by file size (no I/O),
+  /// then only hashes groups with potential duplicates (same size).
+  /// This dramatically reduces I/O for typical libraries where most files
+  /// have unique sizes.
+  /// Pass [cachedHashes] to use previously computed hashes (keyed by file path).
   Future<List<DuplicateGroup>> _findHashDuplicates(
     List<SongMetadata> songs,
+    Map<String, String> cachedHashes,
+  ) async {
+    // Step 1: Group by file size (O(n), no I/O)
+    // Identical files must have identical sizes, so we only need to hash
+    // files that share a size with at least one other file.
+    final sizeGroups = <int, List<SongMetadata>>{};
+    for (final song in songs) {
+      if (song.fileSize != null) {
+        sizeGroups.putIfAbsent(song.fileSize!, () => []).add(song);
+      }
+    }
+
+    // Step 2: Only hash groups with 2+ files (potential duplicates)
+    final groups = <DuplicateGroup>[];
+    for (final candidates in sizeGroups.values) {
+      if (candidates.length < 2) continue; // Skip unique sizes - no duplicates possible
+
+      // Hash only this small group
+      final hashGroups = await _hashGroupAndFindDuplicates(candidates, cachedHashes);
+      groups.addAll(hashGroups);
+    }
+
+    return groups;
+  }
+
+  /// Hashes a pre-filtered group of songs (same file size) and finds duplicates
+  /// Uses [cachedHashes] when available to avoid re-computing hashes.
+  Future<List<DuplicateGroup>> _hashGroupAndFindDuplicates(
+    List<SongMetadata> songs,
+    Map<String, String> cachedHashes,
   ) async {
     final hashMap = <String, List<SongMetadata>>{};
 
-    // Calculate all hashes in parallel batches
-    const batchSize = 20; // Process 20 files concurrently
+    // Calculate hashes in parallel batches
+    const batchSize = 20;
     for (var i = 0; i < songs.length; i += batchSize) {
       final batch = songs.sublist(
         i,
         i + batchSize > songs.length ? songs.length : i + batchSize,
       );
 
-      // Calculate hashes for this batch in parallel
+      // Calculate hashes for this batch in parallel (using cache when available)
       final hashFutures = batch.map((song) async {
         try {
+          // Check cache first
+          final cachedHash = cachedHashes[song.filePath];
+          if (cachedHash != null) {
+            return (song: song, hash: cachedHash, error: false, fromCache: true);
+          }
+          // Compute hash
           final hash = await _calculateFileHash(song.filePath);
-          return (song: song, hash: hash, error: false);
+          // Store for caching
+          _computedHashes[song.filePath] = hash;
+          return (song: song, hash: hash, error: false, fromCache: false);
         } catch (e) {
-          return (song: song, hash: '', error: true);
+          return (song: song, hash: '', error: true, fromCache: false);
         }
       }).toList();
 

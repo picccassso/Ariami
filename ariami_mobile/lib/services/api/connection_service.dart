@@ -22,6 +22,8 @@ class ConnectionService {
   Timer? _heartbeatTimer;
   bool _isConnected = false;
   bool _isManuallyDisconnected = false;
+  int _consecutiveHeartbeatFailures = 0;
+  static const int _maxHeartbeatFailures = 3; // Retry 3 times before going offline
 
   final WebSocketService _webSocketService = WebSocketService();
 
@@ -73,8 +75,15 @@ class ConnectionService {
 
   /// Connect to server with ServerInfo
   Future<void> connectToServer(ServerInfo serverInfo) async {
+    final deviceId = await _getDeviceId();
+    final deviceName = await _getDeviceName();
+
     // Create API client
-    _apiClient = ApiClient(serverInfo: serverInfo);
+    _apiClient = ApiClient(
+      serverInfo: serverInfo,
+      deviceId: deviceId,
+      deviceName: deviceName,
+    );
     _serverInfo = serverInfo;
 
     // Test connection with ping
@@ -88,8 +97,8 @@ class ConnectionService {
 
     // Send connect request
     final connectRequest = ConnectRequest(
-      deviceId: await _getDeviceId(),
-      deviceName: await _getDeviceName(),
+      deviceId: deviceId,
+      deviceName: deviceName,
       appVersion: '1.0.0',
       platform: Platform.isAndroid ? 'android' : 'ios',
     );
@@ -98,6 +107,7 @@ class ConnectionService {
       final response = await _apiClient!.connect(connectRequest);
       _sessionId = response.sessionId;
       _isConnected = true;
+      _consecutiveHeartbeatFailures = 0; // Reset failure counter
       _connectionStateController.add(true); // Broadcast connected state
 
       // Notify offline service that connection is restored
@@ -113,6 +123,7 @@ class ConnectionService {
       _webSocketService.onReconnected = _handleWebSocketReconnect;
       _webSocketService.onDisconnected = _handleWebSocketDisconnect;
       await _webSocketService.connect(serverInfo);
+      await _sendWebSocketIdentify();
 
       print('Connected to server: ${serverInfo.name}');
       print('Session ID: $_sessionId');
@@ -129,10 +140,11 @@ class ConnectionService {
   Future<void> disconnect({bool isManual = false}) async {
     _isManuallyDisconnected = isManual;
 
-    if (_apiClient != null && _sessionId != null) {
+    if (_apiClient != null) {
       try {
         // Send disconnect request
-        final request = DisconnectRequest(sessionId: _sessionId!);
+        final deviceId = await _getDeviceId();
+        final request = DisconnectRequest(deviceId: deviceId);
         await _apiClient!.disconnect(request);
       } catch (e) {
         print('Error during disconnect: $e');
@@ -192,9 +204,13 @@ class ConnectionService {
       }
 
       // Server is reachable - try full connection with reduced timeout
+      final deviceId = await _getDeviceId();
+      final deviceName = await _getDeviceName();
       _apiClient = ApiClient(
         serverInfo: serverInfo,
         timeout: const Duration(seconds: 3),
+        deviceId: deviceId,
+        deviceName: deviceName,
       );
       _serverInfo = serverInfo;
 
@@ -203,8 +219,8 @@ class ConnectionService {
 
       // Re-register with server to get fresh session
       final connectRequest = ConnectRequest(
-        deviceId: await _getDeviceId(),
-        deviceName: await _getDeviceName(),
+        deviceId: deviceId,
+        deviceName: deviceName,
         appVersion: '1.0.0',
         platform: Platform.isAndroid ? 'android' : 'ios',
       );
@@ -212,6 +228,7 @@ class ConnectionService {
       final response = await _apiClient!.connect(connectRequest);
       _sessionId = response.sessionId;
       _isConnected = true;
+      _consecutiveHeartbeatFailures = 0; // Reset failure counter
       _connectionStateController.add(true); // Broadcast connected state
 
       // Notify offline service that connection is restored
@@ -227,6 +244,7 @@ class ConnectionService {
       _webSocketService.onReconnected = _handleWebSocketReconnect;
       _webSocketService.onDisconnected = _handleWebSocketDisconnect;
       await _webSocketService.connect(serverInfo);
+      await _sendWebSocketIdentify();
 
       print('Connection restored to: ${serverInfo.name}');
       print('New Session ID: $_sessionId');
@@ -299,6 +317,9 @@ class ConnectionService {
   void _handleWebSocketReconnect() async {
     print('WebSocket reconnected - attempting full connection restore...');
 
+    // Ensure this socket is identified on the server
+    await _sendWebSocketIdentify();
+
     // If we're already connected, no need to do anything
     if (_isConnected && _apiClient != null) {
       print('Already connected, skipping restore');
@@ -344,6 +365,18 @@ class ConnectionService {
     }
   }
 
+  Future<void> _sendWebSocketIdentify() async {
+    if (!_webSocketService.isConnected) return;
+    final deviceId = await _getDeviceId();
+    final deviceName = await _getDeviceName();
+    _webSocketService.sendMessage(
+      IdentifyMessage(
+        deviceId: deviceId,
+        deviceName: deviceName,
+      ),
+    );
+  }
+
   // ============================================================================
   // HEARTBEAT MECHANISM
   // ============================================================================
@@ -378,12 +411,16 @@ class ConnectionService {
     // Check if we're in auto offline mode (disconnected but should auto-reconnect)
     if (!_isConnected &&
         OfflinePlaybackService().offlineMode == OfflineMode.autoOffline) {
-      print('Auto offline mode - attempting to restore connection...');
-      final restored = await tryRestoreConnection();
-      if (restored) {
-        print('✅ Connection restored via auto-reconnect!');
+      if (_webSocketService.isConnected) {
+        print('Auto offline mode - attempting to restore connection...');
+        final restored = await tryRestoreConnection();
+        if (restored) {
+          print('✅ Connection restored via auto-reconnect!');
+        } else {
+          print('Reconnection attempt failed, will retry in 30s');
+        }
       } else {
-        print('Reconnection attempt failed, will retry in 30s');
+        print('Auto offline mode - waiting for WebSocket before restore');
       }
       return;
     }
@@ -392,12 +429,26 @@ class ConnectionService {
     if (_apiClient == null) return;
 
     try {
-      await _apiClient!.ping();
+      final deviceId = await _getDeviceId();
+      await _apiClient!.ping(deviceId: deviceId);
+      // Reset failure counter on success
+      if (_consecutiveHeartbeatFailures > 0) {
+        print('Heartbeat recovered after $_consecutiveHeartbeatFailures failures');
+      }
+      _consecutiveHeartbeatFailures = 0;
       print('Heartbeat sent');
     } catch (e) {
-      print('Heartbeat failed: $e');
-      // Connection lost - handle auto offline
-      await _handleConnectionLoss();
+      _consecutiveHeartbeatFailures++;
+      print('Heartbeat failed ($_consecutiveHeartbeatFailures/$_maxHeartbeatFailures): $e');
+
+      // Only go offline after multiple consecutive failures
+      if (_consecutiveHeartbeatFailures >= _maxHeartbeatFailures) {
+        print('Max heartbeat failures reached - going offline');
+        _consecutiveHeartbeatFailures = 0; // Reset for next time
+        await _handleConnectionLoss();
+      } else {
+        print('Will retry heartbeat (${_maxHeartbeatFailures - _consecutiveHeartbeatFailures} attempts remaining)');
+      }
     }
   }
 

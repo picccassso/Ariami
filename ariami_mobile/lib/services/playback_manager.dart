@@ -11,6 +11,7 @@ import 'offline/offline_playback_service.dart';
 import 'cache/cache_manager.dart';
 import 'stats/streaming_stats_service.dart';
 import 'color_extraction_service.dart';
+import 'quality/quality_settings_service.dart';
 import '../main.dart' show audioHandler;
 
 /// Central playback manager that integrates Phase 6 audio services
@@ -30,6 +31,7 @@ class PlaybackManager extends ChangeNotifier {
   final OfflinePlaybackService _offlineService = OfflinePlaybackService();
   final CacheManager _cacheManager = CacheManager();
   final StreamingStatsService _statsService = StreamingStatsService();
+  final QualitySettingsService _qualityService = QualitySettingsService();
 
   // State
   PlaybackQueue _queue = PlaybackQueue();
@@ -122,6 +124,10 @@ class PlaybackManager extends ChangeNotifier {
     _restoredPosition = null;
     _pendingUiPosition = null;
 
+    // Reset shuffle state - new queue means fresh shuffle context
+    _isShuffleEnabled = false;
+    _shuffleService.reset();
+
     try {
       // Create new queue with just this song
       print('[PlaybackManager] Creating new queue...');
@@ -152,6 +158,10 @@ class PlaybackManager extends ChangeNotifier {
       // Clear restored position - these are NEW songs, start from beginning
       _restoredPosition = null;
       _pendingUiPosition = null;
+
+      // Reset shuffle state - new queue means fresh shuffle context
+      _isShuffleEnabled = false;
+      _shuffleService.reset();
 
       // Create new queue with all songs
       _queue = PlaybackQueue();
@@ -417,9 +427,10 @@ class PlaybackManager extends ChangeNotifier {
           audioUrl = 'file://$localPath';
           print('[PlaybackManager] Playing from downloaded file: $audioUrl');
           
-          // Get cached artwork for offline playback
-          final localCacheId = song.albumId ?? 'song_${song.id}';
-          final cachedArtworkPath = await _cacheManager.getArtworkPath(localCacheId);
+          // Get cached artwork for offline playback (with thumbnail fallback)
+          final localPrimaryKey = song.albumId ?? 'song_${song.id}';
+          final localFallbackKey = song.albumId != null ? '${song.albumId}_thumb' : null;
+          final cachedArtworkPath = await _cacheManager.getArtworkPathWithFallback(localPrimaryKey, localFallbackKey);
           if (cachedArtworkPath != null) {
             artworkUri = Uri.file(cachedArtworkPath);
             print('[PlaybackManager] Using cached artwork: $artworkUri');
@@ -435,9 +446,10 @@ class PlaybackManager extends ChangeNotifier {
           audioUrl = 'file://$cachedPath';
           print('[PlaybackManager] Playing from cached file: $audioUrl');
 
-          // Get cached artwork for offline playback
-          final cachedCacheId = song.albumId ?? 'song_${song.id}';
-          final cachedArtworkPathForCached = await _cacheManager.getArtworkPath(cachedCacheId);
+          // Get cached artwork for offline playback (with thumbnail fallback)
+          final cachedPrimaryKey = song.albumId ?? 'song_${song.id}';
+          final cachedFallbackKey = song.albumId != null ? '${song.albumId}_thumb' : null;
+          final cachedArtworkPathForCached = await _cacheManager.getArtworkPathWithFallback(cachedPrimaryKey, cachedFallbackKey);
           if (cachedArtworkPathForCached != null) {
             artworkUri = Uri.file(cachedArtworkPathForCached);
             print('[PlaybackManager] Using cached artwork: $artworkUri');
@@ -452,9 +464,15 @@ class PlaybackManager extends ChangeNotifier {
             throw Exception('Not connected to server');
           }
           print('[PlaybackManager] Connected! Base URL: ${_connectionService.apiClient!.baseUrl}');
-          audioUrl = '${_connectionService.apiClient!.baseUrl}/stream/${song.filePath}';
-          print('[PlaybackManager] Streaming from server: $audioUrl');
-          
+
+          // Get streaming quality based on current network (WiFi vs mobile data)
+          final streamingQuality = _qualityService.getCurrentStreamingQuality();
+          audioUrl = _connectionService.apiClient!.getStreamUrlWithQuality(
+            song.filePath,
+            streamingQuality,
+          );
+          print('[PlaybackManager] Streaming from server: $audioUrl (quality: ${streamingQuality.name})');
+
           // Use server URL for artwork when streaming
           if (song.albumId != null) {
             artworkUri = Uri.parse('${_connectionService.apiClient!.baseUrl}/artwork/${song.albumId}');
@@ -526,13 +544,16 @@ class PlaybackManager extends ChangeNotifier {
   void _cacheSongInBackground(Song song) {
     if (_connectionService.apiClient == null) return;
 
-    // Construct the download URL for caching
-    final downloadUrl = '${_connectionService.apiClient!.baseUrl}/download/${song.id}';
+    // Construct the download URL for caching with download mode/quality
+    final baseDownloadUrl = _connectionService.apiClient!.getDownloadUrl(song.id);
+    final downloadUrl = _qualityService.getDownloadUrlWithQuality(baseDownloadUrl);
+    final downloadQuality = _qualityService.getDownloadQuality();
+    final downloadMode = _qualityService.getDownloadOriginal() ? 'original' : downloadQuality.name;
 
     // Trigger background cache (non-blocking)
     _cacheManager.cacheSong(song.id, downloadUrl).then((started) {
       if (started) {
-        print('[PlaybackManager] Started background caching for: ${song.title}');
+        print('[PlaybackManager] Started background caching for: ${song.title} (mode: $downloadMode)');
       }
     }).catchError((e) {
       print('[PlaybackManager] Failed to start background cache: $e');

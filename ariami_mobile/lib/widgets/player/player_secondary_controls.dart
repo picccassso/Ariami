@@ -29,14 +29,14 @@ class PlayerSecondaryControls extends StatelessWidget {
         children: [
           // Shuffle button
           IconButton(
-            icon: const Icon(Icons.shuffle),
+            icon: const Icon(Icons.shuffle_rounded),
             onPressed: onToggleShuffle,
             tooltip: isShuffleEnabled ? 'Shuffle on' : 'Shuffle off',
             iconSize: 24,
             style: isShuffleEnabled
                 ? IconButton.styleFrom(
                     backgroundColor:
-                        Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
+                        Theme.of(context).colorScheme.primary.withOpacity(0.2),
                     foregroundColor: Theme.of(context).colorScheme.primary,
                   )
                 : null,
@@ -51,7 +51,7 @@ class PlayerSecondaryControls extends StatelessWidget {
             style: repeatMode != RepeatMode.none
                 ? IconButton.styleFrom(
                     backgroundColor:
-                        Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
+                        Theme.of(context).colorScheme.primary.withOpacity(0.2),
                     foregroundColor: Theme.of(context).colorScheme.primary,
                   )
                 : null,
@@ -59,7 +59,7 @@ class PlayerSecondaryControls extends StatelessWidget {
 
           // Queue button
           IconButton(
-            icon: const Icon(Icons.queue_music),
+            icon: const Icon(Icons.queue_music_rounded),
             onPressed: onOpenQueue,
             tooltip: 'View queue',
             iconSize: 24,
@@ -67,10 +67,8 @@ class PlayerSecondaryControls extends StatelessWidget {
 
           // Add to playlist button
           IconButton(
-            icon: const Icon(Icons.playlist_add),
-            onPressed: onAddToPlaylist ?? () {
-              // TODO: Implement in Task 7.5
-            },
+            icon: const Icon(Icons.playlist_add_rounded),
+            onPressed: onAddToPlaylist ?? () {},
             tooltip: 'Add to playlist',
             iconSize: 24,
           ),
@@ -83,11 +81,11 @@ class PlayerSecondaryControls extends StatelessWidget {
   IconData _getRepeatIcon() {
     switch (repeatMode) {
       case RepeatMode.none:
-        return Icons.repeat;
+        return Icons.repeat_rounded;
       case RepeatMode.all:
-        return Icons.repeat;
+        return Icons.repeat_rounded;
       case RepeatMode.one:
-        return Icons.repeat_one;
+        return Icons.repeat_one_rounded;
     }
   }
 

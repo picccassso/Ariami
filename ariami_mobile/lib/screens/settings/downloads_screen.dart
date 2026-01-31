@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
 import '../../models/download_task.dart';
 import '../../services/download/download_manager.dart';
 import '../../services/cache/cache_manager.dart';
 import '../../services/api/connection_service.dart';
 import '../../services/playlist_service.dart';
+import '../../services/quality/quality_settings_service.dart';
 import '../../widgets/common/cached_artwork.dart';
 
 class DownloadsScreen extends StatefulWidget {
@@ -17,11 +19,11 @@ class DownloadsScreen extends StatefulWidget {
 class _DownloadsScreenState extends State<DownloadsScreen> {
   final DownloadManager _downloadManager = DownloadManager();
   final CacheManager _cacheManager = CacheManager();
+  final QualitySettingsService _qualityService = QualitySettingsService();
   late Future<void> _initFuture;
 
   // Cache statistics
   double _cacheSizeMB = 0;
-  int _cachedArtworkCount = 0;
   int _cachedSongCount = 0;
   int _cacheLimitMB = 500;
   StreamSubscription<void>? _cacheSubscription;
@@ -47,6 +49,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
   bool _isDownloadingAllAlbums = false;
   bool _isDownloadingAllPlaylists = false;
   bool _isLoadingCounts = true;
+  bool _downloadOriginal = false;
 
   @override
   void initState() {
@@ -57,7 +60,9 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
   Future<void> _initialize() async {
     await _downloadManager.initialize();
     await _cacheManager.initialize();
+    await _qualityService.initialize();
     await _loadCacheStats();
+    _downloadOriginal = _qualityService.getDownloadOriginal();
 
     // Listen to cache updates
     _cacheSubscription = _cacheManager.cacheUpdateStream.listen((_) {
@@ -102,6 +107,33 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
     // Ensure playlist service is loaded
     if (!playlistService.isLoaded) {
       await playlistService.loadPlaylists();
+    }
+
+    // Initialize counts with local data first (useful for offline mode)
+    final allDownloadedTasks = _downloadManager.queue.where((t) => t.status == DownloadStatus.completed).toList();
+    final downloadedSongIds = allDownloadedTasks.map((t) => t.songId).toSet();
+    int localDownloadedSongs = allDownloadedTasks.length;
+    
+    // Group local downloads by album to estimate downloaded album count
+    final Set<String> localAlbumIds = allDownloadedTasks
+        .where((t) => t.albumId != null)
+        .map((t) => t.albumId!)
+        .toSet();
+        
+    // Calculate playlist counts from local service data
+    final Set<String> localPlaylistSongIds = {};
+    for (final playlist in playlistService.playlists) {
+      localPlaylistSongIds.addAll(playlist.songIds);
+    }
+    for (final serverPlaylist in playlistService.visibleServerPlaylists) {
+      localPlaylistSongIds.addAll(serverPlaylist.songIds);
+    }
+    
+    int localDownloadedPlaylistSongs = 0;
+    for (final songId in localPlaylistSongIds) {
+      if (downloadedSongIds.contains(songId)) {
+        localDownloadedPlaylistSongs++;
+      }
     }
 
     // Get song and album counts from API if connected
@@ -155,10 +187,8 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
 
         int downloadedPlaylistSongs = 0;
         for (final songId in allPlaylistSongIds) {
-          // Check if this playlist song ID exists in the library
-          // (playlist might reference songs not in library anymore)
           if (!librarySongIds.contains(songId)) {
-            continue; // Skip orphaned playlist entries
+            continue; 
           }
           if (await _downloadManager.isSongDownloaded(songId)) {
             downloadedPlaylistSongs++;
@@ -180,16 +210,29 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
           });
         }
       } catch (e) {
-        // Error loading library counts - fail silently
+        // Error loading library counts - fallback to local counts
         if (mounted) {
           setState(() {
+            _totalSongCount = localDownloadedSongs; 
+            _totalAlbumCount = localAlbumIds.length;
+            _downloadedSongCount = localDownloadedSongs;
+            _downloadedAlbumCount = localAlbumIds.length;
+            _totalPlaylistSongCount = localPlaylistSongIds.length;
+            _downloadedPlaylistSongCount = localDownloadedPlaylistSongs;
             _isLoadingCounts = false;
           });
         }
       }
     } else {
+      // Disconnected - show local counts
       if (mounted) {
         setState(() {
+          _totalSongCount = localDownloadedSongs;
+          _totalAlbumCount = localAlbumIds.length;
+          _downloadedSongCount = localDownloadedSongs;
+          _downloadedAlbumCount = localAlbumIds.length;
+          _totalPlaylistSongCount = localPlaylistSongIds.length;
+          _downloadedPlaylistSongCount = localDownloadedPlaylistSongs;
           _isLoadingCounts = false;
         });
       }
@@ -215,8 +258,9 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
       final albumMap = {for (final album in library.albums) album.id: album};
 
       for (final song in library.songs) {
-        // Build download URL
-        final downloadUrl = '${connectionService.apiClient!.baseUrl}/download/${song.id}';
+        // Build download URL with current download mode/quality
+        final baseDownloadUrl = connectionService.apiClient!.getDownloadUrl(song.id);
+        final downloadUrl = _qualityService.getDownloadUrlWithQuality(baseDownloadUrl);
 
         // Build artwork URL and get album metadata
         String artworkUrl = '';
@@ -291,7 +335,8 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
 
         // Build song maps for downloadAlbum
         final songMaps = albumSongs.map((song) {
-          final downloadUrl = '${connectionService.apiClient!.baseUrl}/download/${song.id}';
+          final baseDownloadUrl = connectionService.apiClient!.getDownloadUrl(song.id);
+          final downloadUrl = _qualityService.getDownloadUrlWithQuality(baseDownloadUrl);
           final artworkUrl = '${connectionService.apiClient!.baseUrl}/artwork/${album.id}';
 
           return {
@@ -376,7 +421,8 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
         final song = songMap[songId];
         if (song == null) continue;
 
-        final downloadUrl = '${connectionService.apiClient!.baseUrl}/download/${song.id}';
+        final baseDownloadUrl = connectionService.apiClient!.getDownloadUrl(song.id);
+        final downloadUrl = _qualityService.getDownloadUrlWithQuality(baseDownloadUrl);
         String artworkUrl = '';
         String? albumName;
         String? albumArtist;
@@ -423,14 +469,12 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
 
   Future<void> _loadCacheStats() async {
     final sizeMB = await _cacheManager.getTotalCacheSizeMB();
-    final artworkCount = await _cacheManager.getArtworkCacheCount();
     final songCount = await _cacheManager.getSongCacheCount();
     final limit = _cacheManager.getCacheLimit();
 
     if (mounted) {
       setState(() {
         _cacheSizeMB = sizeMB;
-        _cachedArtworkCount = artworkCount;
         _cachedSongCount = songCount;
         _cacheLimitMB = limit;
       });
@@ -524,11 +568,14 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
 
               return ListView(
                 padding: EdgeInsets.only(
-                  bottom: 64 + kBottomNavigationBarHeight, // Mini player + download bar + nav bar
+                  bottom: getMiniPlayerAwareBottomPadding(),
                 ),
                 children: [
                   // Downloads statistics card
                   _buildStatisticsCard(context, isDark),
+
+                  // Download mode (original vs transcoded)
+                  _buildDownloadModeCard(context, isDark),
 
                   // Download All section
                   _buildDownloadAllCard(context, isDark),
@@ -536,7 +583,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                   // Cache section
                   _buildCacheSection(context, isDark),
 
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 24),
 
                   // Active downloads section
                   ..._buildSection(
@@ -588,126 +635,145 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
   Widget _buildCacheSection(BuildContext context, bool isDark) {
     return Card(
       margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-      color: isDark ? Colors.grey[900] : Colors.white,
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
                 Icon(
-                  Icons.cloud_done,
+                  Icons.cached_rounded,
                   size: 20,
-                  color: Colors.blue[400],
+                  color: isDark ? Colors.white : Colors.black,
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 10),
                 Text(
-                  'Cache',
+                  'Media Cache',
                   style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: isDark ? Colors.white : Colors.black87,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: isDark ? Colors.white : Colors.black,
+                    letterSpacing: 0.2,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 20),
             
             // Cache size info
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text(
-                  '${_cacheSizeMB.toStringAsFixed(1)} MB / $_cacheLimitMB MB',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                    color: isDark ? Colors.white : Colors.black87,
-                  ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${_cacheSizeMB.toStringAsFixed(1)} MB',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w800,
+                        color: isDark ? Colors.white : Colors.black,
+                      ),
+                    ),
+                    Text(
+                      'of $_cacheLimitMB MB limit',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: isDark ? Colors.grey[500] : Colors.grey[600],
+                      ),
+                    ),
+                  ],
                 ),
                 Text(
-                  '$_cachedSongCount songs, $_cachedArtworkCount artworks',
+                  '$_cachedSongCount songs',
                   style: TextStyle(
                     fontSize: 12,
-                    color: isDark ? Colors.grey[500] : Colors.grey[600],
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? Colors.grey[400] : Colors.grey[700],
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 16),
             
             // Progress bar
             ClipRRect(
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: BorderRadius.circular(10),
               child: LinearProgressIndicator(
                 value: _cacheLimitMB > 0 ? (_cacheSizeMB / _cacheLimitMB).clamp(0.0, 1.0) : 0.0,
-                minHeight: 6,
-                backgroundColor: isDark ? Colors.grey[800] : Colors.grey[200],
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.blue[400]!),
+                minHeight: 8,
+                backgroundColor: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFEEEEEE),
+                valueColor: AlwaysStoppedAnimation<Color>(isDark ? Colors.white : Colors.black),
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 20),
             
             // Cache limit slider
             Row(
               children: [
-                Text(
-                  'Limit:',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: isDark ? Colors.grey[400] : Colors.grey[700],
-                  ),
-                ),
                 Expanded(
-                  child: Slider(
-                    value: _cacheLimitMB.toDouble(),
-                    min: 100,
-                    max: 2000,
-                    divisions: 19,
-                    label: '$_cacheLimitMB MB',
-                    onChanged: (value) {
-                      setState(() {
-                        _cacheLimitMB = value.round();
-                      });
-                    },
-                    onChangeEnd: (value) {
-                      _cacheManager.setCacheLimit(value.round());
-                    },
-                  ),
-                ),
-                Text(
-                  '$_cacheLimitMB MB',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: isDark ? Colors.grey[500] : Colors.grey[600],
+                  child: SliderTheme(
+                    data: SliderTheme.of(context).copyWith(
+                      trackHeight: 4,
+                      thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
+                      overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
+                    ),
+                    child: Slider(
+                      value: _cacheLimitMB.toDouble(),
+                      min: 100,
+                      max: 2000,
+                      divisions: 19,
+                      label: '$_cacheLimitMB MB',
+                      activeColor: isDark ? Colors.white : Colors.black,
+                      inactiveColor: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFEEEEEE),
+                      onChanged: (value) {
+                        setState(() {
+                          _cacheLimitMB = value.round();
+                        });
+                      },
+                      onChangeEnd: (value) {
+                        _cacheManager.setCacheLimit(value.round());
+                      },
+                    ),
                   ),
                 ),
               ],
             ),
             
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
             
             // Clear cache button
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton.icon(
                 onPressed: _cacheSizeMB > 0 ? _clearCache : null,
-                icon: const Icon(Icons.delete_outline, size: 18),
-                label: const Text('Clear Cache'),
-                style: TextButton.styleFrom(
-                  foregroundColor: Colors.red,
+                icon: const Icon(Icons.delete_sweep_rounded, size: 20),
+                label: const Text(
+                  'Clear Media Cache',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF5F5F5),
+                  foregroundColor: isDark ? Colors.white : Colors.black,
+                  elevation: 0,
+                  shape: const StadiumBorder(),
                 ),
               ),
             ),
             
+            const SizedBox(height: 16),
+            
             // Cache info text
             Text(
-              'Cached content is auto-downloaded when you play songs. It can be cleared to free space.',
+              'Cached content is automatically managed when you stream songs. Clearing cache won\'t affect your downloads.',
               style: TextStyle(
                 fontSize: 11,
                 color: isDark ? Colors.grey[600] : Colors.grey[500],
-                fontStyle: FontStyle.italic,
+                height: 1.4,
               ),
             ),
           ],
@@ -746,37 +812,37 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
   Widget _buildDownloadAllCard(BuildContext context, bool isDark) {
     return Card(
       margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-      color: isDark ? Colors.grey[900] : Colors.white,
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
                 Icon(
-                  Icons.download_for_offline_outlined,
+                  Icons.download_for_offline_rounded,
                   size: 20,
-                  color: isDark ? Colors.grey[400] : Colors.grey[600],
+                  color: isDark ? Colors.white : Colors.black,
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 10),
                 Text(
-                  'Download All',
+                  'Quick Download',
                   style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: isDark ? Colors.white : Colors.black87,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: isDark ? Colors.white : Colors.black,
+                    letterSpacing: 0.2,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
 
             // All Songs row
             _buildDownloadAllRow(
               context,
               isDark: isDark,
-              icon: Icons.music_note_outlined,
+              icon: Icons.music_note_rounded,
               label: 'All Songs',
               downloadedCount: _downloadedSongCount,
               totalCount: _totalSongCount,
@@ -786,13 +852,13 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
               onDownload: _downloadAllSongs,
             ),
 
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
 
             // All Albums row
             _buildDownloadAllRow(
               context,
               isDark: isDark,
-              icon: Icons.album_outlined,
+              icon: Icons.album_rounded,
               label: 'All Albums',
               downloadedCount: _downloadedAlbumCount,
               totalCount: _totalAlbumCount,
@@ -802,13 +868,13 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
               onDownload: _downloadAllAlbums,
             ),
 
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
 
-            // All Playlists row (shows songs in playlists, not playlist count)
+            // All Playlists row
             _buildDownloadAllRow(
               context,
               isDark: isDark,
-              icon: Icons.playlist_play_outlined,
+              icon: Icons.playlist_play_rounded,
               label: 'All Playlists',
               downloadedCount: _downloadedPlaylistSongCount,
               totalCount: _totalPlaylistSongCount,
@@ -818,15 +884,14 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
               onDownload: _downloadAllPlaylists,
             ),
 
-            const SizedBox(height: 8),
+            const SizedBox(height: 16),
 
             // Info text
             Text(
-              'Downloads are queued and processed in the background.',
+              'Downloads are optimized and processed in the background.',
               style: TextStyle(
                 fontSize: 11,
                 color: isDark ? Colors.grey[600] : Colors.grey[500],
-                fontStyle: FontStyle.italic,
               ),
             ),
           ],
@@ -850,72 +915,93 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
     final bool allDownloaded = downloadedCount >= totalCount && totalCount > 0;
     final bool hasItemsToDownload = totalCount > 0 && !allDownloaded;
 
-    return Row(
-      children: [
-        Icon(
-          icon,
-          size: 22,
-          color: isDark ? Colors.grey[500] : Colors.grey[600],
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 14,
-              color: isDark ? Colors.white : Colors.black87,
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF5F5F5),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              icon,
+              size: 20,
+              color: isDark ? Colors.white : Colors.black,
             ),
           ),
-        ),
-        if (isLoading)
-          SizedBox(
-            width: 100,
-            child: Text(
-              'Loading...',
-              textAlign: TextAlign.right,
-              style: TextStyle(
-                fontSize: 12,
-                color: isDark ? Colors.grey[600] : Colors.grey[500],
-              ),
-            ),
-          )
-        else
-          SizedBox(
-            width: 100,
-            child: Text(
-              '$downloadedCount / $totalCount $countLabel',
-              textAlign: TextAlign.right,
-              style: TextStyle(
-                fontSize: 12,
-                color: allDownloaded
-                    ? Colors.green[600]
-                    : (isDark ? Colors.grey[500] : Colors.grey[600]),
-              ),
-            ),
-          ),
-        const SizedBox(width: 8),
-        SizedBox(
-          width: 36,
-          height: 36,
-          child: isDownloading
-              ? const Padding(
-                  padding: EdgeInsets.all(8),
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : IconButton(
-                  icon: Icon(
-                    allDownloaded ? Icons.check : Icons.download_outlined,
-                    size: 20,
-                    color: (isLoading || !hasItemsToDownload)
-                        ? (isDark ? Colors.grey[700] : Colors.grey[400])
-                        : (isDark ? Colors.grey[400] : Colors.grey[700]),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: isDark ? Colors.white : Colors.black,
+                    letterSpacing: 0.1,
                   ),
-                  onPressed: (isLoading || !hasItemsToDownload) ? null : onDownload,
-                  tooltip: allDownloaded ? 'All downloaded' : 'Download $label',
-                  padding: EdgeInsets.zero,
                 ),
-        ),
-      ],
+                const SizedBox(height: 2),
+                if (isLoading)
+                  Text(
+                    'Loading library data...',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: isDark ? Colors.grey[600] : Colors.grey[500],
+                    ),
+                  )
+                else
+                  Text(
+                    allDownloaded
+                        ? 'All matched $countLabel downloaded'
+                        : '$downloadedCount / $totalCount $countLabel saved',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: allDownloaded
+                          ? Colors.green[600]
+                          : (isDark ? Colors.grey[500] : Colors.grey[600]),
+                      letterSpacing: 0.1,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          SizedBox(
+            width: 44,
+            height: 44,
+            child: isDownloading
+                ? const Padding(
+                    padding: EdgeInsets.all(12),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.5,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                : IconButton(
+                    icon: Icon(
+                      allDownloaded ? Icons.check_circle_rounded : Icons.arrow_downward_rounded,
+                      size: 24,
+                      color: (isLoading || !hasItemsToDownload)
+                          ? (isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.1))
+                          : (isDark ? Colors.white : Colors.black),
+                    ),
+                    onPressed: (isLoading || !hasItemsToDownload) ? null : onDownload,
+                    style: IconButton.styleFrom(
+                      backgroundColor: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF5F5F5),
+                      shape: const CircleBorder(),
+                    ),
+                    tooltip: allDownloaded ? 'Already downloaded' : 'Download $label',
+                  ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -925,71 +1011,128 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
 
     return Card(
       margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-      color: isDark ? Colors.grey[900] : Colors.white,
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Storage Used',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: isDark ? Colors.white : Colors.black87,
-              ),
-            ),
-            const SizedBox(height: 8),
             Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Offline Library',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: isDark ? Colors.white : Colors.black,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+                if (stats.downloading > 0)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.white : Colors.black,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      '${stats.downloading} active',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        color: isDark ? Colors.black : Colors.white,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '${sizeMB.toStringAsFixed(2)} MB',
+                        '${sizeMB.toStringAsFixed(1)} MB',
                         style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.blue[600],
+                          fontSize: 32,
+                          fontWeight: FontWeight.w900,
+                          color: isDark ? Colors.white : Colors.black,
+                          letterSpacing: -1.0,
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '${stats.completed} song${stats.completed != 1 ? 's' : ''}',
+                        '${stats.completed} songs saved locally',
                         style: TextStyle(
                           fontSize: 13,
+                          fontWeight: FontWeight.w500,
                           color: isDark ? Colors.grey[500] : Colors.grey[600],
                         ),
                       ),
                     ],
                   ),
                 ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    if (stats.downloading > 0)
-                      Text(
-                        '${stats.downloading} downloading',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.orange[600],
-                        ),
-                      ),
-                    if (stats.failed > 0)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 4.0),
-                        child: Text(
-                          '${stats.failed} failed',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.red,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
               ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDownloadModeCard(BuildContext context, bool isDark) {
+    return Card(
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Row(
+          children: [
+            Icon(
+              Icons.speed_rounded,
+              size: 20,
+              color: isDark ? Colors.white : Colors.black,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Fast Downloads (Original)',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: isDark ? Colors.white : Colors.black,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _downloadOriginal
+                        ? 'Downloads bypass transcoding for maximum speed'
+                        : 'Use transcoding to reduce download size',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: isDark ? Colors.grey[500] : Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Switch(
+              value: _downloadOriginal,
+              onChanged: (value) async {
+                await _qualityService.setDownloadOriginal(value);
+                if (mounted) {
+                  setState(() {
+                    _downloadOriginal = value;
+                  });
+                }
+              },
+              activeThumbColor: isDark ? Colors.white : Colors.black,
             ),
           ],
         ),
@@ -1007,14 +1150,14 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
 
     return [
       Padding(
-        padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
+        padding: const EdgeInsets.fromLTRB(16, 32, 16, 12),
         child: Text(
-          title,
+          title.toUpperCase(),
           style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: Colors.blue[700],
-            letterSpacing: 0.5,
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            color: isDark ? Colors.grey[400] : Colors.grey[700],
+            letterSpacing: 1.2,
           ),
         ),
       ),
@@ -1132,7 +1275,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
     return Column(
       children: [
         Container(
-          color: isDark ? Colors.grey[900] : Colors.white,
+          color: Colors.transparent,
           child: Column(
             children: [
               // Album header
@@ -1147,27 +1290,28 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                   });
                 },
                 child: Padding(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   child: Row(
                     children: [
                       // Album artwork
                       ClipRRect(
-                        borderRadius: BorderRadius.circular(6),
+                        borderRadius: BorderRadius.circular(10),
                         child: SizedBox(
-                          width: 56,
-                          height: 56,
+                          width: 50,
+                          height: 50,
                           child: CachedArtwork(
                             albumId: albumId,
                             artworkUrl: artworkUrl.isNotEmpty ? artworkUrl : null,
-                            width: 56,
-                            height: 56,
+                            width: 50,
+                            height: 50,
                             fit: BoxFit.cover,
-                            fallbackIcon: Icons.album,
-                            fallbackIconSize: 28,
+                            fallbackIcon: Icons.album_rounded,
+                            fallbackIconSize: 24,
+                            sizeHint: ArtworkSizeHint.thumbnail,
                           ),
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 16),
                       // Album info
                       Expanded(
                         child: Column(
@@ -1179,8 +1323,9 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                 fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                                color: isDark ? Colors.white : Colors.black87,
+                                fontWeight: FontWeight.w800,
+                                color: isDark ? Colors.white : Colors.black,
+                                letterSpacing: 0.1,
                               ),
                             ),
                             const SizedBox(height: 2),
@@ -1189,7 +1334,8 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
-                                fontSize: 13,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
                                 color: isDark
                                     ? Colors.grey[400]
                                     : Colors.grey[600],
@@ -1197,38 +1343,50 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              '${songs.length} song${songs.length != 1 ? 's' : ''} • ${_formatBytes(totalBytes)}',
+                              '${songs.length} songs • ${_formatBytes(totalBytes)}',
                               style: TextStyle(
-                                fontSize: 12,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
                                 color: isDark
                                     ? Colors.grey[500]
                                     : Colors.grey[500],
+                                letterSpacing: 0.2,
                               ),
                             ),
                           ],
                         ),
                       ),
-                      // Delete album button
-                      IconButton(
-                        icon: Icon(
-                          Icons.delete_outline,
-                          color: Colors.red[400],
-                          size: 22,
+                      // Delete album button - Standardized modern circular button
+                      SizedBox(
+                        width: 36,
+                        height: 36,
+                        child: IconButton(
+                          icon: Icon(
+                            Icons.delete_outline_rounded,
+                            color: const Color(0xFFFF4B4B).withOpacity(0.8),
+                            size: 20,
+                          ),
+                          onPressed: () => _confirmDeleteAlbum(
+                            context,
+                            albumId,
+                            albumName,
+                            songs.length,
+                          ),
+                          style: IconButton.styleFrom(
+                            backgroundColor: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF5F5F5),
+                            shape: const CircleBorder(),
+                          ),
+                          tooltip: 'Delete album',
                         ),
-                        onPressed: () => _confirmDeleteAlbum(
-                          context,
-                          albumId,
-                          albumName,
-                          songs.length,
-                        ),
-                        tooltip: 'Delete album',
                       ),
+                      const SizedBox(width: 8),
                       // Expand/collapse icon
                       Icon(
                         isExpanded
-                            ? Icons.keyboard_arrow_up
-                            : Icons.keyboard_arrow_down,
+                            ? Icons.keyboard_arrow_up_rounded
+                            : Icons.keyboard_arrow_down_rounded,
                         color: isDark ? Colors.grey[400] : Colors.grey[600],
+                        size: 24,
                       ),
                     ],
                   ),
@@ -1237,7 +1395,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
               // Expanded songs list
               if (isExpanded)
                 Container(
-                  color: isDark ? Colors.grey[850] : Colors.grey[50],
+                  color: isDark ? Colors.black.withOpacity(0.3) : Colors.grey[50],
                   child: Column(
                     children: songs.asMap().entries.map((entry) {
                       final index = entry.key;
@@ -1252,10 +1410,13 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
           ),
         ),
         if (!isLast)
-          Divider(
-            height: 1,
-            thickness: 0.5,
-            color: isDark ? Colors.grey[800] : Colors.grey[200],
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Divider(
+              height: 1,
+              thickness: 0.5,
+              color: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFEEEEEE),
+            ),
           ),
       ],
     );
@@ -1283,7 +1444,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
     return Column(
       children: [
         Container(
-          color: isDark ? Colors.grey[900] : Colors.white,
+          color: Colors.transparent,
           child: Column(
             children: [
               // Singles header
@@ -1298,36 +1459,37 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                   });
                 },
                 child: Padding(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   child: Row(
                     children: [
                       // First song's artwork or fallback
                       ClipRRect(
-                        borderRadius: BorderRadius.circular(6),
+                        borderRadius: BorderRadius.circular(10),
                         child: SizedBox(
-                          width: 56,
-                          height: 56,
+                          width: 50,
+                          height: 50,
                           child: firstSong != null
                               ? CachedArtwork(
                                   albumId: cacheId,
                                   artworkUrl: artworkUrl,
-                                  width: 56,
-                                  height: 56,
+                                  width: 50,
+                                  height: 50,
                                   fit: BoxFit.cover,
-                                  fallbackIcon: Icons.music_note,
-                                  fallbackIconSize: 28,
+                                  fallbackIcon: Icons.music_note_rounded,
+                                  fallbackIconSize: 24,
+                                  sizeHint: ArtworkSizeHint.thumbnail,
                                 )
                               : Container(
-                                  color: isDark ? Colors.grey[800] : Colors.grey[200],
+                                  color: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF5F5F5),
                                   child: Icon(
-                                    Icons.music_note,
-                                    color: isDark ? Colors.grey[500] : Colors.grey[400],
-                                    size: 28,
+                                    Icons.music_note_rounded,
+                                    color: isDark ? Colors.grey[700] : Colors.grey[400],
+                                    size: 24,
                                   ),
                                 ),
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 16),
                       // Singles info
                       Expanded(
                         child: Column(
@@ -1337,15 +1499,17 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                               'Singles',
                               style: TextStyle(
                                 fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                                color: isDark ? Colors.white : Colors.black87,
+                                fontWeight: FontWeight.w800,
+                                color: isDark ? Colors.white : Colors.black,
+                                letterSpacing: 0.1,
                               ),
                             ),
                             const SizedBox(height: 2),
                             Text(
                               'Songs without album',
                               style: TextStyle(
-                                fontSize: 13,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
                                 color: isDark
                                     ? Colors.grey[400]
                                     : Colors.grey[600],
@@ -1353,38 +1517,50 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              '${songs.length} song${songs.length != 1 ? 's' : ''} • ${_formatBytes(totalBytes)}',
+                              '${songs.length} songs • ${_formatBytes(totalBytes)}',
                               style: TextStyle(
-                                fontSize: 12,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
                                 color: isDark
                                     ? Colors.grey[500]
                                     : Colors.grey[500],
+                                letterSpacing: 0.2,
                               ),
                             ),
                           ],
                         ),
                       ),
-                      // Delete all singles button
-                      IconButton(
-                        icon: Icon(
-                          Icons.delete_outline,
-                          color: Colors.red[400],
-                          size: 22,
+                      // Delete all singles button - Standardized modern circular button
+                      SizedBox(
+                        width: 36,
+                        height: 36,
+                        child: IconButton(
+                          icon: Icon(
+                            Icons.delete_outline_rounded,
+                            color: const Color(0xFFFF4B4B).withOpacity(0.8),
+                            size: 20,
+                          ),
+                          onPressed: () => _confirmDeleteAlbum(
+                            context,
+                            null,
+                            'Singles',
+                            songs.length,
+                          ),
+                          style: IconButton.styleFrom(
+                            backgroundColor: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF5F5F5),
+                            shape: const CircleBorder(),
+                          ),
+                          tooltip: 'Delete all singles',
                         ),
-                        onPressed: () => _confirmDeleteAlbum(
-                          context,
-                          null,
-                          'Singles',
-                          songs.length,
-                        ),
-                        tooltip: 'Delete all singles',
                       ),
+                      const SizedBox(width: 8),
                       // Expand/collapse icon
                       Icon(
                         isExpanded
-                            ? Icons.keyboard_arrow_up
-                            : Icons.keyboard_arrow_down,
+                            ? Icons.keyboard_arrow_up_rounded
+                            : Icons.keyboard_arrow_down_rounded,
                         color: isDark ? Colors.grey[400] : Colors.grey[600],
+                        size: 24,
                       ),
                     ],
                   ),
@@ -1393,7 +1569,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
               // Expanded songs list
               if (isExpanded)
                 Container(
-                  color: isDark ? Colors.grey[850] : Colors.grey[50],
+                  color: isDark ? Colors.black.withOpacity(0.3) : Colors.grey[50],
                   child: Column(
                     children: songs.asMap().entries.map((entry) {
                       final index = entry.key;
@@ -1408,10 +1584,13 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
           ),
         ),
         if (!isLast)
-          Divider(
-            height: 1,
-            thickness: 0.5,
-            color: isDark ? Colors.grey[800] : Colors.grey[200],
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Divider(
+              height: 1,
+              thickness: 0.5,
+              color: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFEEEEEE),
+            ),
           ),
       ],
     );
@@ -1447,27 +1626,28 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Row(
             children: [
               // Song artwork
               ClipRRect(
-                borderRadius: BorderRadius.circular(4),
+                borderRadius: BorderRadius.circular(10), // Standardized radius
                 child: SizedBox(
-                  width: 40,
-                  height: 40,
+                  width: 44, // Slightly larger for better detail
+                  height: 44,
                   child: CachedArtwork(
                     albumId: cacheId,
                     artworkUrl: artworkUrl,
-                    width: 40,
-                    height: 40,
+                    width: 44,
+                    height: 44,
                     fit: BoxFit.cover,
-                    fallbackIcon: Icons.music_note,
+                    fallbackIcon: Icons.music_note_rounded,
                     fallbackIconSize: 20,
+                    sizeHint: ArtworkSizeHint.thumbnail,
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 16),
               // Song info
               Expanded(
                 child: Column(
@@ -1479,7 +1659,9 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: 14,
-                        color: isDark ? Colors.white : Colors.black87,
+                        fontWeight: FontWeight.w700,
+                        color: isDark ? Colors.white : Colors.black,
+                        letterSpacing: 0.1,
                       ),
                     ),
                     const SizedBox(height: 2),
@@ -1488,7 +1670,8 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
                         color: isDark ? Colors.grey[500] : Colors.grey[600],
                       ),
                     ),
@@ -1499,42 +1682,46 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
               Text(
                 _formatBytes(task.bytesDownloaded),
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
                   color: isDark ? Colors.grey[500] : Colors.grey[600],
                 ),
               ),
-              const SizedBox(width: 8),
-              // Delete button
-              IconButton(
-                icon: Icon(
-                  Icons.close,
-                  color: Colors.red[400],
-                  size: 18,
+              const SizedBox(width: 12),
+              // Delete button - Standardized modern circular button
+              SizedBox(
+                width: 32,
+                height: 32,
+                child: IconButton(
+                  icon: Icon(
+                    Icons.close_rounded,
+                    color: const Color(0xFFFF4B4B).withOpacity(0.8),
+                    size: 16,
+                  ),
+                  onPressed: () => _cancelDownload(task.id),
+                  style: IconButton.styleFrom(
+                    backgroundColor: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF5F5F5),
+                    shape: const CircleBorder(),
+                  ),
+                  tooltip: 'Remove song',
+                  padding: EdgeInsets.zero,
                 ),
-                onPressed: () => _cancelDownload(task.id),
-                tooltip: 'Remove song',
-                constraints: const BoxConstraints(
-                  minWidth: 32,
-                  minHeight: 32,
-                ),
-                padding: EdgeInsets.zero,
               ),
             ],
           ),
         ),
         if (!isLast)
           Padding(
-            padding: const EdgeInsets.only(left: 52),
+            padding: const EdgeInsets.only(left: 76.0, right: 16.0), // Aligned with artwork spacing
             child: Divider(
               height: 1,
               thickness: 0.5,
-              color: isDark ? Colors.grey[800] : Colors.grey[200],
+              color: isDark ? const Color(0xFF1A1A1A).withOpacity(0.5) : const Color(0xFFEEEEEE),
             ),
           ),
       ],
     );
   }
-
   /// Confirm deletion of an album's downloads
   Future<void> _confirmDeleteAlbum(
     BuildContext context,
@@ -1573,270 +1760,205 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
     bool isDark,
     bool isLast,
   ) {
-    return Column(
-      children: [
-        Container(
-          color: isDark ? Colors.grey[900] : Colors.white,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF141414) : Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: isDark ? const Color(0xFF222222) : const Color(0xFFEEEEEE),
+          width: 1,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               children: [
-                // Title and artist
-                Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            task.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w500,
-                              color: isDark ? Colors.white : Colors.black87,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            task.artist,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: isDark ? Colors.grey[500] : Colors.grey[600],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    _buildStatusIcon(task),
-                  ],
+                // Boxed Status Icon
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF5F5F5),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Center(child: _buildStatusIcon(task)),
                 ),
-                const SizedBox(height: 8),
-
-                // Progress bar or status text
-                if (task.status == DownloadStatus.downloading)
-                  Column(
+                const SizedBox(width: 14),
+                // Title and artist
+                Expanded(
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
-                        child: LinearProgressIndicator(
-                          value: _currentProgress[task.id]?.progress ?? task.progress,
-                          minHeight: 4,
-                          backgroundColor:
-                              isDark ? Colors.grey[800] : Colors.grey[200],
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            Colors.blue[600]!,
-                          ),
+                      Text(
+                        task.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: isDark ? Colors.white : Colors.black,
+                          letterSpacing: 0.1,
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            '${_currentProgress[task.id]?.percentage ?? task.getPercentage()}% • ${_formatBytes(_currentProgress[task.id]?.bytesDownloaded ?? task.bytesDownloaded)} / ${_formatBytes(_currentProgress[task.id]?.totalBytes ?? task.totalBytes)}',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: isDark ? Colors.grey[500] : Colors.grey[600],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  )
-                else if (task.status == DownloadStatus.paused)
-                  Text(
-                    'Paused • ${_currentProgress[task.id]?.percentage ?? task.getPercentage()}%',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.orange[600],
-                    ),
-                  )
-                else if (task.status == DownloadStatus.completed)
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.check_circle,
-                        size: 16,
-                        color: Colors.green[600],
-                      ),
-                      const SizedBox(width: 4),
+                      const SizedBox(height: 2),
                       Text(
-                        'Downloaded • ${task.getFormattedTotalBytes()}',
+                        task.artist,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           fontSize: 12,
-                          color: Colors.green[600],
+                          fontWeight: FontWeight.w500,
+                          color: isDark ? Colors.grey[500] : Colors.grey[600],
                         ),
                       ),
                     ],
-                  )
-                else if (task.status == DownloadStatus.failed)
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.error_outline,
-                            size: 16,
-                            color: Colors.red[600],
-                          ),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              task.errorMessage ?? 'Download failed',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.red[600],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      if (task.canRetry())
-                        Padding(
-                          padding: const EdgeInsets.only(top: 4.0),
-                          child: Text(
-                            'Retries remaining: ${DownloadTask.maxRetries - task.retryCount}',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: isDark ? Colors.grey[500] : Colors.grey[600],
-                            ),
-                          ),
-                        ),
-                    ],
-                  )
-                else
-                  Text(
-                    'Pending',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: isDark ? Colors.grey[500] : Colors.grey[600],
-                    ),
                   ),
-
-                const SizedBox(height: 8),
-
-                // Action buttons
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: _buildActionButtons(task),
                 ),
               ],
             ),
-          ),
-        ),
-        if (!isLast)
-          Padding(
-            padding: const EdgeInsets.only(left: 16.0),
-            child: Divider(
-              height: 1,
-              thickness: 0.5,
-              color: isDark ? Colors.grey[800] : Colors.grey[200],
+            
+            // Progress bar or status text
+            if (task.status == DownloadStatus.downloading) ...[
+              const SizedBox(height: 16),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: LinearProgressIndicator(
+                  value: _currentProgress[task.id]?.progress ?? task.progress,
+                  minHeight: 6,
+                  backgroundColor: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFEEEEEE),
+                  valueColor: AlwaysStoppedAnimation<Color>(isDark ? Colors.white : Colors.black),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '${_currentProgress[task.id]?.percentage ?? task.getPercentage()}% • ${_formatBytes(_currentProgress[task.id]?.bytesDownloaded ?? task.bytesDownloaded)} / ${_formatBytes(_currentProgress[task.id]?.totalBytes ?? task.totalBytes)}',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? Colors.grey[500] : Colors.grey[600],
+                  letterSpacing: 0.2,
+                ),
+              ),
+            ] else if (task.status == DownloadStatus.completed) ...[
+              const SizedBox(height: 12),
+              Text(
+                'Saved Locally • ${task.getFormattedTotalBytes()}',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? Colors.grey[500] : Colors.grey[600],
+                ),
+              ),
+            ] else if (task.status == DownloadStatus.failed) ...[
+              const SizedBox(height: 12),
+              Text(
+                task.errorMessage ?? 'Download failed',
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFFFF4B4B),
+                ),
+              ),
+            ],
+
+            const SizedBox(height: 16),
+
+            // Action buttons
+            Row(
+              children: _buildActionButtons(task),
             ),
-          ),
-      ],
+          ],
+        ),
+      ),
     );
   }
 
   List<Widget> _buildActionButtons(DownloadTask task) {
     final buttons = <Widget>[];
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    final buttonStyle = ElevatedButton.styleFrom(
+      backgroundColor: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF5F5F5),
+      foregroundColor: isDark ? Colors.white : Colors.black,
+      elevation: 0,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+      minimumSize: const Size(0, 36),
+      shape: const StadiumBorder(),
+      textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.5),
+    );
 
     if (task.status == DownloadStatus.downloading) {
       buttons.add(
-        TextButton.icon(
+        ElevatedButton.icon(
           onPressed: () => _pauseDownload(task.id),
-          icon: const Icon(Icons.pause, size: 18),
-          label: const Text('Pause'),
-          style: TextButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          ),
+          icon: const Icon(Icons.pause_rounded, size: 14),
+          label: const Text('PAUSE'),
+          style: buttonStyle,
         ),
       );
       buttons.add(const SizedBox(width: 8));
       buttons.add(
-        TextButton.icon(
+        ElevatedButton.icon(
           onPressed: () => _cancelDownload(task.id),
-          icon: const Icon(Icons.close, size: 18),
-          label: const Text('Cancel'),
-          style: TextButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            foregroundColor: Colors.red,
+          icon: const Icon(Icons.close_rounded, size: 14),
+          label: const Text('CANCEL'),
+          style: buttonStyle.copyWith(
+            foregroundColor: WidgetStateProperty.all(const Color(0xFFFF4B4B)),
           ),
         ),
       );
     } else if (task.status == DownloadStatus.paused) {
       buttons.add(
-        TextButton.icon(
+        ElevatedButton.icon(
           onPressed: () => _resumeDownload(task.id),
-          icon: const Icon(Icons.play_arrow, size: 18),
-          label: const Text('Resume'),
-          style: TextButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            foregroundColor: Colors.orange,
-          ),
+          icon: const Icon(Icons.play_arrow_rounded, size: 14),
+          label: const Text('RESUME'),
+          style: buttonStyle,
         ),
       );
       buttons.add(const SizedBox(width: 8));
       buttons.add(
-        TextButton.icon(
+        ElevatedButton.icon(
           onPressed: () => _cancelDownload(task.id),
-          icon: const Icon(Icons.close, size: 18),
-          label: const Text('Cancel'),
-          style: TextButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            foregroundColor: Colors.red,
+          icon: const Icon(Icons.close_rounded, size: 14),
+          label: const Text('CANCEL'),
+          style: buttonStyle.copyWith(
+            foregroundColor: WidgetStateProperty.all(const Color(0xFFFF4B4B)),
           ),
         ),
       );
     } else if (task.status == DownloadStatus.failed && task.canRetry()) {
       buttons.add(
-        TextButton.icon(
+        ElevatedButton.icon(
           onPressed: () => _retryDownload(task.id),
-          icon: const Icon(Icons.refresh, size: 18),
-          label: const Text('Retry'),
-          style: TextButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            foregroundColor: Colors.orange,
-          ),
+          icon: const Icon(Icons.refresh_rounded, size: 14),
+          label: const Text('RETRY'),
+          style: buttonStyle,
         ),
       );
     } else if (task.status == DownloadStatus.completed) {
       buttons.add(
-        TextButton.icon(
+        ElevatedButton.icon(
           onPressed: () => _cancelDownload(task.id),
-          icon: const Icon(Icons.delete_outline, size: 18),
-          label: const Text('Remove'),
-          style: TextButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            foregroundColor: Colors.red,
+          icon: const Icon(Icons.delete_outline_rounded, size: 14),
+          label: const Text('REMOVE'),
+          style: buttonStyle.copyWith(
+            foregroundColor: WidgetStateProperty.all(const Color(0xFFFF4B4B)),
           ),
         ),
       );
     } else if (task.status == DownloadStatus.pending) {
       buttons.add(
-        TextButton.icon(
+        ElevatedButton.icon(
           onPressed: () => _cancelDownload(task.id),
-          icon: const Icon(Icons.close, size: 18),
-          label: const Text('Remove'),
-          style: TextButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            foregroundColor: Colors.red,
+          icon: const Icon(Icons.close_rounded, size: 14),
+          label: const Text('REMOVE'),
+          style: buttonStyle.copyWith(
+            foregroundColor: WidgetStateProperty.all(const Color(0xFFFF4B4B)),
           ),
         ),
       );
@@ -1848,23 +1970,23 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
   Widget _buildStatusIcon(DownloadTask task) {
     switch (task.status) {
       case DownloadStatus.downloading:
-        return SizedBox(
-          width: 20,
-          height: 20,
+        return const SizedBox(
+          width: 16,
+          height: 16,
           child: CircularProgressIndicator(
-            value: _currentProgress[task.id]?.progress ?? task.progress,
-            strokeWidth: 2,
+            strokeWidth: 2.5,
+            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
           ),
         );
       case DownloadStatus.paused:
-        return Icon(Icons.pause_circle, size: 20, color: Colors.orange[600]);
+        return const Icon(Icons.pause_circle_filled_rounded, size: 22, color: Color(0xFFFFB300));
       case DownloadStatus.completed:
-        return Icon(Icons.check_circle, size: 20, color: Colors.green[600]);
+        return const Icon(Icons.check_circle_rounded, size: 22, color: Color(0xFF00C853));
       case DownloadStatus.failed:
-        return Icon(Icons.error, size: 20, color: Colors.red[600]);
+        return const Icon(Icons.error_rounded, size: 22, color: Color(0xFFFF4B4B));
       case DownloadStatus.pending:
       case DownloadStatus.cancelled:
-        return Icon(Icons.schedule, size: 20, color: Colors.grey[600]);
+        return Icon(Icons.schedule_rounded, size: 22, color: Theme.of(context).brightness == Brightness.dark ? Colors.grey[600] : Colors.grey[400]);
     }
   }
 }

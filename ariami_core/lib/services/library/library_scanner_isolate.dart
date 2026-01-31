@@ -86,18 +86,18 @@ class LibraryScannerIsolate {
   /// Calculates optimal batch size based on available CPU cores
   ///
   /// Lower-power devices (fewer cores) get smaller batches to avoid
-  /// overwhelming the system. Higher-core systems can process more
-  /// files concurrently.
+  /// overwhelming the system and prevent SD card stalls on Pi devices.
+  /// Higher-core systems can process more files concurrently.
   static int _calculateBatchSize() {
     final cores = Platform.numberOfProcessors;
     if (cores <= 2) {
-      return 8; // Low-power devices (Pi 3, older systems)
+      return 4; // Very low-power devices (Pi 3, older systems) - prevent SD card stalls
     } else if (cores <= 4) {
-      return 15; // Mid-range (Pi 4/5, typical laptops)
+      return 8; // Mid-range (Pi 4/5, typical laptops)
     } else if (cores <= 8) {
-      return 25; // Powerful desktops
+      return 15; // Powerful desktops
     } else {
-      return 35; // High-end workstations
+      return 25; // High-end workstations
     }
   }
   /// Spawn an isolate to scan the library and return the result
@@ -259,9 +259,29 @@ class LibraryScannerIsolate {
       _sendProgress(sendPort, 'duplicates', 0, songs.length, 70.0,
           'Detecting duplicates...');
 
+      // Extract cached hashes for duplicate detection
+      final cachedHashes = <String, String>{};
+      for (final entry in existingCache.entries) {
+        final hash = entry.value['partialHash'] as String?;
+        if (hash != null) {
+          cachedHashes[entry.key] = hash;
+        }
+      }
+
       final duplicateDetector = DuplicateDetector();
-      final duplicateGroups = await duplicateDetector.detectDuplicates(songs);
+      final duplicateGroups = await duplicateDetector.detectDuplicates(
+        songs,
+        cachedHashes: cachedHashes,
+      );
       final uniqueSongs = duplicateDetector.filterDuplicates(songs, duplicateGroups);
+
+      // Store computed hashes back in cache for future scans
+      for (final entry in duplicateDetector.computedHashes.entries) {
+        final cached = updatedCache[entry.key];
+        if (cached != null) {
+          cached['partialHash'] = entry.value;
+        }
+      }
 
       _sendProgress(sendPort, 'duplicates', uniqueSongs.length, songs.length, 85.0,
           '${uniqueSongs.length} unique songs after filtering');
@@ -274,6 +294,15 @@ class LibraryScannerIsolate {
       final baseLibrary = albumBuilder.buildLibrary(uniqueSongs);
 
       // Step 5: Build folder playlists
+      // First, build a map from duplicate file paths to their "original" paths
+      // This ensures playlist song IDs match the library (duplicates are filtered out)
+      final duplicateToOriginalPath = <String, String>{};
+      for (final group in duplicateGroups) {
+        for (final duplicate in group.duplicates) {
+          duplicateToOriginalPath[duplicate.filePath] = group.original.filePath;
+        }
+      }
+
       final folderPlaylistsList = <FolderPlaylist>[];
       for (final entry in playlistFolders.entries) {
         final folderPath = entry.key;
@@ -282,8 +311,12 @@ class LibraryScannerIsolate {
         // Skip empty playlist folders
         if (filePaths.isEmpty) continue;
 
-        // Convert file paths to song IDs
-        final songIds = filePaths.map((fp) => _generateSongId(fp)).toList();
+        // Convert file paths to song IDs, mapping duplicates to their originals
+        final songIds = filePaths.map((fp) {
+          // If this file is a duplicate, use the original's path for ID generation
+          final originalPath = duplicateToOriginalPath[fp] ?? fp;
+          return _generateSongId(originalPath);
+        }).toList();
 
         final playlist = FolderPlaylist(
           id: FolderPlaylist.generateId(folderPath),
@@ -365,8 +398,8 @@ class LibraryScannerIsolate {
         }
       }
 
-      // Cache miss - extract metadata
-      final metadata = await extractor.extractMetadataWithDuration(filePath);
+      // Cache miss - extract metadata (duration deferred to on-demand via LibraryManager.getSongDuration)
+      final metadata = await extractor.extractMetadata(filePath);
 
       return (
         metadata: metadata,
@@ -399,22 +432,39 @@ class LibraryScannerIsolate {
     ));
   }
 
+  /// Checks if a path contains hidden or system directories
+  ///
+  /// Returns true if any path component starts with '.' (e.g., .DS_Store, .Spotlight-V100)
+  static bool _isHiddenOrSystem(String filePath) {
+    final parts = filePath.split(Platform.pathSeparator);
+    for (final part in parts) {
+      if (part.startsWith('.') && part.length > 1) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   /// Collect audio files from directory and detect [PLAYLIST] folders
   ///
-  /// Returns both the list of audio files and a map of playlist folders
-  /// to the files they contain.
+  /// Uses single-pass traversal for efficiency - handles both directory
+  /// detection and file collection in one loop.
+  /// Filters out hidden/system paths (e.g., .DS_Store, .Spotlight-V100).
   static Future<({List<String> files, Map<String, List<String>> playlistFolders})> _collectAudioFiles(String folderPath) async {
     final files = <String>[];
     final playlistFolders = <String, List<String>>{};
+    final playlistPaths = <String>{};
     final rootDir = Directory(folderPath);
 
     if (!await rootDir.exists()) {
       return (files: files, playlistFolders: playlistFolders);
     }
 
-    // First pass: find all [PLAYLIST] folders (top-level only, not nested)
-    final playlistPaths = <String>{};
+    // Single-pass traversal: detect playlist folders and collect audio files together
     await for (final entity in rootDir.list(recursive: true, followLinks: false)) {
+      // Skip hidden/system paths
+      if (_isHiddenOrSystem(entity.path)) continue;
+
       if (entity is Directory) {
         final folderName = path.basename(entity.path);
         if (FolderPlaylist.isPlaylistFolder(folderName)) {
@@ -425,12 +475,7 @@ class LibraryScannerIsolate {
             playlistFolders[entity.path] = [];
           }
         }
-      }
-    }
-
-    // Second pass: collect all audio files and assign to playlists
-    await for (final entity in rootDir.list(recursive: true, followLinks: false)) {
-      if (entity is File) {
+      } else if (entity is File) {
         final ext = path.extension(entity.path).toLowerCase();
         if (FileScanner.supportedExtensions.contains(ext)) {
           files.add(entity.path);

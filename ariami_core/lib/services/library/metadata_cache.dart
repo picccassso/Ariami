@@ -13,10 +13,14 @@ class CachedMetadataEntry {
   /// The cached metadata
   final SongMetadata metadata;
 
+  /// Cached partial hash for duplicate detection (optional, computed lazily)
+  final String? partialHash;
+
   const CachedMetadataEntry({
     required this.mtime,
     required this.size,
     required this.metadata,
+    this.partialHash,
   });
 
   /// Create from JSON map
@@ -25,6 +29,7 @@ class CachedMetadataEntry {
       mtime: json['mtime'] as int,
       size: json['size'] as int,
       metadata: SongMetadata.fromJson(json['metadata'] as Map<String, dynamic>),
+      partialHash: json['partialHash'] as String?,
     );
   }
 
@@ -34,7 +39,18 @@ class CachedMetadataEntry {
       'mtime': mtime,
       'size': size,
       'metadata': metadata.toJson(),
+      if (partialHash != null) 'partialHash': partialHash,
     };
+  }
+
+  /// Create a copy with updated partialHash
+  CachedMetadataEntry copyWithHash(String hash) {
+    return CachedMetadataEntry(
+      mtime: mtime,
+      size: size,
+      metadata: metadata,
+      partialHash: hash,
+    );
   }
 }
 
@@ -44,7 +60,8 @@ class CachedMetadataEntry {
 /// unchanged files. Uses file mtime and size for validation.
 class MetadataCache {
   /// Cache schema version - bump to invalidate all caches on breaking changes
-  static const int schemaVersion = 1;
+  /// v2: Added partialHash field for duplicate detection caching
+  static const int schemaVersion = 2;
 
   /// Maximum number of entries (sanity limit ~50MB)
   static const int maxEntries = 100000;
@@ -293,6 +310,7 @@ class MetadataCache {
         'mtime': entry.value.mtime,
         'size': entry.value.size,
         'metadata': entry.value.metadata.toJson(),
+        if (entry.value.partialHash != null) 'partialHash': entry.value.partialHash,
       };
     }
     return data;
@@ -306,6 +324,7 @@ class MetadataCache {
         mtime: entry.value['mtime'] as int,
         size: entry.value['size'] as int,
         metadata: SongMetadata.fromJson(entry.value['metadata'] as Map<String, dynamic>),
+        partialHash: entry.value['partialHash'] as String?,
       );
     }
     _isDirty = true;

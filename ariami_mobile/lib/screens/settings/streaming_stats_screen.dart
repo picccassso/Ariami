@@ -43,35 +43,57 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
+      backgroundColor: isDark ? Colors.black : Colors.white,
       appBar: AppBar(
-        title: const Text('Streaming Statistics'),
+        title: const Text('LISTENING STATS'),
+        titleTextStyle: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 1.5,
+          color: isDark ? Colors.white : Colors.black,
+        ),
+        centerTitle: true,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
+            icon: Icon(Icons.refresh_rounded, color: isDark ? Colors.white : Colors.black),
             onPressed: _showResetDialog,
             tooltip: 'Reset statistics',
           ),
         ],
         bottom: TabBar(
           controller: _tabController,
+          indicatorColor: isDark ? Colors.white : Colors.black,
+          indicatorSize: TabBarIndicatorSize.label,
+          labelColor: isDark ? Colors.white : Colors.black,
+          unselectedLabelColor: Colors.grey[600],
+          labelStyle: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 1.0,
+          ),
+          dividerColor: Colors.transparent,
           tabs: const [
-            Tab(text: 'Tracks'),
-            Tab(text: 'Artists'),
-            Tab(text: 'Albums'),
+            Tab(text: 'TRACKS'),
+            Tab(text: 'ARTISTS'),
+            Tab(text: 'ALBUMS'),
           ],
         ),
       ),
       body: RefreshIndicator(
+        color: isDark ? Colors.white : Colors.black,
+        backgroundColor: isDark ? const Color(0xFF111111) : Colors.white,
         onRefresh: () async {
-          // Refresh the UI
           setState(() {});
         },
         child: Column(
           children: [
             // Overview card with totals (dynamic based on tab)
             _buildOverviewCard(),
-            const SizedBox(height: 16),
 
             // Tab content
             Expanded(
@@ -92,6 +114,8 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
 
   /// Build the overview card showing total stats (dynamic based on tab)
   Widget _buildOverviewCard() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     return ListenableBuilder(
       listenable: _statsService,
       builder: (context, _) {
@@ -106,12 +130,12 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
           case 0: // Tracks
             final stats = _statsService.getTotalStats();
             final avgData = _statsService.getAverageDailyTime();
-            metric1Label = 'Songs Played';
+            metric1Label = 'SONGS';
             metric1Value = stats.totalSongsPlayed.toString();
-            metric2Label = 'Total Time';
-            metric2Value = _formatDuration(stats.totalTimeStreamed);
-            metric3Label = 'Daily Avg';
-            metric3Value = _formatDuration(avgData.perCalendarDay);
+            metric2Label = 'PLAYTIME';
+            metric2Value = _formatDurationShort(stats.totalTimeStreamed);
+            metric3Label = 'AVG DAILY';
+            metric3Value = _formatDurationShort(avgData.perCalendarDay);
             break;
 
           case 1: // Artists
@@ -121,12 +145,12 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
               Duration.zero,
               (sum, artist) => sum + artist.totalTime,
             );
-            metric1Label = 'Artists Played';
+            metric1Label = 'ARTISTS';
             metric1Value = artists.length.toString();
-            metric2Label = 'Total Time';
-            metric2Value = _formatDuration(totalTime);
-            metric3Label = 'Daily Avg';
-            metric3Value = _formatDuration(avgData.perCalendarDay);
+            metric2Label = 'PLAYTIME';
+            metric2Value = _formatDurationShort(totalTime);
+            metric3Label = 'AVG DAILY';
+            metric3Value = _formatDurationShort(avgData.perCalendarDay);
             break;
 
           case 2: // Albums
@@ -136,49 +160,42 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
               Duration.zero,
               (sum, album) => sum + album.totalTime,
             );
-            metric1Label = 'Albums Played';
+            metric1Label = 'ALBUMS';
             metric1Value = albums.length.toString();
-            metric2Label = 'Total Time';
-            metric2Value = _formatDuration(totalTime);
-            metric3Label = 'Daily Avg';
-            metric3Value = _formatDuration(avgData.perCalendarDay);
+            metric2Label = 'PLAYTIME';
+            metric2Value = _formatDurationShort(totalTime);
+            metric3Label = 'AVG DAILY';
+            metric3Value = _formatDurationShort(avgData.perCalendarDay);
             break;
 
           default:
-            metric1Label = 'Songs Played';
+            metric1Label = 'SONGS';
             metric1Value = '0';
-            metric2Label = 'Total Time';
-            metric2Value = '0m';
-            metric3Label = 'Daily Avg';
+            metric2Label = 'PLAYTIME';
+            metric2Value = '0h';
+            metric3Label = 'AVG';
             metric3Value = '0m';
         }
 
         return Padding(
-          padding: const EdgeInsets.all(16),
-          child: Card(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Your Listening Stats',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      _buildStatItem(label: metric1Label, value: metric1Value),
-                      _buildStatItem(label: metric2Label, value: metric2Value),
-                      _buildStatItem(label: metric3Label, value: metric3Value),
-                    ],
-                  ),
-                ],
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF111111) : const Color(0xFFF9F9F9),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: isDark ? const Color(0xFF222222) : const Color(0xFFEEEEEE),
+                width: 1,
               ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildStatItem(label: metric1Label, value: metric1Value, isDark: isDark),
+                _buildStatItem(label: metric2Label, value: metric2Value, isDark: isDark),
+                _buildStatItem(label: metric3Label, value: metric3Value, isDark: isDark),
+              ],
             ),
           ),
         );
@@ -186,28 +203,40 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
     );
   }
 
+  String _formatDurationShort(Duration duration) {
+    if (duration.inHours > 0) {
+      return '${duration.inHours}h';
+    } else {
+      return '${duration.inMinutes}m';
+    }
+  }
+
   /// Build a single stat item in the grid
   Widget _buildStatItem({
     required String label,
     required String value,
+    required bool isDark,
     String? secondaryValue,
   }) {
     return Column(
       children: [
         Text(
           value,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 24,
-            fontWeight: FontWeight.bold,
-            color: Colors.blue,
+            fontWeight: FontWeight.w900,
+            color: isDark ? Colors.white : Colors.black,
+            letterSpacing: -1.0,
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         Text(
           label,
           style: TextStyle(
-            fontSize: 12,
-            color: Colors.grey[600],
+            fontSize: 10,
+            fontWeight: FontWeight.w800,
+            color: isDark ? Colors.grey[500] : Colors.grey[600],
+            letterSpacing: 1.0,
           ),
         ),
         if (secondaryValue != null) ...[
@@ -215,9 +244,9 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
           Text(
             secondaryValue,
             style: TextStyle(
-              fontSize: 10,
-              color: Colors.grey[500],
-              fontStyle: FontStyle.italic,
+              fontSize: 9,
+              fontWeight: FontWeight.w600,
+              color: isDark ? Colors.grey[700] : Colors.grey[400],
             ),
             textAlign: TextAlign.center,
           ),
@@ -228,19 +257,23 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
 
   /// Build the tracks tab
   Widget _buildTracksTab() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return ListView(
-      padding: EdgeInsets.only(
-        bottom: 64 + kBottomNavigationBarHeight, // Mini player + download bar + nav bar
-      ),
+      padding: const EdgeInsets.only(bottom: 120),
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
           child: Text(
-            'Your Top Songs',
-            style: Theme.of(context).textTheme.titleLarge,
+            'TOP SONGS',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
+              color: isDark ? Colors.white : Colors.black,
+              letterSpacing: 1.5,
+            ),
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 8),
         StreamBuilder<List<SongStats>>(
           stream: _statsService.topSongsStream,
           builder: (context, snapshot) {
@@ -274,19 +307,23 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
 
   /// Build the artists tab
   Widget _buildArtistsTab() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return ListView(
-      padding: EdgeInsets.only(
-        bottom: 64 + kBottomNavigationBarHeight, // Mini player + download bar + nav bar
-      ),
+      padding: const EdgeInsets.only(bottom: 120),
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
           child: Text(
-            'Your Top Artists',
-            style: Theme.of(context).textTheme.titleLarge,
+            'TOP ARTISTS',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
+              color: isDark ? Colors.white : Colors.black,
+              letterSpacing: 1.5,
+            ),
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 8),
         StreamBuilder<List<ArtistStats>>(
           stream: _statsService.topArtistsStream,
           builder: (context, snapshot) {
@@ -320,19 +357,23 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
 
   /// Build the albums tab
   Widget _buildAlbumsTab() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return ListView(
-      padding: EdgeInsets.only(
-        bottom: 64 + kBottomNavigationBarHeight, // Mini player + download bar + nav bar
-      ),
+      padding: const EdgeInsets.only(bottom: 120),
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
           child: Text(
-            'Your Top Albums',
-            style: Theme.of(context).textTheme.titleLarge,
+            'TOP ALBUMS',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
+              color: isDark ? Colors.white : Colors.black,
+              letterSpacing: 1.5,
+            ),
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 8),
         StreamBuilder<List<AlbumStats>>(
           stream: _statsService.topAlbumsStream,
           builder: (context, snapshot) {
@@ -366,55 +407,59 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
 
   /// Build reusable error state
   Widget _buildErrorState() {
-    return Padding(
-      padding: const EdgeInsets.all(32),
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.error_outline, size: 48, color: Colors.red[300]),
-            const SizedBox(height: 16),
-            Text(
-              'Error loading stats',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.red[600],
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.error_outline_rounded, size: 48, color: isDark ? Colors.grey[800] : Colors.grey[200]),
+          const SizedBox(height: 16),
+          Text(
+             'Error loading statistics',
+             style: TextStyle(
+               fontSize: 14,
+               fontWeight: FontWeight.w700,
+               color: isDark ? Colors.grey[600] : Colors.grey[400],
+             ),
+          ),
+        ],
       ),
     );
   }
 
   /// Build reusable loading state
   Widget _buildLoadingState() {
-    return const Padding(
-      padding: EdgeInsets.all(32),
-      child: Center(
-        child: CircularProgressIndicator(),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Center(
+      child: CircularProgressIndicator(
+        color: isDark ? Colors.white : Colors.black,
+        strokeWidth: 2,
       ),
     );
   }
 
   /// Build reusable empty state
   Widget _buildEmptyState(String message) {
-    return Padding(
-      padding: const EdgeInsets.all(32),
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.music_note, size: 48, color: Colors.grey[400]),
-            const SizedBox(height: 16),
-            Text(
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.music_note_rounded, size: 48, color: isDark ? Colors.grey[800] : Colors.grey[200]),
+          const SizedBox(height: 16),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 48),
+            child: Text(
               message,
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey[600]),
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: isDark ? Colors.grey[600] : Colors.grey[400],
+              ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -422,50 +467,44 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
   /// Build a single top song item
   Widget _buildTopSongItem(SongStats stat, int rank) {
     final baseUrl = _connectionService.apiClient?.baseUrl;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    // Determine artwork URL and cache ID based on whether song has albumId
-    String? artworkUrl;
-    String cacheId;
-
-    if (stat.albumId != null) {
-      // Song belongs to an album - use album artwork endpoint
-      artworkUrl = baseUrl != null ? '$baseUrl/artwork/${stat.albumId}' : null;
-      cacheId = stat.albumId!;
-    } else {
-      // Standalone song - use song artwork endpoint
-      artworkUrl = baseUrl != null ? '$baseUrl/song-artwork/${stat.songId}' : null;
-      cacheId = 'song_${stat.songId}';
-    }
+    // Prefer song-level artwork for individual tracks
+    final artworkUrl = baseUrl != null ? '$baseUrl/song-artwork/${stat.songId}' : null;
+    final cacheId = 'song_${stat.songId}';
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
         children: [
-          // Album artwork (uses cache for offline support)
-          CachedArtwork(
-            albumId: cacheId, // Used as cache key
-            artworkUrl: artworkUrl,
-            width: 56,
-            height: 56,
-            fit: BoxFit.cover,
-            borderRadius: BorderRadius.circular(8),
-            fallbackIconSize: 32,
-          ),
-          const SizedBox(width: 12),
-
           // Rank number
           SizedBox(
-            width: 24,
+            width: 28,
             child: Text(
-              '$rank.',
+              '$rank',
               style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-                color: Colors.grey[700],
+                fontSize: 12,
+                fontWeight: FontWeight.w900,
+                color: isDark ? Colors.grey[700] : Colors.grey[400],
+                letterSpacing: -0.5,
               ),
             ),
           ),
-          const SizedBox(width: 8),
+          
+          // Album artwork
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: CachedArtwork(
+              albumId: cacheId,
+              artworkUrl: artworkUrl,
+              width: 52,
+              height: 52,
+              fit: BoxFit.cover,
+              fallbackIconSize: 24,
+              sizeHint: ArtworkSizeHint.thumbnail,
+            ),
+          ),
+          const SizedBox(width: 16),
 
           // Song info
           Expanded(
@@ -473,28 +512,34 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  stat.songTitle ?? 'Unknown Song',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w500,
+                  stat.songTitle ?? 'Unknown Track',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: isDark ? Colors.white : Colors.black,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
+                const SizedBox(height: 2),
                 Text(
                   stat.songArtist ?? 'Unknown Artist',
                   style: TextStyle(
                     fontSize: 12,
-                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w500,
+                    color: isDark ? Colors.grey[500] : Colors.grey[600],
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 6),
                 Text(
-                  '${stat.playCount} ${stat.playCount == 1 ? 'play' : 'plays'} • ${stat.formattedTime}',
+                  '${stat.playCount} PLAYS • ${stat.formattedTime.toUpperCase()}',
                   style: TextStyle(
-                    fontSize: 11,
-                    color: Colors.grey[500],
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    color: isDark ? Colors.grey[700] : Colors.grey[400],
+                    letterSpacing: 0.5,
                   ),
                 ),
               ],
@@ -508,56 +553,55 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
   /// Build a single top artist item
   Widget _buildTopArtistItem(ArtistStats stat, int rank) {
     final baseUrl = _connectionService.apiClient?.baseUrl;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    // Determine artwork URL and cache ID
-    // Prefer album artwork, fall back to song artwork for standalone songs
     String? artworkUrl;
     String cacheId;
 
     if (stat.randomAlbumId != null) {
-      // Use album artwork
       artworkUrl = baseUrl != null ? '$baseUrl/artwork/${stat.randomAlbumId}' : null;
       cacheId = stat.randomAlbumId!;
     } else if (stat.randomSongId != null) {
-      // Fallback to standalone song artwork
       artworkUrl = baseUrl != null ? '$baseUrl/song-artwork/${stat.randomSongId}' : null;
       cacheId = 'song_${stat.randomSongId}';
     } else {
-      // No artwork available
       artworkUrl = null;
       cacheId = '';
     }
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
         children: [
-          // Artist artwork (uses cache)
-          CachedArtwork(
-            albumId: cacheId, // Used as cache key
-            artworkUrl: artworkUrl,
-            width: 56,
-            height: 56,
-            fit: BoxFit.cover,
-            borderRadius: BorderRadius.circular(8),
-            fallbackIcon: Icons.person,
-            fallbackIconSize: 32,
-          ),
-          const SizedBox(width: 12),
-
           // Rank number
           SizedBox(
-            width: 24,
+            width: 28,
             child: Text(
-              '$rank.',
+              '$rank',
               style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-                color: Colors.grey[700],
+                fontSize: 12,
+                fontWeight: FontWeight.w900,
+                color: isDark ? Colors.grey[700] : Colors.grey[400],
+                letterSpacing: -0.5,
               ),
             ),
           ),
-          const SizedBox(width: 8),
+
+          // Artist artwork
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: CachedArtwork(
+              albumId: cacheId,
+              artworkUrl: artworkUrl,
+              width: 52,
+              height: 52,
+              fit: BoxFit.cover,
+              fallbackIcon: Icons.person_rounded,
+              fallbackIconSize: 24,
+              sizeHint: ArtworkSizeHint.thumbnail,
+            ),
+          ),
+          const SizedBox(width: 16),
 
           // Artist info
           Expanded(
@@ -566,25 +610,31 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
               children: [
                 Text(
                   stat.artistName,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w500,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: isDark ? Colors.white : Colors.black,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
+                const SizedBox(height: 2),
                 Text(
-                  '${stat.uniqueSongsCount} ${stat.uniqueSongsCount == 1 ? 'song' : 'songs'}',
+                  '${stat.uniqueSongsCount} ${stat.uniqueSongsCount == 1 ? 'SONG' : 'SONGS'}',
                   style: TextStyle(
                     fontSize: 12,
-                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w500,
+                    color: isDark ? Colors.grey[500] : Colors.grey[600],
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 6),
                 Text(
-                  '${stat.playCount} ${stat.playCount == 1 ? 'play' : 'plays'} • ${stat.formattedTime}',
+                  '${stat.playCount} PLAYS • ${stat.formattedTime.toUpperCase()}',
                   style: TextStyle(
-                    fontSize: 11,
-                    color: Colors.grey[500],
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    color: isDark ? Colors.grey[700] : Colors.grey[400],
+                    letterSpacing: 0.5,
                   ),
                 ),
               ],
@@ -598,38 +648,40 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
   /// Build a single top album item
   Widget _buildTopAlbumItem(AlbumStats stat, int rank) {
     final baseUrl = _connectionService.apiClient?.baseUrl;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
         children: [
-          // Album artwork (uses cache)
-          CachedArtwork(
-            albumId: stat.albumId,
-            artworkUrl: baseUrl != null
-                ? '$baseUrl/artwork/${stat.albumId}'
-                : null,
-            width: 56,
-            height: 56,
-            fit: BoxFit.cover,
-            borderRadius: BorderRadius.circular(8),
-            fallbackIconSize: 32,
-          ),
-          const SizedBox(width: 12),
-
           // Rank number
           SizedBox(
-            width: 24,
+            width: 28,
             child: Text(
-              '$rank.',
+              '$rank',
               style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-                color: Colors.grey[700],
+                fontSize: 12,
+                fontWeight: FontWeight.w900,
+                color: isDark ? Colors.grey[700] : Colors.grey[400],
+                letterSpacing: -0.5,
               ),
             ),
           ),
-          const SizedBox(width: 8),
+
+          // Album artwork
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: CachedArtwork(
+              albumId: stat.albumId,
+              artworkUrl: baseUrl != null ? '$baseUrl/artwork/${stat.albumId}' : null,
+              width: 52,
+              height: 52,
+              fit: BoxFit.cover,
+              fallbackIconSize: 24,
+              sizeHint: ArtworkSizeHint.thumbnail,
+            ),
+          ),
+          const SizedBox(width: 16),
 
           // Album info
           Expanded(
@@ -638,27 +690,33 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
               children: [
                 Text(
                   stat.albumName ?? 'Unknown Album',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w500,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: isDark ? Colors.white : Colors.black,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
+                const SizedBox(height: 2),
                 Text(
                   stat.albumArtist ?? 'Unknown Artist',
                   style: TextStyle(
                     fontSize: 12,
-                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w500,
+                    color: isDark ? Colors.grey[500] : Colors.grey[600],
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 6),
                 Text(
-                  '${stat.uniqueSongsCount} ${stat.uniqueSongsCount == 1 ? 'song' : 'songs'} • ${stat.formattedTime}',
+                  '${stat.uniqueSongsCount} ${stat.uniqueSongsCount == 1 ? 'SONG' : 'SONGS'} • ${stat.formattedTime.toUpperCase()}',
                   style: TextStyle(
-                    fontSize: 11,
-                    color: Colors.grey[500],
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    color: isDark ? Colors.grey[700] : Colors.grey[400],
+                    letterSpacing: 0.5,
                   ),
                 ),
               ],
@@ -669,31 +727,43 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
     );
   }
 
-  /// Format duration as "1h 20m" or "20m"
-  String _formatDuration(Duration duration) {
-    final hours = duration.inHours;
-    final minutes = duration.inMinutes % 60;
-
-    if (hours > 0) {
-      return '${hours}h ${minutes}m';
-    } else {
-      return '${minutes}m';
-    }
-  }
-
   /// Show reset confirmation dialog
   void _showResetDialog() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Reset Statistics'),
-        content: const Text(
-          'This will permanently delete all your streaming statistics. This action cannot be undone.',
+        backgroundColor: isDark ? const Color(0xFF111111) : Colors.white,
+        title: Text(
+          'RESET STATS',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1.5,
+            color: isDark ? Colors.white : Colors.black,
+          ),
         ),
+        content: Text(
+          'This will permanently delete all your streaming statistics. This action cannot be undone.',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: isDark ? Colors.grey[400] : Colors.grey[600],
+          ),
+        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(
+              'CANCEL',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.0,
+                color: isDark ? Colors.grey[500] : Colors.grey[600],
+              ),
+            ),
           ),
           TextButton(
             onPressed: () async {
@@ -704,8 +774,13 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
               }
             },
             child: const Text(
-              'Reset',
-              style: TextStyle(color: Colors.red),
+              'RESET',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.0,
+                color: Color(0xFFFF4B4B),
+              ),
             ),
           ),
         ],

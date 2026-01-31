@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../../services/api/connection_service.dart';
 import '../../services/offline/offline_playback_service.dart';
@@ -134,23 +135,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
+      backgroundColor: isDark ? Colors.black : Colors.white,
       appBar: AppBar(
-        title: const Text('Settings'),
+        title: const Text('SETTINGS'),
+        titleTextStyle: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 1.5,
+          color: isDark ? Colors.white : Colors.black,
+        ),
+        centerTitle: true,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
       ),
-      body: Container(
-        color: isDark ? Colors.black : Colors.grey[50],
-        child: ListView(
-          padding: EdgeInsets.only(
-            bottom: 64 + kBottomNavigationBarHeight, // Mini player + download bar + nav bar
-          ),
-          children: [
+      body: ListView(
+        padding: EdgeInsets.only(
+          bottom: getMiniPlayerAwareBottomPadding(),
+        ),
+        children: [
           // Connection section
           SettingsSection(
-            title: 'Connection',
+            title: 'CONNECTION',
             tiles: [
               SettingsTile(
-                icon: Icons.cloud_done,
+                icon: Icons.cloud_done_rounded,
                 title: 'Connection Status',
                 subtitle: 'View server connection details',
                 onTap: () {
@@ -158,7 +168,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 },
               ),
               SettingsTile(
-                icon: Icons.wifi_off,
+                icon: Icons.wifi_off_rounded,
                 title: 'Offline Mode',
                 subtitle: _isReconnecting
                     ? 'Reconnecting...'
@@ -171,6 +181,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       )
                     : Switch(
                         value: _isOfflineModeEnabled,
+                        activeThumbColor: isDark ? Colors.white : Colors.black,
+                        activeTrackColor: isDark ? Colors.grey[800] : Colors.grey[300],
+                        inactiveThumbColor: isDark ? Colors.grey[600] : Colors.grey[400],
+                        inactiveTrackColor: isDark ? const Color(0xFF111111) : const Color(0xFFF9F9F9),
                         onChanged: (value) => _handleOfflineModeToggle(value),
                       ),
               ),
@@ -179,10 +193,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           // Downloads section
           SettingsSection(
-            title: 'Downloads',
+            title: 'DOWNLOADS',
             tiles: [
               SettingsTile(
-                icon: Icons.download,
+                icon: Icons.download_rounded,
                 title: 'Manage Downloads',
                 subtitle: 'View storage and downloaded songs',
                 onTap: () {
@@ -190,7 +204,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 },
               ),
               SettingsTile(
-                icon: Icons.import_export,
+                icon: Icons.high_quality_rounded,
+                title: 'Streaming Quality',
+                subtitle: 'Configure audio quality settings',
+                onTap: () {
+                  Navigator.of(context).pushNamed('/quality');
+                },
+              ),
+              SettingsTile(
+                icon: Icons.import_export_rounded,
                 title: 'Import / Export',
                 subtitle: 'Import or Export Stats & Playlists',
                 onTap: () {
@@ -202,10 +224,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           // Statistics section
           SettingsSection(
-            title: 'Streaming Stats',
+            title: 'STREAMING STATS',
             tiles: [
               SettingsTile(
-                icon: Icons.bar_chart,
+                icon: Icons.bar_chart_rounded,
                 title: 'Listening Statistics',
                 subtitle: 'View your listening habits',
                 onTap: () {
@@ -213,7 +235,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 },
               ),
               SettingsTile(
-                icon: Icons.refresh,
+                icon: Icons.refresh_rounded,
                 title: 'Reset Statistics',
                 subtitle: 'Clear all play counts and data',
                 onTap: () {
@@ -225,10 +247,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           // About section
           SettingsSection(
-            title: 'About',
+            title: 'ABOUT',
             tiles: [
               SettingsTile(
-                icon: Icons.info,
+                icon: Icons.info_outline_rounded,
                 title: 'Version',
                 subtitle: _version,
                 onTap: () {
@@ -236,7 +258,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 },
               ),
               SettingsTile(
-                icon: Icons.description,
+                icon: Icons.description_outlined,
                 title: 'Licenses',
                 subtitle: 'Third-party licenses',
                 onTap: () {
@@ -247,24 +269,47 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
 
           const SizedBox(height: 32),
-          ],
-        ),
+        ],
       ),
     );
   }
 
   void _showResetStatsDialog() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Reset Statistics'),
-        content: const Text(
-          'This will clear all play counts and streaming data. This action cannot be undone.',
+        backgroundColor: isDark ? const Color(0xFF111111) : Colors.white,
+        title: Text(
+          'RESET STATS',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1.5,
+            color: isDark ? Colors.white : Colors.black,
+          ),
         ),
+        content: Text(
+          'This will clear all play counts and streaming data. This action cannot be undone.',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: isDark ? Colors.grey[400] : Colors.grey[600],
+          ),
+        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         actions: [
           TextButton(
             onPressed: Navigator.of(context).pop,
-            child: const Text('Cancel'),
+            child: Text(
+              'CANCEL',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.0,
+                color: isDark ? Colors.grey[500] : Colors.grey[600],
+              ),
+            ),
           ),
           TextButton(
             onPressed: () async {
@@ -277,8 +322,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
               }
             },
             child: const Text(
-              'Reset',
-              style: TextStyle(color: Colors.red),
+              'RESET',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.0,
+                color: Color(0xFFFF4B4B),
+              ),
             ),
           ),
         ],
@@ -287,31 +337,66 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _showAboutDialog() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('About Ariami'),
+        backgroundColor: isDark ? const Color(0xFF111111) : Colors.white,
+        title: Text(
+          'ABOUT ARIAMI',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1.5,
+            color: isDark ? Colors.white : Colors.black,
+          ),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Ariami Music Streaming'),
-            const SizedBox(height: 12),
             Text(
-              'Version: $_version',
-              style: const TextStyle(fontWeight: FontWeight.w500),
+              'ARIAMI MUSIC STREAMING',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: isDark ? Colors.white : Colors.black,
+                letterSpacing: 0.5,
+              ),
             ),
             const SizedBox(height: 12),
-            const Text(
+            Text(
+              'VERSION: $_version',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: isDark ? Colors.grey[400] : Colors.grey[600],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
               'A music streaming application with offline support.',
-              style: TextStyle(fontSize: 13, color: Colors.grey),
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: isDark ? Colors.grey[500] : Colors.grey[500],
+              ),
             ),
           ],
         ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         actions: [
           TextButton(
             onPressed: Navigator.of(context).pop,
-            child: const Text('Close'),
+            child: Text(
+              'CLOSE',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.0,
+                color: isDark ? Colors.white : Colors.black,
+              ),
+            ),
           ),
         ],
       ),

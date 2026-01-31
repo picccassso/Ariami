@@ -16,6 +16,8 @@ import 'services/offline/offline_playback_service.dart';
 import 'services/download/download_manager.dart';
 import 'services/cache/cache_manager.dart';
 import 'services/stats/streaming_stats_service.dart';
+import 'services/quality/quality_settings_service.dart';
+import 'services/quality/network_monitor_service.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 
 // Global audio handler instance - accessible throughout the app
@@ -101,6 +103,8 @@ class _MyAppState extends State<MyApp> {
   final DownloadManager _downloadManager = DownloadManager();
   final CacheManager _cacheManager = CacheManager();
   final StreamingStatsService _statsService = StreamingStatsService();
+  final QualitySettingsService _qualityService = QualitySettingsService();
+  final NetworkMonitorService _networkMonitor = NetworkMonitorService();
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
   bool _isLoading = true;
   Widget? _initialScreen;
@@ -132,7 +136,11 @@ class _MyAppState extends State<MyApp> {
     await _cacheManager.initialize();
     // Initialize streaming stats service for play tracking
     await _statsService.initialize();
-    print('[Main] Offline, Download, Cache, and Stats services initialized');
+    // Initialize network monitor for quality-based streaming
+    await _networkMonitor.initialize();
+    // Initialize quality settings service
+    await _qualityService.initialize();
+    print('[Main] Offline, Download, Cache, Stats, Network, and Quality services initialized');
   }
 
   @override

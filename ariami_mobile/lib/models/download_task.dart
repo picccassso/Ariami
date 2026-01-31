@@ -8,6 +8,7 @@ enum DownloadStatus { pending, downloading, paused, completed, failed, cancelled
 class DownloadTask {
   final String id;
   final String songId;
+  String? serverId;
   final String title;
   final String artist;
   final String? albumId;
@@ -30,6 +31,7 @@ class DownloadTask {
   DownloadTask({
     required this.id,
     required this.songId,
+    this.serverId,
     required this.title,
     required this.artist,
     this.albumId,
@@ -52,6 +54,7 @@ class DownloadTask {
     return {
       'id': id,
       'songId': songId,
+      'serverId': serverId,
       'title': title,
       'artist': artist,
       'albumId': albumId,
@@ -75,6 +78,7 @@ class DownloadTask {
     return DownloadTask(
       id: json['id'] as String,
       songId: json['songId'] as String,
+      serverId: json['serverId'] as String?,
       title: EncodingUtils.fixEncoding(json['title'] as String) ?? json['title'] as String,
       artist: EncodingUtils.fixEncoding(json['artist'] as String) ?? json['artist'] as String,
       albumId: json['albumId'] as String?,

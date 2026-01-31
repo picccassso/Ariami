@@ -3,6 +3,18 @@ import 'package:flutter/material.dart';
 import '../../services/cache/cache_manager.dart';
 import '../../services/offline/offline_playback_service.dart';
 
+/// Size hint for artwork loading.
+///
+/// Use [thumbnail] for list views (faster loading, smaller images).
+/// Use [full] for detail views (full quality).
+enum ArtworkSizeHint {
+  /// Small size for list views (requests thumbnail from server, ~200x200)
+  thumbnail,
+
+  /// Full size for detail views (requests original image)
+  full,
+}
+
 /// A widget that displays album artwork with automatic caching
 /// 
 /// This is a drop-in replacement for Image.network that:
@@ -41,6 +53,13 @@ class CachedArtwork extends StatefulWidget {
   /// Fallback icon size
   final double fallbackIconSize;
 
+  /// Size hint for loading optimization.
+  ///
+  /// Use [ArtworkSizeHint.thumbnail] for list views (faster, smaller images).
+  /// Use [ArtworkSizeHint.full] for detail views (full quality).
+  /// Defaults to [ArtworkSizeHint.full] for backward compatibility.
+  final ArtworkSizeHint sizeHint;
+
   const CachedArtwork({
     super.key,
     required this.albumId,
@@ -53,6 +72,7 @@ class CachedArtwork extends StatefulWidget {
     this.fallbackColor,
     this.fallbackIcon = Icons.album,
     this.fallbackIconSize = 48,
+    this.sizeHint = ArtworkSizeHint.full,
   });
 
   @override
@@ -70,23 +90,65 @@ class _CachedArtworkState extends State<CachedArtwork> {
   @override
   void initState() {
     super.initState();
-    _loadArtwork();
+    // Check memory cache synchronously BEFORE first build to avoid flash
+    final memoryPath = _cacheManager.getArtworkPathSync(_cacheKey);
+    if (memoryPath != null) {
+      _localPath = memoryPath;
+      _isLoading = false;
+    } else {
+      _loadArtwork();
+    }
   }
 
   @override
   void didUpdateWidget(CachedArtwork oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.albumId != widget.albumId ||
-        oldWidget.artworkUrl != widget.artworkUrl) {
+        oldWidget.artworkUrl != widget.artworkUrl ||
+        oldWidget.sizeHint != widget.sizeHint) {
       _loadArtwork();
     }
+  }
+
+  /// Get the cache key for this artwork (includes size hint for thumbnails)
+  String get _cacheKey {
+    if (widget.sizeHint == ArtworkSizeHint.thumbnail) {
+      return '${widget.albumId}_thumb';
+    }
+    return widget.albumId;
+  }
+
+  /// Get the fallback cache key (opposite size variant)
+  /// Used when primary cache key is not found - allows thumbnail to fall back to full-size and vice versa
+  String get _fallbackCacheKey {
+    if (widget.sizeHint == ArtworkSizeHint.thumbnail) {
+      // Thumbnail requested but not cached - try full-size
+      return widget.albumId;
+    }
+    // Full-size requested but not cached - try thumbnail
+    return '${widget.albumId}_thumb';
+  }
+
+  /// Get the effective URL with size parameter appended
+  String? get _effectiveUrl {
+    if (widget.artworkUrl == null || widget.artworkUrl!.isEmpty) {
+      return null;
+    }
+    if (widget.sizeHint == ArtworkSizeHint.thumbnail) {
+      final separator = widget.artworkUrl!.contains('?') ? '&' : '?';
+      return '${widget.artworkUrl}${separator}size=thumbnail';
+    }
+    return widget.artworkUrl;
   }
 
   Future<void> _loadArtwork() async {
     if (!mounted) return;
 
+    final cacheKey = _cacheKey;
+    final effectiveUrl = _effectiveUrl;
+
     // Check memory cache FIRST (synchronous - no flash!)
-    final memoryPath = _cacheManager.getArtworkPathSync(widget.albumId);
+    final memoryPath = _cacheManager.getArtworkPathSync(cacheKey);
     if (memoryPath != null) {
       if (mounted) {
         setState(() {
@@ -106,11 +168,15 @@ class _CachedArtworkState extends State<CachedArtwork> {
     });
 
     try {
-      // Check disk cache - this works even when offline with no URL
-      var cachedPath = await _cacheManager.getArtworkPath(widget.albumId);
+      // Check disk cache with fallback - tries primary key first, then fallback key
+      // This allows thumbnails to use full-size cache and vice versa when offline
+      var cachedPath = await _cacheManager.getArtworkPathWithFallback(
+        cacheKey,
+        _fallbackCacheKey,
+      );
 
       if (cachedPath != null && await File(cachedPath).exists()) {
-        // Use cached version
+        // Use cached version (either primary or fallback)
         if (mounted) {
           setState(() {
             _localPath = cachedPath;
@@ -120,8 +186,8 @@ class _CachedArtworkState extends State<CachedArtwork> {
         return;
       }
 
-      // No cached version - check if we have a URL to fetch from
-      if (widget.artworkUrl == null || widget.artworkUrl!.isEmpty) {
+      // No cached version (neither primary nor fallback) - check if we have a URL to fetch from
+      if (effectiveUrl == null) {
         // No URL and no cache - show fallback
         if (mounted) {
           setState(() {
@@ -145,9 +211,10 @@ class _CachedArtworkState extends State<CachedArtwork> {
       }
 
       // Not cached but have URL and online, try to cache from network
+      // Pass the cache key and effective URL (with size parameter)
       cachedPath = await _cacheManager.cacheArtwork(
-        widget.albumId,
-        widget.artworkUrl!,
+        cacheKey,
+        effectiveUrl,
       );
 
       if (mounted) {
@@ -188,17 +255,19 @@ class _CachedArtworkState extends State<CachedArtwork> {
         width: widget.width,
         height: widget.height,
         fit: widget.fit,
+        gaplessPlayback: true,
         errorBuilder: (context, error, stackTrace) {
           return _buildFallback();
         },
       );
-    } else if (!_hasError && widget.artworkUrl != null && !_offlineService.isOffline) {
+    } else if (!_hasError && _effectiveUrl != null && !_offlineService.isOffline) {
       // Fallback to network image (caching may have failed) - only when online
       imageWidget = Image.network(
-        widget.artworkUrl!,
+        _effectiveUrl!,
         width: widget.width,
         height: widget.height,
         fit: widget.fit,
+        gaplessPlayback: true,
         loadingBuilder: (context, child, loadingProgress) {
           if (loadingProgress == null) return child;
           return _buildPlaceholder(showLoading: true);
