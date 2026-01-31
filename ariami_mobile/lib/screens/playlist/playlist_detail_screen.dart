@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
@@ -65,6 +66,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   PlaylistModel? _playlist;
   List<SongModel> _songs = [];
   bool _isLoading = true;
+  bool _isSongsLoading = false; // True while songs are being resolved in background
   String? _errorMessage;
   bool _isReorderMode = false;
   Set<String> _downloadedSongIds = {};
@@ -152,43 +154,67 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   }
 
   /// Load playlist and resolve song IDs to full song data
+  /// Shows playlist header immediately for smooth transition, then loads songs in background
   Future<void> _loadPlaylist() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
+    // First: Try to show playlist header immediately from cached data
+    // This provides instant visual feedback during screen transition
+    final cachedPlaylist = _playlistService.getPlaylist(widget.playlistId);
+    
+    if (cachedPlaylist != null) {
+      // Show header immediately without loading spinner
+      setState(() {
+        _playlist = cachedPlaylist;
+        _isLoading = false; // Don't show loading spinner for header
+        _isSongsLoading = true; // Songs are loading in background
+      });
+      
+      // Then resolve songs in background (this is now fast with local metadata)
+      final songs = await _resolveSongs(cachedPlaylist.songIds);
+      if (mounted) {
+        setState(() {
+          _songs = songs;
+          _isSongsLoading = false;
+        });
+      }
+    } else {
+      // Playlist not in cache - need to load from storage first
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
 
-    try {
-      await _playlistService.loadPlaylists();
-      final playlist = _playlistService.getPlaylist(widget.playlistId);
+      try {
+        await _playlistService.loadPlaylists();
+        final playlist = _playlistService.getPlaylist(widget.playlistId);
 
-      if (playlist == null) {
+        if (playlist == null) {
+          setState(() {
+            _isLoading = false;
+            _errorMessage = 'Playlist not found';
+          });
+          return;
+        }
+
+        // Resolve song IDs to full song data
+        final songs = await _resolveSongs(playlist.songIds);
+
+        setState(() {
+          _playlist = playlist;
+          _songs = songs;
+          _isLoading = false;
+        });
+      } catch (e) {
         setState(() {
           _isLoading = false;
-          _errorMessage = 'Playlist not found';
+          _errorMessage = 'Failed to load playlist: $e';
         });
-        return;
       }
-
-      // Resolve song IDs to full song data from server
-      final songs = await _resolveSongs(playlist.songIds);
-
-      setState(() {
-        _playlist = playlist;
-        _songs = songs;
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() {
-        _isLoading = false;
-        _errorMessage = 'Failed to load playlist: $e';
-      });
     }
   }
 
   /// Resolve song IDs to SongModel objects
-  /// When offline, builds from downloaded song metadata
-  /// When online, fetches from server
+  /// Uses locally-stored playlist metadata for INSTANT loading (no network wait)
+  /// Fetches library data in BACKGROUND only to enrich album info for stats
   /// Also populates _albumInfoMap for stats tracking
   Future<List<SongModel>> _resolveSongs(List<String> songIds) async {
     if (songIds.isEmpty) {
@@ -200,45 +226,97 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
       return _resolveSongsFromDownloads(songIds);
     }
 
-    try {
-      // Get full library to find songs
-      final library = await _connectionService.apiClient!.getLibrary();
+    // INSTANT: Build song models from playlist's stored metadata (no network call!)
+    // This eliminates the "gap" where header shows empty while waiting for network
+    final songs = _resolveSongsFromLocalMetadata(songIds);
 
-      // Also get songs from albums
-      final allSongs = <String, SongModel>{};
+    // BACKGROUND: Fetch library data to populate album info map (non-blocking)
+    // This enriches the data for stats tracking but doesn't block the UI
+    _fetchAlbumInfoInBackground();
 
-      // Add standalone songs
-      for (final song in library.songs) {
-        allSongs[song.id] = song;
+    return songs;
+  }
+
+  /// Fetch album info from server in background (non-blocking)
+  /// Populates _albumInfoMap for enriched metadata display
+  void _fetchAlbumInfoInBackground() {
+    // Fire-and-forget - don't await
+    _connectionService.apiClient?.getLibrary().then((library) {
+      // Populate album info map from library response
+      for (final album in library.albums) {
+        _albumInfoMap[album.id] = (name: album.title, artist: album.artist);
       }
 
-      // Get songs from each album and build album info map
-      for (final album in library.albums) {
-        try {
-          final albumDetail =
-              await _connectionService.apiClient!.getAlbumDetail(album.id);
-
-          // Store album info for stats tracking
-          _albumInfoMap[album.id] = (name: album.title, artist: album.artist);
-
-          for (final song in albumDetail.songs) {
-            allSongs[song.id] = song;
-          }
-        } catch (_) {
-          // Skip albums that fail to load
+      // Also populate from downloads for any albums not in library response
+      for (final task in _downloadManager.queue) {
+        if (task.status == DownloadStatus.completed &&
+            task.albumId != null &&
+            task.albumName != null &&
+            !_albumInfoMap.containsKey(task.albumId)) {
+          _albumInfoMap[task.albumId!] = (
+            name: task.albumName!,
+            artist: task.albumArtist ?? task.artist
+          );
         }
       }
 
-      // Return songs in playlist order
-      return songIds
-          .where((id) => allSongs.containsKey(id))
-          .map((id) => allSongs[id]!)
-          .toList();
-    } catch (e) {
-      print('[PlaylistDetailScreen] Error resolving songs: $e');
-      // Fallback to downloads if server fetch fails
-      return _resolveSongsFromDownloads(songIds);
+      // Trigger lightweight rebuild if still mounted (for any UI that uses album info)
+      if (mounted) {
+        setState(() {});
+      }
+    }).catchError((e) {
+      print('[PlaylistDetailScreen] Background album info fetch failed: $e');
+      // Non-critical - songs still display correctly without album info
+    });
+  }
+  
+  /// Build SongModel objects from playlist's locally-stored metadata
+  /// This is the optimized path - no server calls needed
+  List<SongModel> _resolveSongsFromLocalMetadata(List<String> songIds) {
+    // First, collect metadata from downloads (higher priority - more complete)
+    final downloadedSongs = <String, SongModel>{};
+    for (final task in _downloadManager.queue) {
+      if (task.status == DownloadStatus.completed) {
+        downloadedSongs[task.songId] = SongModel(
+          id: task.songId,
+          title: task.title,
+          artist: task.artist,
+          albumId: task.albumId,
+          duration: task.duration,
+          trackNumber: task.trackNumber,
+        );
+        
+        // Also update album info map from downloads
+        if (task.albumId != null && task.albumName != null) {
+          _albumInfoMap[task.albumId!] = (
+            name: task.albumName!,
+            artist: task.albumArtist ?? task.artist
+          );
+        }
+      }
     }
+
+    // Return songs in playlist order using best available metadata
+    return songIds.map((id) {
+      // Prefer downloaded song metadata (more complete)
+      if (downloadedSongs.containsKey(id)) {
+        return downloadedSongs[id]!;
+      }
+      
+      // Fall back to playlist's stored metadata
+      final albumId = _playlist?.songAlbumIds[id];
+      final title = _playlist?.songTitles[id] ?? 'Unknown Song';
+      final artist = _playlist?.songArtists[id] ?? 'Unknown Artist';
+      final duration = _playlist?.songDurations[id] ?? 0;
+      return SongModel(
+        id: id,
+        title: title,
+        artist: artist,
+        albumId: albumId,
+        duration: duration,
+        trackNumber: null,
+      );
+    }).toList();
   }
 
   /// Build SongModel objects from downloaded song metadata or stored playlist metadata
@@ -342,7 +420,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('No downloaded songs available'),
-            backgroundColor: Colors.orange,
+            backgroundColor: Color(0xFF141414),
           ),
         );
       }
@@ -670,25 +748,11 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
       try {
         final library = await _connectionService.apiClient!.getLibrary();
 
-        // Collect all songs (standalone + from albums)
+        // The /api/library endpoint already returns ALL songs (album + standalone)
+        // No need to fetch individual album details!
         final allSongs = <String, SongModel>{};
-
-        // Add standalone songs
         for (final song in library.songs) {
           allSongs[song.id] = song;
-        }
-
-        // Get songs from each album
-        for (final album in library.albums) {
-          try {
-            final albumDetail =
-                await _connectionService.apiClient!.getAlbumDetail(album.id);
-            for (final song in albumDetail.songs) {
-              allSongs[song.id] = song;
-            }
-          } catch (_) {
-            // Skip albums that fail to load
-          }
         }
 
         // Filter out songs already in playlist
@@ -801,8 +865,21 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
           child: _buildActionButtons(),
         ),
 
-        // Songs list (reorderable in reorder mode, regular otherwise)
-        if (_songs.isEmpty)
+        // Songs list - show loading indicator while songs are being fetched
+        if (_isSongsLoading)
+          const SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 32.0),
+              child: Center(
+                child: SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            ),
+          )
+        else if (_songs.isEmpty)
           SliverToBoxAdapter(
             child: _buildEmptyState(),
           )
@@ -833,7 +910,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
         // Bottom padding for mini player + download bar + nav bar
         SliverPadding(
           padding: EdgeInsets.only(
-            bottom: 64 + kBottomNavigationBarHeight,
+            bottom: getMiniPlayerAwareBottomPadding(),
           ),
         ),
       ],
@@ -979,11 +1056,11 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   Widget _buildFallbackHeader() {
     final colorIndex = (_playlist?.name.hashCode ?? 0) % 5;
     final gradients = [
-      [Colors.purple[400]!, Colors.purple[700]!],
-      [Colors.blue[400]!, Colors.blue[700]!],
-      [Colors.green[400]!, Colors.green[700]!],
-      [Colors.orange[400]!, Colors.orange[700]!],
-      [Colors.pink[400]!, Colors.pink[700]!],
+      [Colors.grey[700]!, Colors.grey[900]!],
+      [Colors.grey[600]!, Colors.grey[800]!],
+      [Colors.grey[500]!, Colors.grey[700]!],
+      [Colors.grey[400]!, Colors.grey[600]!],
+      [Colors.grey[300]!, Colors.grey[500]!],
     ];
 
     return Container(
@@ -1047,45 +1124,87 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   Widget _buildActionButtons() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
-      child: Row(
+      child: Column(
         children: [
-          // Play All button
-          Expanded(
-            child: FilledButton(
-              onPressed: _songs.isEmpty ? null : _playAll,
-              child: const Icon(Icons.play_arrow),
-            ),
+          // Primary actions row (Play/Shuffle)
+          Row(
+            children: [
+              // Play All button
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: _songs.isEmpty ? null : _playAll,
+                  style: FilledButton.styleFrom(
+                    shape: const StadiumBorder(),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    backgroundColor: Theme.of(context).colorScheme.primary,
+                    foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                  ),
+                  icon: const Icon(Icons.play_arrow_rounded, size: 22),
+                  label: const Text(
+                    'Play',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              // Shuffle button
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: _songs.isEmpty ? null : _shuffleAll,
+                  style: FilledButton.styleFrom(
+                    shape: const StadiumBorder(),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                    foregroundColor: Theme.of(context).colorScheme.onPrimaryContainer,
+                  ),
+                  icon: const Icon(Icons.shuffle_rounded, size: 22),
+                  label: const Text(
+                    'Shuffle',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 12),
-          // Shuffle button
-          Expanded(
-            child: OutlinedButton(
-              onPressed: _songs.isEmpty ? null : _shuffleAll,
-              child: const Icon(Icons.shuffle),
-            ),
+          const SizedBox(height: 12),
+          
+          // Secondary actions row (Reorder/Add)
+          Row(
+            children: [
+              // Reorder toggle button
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _songs.length > 1
+                      ? () => setState(() => _isReorderMode = !_isReorderMode)
+                      : null,
+                  style: OutlinedButton.styleFrom(
+                    shape: const StadiumBorder(),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    backgroundColor: _isReorderMode ? Theme.of(context).colorScheme.primaryContainer.withOpacity(0.5) : null,
+                  ),
+                  icon: Icon(
+                    _isReorderMode ? Icons.check_rounded : Icons.reorder_rounded,
+                    size: 20,
+                  ),
+                  label: Text(_isReorderMode ? 'Done' : 'Reorder'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              // Add songs button
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _addSongs,
+                  style: OutlinedButton.styleFrom(
+                    shape: const StadiumBorder(),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  icon: const Icon(Icons.add_rounded, size: 20),
+                  label: const Text('Add Songs'),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 12),
-          // Reorder toggle button
-          IconButton(
-            onPressed: _songs.length > 1
-                ? () => setState(() => _isReorderMode = !_isReorderMode)
-                : null,
-            icon: Icon(_isReorderMode ? Icons.check : Icons.reorder),
-            tooltip: _isReorderMode ? 'Done Reordering' : 'Reorder Songs',
-            style: _isReorderMode
-                ? IconButton.styleFrom(
-                    backgroundColor: Theme.of(context).primaryColor,
-                    foregroundColor: Colors.white,
-                  )
-                : null,
-          ),
-          const SizedBox(width: 4),
-          // Add songs button
-          IconButton.filled(
-            onPressed: _addSongs,
-            icon: const Icon(Icons.add),
-            tooltip: 'Add Songs',
-          ),
+          const SizedBox(height: 8),
         ],
       ),
     );

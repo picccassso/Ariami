@@ -80,11 +80,11 @@ class AlbumArtworkHeader extends StatelessWidget {
     // Generate a color based on album title
     final colorIndex = albumTitle.hashCode % 5;
     final colors = [
-      Colors.blue[700]!,
-      Colors.purple[700]!,
-      Colors.green[700]!,
-      Colors.orange[700]!,
-      Colors.pink[700]!,
+      Colors.grey[900]!,
+      Colors.grey[800]!,
+      Colors.grey[700]!,
+      Colors.grey[600]!,
+      Colors.grey[850]!,
     ];
 
     return Container(

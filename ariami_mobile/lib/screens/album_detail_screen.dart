@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/common/mini_player_aware_bottom_sheet.dart';
 import '../models/api_models.dart';
 import '../models/song.dart';
 import '../models/download_task.dart';
@@ -8,6 +9,7 @@ import '../services/playlist_service.dart';
 import '../services/offline/offline_playback_service.dart';
 import '../services/download/download_manager.dart';
 import '../services/cache/cache_manager.dart';
+import '../services/quality/quality_settings_service.dart';
 import '../widgets/album/album_header.dart';
 import '../widgets/album/track_list.dart';
 import 'playlist/create_playlist_screen.dart';
@@ -199,6 +201,22 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
         SliverAppBar(
           expandedHeight: 300,
           pinned: true,
+          actions: [
+            IconButton(
+              icon: Icon(
+                _albumDetail != null && _albumDetail!.songs.every((s) => _downloadedSongIds.contains(s.id))
+                    ? Icons.download_done_rounded
+                    : Icons.download_for_offline_rounded,
+                color: _albumDetail != null && _albumDetail!.songs.every((s) => _downloadedSongIds.contains(s.id))
+                    ? Colors.green
+                    : Colors.white,
+              ),
+              onPressed: _albumDetail != null && !_albumDetail!.songs.every((s) => _downloadedSongIds.contains(s.id))
+                  ? _downloadAlbum
+                  : null,
+              tooltip: 'Download Album',
+            ),
+          ],
           flexibleSpace: AlbumArtworkHeader(
             coverArt: _albumDetail?.coverArt ?? widget.album.coverArt,
             albumTitle: widget.album.title,
@@ -244,7 +262,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
         // Bottom padding for mini player + download bar + nav bar
         SliverPadding(
           padding: EdgeInsets.only(
-            bottom: 64 + kBottomNavigationBarHeight,
+            bottom: getMiniPlayerAwareBottomPadding(),
           ),
         ),
       ],
@@ -328,57 +346,82 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
     );
   }
 
-  /// Build action buttons row
+  /// Action buttons (Play, Shuffle, etc.)
   Widget _buildActionButtons() {
+    final songs = _albumDetail?.songs ?? [];
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
       child: Column(
         children: [
-          // Primary actions row
+          // Primary actions row (Play/Shuffle)
           Row(
             children: [
-              // Play All (primary action)
+              // Play Button
               Expanded(
-                child: FilledButton(
-                  onPressed: _playAll,
-                  child: const Icon(Icons.play_arrow),
+                child: FilledButton.icon(
+                  onPressed: songs.isEmpty ? null : _playAll,
+                  style: FilledButton.styleFrom(
+                    shape: const StadiumBorder(),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    backgroundColor: Theme.of(context).colorScheme.primary,
+                    foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                  ),
+                  icon: const Icon(Icons.play_arrow_rounded, size: 22),
+                  label: const Text(
+                    'Play',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
-
-              // Shuffle
+              // Shuffle Button
               Expanded(
-                child: OutlinedButton(
-                  onPressed: _shuffleAll,
-                  child: const Icon(Icons.shuffle),
+                child: FilledButton.icon(
+                  onPressed: songs.isEmpty ? null : _shuffleAll,
+                  style: FilledButton.styleFrom(
+                    shape: const StadiumBorder(),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                    foregroundColor: Theme.of(context).colorScheme.onPrimaryContainer,
+                  ),
+                  icon: const Icon(Icons.shuffle_rounded, size: 22),
+                  label: const Text(
+                    'Shuffle',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
 
-          // Secondary actions row
+          // Secondary actions row (Queue/Playlist)
           Row(
             children: [
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: _addToQueue,
-                  icon: const Icon(Icons.queue_music, size: 18),
-                  label: const Text('Add to Queue'),
                   style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    shape: const StadiumBorder(),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    foregroundColor: Theme.of(context).colorScheme.onSurface,
                   ),
+                  icon: const Icon(Icons.queue_music_rounded, size: 20),
+                  label: const Text('Queue'),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 12),
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: _addToPlaylist,
-                  icon: const Icon(Icons.playlist_add, size: 18),
-                  label: const Text('Add to Playlist'),
                   style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    shape: const StadiumBorder(),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    foregroundColor: Theme.of(context).colorScheme.onSurface,
                   ),
+                  icon: const Icon(Icons.playlist_add_rounded, size: 20),
+                  label: const Text('Playlist'),
                 ),
               ),
             ],
@@ -446,6 +489,60 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
   // ============================================================================
   // ACTION HANDLERS
   // ============================================================================
+
+  /// Download entire album
+  void _downloadAlbum() {
+    if (_albumDetail == null) return;
+    
+    // Check connection
+    if (_connectionService.apiClient == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Not connected to server')),
+      );
+      return;
+    }
+
+    final songsToDownload = _albumDetail!.songs
+        .where((s) => !_downloadedSongIds.contains(s.id))
+        .toList();
+
+    if (songsToDownload.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('All songs already downloaded')),
+      );
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Starting download of ${songsToDownload.length} songs...')),
+    );
+
+    // Queue downloads
+    // Note: In a real implementation, we might want to batch this or use a dedicated album download method
+    // For now, we queue individual songs
+    // We already have _handleDownload logic in SongListItem, but we can access DownloadManager directly
+    
+    final qualityService = QualitySettingsService();
+
+    for (final song in songsToDownload) {
+      final baseDownloadUrl = _connectionService.apiClient!.getDownloadUrl(song.id);
+      final downloadUrl = qualityService.getDownloadUrlWithQuality(baseDownloadUrl);
+
+      _downloadManager.downloadSong(
+        songId: song.id,
+        title: song.title,
+        artist: song.artist,
+        albumId: song.albumId,
+        albumName: widget.album.title,
+        albumArtist: widget.album.artist,
+        albumArt: '', // Manager handles this or fetches it
+        downloadUrl: downloadUrl,
+        duration: song.duration,
+        trackNumber: song.trackNumber,
+        totalBytes: 0,
+      );
+    }
+  }
 
   void _playAll() async {
     if (_albumDetail == null) return;
@@ -517,7 +614,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('No offline songs available'),
-            backgroundColor: Colors.orange,
+            backgroundColor: Color(0xFF141414),
           ),
         );
       }
@@ -841,7 +938,7 @@ class _AlbumPlaylistPickerState extends State<_AlbumPlaylistPicker> {
                     : ListView.builder(
                         controller: scrollController,
                         padding: EdgeInsets.only(
-                          bottom: 64 + kBottomNavigationBarHeight, // Mini player + download bar + nav bar
+                          bottom: getMiniPlayerAwareBottomPadding(),
                         ),
                         itemCount: playlists.length,
                         itemBuilder: (context, index) {

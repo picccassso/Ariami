@@ -18,7 +18,7 @@ class WebWebSocketService {
   bool get isConnected => _isConnected;
 
   /// Connect to WebSocket server
-  void connect() {
+  void connect({void Function()? onConnected}) {
     if (_isConnected) return;
 
     try {
@@ -32,6 +32,7 @@ class WebWebSocketService {
         print('[WebWS] Connected');
         _isConnected = true;
         _reconnectTimer?.cancel();
+        onConnected?.call();
       });
 
       _socket!.onMessage.listen((event) {

@@ -37,6 +37,12 @@ class DownloadQueue {
     _notifyListeners();
   }
 
+  /// Remove tasks matching a predicate
+  void dequeueWhere(bool Function(DownloadTask) predicate) {
+    _queue.removeWhere(predicate);
+    _notifyListeners();
+  }
+
   /// Remove all tasks with given status
   void removeByStatus(DownloadStatus status) {
     _queue.removeWhere((task) => task.status == status);

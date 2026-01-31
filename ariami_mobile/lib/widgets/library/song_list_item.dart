@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
+import '../common/mini_player_aware_bottom_sheet.dart';
 import '../../models/api_models.dart';
 import '../../models/song.dart';
 import '../../screens/playlist/add_to_playlist_screen.dart';
 import '../../services/playback_manager.dart';
 import '../../services/download/download_manager.dart';
 import '../../services/api/connection_service.dart';
+import '../../services/quality/quality_settings_service.dart';
 import '../common/cached_artwork.dart';
 
 /// Song list item widget
-/// Displays song title, artist, and duration in a list row
+/// Displays song title, artist, and duration with premium styling
 class SongListItem extends StatelessWidget {
   final SongModel song;
   final VoidCallback? onTap;
@@ -33,76 +35,121 @@ class SongListItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Apply opacity when song is not available (offline and not downloaded)
+    // Apply opacity when song is not available
     final opacity = isAvailable ? 1.0 : 0.5;
 
     return Opacity(
       opacity: opacity,
-      child: ListTile(
-        onTap: isAvailable ? onTap : null,
-        onLongPress: onLongPress,
-        leading: _buildLeading(context),
-        title: Text(
-          song.title,
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w500,
-            color: isAvailable ? null : Colors.grey,
-          ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        subtitle: Text(
-          song.artist,
-          style: TextStyle(
-            fontSize: 14,
-            color: Colors.grey[600],
-          ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              _formatDuration(song.duration),
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[600],
-              ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: isAvailable ? onTap : null,
+          onLongPress: onLongPress,
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              children: [
+                // Artwork
+                _buildLeading(context),
+                
+                const SizedBox(width: 16),
+                
+                // Title and Artist
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        song.title,
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: isAvailable ? Theme.of(context).colorScheme.onSurface : Colors.grey,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        song.artist,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          fontSize: 14,
+                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                
+                // Duration & Menu
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _formatDuration(song.duration),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    IconButton(
+                      icon: Icon(
+                        Icons.more_vert_rounded,
+                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                        size: 20,
+                      ),
+                      onPressed: () => _showSongMenu(context),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                    ),
+                  ],
+                ),
+              ],
             ),
-            IconButton(
-              icon: const Icon(Icons.more_vert),
-              onPressed: () => _showSongMenu(context),
-              padding: const EdgeInsets.all(8),
-              constraints: const BoxConstraints(),
-            ),
-          ],
+          ),
         ),
       ),
     );
   }
 
-  /// Build leading widget with artwork and download/cache indicator
+  /// Build premium leading widget with artwork
   Widget _buildLeading(BuildContext context) {
-    return SizedBox(
-      width: 48,
-      height: 48,
+    return Container(
+      width: 56, // Larger size
+      height: 56,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12), // Smoother corners
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
       child: Stack(
         children: [
-          _buildAlbumArt(context),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: _buildAlbumArt(context),
+          ),
           if (isDownloaded)
             Positioned(
-              bottom: 0,
-              right: 0,
+              bottom: -2,
+              right: -2,
               child: Container(
-                padding: const EdgeInsets.all(2),
+                padding: const EdgeInsets.all(4),
                 decoration: BoxDecoration(
-                  color: Colors.green[600],
+                  color: Colors.green, // Functional green for downloads
                   shape: BoxShape.circle,
+                  border: Border.all(color: Theme.of(context).scaffoldBackgroundColor, width: 2),
                 ),
                 child: const Icon(
-                  Icons.download_done,
+                  Icons.check,
                   size: 10,
                   color: Colors.white,
                 ),
@@ -110,13 +157,14 @@ class SongListItem extends StatelessWidget {
             )
           else if (isCached)
             Positioned(
-              bottom: 0,
-              right: 0,
+              bottom: -2,
+              right: -2,
               child: Container(
-                padding: const EdgeInsets.all(2),
+                padding: const EdgeInsets.all(4),
                 decoration: BoxDecoration(
-                  color: Colors.blue[400],
+                  color: Colors.grey[600],
                   shape: BoxShape.circle,
+                  border: Border.all(color: Theme.of(context).scaffoldBackgroundColor, width: 2),
                 ),
                 child: const Icon(
                   Icons.cloud_done,
@@ -165,6 +213,7 @@ class SongListItem extends StatelessWidget {
         fallback: _buildPlaceholder(),
         fallbackIcon: Icons.music_note,
         fallbackIconSize: 24,
+        sizeHint: ArtworkSizeHint.thumbnail,
       ),
     );
   }
@@ -196,7 +245,7 @@ class SongListItem extends StatelessWidget {
       builder: (BuildContext context) {
         return SafeArea(
           minimum: EdgeInsets.only(
-            bottom: 64 + kBottomNavigationBarHeight, // Mini player + download bar + nav bar
+            bottom: getMiniPlayerAwareBottomPadding(),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -303,6 +352,7 @@ class SongListItem extends StatelessWidget {
   void _handleDownload(BuildContext context) {
     final connectionService = ConnectionService();
     final downloadManager = DownloadManager();
+    final qualityService = QualitySettingsService();
 
     // Check if connected to server
     if (connectionService.apiClient == null) {
@@ -312,8 +362,9 @@ class SongListItem extends StatelessWidget {
       return;
     }
 
-    // Construct download URL using actual server connection
-    final downloadUrl = '${connectionService.apiClient!.baseUrl}/download/${song.id}';
+    // Construct download URL with user's download mode/quality
+    final baseDownloadUrl = connectionService.apiClient!.getDownloadUrl(song.id);
+    final downloadUrl = qualityService.getDownloadUrlWithQuality(baseDownloadUrl);
 
     downloadManager.downloadSong(
       songId: song.id,

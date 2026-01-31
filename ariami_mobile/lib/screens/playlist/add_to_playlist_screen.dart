@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
 import '../../models/api_models.dart';
 import '../../services/api/connection_service.dart';
 import '../../services/playlist_service.dart';
@@ -134,7 +135,7 @@ class _AddToPlaylistScreenState extends State<AddToPlaylistScreen> {
   Widget _buildSongsList() {
     return ListView.builder(
       padding: EdgeInsets.only(
-        bottom: 64 + kBottomNavigationBarHeight, // Mini player + download bar + nav bar
+                    bottom: getMiniPlayerAwareBottomPadding(),
       ),
       itemCount: widget.availableSongs!.length,
       itemBuilder: (context, index) {
@@ -216,6 +217,7 @@ class _AddToPlaylistScreenState extends State<AddToPlaylistScreen> {
       fallback: _buildPlaceholder(),
       fallbackIcon: Icons.music_note,
       fallbackIconSize: 24,
+      sizeHint: ArtworkSizeHint.thumbnail,
     );
   }
 
@@ -471,7 +473,7 @@ class _AddSongToPlaylistsSheetState extends State<_AddSongToPlaylistsSheet> {
               : ListView.builder(
                   controller: widget.scrollController,
                   padding: EdgeInsets.only(
-                    bottom: 64 + kBottomNavigationBarHeight, // Mini player + download bar + nav bar
+                    bottom: getMiniPlayerAwareBottomPadding(),
                   ),
                   itemCount: playlists.length,
                   itemBuilder: (context, index) {

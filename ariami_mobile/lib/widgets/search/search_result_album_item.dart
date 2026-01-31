@@ -17,39 +17,62 @@ class SearchResultAlbumItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      leading: SizedBox(
-        width: 56,
-        height: 56,
-        child: CachedArtwork(
-          albumId: album.id,
-          artworkUrl: album.coverArt,
-          width: 56,
-          height: 56,
-          borderRadius: BorderRadius.circular(4),
-          fallbackIconSize: 32,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+          child: Row(
+            children: [
+              // Large Album Art
+              SizedBox(
+                width: 60,
+                height: 60,
+                child: CachedArtwork(
+                  albumId: album.id,
+                  artworkUrl: album.coverArt,
+                  width: 60,
+                  height: 60,
+                  borderRadius: BorderRadius.circular(12),
+                  fallbackIconSize: 32,
+                  sizeHint: ArtworkSizeHint.thumbnail,
+                ),
+              ),
+              const SizedBox(width: 16),
+              // Info
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      album.title,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${album.artist} • ${album.songCount} song${album.songCount != 1 ? 's' : ''}',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                        fontSize: 14,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right_rounded, color: Colors.grey),
+            ],
+          ),
         ),
       ),
-      title: Text(
-        album.title,
-        style: const TextStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.w500,
-        ),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      ),
-      subtitle: Text(
-        '${album.artist} • ${album.songCount} song${album.songCount != 1 ? 's' : ''}',
-        style: TextStyle(
-          fontSize: 14,
-          color: Colors.grey[600],
-        ),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      ),
-      trailing: const Icon(Icons.chevron_right),
-      onTap: onTap,
     );
   }
 }

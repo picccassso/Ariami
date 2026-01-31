@@ -104,44 +104,84 @@ class _TailscaleCheckScreenState extends State<TailscaleCheckScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               if (_isChecking)
-                const CircularProgressIndicator()
+                const SizedBox(
+                  width: 60,
+                  height: 60,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 4,
+                    color: Colors.white,
+                  ),
+                )
               else
                 Icon(
                   _isInstalled
-                      ? Icons.check_circle
-                      : Icons.warning,
+                      ? Icons.check_circle_rounded
+                      : Icons.warning_rounded,
                   size: 80,
-                  color: _isInstalled
-                      ? Colors.green
-                      : Colors.orange,
+                  color: Colors.white,
                 ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 32),
               Text(
-                _statusMessage,
+                _isChecking
+                    ? 'Checking Status'
+                    : (_isInstalled
+                        ? 'Tailscale is Installed'
+                        : 'Tailscale Missing'),
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: -0.5,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                _statusMessage.replaceAll(
+                    'Tailscale is installed!\n\n', ''), // Clean up redundant text
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 18),
+                style: const TextStyle(
+                  fontSize: 16,
+                  color: Colors.white70,
+                  height: 1.5,
+                ),
               ),
               const SizedBox(height: 48),
               if (!_isChecking) ...[
-                ElevatedButton(
+                OutlinedButton(
                   onPressed: _checkTailscale,
-                  child: const Text('Check Again'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    side: const BorderSide(color: Color(0xFF333333)),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 48,
+                      vertical: 20,
+                    ),
+                    shape: const StadiumBorder(),
+                  ),
+                  child: const Text(
+                    'Check Again',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
                 ),
                 const SizedBox(height: 16),
                 if (_isInstalled)
-                  ElevatedButton(
+                  OutlinedButton(
                     onPressed: () {
-                      Navigator.pushReplacementNamed(context, '/folder-selection');
+                      Navigator.pushReplacementNamed(
+                          context, '/folder-selection');
                     },
-                    style: ElevatedButton.styleFrom(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      side: const BorderSide(color: Color(0xFF333333)),
                       padding: const EdgeInsets.symmetric(
                         horizontal: 48,
-                        vertical: 16,
+                        vertical: 20,
                       ),
+                      shape: const StadiumBorder(),
                     ),
                     child: const Text(
                       'Continue',
-                      style: TextStyle(fontSize: 18),
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                     ),
                   ),
               ],

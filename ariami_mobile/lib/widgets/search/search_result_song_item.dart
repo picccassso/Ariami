@@ -5,6 +5,7 @@ import '../../screens/playlist/add_to_playlist_screen.dart';
 import '../../services/api/connection_service.dart';
 import '../../services/playback_manager.dart';
 import '../../services/download/download_manager.dart';
+import '../../services/quality/quality_settings_service.dart';
 import '../common/cached_artwork.dart';
 
 /// Search result item for songs
@@ -37,44 +38,61 @@ class SearchResultSongItem extends StatelessWidget {
 
     return Opacity(
       opacity: opacity,
-      child: ListTile(
-        leading: _buildLeading(context),
-        title: Text(
-          song.title,
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w500,
-            color: isAvailable ? null : Colors.grey,
-          ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        subtitle: Text(
-          song.artist,
-          style: TextStyle(
-            fontSize: 14,
-            color: Colors.grey[600],
-          ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              _formatDuration(song.duration),
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[600],
-              ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: isAvailable ? onTap : null,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            child: Row(
+              children: [
+                _buildLeading(context),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        song.title,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                          color: isAvailable ? Theme.of(context).textTheme.bodyLarge?.color : Colors.grey,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        song.artist,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.7) ?? Colors.grey[600],
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Text(
+                  _formatDuration(song.duration),
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.5),
+                  ),
+                ),
+                if (isAvailable) ...[
+                  const SizedBox(width: 8),
+                  _buildOverflowMenu(context),
+                ] else
+                   const SizedBox(width: 48),
+              ],
             ),
-            if (isAvailable)
-              _buildOverflowMenu(context)
-            else
-              const SizedBox(width: 48), // Placeholder for disabled menu
-          ],
+          ),
         ),
-        onTap: isAvailable ? onTap : null,
       ),
     );
   }
@@ -180,6 +198,7 @@ class SearchResultSongItem extends StatelessWidget {
   void _handleDownload(BuildContext context) {
     final connectionService = ConnectionService();
     final downloadManager = DownloadManager();
+    final qualityService = QualitySettingsService();
 
     // Check if connected to server
     if (connectionService.apiClient == null) {
@@ -189,8 +208,9 @@ class SearchResultSongItem extends StatelessWidget {
       return;
     }
 
-    // Construct download URL using actual server connection
-    final downloadUrl = '${connectionService.apiClient!.baseUrl}/download/${song.id}';
+    // Construct download URL with user's download mode/quality
+    final baseDownloadUrl = connectionService.apiClient!.getDownloadUrl(song.id);
+    final downloadUrl = qualityService.getDownloadUrlWithQuality(baseDownloadUrl);
 
     downloadManager.downloadSong(
       songId: song.id,
@@ -239,7 +259,7 @@ class SearchResultSongItem extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.all(2),
                 decoration: BoxDecoration(
-                  color: Colors.blue[400],
+                  color: Colors.grey[600],
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
@@ -285,6 +305,7 @@ class SearchResultSongItem extends StatelessWidget {
       fallback: _buildPlaceholder(context),
       fallbackIcon: Icons.music_note,
       fallbackIconSize: 24,
+      sizeHint: ArtworkSizeHint.thumbnail,
     );
   }
 
