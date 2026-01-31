@@ -7,6 +7,10 @@ import 'package:shelf_web_socket/shelf_web_socket.dart';
 import 'package:shelf_static/shelf_static.dart';
 import 'package:ariami_core/services/server/connection_manager.dart';
 import 'package:ariami_core/services/server/streaming_service.dart';
+import 'package:ariami_core/services/transcoding/transcoding_service.dart';
+import 'package:ariami_core/services/artwork/artwork_service.dart';
+import 'package:ariami_core/models/quality_preset.dart';
+import 'package:ariami_core/models/artwork_size.dart';
 import 'package:ariami_core/models/websocket_models.dart';
 import 'package:ariami_core/services/library/library_manager.dart';
 
@@ -21,10 +25,13 @@ class AriamiHttpServer {
   final ConnectionManager _connectionManager = ConnectionManager();
   final StreamingService _streamingService = StreamingService();
   final LibraryManager _libraryManager = LibraryManager();
+  TranscodingService? _transcodingService;
+  ArtworkService? _artworkService;
   String? _tailscaleIp;  // Kept for backward compatibility
   String? _advertisedIp;  // The IP to show in QR code (Tailscale or LAN IP)
   int _port = 8080;
   final List<dynamic> _webSocketClients = [];
+  final Map<dynamic, String> _webSocketDeviceIds = {};
 
   // Store music folder path (set from desktop state)
   String? _musicFolderPath;
@@ -50,6 +57,28 @@ class AriamiHttpServer {
   void setWebAssetsPath(String path) {
     _webAssetsPath = path;
   }
+
+  /// Set the transcoding service for quality-based streaming.
+  ///
+  /// Must be called before streaming at non-high quality levels.
+  /// The transcoding service handles FFmpeg-based transcoding and caching.
+  void setTranscodingService(TranscodingService service) {
+    _transcodingService = service;
+  }
+
+  /// Get the transcoding service (if configured)
+  TranscodingService? get transcodingService => _transcodingService;
+
+  /// Set the artwork service for thumbnail generation.
+  ///
+  /// Must be called before requesting thumbnails.
+  /// The artwork service handles FFmpeg-based resizing and caching.
+  void setArtworkService(ArtworkService service) {
+    _artworkService = service;
+  }
+
+  /// Get the artwork service (if configured)
+  ArtworkService? get artworkService => _artworkService;
 
   /// Set callback for getting Tailscale status (optional, for CLI use)
   void setTailscaleStatusCallback(Future<Map<String, dynamic>> Function() callback) {
@@ -111,6 +140,7 @@ class AriamiHttpServer {
     final handler = const Pipeline()
         .addMiddleware(logRequests())
         .addMiddleware(_corsMiddleware())
+        .addMiddleware(_connectionTrackingMiddleware())
         .addMiddleware(_errorMiddleware())
         .addHandler(cascadeHandler);
 
@@ -233,6 +263,29 @@ class AriamiHttpServer {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    };
+  }
+
+  /// Middleware to track active clients via deviceId/deviceName on any request
+  Middleware _connectionTrackingMiddleware() {
+    return (Handler handler) {
+      return (Request request) async {
+        final deviceId = request.url.queryParameters['deviceId'];
+        if (deviceId != null && deviceId.isNotEmpty) {
+          final deviceName = request.url.queryParameters['deviceName'];
+          if (_connectionManager.isClientConnected(deviceId)) {
+            _connectionManager.updateHeartbeat(deviceId);
+          } else {
+            _connectionManager.registerClient(
+              deviceId,
+              (deviceName != null && deviceName.isNotEmpty)
+                  ? deviceName
+                  : 'Unknown Device',
+            );
+          }
+        }
+        return await handler(request);
+      };
     };
   }
 
@@ -618,9 +671,9 @@ class AriamiHttpServer {
   }
 
   /// Handle get library request
-  Response _handleGetLibrary(Request request) {
+  Future<Response> _handleGetLibrary(Request request) async {
     final baseUrl = 'http://${_advertisedIp ?? _tailscaleIp}:$_port';
-    final libraryJson = _libraryManager.toApiJson(baseUrl);
+    final libraryJson = await _libraryManager.toApiJsonWithDurations(baseUrl);
 
     // Debug logging
     print('[HttpServer] Library request - Albums: ${(libraryJson['albums'] as List).length}, Songs: ${(libraryJson['songs'] as List).length}');
@@ -679,7 +732,15 @@ class AriamiHttpServer {
   }
 
   /// Handle get album artwork request (lazy extraction with caching)
+  ///
+  /// Supports optional `?size=` parameter:
+  /// - `thumbnail` - Returns a 200x200 thumbnail (faster for list views)
+  /// - `full` or omitted - Returns the original artwork
   Future<Response> _handleGetArtwork(Request request, String albumId) async {
+    // Parse size parameter (default: full for backward compatibility)
+    final sizeParam = request.url.queryParameters['size'];
+    final size = ArtworkSize.fromString(sizeParam);
+
     final artworkData = await _libraryManager.getAlbumArtwork(albumId);
 
     if (artworkData == null) {
@@ -694,18 +755,34 @@ class AriamiHttpServer {
       );
     }
 
+    // Process artwork if size requested and service available
+    List<int> responseData = artworkData;
+    if (size.requiresProcessing && _artworkService != null) {
+      responseData = await _artworkService!.getArtwork(albumId, artworkData, size);
+      print('[HttpServer] Serving ${size.name} artwork for album $albumId (${responseData.length} bytes)');
+    }
+
     // Return the image data (usually JPEG or PNG)
     return Response.ok(
-      artworkData,
+      responseData,
       headers: {
         'Content-Type': 'image/jpeg', // Most album art is JPEG
         'Cache-Control': 'public, max-age=31536000', // Cache for 1 year
+        'X-Artwork-Size': size.name, // Debug header
       },
     );
   }
 
   /// Handle get song artwork request (for standalone songs)
+  ///
+  /// Supports optional `?size=` parameter:
+  /// - `thumbnail` - Returns a 200x200 thumbnail (faster for list views)
+  /// - `full` or omitted - Returns the original artwork
   Future<Response> _handleGetSongArtwork(Request request, String songId) async {
+    // Parse size parameter (default: full for backward compatibility)
+    final sizeParam = request.url.queryParameters['size'];
+    final size = ArtworkSize.fromString(sizeParam);
+
     final artworkData = await _libraryManager.getSongArtwork(songId);
 
     if (artworkData == null) {
@@ -720,17 +797,31 @@ class AriamiHttpServer {
       );
     }
 
+    // Process artwork if size requested and service available
+    // Use songId as the cache key for song artwork
+    List<int> responseData = artworkData;
+    if (size.requiresProcessing && _artworkService != null) {
+      responseData = await _artworkService!.getArtwork('song_$songId', artworkData, size);
+      print('[HttpServer] Serving ${size.name} artwork for song $songId (${responseData.length} bytes)');
+    }
+
     // Return the image data (usually JPEG or PNG)
     return Response.ok(
-      artworkData,
+      responseData,
       headers: {
         'Content-Type': 'image/jpeg', // Most album art is JPEG
         'Cache-Control': 'public, max-age=31536000', // Cache for 1 year
+        'X-Artwork-Size': size.name, // Debug header
       },
     );
   }
 
   /// Handle stream request
+  ///
+  /// Supports quality parameter for transcoded streaming:
+  /// - ?quality=high (default) - Original file
+  /// - ?quality=medium - 128 kbps AAC
+  /// - ?quality=low - 64 kbps AAC
   Future<Response> _handleStream(Request request, String path) async {
     // Validate path is provided
     if (path.isEmpty) {
@@ -743,6 +834,10 @@ class AriamiHttpServer {
       );
     }
 
+    // Parse quality parameter
+    final qualityParam = request.url.queryParameters['quality'];
+    final quality = QualityPreset.fromString(qualityParam);
+
     // Look up file path from library by song ID
     final filePath = _libraryManager.getSongFilePath(path);
     if (filePath == null) {
@@ -755,10 +850,10 @@ class AriamiHttpServer {
       );
     }
 
-    final File audioFile = File(filePath);
+    final File originalFile = File(filePath);
 
     // Check if file exists
-    if (!await audioFile.exists()) {
+    if (!await originalFile.exists()) {
       return Response.notFound(
         jsonEncode({
           'error': 'File not found',
@@ -770,7 +865,7 @@ class AriamiHttpServer {
 
     // Check if file is in allowed music folder (security check)
     if (_musicFolderPath != null) {
-      final canonicalPath = audioFile.absolute.path;
+      final canonicalPath = originalFile.absolute.path;
       if (!canonicalPath.startsWith(_musicFolderPath!)) {
         return Response.forbidden(
           jsonEncode({
@@ -782,11 +877,69 @@ class AriamiHttpServer {
       }
     }
 
-    // Stream the file
-    return await _streamingService.streamFile(audioFile, request);
+    // Determine which file to stream
+    File fileToStream = originalFile;
+
+    // If transcoding is requested and service is available
+    if (quality.requiresTranscoding && _transcodingService != null) {
+      // Try streaming transcode first for immediate playback (no wait for full transcode)
+      final streamResult = await _transcodingService!.startStreamingTranscode(
+        filePath,
+        path, // songId
+        quality,
+      );
+
+      if (streamResult != null) {
+        // Return streaming response directly - playback starts immediately
+        print('[HttpServer] Streaming transcode started for $path at ${quality.name}');
+        return Response.ok(
+          streamResult.stream,
+          headers: {
+            'Content-Type': streamResult.mimeType,
+            'Transfer-Encoding': 'chunked',
+            'Cache-Control': 'no-cache',
+          },
+        );
+      }
+
+      // Fall back to cached/queued transcode
+      final transcodedFile = await _transcodingService!.getTranscodedFile(
+        filePath,
+        path, // songId
+        quality,
+        requestType: TranscodeRequestType.streaming,
+      );
+
+      if (transcodedFile != null) {
+        fileToStream = transcodedFile;
+        // Mark as in-use to prevent eviction during streaming
+        _transcodingService!.markInUse(path, quality);
+        print('[HttpServer] Streaming transcoded file at ${quality.name} quality');
+
+        // Stream the file and release in-use when done
+        try {
+          return await _streamingService.streamFile(fileToStream, request);
+        } finally {
+          _transcodingService!.releaseInUse(path, quality);
+        }
+      } else {
+        // Transcoding failed or FFmpeg not available - fall back to original
+        print('[HttpServer] Transcoding unavailable, falling back to original file');
+      }
+    } else if (quality.requiresTranscoding && _transcodingService == null) {
+      print('[HttpServer] Transcoding requested but service not configured, using original');
+    }
+
+    // Stream the file (original or non-transcoded)
+    return await _streamingService.streamFile(fileToStream, request);
   }
 
   /// Handle download request (full file download)
+  ///
+  /// Supports quality parameter for transcoded downloads:
+  /// - ?quality=high (default) - Original file
+  /// - ?quality=medium - 128 kbps AAC
+  /// - ?quality=low - 64 kbps AAC
   Future<Response> _handleDownload(Request request, String path) async {
     // Validate path is provided
     if (path.isEmpty) {
@@ -799,6 +952,10 @@ class AriamiHttpServer {
       );
     }
 
+    // Parse quality parameter
+    final qualityParam = request.url.queryParameters['quality'];
+    final quality = QualityPreset.fromString(qualityParam);
+
     // Look up file path from library by song ID
     final filePath = _libraryManager.getSongFilePath(path);
     if (filePath == null) {
@@ -811,10 +968,10 @@ class AriamiHttpServer {
       );
     }
 
-    final File audioFile = File(filePath);
+    final File originalFile = File(filePath);
 
     // Check if file exists
-    if (!await audioFile.exists()) {
+    if (!await originalFile.exists()) {
       return Response.notFound(
         jsonEncode({
           'error': 'File not found',
@@ -826,7 +983,7 @@ class AriamiHttpServer {
 
     // Check if file is in allowed music folder (security check)
     if (_musicFolderPath != null) {
-      final canonicalPath = audioFile.absolute.path;
+      final canonicalPath = originalFile.absolute.path;
       if (!canonicalPath.startsWith(_musicFolderPath!)) {
         return Response.forbidden(
           jsonEncode({
@@ -838,17 +995,56 @@ class AriamiHttpServer {
       }
     }
 
-    // Get file size
-    final fileSize = await audioFile.length();
-    final fileName = audioFile.path.split(Platform.pathSeparator).last;
+    // Determine which file to download
+    File fileToDownload = originalFile;
+    String mimeType = _streamingService.getAudioMimeType(originalFile.path);
+    DownloadTranscodeResult? downloadTranscodeResult;
 
-    // Get MIME type based on file extension
-    final mimeType = _streamingService.getAudioMimeType(audioFile.path);
+    // If transcoding is requested and service is available
+    if (quality.requiresTranscoding && _transcodingService != null) {
+      // Use dedicated download pipeline (temp file, not cached)
+      // This prevents cache churn during bulk downloads
+      downloadTranscodeResult = await _transcodingService!.getDownloadTranscode(
+        filePath,
+        path, // songId
+        quality,
+      );
+
+      if (downloadTranscodeResult != null) {
+        fileToDownload = downloadTranscodeResult.tempFile;
+        mimeType = quality.mimeType ?? mimeType;
+        print('[HttpServer] Downloading transcoded file at ${quality.name} quality (temp file)');
+      } else {
+        // Transcoding failed or FFmpeg not available - fall back to original
+        print('[HttpServer] Transcoding unavailable for download, falling back to original file');
+      }
+    } else if (quality.requiresTranscoding && _transcodingService == null) {
+      print('[HttpServer] Transcoding requested for download but service not configured, using original');
+    }
+
+    // Get file info
+    final fileSize = await fileToDownload.length();
+    final originalFileName = originalFile.path.split(Platform.pathSeparator).last;
+
+    // Adjust filename extension if transcoded
+    String downloadFileName = originalFileName;
+    if (downloadTranscodeResult != null && quality.fileExtension != null) {
+      // Replace extension with transcoded format extension
+      final lastDot = originalFileName.lastIndexOf('.');
+      if (lastDot > 0) {
+        downloadFileName = '${originalFileName.substring(0, lastDot)}.${quality.fileExtension}';
+      } else {
+        downloadFileName = '$originalFileName.${quality.fileExtension}';
+      }
+    }
 
     // Open file with explicit handle management to prevent file handle leaks
-    final RandomAccessFile raf = await audioFile.open(mode: FileMode.read);
+    final RandomAccessFile raf = await fileToDownload.open(mode: FileMode.read);
 
-    // Create stream that properly closes the file handle when done
+    // Capture the result for cleanup in the stream's finally block
+    final tempResult = downloadTranscodeResult;
+
+    // Create stream that properly closes the file handle and cleans up temp files when done
     Stream<List<int>> createFileStream() async* {
       const int chunkSize = 64 * 1024; // 64 KB chunks
       try {
@@ -859,6 +1055,11 @@ class AriamiHttpServer {
         }
       } finally {
         await raf.close();
+        // Clean up temp file after download completes
+        if (tempResult != null) {
+          await tempResult.cleanup();
+          print('[HttpServer] Cleaned up temp transcode file');
+        }
       }
     }
 
@@ -868,7 +1069,7 @@ class AriamiHttpServer {
       headers: {
         'Content-Type': mimeType,
         'Content-Length': fileSize.toString(),
-        'Content-Disposition': _encodeContentDisposition(fileName),
+        'Content-Disposition': _encodeContentDisposition(downloadFileName),
         'Cache-Control': 'public, max-age=3600', // Cache for 1 hour during download
       },
     );
@@ -906,10 +1107,22 @@ class AriamiHttpServer {
       },
       onDone: () {
         _webSocketClients.remove(webSocket);
+        final deviceId = _webSocketDeviceIds.remove(webSocket);
+        if (deviceId != null) {
+          _connectionManager.unregisterClient(deviceId);
+        } else {
+          print('WebSocket disconnected without identify - no client to unregister');
+        }
         print('WebSocket client disconnected (${_webSocketClients.length} remaining)');
       },
       onError: (error) {
         _webSocketClients.remove(webSocket);
+        final deviceId = _webSocketDeviceIds.remove(webSocket);
+        if (deviceId != null) {
+          _connectionManager.unregisterClient(deviceId);
+        } else {
+          print('WebSocket error without identify - no client to unregister');
+        }
         print('WebSocket error: $error');
       },
     );
@@ -922,6 +1135,22 @@ class AriamiHttpServer {
       final message = WsMessage.fromJson(jsonMessage);
 
       print('WebSocket message received: ${message.type}');
+
+      // Handle identify
+      if (message.type == WsMessageType.identify) {
+        final deviceId = message.data?['deviceId'] as String?;
+        final deviceName = message.data?['deviceName'] as String?;
+        if (deviceId != null && deviceId.isNotEmpty) {
+          _webSocketDeviceIds[webSocket] = deviceId;
+          if (!_connectionManager.isClientConnected(deviceId)) {
+            _connectionManager.registerClient(
+              deviceId,
+              deviceName ?? 'Unknown Device',
+            );
+          }
+        }
+        return;
+      }
 
       // Handle ping
       if (message.type == WsMessageType.ping) {

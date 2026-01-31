@@ -3,6 +3,7 @@ import 'settings_screen.dart';
 import '../settings/connection_settings_screen.dart';
 import '../settings/downloads_screen.dart';
 import '../settings/import_export_screen.dart';
+import '../settings/quality_settings_screen.dart';
 import '../settings/streaming_stats_screen.dart';
 
 /// A navigator key for the settings tab's nested navigation
@@ -51,6 +52,9 @@ class SettingsNavigator extends StatelessWidget {
               break;
             case '/import-export':
               page = const ImportExportScreen();
+              break;
+            case '/quality':
+              page = const QualitySettingsScreen();
               break;
             // Add more routes here as settings sub-screens are added
             default:

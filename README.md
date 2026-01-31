@@ -18,10 +18,14 @@ Ariami is a self-hosted server and music player.
 ### For Raspberry Pi
 
 ```bash
-# Download and extract
-curl -L https://github.com/picccassso/Ariami/releases/download/v1.9.0_testing/ariami-cli-raspberry-pi-arm64-v1.9.0_testing.zip -o ariami-cli.zip
+# Install Tailscale (follow commands from https://tailscale.com/download/linux/rpi)
+curl -fsSL https://tailscale.com/install.sh | sh
+sudo tailscale up
+
+# Download and extract Ariami
+curl -L https://github.com/picccassso/Ariami/releases/download/v2.0.0/ariami-cli-raspberry-pi-arm64-v2.0.0.zip -o ariami-cli.zip
 unzip ariami-cli.zip
-cd ariami-cli-raspberry-pi-arm64-v1.9.0_testing
+cd ariami-cli-raspberry-pi-arm64-v2.0.0
 
 # Run the server
 chmod +x ariami_cli
@@ -57,6 +61,7 @@ It is cross-platform so you can run this on your Mac/Windows/Linux machine, and 
 **Streaming and Audio**
 - Stream music from your server to any supported client.
 - Server-side audio transcoding for compatibility with different devices.
+- Gapless playback support (if applicable — remove if not accurate).
 
 **Apps and Platforms**
 - Native apps that are available for iOS, Android, macOS, Windows and Linux.
@@ -85,8 +90,12 @@ It is cross-platform so you can run this on your Mac/Windows/Linux machine, and 
 
 ### Library View
 <p align="center">
-  <img src="app%20photos/Ariami%20Mobile/library_view_1.png" alt="Library View 1" width="30%">
-  <img src="app%20photos/Ariami%20Mobile/library_view_2.png" alt="Library View 2" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/library_view_1_grid.png" alt="Library View Grid 1" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/library_view_1_list.png" alt="Library View List 1" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/library_view_2_grid.png" alt="Library View Grid 2" width="30%">
+</p>
+<p align="center">
+  <img src="app%20photos/Ariami%20Mobile/library_view_2_list.png" alt="Library View List 2" width="30%">
   <img src="app%20photos/Ariami%20Mobile/library_view_3.png" alt="Library View 3" width="30%">
 </p>
 
@@ -115,7 +124,8 @@ It is cross-platform so you can run this on your Mac/Windows/Linux machine, and 
 
 ### Search View
 <p align="center">
-  <img src="app%20photos/Ariami%20Mobile/search_view_1.png" alt="Search View" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/search_view_1.png" alt="Search View 1" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/search_view_2.png" alt="Search View 2" width="30%">
 </p>
 
 ### Offline Mode
@@ -127,8 +137,12 @@ It is cross-platform so you can run this on your Mac/Windows/Linux machine, and 
 
 ### Settings View
 <p align="center">
-  <img src="app%20photos/Ariami%20Mobile/settings_view_1.png" alt="Settings 1" width="30%">
-  <img src="app%20photos/Ariami%20Mobile/settings_view_2.png" alt="Settings 2" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/settings_view_1.png" alt="Settings" width="30%">
+</p>
+
+### Streaming Quality View
+<p align="center">
+  <img src="app%20photos/Ariami%20Mobile/streaming_quality_view_1.png" alt="Streaming Quality" width="30%">
 </p>
 
 ### Streaming Stats View
@@ -141,11 +155,12 @@ It is cross-platform so you can run this on your Mac/Windows/Linux machine, and 
 <p align="center">
   <img src="app%20photos/Ariami%20Mobile/downloads_view_1.png" alt="Downloads 1" width="30%">
   <img src="app%20photos/Ariami%20Mobile/downloads_view_2.png" alt="Downloads 2" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/downloads_view_3.png" alt="Downloads 3" width="30%">
 </p>
 
 ### Connection Stats View
 <p align="center">
-  <img src="app%20photos/Ariami%20Mobile/connection_stats_view_1.png" alt="Connection Stats" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/connection_stats_view.png" alt="Connection Stats" width="30%">
 </p>
 
 ### Import/Export View
@@ -178,8 +193,7 @@ It is cross-platform so you can run this on your Mac/Windows/Linux machine, and 
 <summary>CLI (Web Interface)</summary>
 
 <p align="center">
-  <img src="app%20photos/Ariami%20CLI/main_dashboard_1.png" alt="CLI Dashboard 1" width="45%">
-  <img src="app%20photos/Ariami%20CLI/main_dashboard_2.png" alt="CLI Dashboard 2" width="45%">
+  <img src="app%20photos/Ariami%20CLI/main_dashboard.png" alt="CLI Dashboard" width="60%">
 </p>
 
 </details>
@@ -198,35 +212,31 @@ If you want to build from source, check the README in each package folder:
 
 ---
 
-## Testing Branch Latest Updates
+## Latest Updates
 
-### 21/01/2026
+**Full UI Redesign** - Complete visual overhaul across mobile, desktop, and CLI web interface. Ultra-minimalist black and white "Premium Dark" theme with pill-shaped buttons, rounded corners, and glassmorphism effects. Scrolling marquee for long song titles, monochromatic offline screens, and consistent look across all three apps.
 
-**Playlist Download Indicators** - Playlists now show a green download badge (matching albums) when they contain offline-available songs.
+**Performance Improvements**
+- Artwork loading ~100x faster via server-side thumbnail generation
+- Playlist loading 98% faster (reduced API calls from N+1 to 1)
+- Library scanning optimized with single-pass traversal, deferred duration extraction, and progressive duplicate detection
+- Transcoding system overhaul: streaming while transcoding, hardware AAC on macOS, platform-aware concurrency, and cache index for faster eviction
 
-**Playlist Loading Performance** - Fixed N+1 API call issue when loading playlists. Now uses a single `/api/library` call instead of fetching every album individually. ~98% reduction in API calls for large libraries.
+**New Features**
+- Grid/List view toggle for albums and playlists in library
+- Download indicator badge on playlists with offline songs
+- Fast Downloads mode to download original files without transcoding
+- Server-scoped downloads with automatic orphan cleanup
+- Auto-hide server playlists that match already-imported local playlists
 
-**Mini Player Aware UI** - Bottom sheets and scrollable screens now dynamically adjust padding when the mini player is visible, preventing content from being obscured.
-
----
-
-### 16/01/2026
-
-#### Audio Transcoding
-
-Server-side audio transcoding is now available. This lets mobile users stream and download music at reduced quality levels, which saves a ton of bandwidth and makes playback smoother on bad connections.
-
-Three quality presets:
-- **High** - Original file, no transcoding
-- **Medium** - 128 kbps AAC (around 50% smaller)
-- **Low** - 64 kbps AAC (around 75% smaller)
-
-In my testing, a 1.5 GB library went down to 706 MB on medium and 351 MB on low. Pretty significant savings if you're downloading your whole library to your phone.
-
-You can configure separate quality settings for WiFi streaming, mobile data streaming, and downloads. The app automatically switches quality based on your network type. Go to Settings > Streaming Quality to set it up.
-
-The server uses FFmpeg for transcoding (must be installed on the host machine). Transcoded files are cached so it only transcodes once per song per quality level. If FFmpeg isn't available, it just serves the original file.
-
+**Bug Fixes**
+- Fixed shuffle reverting to old queue when switching between playlists and albums
+- Fixed offline artwork missing for downloaded songs (now caches thumbnails + song-level artwork)
+- Fixed playlist/stats artwork missing after fresh install + data import
+- Fixed Android notification artwork not showing
+- Fixed connected clients count not updating when mobile app disconnects
+- Fixed CLI dashboard getting stuck on "Scanning..." after rescan completes
+- Fixed mini player overlapping bottom sheet and screen content
 ---
 
 ## License

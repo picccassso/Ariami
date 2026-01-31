@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../services/import_export_service.dart';
+import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
 
 class ImportExportScreen extends StatefulWidget {
   const ImportExportScreen({super.key});
@@ -116,204 +117,203 @@ class _ImportExportScreenState extends State<ImportExportScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
+      backgroundColor: isDark ? Colors.black : Colors.white,
       appBar: AppBar(
-        title: const Text('Import / Export'),
+        title: const Text('BACKUP & RESTORE'),
+        titleTextStyle: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 1.5,
+          color: isDark ? Colors.white : Colors.black,
+        ),
+        centerTitle: true,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
       ),
-      body: Container(
-        color: isDark ? Colors.black : Colors.grey[50],
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              children: [
-                const Spacer(flex: 1),
+      body: SingleChildScrollView(
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(
+            32,
+            0,
+            32,
+            getMiniPlayerAwareBottomPadding() + 24,
+          ),
+          child: Column(
+            children: [
+              const SizedBox(height: 48),
 
-                // Icon
-                Icon(
-                  Icons.import_export,
-                  size: 72,
+              // Icon with minimalist glow/halo effect if desired, but let's stick to clean
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF111111) : const Color(0xFFF9F9F9),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: isDark ? const Color(0xFF222222) : const Color(0xFFEEEEEE),
+                    width: 1,
+                  ),
+                ),
+                child: Icon(
+                  Icons.auto_awesome_motion_rounded,
+                  size: 64,
                   color: isDark ? Colors.white : Colors.black,
                 ),
-                const SizedBox(height: 24),
+              ),
+              const SizedBox(height: 32),
 
-                // Title
-                Text(
-                  'Backup & Restore',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+              // Title
+              Text(
+                'Data Portability',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w900,
+                  color: isDark ? Colors.white : Colors.black,
+                  letterSpacing: -0.5,
                 ),
-                const SizedBox(height: 12),
+              ),
+              const SizedBox(height: 12),
 
-                // Subtitle
-                Text(
-                  'Export your playlists and listening stats to a backup file, or restore from a previous backup.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: isDark ? Colors.grey[400] : Colors.grey[600],
-                    fontSize: 15,
+              // Subtitle
+              Text(
+                'Export your playlists and listening stats to a backup file, or restore from a previous session.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: isDark ? Colors.grey[500] : Colors.grey[600],
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  height: 1.5,
+                ),
+              ),
+
+              const SizedBox(height: 32),
+
+              // Status Card
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF111111) : const Color(0xFFF9F9F9),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: isDark ? const Color(0xFF222222) : const Color(0xFFEEEEEE),
+                    width: 1,
                   ),
                 ),
-
-                const Spacer(flex: 2),
-
-                // Last export/import timestamps
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                  decoration: BoxDecoration(
-                    color: isDark ? Colors.grey[900] : Colors.grey[200],
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Last export',
-                            style: TextStyle(
-                              color: isDark ? Colors.grey[400] : Colors.grey[600],
-                              fontSize: 14,
-                            ),
-                          ),
-                          Text(
-                            _formatDateTime(_lastExportTime),
-                            style: TextStyle(
-                              color: isDark ? Colors.white : Colors.black,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Last import',
-                            style: TextStyle(
-                              color: isDark ? Colors.grey[400] : Colors.grey[600],
-                              fontSize: 14,
-                            ),
-                          ),
-                          Text(
-                            _formatDateTime(_lastImportTime),
-                            style: TextStyle(
-                              color: isDark ? Colors.white : Colors.black,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
-
-                // Export Button
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _isLoading ? null : _export,
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      backgroundColor: isDark ? Colors.white : Colors.black,
-                      foregroundColor: isDark ? Colors.black : Colors.white,
+                child: Column(
+                  children: [
+                    _buildStatusRow(
+                      'LAST EXPORT',
+                      _formatDateTime(_lastExportTime),
+                      isDark,
                     ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.upload),
-                        const SizedBox(width: 12),
-                        Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Text(
-                              'Export Data',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            Text(
-                              'Save backup file',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: (isDark ? Colors.black : Colors.white).withValues(alpha: 0.7),
-                              ),
-                            ),
-                          ],
+                    const SizedBox(height: 16),
+                    _buildStatusRow(
+                      'LAST IMPORT',
+                      _formatDateTime(_lastImportTime),
+                      isDark,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 32),
+
+              // Export Button
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: ElevatedButton(
+                  onPressed: _isLoading ? null : _export,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: isDark ? Colors.white : Colors.black,
+                    foregroundColor: isDark ? Colors.black : Colors.white,
+                    shape: const StadiumBorder(),
+                    elevation: 0,
+                  ),
+                  child: _isLoading 
+                    ? const SizedBox(
+                        height: 20, 
+                        width: 20, 
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black)
+                      )
+                    : const Text(
+                        'EXPORT DATA',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 1.2,
                         ),
-                      ],
+                      ),
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              // Import Button
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: OutlinedButton(
+                  onPressed: _isLoading ? null : _import,
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(
+                      color: isDark ? const Color(0xFF222222) : const Color(0xFFEEEEEE),
+                      width: 1.5,
+                    ),
+                    shape: const StadiumBorder(),
+                    foregroundColor: isDark ? Colors.white : Colors.black,
+                  ),
+                  child: const Text(
+                    'IMPORT DATA',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1.2,
                     ),
                   ),
                 ),
-                const SizedBox(height: 16),
+              ),
 
-                // Import Button
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton(
-                    onPressed: _isLoading ? null : _import,
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      side: BorderSide(color: isDark ? Colors.white : Colors.black),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.download, color: isDark ? Colors.white : Colors.black),
-                        const SizedBox(width: 12),
-                        Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              'Import Data',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                                color: isDark ? Colors.white : Colors.black,
-                              ),
-                            ),
-                            Text(
-                              'Restore from backup',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: isDark ? Colors.grey[400] : Colors.grey[600],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
+              const SizedBox(height: 32),
+
+              // Footer
+              Text(
+                'Includes playlists and streaming statistics',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? Colors.grey[700] : Colors.grey[400],
+                  letterSpacing: 0.2,
                 ),
-
-                const Spacer(flex: 2),
-
-                // Loading indicator
-                if (_isLoading)
-                  const Padding(
-                    padding: EdgeInsets.only(bottom: 16),
-                    child: CircularProgressIndicator(),
-                  ),
-
-                // Footer
-                Text(
-                  'Includes playlists and streaming statistics',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: isDark ? Colors.grey[600] : Colors.grey[500],
-                  ),
-                ),
-                const SizedBox(height: 16),
-              ],
-            ),
+              ),
+              const SizedBox(height: 24),
+            ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildStatusRow(String label, String value, bool isDark) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            color: isDark ? Colors.grey[600] : Colors.grey[500],
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 1.0,
+          ),
+        ),
+        Text(
+          value.toUpperCase(),
+          style: TextStyle(
+            color: isDark ? Colors.white : Colors.black,
+            fontSize: 11,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 0.5,
+          ),
+        ),
+      ],
     );
   }
 }

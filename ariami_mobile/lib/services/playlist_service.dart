@@ -142,6 +142,34 @@ class PlaylistService extends ChangeNotifier {
     }
   }
 
+  /// Auto-hide server playlists that match local playlist names (case-insensitive)
+  /// Called after import operations to prevent duplicate entries in UI
+  Future<void> _autoHideMatchingServerPlaylists() async {
+    if (_serverPlaylists.isEmpty || _playlists.isEmpty) return;
+
+    // Build set of normalized local playlist names
+    final localPlaylistNames = _playlists
+        .map((p) => p.name.toLowerCase())
+        .toSet();
+
+    // Find and hide matching server playlists
+    int hiddenCount = 0;
+    for (final serverPlaylist in _serverPlaylists) {
+      final normalizedName = serverPlaylist.name.toLowerCase();
+      if (localPlaylistNames.contains(normalizedName)) {
+        if (!_hiddenServerPlaylistIds.contains(serverPlaylist.id)) {
+          _hiddenServerPlaylistIds.add(serverPlaylist.id);
+          hiddenCount++;
+        }
+      }
+    }
+
+    if (hiddenCount > 0) {
+      await _saveHiddenServerPlaylists();
+      print('[PlaylistService] Auto-hidden $hiddenCount server playlists by name match');
+    }
+  }
+
   // ============================================================================
   // SERVER PLAYLIST METHODS
   // ============================================================================
@@ -151,7 +179,12 @@ class PlaylistService extends ChangeNotifier {
   void updateServerPlaylists(List<ServerPlaylist> playlists) {
     _serverPlaylists = playlists;
     print('[PlaylistService] Updated server playlists: ${playlists.length}');
-    notifyListeners();
+
+    // Auto-hide server playlists that match existing local playlists
+    // This handles the case when switching between servers with different playlist IDs
+    _autoHideMatchingServerPlaylists().then((_) {
+      notifyListeners();
+    });
   }
 
   /// Import a server playlist as a local playlist
@@ -515,6 +548,7 @@ class PlaylistService extends ChangeNotifier {
     }
     if (imported > 0) {
       await _savePlaylists();
+      await _autoHideMatchingServerPlaylists();
       notifyListeners();
     }
     return imported;
@@ -532,8 +566,63 @@ class PlaylistService extends ChangeNotifier {
     _recentlyImportedIds.clear();
 
     await _savePlaylists();
-    await _saveHiddenServerPlaylists();
+    await _autoHideMatchingServerPlaylists();
     await _saveImportedFromServer();
     notifyListeners();
+  }
+
+  /// Rehydrate missing album IDs for playlist songs using current library data.
+  /// Returns number of playlists updated.
+  Future<int> rehydrateAlbumIdsFromLibrary(List<SongModel> librarySongs) async {
+    if (!_isLoaded) {
+      await loadPlaylists();
+    }
+
+    final songIdToAlbumId = <String, String>{};
+    for (final song in librarySongs) {
+      if (song.albumId != null) {
+        songIdToAlbumId[song.id] = song.albumId!;
+      }
+    }
+
+    if (songIdToAlbumId.isEmpty || _playlists.isEmpty) {
+      return 0;
+    }
+
+    var updatedCount = 0;
+    final updatedPlaylists = <PlaylistModel>[];
+
+    for (final playlist in _playlists) {
+      var changed = false;
+      final updatedSongAlbumIds = Map<String, String>.from(playlist.songAlbumIds);
+
+      for (final songId in playlist.songIds) {
+        final albumId = songIdToAlbumId[songId];
+        if (albumId != null && updatedSongAlbumIds[songId] != albumId) {
+          updatedSongAlbumIds[songId] = albumId;
+          changed = true;
+        }
+      }
+
+      if (changed) {
+        updatedCount++;
+        updatedPlaylists.add(
+          playlist.copyWith(
+            songAlbumIds: updatedSongAlbumIds,
+            modifiedAt: DateTime.now(),
+          ),
+        );
+      } else {
+        updatedPlaylists.add(playlist);
+      }
+    }
+
+    if (updatedCount > 0) {
+      _playlists = updatedPlaylists;
+      await _savePlaylists();
+      notifyListeners();
+    }
+
+    return updatedCount;
   }
 }

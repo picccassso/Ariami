@@ -235,6 +235,55 @@ class LibraryManager {
     };
   }
 
+  /// Convert library to API JSON format with lazy duration extraction for songs
+  Future<Map<String, dynamic>> toApiJsonWithDurations(String baseUrl) async {
+    if (_library == null) {
+      return {
+        'albums': [],
+        'songs': [],
+        'playlists': [],
+        'lastUpdated': DateTime.now().toIso8601String(),
+      };
+    }
+
+    // Convert albums to API format (unchanged)
+    final albumsJson = _library!.albums.values
+        .where((album) => album.isValid) // Only valid albums (2+ songs)
+        .map((album) => _albumToApiJson(album, baseUrl))
+        .toList();
+
+    // Convert ALL songs to API format with lazy duration extraction
+    final songsJson = <Map<String, dynamic>>[];
+
+    // Add songs from all valid albums
+    for (final album in _library!.albums.values.where((a) => a.isValid)) {
+      for (final song in album.sortedSongs) {
+        songsJson.add(
+          await _songToApiJsonWithDuration(song, baseUrl, album.id),
+        );
+      }
+    }
+
+    // Add standalone songs (not in any album)
+    for (final song in _library!.standaloneSongs) {
+      songsJson.add(
+        await _songToApiJsonWithDuration(song, baseUrl, null),
+      );
+    }
+
+    // Convert folder playlists to API format
+    final playlistsJson = _library!.folderPlaylists
+        .map((playlist) => playlist.toJson())
+        .toList();
+
+    return {
+      'albums': albumsJson,
+      'songs': songsJson,
+      'playlists': playlistsJson,
+      'lastUpdated': _lastScanTime?.toIso8601String() ?? DateTime.now().toIso8601String(),
+    };
+  }
+
   /// Convert Album to API JSON format
   Map<String, dynamic> _albumToApiJson(Album album, String baseUrl) {
     return {

@@ -116,9 +116,9 @@ class _ReconnectScreenState extends State<ReconnectScreen> {
               children: [
                 // Icon
                 Icon(
-                  Icons.cloud_off,
-                  size: 120,
-                  color: Colors.orange[700],
+                  Icons.cloud_off_rounded,
+                  size: 100,
+                  color: Colors.white,
                 ),
                 const SizedBox(height: 32),
 
@@ -148,8 +148,12 @@ class _ReconnectScreenState extends State<ReconnectScreen> {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.grey[200],
-                    borderRadius: BorderRadius.circular(12),
+                    color: const Color(0xFF111111),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: const Color(0xFF222222),
+                      width: 1,
+                    ),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -193,23 +197,26 @@ class _ReconnectScreenState extends State<ReconnectScreen> {
                 // Error Message
                 if (_errorMessage != null)
                   Container(
-                    padding: const EdgeInsets.all(12),
-                    margin: const EdgeInsets.only(bottom: 16),
+                    padding: const EdgeInsets.all(16),
+                    margin: const EdgeInsets.only(bottom: 24),
                     decoration: BoxDecoration(
-                      color: Colors.orange[100],
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.orange[300]!),
+                      color: const Color(0xFFFF4B4B).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: const Color(0xFFFF4B4B).withOpacity(0.2),
+                      ),
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.info_outline, color: Colors.orange[900], size: 20),
-                        const SizedBox(width: 8),
+                        const Icon(Icons.info_outline_rounded, color: Color(0xFFFF4B4B), size: 20),
+                        const SizedBox(width: 12),
                         Expanded(
                           child: Text(
                             _errorMessage!,
-                            style: TextStyle(
-                              color: Colors.orange[900],
-                              fontSize: 14,
+                            style: const TextStyle(
+                              color: Color(0xFFFF4B4B),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ),
@@ -218,37 +225,43 @@ class _ReconnectScreenState extends State<ReconnectScreen> {
                   ),
 
                 // Instructions
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.blue[50],
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'To reconnect:',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.blue[900],
-                        ),
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF111111),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.05),
+                        width: 1,
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        '1. Start the Ariami Desktop app\n'
-                        '2. Wait for the server to start\n'
-                        '3. Tap "Retry Connection" below',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.blue[800],
-                          height: 1.5,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'TO RECONNECT:',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white,
+                            letterSpacing: 1.2,
+                          ),
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 16),
+                        Text(
+                          '1. Start the Ariami Desktop app\n'
+                          '2. Wait for the server to start\n'
+                          '3. Tap "Retry Connection" below',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey[400],
+                            height: 1.6,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
                 const SizedBox(height: 32),
 
                 // Retry Button
@@ -275,9 +288,10 @@ class _ReconnectScreenState extends State<ReconnectScreen> {
                       ),
                     ),
                     style: ElevatedButton.styleFrom(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.black,
+                      elevation: 0,
+                      shape: const StadiumBorder(),
                     ),
                   ),
                 ),
@@ -298,9 +312,9 @@ class _ReconnectScreenState extends State<ReconnectScreen> {
                       ),
                     ),
                     style: OutlinedButton.styleFrom(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
+                      foregroundColor: Colors.white,
+                      side: BorderSide(color: Colors.white.withOpacity(0.1)),
+                      shape: const StadiumBorder(),
                     ),
                   ),
                 ),

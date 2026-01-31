@@ -8,6 +8,12 @@ import 'package:ariami_core/ariami_core.dart';
 import '../services/desktop_tailscale_service.dart';
 import 'scanning_screen.dart';
 
+/// Global transcoding service instance for desktop app
+TranscodingService? _transcodingService;
+
+/// Global artwork service instance for desktop app (thumbnail generation)
+ArtworkService? _artworkService;
+
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
@@ -39,7 +45,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   void dispose() {
-    _httpServer.libraryManager.removeScanCompleteListener(_onLibraryScanComplete);
+    _httpServer.libraryManager
+        .removeScanCompleteListener(_onLibraryScanComplete);
     _httpServer.connectionManager.removeListener(_onClientConnectionChanged);
     super.dispose();
   }
@@ -68,8 +75,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _musicFolderPath = prefs.getString('music_folder_path');
 
     // Fix existing bad paths with /Volumes/Macintosh HD prefix
-    if (_musicFolderPath != null && _musicFolderPath!.startsWith('/Volumes/Macintosh HD')) {
-      _musicFolderPath = _musicFolderPath!.replaceFirst('/Volumes/Macintosh HD', '');
+    if (_musicFolderPath != null &&
+        _musicFolderPath!.startsWith('/Volumes/Macintosh HD')) {
+      _musicFolderPath =
+          _musicFolderPath!.replaceFirst('/Volumes/Macintosh HD', '');
       await prefs.setString('music_folder_path', _musicFolderPath!);
       print('[Dashboard] Fixed bad music folder path: $_musicFolderPath');
     }
@@ -78,6 +87,40 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final appDir = await getApplicationSupportDirectory();
     final cachePath = p.join(appDir.path, 'metadata_cache.json');
     _httpServer.libraryManager.setCachePath(cachePath);
+
+    // Initialize transcoding service for quality-based streaming
+    // Desktop settings - more resources available than Pi
+    if (_transcodingService == null) {
+      final transcodingCachePath = p.join(appDir.path, 'transcoded_cache');
+      _transcodingService = TranscodingService(
+        cacheDirectory: transcodingCachePath,
+        maxCacheSizeMB: 4096, // 4GB cache limit for desktop
+        maxConcurrency: 2, // Allow 2 concurrent transcodes
+        maxDownloadConcurrency: 6, // Higher concurrency for downloads
+      );
+      _httpServer.setTranscodingService(_transcodingService!);
+      print(
+          '[Dashboard] Transcoding service initialized at: $transcodingCachePath');
+
+      // Check FFmpeg availability
+      _transcodingService!.isFFmpegAvailable().then((available) {
+        if (!available) {
+          print(
+              '[Dashboard] Warning: FFmpeg not found - transcoding will be disabled');
+        }
+      });
+    }
+
+    // Initialize artwork service for thumbnail generation
+    if (_artworkService == null) {
+      final artworkCachePath = p.join(appDir.path, 'artwork_cache');
+      _artworkService = ArtworkService(
+        cacheDirectory: artworkCachePath,
+        maxCacheSizeMB: 256, // 256MB cache limit for thumbnails
+      );
+      _httpServer.setArtworkService(_artworkService!);
+      print('[Dashboard] Artwork service initialized at: $artworkCachePath');
+    }
 
     // Get Tailscale IP and server status
     await _updateServerStatus();
@@ -123,11 +166,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
           _musicFolderPath!.isNotEmpty &&
           _httpServer.libraryManager.library == null &&
           mounted) {
-        print('[Dashboard] Auto-navigating to scanning screen: $_musicFolderPath');
+        print(
+            '[Dashboard] Auto-navigating to scanning screen: $_musicFolderPath');
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => ScanningScreen(musicFolderPath: _musicFolderPath!),
+            builder: (context) =>
+                ScanningScreen(musicFolderPath: _musicFolderPath!),
           ),
         );
       }
@@ -156,7 +201,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           const SnackBar(
             content: Text('Please select a music folder first'),
             duration: Duration(seconds: 3),
-            backgroundColor: Colors.orange,
+            // backgroundColor: Colors.transparent, // Let theme handle it
           ),
         );
       }
@@ -170,7 +215,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => ScanningScreen(musicFolderPath: _musicFolderPath!),
+          builder: (context) =>
+              ScanningScreen(musicFolderPath: _musicFolderPath!),
         ),
       );
     }
@@ -197,7 +243,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             const SnackBar(
               content: Text('Cannot start server: Tailscale not connected'),
               duration: Duration(seconds: 3),
-              backgroundColor: Colors.red,
+              // backgroundColor: Colors.red, // Let theme handle it
             ),
           );
         }
@@ -217,7 +263,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
         if (_musicFolderPath != null && _musicFolderPath!.isNotEmpty) {
           print('[Dashboard] Triggering library scan: $_musicFolderPath');
           // Scan in background, don't await
-          _httpServer.libraryManager.scanMusicFolder(_musicFolderPath!).then((_) {
+          _httpServer.libraryManager
+              .scanMusicFolder(_musicFolderPath!)
+              .then((_) {
             print('[Dashboard] Library scan completed');
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
@@ -231,13 +279,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
             print('[Dashboard] Library scan error: $e');
           });
         } else {
-          print('[Dashboard] ERROR: Music folder path not set! Cannot scan library.');
+          print(
+              '[Dashboard] ERROR: Music folder path not set! Cannot scan library.');
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Text('Warning: Music folder not set'),
                 duration: Duration(seconds: 3),
-                backgroundColor: Colors.orange,
+                // backgroundColor: Colors.orange, // Let theme handle it
               ),
             );
           }
@@ -257,7 +306,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             SnackBar(
               content: Text('Failed to start server: $e'),
               duration: const Duration(seconds: 3),
-              backgroundColor: Colors.red,
+              // backgroundColor: Colors.red, // Let theme handle it
             ),
           );
         }
@@ -286,15 +335,33 @@ class _DashboardScreenState extends State<DashboardScreen> {
     required String title,
     required String value,
     required IconData icon,
-    Color? valueColor,
+    bool isActive = true,
   }) {
+    // Redesigned to match Premium Dark aesthetic
+    // No colored icons unless active (and then white/monochrome)
+    final theme = Theme.of(context);
+    
     return Card(
-      elevation: 2,
+      elevation: 0,
+      margin: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
         child: Row(
           children: [
-            Icon(icon, size: 40, color: Colors.blue),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: isActive 
+                    ? theme.colorScheme.primary.withOpacity(0.1) 
+                    : theme.colorScheme.surfaceContainer,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                icon, 
+                size: 24, 
+                color: isActive ? theme.colorScheme.primary : theme.colorScheme.onSurface.withOpacity(0.5),
+              ),
+            ),
             const SizedBox(width: 16),
             Expanded(
               child: Column(
@@ -302,9 +369,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: theme.colorScheme.onSurface.withOpacity(0.5),
+                      letterSpacing: 0.5,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -312,11 +381,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     value,
                     style: TextStyle(
                       fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: valueColor,
+                      fontWeight: FontWeight.w600, // Semi-bold for high contrast
+                      color: isActive ? theme.colorScheme.onSurface : theme.colorScheme.onSurface.withOpacity(0.7),
+                      letterSpacing: -0.5,
                     ),
                     overflow: TextOverflow.ellipsis,
-                    maxLines: 2,
+                    maxLines: 1,
                   ),
                 ],
               ),
@@ -329,13 +399,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Use simple B&W logic for server status button
+    final isRunning = _httpServer.isRunning;
+    
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Ariami Dashboard'),
+        title: const Text('Dashboard'),
         automaticallyImplyLeading: false,
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator(color: Colors.white))
           : SingleChildScrollView(
               padding: const EdgeInsets.all(24.0),
               child: Column(
@@ -345,38 +418,50 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   const Text(
                     'Server Status',
                     style: TextStyle(
-                      fontSize: 24,
+                      fontSize: 20,
                       fontWeight: FontWeight.bold,
+                      letterSpacing: -0.5,
                     ),
                   ),
                   const SizedBox(height: 16),
+                  
+                  // Status Cards
                   _buildInfoCard(
                     title: 'Status',
-                    value: _httpServer.isRunning ? 'Running' : 'Stopped',
-                    icon: _httpServer.isRunning ? Icons.check_circle : Icons.cancel,
-                    valueColor: _httpServer.isRunning ? Colors.green : Colors.red,
+                    value: isRunning ? 'Active' : 'Stopped',
+                    icon: isRunning ? Icons.check_circle_rounded : Icons.stop_circle_rounded,
+                    isActive: isRunning,
                   ),
-                  const SizedBox(height: 16),
-                  if (_httpServer.isRunning)
+                  const SizedBox(height: 12),
+                  
+                  if (isRunning) ...[
                     _buildInfoCard(
                       title: 'Connected Clients',
                       value: _connectedClients.toString(),
-                      icon: Icons.devices,
-                      valueColor: _connectedClients > 0 ? Colors.green : Colors.grey,
+                      icon: Icons.devices_rounded,
+                      isActive: _connectedClients > 0,
                     ),
-                  const SizedBox(height: 16),
-                  Center(
+                    const SizedBox(height: 12),
+                  ],
+                  
+                  // Main Toggle Button
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
                     child: ElevatedButton.icon(
                       onPressed: _toggleServer,
-                      icon: Icon(_httpServer.isRunning ? Icons.stop : Icons.play_arrow),
-                      label: Text(_httpServer.isRunning ? 'Stop Server' : 'Start Server'),
+                      icon: Icon(isRunning ? Icons.stop_rounded : Icons.play_arrow_rounded),
+                      label: Text(isRunning ? 'Stop Server' : 'Start Server'),
                       style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 32,
-                          vertical: 16,
-                        ),
-                        backgroundColor: _httpServer.isRunning ? Colors.red : Colors.green,
-                        foregroundColor: Colors.white,
+                        // Bigger button with status-specific styling
+                        padding: const EdgeInsets.symmetric(vertical: 20),
+                        // Stop: Dark BG with Red Outline/Text. Start: White BG with Black Text.
+                        backgroundColor: isRunning ? const Color(0xFF141414) : Colors.white,
+                        foregroundColor: isRunning ? Colors.redAccent : Colors.black,
+                        side: isRunning 
+                            ? const BorderSide(color: Colors.redAccent, width: 2) 
+                            : null,
+                        elevation: isRunning ? 0 : 2,
                       ),
                     ),
                   ),
@@ -386,21 +471,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   const Text(
                     'Configuration',
                     style: TextStyle(
-                      fontSize: 24,
+                      fontSize: 20,
                       fontWeight: FontWeight.bold,
+                      letterSpacing: -0.5,
                     ),
                   ),
                   const SizedBox(height: 16),
                   _buildInfoCard(
                     title: 'Music Folder',
                     value: _musicFolderPath ?? 'Not configured',
-                    icon: Icons.folder,
+                    icon: Icons.folder_rounded,
+                    isActive: _musicFolderPath != null,
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
                   _buildInfoCard(
                     title: 'Tailscale IP',
                     value: _tailscaleIP ?? 'Not connected',
-                    icon: Icons.cloud,
+                    icon: Icons.cloud_done_rounded,
+                    isActive: _tailscaleIP != null,
                   ),
                   const SizedBox(height: 32),
 
@@ -408,35 +496,38 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   const Text(
                     'Library Statistics',
                     style: TextStyle(
-                      fontSize: 24,
+                      fontSize: 20,
                       fontWeight: FontWeight.bold,
+                      letterSpacing: -0.5,
                     ),
                   ),
                   const SizedBox(height: 16),
                   _buildInfoCard(
                     title: 'Albums',
-                    value: _httpServer.libraryManager.library?.totalAlbums.toString() ?? '0',
-                    icon: Icons.album,
-                    valueColor: (_httpServer.libraryManager.library?.totalAlbums ?? 0) > 0
-                        ? Colors.blue
-                        : Colors.grey,
+                    value: _httpServer.libraryManager.library?.totalAlbums
+                            .toString() ??
+                        '0',
+                    icon: Icons.album_rounded,
+                    isActive: (_httpServer.libraryManager.library?.totalAlbums ?? 0) > 0,
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
                   _buildInfoCard(
                     title: 'Songs',
-                    value: _httpServer.libraryManager.library?.totalSongs.toString() ?? '0',
-                    icon: Icons.music_note,
-                    valueColor: (_httpServer.libraryManager.library?.totalSongs ?? 0) > 0
-                        ? Colors.blue
-                        : Colors.grey,
+                    value: _httpServer.libraryManager.library?.totalSongs
+                            .toString() ??
+                        '0',
+                    icon: Icons.music_note_rounded,
+                    isActive: (_httpServer.libraryManager.library?.totalSongs ?? 0) > 0,
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
                   _buildInfoCard(
                     title: 'Last Scan',
                     value: _httpServer.libraryManager.lastScanTime != null
-                        ? _formatDateTime(_httpServer.libraryManager.lastScanTime!)
+                        ? _formatDateTime(
+                            _httpServer.libraryManager.lastScanTime!)
                         : 'Never',
-                    icon: Icons.access_time,
+                    icon: Icons.access_time_rounded,
+                    isActive: _httpServer.libraryManager.lastScanTime != null,
                   ),
                   const SizedBox(height: 32),
 
@@ -444,53 +535,64 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   const Text(
                     'Quick Actions',
                     style: TextStyle(
-                      fontSize: 24,
+                      fontSize: 20,
                       fontWeight: FontWeight.bold,
+                      letterSpacing: -0.5,
                     ),
                   ),
                   const SizedBox(height: 16),
+                  
+                  // Action Grid
                   Row(
                     children: [
                       Expanded(
-                        child: ElevatedButton.icon(
+                        child: OutlinedButton.icon(
                           onPressed: () {
                             Navigator.pushNamed(context, '/folder-selection');
                           },
-                          icon: const Icon(Icons.folder_open),
+                          icon: const Icon(Icons.drive_file_move_rounded, size: 20),
                           label: const Text('Change Folder'),
-                          style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.white,
+                            side: const BorderSide(color: Color(0xFF333333)),
+                            shape: const StadiumBorder(),
+                            padding: const EdgeInsets.symmetric(vertical: 20),
                           ),
                         ),
                       ),
-                      const SizedBox(width: 16),
+                      const SizedBox(width: 12),
                       Expanded(
-                        child: ElevatedButton.icon(
+                        child: OutlinedButton.icon(
                           onPressed: () {
                             Navigator.pushNamed(context, '/connection');
                           },
-                          icon: const Icon(Icons.qr_code),
-                          label: const Text('Show QR Code'),
-                          style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
+                          icon: const Icon(Icons.qr_code_rounded, size: 20),
+                          label: const Text('Show QR'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.white,
+                            side: const BorderSide(color: Color(0xFF333333)),
+                            shape: const StadiumBorder(),
+                            padding: const EdgeInsets.symmetric(vertical: 20),
                           ),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
                   SizedBox(
                     width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: _musicFolderPath != null && _musicFolderPath!.isNotEmpty
+                    child: OutlinedButton.icon(
+                      onPressed: _musicFolderPath != null &&
+                              _musicFolderPath!.isNotEmpty
                           ? _rescanLibrary
                           : null,
-                      icon: const Icon(Icons.refresh),
-                      label: const Text('Rescan Music Library'),
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        backgroundColor: Colors.blue,
+                      icon: const Icon(Icons.refresh_rounded, size: 20),
+                      label: const Text('Rescan Library'),
+                      style: OutlinedButton.styleFrom(
                         foregroundColor: Colors.white,
+                        side: const BorderSide(color: Color(0xFF333333)),
+                        shape: const StadiumBorder(),
+                        padding: const EdgeInsets.symmetric(vertical: 20),
                       ),
                     ),
                   ),

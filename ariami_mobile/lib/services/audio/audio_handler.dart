@@ -73,6 +73,14 @@ class AriamiAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler
       // Extract base URL from stream URL
       // streamUrl format: "http://server:port/api/stream/path/to/file.mp3"
       final uri = Uri.parse(streamUrl);
+
+      // Guard: Only construct artwork URL for http/https streams
+      // file:// URLs (local/cached playback) don't have valid host:port
+      if (uri.scheme != 'http' && uri.scheme != 'https') {
+        print('[AriamiAudioHandler] Cannot construct artwork URL for non-http stream: ${uri.scheme}');
+        return null;
+      }
+
       final baseUrl = '${uri.scheme}://${uri.host}:${uri.port}';
 
       // Construct artwork URL based on whether song has albumId

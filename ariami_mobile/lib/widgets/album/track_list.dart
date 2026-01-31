@@ -5,6 +5,7 @@ import '../../screens/playlist/add_to_playlist_screen.dart';
 import '../../services/api/connection_service.dart';
 import '../../services/playback_manager.dart';
 import '../../services/download/download_manager.dart';
+import '../../services/quality/quality_settings_service.dart';
 import '../common/cached_artwork.dart';
 
 /// Track list item for album detail view
@@ -37,44 +38,62 @@ class TrackListItem extends StatelessWidget {
 
     return Opacity(
       opacity: opacity,
-      child: ListTile(
-        onTap: isAvailable ? onTap : null,
-        tileColor: isCurrentTrack
-            ? Theme.of(context).primaryColor.withValues(alpha: 0.1)
-            : null,
-        leading: _buildLeading(context),
-        title: Text(
-          track.title,
-          style: TextStyle(
-            fontWeight: isCurrentTrack ? FontWeight.w600 : FontWeight.normal,
-            color: isCurrentTrack
-                ? Theme.of(context).primaryColor
-                : (isAvailable ? null : Colors.grey),
-          ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        subtitle: Text(
-          track.artist,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(color: Colors.grey[600]),
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              _formatDuration(track.duration),
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[600],
-              ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: isAvailable ? onTap : null,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            child: Row(
+              children: [
+                _buildLeading(context),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min, // shrink wrap
+                    children: [
+                      Text(
+                        track.title,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: isCurrentTrack ? FontWeight.w600 : FontWeight.w500,
+                          color: isCurrentTrack
+                              ? Theme.of(context).primaryColor
+                              : (isAvailable ? Theme.of(context).textTheme.bodyLarge?.color : Colors.grey),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        track.artist,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.7) ?? Colors.grey[600],
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Text(
+                  _formatDuration(track.duration),
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.5),
+                  ),
+                ),
+                if (isAvailable) ...[
+                  const SizedBox(width: 8),
+                  _buildOverflowMenu(context),
+                ] else
+                  const SizedBox(width: 48), // Placeholder
+              ],
             ),
-            if (isAvailable)
-              _buildOverflowMenu(context)
-            else
-              const SizedBox(width: 48), // Placeholder for disabled menu
-          ],
+          ),
         ),
       ),
     );
@@ -141,6 +160,7 @@ class TrackListItem extends StatelessWidget {
         fallback: _buildPlaceholder(),
         fallbackIcon: Icons.music_note,
         fallbackIconSize: 24,
+        sizeHint: ArtworkSizeHint.thumbnail,
       );
     }
 
@@ -261,6 +281,7 @@ class TrackListItem extends StatelessWidget {
   void _handleDownload(BuildContext context) {
     final connectionService = ConnectionService();
     final downloadManager = DownloadManager();
+    final qualityService = QualitySettingsService();
 
     // Check if connected to server
     if (connectionService.apiClient == null) {
@@ -270,8 +291,9 @@ class TrackListItem extends StatelessWidget {
       return;
     }
 
-    // Construct download URL using actual server connection
-    final downloadUrl = '${connectionService.apiClient!.baseUrl}/download/${track.id}';
+    // Construct download URL with user's download mode/quality
+    final baseDownloadUrl = connectionService.apiClient!.getDownloadUrl(track.id);
+    final downloadUrl = qualityService.getDownloadUrlWithQuality(baseDownloadUrl);
 
     downloadManager.downloadSong(
       songId: track.id,

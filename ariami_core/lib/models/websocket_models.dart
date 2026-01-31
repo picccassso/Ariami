@@ -6,6 +6,7 @@ library;
 // ============================================================================
 
 class WsMessageType {
+  static const String identify = 'identify';
   static const String libraryUpdated = 'library_updated';
   static const String songAdded = 'song_added';
   static const String albumAdded = 'album_added';
@@ -69,6 +70,30 @@ class LibraryUpdatedMessage extends WsMessage {
 
   int? get albumCount => data?['albumCount'] as int?;
   int? get songCount => data?['songCount'] as int?;
+}
+
+/// Client identify message (sent by client after WebSocket connect)
+class IdentifyMessage extends WsMessage {
+  IdentifyMessage({
+    required String deviceId,
+    String? deviceName,
+  }) : super(
+          type: WsMessageType.identify,
+          data: {
+            'deviceId': deviceId,
+            if (deviceName != null) 'deviceName': deviceName,
+          },
+        );
+
+  factory IdentifyMessage.fromWsMessage(WsMessage message) {
+    return IdentifyMessage(
+      deviceId: message.data?['deviceId'] as String? ?? '',
+      deviceName: message.data?['deviceName'] as String?,
+    );
+  }
+
+  String get deviceId => data?['deviceId'] as String? ?? '';
+  String? get deviceName => data?['deviceName'] as String?;
 }
 
 /// Song added notification

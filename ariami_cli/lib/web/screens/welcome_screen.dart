@@ -1,6 +1,8 @@
 import 'dart:convert';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import '../utils/constants.dart';
 
 class WelcomeScreen extends StatefulWidget {
   const WelcomeScreen({super.key});
@@ -28,16 +30,14 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
         final isComplete = data['isComplete'] as bool? ?? false;
 
         if (isComplete && mounted) {
-          // Setup is complete, redirect to dashboard
           Navigator.pushReplacementNamed(context, '/dashboard');
           return;
         }
       }
     } catch (e) {
-      print('Error checking setup status: $e');
+      debugPrint('Error checking setup status: $e');
     }
 
-    // Show welcome screen if setup not complete or error occurred
     if (mounted) {
       setState(() {
         _isCheckingStatus = false;
@@ -47,58 +47,78 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Show loading while checking status
     if (_isCheckingStatus) {
       return const Scaffold(
         body: Center(
-          child: CircularProgressIndicator(),
+          child: CircularProgressIndicator(color: Colors.white),
         ),
       );
     }
 
     return Scaffold(
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(
-              Icons.music_note,
-              size: 100,
-              color: Colors.white,
-            ),
-            const SizedBox(height: 24),
-            const Text(
-              'Ariami',
-              style: TextStyle(
-                fontSize: 32,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Your personal music server',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey,
-              ),
-            ),
-            const SizedBox(height: 48),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pushReplacementNamed(context, '/tailscale-check');
-              },
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 48,
-                  vertical: 16,
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: AppTheme.backgroundGradient,
+        ),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Glass Logo Container
+              ClipRRect(
+                borderRadius: BorderRadius.circular(100),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                  child: Container(
+                    padding: const EdgeInsets.all(40),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.05),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white.withOpacity(0.1)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.white.withOpacity(0.05),
+                          blurRadius: 40,
+                          spreadRadius: 10,
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.music_note_rounded,
+                      size: 80,
+                      color: Colors.white,
+                    ),
+                  ),
                 ),
               ),
-              child: const Text(
-                'Get Started',
-                style: TextStyle(fontSize: 18),
+              const SizedBox(height: 48),
+              Text(
+                'Ariami',
+                style: Theme.of(context).textTheme.headlineLarge,
               ),
-            ),
-          ],
+              const SizedBox(height: 16),
+              const Text(
+                'Your personal music server',
+                style: TextStyle(
+                  fontSize: 18,
+                  color: AppTheme.textSecondary,
+                  letterSpacing: 0.5,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 64),
+              SizedBox(
+                width: 240,
+                height: 56,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pushReplacementNamed(context, '/tailscale-check');
+                  },
+                  child: const Text('Get Started'),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -23,8 +23,26 @@ class CacheManager {
   final Set<String> _pendingArtwork = {};
   final Set<String> _pendingSongs = {};
 
+  // Concurrency limiter for artwork downloads
+  // Increased from 3 to 6 since thumbnails are ~100x smaller (~2.8KB vs 304KB)
+  // This allows faster loading of playlists with many items
+  static const int _maxConcurrentArtworkDownloads = 6;
+  // No queue limit - Completers are lightweight (~48 bytes each)
+  // A library with 500 albums only uses ~24KB for the queue
+  int _activeArtworkDownloads = 0;
+  final List<Completer<void>> _artworkDownloadQueue = [];
+
   // In-memory cache of artwork paths for instant synchronous lookups
   final Map<String, String> _artworkPathCache = {};
+
+  // In-memory tracking of cache size to avoid repeated DB queries
+  int _cachedTotalSize = 0;
+  bool _cacheSizeInitialized = false;
+
+  // Debounce timer for storage limit enforcement
+  // Instead of checking after every download, batch checks every 2 seconds
+  Timer? _enforceLimitTimer;
+  bool _enforceLimitPending = false;
 
   // Stream controller for cache updates
   final StreamController<void> _cacheUpdateController =
@@ -62,6 +80,9 @@ class CacheManager {
     // Verify cache files exist, clean up orphaned entries
     await _cleanupOrphanedEntries();
 
+    // Pre-populate memory cache with all artwork paths for instant sync lookups
+    await _prePopulateArtworkPathCache();
+
     _initialized = true;
     print('[CacheManager] Initialized');
     print('[CacheManager] Artwork cache: $_artworkCachePath');
@@ -76,6 +97,35 @@ class CacheManager {
   }
 
   // ============================================================================
+  // ARTWORK DOWNLOAD CONCURRENCY CONTROL
+  // ============================================================================
+
+  /// Acquire a download slot, waiting if at max concurrency.
+  /// All requests are queued - no rejections. Completers are lightweight.
+  Future<bool> _acquireArtworkSlot() async {
+    if (_activeArtworkDownloads < _maxConcurrentArtworkDownloads) {
+      _activeArtworkDownloads++;
+      return true;
+    }
+    // At max concurrency - queue and wait (no limit on queue size)
+    final completer = Completer<void>();
+    _artworkDownloadQueue.add(completer);
+    await completer.future;
+    return true;
+  }
+
+  /// Release a download slot, unblocking the next queued request
+  void _releaseArtworkSlot() {
+    if (_artworkDownloadQueue.isNotEmpty) {
+      // Hand the slot to the next waiter
+      final next = _artworkDownloadQueue.removeAt(0);
+      next.complete();
+    } else {
+      _activeArtworkDownloads--;
+    }
+  }
+
+  // ============================================================================
   // ARTWORK CACHING
   // ============================================================================
 
@@ -86,31 +136,38 @@ class CacheManager {
 
     if (!_database.isCacheEnabled()) return null;
 
-    // Check if already cached
-    final existing = await _database.getCacheEntry(albumId, CacheType.artwork);
-    if (existing != null && await File(existing.path).exists()) {
-      // Touch to update last accessed time
-      await _database.touchCacheEntry(albumId, CacheType.artwork);
-      return existing.path;
+    // Check memory cache first (instant, no DB query needed)
+    // This is usually already checked by CachedArtwork widget, but double-check here
+    if (_artworkPathCache.containsKey(albumId)) {
+      return _artworkPathCache[albumId];
     }
 
-    // Check if already being cached
+    // Check if already being cached by another request
     if (_pendingArtwork.contains(albumId)) {
       return null;
     }
 
     _pendingArtwork.add(albumId);
 
+    // Wait for a download slot (limits concurrent network requests)
+    final acquired = await _acquireArtworkSlot();
+    if (!acquired) {
+      _pendingArtwork.remove(albumId);
+      return null;
+    }
+
     try {
       final filePath = '$_artworkCachePath/$albumId.jpg';
 
       // Download artwork
+      // Timeout reduced to 15s - thumbnails are ~2.8KB, even full images are <500KB
+      // On slow connections, if 15s isn't enough, network is likely too slow for streaming
       await _dio.download(
         artworkUrl,
         filePath,
         options: Options(
           responseType: ResponseType.bytes,
-          receiveTimeout: const Duration(seconds: 30),
+          receiveTimeout: const Duration(seconds: 15),
         ),
       );
 
@@ -127,9 +184,9 @@ class CacheManager {
         lastAccessed: DateTime.now(),
       );
 
-      // Save entry and check limits
+      // Save entry and schedule debounced limit check
       await _database.upsertCacheEntry(entry);
-      await _enforceStorageLimit();
+      _scheduleEnforceStorageLimit(size);
 
       _cacheUpdateController.add(null);
 
@@ -143,6 +200,7 @@ class CacheManager {
       return null;
     } finally {
       _pendingArtwork.remove(albumId);
+      _releaseArtworkSlot();
     }
   }
 
@@ -170,6 +228,44 @@ class CacheManager {
   /// Returns null if not in memory (may still be on disk)
   String? getArtworkPathSync(String albumId) {
     return _artworkPathCache[albumId];
+  }
+
+  /// Get cached artwork path with fallback key support
+  /// Tries primaryKey first, then fallbackKey if provided
+  /// Checks memory cache first (instant), then disk cache for both keys
+  /// Returns the path from whichever key is found first, or null if neither exists
+  Future<String?> getArtworkPathWithFallback(String primaryKey, String? fallbackKey) async {
+    // 1. Check memory cache for primary key (instant)
+    if (_artworkPathCache.containsKey(primaryKey)) {
+      return _artworkPathCache[primaryKey];
+    }
+
+    // 2. Check memory cache for fallback key (instant)
+    if (fallbackKey != null && _artworkPathCache.containsKey(fallbackKey)) {
+      return _artworkPathCache[fallbackKey];
+    }
+
+    await _ensureInitialized();
+
+    // 3. Check disk cache for primary key
+    final primaryEntry = await _database.getCacheEntry(primaryKey, CacheType.artwork);
+    if (primaryEntry != null && await File(primaryEntry.path).exists()) {
+      await _database.touchCacheEntry(primaryKey, CacheType.artwork);
+      _artworkPathCache[primaryKey] = primaryEntry.path;
+      return primaryEntry.path;
+    }
+
+    // 4. Check disk cache for fallback key
+    if (fallbackKey != null) {
+      final fallbackEntry = await _database.getCacheEntry(fallbackKey, CacheType.artwork);
+      if (fallbackEntry != null && await File(fallbackEntry.path).exists()) {
+        await _database.touchCacheEntry(fallbackKey, CacheType.artwork);
+        _artworkPathCache[fallbackKey] = fallbackEntry.path;
+        return fallbackEntry.path;
+      }
+    }
+
+    return null;
   }
 
   /// Check if artwork is cached
@@ -243,9 +339,9 @@ class CacheManager {
         lastAccessed: DateTime.now(),
       );
 
-      // Save entry and check limits
+      // Save entry and schedule debounced limit check
       await _database.upsertCacheEntry(entry);
-      await _enforceStorageLimit();
+      _scheduleEnforceStorageLimit(size);
 
       _cacheUpdateController.add(null);
 
@@ -277,25 +373,64 @@ class CacheManager {
     return path != null;
   }
 
+  /// Get all cached song IDs in a single batch query
+  /// Much faster than calling isSongCached() for each song individually
+  Future<Set<String>> getCachedSongIds() async {
+    await _ensureInitialized();
+    final entries = await _database.getEntriesByType(CacheType.song);
+    final cachedIds = <String>{};
+    for (final entry in entries) {
+      if (await File(entry.path).exists()) {
+        cachedIds.add(entry.id);
+      }
+    }
+    return cachedIds;
+  }
+
   // ============================================================================
   // LRU EVICTION
   // ============================================================================
 
-  /// Enforce storage limit using LRU eviction
-  Future<void> _enforceStorageLimit() async {
+  /// Schedule a debounced storage limit check
+  /// Instead of checking after every download (500 DB queries!), batch them
+  void _scheduleEnforceStorageLimit(int addedBytes) {
+    // Track added bytes in memory
+    _cachedTotalSize += addedBytes;
+
+    // If already pending, don't schedule another
+    if (_enforceLimitPending) return;
+
+    _enforceLimitPending = true;
+
+    // Debounce: wait 2 seconds of inactivity before actually checking
+    _enforceLimitTimer?.cancel();
+    _enforceLimitTimer = Timer(const Duration(seconds: 2), () async {
+      _enforceLimitPending = false;
+      await _enforceStorageLimitActual();
+    });
+  }
+
+  /// Actually enforce storage limit using LRU eviction
+  /// Only called after debounce timer fires
+  Future<void> _enforceStorageLimitActual() async {
     final limitBytes = _database.getCacheLimitBytes();
-    var totalSize = await _database.getTotalCacheSize();
 
-    if (totalSize <= limitBytes) return;
+    // Initialize in-memory size tracking if needed
+    if (!_cacheSizeInitialized) {
+      _cachedTotalSize = await _database.getTotalCacheSize();
+      _cacheSizeInitialized = true;
+    }
 
-    print('[CacheManager] Cache limit exceeded: ${_formatBytes(totalSize)} / ${_formatBytes(limitBytes)}');
+    if (_cachedTotalSize <= limitBytes) return;
+
+    print('[CacheManager] Cache limit exceeded: ${_formatBytes(_cachedTotalSize)} / ${_formatBytes(limitBytes)}');
     print('[CacheManager] Starting LRU eviction...');
 
     // Get entries sorted by last accessed (oldest first)
     final entries = await _database.getEntriesForEviction();
 
     for (final entry in entries) {
-      if (totalSize <= limitBytes) break;
+      if (_cachedTotalSize <= limitBytes) break;
 
       // Don't evict entries accessed in the last hour
       final hourAgo = DateTime.now().subtract(const Duration(hours: 1));
@@ -316,10 +451,10 @@ class CacheManager {
 
       // Remove entry
       await _database.removeCacheEntry(entry.id, entry.type);
-      totalSize -= entry.size;
+      _cachedTotalSize -= entry.size;
     }
 
-    print('[CacheManager] Eviction complete. New size: ${_formatBytes(totalSize)}');
+    print('[CacheManager] Eviction complete. New size: ${_formatBytes(_cachedTotalSize)}');
   }
 
   // ============================================================================
@@ -383,6 +518,22 @@ class CacheManager {
     }
   }
 
+  /// Pre-populate the in-memory artwork path cache from database
+  /// This ensures getArtworkPathSync() returns instantly on subsequent app opens
+  Future<void> _prePopulateArtworkPathCache() async {
+    final entries = await _database.getEntriesByType(CacheType.artwork);
+    int populated = 0;
+    for (final entry in entries) {
+      if (await File(entry.path).exists()) {
+        _artworkPathCache[entry.id] = entry.path;
+        populated++;
+      }
+    }
+    if (populated > 0) {
+      print('[CacheManager] Pre-populated $populated artwork paths into memory cache');
+    }
+  }
+
   /// Remove orphaned entries (entries without matching files)
   Future<void> _cleanupOrphanedEntries() async {
     final entries = await _database.loadCacheEntries();
@@ -414,7 +565,8 @@ class CacheManager {
   Future<void> setCacheLimit(int limitMB) async {
     await _ensureInitialized();
     await _database.setCacheLimit(limitMB);
-    await _enforceStorageLimit();
+    // User-initiated, run immediately (not debounced)
+    await _enforceStorageLimitActual();
   }
 
   /// Check if caching is enabled
@@ -488,6 +640,7 @@ class CacheManager {
 
   /// Dispose resources
   void dispose() {
+    _enforceLimitTimer?.cancel();
     _cacheUpdateController.close();
   }
 }

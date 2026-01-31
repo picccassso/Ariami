@@ -62,7 +62,8 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
         // Validate that we have a valid IP
         if (existingIp == null || existingIp.isEmpty) {
           setState(() {
-            _errorMessage = 'Server is running but has no valid IP.\nPlease restart the application.';
+            _errorMessage =
+                'Server is running but has no valid IP.\nPlease restart the application.';
             _isLoading = false;
           });
           return;
@@ -81,7 +82,8 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
 
       if (ip == null) {
         setState(() {
-          _errorMessage = 'Could not find Tailscale IP.\nPlease ensure Tailscale is running and connected.';
+          _errorMessage =
+              'Could not find Tailscale IP.\nPlease ensure Tailscale is running and connected.';
           _isLoading = false;
         });
         return;
@@ -95,7 +97,8 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
       final musicFolderPath = prefs.getString('music_folder_path');
 
       if (musicFolderPath != null && musicFolderPath.isNotEmpty && mounted) {
-        print('[ConnectionScreen] Navigating to scanning screen: $musicFolderPath');
+        print(
+            '[ConnectionScreen] Navigating to scanning screen: $musicFolderPath');
         // Replace with scanning screen, which will then navigate forward to /connection
         Navigator.pushReplacement(
           context,
@@ -146,136 +149,181 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
       appBar: AppBar(
         title: const Text('Connect Mobile App'),
       ),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(32.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(
-                Icons.qr_code_2,
-                size: 80,
-                color: Colors.blue,
+      body: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 32.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.qr_code_2_rounded,
+              size: 64,
+              color: Colors.white,
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Connect Your Mobile App',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                letterSpacing: -0.5,
               ),
-              const SizedBox(height: 24),
-              const Text(
-                'Connect Your Mobile App',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
+            ),
+            const SizedBox(height: 16),
+            if (_isLoading)
+              Column(
+                children: [
+                  const CircularProgressIndicator(color: Colors.white),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Starting server...',
+                    style: TextStyle(fontSize: 16, color: Colors.white70),
+                  ),
+                ],
+              )
+            else if (_errorMessage.isNotEmpty)
+              Column(
+                children: [
+                  Text(
+                    _errorMessage,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      color: Colors.red,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: _initializeServer,
+                    child: const Text('Retry'),
+                  ),
+                ],
+              )
+            else if (_tailscaleIP != null) ...[
+              const SizedBox(height: 16),
+              Expanded(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    // Left Side: IP Address
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 24, vertical: 32),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF141414),
+                              borderRadius: BorderRadius.circular(24),
+                              border: Border.all(color: const Color(0xFF2A2A2A)),
+                            ),
+                            child: Column(
+                              children: [
+                                Text(
+                                  'Your Tailscale IP Address'.toUpperCase(),
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                    color: Colors.white54,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                SelectableText(
+                                  _tailscaleIP!,
+                                  style: const TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                    letterSpacing: -0.5,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 32),
+                    // Right Side: QR Code + Instructions
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(20),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(24),
+                            ),
+                            child: QrImageView(
+                              data: _generateQRData(),
+                              version: QrVersions.auto,
+                              size: 200.0,
+                              eyeStyle: const QrEyeStyle(
+                                eyeShape: QrEyeShape.square,
+                                color: Colors.black,
+                              ),
+                              dataModuleStyle: const QrDataModuleStyle(
+                                dataModuleShape: QrDataModuleShape.square,
+                                color: Colors.black,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          const Text(
+                            'Instructions',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: -0.5,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            '1. Open Ariami Mobile App\n'
+                            '2. Scan this QR code\n'
+                            '3. Wait for connection to establish',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.white70,
+                              height: 1.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 16),
-              if (_isLoading)
-                Column(
-                  children: [
-                    const CircularProgressIndicator(),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'Starting server...',
-                      style: TextStyle(fontSize: 16),
-                    ),
-                  ],
-                )
-              else if (_errorMessage.isNotEmpty)
-                Column(
-                  children: [
-                    Text(
-                      _errorMessage,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        color: Colors.red,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    ElevatedButton(
-                      onPressed: _initializeServer,
-                      child: const Text('Retry'),
-                    ),
-                  ],
-                )
-              else if (_tailscaleIP != null) ...[
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[200],
-                    borderRadius: BorderRadius.circular(8),
+              OutlinedButton(
+                onPressed: () async {
+                  await _stateService.markSetupComplete();
+                  if (mounted) {
+                    Navigator.pushReplacementNamed(context, '/dashboard');
+                  }
+                },
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  side: const BorderSide(color: Color(0xFF333333)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 48,
+                    vertical: 20,
                   ),
-                  child: Column(
-                    children: [
-                      const Text(
-                        'Your Tailscale IP Address:',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      SelectableText(
-                        _tailscaleIP!,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
-                        ),
-                      ),
-                    ],
-                  ),
+                  shape: const StadiumBorder(),
                 ),
-                const SizedBox(height: 32),
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.grey[300]!),
-                  ),
-                  child: QrImageView(
-                    data: _generateQRData(),
-                    version: QrVersions.auto,
-                    size: 250.0,
-                  ),
+                child: const Text(
+                  'Continue to Dashboard',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                 ),
-                const SizedBox(height: 32),
-                const Text(
-                  'Instructions:',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  '1. Open Ariami Mobile App\n'
-                  '2. Scan this QR code\n'
-                  '3. Wait for connection to establish',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 16),
-                ),
-                const SizedBox(height: 32),
-                ElevatedButton(
-                  onPressed: () async {
-                    // Mark setup as complete
-                    await _stateService.markSetupComplete();
-                    if (mounted) {
-                      Navigator.pushReplacementNamed(context, '/dashboard');
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 48,
-                      vertical: 16,
-                    ),
-                  ),
-                  child: const Text(
-                    'Continue to Dashboard',
-                    style: TextStyle(fontSize: 18),
-                  ),
-                ),
-              ],
+              ),
+              const SizedBox(height: 32),
             ],
-          ),
+          ],
         ),
       ),
     );

@@ -1,0 +1,85 @@
+ARIAMI CLI - RASPBERRY PI SETUP
+================================
+
+REQUIREMENTS
+------------
+- Raspberry Pi 3, 4, or 5 (ARM64)
+- Raspberry Pi OS (64-bit)
+- unzip utility (usually pre-installed)
+
+INSTALLATION
+------------
+1. Extract the archive:
+   unzip ariami-cli-raspberry-pi-arm64-v2.0.0.zip
+   cd ariami-cli-raspberry-pi-arm64-v2.0.0
+
+2. Make the binary executable:
+   chmod +x ariami_cli
+
+3. Start the server:
+   ./ariami_cli start
+
+FIRST RUN
+---------
+On first run, the server will:
+- Start in foreground mode
+- Attempt to open a browser for setup
+- Prompt you to select your music folder
+- Generate a QR code for mobile app connection
+
+If the browser does not open automatically, navigate to:
+http://localhost:8080
+
+USAGE
+-----
+Start server (background):
+  ./ariami_cli start
+
+Check status:
+  ./ariami_cli status
+
+Stop server:
+  ./ariami_cli stop
+
+Custom port:
+  ./ariami_cli start --port 8081
+
+CONFIGURATION
+-------------
+Configuration files are stored in:
+  ~/.ariami_cli/
+
+This includes:
+- Music folder path
+- Server settings
+- Process ID file
+
+MOBILE APP
+----------
+Scan the QR code displayed in the web interface to connect
+the Ariami mobile app to your server.
+
+TROUBLESHOOTING
+---------------
+Server not responding:
+- Check if running: ./ariami_cli status
+- Check firewall allows port 8080
+- Check logs in foreground: ./ariami_cli start (after stopping)
+
+Reset configuration:
+- Stop server: ./ariami_cli stop
+- Remove config: rm -rf ~/.ariami_cli/
+- Restart server: ./ariami_cli start
+
+TAILSCALE (OPTIONAL)
+--------------------
+For remote access without port forwarding, install Tailscale:
+https://tailscale.com/download/linux/rpi
+
+The server will detect and use Tailscale if installed.
+
+PROJECT
+-------
+Source code: https://github.com/picccassso/Ariami
+License: See repository
+Version: 2.0.0

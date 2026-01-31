@@ -17,6 +17,8 @@ class ServerRunner {
 
   bool _isShuttingDown = false;
   int _serverPort = 8080;
+  bool _scanListenerRegistered = false;
+  void Function()? _scanCompleteListener;
 
   // Store signal subscriptions so we can cancel them during transition
   StreamSubscription<ProcessSignal>? _sigtermSubscription;
@@ -79,6 +81,76 @@ class ServerRunner {
       // Configure metadata cache for fast re-scans
       final cachePath = p.join(CliStateService.getConfigDir(), 'metadata_cache.json');
       _libraryManager.setCachePath(cachePath);
+
+      if (!_scanListenerRegistered) {
+        _scanCompleteListener = () {
+          final library = _libraryManager.library;
+          _httpServer.notifyLibraryUpdated(
+            albumCount: library?.totalAlbums ?? 0,
+            songCount: library?.totalSongs ?? 0,
+          );
+        };
+        _libraryManager.addScanCompleteListener(_scanCompleteListener!);
+        _scanListenerRegistered = true;
+      }
+
+      // Initialize transcoding service for quality-based streaming
+      // Platform-aware settings: conservative for Pi, higher for desktop
+      final transcodingCachePath = p.join(CliStateService.getConfigDir(), 'transcoded_cache');
+
+      // Detect platform for concurrency settings
+      final isPi = _isRaspberryPi();
+      final int maxConcurrency;
+      final int maxDownloadConcurrency;
+      final int maxCacheSizeMB;
+
+      if (isPi) {
+        // Raspberry Pi: very conservative to avoid overheating
+        maxConcurrency = 1;
+        maxDownloadConcurrency = 1; // Pi 3/4 default; Pi 5 users can override via config
+        maxCacheSizeMB = 1024; // 1GB for Pi (limited storage)
+        print('Platform: Raspberry Pi detected - using conservative transcoding settings');
+      } else if (Platform.isMacOS || Platform.isWindows) {
+        // Desktop: more resources available
+        maxConcurrency = 2;
+        maxDownloadConcurrency = 4;
+        maxCacheSizeMB = 4096; // 4GB for desktop
+        print('Platform: Desktop (${Platform.operatingSystem}) - using standard transcoding settings');
+      } else {
+        // Linux desktop or other: moderate settings
+        maxConcurrency = 2;
+        maxDownloadConcurrency = 3;
+        maxCacheSizeMB = 2048; // 2GB
+        print('Platform: Linux - using moderate transcoding settings');
+      }
+
+      final transcodingService = TranscodingService(
+        cacheDirectory: transcodingCachePath,
+        maxCacheSizeMB: maxCacheSizeMB,
+        maxConcurrency: maxConcurrency,
+        maxDownloadConcurrency: maxDownloadConcurrency,
+        transcodeTimeout: Duration(minutes: isPi ? 10 : 5), // Longer timeout for Pi
+      );
+      _httpServer.setTranscodingService(transcodingService);
+      print('Transcoding cache: $transcodingCachePath');
+      print('Transcoding limits: maxConcurrency=$maxConcurrency, maxDownloadConcurrency=$maxDownloadConcurrency');
+
+      // Initialize artwork service for thumbnail generation
+      final artworkCachePath = p.join(CliStateService.getConfigDir(), 'artwork_cache');
+      final artworkService = ArtworkService(
+        cacheDirectory: artworkCachePath,
+        maxCacheSizeMB: 256, // 256MB cache limit for thumbnails
+      );
+      _httpServer.setArtworkService(artworkService);
+      print('Artwork cache: $artworkCachePath');
+
+      // Check FFmpeg availability (used by both transcoding and artwork services)
+      final ffmpegAvailable = await transcodingService.isFFmpegAvailable();
+      if (ffmpegAvailable) {
+        print('✓ FFmpeg available - transcoding and thumbnails enabled');
+      } else {
+        print('⚠ FFmpeg not found - transcoding and thumbnails disabled (will serve original files)');
+      }
 
       // If not in setup mode, initialize library
       if (!isSetupMode) {
@@ -208,6 +280,12 @@ class ServerRunner {
       await _httpServer.stop();
       print('✓ HTTP server stopped');
 
+      if (_scanCompleteListener != null) {
+        _libraryManager.removeScanCompleteListener(_scanCompleteListener!);
+        _scanCompleteListener = null;
+        _scanListenerRegistered = false;
+      }
+
       // Note: LibraryManager doesn't need explicit cleanup
       // as it's just in-memory state
 
@@ -312,6 +390,45 @@ class ServerRunner {
   /// Setup callback: Check if setup is complete
   Future<bool> _handleGetSetupStatus() async {
     return await _stateService.isSetupComplete();
+  }
+
+  /// Detect if running on a Raspberry Pi.
+  ///
+  /// Checks for Linux ARM architecture and Pi-specific indicators.
+  bool _isRaspberryPi() {
+    if (!Platform.isLinux) return false;
+
+    // Check for ARM architecture (common on Pi)
+    final arch = Platform.version.toLowerCase();
+    final isArm = arch.contains('arm') || arch.contains('aarch64');
+
+    if (!isArm) return false;
+
+    // Check for Pi-specific files
+    try {
+      final cpuInfo = File('/proc/cpuinfo');
+      if (cpuInfo.existsSync()) {
+        final content = cpuInfo.readAsStringSync().toLowerCase();
+        if (content.contains('raspberry') || content.contains('bcm')) {
+          return true;
+        }
+      }
+
+      // Check for Pi model file
+      final modelFile = File('/proc/device-tree/model');
+      if (modelFile.existsSync()) {
+        final model = modelFile.readAsStringSync().toLowerCase();
+        if (model.contains('raspberry')) {
+          return true;
+        }
+      }
+    } catch (_) {
+      // Ignore file read errors
+    }
+
+    // If we're on Linux ARM but can't confirm Pi, assume it might be
+    // (conservative approach for low-power ARM devices)
+    return true;
   }
 
   /// Handle transition from foreground setup mode to background daemon mode

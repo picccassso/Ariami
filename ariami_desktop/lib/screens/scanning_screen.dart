@@ -91,44 +91,57 @@ class _ScanningScreenState extends State<ScanningScreen> {
             children: [
               if (!_isComplete) ...[
                 const SizedBox(
-                  width: 80,
-                  height: 80,
+                  width: 60,
+                  height: 60,
                   child: CircularProgressIndicator(
-                    strokeWidth: 6,
+                    strokeWidth: 4,
+                    color: Colors.white,
                   ),
                 ),
               ] else ...[
                 const Icon(
-                  Icons.check_circle,
+                  Icons.check_circle_rounded,
                   size: 80,
-                  color: Colors.green,
+                  color: Colors.white,
                 ),
               ],
               const SizedBox(height: 32),
               Text(
-                _isComplete ? 'Scan Complete!' : 'Scanning Media Library...',
+                _isComplete ? 'Scan Complete' : 'Scanning Library',
                 style: const TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
+                  letterSpacing: -0.5,
+                  color: Colors.white,
                 ),
               ),
-              const SizedBox(height: 16),
-              Text(
-                _status,
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey[600],
-                ),
-                textAlign: TextAlign.center,
-              ),
-              if (_isComplete) ...[
-                const SizedBox(height: 24),
+              if (!_isComplete) ...[
+                const SizedBox(height: 16),
                 Text(
-                  'Found $_albumCount albums, $_songCount songs',
+                  _status,
                   style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.blue,
+                    fontSize: 16,
+                    color: Colors.white54,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ] else ...[
+                const SizedBox(height: 24),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF141414),
+                    borderRadius: BorderRadius.circular(100),
+                    border: Border.all(color: const Color(0xFF2A2A2A)),
+                  ),
+                  child: Text(
+                    'Found $_albumCount albums, $_songCount songs',
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
               ],

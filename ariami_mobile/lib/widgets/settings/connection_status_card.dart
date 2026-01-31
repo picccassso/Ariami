@@ -19,16 +19,16 @@ class ConnectionStatusCard extends StatelessWidget {
     this.onRetry,
   });
 
-  Color _getStatusColor() {
+  Color _getStatusColor(bool isDark) {
     switch (status) {
       case ConnectionStatus.connected:
-        return Colors.green;
+        return isDark ? Colors.white : Colors.black;
       case ConnectionStatus.connecting:
-        return Colors.amber;
+        return Colors.white;
       case ConnectionStatus.offline:
-        return Colors.grey;
+        return isDark ? Colors.grey[800]! : Colors.grey[300]!;
       case ConnectionStatus.error:
-        return Colors.red;
+        return const Color(0xFFFF4B4B);
     }
   }
 
@@ -66,120 +66,141 @@ class ConnectionStatusCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Card(
+    return Container(
       margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-      color: isDark ? Colors.grey[900] : Colors.white,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Status indicator row
-            Row(
-              children: [
-                Container(
-                  width: 12,
-                  height: 12,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: _getStatusColor(),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  _getStatusText(),
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: _getStatusColor(),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-
-            // Server info
-            if (serverInfo != null) ...[
-              Text(
-                'Connected to: ${serverInfo!.name}',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: isDark ? Colors.grey[300] : Colors.grey[800],
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF111111) : const Color(0xFFF9F9F9),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: isDark ? const Color(0xFF222222) : const Color(0xFFEEEEEE),
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Status indicator row
+          Row(
+            children: [
+              Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: _getStatusColor(isDark),
+                  boxShadow: status == ConnectionStatus.connected 
+                    ? [BoxShadow(color: (isDark ? Colors.white : Colors.black).withOpacity(0.5), blurRadius: 8)] 
+                    : null,
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(width: 12),
               Text(
-                'Server: ${serverInfo!.server}:${serverInfo!.port}',
+                _getStatusText().toUpperCase(),
                 style: TextStyle(
                   fontSize: 12,
-                  color: isDark ? Colors.grey[500] : Colors.grey[600],
-                  fontFamily: 'monospace',
+                  fontWeight: FontWeight.w900,
+                  color: isDark ? Colors.white : Colors.black,
+                  letterSpacing: 1.2,
                 ),
               ),
-              const SizedBox(height: 12),
             ],
+          ),
+          const SizedBox(height: 24),
 
-            // Last sync time
-            Row(
-              children: [
-                Icon(
-                  Icons.schedule,
-                  size: 16,
-                  color: isDark ? Colors.grey[500] : Colors.grey[600],
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'Last synced: ${_getLastSyncText()}',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: isDark ? Colors.grey[500] : Colors.grey[600],
-                  ),
-                ),
-              ],
+          // Server info
+          if (serverInfo != null) ...[
+            Text(
+              serverInfo!.name.toUpperCase(),
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w900,
+                color: isDark ? Colors.white : Colors.black,
+                letterSpacing: -0.5,
+              ),
             ),
-
-            // Error message if present
-            if (status == ConnectionStatus.error && errorMessage != null) ...[
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.red.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: Colors.red.withValues(alpha: 0.3),
-                  ),
-                ),
-                child: Text(
-                  errorMessage!,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: Colors.red,
-                  ),
-                ),
+            const SizedBox(height: 4),
+            Text(
+              '${serverInfo!.server}:${serverInfo!.port}',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: isDark ? Colors.grey[500] : Colors.grey[600],
               ),
-            ],
-
-            // Retry button if error or offline
-            if ((status == ConnectionStatus.error ||
-                    status == ConnectionStatus.offline) &&
-                onRetry != null) ...[
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: onRetry,
-                  icon: const Icon(Icons.refresh),
-                  label: const Text('Retry Connection'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue,
-                    foregroundColor: Colors.white,
-                  ),
-                ),
-              ),
-            ],
+            ),
+            const SizedBox(height: 20),
           ],
-        ),
+
+          // Last sync time
+          Row(
+            children: [
+              Icon(
+                Icons.schedule_rounded,
+                size: 14,
+                color: isDark ? Colors.grey[700] : Colors.grey[400],
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'LAST SYNCED: ${_getLastSyncText().toUpperCase()}',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  color: isDark ? Colors.grey[700] : Colors.grey[400],
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
+          ),
+
+          // Error message if present
+          if (status == ConnectionStatus.error && errorMessage != null) ...[
+            const SizedBox(height: 20),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFF4B4B).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: const Color(0xFFFF4B4B).withOpacity(0.2),
+                ),
+              ),
+              child: Text(
+                errorMessage!,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFFFF4B4B),
+                ),
+              ),
+            ),
+          ],
+
+          // Retry button if error or offline
+          if ((status == ConnectionStatus.error ||
+                  status == ConnectionStatus.offline) &&
+              onRetry != null) ...[
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: ElevatedButton.icon(
+                onPressed: onRetry,
+                icon: const Icon(Icons.refresh_rounded, size: 20),
+                label: const Text(
+                  'RETRY CONNECTION',
+                  style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.0),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: isDark ? Colors.white : Colors.black,
+                  foregroundColor: isDark ? Colors.black : Colors.white,
+                  elevation: 0,
+                  shape: const StadiumBorder(),
+                ),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

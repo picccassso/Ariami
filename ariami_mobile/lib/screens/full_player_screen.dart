@@ -259,7 +259,7 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
         children: [
           // Previous button
           IconButton(
-            icon: const Icon(Icons.skip_previous),
+            icon: const Icon(Icons.skip_previous_rounded),
             iconSize: 48,
             onPressed: _playbackManager.hasPrevious ? _playbackManager.skipPrevious : null,
             tooltip: 'Previous',
@@ -274,17 +274,17 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
               color: Theme.of(context).colorScheme.primary,
               boxShadow: [
                 BoxShadow(
-                  color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
-                  blurRadius: 16,
-                  offset: const Offset(0, 4),
+                  color: Theme.of(context).colorScheme.primary.withOpacity(0.4),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
                 ),
               ],
             ),
             child: _playbackManager.isLoading
                 ? Center(
                     child: SizedBox(
-                      width: 36,
-                      height: 36,
+                      width: 32,
+                      height: 32,
                       child: CircularProgressIndicator(
                         strokeWidth: 3,
                         valueColor: AlwaysStoppedAnimation<Color>(
@@ -295,10 +295,10 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
                   )
                 : IconButton(
                     icon: Icon(
-                      _playbackManager.isPlaying ? Icons.pause : Icons.play_arrow,
+                      _playbackManager.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
                       color: Theme.of(context).colorScheme.onPrimary,
                     ),
-                    iconSize: 40,
+                    iconSize: 42,
                     onPressed: _playbackManager.togglePlayPause,
                     tooltip: _playbackManager.isPlaying ? 'Pause' : 'Play',
                   ),
@@ -306,7 +306,7 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
 
           // Next button
           IconButton(
-            icon: const Icon(Icons.skip_next),
+            icon: const Icon(Icons.skip_next_rounded),
             iconSize: 48,
             onPressed: (_playbackManager.hasNext ||
                         (_playbackManager.repeatMode == RepeatMode.all && _playbackManager.queue.isNotEmpty))

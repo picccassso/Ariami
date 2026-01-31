@@ -2,15 +2,20 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../../models/api_models.dart';
 import '../../models/server_info.dart';
+import '../../models/quality_settings.dart';
 
 /// HTTP API client for Ariami server communication
 class ApiClient {
   final ServerInfo serverInfo;
   final Duration timeout;
+  final String? deviceId;
+  final String? deviceName;
 
   ApiClient({
     required this.serverInfo,
     this.timeout = const Duration(seconds: 10),
+    this.deviceId,
+    this.deviceName,
   });
 
   /// Base URL for API requests
@@ -21,8 +26,11 @@ class ApiClient {
   // ============================================================================
 
   /// Ping server to check connectivity
-  Future<Map<String, dynamic>> ping() async {
-    final response = await _get('/ping');
+  Future<Map<String, dynamic>> ping({String? deviceId}) async {
+    final endpoint = deviceId == null
+        ? '/ping'
+        : '/ping?deviceId=${Uri.encodeComponent(deviceId)}';
+    final response = await _get(endpoint);
     return response;
   }
 
@@ -83,9 +91,48 @@ class ApiClient {
   // STREAMING ENDPOINTS
   // ============================================================================
 
-  /// Get stream URL for a song
+  /// Get stream URL for a song (original quality)
   String getStreamUrl(String songId) {
     return '$baseUrl/stream/$songId';
+  }
+
+  /// Get stream URL for a song with specific quality
+  ///
+  /// [quality] - The streaming quality preset (high, medium, low)
+  /// High quality returns original file, medium/low returns transcoded AAC.
+  String getStreamUrlWithQuality(String songId, StreamingQuality quality) {
+    final baseStreamUrl = '$baseUrl/stream/$songId';
+
+    // High quality doesn't need a parameter (server returns original)
+    if (quality == StreamingQuality.high) {
+      return baseStreamUrl;
+    }
+
+    return '$baseStreamUrl?quality=${quality.toApiParam()}';
+  }
+
+  // ============================================================================
+  // DOWNLOAD ENDPOINTS
+  // ============================================================================
+
+  /// Get download URL for a song (original quality)
+  String getDownloadUrl(String songId) {
+    return '$baseUrl/download/$songId';
+  }
+
+  /// Get download URL for a song with specific quality
+  ///
+  /// [quality] - The download quality preset (high, medium, low)
+  /// High quality returns original file, medium/low returns transcoded AAC.
+  String getDownloadUrlWithQuality(String songId, StreamingQuality quality) {
+    final baseDownloadUrl = '$baseUrl/download/$songId';
+
+    // High quality doesn't need a parameter (server returns original)
+    if (quality == StreamingQuality.high) {
+      return baseDownloadUrl;
+    }
+
+    return '$baseDownloadUrl?quality=${quality.toApiParam()}';
   }
 
   // ============================================================================
@@ -95,7 +142,7 @@ class ApiClient {
   /// Perform GET request
   Future<Map<String, dynamic>> _get(String endpoint) async {
     try {
-      final uri = Uri.parse('$baseUrl$endpoint');
+      final uri = _withDeviceParams(Uri.parse('$baseUrl$endpoint'));
       final response = await http.get(uri).timeout(timeout);
 
       return _handleResponse(response);
@@ -113,7 +160,7 @@ class ApiClient {
     Map<String, dynamic> body,
   ) async {
     try {
-      final uri = Uri.parse('$baseUrl$endpoint');
+      final uri = _withDeviceParams(Uri.parse('$baseUrl$endpoint'));
       final response = await http
           .post(
             uri,
@@ -129,6 +176,20 @@ class ApiClient {
         message: 'Network error: $e',
       );
     }
+  }
+
+  Uri _withDeviceParams(Uri uri) {
+    if (deviceId == null || deviceId!.isEmpty) {
+      return uri;
+    }
+
+    final params = Map<String, String>.from(uri.queryParameters);
+    params['deviceId'] = deviceId!;
+    if (deviceName != null && deviceName!.isNotEmpty) {
+      params['deviceName'] = deviceName!;
+    }
+
+    return uri.replace(queryParameters: params);
   }
 
   /// Handle HTTP response

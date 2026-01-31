@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../common/mini_player_aware_bottom_sheet.dart';
 import '../../models/song.dart';
 import '../../services/api/connection_service.dart';
 import '../../services/offline/offline_playback_service.dart';
@@ -109,7 +110,7 @@ class _ReorderableQueueListState extends State<ReorderableQueueList> {
 
     return ReorderableListView.builder(
       padding: EdgeInsets.only(
-        bottom: 64 + kBottomNavigationBarHeight, // Mini player + download bar + nav bar
+        bottom: getMiniPlayerAwareBottomPadding(),
       ),
       itemCount: widget.songs.length,
       onReorder: widget.onReorder,
@@ -155,63 +156,85 @@ class QueueItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final opacity = isAvailable ? 1.0 : 0.4;
+    final surfaceColor = const Color(0xFF141414);
 
     return Dismissible(
       key: ValueKey(song.id),
-      // Always allow swipe-to-remove, even for unavailable songs
       direction: onRemove != null
           ? DismissDirection.endToStart
           : DismissDirection.none,
       background: Container(
         alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: 16),
-        color: Theme.of(context).colorScheme.error,
-        child: Icon(
-          Icons.delete,
-          color: Theme.of(context).colorScheme.onError,
+        padding: const EdgeInsets.only(right: 24),
+        decoration: BoxDecoration(
+          color: const Color(0xFF252525), // Neutral dark grey for removal
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const Icon(
+          Icons.delete_sweep_rounded,
+          color: Colors.white70,
+          size: 28,
         ),
       ),
       onDismissed: (_) => onRemove?.call(),
       child: Opacity(
         opacity: opacity,
-        child: ListTile(
-          leading: _buildLeading(context),
-          title: Text(
-            song.title,
-            style: TextStyle(
-              fontWeight: isCurrentlyPlaying ? FontWeight.bold : FontWeight.normal,
-              color: isCurrentlyPlaying
-                  ? Theme.of(context).colorScheme.primary
-                  : (isAvailable ? null : Colors.grey),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          child: Container(
+            decoration: BoxDecoration(
+              color: isCurrentlyPlaying ? surfaceColor : Colors.transparent,
+              borderRadius: BorderRadius.circular(20),
+              border: isCurrentlyPlaying
+                  ? Border.all(color: const Color(0xFF222222), width: 1)
+                  : null,
             ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          subtitle: Text(
-            song.artist,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: isCurrentlyPlaying
-                  ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.7)
-                  : Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          ),
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                _formatDuration(song.duration),
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
+            child: ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              leading: _buildLeading(context),
+              title: Text(
+                song.title,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: isCurrentlyPlaying ? FontWeight.w800 : FontWeight.w600,
+                  color: Colors.white,
+                  letterSpacing: 0.2,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(width: 8),
-              _buildDragHandle(context),
-            ],
+              subtitle: Text(
+                song.artist.toUpperCase(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.5,
+                  color: isCurrentlyPlaying ? Colors.grey[400] : Colors.grey[600],
+                ),
+              ),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _formatDuration(song.duration),
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  _buildDragHandle(context),
+                ],
+              ),
+              onTap: isAvailable ? onTap : null,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+            ),
           ),
-          // Disable tap when unavailable
-          onTap: isAvailable ? onTap : null,
         ),
       ),
     );
@@ -219,108 +242,96 @@ class QueueItem extends StatelessWidget {
 
   /// Build drag handle - disabled when currently playing or unavailable
   Widget _buildDragHandle(BuildContext context) {
-    // Currently playing song can't be dragged
-    if (isCurrentlyPlaying) {
+    final iconColor = isCurrentlyPlaying ? Colors.white38 : Colors.grey[800];
+
+    if (isCurrentlyPlaying || !isAvailable) {
       return Icon(
-        Icons.drag_handle,
-        color: Theme.of(context).colorScheme.surfaceContainerHigh,
+        Icons.drag_handle_rounded,
+        color: iconColor,
+        size: 20,
       );
     }
 
-    // Unavailable songs can't be dragged
-    if (!isAvailable) {
-      return Icon(
-        Icons.drag_handle,
-        color: Theme.of(context).colorScheme.outline,
-      );
-    }
-
-    // Normal songs can be dragged
     return ReorderableDragStartListener(
       index: index,
       child: Icon(
-        Icons.drag_handle,
-        color: Theme.of(context).colorScheme.onSurfaceVariant,
+        Icons.drag_handle_rounded,
+        color: Colors.grey[500],
+        size: 20,
       ),
     );
   }
 
   Widget _buildLeading(BuildContext context) {
     final connectionService = ConnectionService();
-
-    // Determine artwork URL and cache ID based on whether song has albumId
     String? artworkUrl;
     String cacheId;
 
     if (song.albumId != null) {
-      // Song belongs to an album - use album artwork endpoint
       artworkUrl = connectionService.apiClient != null
           ? '${connectionService.apiClient!.baseUrl}/artwork/${song.albumId}'
           : null;
       cacheId = song.albumId!;
     } else {
-      // Standalone song - use song artwork endpoint
       artworkUrl = connectionService.apiClient != null
           ? '${connectionService.apiClient!.baseUrl}/song-artwork/${song.id}'
           : null;
       cacheId = 'song_${song.id}';
     }
 
-    if (isCurrentlyPlaying) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(4),
-        child: Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.primaryContainer,
-            borderRadius: BorderRadius.circular(4),
-          ),
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              // Album/song artwork using CachedArtwork
-              CachedArtwork(
-                albumId: cacheId, // Used as cache key
-                artworkUrl: artworkUrl,
-                width: 48,
-                height: 48,
-                fit: BoxFit.cover,
-                fallback: _buildPlaceholder(context),
-                fallbackIcon: Icons.music_note,
-                fallbackIconSize: 24,
-              ),
-              // Play icon overlay when currently playing
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.5),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Icon(
-                  Icons.play_circle_filled,
-                  color: Theme.of(context).colorScheme.primary,
-                  size: 28,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    // Show artwork using CachedArtwork
-    return CachedArtwork(
-      albumId: cacheId, // Used as cache key
-      artworkUrl: artworkUrl,
+    return Container(
       width: 48,
       height: 48,
-      fit: BoxFit.cover,
-      borderRadius: BorderRadius.circular(4),
-      fallback: _buildPlaceholder(context),
-      fallbackIcon: Icons.music_note,
-      fallbackIconSize: 24,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.3),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          CachedArtwork(
+            albumId: cacheId,
+            artworkUrl: artworkUrl,
+            width: 48,
+            height: 48,
+            fit: BoxFit.cover,
+            borderRadius: BorderRadius.circular(12),
+            fallback: _buildPlaceholder(context),
+            fallbackIcon: Icons.music_note_rounded,
+            fallbackIconSize: 24,
+            sizeHint: ArtworkSizeHint.thumbnail,
+          ),
+          if (isCurrentlyPlaying)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.4),
+                ),
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.play_arrow_rounded,
+                      color: Colors.black,
+                      size: 16,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 
@@ -329,12 +340,12 @@ class QueueItem extends StatelessWidget {
       width: 48,
       height: 48,
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(4),
+        color: const Color(0xFF252525),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Icon(
-        Icons.music_note,
-        color: Theme.of(context).colorScheme.onSurfaceVariant,
+        Icons.music_note_rounded,
+        color: Colors.grey[600],
         size: 24,
       ),
     );

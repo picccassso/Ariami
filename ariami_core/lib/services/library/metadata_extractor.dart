@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' show min;
+import 'dart:typed_data';
 import 'package:dart_tags/dart_tags.dart';
 import 'package:ariami_core/models/song_metadata.dart';
 import 'package:ariami_core/services/library/mp3_duration_parser.dart';
@@ -21,8 +23,8 @@ class MetadataExtractor {
       final fileSize = fileStat.size;
       final modifiedTime = fileStat.modified;
 
-      // Read metadata using dart_tags
-      final tags = await _tagProcessor.getTagsFromByteArray(file.readAsBytes());
+      // Read metadata using optimized tag reading (reads only tag sections, not entire file)
+      final tags = await _readTagsOptimized(file, fileSize);
 
       // Extract metadata from tags
       String? title;
@@ -122,6 +124,76 @@ class MetadataExtractor {
       }
     }
     return null;
+  }
+
+  /// Reads only the tag sections of an audio file instead of the entire file
+  ///
+  /// For MP3: Reads ID3v2 header + tag data + ID3v1 tail (if present)
+  /// For other formats: Reads first 64KB (usually contains all metadata)
+  /// Falls back to full file read if optimized parsing fails.
+  Future<List<Tag>> _readTagsOptimized(File file, int fileSize) async {
+    try {
+      final raf = await file.open(mode: FileMode.read);
+      try {
+        // Read first 10 bytes to check for ID3v2 header
+        final header = await raf.read(10);
+        if (header.length < 10) {
+          // File too small, read whole thing
+          await raf.close();
+          return await _tagProcessor.getTagsFromByteArray(file.readAsBytes());
+        }
+
+        int tagSize = 0;
+        bool hasId3v2 = false;
+
+        // Check for ID3v2 header: "ID3" signature
+        if (header[0] == 0x49 && header[1] == 0x44 && header[2] == 0x33) {
+          hasId3v2 = true;
+          // Calculate tag size using syncsafe integer (7 bits per byte)
+          tagSize = 10 + (((header[6] & 0x7F) << 21) |
+                         ((header[7] & 0x7F) << 14) |
+                         ((header[8] & 0x7F) << 7) |
+                         (header[9] & 0x7F));
+        }
+
+        // Read tag section (or first 64KB for non-ID3v2 formats like M4A/FLAC)
+        await raf.setPosition(0);
+        final bytesToRead = hasId3v2 ? tagSize : min(65536, fileSize);
+        final tagBytes = await raf.read(bytesToRead);
+
+        // Check for ID3v1 at end of file (last 128 bytes, starts with "TAG")
+        Uint8List? id3v1Bytes;
+        if (fileSize > 128) {
+          await raf.setPosition(fileSize - 128);
+          final tail = await raf.read(128);
+          if (tail.length == 128 &&
+              tail[0] == 0x54 && tail[1] == 0x41 && tail[2] == 0x47) { // "TAG"
+            id3v1Bytes = tail;
+          }
+        }
+
+        await raf.close();
+
+        // Combine bytes: tag section + ID3v1 (if present)
+        final Uint8List allBytes;
+        if (id3v1Bytes != null) {
+          allBytes = Uint8List(tagBytes.length + id3v1Bytes.length);
+          allBytes.setAll(0, tagBytes);
+          allBytes.setAll(tagBytes.length, id3v1Bytes);
+        } else {
+          allBytes = tagBytes;
+        }
+
+        // Parse tags from the combined bytes
+        return await _tagProcessor.getTagsFromByteArray(Future.value(allBytes));
+      } catch (e) {
+        await raf.close();
+        rethrow;
+      }
+    } catch (e) {
+      // Fallback: read entire file (original behavior)
+      return await _tagProcessor.getTagsFromByteArray(file.readAsBytes());
+    }
   }
 
   /// Fixes mojibake (UTF-8 bytes misread as Latin-1)
@@ -270,20 +342,65 @@ class MetadataExtractor {
     return fileName.substring(0, lastDot);
   }
 
+  /// Cache for ffprobe availability check
+  bool? _ffprobeAvailable;
+
+  /// Check if ffprobe is available on the system
+  Future<bool> _isFFprobeAvailable() async {
+    if (_ffprobeAvailable != null) return _ffprobeAvailable!;
+
+    try {
+      final result = await Process.run('ffprobe', ['-version']);
+      _ffprobeAvailable = result.exitCode == 0;
+    } catch (e) {
+      _ffprobeAvailable = false;
+    }
+
+    return _ffprobeAvailable!;
+  }
+
   /// Extract audio duration from file
   ///
-  /// Currently supports MP3 files using pure Dart parsing.
-  /// Other formats will return null.
+  /// Uses ffprobe for all formats (most reliable), falls back to
+  /// pure Dart MP3 parser if ffprobe is unavailable.
   Future<int?> extractDuration(String filePath) async {
+    // Try ffprobe first (works for all formats)
+    if (await _isFFprobeAvailable()) {
+      try {
+        final result = await Process.run('ffprobe', [
+          '-v', 'quiet',
+          '-show_entries', 'format=duration',
+          '-of', 'json',
+          filePath,
+        ]).timeout(const Duration(seconds: 5));
+
+        if (result.exitCode == 0) {
+          final json = jsonDecode(result.stdout as String);
+          final format = json['format'] as Map<String, dynamic>?;
+          if (format != null) {
+            final durationStr = format['duration']?.toString();
+            if (durationStr != null) {
+              final durationSeconds = double.tryParse(durationStr);
+              if (durationSeconds != null) {
+                return durationSeconds.round();
+              }
+            }
+          }
+        }
+      } catch (e) {
+        // ffprobe failed, try fallback
+      }
+    }
+
+    // Fallback to pure Dart MP3 parser for MP3 files
     try {
       final extension = filePath.split('.').last.toLowerCase();
-      
+
       if (extension == 'mp3') {
         final parser = Mp3DurationParser();
         return await parser.getDuration(filePath);
       }
-      
-      // Other formats not yet supported
+
       return null;
     } catch (e) {
       // Silently fail - duration is optional

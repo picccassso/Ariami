@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
 import '../../models/api_models.dart';
 import '../../models/download_task.dart';
 import '../../models/song.dart';
@@ -261,51 +262,82 @@ class _SearchScreenState extends State<SearchScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Row(
+      body: SafeArea(
+        child: Column(
           children: [
-            Expanded(
-              child: TextField(
-                controller: _searchController,
-                autofocus: false,
-                decoration: InputDecoration(
-                  hintText: _isOffline 
-                      ? 'Search downloaded music...' 
-                      : 'Search songs and albums...',
-                  border: InputBorder.none,
-                  hintStyle: TextStyle(color: Colors.grey[400]),
-                  suffixIcon: _searchController.text.isNotEmpty
-                      ? IconButton(
-                          icon: const Icon(Icons.clear),
-                          onPressed: _clearSearch,
-                        )
-                      : null,
-                ),
-                style: const TextStyle(fontSize: 16),
+            // Floating-style Search Bar
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Row(
+                children: [
+                   Expanded(
+                    child: Container(
+                      height: 50,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.5),
+                        borderRadius: BorderRadius.circular(25),
+                        border: Border.all(
+                          color: Theme.of(context).colorScheme.outline.withOpacity(0.1),
+                        ),
+                      ),
+                      child: TextField(
+                        controller: _searchController,
+                        autofocus: false,
+                        style: const TextStyle(fontSize: 16),
+                        decoration: InputDecoration(
+                          hintText: _isOffline 
+                              ? 'Search downloaded music...' 
+                              : 'Search songs, albums & artists',
+                          hintStyle: TextStyle(
+                            color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.7),
+                          ),
+                          prefixIcon: Icon(
+                            Icons.search_rounded,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                          suffixIcon: _searchController.text.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.clear_rounded),
+                                  onPressed: _clearSearch,
+                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                )
+                              : null,
+                          border: InputBorder.none,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                        ),
+                      ),
+                    ),
+                  ),
+                  if (_isOffline) ...[
+                    const SizedBox(width: 12),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.05),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.1),
+                          width: 1,
+                        ),
+                      ),
+                      child: const Icon(
+                        Icons.wifi_off_rounded,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
-            if (_isOffline) ...[
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.orange.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Text(
-                  'Offline',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.orange,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-            ],
+            
+            // Main Content
+            Expanded(
+              child: _buildBody(),
+            ),
           ],
         ),
       ),
-      body: _buildBody(),
     );
   }
 
@@ -344,7 +376,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
     return ListView(
       padding: EdgeInsets.only(
-        bottom: 64 + kBottomNavigationBarHeight, // Mini player + download bar + nav bar
+            bottom: getMiniPlayerAwareBottomPadding(),
       ),
       children: [
         // Songs Section
@@ -356,7 +388,7 @@ class _SearchScreenState extends State<SearchScreen> {
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
-                color: Colors.grey[800],
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.9),
               ),
             ),
           ),
@@ -404,7 +436,7 @@ class _SearchScreenState extends State<SearchScreen> {
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
-                color: Colors.grey[800],
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.9),
               ),
             ),
           ),
@@ -441,7 +473,7 @@ class _SearchScreenState extends State<SearchScreen> {
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: Colors.grey[800],
+                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.9),
                 ),
               ),
               TextButton(
@@ -454,7 +486,7 @@ class _SearchScreenState extends State<SearchScreen> {
         Expanded(
           child: ListView.builder(
             padding: EdgeInsets.only(
-              bottom: 64 + kBottomNavigationBarHeight, // Mini player + download bar + nav bar
+              bottom: getMiniPlayerAwareBottomPadding(),
             ),
             itemCount: _recentSongs.length,
             itemBuilder: (context, index) {
@@ -480,22 +512,34 @@ class _SearchScreenState extends State<SearchScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.search, size: 100, color: Colors.grey[400]),
-          const SizedBox(height: 24),
-          Text(
-            'Search Music',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey[700],
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.search_rounded,
+              size: 64,
+              color: Theme.of(context).colorScheme.primary,
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
+          Text(
+            'Discover Music',
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
+          ),
+          const SizedBox(height: 12),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 40.0),
             child: Text(
-              'Search for songs, albums, and artists',
-              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+              'Search for your favorite songs, albums, and artists to start listening.',
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
               textAlign: TextAlign.center,
             ),
           ),
@@ -510,22 +554,34 @@ class _SearchScreenState extends State<SearchScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.search_off, size: 100, color: Colors.grey[400]),
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.error.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.search_off_rounded,
+              size: 64,
+              color: Theme.of(context).colorScheme.error,
+            ),
+          ),
           const SizedBox(height: 24),
           Text(
             'No Results Found',
-            style: TextStyle(
-              fontSize: 24,
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.bold,
-              color: Colors.grey[700],
+              color: Theme.of(context).colorScheme.onSurface,
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 40.0),
             child: Text(
-              'Try searching with different keywords',
-              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+              'We couldn\'t find any matches for "${_searchController.text}".\nTry checking the spelling or use different keywords.',
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
               textAlign: TextAlign.center,
             ),
           ),
@@ -540,22 +596,34 @@ class _SearchScreenState extends State<SearchScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.download_outlined, size: 100, color: Colors.grey[400]),
-          const SizedBox(height: 24),
-          Text(
-            'No Downloaded Music',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey[700],
+           Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.secondary.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.cloud_off_rounded,
+              size: 64,
+              color: Theme.of(context).colorScheme.secondary,
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
+          Text(
+            'No Downloads',
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
+          ),
+          const SizedBox(height: 12),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 40.0),
             child: Text(
-              'Download music to search while offline.\nGo to Settings to disable offline mode.',
-              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+              'You haven\'t downloaded any music yet.\nConnect to the internet to download songs for offline playback.',
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
               textAlign: TextAlign.center,
             ),
           ),

@@ -41,7 +41,7 @@ class _FolderSelectionScreenState extends State<FolderSelectionScreen> {
         lockParentWindow: true,
       );
 
-      if (selectedDirectory == null) {
+      if (selectedDirectory == null || selectedDirectory.isEmpty) {
         return;
       }
 
@@ -61,20 +61,16 @@ class _FolderSelectionScreenState extends State<FolderSelectionScreen> {
       await prefs.setString('music_folder_path', fixedPath);
 
       print('[FolderSelection] Saved music folder path: $fixedPath');
+      
+      // Removed Snackbar per request
 
+    } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Folder selected successfully! You can now scan your library.'),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 3),
+          SnackBar(
+            content: Text('Error selecting folder: $e'),
+            backgroundColor: const Color(0xFF141414), // Themed error
           ),
-        );
-      }
-        } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error selecting folder: $e')),
         );
       }
     } finally {
@@ -97,9 +93,9 @@ class _FolderSelectionScreenState extends State<FolderSelectionScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Icon(
-                Icons.folder_open,
+                Icons.folder_open_rounded,
                 size: 80,
-                color: Colors.blue,
+                color: Colors.white,
               ),
               const SizedBox(height: 24),
               const Text(
@@ -107,6 +103,8 @@ class _FolderSelectionScreenState extends State<FolderSelectionScreen> {
                 style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
+                  letterSpacing: -0.5,
+                  color: Colors.white,
                 ),
               ),
               const SizedBox(height: 16),
@@ -115,71 +113,82 @@ class _FolderSelectionScreenState extends State<FolderSelectionScreen> {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 16,
-                  color: Colors.grey,
+                  color: Colors.white54,
+                  height: 1.5,
                 ),
               ),
               const SizedBox(height: 48),
               if (_selectedFolderPath != null) ...[
                 Container(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
                   decoration: BoxDecoration(
-                    color: Colors.grey[200],
-                    borderRadius: BorderRadius.circular(8),
+                    color: const Color(0xFF141414),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFF2A2A2A)),
                   ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(Icons.folder, color: Colors.blue),
-                      const SizedBox(width: 12),
+                      const Icon(Icons.folder_rounded, color: Colors.white54),
+                      const SizedBox(width: 16),
                       Expanded(
                         child: SelectableText(
                           _selectedFolderPath!,
                           style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w500,
-                            color: Colors.black87,
+                            color: Colors.white,
                           ),
                         ),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 32),
               ],
-              ElevatedButton.icon(
+              OutlinedButton.icon(
                 onPressed: _isLoading ? null : _selectFolder,
                 icon: _isLoading
                     ? const SizedBox(
                         width: 20,
                         height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
                       )
-                    : const Icon(Icons.folder_open),
+                    : const Icon(Icons.folder_open_rounded, size: 20),
                 label: Text(_selectedFolderPath == null
                     ? 'Select Folder'
                     : 'Change Folder'),
-                style: ElevatedButton.styleFrom(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  side: const BorderSide(color: Color(0xFF333333)),
+                  shape: const StadiumBorder(),
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 32,
-                    vertical: 16,
+                    horizontal: 48,
+                    vertical: 20,
                   ),
                 ),
               ),
               const SizedBox(height: 16),
               if (_selectedFolderPath != null)
-                ElevatedButton(
+                OutlinedButton(
                   onPressed: () {
                     Navigator.pushReplacementNamed(context, '/connection');
                   },
-                  style: ElevatedButton.styleFrom(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    side: const BorderSide(color: Color(0xFF333333)),
+                    shape: const StadiumBorder(),
                     padding: const EdgeInsets.symmetric(
                       horizontal: 48,
-                      vertical: 16,
+                      vertical: 20,
                     ),
                   ),
                   child: const Text(
                     'Continue',
-                    style: TextStyle(fontSize: 18),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                   ),
                 ),
             ],

@@ -75,19 +75,19 @@ class ConnectResponse {
 
 /// Request for disconnecting a device
 class DisconnectRequest {
-  final String sessionId;
+  final String deviceId;
 
-  DisconnectRequest({required this.sessionId});
+  DisconnectRequest({required this.deviceId});
 
   factory DisconnectRequest.fromJson(Map<String, dynamic> json) {
     return DisconnectRequest(
-      sessionId: json['sessionId'] as String,
+      deviceId: json['deviceId'] as String,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
-      'sessionId': sessionId,
+      'deviceId': deviceId,
     };
   }
 }
