@@ -99,17 +99,27 @@ class ServerRunner {
       final transcodingCachePath = p.join(CliStateService.getConfigDir(), 'transcoded_cache');
 
       // Detect platform for concurrency settings
+      final piModel = _getRaspberryPiModel();
       final isPi = _isRaspberryPi();
       final int maxConcurrency;
       final int maxDownloadConcurrency;
       final int maxCacheSizeMB;
 
       if (isPi) {
-        // Raspberry Pi: very conservative to avoid overheating
-        maxConcurrency = 1;
-        maxDownloadConcurrency = 1; // Pi 3/4 default; Pi 5 users can override via config
-        maxCacheSizeMB = 1024; // 1GB for Pi (limited storage)
-        print('Platform: Raspberry Pi detected - using conservative transcoding settings');
+        final isPi5 = piModel == 5;
+        if (isPi5) {
+          // Raspberry Pi 5: can handle a bit more concurrency
+          maxConcurrency = 2;
+          maxDownloadConcurrency = 4; // Pi 5 max; higher breaks under load
+          maxCacheSizeMB = 1024; // 1GB for Pi (limited storage)
+          print('Platform: Raspberry Pi 5 detected - using higher transcoding settings');
+        } else {
+          // Raspberry Pi (3/4 or unknown): very conservative to avoid overheating
+          maxConcurrency = 1;
+          maxDownloadConcurrency = 1; // Pi 3/4 default
+          maxCacheSizeMB = 1024; // 1GB for Pi (limited storage)
+          print('Platform: Raspberry Pi detected - using conservative transcoding settings');
+        }
       } else if (Platform.isMacOS || Platform.isWindows) {
         // Desktop: more resources available
         maxConcurrency = 2;
@@ -404,6 +414,9 @@ class ServerRunner {
 
     if (!isArm) return false;
 
+    // Fast path: model string indicates a Pi
+    if (_getRaspberryPiModel() != null) return true;
+
     // Check for Pi-specific files
     try {
       final cpuInfo = File('/proc/cpuinfo');
@@ -429,6 +442,46 @@ class ServerRunner {
     // If we're on Linux ARM but can't confirm Pi, assume it might be
     // (conservative approach for low-power ARM devices)
     return true;
+  }
+
+  /// Try to detect the Raspberry Pi model number (e.g., 5, 4, 3).
+  /// Returns null if not a Pi or if model cannot be determined.
+  int? _getRaspberryPiModel() {
+    if (!Platform.isLinux) return null;
+
+    final arch = Platform.version.toLowerCase();
+    final isArm = arch.contains('arm') || arch.contains('aarch64');
+    if (!isArm) return null;
+
+    try {
+      final modelFile = File('/proc/device-tree/model');
+      if (modelFile.existsSync()) {
+        final modelText = modelFile.readAsStringSync();
+        final model = _parseRaspberryPiModel(modelText);
+        if (model != null) return model;
+      }
+
+      final cpuInfo = File('/proc/cpuinfo');
+      if (cpuInfo.existsSync()) {
+        final content = cpuInfo.readAsStringSync();
+        final modelLine = content
+            .split('\n')
+            .firstWhere((line) => line.toLowerCase().startsWith('model'), orElse: () => '');
+        final model = _parseRaspberryPiModel(modelLine.isNotEmpty ? modelLine : content);
+        if (model != null) return model;
+      }
+    } catch (_) {
+      // Ignore file read errors
+    }
+
+    return null;
+  }
+
+  int? _parseRaspberryPiModel(String modelText) {
+    final lower = modelText.toLowerCase().replaceAll('\u0000', '').trim();
+    final match = RegExp(r'raspberry pi\s+(\d+)').firstMatch(lower);
+    if (match == null) return null;
+    return int.tryParse(match.group(1) ?? '');
   }
 
   /// Handle transition from foreground setup mode to background daemon mode

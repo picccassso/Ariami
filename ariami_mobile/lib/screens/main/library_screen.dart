@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
 import '../../models/api_models.dart';
+import '../../models/websocket_models.dart';
 import '../../models/song.dart';
 import '../../models/download_task.dart';
 import '../../services/api/connection_service.dart';
@@ -61,6 +62,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
   StreamSubscription<void>? _cacheSubscription;
   StreamSubscription<bool>? _connectionSubscription;
   StreamSubscription<List<DownloadTask>>? _downloadSubscription;
+  StreamSubscription<WsMessage>? _wsSubscription;
+  Timer? _durationsRefreshTimer;
+  int _durationRefreshAttempts = 0;
 
   @override
   void initState() {
@@ -86,6 +90,17 @@ class _LibraryScreenState extends State<LibraryScreen> {
       }
     });
 
+    // Listen to server library updates (e.g., durations warm-up)
+    _wsSubscription = _connectionService.webSocketMessages.listen((message) {
+      if (message.type == WsMessageType.libraryUpdated) {
+        if (_offlineService.isOfflineModeEnabled) {
+          return;
+        }
+        print('[LibraryScreen] Library updated via WebSocket - refreshing');
+        _loadLibrary();
+      }
+    });
+
     // Listen to cache updates
     _cacheSubscription = _cacheManager.cacheUpdateStream.listen((_) {
       _loadCachedSongs();
@@ -104,6 +119,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
     _connectionSubscription?.cancel();
     _cacheSubscription?.cancel();
     _downloadSubscription?.cancel();
+    _wsSubscription?.cancel();
+    _durationsRefreshTimer?.cancel();
     super.dispose();
   }
 
@@ -190,6 +207,32 @@ class _LibraryScreenState extends State<LibraryScreen> {
     await prefs.setBool('library_view_grid', newValue);
   }
 
+  void _scheduleDurationsRefreshIfNeeded(LibraryResponse library) {
+    if (library.durationsReady) {
+      _durationRefreshAttempts = 0;
+      _durationsRefreshTimer?.cancel();
+      return;
+    }
+
+    if (_offlineService.isOfflineModeEnabled) {
+      return;
+    }
+
+    if (_durationRefreshAttempts >= 3) {
+      return;
+    }
+
+    _durationRefreshAttempts++;
+    _durationsRefreshTimer?.cancel();
+    _durationsRefreshTimer = Timer(const Duration(seconds: 10), () {
+      if (!mounted) return;
+      if (_offlineService.isOfflineModeEnabled) return;
+      if (_connectionService.apiClient == null) return;
+      print('[LibraryScreen] Durations pending - refreshing library (attempt $_durationRefreshAttempts)');
+      _loadLibrary();
+    });
+  }
+
   /// Load library data from server (or show downloaded content if offline)
   Future<void> _loadLibrary() async {
     // If offline mode is enabled, build library from downloaded songs
@@ -241,6 +284,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
         _isLoading = false;
         _showDownloadedOnly = false; // Reset filter when back online
       });
+
+      _scheduleDurationsRefreshIfNeeded(library);
 
       // Rehydrate missing playlist album IDs from the freshly loaded library
       final updatedPlaylists =
