@@ -254,6 +254,27 @@ class MetadataCache {
     _enforceLimit();
   }
 
+  /// Update cached duration for an existing entry
+  ///
+  /// Returns true if the cache entry was updated.
+  bool updateDuration(String filePath, int duration) {
+    final entry = _entries[filePath];
+    if (entry == null) return false;
+
+    if (entry.metadata.duration == duration) {
+      return false; // No change needed
+    }
+
+    _entries[filePath] = CachedMetadataEntry(
+      mtime: entry.mtime,
+      size: entry.size,
+      metadata: entry.metadata.copyWith(duration: duration),
+      partialHash: entry.partialHash,
+    );
+    _isDirty = true;
+    return true;
+  }
+
   /// Remove entry for a file
   void remove(String filePath) {
     if (_entries.remove(filePath) != null) {

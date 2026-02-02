@@ -32,6 +32,7 @@ class AriamiHttpServer {
   int _port = 8080;
   final List<dynamic> _webSocketClients = [];
   final Map<dynamic, String> _webSocketDeviceIds = {};
+  bool _durationWarmupListenerRegistered = false;
 
   // Store music folder path (set from desktop state)
   String? _musicFolderPath;
@@ -125,6 +126,12 @@ class AriamiHttpServer {
       print('Ariami Server already running on http://$_advertisedIp:$_port');
       return;
     }
+
+    // Register duration warm-up listener once
+    if (!_durationWarmupListenerRegistered) {
+      _libraryManager.addDurationWarmUpListener(_handleDurationWarmUpComplete);
+      _durationWarmupListenerRegistered = true;
+    }
     _advertisedIp = advertisedIp;
     _tailscaleIp = advertisedIp;  // Backward compatibility
     _port = port;
@@ -191,7 +198,7 @@ class AriamiHttpServer {
       'server': _advertisedIp ?? _tailscaleIp,
       'port': _port,
       'name': Platform.localHostname,
-      'version': '1.0.0',
+      'version': '2.1.0',
     };
   }
 
@@ -324,7 +331,7 @@ class AriamiHttpServer {
         'status': 'ok',
         'timestamp': DateTime.now().toIso8601String(),
         'server': Platform.localHostname,
-        'version': '1.0.0',
+        'version': '2.1.0',
       }),
       headers: {'Content-Type': 'application/json; charset=utf-8'},
     );
@@ -608,7 +615,7 @@ class AriamiHttpServer {
         jsonEncode({
           'status': 'connected',
           'sessionId': sessionId,
-          'serverVersion': '1.0.0',
+          'serverVersion': '2.1.0',
           'features': ['library', 'streaming', 'websocket'],
         }),
         headers: {'Content-Type': 'application/json; charset=utf-8'},
@@ -671,14 +678,20 @@ class AriamiHttpServer {
   }
 
   /// Handle get library request
-  Future<Response> _handleGetLibrary(Request request) async {
+  Response _handleGetLibrary(Request request) {
     final baseUrl = 'http://${_advertisedIp ?? _tailscaleIp}:$_port';
-    final libraryJson = await _libraryManager.toApiJsonWithDurations(baseUrl);
+    final stopwatch = Stopwatch()..start();
+    final libraryJson = _libraryManager.toApiJson(baseUrl);
+    stopwatch.stop();
+
+    // Kick off duration warm-up if needed (non-blocking)
+    _libraryManager.startDurationWarmUp();
 
     // Debug logging
     print('[HttpServer] Library request - Albums: ${(libraryJson['albums'] as List).length}, Songs: ${(libraryJson['songs'] as List).length}');
     print('[HttpServer] Library manager has library: ${_libraryManager.library != null}');
     print('[HttpServer] Last scan time: ${_libraryManager.lastScanTime}');
+    print('[HttpServer] Library response built in ${stopwatch.elapsedMilliseconds}ms');
 
     return Response.ok(
       jsonEncode(libraryJson),
@@ -1183,14 +1196,33 @@ class AriamiHttpServer {
   }
 
   /// Notify clients about library update
-  void notifyLibraryUpdated({int? albumCount, int? songCount}) {
+  void notifyLibraryUpdated({
+    int? albumCount,
+    int? songCount,
+    String? reason,
+    int? updatedDurations,
+  }) {
     final message = LibraryUpdatedMessage(
       data: {
         if (albumCount != null) 'albumCount': albumCount,
         if (songCount != null) 'songCount': songCount,
+        if (reason != null) 'reason': reason,
+        if (updatedDurations != null) 'updatedDurations': updatedDurations,
       },
     );
     broadcastWebSocketMessage(message);
+  }
+
+  void _handleDurationWarmUpComplete(int updatedCount) {
+    if (updatedCount <= 0) return;
+
+    final library = _libraryManager.library;
+    notifyLibraryUpdated(
+      albumCount: library?.totalAlbums ?? 0,
+      songCount: library?.totalSongs ?? 0,
+      reason: 'durations_ready',
+      updatedDurations: updatedCount,
+    );
   }
 
   /// Start timer to cleanup stale connections

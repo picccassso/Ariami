@@ -158,7 +158,7 @@ Same as Pi build - a ready-to-distribute zip file containing:
 
 To change the version number, edit `build-pi-release-mac.sh`:
 ```bash
-VERSION="2.0.0"  # Change this line
+VERSION="2.1.0"  # Change this line
 ```
 
 ### Troubleshooting

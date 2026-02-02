@@ -1,6 +1,6 @@
 name: ariami_core
 description: Shared core library for Ariami - platform-agnostic services and models
-version: 2.0.0
+version: 2.1.0
 publish_to: 'none'
 
 environment:
