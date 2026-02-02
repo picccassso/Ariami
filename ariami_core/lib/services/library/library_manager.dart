@@ -64,6 +64,8 @@ class LibraryManager {
   LibraryStructure? _library;
   DateTime? _lastScanTime;
   bool _isScanning = false;
+  bool _isDurationWarmupRunning = false;
+  Future<void>? _durationWarmupFuture;
 
   /// Persistent metadata cache for fast re-scans
   MetadataCache? _metadataCache;
@@ -83,6 +85,9 @@ class LibraryManager {
   /// Callbacks to notify when library scan completes
   final List<void Function()> _onScanCompleteCallbacks = [];
 
+  /// Callbacks to notify when duration warm-up completes
+  final List<void Function(int updatedCount)> _onDurationWarmUpCallbacks = [];
+
   /// Get the current library structure
   LibraryStructure? get library => _library;
 
@@ -96,10 +101,27 @@ class LibraryManager {
     _onScanCompleteCallbacks.remove(callback);
   }
 
+  /// Register a callback to be notified when duration warm-up completes
+  void addDurationWarmUpListener(void Function(int updatedCount) callback) {
+    _onDurationWarmUpCallbacks.add(callback);
+  }
+
+  /// Remove a duration warm-up listener
+  void removeDurationWarmUpListener(void Function(int updatedCount) callback) {
+    _onDurationWarmUpCallbacks.remove(callback);
+  }
+
   /// Notify all listeners that scan is complete
   void _notifyScanComplete() {
     for (final callback in _onScanCompleteCallbacks) {
       callback();
+    }
+  }
+
+  /// Notify all listeners that duration warm-up is complete
+  void _notifyDurationWarmUpComplete(int updatedCount) {
+    for (final callback in _onDurationWarmUpCallbacks) {
+      callback(updatedCount);
     }
   }
 
@@ -108,6 +130,9 @@ class LibraryManager {
 
   /// Check if currently scanning
   bool get isScanning => _isScanning;
+
+  /// Check if duration warm-up is running
+  bool get isDurationWarmupRunning => _isDurationWarmupRunning;
 
   /// Set the path for persistent metadata cache
   ///
@@ -178,6 +203,9 @@ class LibraryManager {
 
         // Notify listeners that scan is complete
         _notifyScanComplete();
+
+        // Kick off background duration warm-up (non-blocking)
+        startDurationWarmUp();
       } else {
         print('[LibraryManager] Scan returned null - possible error in isolate');
       }
@@ -190,6 +218,154 @@ class LibraryManager {
     }
   }
 
+  /// Start background duration warm-up (non-blocking)
+  void startDurationWarmUp({bool force = false}) {
+    if (_library == null) return;
+    if (_isDurationWarmupRunning || _durationWarmupFuture != null) return;
+    if (!force && !_hasMissingDurations()) return;
+
+    _durationWarmupFuture = _warmUpDurations();
+  }
+
+  /// Warm up missing durations and persist them to cache
+  Future<void> _warmUpDurations() async {
+    if (_library == null) return;
+
+    _isDurationWarmupRunning = true;
+    int updatedCount = 0;
+    int missingCount = 0;
+
+    try {
+      final allSongs = _getAllSongs();
+      for (final song in allSongs) {
+        final existingDuration = _resolveDuration(song);
+        if (existingDuration > 0) {
+          continue;
+        }
+        missingCount++;
+
+        final extracted = await _metadataExtractor.extractDuration(song.filePath);
+        if (extracted != null && extracted > 0) {
+          _applyDurationUpdate(song.filePath, extracted);
+          updatedCount++;
+        }
+      }
+
+      if (updatedCount > 0 && _metadataCache != null) {
+        await _metadataCache!.save();
+      }
+    } catch (e) {
+      print('[LibraryManager] Duration warm-up failed: $e');
+    } finally {
+      _isDurationWarmupRunning = false;
+      _durationWarmupFuture = null;
+    }
+
+    if (missingCount > 0) {
+      print('[LibraryManager] Duration warm-up complete: $updatedCount/$missingCount updated');
+    }
+
+    _notifyDurationWarmUpComplete(updatedCount);
+  }
+
+  /// Check if any songs are missing durations
+  bool _hasMissingDurations() {
+    if (_library == null) return false;
+    for (final song in _getAllSongs()) {
+      if (_resolveDuration(song) == 0) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /// Flatten all songs in the library (albums + standalone)
+  Iterable<SongMetadata> _getAllSongs() sync* {
+    if (_library == null) return;
+    for (final album in _library!.albums.values) {
+      for (final song in album.songs) {
+        yield song;
+      }
+    }
+    for (final song in _library!.standaloneSongs) {
+      yield song;
+    }
+  }
+
+  /// Resolve duration from metadata or in-memory cache
+  int _resolveDuration(SongMetadata song) {
+    final directDuration = song.duration ?? 0;
+    if (directDuration > 0) {
+      return directDuration;
+    }
+
+    final songId = _generateSongId(song.filePath);
+    final cachedDuration = _durationCache[songId] ?? 0;
+    return cachedDuration;
+  }
+
+  /// Update duration across caches and in-memory library
+  void _applyDurationUpdate(String filePath, int duration) {
+    final songId = _generateSongId(filePath);
+    _durationCache[songId] = duration;
+
+    if (_metadataCache != null) {
+      _metadataCache!.updateDuration(filePath, duration);
+    }
+
+    _updateLibrarySongDuration(filePath, duration);
+  }
+
+  /// Update duration in the in-memory library representation
+  void _updateLibrarySongDuration(String filePath, int duration) {
+    if (_library == null) return;
+
+    // Update album songs
+    for (final album in _library!.albums.values) {
+      for (var i = 0; i < album.songs.length; i++) {
+        final song = album.songs[i];
+        if (song.filePath == filePath) {
+          if (song.duration != duration) {
+            album.songs[i] = song.copyWith(duration: duration);
+          }
+          return;
+        }
+      }
+    }
+
+    // Update standalone songs
+    for (var i = 0; i < _library!.standaloneSongs.length; i++) {
+      final song = _library!.standaloneSongs[i];
+      if (song.filePath == filePath) {
+        if (song.duration != duration) {
+          _library!.standaloneSongs[i] = song.copyWith(duration: duration);
+        }
+        return;
+      }
+    }
+  }
+
+  /// Find a song by file path in the current library
+  SongMetadata? _findSongByFilePath(String filePath) {
+    if (_library == null) return null;
+
+    for (final album in _library!.albums.values) {
+      for (final song in album.songs) {
+        if (song.filePath == filePath) {
+          return song;
+        }
+      }
+    }
+
+    for (final song in _library!.standaloneSongs) {
+      if (song.filePath == filePath) {
+        return song;
+      }
+    }
+
+    return null;
+  }
+
   /// Convert library to API JSON format for mobile app
   Map<String, dynamic> toApiJson(String baseUrl) {
     if (_library == null) {
@@ -197,6 +373,7 @@ class LibraryManager {
         'albums': [],
         'songs': [],
         'playlists': [],
+        'durationsReady': true,
         'lastUpdated': DateTime.now().toIso8601String(),
       };
     }
@@ -209,17 +386,26 @@ class LibraryManager {
 
     // Convert ALL songs to API format (album songs + standalone songs)
     final songsJson = <Map<String, dynamic>>[];
+    bool durationsReady = true;
 
     // Add songs from all valid albums
     for (final album in _library!.albums.values.where((a) => a.isValid)) {
       for (final song in album.sortedSongs) {
-        songsJson.add(_songToApiJson(song, baseUrl, album.id));
+        final duration = _resolveDuration(song);
+        if (duration == 0) {
+          durationsReady = false;
+        }
+        songsJson.add(_songToApiJson(song, baseUrl, album.id, duration));
       }
     }
 
     // Add standalone songs (not in any album)
     for (final song in _library!.standaloneSongs) {
-      songsJson.add(_songToApiJson(song, baseUrl, null));
+      final duration = _resolveDuration(song);
+      if (duration == 0) {
+        durationsReady = false;
+      }
+      songsJson.add(_songToApiJson(song, baseUrl, null, duration));
     }
 
     // Convert folder playlists to API format
@@ -231,6 +417,7 @@ class LibraryManager {
       'albums': albumsJson,
       'songs': songsJson,
       'playlists': playlistsJson,
+      'durationsReady': durationsReady,
       'lastUpdated': _lastScanTime?.toIso8601String() ?? DateTime.now().toIso8601String(),
     };
   }
@@ -242,6 +429,7 @@ class LibraryManager {
         'albums': [],
         'songs': [],
         'playlists': [],
+        'durationsReady': true,
         'lastUpdated': DateTime.now().toIso8601String(),
       };
     }
@@ -254,21 +442,28 @@ class LibraryManager {
 
     // Convert ALL songs to API format with lazy duration extraction
     final songsJson = <Map<String, dynamic>>[];
+    bool durationsReady = true;
 
     // Add songs from all valid albums
     for (final album in _library!.albums.values.where((a) => a.isValid)) {
       for (final song in album.sortedSongs) {
-        songsJson.add(
-          await _songToApiJsonWithDuration(song, baseUrl, album.id),
-        );
+        final songJson = await _songToApiJsonWithDuration(song, baseUrl, album.id);
+        final duration = songJson['duration'] as int? ?? 0;
+        if (duration == 0) {
+          durationsReady = false;
+        }
+        songsJson.add(songJson);
       }
     }
 
     // Add standalone songs (not in any album)
     for (final song in _library!.standaloneSongs) {
-      songsJson.add(
-        await _songToApiJsonWithDuration(song, baseUrl, null),
-      );
+      final songJson = await _songToApiJsonWithDuration(song, baseUrl, null);
+      final duration = songJson['duration'] as int? ?? 0;
+      if (duration == 0) {
+        durationsReady = false;
+      }
+      songsJson.add(songJson);
     }
 
     // Convert folder playlists to API format
@@ -280,6 +475,7 @@ class LibraryManager {
       'albums': albumsJson,
       'songs': songsJson,
       'playlists': playlistsJson,
+      'durationsReady': durationsReady,
       'lastUpdated': _lastScanTime?.toIso8601String() ?? DateTime.now().toIso8601String(),
     };
   }
@@ -297,7 +493,12 @@ class LibraryManager {
   }
 
   /// Convert SongMetadata to API JSON format
-  Map<String, dynamic> _songToApiJson(SongMetadata song, String baseUrl, String? albumId) {
+  Map<String, dynamic> _songToApiJson(
+    SongMetadata song,
+    String baseUrl,
+    String? albumId,
+    int duration,
+  ) {
     // Generate unique song ID from file path
     final songId = _generateSongId(song.filePath);
 
@@ -306,7 +507,7 @@ class LibraryManager {
       'title': song.title ?? _getFilenameWithoutExtension(song.filePath),
       'artist': song.artist ?? 'Unknown Artist',
       'albumId': albumId,
-      'duration': song.duration ?? 0,
+      'duration': duration,
       'trackNumber': song.trackNumber,
     };
   }
@@ -456,9 +657,21 @@ class LibraryManager {
       return null;
     }
 
+    // If duration already exists in library metadata, use it
+    final existingSong = _findSongByFilePath(filePath);
+    final existingDuration = existingSong?.duration ?? 0;
+    if (existingDuration > 0) {
+      _durationCache[songId] = existingDuration;
+      return existingDuration;
+    }
+
     // Extract duration
     final duration = await _metadataExtractor.extractDuration(filePath);
-    _durationCache[songId] = duration;
+    if (duration != null && duration > 0) {
+      _applyDurationUpdate(filePath, duration);
+    } else if (duration != null) {
+      _durationCache[songId] = duration;
+    }
     return duration;
   }
 

@@ -345,12 +345,14 @@ class LibraryResponse {
   final List<SongModel> songs;
   final List<ServerPlaylist> serverPlaylists;
   final String lastUpdated;
+  final bool durationsReady;
 
   LibraryResponse({
     required this.albums,
     required this.songs,
     required this.serverPlaylists,
     required this.lastUpdated,
+    this.durationsReady = true,
   });
 
   factory LibraryResponse.fromJson(Map<String, dynamic> json) {
@@ -365,6 +367,7 @@ class LibraryResponse {
           .map((e) => ServerPlaylist.fromJson(e as Map<String, dynamic>))
           .toList(),
       lastUpdated: json['lastUpdated'] as String? ?? '',
+      durationsReady: json['durationsReady'] as bool? ?? true,
     );
   }
 
@@ -374,6 +377,7 @@ class LibraryResponse {
       'songs': songs.map((e) => e.toJson()).toList(),
       'playlists': serverPlaylists.map((e) => e.toJson()).toList(),
       'lastUpdated': lastUpdated,
+      'durationsReady': durationsReady,
     };
   }
 }

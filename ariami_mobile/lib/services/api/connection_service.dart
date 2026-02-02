@@ -99,7 +99,7 @@ class ConnectionService {
     final connectRequest = ConnectRequest(
       deviceId: deviceId,
       deviceName: deviceName,
-      appVersion: '1.0.0',
+      appVersion: '2.1.0',
       platform: Platform.isAndroid ? 'android' : 'ios',
     );
 
@@ -221,7 +221,7 @@ class ConnectionService {
       final connectRequest = ConnectRequest(
         deviceId: deviceId,
         deviceName: deviceName,
-        appVersion: '1.0.0',
+        appVersion: '2.1.0',
         platform: Platform.isAndroid ? 'android' : 'ios',
       );
 

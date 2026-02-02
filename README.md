@@ -214,6 +214,10 @@ If you want to build from source, check the README in each package folder:
 
 ## Latest Updates
 
+### 2026-02-02
+- Quick fix for first-run library load timeouts on cold cache. Library returns fast now, durations warm in the background, and the mobile app refreshes when ready.
+- Raspberry Pi 5: higher default transcode concurrency (2 streaming / 4 downloads) while keeping Pi 3/4 conservative
+
 **Full UI Redesign** - Complete visual overhaul across mobile, desktop, and CLI web interface. Ultra-minimalist black and white "Premium Dark" theme with pill-shaped buttons, rounded corners, and glassmorphism effects. Scrolling marquee for long song titles, monochromatic offline screens, and consistent look across all three apps.
 
 **Performance Improvements**
@@ -221,6 +225,7 @@ If you want to build from source, check the README in each package folder:
 - Playlist loading 98% faster (reduced API calls from N+1 to 1)
 - Library scanning optimized with single-pass traversal, deferred duration extraction, and progressive duplicate detection
 - Transcoding system overhaul: streaming while transcoding, hardware AAC on macOS, platform-aware concurrency, and cache index for faster eviction
+- Raspberry Pi 5: higher default transcode concurrency (2 streaming / 4 downloads) while keeping Pi 3/4 conservative
 
 **New Features**
 - Grid/List view toggle for albums and playlists in library
@@ -242,4 +247,3 @@ If you want to build from source, check the README in each package folder:
 ## License
 
 MIT License - See [LICENSE](LICENSE) for details.
-
