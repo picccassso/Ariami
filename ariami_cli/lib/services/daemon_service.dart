@@ -161,8 +161,7 @@ class DaemonService {
       // Build correct command based on execution mode
       final (executable, args) = _buildBackgroundCommand(flags);
 
-      // On Linux, use nohup + setsid for proper daemonization
-      // ProcessStartMode.detached doesn't fully detach on Linux
+      // On Linux, use a fully detached process start (no shell)
       if (Platform.isLinux) {
         return await _startServerOnLinux(executable, args);
       }
@@ -184,51 +183,39 @@ class DaemonService {
     }
   }
 
-  /// Linux-specific daemon spawning using nohup + setsid
-  /// This properly detaches the process from the terminal session
+  /// Linux-specific daemon spawning using a detached process start
   Future<int?> _startServerOnLinux(String executable, List<String> args) async {
     try {
       // Get the working directory (where the executable is located)
       final executableFile = File(executable);
       final workingDir = executableFile.parent.path;
 
-      // Build the command string
-      final argsString = args.map((a) => '"$a"').join(' ');
-
-      // Use setsid to create new session, nohup to ignore SIGHUP
-      // Log output to file for debugging, run in background, echo PID
-      // IMPORTANT: Close stdin (</dev/null) and use disown to fully detach
-      // This ensures Process.run() returns immediately
-      final logPath = CliStateService.getLogFilePath();
-      final shellCommand = 'cd "$workingDir" && nohup setsid "$executable" $argsString </dev/null > "$logPath" 2>&1 & PID=\$!; disown \$PID; echo \$PID';
-
-      // Run through bash to get proper shell features
-      final result = await Process.run(
-        '/bin/bash',
-        ['-c', shellCommand],
+      // Start detached without a shell to avoid job-control hangs
+      final process = await Process.start(
+        executable,
+        args,
+        workingDirectory: workingDir,
+        mode: ProcessStartMode.detached,
       );
 
-      if (result.exitCode != 0) {
-        print('Failed to start background process: ${result.stderr}');
-        return null;
-      }
-
-      // Parse the PID from stdout
-      final pidString = result.stdout.toString().trim();
-      final pid = int.tryParse(pidString);
-
-      if (pid == null) {
-        print('Failed to parse PID from output: $pidString');
-        return null;
-      }
-
       // Save the PID
-      await saveServerPid(pid);
+      await saveServerPid(process.pid);
 
-      return pid;
+      return process.pid;
     } catch (e) {
-      print('Error starting server on Linux: $e');
+      await _appendToDaemonLog('Error starting server on Linux: $e');
       return null;
+    }
+  }
+
+  Future<void> _appendToDaemonLog(String message) async {
+    try {
+      await _stateService.ensureConfigDir();
+      final logFile = File(CliStateService.getLogFilePath());
+      final timestamp = DateTime.now().toIso8601String();
+      await logFile.writeAsString('[$timestamp] $message\n', mode: FileMode.append);
+    } catch (_) {
+      // Ignore logging errors to avoid blocking startup/shutdown flows.
     }
   }
 }
