@@ -1,0 +1,43 @@
+name: CLI Web Tests
+
+on:
+  pull_request:
+    paths:
+      - 'ariami_cli/**'
+      - 'ariami_core/**'
+      - '.github/workflows/cli-web-tests.yml'
+  workflow_dispatch:
+
+jobs:
+  cli-web-auth:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.29.2'
+          cache: true
+
+      - name: Setup Chrome
+        uses: browser-actions/setup-chrome@v1
+        id: chrome
+
+      - name: Get dependencies
+        run: |
+          cd ariami_core && dart pub get
+          cd ../ariami_cli && flutter pub get
+
+      - name: Run CLI web tests (VM)
+        run: |
+          cd ariami_cli
+          flutter test test/web/web_auth_service_test.dart test/web/dashboard_auth_flow_test.dart
+
+      - name: Run CLI web tests (Chrome)
+        env:
+          CHROME_EXECUTABLE: ${{ steps.chrome.outputs.chrome-path }}
+        run: |
+          cd ariami_cli
+          flutter test --platform chrome test/web/web_auth_service_test.dart test/web/dashboard_auth_flow_test.dart

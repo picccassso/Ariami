@@ -5,14 +5,23 @@ import 'screens/folder_selection_screen.dart';
 import 'screens/scanning_screen.dart';
 import 'screens/qr_code_screen.dart';
 import 'screens/dashboard_screen.dart';
+import 'screens/login_screen.dart';
 import 'utils/constants.dart';
 
 void main() {
   // Get the initial route from the browser URL to avoid transition animation on refresh
   final path = Uri.base.path;
-  final validRoutes = {'/', '/tailscale-check', '/folder-selection', '/scanning', '/qr-code', '/dashboard'};
+  final validRoutes = {
+    '/',
+    '/tailscale-check',
+    '/folder-selection',
+    '/scanning',
+    '/qr-code',
+    '/dashboard',
+    '/login',
+  };
   final initialRoute = validRoutes.contains(path) ? path : '/';
-  
+
   runApp(AriamiWebApp(initialRoute: initialRoute));
 }
 
@@ -35,6 +44,7 @@ class AriamiWebApp extends StatelessWidget {
         '/scanning': (context) => const ScanningScreen(),
         '/qr-code': (context) => const QRCodeScreen(),
         '/dashboard': (context) => const DashboardScreen(),
+        '/login': (context) => const LoginScreen(),
       },
     );
   }

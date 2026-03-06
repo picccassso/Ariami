@@ -2,9 +2,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
 import '../../models/api_models.dart';
-import '../../models/websocket_models.dart';
 import '../../models/song.dart';
 import '../../models/download_task.dart';
+import '../../models/websocket_models.dart';
 import '../../services/api/connection_service.dart';
 import '../../services/playback_manager.dart';
 import '../../services/playlist_service.dart';
@@ -12,6 +12,7 @@ import '../../services/offline/offline_playback_service.dart';
 import '../../services/download/download_manager.dart';
 import '../../services/cache/cache_manager.dart';
 import '../../services/quality/quality_settings_service.dart';
+import '../../services/library/library_read_facade.dart';
 import '../../widgets/library/collapsible_section.dart';
 import '../../widgets/library/album_grid_item.dart';
 import '../../widgets/library/album_list_item.dart';
@@ -38,6 +39,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
   final DownloadManager _downloadManager = DownloadManager();
   final CacheManager _cacheManager = CacheManager();
   final QualitySettingsService _qualityService = QualitySettingsService();
+  static const String _viewPreferenceKey = 'library_view_grid';
+  static const String _albumsSectionKey = 'library_section_albums';
+  static const String _songsSectionKey = 'library_section_songs';
 
   // Online mode state (from server API)
   List<AlbumModel> _albums = [];
@@ -50,6 +54,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
   bool _isLoading = true;
   String? _errorMessage;
   bool _isGridView = true; // Default to grid view
+  bool _albumsExpanded = true;
+  bool _songsExpanded = false;
 
   // Offline mode state
   bool _showDownloadedOnly = false;
@@ -62,14 +68,17 @@ class _LibraryScreenState extends State<LibraryScreen> {
   StreamSubscription<void>? _cacheSubscription;
   StreamSubscription<bool>? _connectionSubscription;
   StreamSubscription<List<DownloadTask>>? _downloadSubscription;
-  StreamSubscription<WsMessage>? _wsSubscription;
-  Timer? _durationsRefreshTimer;
-  int _durationRefreshAttempts = 0;
+  StreamSubscription<WsMessage>? _webSocketSubscription;
+  Timer? _durationRetryTimer;
+  bool _durationsPending = false;
+  int _durationRetryCount = 0;
+  static const int _maxDurationRetries = 3;
+  static const Duration _durationRetryDelay = Duration(seconds: 3);
 
   @override
   void initState() {
     super.initState();
-    _loadViewPreference();
+    _loadUiPreferences();
     _loadLibrary();
     _playlistService.loadPlaylists();
     _playlistService.addListener(_onPlaylistsChanged);
@@ -82,22 +91,12 @@ class _LibraryScreenState extends State<LibraryScreen> {
     });
 
     // Listen to connection state changes - reload when reconnected
-    _connectionSubscription = _connectionService.connectionStateStream.listen((isConnected) {
+    _connectionSubscription =
+        _connectionService.connectionStateStream.listen((isConnected) {
       if (isConnected) {
         print('[LibraryScreen] Connection restored - refreshing library');
         _loadLibrary(); // Reload library data from server
         _loadDownloadedSongs(); // Refresh download status
-      }
-    });
-
-    // Listen to server library updates (e.g., durations warm-up)
-    _wsSubscription = _connectionService.webSocketMessages.listen((message) {
-      if (message.type == WsMessageType.libraryUpdated) {
-        if (_offlineService.isOfflineModeEnabled) {
-          return;
-        }
-        print('[LibraryScreen] Library updated via WebSocket - refreshing');
-        _loadLibrary();
       }
     });
 
@@ -110,6 +109,11 @@ class _LibraryScreenState extends State<LibraryScreen> {
     _downloadSubscription = _downloadManager.queueStream.listen((_) {
       _loadDownloadedSongs();
     });
+
+    // Listen for library updates from WebSocket (durations warm-up)
+    _webSocketSubscription = _connectionService.webSocketMessages.listen(
+      _handleWebSocketMessage,
+    );
   }
 
   @override
@@ -119,13 +123,111 @@ class _LibraryScreenState extends State<LibraryScreen> {
     _connectionSubscription?.cancel();
     _cacheSubscription?.cancel();
     _downloadSubscription?.cancel();
-    _wsSubscription?.cancel();
-    _durationsRefreshTimer?.cancel();
+    _webSocketSubscription?.cancel();
+    _durationRetryTimer?.cancel();
     super.dispose();
   }
 
   void _onPlaylistsChanged() {
     setState(() {});
+  }
+
+  void _handleWebSocketMessage(WsMessage message) {
+    if (message.type == WsMessageType.syncTokenAdvanced) {
+      final latestToken = _parseLatestToken(message.data?['latestToken']);
+      unawaited(_handleSyncTokenAdvanced(latestToken));
+      return;
+    }
+
+    if (message.type == WsMessageType.libraryUpdated) {
+      unawaited(_handleLibraryUpdatedMessage());
+    }
+  }
+
+  Future<void> _handleSyncTokenAdvanced(int latestToken) async {
+    if (!await _isUsingV2LibrarySource()) {
+      return;
+    }
+    await _refreshFromSyncToken(latestToken);
+  }
+
+  Future<void> _handleLibraryUpdatedMessage() async {
+    if (await _isUsingV2LibrarySource()) {
+      if (!_isLoading) {
+        await _loadLibrary();
+      }
+      return;
+    }
+
+    if (!_durationsPending) return;
+    if (_isLoading) return;
+    if (_durationRetryCount >= _maxDurationRetries) return;
+
+    print(
+        '[LibraryScreen] Library updated (WebSocket) - retrying for durations');
+    _durationRetryCount++;
+    await _loadLibrary();
+  }
+
+  Future<bool> _isUsingV2LibrarySource() async {
+    final decision = await _connectionService.libraryReadFacade.resolveSource();
+    return decision.source == LibraryReadSource.v2LocalStore;
+  }
+
+  int _parseLatestToken(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value) ?? 0;
+    return 0;
+  }
+
+  Future<void> _refreshFromSyncToken(int latestToken) async {
+    if (!await _isUsingV2LibrarySource()) return;
+    if (_isLoading) return;
+
+    if (latestToken <= 0) {
+      if (mounted) {
+        await _loadLibrary();
+      }
+      return;
+    }
+
+    for (var attempt = 0; attempt < 10; attempt++) {
+      final appliedToken = await _connectionService.libraryReadFacade
+          .getActiveLastAppliedToken();
+      if (appliedToken != null && appliedToken >= latestToken) {
+        if (mounted) {
+          await _loadLibrary();
+        }
+        return;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+    }
+
+    if (mounted) {
+      await _loadLibrary();
+    }
+  }
+
+  void _scheduleDurationRetry() {
+    if (_durationRetryCount >= _maxDurationRetries) return;
+
+    _durationRetryTimer?.cancel();
+    _durationRetryTimer = Timer(_durationRetryDelay, () {
+      if (!_durationsPending || _isLoading) return;
+      if (_durationRetryCount >= _maxDurationRetries) return;
+
+      print('[LibraryScreen] Retrying library load for pending durations');
+      _durationRetryCount++;
+      _loadLibrary();
+    });
+  }
+
+  void _clearDurationRetries() {
+    _durationsPending = false;
+    _durationRetryCount = 0;
+    _durationRetryTimer?.cancel();
+    _durationRetryTimer = null;
   }
 
   /// Load list of downloaded song IDs and albums with downloads
@@ -142,7 +244,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
         if (task.albumId != null) {
           albumsWithDownloads.add(task.albumId!);
           // Count downloaded songs per album
-          albumDownloadCounts[task.albumId!] = 
+          albumDownloadCounts[task.albumId!] =
               (albumDownloadCounts[task.albumId!] ?? 0) + 1;
         }
       }
@@ -187,12 +289,14 @@ class _LibraryScreenState extends State<LibraryScreen> {
     }
   }
 
-  /// Load view preference (Grid vs List)
-  Future<void> _loadViewPreference() async {
+  /// Load view and section preferences.
+  Future<void> _loadUiPreferences() async {
     final prefs = await SharedPreferences.getInstance();
     if (mounted) {
       setState(() {
-        _isGridView = prefs.getBool('library_view_grid') ?? true;
+        _isGridView = prefs.getBool(_viewPreferenceKey) ?? true;
+        _albumsExpanded = prefs.getBool(_albumsSectionKey) ?? true;
+        _songsExpanded = prefs.getBool(_songsSectionKey) ?? false;
       });
     }
   }
@@ -204,52 +308,48 @@ class _LibraryScreenState extends State<LibraryScreen> {
       _isGridView = newValue;
     });
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('library_view_grid', newValue);
+    await prefs.setBool(_viewPreferenceKey, newValue);
   }
 
-  void _scheduleDurationsRefreshIfNeeded(LibraryResponse library) {
-    if (library.durationsReady) {
-      _durationRefreshAttempts = 0;
-      _durationsRefreshTimer?.cancel();
-      return;
-    }
-
-    if (_offlineService.isOfflineModeEnabled) {
-      return;
-    }
-
-    if (_durationRefreshAttempts >= 3) {
-      return;
-    }
-
-    _durationRefreshAttempts++;
-    _durationsRefreshTimer?.cancel();
-    _durationsRefreshTimer = Timer(const Duration(seconds: 10), () {
-      if (!mounted) return;
-      if (_offlineService.isOfflineModeEnabled) return;
-      if (_connectionService.apiClient == null) return;
-      print('[LibraryScreen] Durations pending - refreshing library (attempt $_durationRefreshAttempts)');
-      _loadLibrary();
+  Future<void> _toggleAlbumsExpanded() async {
+    final value = !_albumsExpanded;
+    setState(() {
+      _albumsExpanded = value;
     });
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_albumsSectionKey, value);
+  }
+
+  Future<void> _toggleSongsExpanded() async {
+    final value = !_songsExpanded;
+    setState(() {
+      _songsExpanded = value;
+    });
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_songsSectionKey, value);
   }
 
   /// Load library data from server (or show downloaded content if offline)
   Future<void> _loadLibrary() async {
     // If offline mode is enabled, build library from downloaded songs
     if (_offlineService.isOfflineModeEnabled) {
-      print('[LibraryScreen] Offline mode enabled - building library from downloads');
+      print(
+          '[LibraryScreen] Offline mode enabled - building library from downloads');
+      _clearDurationRetries();
       await _loadDownloadedSongs();
       _buildLibraryFromDownloads();
       await _loadDownloadedSongs(); // Re-run to populate _fullyDownloadedAlbumIds now that _albums exists
       setState(() {
         _isLoading = false;
         _errorMessage = null;
-        _showDownloadedOnly = true; // Auto-enable downloaded filter in offline mode
+        _showDownloadedOnly =
+            true; // Auto-enable downloaded filter in offline mode
       });
       return;
     }
 
     if (_connectionService.apiClient == null) {
+      _clearDurationRetries();
       setState(() {
         _isLoading = false;
         _errorMessage = 'Not connected to server';
@@ -262,40 +362,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
         _isLoading = true;
         _errorMessage = null;
       });
-
-      print('[LibraryScreen] Fetching library from server...');
-      final library = await _connectionService.apiClient!.getLibrary();
-      print('[LibraryScreen] Library loaded successfully');
-      print('[LibraryScreen] Albums: ${library.albums.length}');
-      print('[LibraryScreen] Songs: ${library.songs.length}');
-      print('[LibraryScreen] Server playlists: ${library.serverPlaylists.length}');
-
-      // Update PlaylistService with server playlists
-      _playlistService.updateServerPlaylists(library.serverPlaylists);
-
-      // Prune orphaned downloads that no longer exist in the current library
-      final validSongIds = library.songs.map((song) => song.id).toSet();
-      await _downloadManager.pruneOrphanedDownloads(validSongIds);
-
-      setState(() {
-        _albums = library.albums;
-        _songs = library.songs;
-        _isOfflineMode = false; // Mark that we're in online mode with SongModel
-        _isLoading = false;
-        _showDownloadedOnly = false; // Reset filter when back online
-      });
-
-      _scheduleDurationsRefreshIfNeeded(library);
-
-      // Rehydrate missing playlist album IDs from the freshly loaded library
-      final updatedPlaylists =
-          await _playlistService.rehydrateAlbumIdsFromLibrary(library.songs);
-      if (updatedPlaylists > 0) {
-        print('[LibraryScreen] Rehydrated album IDs for $updatedPlaylists playlists');
-      }
-
-      // Reload downloaded songs to map them to albums
-      await _loadDownloadedSongs();
+      await _loadLibraryFromFacade();
     } catch (e, stackTrace) {
       print('[LibraryScreen] ERROR loading library: $e');
       print('[LibraryScreen] Stack trace: $stackTrace');
@@ -305,16 +372,19 @@ class _LibraryScreenState extends State<LibraryScreen> {
       if (e.toString().contains('Network error') ||
           e.toString().contains('TimeoutException') ||
           e.toString().contains('SocketException')) {
-        print('[LibraryScreen] Network error detected - falling back to offline mode');
+        print(
+            '[LibraryScreen] Network error detected - falling back to offline mode');
+        _clearDurationRetries();
         await _loadDownloadedSongs();
         _buildLibraryFromDownloads();
         setState(() {
           _isLoading = false;
-          _errorMessage = null;  // Don't show error - just use offline mode
+          _errorMessage = null; // Don't show error - just use offline mode
           _showDownloadedOnly = true;
         });
       } else {
         // Some other error (not network-related) - show it to user
+        _clearDurationRetries();
         setState(() {
           _isLoading = false;
           _errorMessage = 'Failed to load library: $e';
@@ -323,12 +393,58 @@ class _LibraryScreenState extends State<LibraryScreen> {
     }
   }
 
+  Future<void> _loadLibraryFromFacade() async {
+    final library =
+        await _connectionService.libraryReadFacade.getLibraryBundle();
+    final sourceLabel = library.source == LibraryReadSource.v2LocalStore
+        ? 'v2 local sync repository'
+        : 'v1 /api/library snapshot';
+
+    print('[LibraryScreen] Loading library from $sourceLabel');
+    print('[LibraryScreen] Albums: ${library.albums.length}');
+    print('[LibraryScreen] Songs: ${library.songs.length}');
+    print(
+        '[LibraryScreen] Server playlists: ${library.serverPlaylists.length}');
+
+    _playlistService.updateServerPlaylists(library.serverPlaylists);
+
+    final validSongIds = library.songs.map((song) => song.id).toSet();
+    await _downloadManager.pruneOrphanedDownloads(validSongIds);
+
+    setState(() {
+      _albums = library.albums;
+      _songs = library.songs;
+      _isOfflineMode = false;
+      _isLoading = false;
+      _showDownloadedOnly = false;
+    });
+
+    if (library.durationsReady ||
+        library.source == LibraryReadSource.v2LocalStore) {
+      _clearDurationRetries();
+    } else {
+      _durationsPending = true;
+      _scheduleDurationRetry();
+    }
+
+    final updatedPlaylists =
+        await _playlistService.rehydrateAlbumIdsFromLibrary(library.songs);
+    if (updatedPlaylists > 0) {
+      print(
+          '[LibraryScreen] Rehydrated album IDs for $updatedPlaylists playlists');
+    }
+
+    await _loadDownloadedSongs();
+  }
+
   /// Build _offlineSongs and _albums lists from downloaded tasks for offline display
   void _buildLibraryFromDownloads() {
     final queue = _downloadManager.queue;
-    final completedTasks = queue.where((t) => t.status == DownloadStatus.completed).toList();
+    final completedTasks =
+        queue.where((t) => t.status == DownloadStatus.completed).toList();
 
-    print('[LibraryScreen] Building library from ${completedTasks.length} downloaded songs');
+    print(
+        '[LibraryScreen] Building library from ${completedTasks.length} downloaded songs');
 
     // Build songs list from download tasks - use Song objects to preserve metadata
     final songs = <Song>[];
@@ -345,41 +461,42 @@ class _LibraryScreenState extends State<LibraryScreen> {
           id: task.songId,
           title: task.title,
           artist: task.artist,
-          album: task.albumName,           // ✅ Preserved from DownloadTask
+          album: task.albumName, // ✅ Preserved from DownloadTask
           albumId: task.albumId,
-          albumArtist: task.albumArtist,   // ✅ Preserved from DownloadTask
+          albumArtist: task.albumArtist, // ✅ Preserved from DownloadTask
           trackNumber: task.trackNumber,
-          discNumber: null,                // Not stored in DownloadTask
-          year: null,                      // Not stored in DownloadTask
-          genre: null,                     // Not stored in DownloadTask
+          discNumber: null, // Not stored in DownloadTask
+          year: null, // Not stored in DownloadTask
+          genre: null, // Not stored in DownloadTask
           duration: Duration(seconds: task.duration),
-          filePath: task.songId,           // Use songId as filePath for local playback
+          filePath: task.songId, // Use songId as filePath for local playback
           fileSize: task.bytesDownloaded,
           modifiedTime: DateTime.now(),
         );
         songs.add(song);
       }
     }
-    
+
     // Build albums list from grouped songs
     final albums = <AlbumModel>[];
     for (final entry in albumMap.entries) {
       final albumId = entry.key;
       final albumTasks = entry.value;
-      
+
       // Use first task to get album info
       final firstTask = albumTasks.first;
-      
+
       // Calculate total duration from all songs in album
-      final totalDuration = albumTasks.fold<int>(0, (sum, task) => sum + task.duration);
-      
+      final totalDuration =
+          albumTasks.fold<int>(0, (sum, task) => sum + task.duration);
+
       // Use albumName if available, otherwise show artist's album (for older downloads)
       final albumTitle = firstTask.albumName ?? '${firstTask.artist} Album';
-      
+
       // Use albumArtist if available, otherwise fall back to song artist
       // This ensures featuring artists don't show as the album artist
       final artist = firstTask.albumArtist ?? firstTask.artist;
-      
+
       albums.add(AlbumModel(
         id: albumId,
         title: albumTitle,
@@ -388,19 +505,20 @@ class _LibraryScreenState extends State<LibraryScreen> {
         duration: totalDuration,
       ));
     }
-    
+
     // Sort songs by title
     songs.sort((a, b) => a.title.compareTo(b.title));
     // Sort albums by title
     albums.sort((a, b) => a.title.compareTo(b.title));
 
     setState(() {
-      _offlineSongs = songs;  // Use offline list for Song objects
+      _offlineSongs = songs; // Use offline list for Song objects
       _albums = albums;
-      _isOfflineMode = true;  // Mark that we're in offline mode
+      _isOfflineMode = true; // Mark that we're in offline mode
     });
 
-    print('[LibraryScreen] Built ${songs.length} songs and ${albums.length} albums from downloads');
+    print(
+        '[LibraryScreen] Built ${songs.length} songs and ${albums.length} albums from downloads');
   }
 
   @override
@@ -442,22 +560,28 @@ class _LibraryScreenState extends State<LibraryScreen> {
           // Filter toggle for downloaded songs
           IconButton(
             icon: Icon(
-              _showDownloadedOnly ? Icons.download_done : Icons.download_outlined,
-              color: _showDownloadedOnly ? Theme.of(context).colorScheme.primary : null,
+              _showDownloadedOnly
+                  ? Icons.download_done
+                  : Icons.download_outlined,
+              color: _showDownloadedOnly
+                  ? Theme.of(context).colorScheme.primary
+                  : null,
             ),
             onPressed: () {
               setState(() {
                 _showDownloadedOnly = !_showDownloadedOnly;
               });
             },
-            tooltip: _showDownloadedOnly ? 'Show All Songs' : 'Show Downloaded Only',
+            tooltip:
+                _showDownloadedOnly ? 'Show All Songs' : 'Show Downloaded Only',
           ),
           IconButton(
             icon: Icon(
               _isGridView ? Icons.view_list_rounded : Icons.grid_view_rounded,
             ),
             onPressed: _toggleViewMode,
-            tooltip: _isGridView ? 'Switch to List View' : 'Switch to Grid View',
+            tooltip:
+                _isGridView ? 'Switch to List View' : 'Switch to Grid View',
           ),
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -497,35 +621,30 @@ class _LibraryScreenState extends State<LibraryScreen> {
               title: 'Playlists',
               initiallyExpanded: true,
               persistenceKey: 'library_section_playlists',
-              child: _isGridView ? _buildPlaylistsGrid() : _buildPlaylistsList(),
+              child:
+                  _isGridView ? _buildPlaylistsGrid() : _buildPlaylistsList(),
             ),
           ),
 
-          // Albums Section
-          SliverToBoxAdapter(
-            child: CollapsibleSection(
-              title: 'Albums',
-              initiallyExpanded: true,
-              persistenceKey: 'library_section_albums',
-              child: _isGridView ? _buildAlbumsGrid() : _buildAlbumsList(),
-            ),
+          _buildSectionHeaderSliver(
+            title: 'Albums',
+            isExpanded: _albumsExpanded,
+            onTap: _toggleAlbumsExpanded,
           ),
+          ..._buildAlbumsContentSlivers(),
 
-          // Songs Section
-          SliverToBoxAdapter(
-            child: CollapsibleSection(
-              title: 'Songs',
-              initiallyExpanded: false,
-              persistenceKey: 'library_section_songs',
-              child: _buildSongsList(),
-            ),
+          _buildSectionHeaderSliver(
+            title: 'Songs',
+            isExpanded: _songsExpanded,
+            onTap: _toggleSongsExpanded,
           ),
+          ..._buildSongsContentSlivers(),
 
           // Bottom padding to prevent content from being hidden behind mini player + nav bar
           // Mini player: 60px + Download bar: 4px + Nav bar height
           SliverPadding(
             padding: EdgeInsets.only(
-              bottom: getMiniPlayerAwareBottomPadding(),
+              bottom: getMiniPlayerAwareBottomPadding(context),
             ),
           ),
         ],
@@ -533,25 +652,268 @@ class _LibraryScreenState extends State<LibraryScreen> {
     );
   }
 
+  Widget _buildSectionHeaderSliver({
+    required String title,
+    required bool isExpanded,
+    required Future<void> Function() onTap,
+  }) {
+    return SliverToBoxAdapter(
+      child: InkWell(
+        onTap: () => unawaited(onTap()),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+          child: Row(
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const Spacer(),
+              AnimatedRotation(
+                duration: const Duration(milliseconds: 250),
+                turns: isExpanded ? 0.5 : 0.0,
+                child: const Icon(Icons.expand_more),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  List<AlbumModel> _albumsToShow() {
+    if (!_showDownloadedOnly) return _albums;
+    return _albums
+        .where((album) => _albumsWithDownloads.contains(album.id))
+        .toList();
+  }
+
+  List<SongModel> _onlineSongsToShow() {
+    if (!_showDownloadedOnly) return _songs;
+    return _songs
+        .where((song) => _downloadedSongIds.contains(song.id))
+        .toList();
+  }
+
+  List<Widget> _buildAlbumsContentSlivers() {
+    if (!_albumsExpanded) {
+      return const <Widget>[];
+    }
+
+    final albumsToShow = _albumsToShow();
+    if (albumsToShow.isEmpty) {
+      return <Widget>[
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Text(
+              _showDownloadedOnly
+                  ? 'No albums with downloaded songs'
+                  : 'No albums found',
+              style: const TextStyle(color: Colors.grey),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      ];
+    }
+
+    final isOffline = _offlineService.isOffline;
+
+    if (_isGridView) {
+      return <Widget>[
+        SliverPadding(
+          padding: const EdgeInsets.all(16.0),
+          sliver: SliverGrid(
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: _getGridColumnCount(context),
+              mainAxisSpacing: 16,
+              crossAxisSpacing: 16,
+              childAspectRatio: 0.75,
+            ),
+            delegate: SliverChildBuilderDelegate(
+              (context, index) {
+                final album = albumsToShow[index];
+                final hasDownloads = _albumsWithDownloads.contains(album.id);
+                final isAvailable = !isOffline || hasDownloads;
+
+                return AlbumGridItem(
+                  album: album,
+                  onTap: isAvailable ? () => _openAlbum(album) : null,
+                  onLongPress: () => _showAlbumContextMenu(album),
+                  isAvailable: isAvailable,
+                  hasDownloadedSongs: hasDownloads,
+                );
+              },
+              childCount: albumsToShow.length,
+            ),
+          ),
+        ),
+      ];
+    }
+
+    return <Widget>[
+      SliverList(
+        delegate: SliverChildBuilderDelegate(
+          (context, index) {
+            final album = albumsToShow[index];
+            final hasDownloads = _albumsWithDownloads.contains(album.id);
+            final isAvailable = !isOffline || hasDownloads;
+
+            return AlbumListItem(
+              album: album,
+              onTap: isAvailable ? () => _openAlbum(album) : null,
+              onLongPress: () => _showAlbumContextMenu(album),
+              isAvailable: isAvailable,
+              hasDownloadedSongs: hasDownloads,
+            );
+          },
+          childCount: albumsToShow.length,
+        ),
+      ),
+    ];
+  }
+
+  List<Widget> _buildSongsContentSlivers() {
+    if (!_songsExpanded) {
+      return const <Widget>[];
+    }
+
+    if (_isOfflineMode) {
+      if (_offlineSongs.isEmpty) {
+        return const <Widget>[
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Text(
+                'No offline songs available',
+                style: TextStyle(color: Colors.grey),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
+        ];
+      }
+
+      return <Widget>[
+        SliverList(
+          delegate: SliverChildBuilderDelegate(
+            (context, index) {
+              final song = _offlineSongs[index];
+              final isDownloaded = _downloadedSongIds.contains(song.id);
+              final isCached = _cachedSongIds.contains(song.id);
+
+              final songModel = SongModel(
+                id: song.id,
+                title: song.title,
+                artist: song.artist,
+                albumId: song.albumId,
+                duration: song.duration.inSeconds,
+                trackNumber: song.trackNumber,
+              );
+
+              return SongListItem(
+                song: songModel,
+                onTap: () => _playSongDirect(song),
+                onLongPress: () => _showOfflineSongOptions(song),
+                isDownloaded: isDownloaded,
+                isCached: isCached,
+                isAvailable: true,
+                albumName: song.album,
+                albumArtist: song.albumArtist,
+              );
+            },
+            childCount: _offlineSongs.length,
+          ),
+        ),
+      ];
+    }
+
+    final songsToShow = _onlineSongsToShow();
+    if (songsToShow.isEmpty) {
+      return const <Widget>[
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: EdgeInsets.all(16.0),
+            child: Text(
+              'No standalone songs found',
+              style: TextStyle(color: Colors.grey),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      ];
+    }
+
+    final isOffline = _offlineService.isOffline;
+    final albumById = <String, AlbumModel>{
+      for (final album in _albums) album.id: album,
+    };
+
+    return <Widget>[
+      SliverList(
+        delegate: SliverChildBuilderDelegate(
+          (context, index) {
+            final song = songsToShow[index];
+            final isDownloaded = _downloadedSongIds.contains(song.id);
+            final isCached = _cachedSongIds.contains(song.id);
+            final isAvailable = !isOffline || isDownloaded || isCached;
+
+            final album =
+                song.albumId == null ? null : albumById[song.albumId!];
+
+            return SongListItem(
+              song: song,
+              onTap: isAvailable ? () => _playSong(song) : null,
+              onLongPress: () => _showSongOptions(song),
+              isDownloaded: isDownloaded,
+              isCached: isCached,
+              isAvailable: isAvailable,
+              albumName: album?.title,
+              albumArtist: album?.artist,
+            );
+          },
+          childCount: songsToShow.length,
+        ),
+      ),
+    ];
+  }
+
   /// Get artwork IDs for a playlist's artwork collage
-  /// Returns up to 4 unique IDs from the playlist's songs
-  /// - Prefer song-specific artwork IDs for per-song covers
+  /// Returns up to 4 unique artwork IDs from the playlist's songs
+  /// - Prefer album artwork IDs first
+  /// - Include song artwork fallback only when album ID is unavailable
   List<String> _getPlaylistArtworkIds(PlaylistModel playlist) {
     final artworkIds = <String>[];
+    final seenPrimaryIds = <String>{};
+
     for (final songId in playlist.songIds) {
-      final songArtworkId = 'song_$songId';
-      if (!artworkIds.contains(songArtworkId)) {
-        artworkIds.add(songArtworkId);
+      final albumId = playlist.songAlbumIds[songId];
+      if (albumId != null && albumId.isNotEmpty) {
+        final primaryId = 'a:$albumId';
+        if (seenPrimaryIds.add(primaryId)) {
+          artworkIds.add('a:$albumId|s:$songId');
+        }
+      } else {
+        final primaryId = 's:$songId';
+        if (seenPrimaryIds.add(primaryId)) {
+          artworkIds.add(primaryId);
+        }
       }
       if (artworkIds.length >= 4) break;
     }
+
     return artworkIds;
   }
 
   /// Build playlists grid
   Widget _buildPlaylistsGrid() {
     // Separate Liked Songs from regular playlists
-    final likedSongsPlaylist = _playlistService.getPlaylist(PlaylistService.likedSongsId);
+    final likedSongsPlaylist =
+        _playlistService.getPlaylist(PlaylistService.likedSongsId);
     final regularPlaylists = _playlistService.playlists
         .where((p) => p.id != PlaylistService.likedSongsId)
         .toList();
@@ -575,7 +937,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
             ),
             if (hasServerPlaylists)
               ImportFromServerCard(
-                serverPlaylistCount: _playlistService.visibleServerPlaylists.length,
+                serverPlaylistCount:
+                    _playlistService.visibleServerPlaylists.length,
                 onTap: _showServerPlaylistsSheet,
               ),
           ],
@@ -619,7 +982,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
           // Second item is Import from Server (if server playlists exist)
           if (hasServerPlaylists && index == currentIndex) {
             return ImportFromServerCard(
-              serverPlaylistCount: _playlistService.visibleServerPlaylists.length,
+              serverPlaylistCount:
+                  _playlistService.visibleServerPlaylists.length,
               onTap: _showServerPlaylistsSheet,
             );
           }
@@ -627,7 +991,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
 
           // Next is Liked Songs (if it exists and has songs)
           final hasLikedSongs = likedSongsPlaylist != null &&
-                                 likedSongsPlaylist.songIds.isNotEmpty;
+              likedSongsPlaylist.songIds.isNotEmpty;
           if (hasLikedSongs && index == currentIndex) {
             return PlaylistCard(
               playlist: likedSongsPlaylist,
@@ -635,7 +999,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
               onLongPress: () => _showPlaylistContextMenu(likedSongsPlaylist),
               albumIds: _getPlaylistArtworkIds(likedSongsPlaylist),
               isLikedSongs: true, // Special flag for styling
-              hasDownloadedSongs: _playlistsWithDownloads.contains(likedSongsPlaylist.id),
+              hasDownloadedSongs:
+                  _playlistsWithDownloads.contains(likedSongsPlaylist.id),
             );
           }
           if (hasLikedSongs) currentIndex++;
@@ -648,7 +1013,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
             onTap: () => _openPlaylist(playlist),
             onLongPress: () => _showPlaylistContextMenu(playlist),
             albumIds: _getPlaylistArtworkIds(playlist),
-            isImportedFromServer: _playlistService.isRecentlyImported(playlist.id),
+            isImportedFromServer:
+                _playlistService.isRecentlyImported(playlist.id),
             hasDownloadedSongs: _playlistsWithDownloads.contains(playlist.id),
           );
         },
@@ -659,7 +1025,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
   /// Build playlists list view
   Widget _buildPlaylistsList() {
     // Separate Liked Songs from regular playlists
-    final likedSongsPlaylist = _playlistService.getPlaylist(PlaylistService.likedSongsId);
+    final likedSongsPlaylist =
+        _playlistService.getPlaylist(PlaylistService.likedSongsId);
     final regularPlaylists = _playlistService.playlists
         .where((p) => p.id != PlaylistService.likedSongsId)
         .toList();
@@ -675,7 +1042,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
             CreatePlaylistListItem(onTap: _createNewPlaylist),
             if (hasServerPlaylists)
               ImportFromServerListItem(
-                serverPlaylistCount: _playlistService.visibleServerPlaylists.length,
+                serverPlaylistCount:
+                    _playlistService.visibleServerPlaylists.length,
                 onTap: _showServerPlaylistsSheet,
               ),
           ],
@@ -686,7 +1054,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
     // Calculate total item count
     int itemCount = 1; // Create New
     if (hasServerPlaylists) itemCount++; // Import from Server
-    final hasLikedSongs = likedSongsPlaylist != null && likedSongsPlaylist.songIds.isNotEmpty;
+    final hasLikedSongs =
+        likedSongsPlaylist != null && likedSongsPlaylist.songIds.isNotEmpty;
     if (hasLikedSongs) itemCount++; // Liked Songs
     itemCount += regularPlaylists.length; // Regular playlists
 
@@ -717,7 +1086,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
             onLongPress: () => _showPlaylistContextMenu(likedSongsPlaylist),
             albumIds: _getPlaylistArtworkIds(likedSongsPlaylist),
             isLikedSongs: true,
-            hasDownloadedSongs: _playlistsWithDownloads.contains(likedSongsPlaylist.id),
+            hasDownloadedSongs:
+                _playlistsWithDownloads.contains(likedSongsPlaylist.id),
           );
         }
         if (hasLikedSongs) currentIndex++;
@@ -729,222 +1099,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
           onTap: () => _openPlaylist(playlist),
           onLongPress: () => _showPlaylistContextMenu(playlist),
           albumIds: _getPlaylistArtworkIds(playlist),
-          isImportedFromServer: _playlistService.isRecentlyImported(playlist.id),
+          isImportedFromServer:
+              _playlistService.isRecentlyImported(playlist.id),
           hasDownloadedSongs: _playlistsWithDownloads.contains(playlist.id),
-        );
-      },
-    );
-  }
-
-  /// Build albums grid
-  Widget _buildAlbumsGrid() {
-    // Filter albums if showing downloaded only
-    final albumsToShow = _showDownloadedOnly
-        ? _albums.where((a) => _albumsWithDownloads.contains(a.id)).toList()
-        : _albums;
-
-    if (albumsToShow.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Text(
-          _showDownloadedOnly
-              ? 'No albums with downloaded songs'
-              : 'No albums found',
-          style: const TextStyle(color: Colors.grey),
-          textAlign: TextAlign.center,
-        ),
-      );
-    }
-
-    final isOffline = _offlineService.isOffline;
-
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: GridView.builder(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: _getGridColumnCount(context),
-          mainAxisSpacing: 16,
-          crossAxisSpacing: 16,
-          childAspectRatio: 0.75,
-        ),
-        itemCount: albumsToShow.length,
-        itemBuilder: (context, index) {
-          final album = albumsToShow[index];
-          final hasDownloads = _albumsWithDownloads.contains(album.id);
-          final isAvailable = !isOffline || hasDownloads;
-
-          return AlbumGridItem(
-            album: album,
-            onTap: isAvailable ? () => _openAlbum(album) : null,
-            onLongPress: () => _showAlbumContextMenu(album),
-            isAvailable: isAvailable,
-            hasDownloadedSongs: hasDownloads,
-          );
-        },
-      ),
-    );
-  }
-
-  /// Build albums list
-  Widget _buildAlbumsList() {
-    // Filter albums if showing downloaded only
-    final albumsToShow = _showDownloadedOnly
-        ? _albums.where((a) => _albumsWithDownloads.contains(a.id)).toList()
-        : _albums;
-
-    if (albumsToShow.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Text(
-          _showDownloadedOnly
-              ? 'No albums with downloaded songs'
-              : 'No albums found',
-          style: const TextStyle(color: Colors.grey),
-          textAlign: TextAlign.center,
-        ),
-      );
-    }
-
-    final isOffline = _offlineService.isOffline;
-
-    return ListView.separated(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: albumsToShow.length,
-      separatorBuilder: (context, index) => const SizedBox.shrink(),
-      itemBuilder: (context, index) {
-        final album = albumsToShow[index];
-        final hasDownloads = _albumsWithDownloads.contains(album.id);
-        final isAvailable = !isOffline || hasDownloads;
-
-        return AlbumListItem(
-          album: album,
-          onTap: isAvailable ? () => _openAlbum(album) : null,
-          onLongPress: () => _showAlbumContextMenu(album),
-          isAvailable: isAvailable,
-          hasDownloadedSongs: hasDownloads,
-        );
-      },
-    );
-  }
-
-  /// Build songs list
-  Widget _buildSongsList() {
-    // Use offline songs if in offline mode, otherwise use online songs
-    if (_isOfflineMode) {
-      return _buildOfflineSongsList();
-    } else {
-      return _buildOnlineSongsList();
-    }
-  }
-
-  Widget _buildOnlineSongsList() {
-    // Filter songs if showing downloaded only
-    final songsToShow = _showDownloadedOnly
-        ? _songs.where((s) => _downloadedSongIds.contains(s.id)).toList()
-        : _songs;
-
-    if (songsToShow.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: const Text(
-          'No standalone songs found',
-          style: TextStyle(color: Colors.grey),
-          textAlign: TextAlign.center,
-        ),
-      );
-    }
-
-    final isOffline = _offlineService.isOffline;
-
-    return ListView.separated(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: songsToShow.length,
-      separatorBuilder: (context, index) => const SizedBox.shrink(),
-      itemBuilder: (context, index) {
-        final song = songsToShow[index];
-        final isDownloaded = _downloadedSongIds.contains(song.id);
-        final isCached = _cachedSongIds.contains(song.id);
-        final isAvailable = !isOffline || isDownloaded || isCached;
-
-        // Lookup album info from _albums if song has albumId
-        String? albumName;
-        String? albumArtist;
-        if (song.albumId != null) {
-          final album = _albums.firstWhere(
-            (a) => a.id == song.albumId,
-            orElse: () => AlbumModel(
-              id: '',
-              title: '',
-              artist: '',
-              songCount: 0,
-              duration: 0,
-            ),
-          );
-          if (album.id.isNotEmpty) {
-            albumName = album.title;
-            albumArtist = album.artist;
-          }
-        }
-
-        return SongListItem(
-          song: song,
-          onTap: isAvailable ? () => _playSong(song) : null,
-          onLongPress: () => _showSongOptions(song),
-          isDownloaded: isDownloaded,
-          isCached: isCached,
-          isAvailable: isAvailable,
-          albumName: albumName,
-          albumArtist: albumArtist,
-        );
-      },
-    );
-  }
-
-  Widget _buildOfflineSongsList() {
-    if (_offlineSongs.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: const Text(
-          'No offline songs available',
-          style: TextStyle(color: Colors.grey),
-          textAlign: TextAlign.center,
-        ),
-      );
-    }
-
-    return ListView.separated(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: _offlineSongs.length,
-      separatorBuilder: (context, index) => const SizedBox.shrink(),
-      itemBuilder: (context, index) {
-        final song = _offlineSongs[index];
-        final isDownloaded = _downloadedSongIds.contains(song.id);
-        final isCached = _cachedSongIds.contains(song.id);
-
-        // Convert Song to SongModel for display widget
-        final songModel = SongModel(
-          id: song.id,
-          title: song.title,
-          artist: song.artist,
-          albumId: song.albumId,
-          duration: song.duration.inSeconds,
-          trackNumber: song.trackNumber,
-        );
-
-        return SongListItem(
-          song: songModel,
-          onTap: () => _playSongDirect(song), // Use Song directly
-          onLongPress: () => _showOfflineSongOptions(song),
-          isDownloaded: isDownloaded,
-          isCached: isCached,
-          isAvailable: true, // All offline songs are available
-          albumName: song.album,
-          albumArtist: song.albumArtist,
         );
       },
     );
@@ -1012,7 +1169,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
   /// Build empty state
   Widget _buildEmptyState() {
     final isOffline = _offlineService.isOfflineModeEnabled;
-    
+
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -1126,7 +1283,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(Icons.check_circle, size: 48, color: Colors.green[400]),
+                              Icon(Icons.check_circle,
+                                  size: 48, color: Colors.green[400]),
                               const SizedBox(height: 16),
                               Text(
                                 'All playlists imported!',
@@ -1151,16 +1309,22 @@ class _LibraryScreenState extends State<LibraryScreen> {
                                   gradient: LinearGradient(
                                     begin: Alignment.topLeft,
                                     end: Alignment.bottomRight,
-                                    colors: [Colors.blue[400]!, Colors.blue[700]!],
+                                    colors: [
+                                      Colors.blue[400]!,
+                                      Colors.blue[700]!
+                                    ],
                                   ),
                                   borderRadius: BorderRadius.circular(4),
                                 ),
-                                child: const Icon(Icons.folder, color: Colors.white),
+                                child: const Icon(Icons.folder,
+                                    color: Colors.white),
                               ),
                               title: Text(serverPlaylist.name),
-                              subtitle: Text('${serverPlaylist.songCount} songs'),
+                              subtitle:
+                                  Text('${serverPlaylist.songCount} songs'),
                               trailing: const Icon(Icons.download),
-                              onTap: () => _importServerPlaylist(serverPlaylist),
+                              onTap: () =>
+                                  _importServerPlaylist(serverPlaylist),
                             );
                           },
                         ),
@@ -1194,12 +1358,14 @@ class _LibraryScreenState extends State<LibraryScreen> {
       );
 
       if (mounted) {
-        Navigator.of(context, rootNavigator: true).pop(); // Close loading dialog
+        Navigator.of(context, rootNavigator: true)
+            .pop(); // Close loading dialog
 
         // Show success message
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Imported "${localPlaylist.name}" with ${localPlaylist.songCount} songs'),
+            content: Text(
+                'Imported "${localPlaylist.name}" with ${localPlaylist.songCount} songs'),
             action: SnackBarAction(
               label: 'View',
               onPressed: () => _openPlaylist(localPlaylist),
@@ -1237,7 +1403,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
   void _playSong(SongModel song) async {
     print('==========================================================');
     print('[LibraryScreen] _playSong called for: ${song.title}');
-    print('[LibraryScreen] Song details - ID: ${song.id}, Artist: ${song.artist}, Duration: ${song.duration}s');
+    print(
+        '[LibraryScreen] Song details - ID: ${song.id}, Artist: ${song.artist}, Duration: ${song.duration}s');
     print('==========================================================');
 
     // Convert SongModel to Song for playback
@@ -1263,8 +1430,10 @@ class _LibraryScreenState extends State<LibraryScreen> {
   Future<void> _playSongDirect(Song song) async {
     print('==========================================================');
     print('[LibraryScreen] _playSongDirect called for: ${song.title}');
-    print('[LibraryScreen] Song details - ID: ${song.id}, Artist: ${song.artist}');
-    print('[LibraryScreen] Album: ${song.album ?? "N/A"}, AlbumArtist: ${song.albumArtist ?? "N/A"}');
+    print(
+        '[LibraryScreen] Song details - ID: ${song.id}, Artist: ${song.artist}');
+    print(
+        '[LibraryScreen] Album: ${song.album ?? "N/A"}, AlbumArtist: ${song.albumArtist ?? "N/A"}');
     print('==========================================================');
 
     print('[LibraryScreen] PlaybackManager instance: $_playbackManager');
@@ -1272,7 +1441,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
 
     try {
       await _playbackManager.playSong(song);
-      print('[LibraryScreen] ✅ PlaybackManager.playSong() completed successfully!');
+      print(
+          '[LibraryScreen] ✅ PlaybackManager.playSong() completed successfully!');
     } catch (e, stackTrace) {
       print('[LibraryScreen] ❌ ERROR in playSong: $e');
       print('[LibraryScreen] Stack trace: $stackTrace');
@@ -1286,13 +1456,13 @@ class _LibraryScreenState extends State<LibraryScreen> {
   /// Show context menu for album long press
   void _showAlbumContextMenu(AlbumModel album) {
     final isFullyDownloaded = _fullyDownloadedAlbumIds.contains(album.id);
-    
+
     showModalBottomSheet(
       context: context,
       builder: (BuildContext context) {
         return SafeArea(
           minimum: EdgeInsets.only(
-            bottom: getMiniPlayerAwareBottomPadding(),
+            bottom: getMiniPlayerAwareBottomPadding(context),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -1312,7 +1482,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
                             ? Image.network(
                                 album.coverArt!,
                                 fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => const Icon(Icons.album),
+                                headers: _connectionService.authHeaders,
+                                errorBuilder: (_, __, ___) =>
+                                    const Icon(Icons.album),
                               )
                             : const Icon(Icons.album),
                       ),
@@ -1396,7 +1568,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
       builder: (BuildContext context) {
         return SafeArea(
           minimum: EdgeInsets.only(
-            bottom: getMiniPlayerAwareBottomPadding(),
+            bottom: getMiniPlayerAwareBottomPadding(context),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -1486,7 +1658,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
     if (_connectionService.apiClient == null) return;
 
     try {
-      final albumDetail = await _connectionService.apiClient!.getAlbumDetail(album.id);
+      final albumDetail =
+          await _connectionService.apiClient!.getAlbumDetail(album.id);
       for (final track in albumDetail.songs) {
         final song = Song(
           id: track.id,
@@ -1516,9 +1689,10 @@ class _LibraryScreenState extends State<LibraryScreen> {
         // Find the song in our local library first
         final song = _songs.firstWhere(
           (s) => s.id == songId,
-          orElse: () => SongModel(id: songId, title: 'Unknown', artist: 'Unknown', duration: 0),
+          orElse: () => SongModel(
+              id: songId, title: 'Unknown', artist: 'Unknown', duration: 0),
         );
-        
+
         final playSong = Song(
           id: song.id,
           title: song.title,
@@ -1543,24 +1717,23 @@ class _LibraryScreenState extends State<LibraryScreen> {
     if (_connectionService.apiClient == null) return;
 
     try {
-      final albumDetail = await _connectionService.apiClient!.getAlbumDetail(album.id);
+      final downloadQuality = _qualityService.getDownloadQuality();
+      final downloadOriginal = _qualityService.getDownloadOriginal();
+      final albumDetail =
+          await _connectionService.apiClient!.getAlbumDetail(album.id);
       // Build song data list for downloadAlbum
       final songDataList = albumDetail.songs.map((track) {
-        final baseDownloadUrl = _connectionService.apiClient!.getDownloadUrl(track.id);
-        final downloadUrl = _qualityService.getDownloadUrlWithQuality(baseDownloadUrl);
-
         return {
-        'id': track.id,
-        'title': track.title,
-        'artist': track.artist,
-        'albumId': album.id,
-        'albumName': album.title,
-        'albumArtist': album.artist,
-        'albumArt': album.coverArt ?? '',
-        'downloadUrl': downloadUrl,
-        'duration': track.duration,
-        'trackNumber': track.trackNumber,
-        'fileSize': 0,
+          'id': track.id,
+          'title': track.title,
+          'artist': track.artist,
+          'albumId': album.id,
+          'albumName': album.title,
+          'albumArtist': album.artist,
+          'albumArt': album.coverArt ?? '',
+          'duration': track.duration,
+          'trackNumber': track.trackNumber,
+          'fileSize': 0,
         };
       }).toList();
 
@@ -1569,6 +1742,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
         albumId: album.id,
         albumName: album.title,
         albumArtist: album.artist,
+        downloadQuality: downloadQuality,
+        downloadOriginal: downloadOriginal,
       );
     } catch (e) {
       print('[LibraryScreen] Failed to download album: $e');
@@ -1580,6 +1755,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
     if (_connectionService.apiClient == null) return;
 
     try {
+      final downloadQuality = _qualityService.getDownloadQuality();
+      final downloadOriginal = _qualityService.getDownloadOriginal();
       for (final songId in playlist.songIds) {
         // Try to find song in our local library, fallback to playlist's stored metadata
         final song = _songs.firstWhere(
@@ -1606,9 +1783,6 @@ class _LibraryScreenState extends State<LibraryScreen> {
           }
         }
 
-        final baseDownloadUrl = _connectionService.apiClient!.getDownloadUrl(song.id);
-        final downloadUrl = _qualityService.getDownloadUrlWithQuality(baseDownloadUrl);
-
         await _downloadManager.downloadSong(
           songId: song.id,
           title: song.title,
@@ -1616,8 +1790,11 @@ class _LibraryScreenState extends State<LibraryScreen> {
           albumId: albumId,
           albumName: albumName,
           albumArtist: albumArtist,
-          albumArt: albumId != null ? '${_connectionService.apiClient!.baseUrl}/artwork/$albumId' : '',
-          downloadUrl: downloadUrl,
+          albumArt: albumId != null
+              ? '${_connectionService.apiClient!.baseUrl}/artwork/$albumId'
+              : '',
+          downloadQuality: downloadQuality,
+          downloadOriginal: downloadOriginal,
           duration: song.duration,
           trackNumber: song.trackNumber,
           totalBytes: 0,

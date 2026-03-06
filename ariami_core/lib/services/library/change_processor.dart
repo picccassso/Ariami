@@ -11,6 +11,8 @@ import 'package:ariami_core/services/library/album_builder.dart';
 class ChangeProcessor {
   final MetadataExtractor _metadataExtractor = MetadataExtractor();
   final AlbumBuilder _albumBuilder = AlbumBuilder();
+  Set<String> _lastAddedFiles = <String>{};
+  Set<String> _lastModifiedFiles = <String>{};
 
   /// Processes a batch of file changes and generates library updates
   ///
@@ -35,9 +37,9 @@ class ChangeProcessor {
     }
 
     // Group changes by type
-    final addedFiles = <String>[];
+    final addedFiles = <String>{};
     final removedFiles = <String>[];
-    final modifiedFiles = <String>[];
+    final modifiedFiles = <String>{};
 
     for (final change in changes) {
       switch (change.type) {
@@ -60,6 +62,9 @@ class ChangeProcessor {
       }
     }
 
+    _lastAddedFiles = addedFiles;
+    _lastModifiedFiles = modifiedFiles;
+
     // Process removals
     for (final path in removedFiles) {
       final songId = _generateSongId(path);
@@ -74,12 +79,9 @@ class ChangeProcessor {
 
     // Process additions
     if (addedFiles.isNotEmpty) {
-      try {
-        final newMetadata = await Future.wait(
-          addedFiles.map((path) => _metadataExtractor.extractMetadata(path)),
-        );
-
-        for (final metadata in newMetadata) {
+      for (final path in addedFiles) {
+        try {
+          final metadata = await _metadataExtractor.extractMetadata(path);
           final songId = _generateSongId(metadata.filePath);
           addedSongIds.add(songId);
 
@@ -89,20 +91,17 @@ class ChangeProcessor {
             final albumId = _generateAlbumId(albumKey);
             affectedAlbumIds.add(albumId);
           }
+        } catch (e) {
+          print('Error processing added file "$path": $e');
         }
-      } catch (e) {
-        print('Error processing added files: $e');
       }
     }
 
     // Process modifications
     if (modifiedFiles.isNotEmpty) {
-      try {
-        final updatedMetadata = await Future.wait(
-          modifiedFiles.map((path) => _metadataExtractor.extractMetadata(path)),
-        );
-
-        for (final metadata in updatedMetadata) {
+      for (final path in modifiedFiles) {
+        try {
+          final metadata = await _metadataExtractor.extractMetadata(path);
           final songId = _generateSongId(metadata.filePath);
           modifiedSongIds.add(songId);
 
@@ -118,9 +117,9 @@ class ChangeProcessor {
             final newAlbumId = _generateAlbumId(albumKey);
             affectedAlbumIds.add(newAlbumId);
           }
+        } catch (e) {
+          print('Error processing modified file "$path": $e');
         }
-      } catch (e) {
-        print('Error processing modified files: $e');
       }
     }
 
@@ -135,7 +134,7 @@ class ChangeProcessor {
 
   /// Generates a unique song ID from file path
   String _generateSongId(String filePath) {
-    return md5.convert(utf8.encode(filePath)).toString();
+    return md5.convert(utf8.encode(filePath)).toString().substring(0, 12);
   }
 
   /// Generates a unique album ID from album key
@@ -162,6 +161,7 @@ class ChangeProcessor {
   Future<LibraryStructure> applyUpdates(
     LibraryUpdate update,
     LibraryStructure currentLibrary,
+    {List<FileChange>? sourceChanges}
   ) async {
     // Collect all songs that need to be in the updated library
     final allSongs = <SongMetadata>[];
@@ -185,38 +185,36 @@ class ChangeProcessor {
       }
     }
 
-    // Add new and modified songs
-    final changedPaths = <String>[];
-
-    // Note: Added songs are already processed above in processChanges
-    // Here we only need to handle modified songs
-
-    // Find paths for modified songs (re-extract metadata)
-    for (final album in currentLibrary.albums.values) {
-      for (final song in album.songs) {
-        final songId = _generateSongId(song.filePath);
-        if (update.modifiedSongIds.contains(songId)) {
-          changedPaths.add(song.filePath);
+    // Add new and modified songs (re-extract metadata from changed paths)
+    final changedPaths = <String>{};
+    if (sourceChanges != null) {
+      for (final change in sourceChanges) {
+        switch (change.type) {
+          case FileChangeType.added:
+          case FileChangeType.modified:
+            changedPaths.add(change.path);
+            break;
+          case FileChangeType.renamed:
+            changedPaths.add(change.path);
+            break;
+          case FileChangeType.removed:
+            break;
         }
       }
-    }
-
-    for (final song in currentLibrary.standaloneSongs) {
-      final songId = _generateSongId(song.filePath);
-      if (update.modifiedSongIds.contains(songId)) {
-        changedPaths.add(song.filePath);
-      }
+    } else {
+      changedPaths.addAll(_lastAddedFiles);
+      changedPaths.addAll(_lastModifiedFiles);
     }
 
     // Re-extract metadata for changed files
     if (changedPaths.isNotEmpty) {
-      try {
-        final updatedMetadata = await Future.wait(
-          changedPaths.map((path) => _metadataExtractor.extractMetadata(path)),
-        );
-        allSongs.addAll(updatedMetadata);
-      } catch (e) {
-        print('Error re-extracting metadata: $e');
+      for (final path in changedPaths) {
+        try {
+          final updatedMetadata = await _metadataExtractor.extractMetadata(path);
+          allSongs.add(updatedMetadata);
+        } catch (e) {
+          print('Error re-extracting metadata for "$path": $e');
+        }
       }
     }
 

@@ -114,8 +114,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _isOfflineModeEnabled = false;
           _isReconnecting = false;
         });
+      } else if (_connectionService.didLastRestoreFailForAuth) {
+        // Auth failure - don't re-enable manual offline.
+        // Session-expired handler will navigate to login.
+        // After login, notifyConnectionRestored() clears offline state.
+        setState(() {
+          _isOfflineModeEnabled = false;
+          _isReconnecting = false;
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Session expired. Please log in to reconnect.'),
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
       } else {
-        // Reconnection failed - put back into manual offline mode
+        // Connectivity failure - put back into manual offline mode
         await _offlineService.setManualOfflineMode(true);
         setState(() {
           _isReconnecting = false;
@@ -152,7 +168,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
       body: ListView(
         padding: EdgeInsets.only(
-          bottom: getMiniPlayerAwareBottomPadding(),
+          bottom: getMiniPlayerAwareBottomPadding(context),
         ),
         children: [
           // Connection section

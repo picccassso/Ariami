@@ -110,7 +110,7 @@ class _ReorderableQueueListState extends State<ReorderableQueueList> {
 
     return ReorderableListView.builder(
       padding: EdgeInsets.only(
-        bottom: getMiniPlayerAwareBottomPadding(),
+        bottom: getMiniPlayerAwareBottomPadding(context),
       ),
       itemCount: widget.songs.length,
       onReorder: widget.onReorder,

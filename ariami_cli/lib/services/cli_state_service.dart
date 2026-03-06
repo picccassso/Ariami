@@ -36,6 +36,16 @@ class CliStateService {
     return path.join(getConfigDir(), 'server.log');
   }
 
+  /// Get the users file path (for multi-user auth)
+  static String getUsersFilePath() {
+    return path.join(getConfigDir(), 'users.json');
+  }
+
+  /// Get the sessions file path (for multi-user auth)
+  static String getSessionsFilePath() {
+    return path.join(getConfigDir(), 'sessions.json');
+  }
+
   /// Ensure config directory exists
   Future<void> ensureConfigDir() async {
     final configDir = Directory(getConfigDir());

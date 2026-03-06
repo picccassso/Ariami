@@ -18,6 +18,7 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
 
   late QualitySettings _settings;
   bool _isLoading = true;
+  bool _preferLocalWhenOnline = false;
 
   @override
   void initState() {
@@ -32,6 +33,7 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
     if (mounted) {
       setState(() {
         _settings = _qualityService.settings;
+        _preferLocalWhenOnline = _settings.preferLocalWhenOnline;
         _isLoading = false;
       });
     }
@@ -55,6 +57,14 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
     await _qualityService.setDownloadQuality(quality);
     setState(() {
       _settings = _qualityService.settings;
+    });
+  }
+
+  Future<void> _updatePreferLocalWhenOnline(bool preferLocal) async {
+    await _qualityService.setPreferLocalWhenOnline(preferLocal);
+    setState(() {
+      _settings = _qualityService.settings;
+      _preferLocalWhenOnline = preferLocal;
     });
   }
 
@@ -90,7 +100,7 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
                 16,
                 8,
                 16,
-                getMiniPlayerAwareBottomPadding() + 20,
+                getMiniPlayerAwareBottomPadding(context) + 20,
               ),
               children: [
                 // Current network indicator
@@ -116,6 +126,14 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
                   subtitle: 'Save bandwidth on cellular',
                   currentQuality: _settings.mobileDataQuality,
                   onChanged: _updateMobileDataQuality,
+                ),
+                const SizedBox(height: 8),
+                _buildToggleCard(
+                  icon: Icons.download_for_offline_rounded,
+                  title: 'Prefer Local When Online',
+                  subtitle: 'Play downloaded or cached files even when connected',
+                  value: _preferLocalWhenOnline,
+                  onChanged: _updatePreferLocalWhenOnline,
                 ),
 
                 const SizedBox(height: 12),
@@ -342,6 +360,72 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildToggleCard({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF141414),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: const Color(0xFF222222),
+          width: 1,
+        ),
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              icon,
+              color: Colors.black,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey[500],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Switch(
+            value: value,
+            onChanged: onChanged,
+            activeThumbColor: Colors.white,
+          ),
+        ],
       ),
     );
   }

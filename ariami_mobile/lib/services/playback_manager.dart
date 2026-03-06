@@ -2,11 +2,14 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/song.dart';
 import '../models/playback_queue.dart';
+import '../models/quality_settings.dart';
 import '../models/repeat_mode.dart';
+import '../models/api_models.dart';
 import 'audio/audio_player_service.dart';
 import 'audio/shuffle_service.dart';
 import 'audio/playback_state_manager.dart';
 import 'api/connection_service.dart';
+import 'api/api_client.dart';
 import 'offline/offline_playback_service.dart';
 import 'cache/cache_manager.dart';
 import 'stats/streaming_stats_service.dart';
@@ -49,14 +52,16 @@ class PlaybackManager extends ChangeNotifier {
   Timer? _saveTimer;
   static const Duration _saveDebounceDuration = Duration(seconds: 5);
   Duration? _restoredPosition; // Position to seek to after restoring state
-  Duration? _pendingUiPosition; // Temporary UI override for restored seek position
+  Duration?
+      _pendingUiPosition; // Temporary UI override for restored seek position
 
   // Getters
   Song? get currentSong => _queue.currentSong;
   bool get isPlaying => _audioPlayer.isPlaying;
   bool get isLoading => _audioPlayer.isLoading;
   Duration get position => _pendingUiPosition ?? _audioPlayer.position;
-  Duration? get duration => _audioPlayer.duration ?? _queue.currentSong?.duration;
+  Duration? get duration =>
+      _audioPlayer.duration ?? _queue.currentSong?.duration;
   bool get isShuffleEnabled => _isShuffleEnabled;
   RepeatMode get repeatMode => _repeatMode;
   PlaybackQueue get queue => _queue;
@@ -134,11 +139,13 @@ class PlaybackManager extends ChangeNotifier {
       _queue = PlaybackQueue();
       _queue.addSong(song);
       print('[PlaybackManager] Queue created with ${_queue.length} song(s)');
-      print('[PlaybackManager] Current song in queue: ${_queue.currentSong?.title}');
+      print(
+          '[PlaybackManager] Current song in queue: ${_queue.currentSong?.title}');
 
       print('[PlaybackManager] Calling _playCurrentSong()...');
       await _playCurrentSong();
-      print('[PlaybackManager] _playCurrentSong() completed, notifying listeners...');
+      print(
+          '[PlaybackManager] _playCurrentSong() completed, notifying listeners...');
       notifyListeners();
       await _saveState(); // Save state after playing new song
       print('[PlaybackManager] ========== playSong() completed ==========');
@@ -354,7 +361,8 @@ class PlaybackManager extends ChangeNotifier {
 
     if (_isShuffleEnabled && _queue.isNotEmpty) {
       // Shuffle remaining songs in queue (keeping current song at position 0)
-      final shuffled = _shuffleService.enableShuffle(_queue.songs, _queue.currentSong);
+      final shuffled =
+          _shuffleService.enableShuffle(_queue.songs, _queue.currentSong);
 
       // Rebuild queue with shuffled songs, current song is at index 0
       _queue.setQueue(shuffled, currentIndex: 0);
@@ -426,11 +434,13 @@ class PlaybackManager extends ChangeNotifier {
           }
           audioUrl = 'file://$localPath';
           print('[PlaybackManager] Playing from downloaded file: $audioUrl');
-          
+
           // Get cached artwork for offline playback (with thumbnail fallback)
           final localPrimaryKey = song.albumId ?? 'song_${song.id}';
-          final localFallbackKey = song.albumId != null ? '${song.albumId}_thumb' : null;
-          final cachedArtworkPath = await _cacheManager.getArtworkPathWithFallback(localPrimaryKey, localFallbackKey);
+          final localFallbackKey =
+              song.albumId != null ? '${song.albumId}_thumb' : null;
+          final cachedArtworkPath = await _cacheManager
+              .getArtworkPathWithFallback(localPrimaryKey, localFallbackKey);
           if (cachedArtworkPath != null) {
             artworkUri = Uri.file(cachedArtworkPath);
             print('[PlaybackManager] Using cached artwork: $artworkUri');
@@ -448,8 +458,10 @@ class PlaybackManager extends ChangeNotifier {
 
           // Get cached artwork for offline playback (with thumbnail fallback)
           final cachedPrimaryKey = song.albumId ?? 'song_${song.id}';
-          final cachedFallbackKey = song.albumId != null ? '${song.albumId}_thumb' : null;
-          final cachedArtworkPathForCached = await _cacheManager.getArtworkPathWithFallback(cachedPrimaryKey, cachedFallbackKey);
+          final cachedFallbackKey =
+              song.albumId != null ? '${song.albumId}_thumb' : null;
+          final cachedArtworkPathForCached = await _cacheManager
+              .getArtworkPathWithFallback(cachedPrimaryKey, cachedFallbackKey);
           if (cachedArtworkPathForCached != null) {
             artworkUri = Uri.file(cachedArtworkPathForCached);
             print('[PlaybackManager] Using cached artwork: $artworkUri');
@@ -460,25 +472,40 @@ class PlaybackManager extends ChangeNotifier {
           // Stream from server
           print('[PlaybackManager] Checking connection...');
           if (_connectionService.apiClient == null) {
-            print('[PlaybackManager] ERROR: Not connected to server! apiClient is null');
+            print(
+                '[PlaybackManager] ERROR: Not connected to server! apiClient is null');
             throw Exception('Not connected to server');
           }
-          print('[PlaybackManager] Connected! Base URL: ${_connectionService.apiClient!.baseUrl}');
+          print(
+              '[PlaybackManager] Connected! Base URL: ${_connectionService.apiClient!.baseUrl}');
 
           // Get streaming quality based on current network (WiFi vs mobile data)
           final streamingQuality = _qualityService.getCurrentStreamingQuality();
-          audioUrl = _connectionService.apiClient!.getStreamUrlWithQuality(
-            song.filePath,
-            streamingQuality,
-          );
-          print('[PlaybackManager] Streaming from server: $audioUrl (quality: ${streamingQuality.name})');
+
+          // Get stream URL (with retry-once logic for expired tokens)
+          audioUrl = await _getStreamUrlWithRetry(song, streamingQuality);
+          print(
+              '[PlaybackManager] Streaming from server: $audioUrl (quality: ${streamingQuality.name})');
 
           // Use server URL for artwork when streaming
           if (song.albumId != null) {
-            artworkUri = Uri.parse('${_connectionService.apiClient!.baseUrl}/artwork/${song.albumId}');
+            artworkUri = Uri.parse(
+                '${_connectionService.apiClient!.baseUrl}/artwork/${song.albumId}');
           } else {
             // Standalone song - use song artwork endpoint
-            artworkUri = Uri.parse('${_connectionService.apiClient!.baseUrl}/song-artwork/${song.id}');
+            artworkUri = Uri.parse(
+                '${_connectionService.apiClient!.baseUrl}/song-artwork/${song.id}');
+          }
+
+          // Notification artwork loaders cannot attach Authorization headers.
+          // In authenticated mode, pass streamToken in the artwork URL.
+          if (_connectionService.isAuthenticated) {
+            final streamToken = _extractStreamToken(audioUrl);
+            if (streamToken != null && streamToken.isNotEmpty) {
+              artworkUri = artworkUri.replace(
+                queryParameters: {'streamToken': streamToken},
+              );
+            }
           }
           print('[PlaybackManager] Using server artwork: $artworkUri');
 
@@ -487,16 +514,19 @@ class PlaybackManager extends ChangeNotifier {
           break;
 
         case PlaybackSource.unavailable:
-          print('[PlaybackManager] Song not available offline, searching for next available song...');
+          print(
+              '[PlaybackManager] Song not available offline, searching for next available song...');
           // Try to find and play the next available song
           final nextAvailableIndex = await _findNextAvailableSongIndex();
           if (nextAvailableIndex != null) {
-            print('[PlaybackManager] Found available song at index $nextAvailableIndex, skipping to it');
+            print(
+                '[PlaybackManager] Found available song at index $nextAvailableIndex, skipping to it');
             _queue.jumpToIndex(nextAvailableIndex);
             await _playCurrentSong(); // Recursive call to play the available song
           } else {
             // No songs available, stop playback
-            print('[PlaybackManager] No available songs in queue, stopping playback');
+            print(
+                '[PlaybackManager] No available songs in queue, stopping playback');
             await _audioPlayer.stop();
             notifyListeners();
           }
@@ -541,23 +571,108 @@ class PlaybackManager extends ChangeNotifier {
   }
 
   /// Internal: Cache a song in the background for future offline playback
-  void _cacheSongInBackground(Song song) {
+  void _cacheSongInBackground(Song song) async {
     if (_connectionService.apiClient == null) return;
 
-    // Construct the download URL for caching with download mode/quality
-    final baseDownloadUrl = _connectionService.apiClient!.getDownloadUrl(song.id);
-    final downloadUrl = _qualityService.getDownloadUrlWithQuality(baseDownloadUrl);
+    final apiClient = _connectionService.apiClient!;
     final downloadQuality = _qualityService.getDownloadQuality();
-    final downloadMode = _qualityService.getDownloadOriginal() ? 'original' : downloadQuality.name;
+    final downloadMode = _qualityService.getDownloadOriginal()
+        ? 'original'
+        : downloadQuality.name;
+
+    String downloadUrl;
+
+    // Use authenticated download URL if authenticated, otherwise use legacy URL
+    if (_connectionService.isAuthenticated) {
+      try {
+        // Request a stream ticket for the download
+        final qualityParam = downloadQuality != StreamingQuality.high
+            ? downloadQuality.toApiParam()
+            : null;
+        final ticketResponse = await apiClient.getStreamTicket(
+          song.filePath,
+          quality: qualityParam,
+        );
+        downloadUrl = apiClient.getDownloadUrlWithToken(
+          song.filePath,
+          ticketResponse.streamToken,
+          quality: downloadQuality,
+        );
+      } catch (e) {
+        print('[PlaybackManager] Failed to get stream ticket for caching: $e');
+        return;
+      }
+    } else {
+      // Legacy mode - use direct download URL
+      final baseDownloadUrl = apiClient.getDownloadUrl(song.id);
+      downloadUrl = _qualityService.getDownloadUrlWithQuality(baseDownloadUrl);
+    }
 
     // Trigger background cache (non-blocking)
     _cacheManager.cacheSong(song.id, downloadUrl).then((started) {
       if (started) {
-        print('[PlaybackManager] Started background caching for: ${song.title} (mode: $downloadMode)');
+        print(
+            '[PlaybackManager] Started background caching for: ${song.title} (mode: $downloadMode)');
       }
     }).catchError((e) {
       print('[PlaybackManager] Failed to start background cache: $e');
     });
+  }
+
+  /// Internal: Get stream URL with retry-once logic for expired stream tokens
+  ///
+  /// For authenticated streaming, if the stream ticket request fails with
+  /// STREAM_TOKEN_EXPIRED, this method will retry once with a fresh token.
+  Future<String> _getStreamUrlWithRetry(
+      Song song, StreamingQuality quality) async {
+    final apiClient = _connectionService.apiClient!;
+
+    // Legacy mode - direct stream URL (no token needed)
+    if (!_connectionService.isAuthenticated) {
+      return apiClient.getStreamUrlWithQuality(song.filePath, quality);
+    }
+
+    // Authenticated mode - request stream ticket with retry logic
+    final qualityParam =
+        quality != StreamingQuality.high ? quality.toApiParam() : null;
+
+    try {
+      print(
+          '[PlaybackManager] Requesting stream ticket for authenticated streaming...');
+      final ticketResponse = await apiClient.getStreamTicket(
+        song.filePath,
+        quality: qualityParam,
+      );
+      print('[PlaybackManager] Got stream ticket, streaming with token');
+      return apiClient.getStreamUrlWithToken(
+        song.filePath,
+        ticketResponse.streamToken,
+        quality: quality,
+      );
+    } on ApiException catch (e) {
+      // Check if token expired - retry once
+      if (e.isCode(ApiErrorCodes.streamTokenExpired)) {
+        print('[PlaybackManager] Stream token expired, retrying once...');
+        final retryTicketResponse = await apiClient.getStreamTicket(
+          song.filePath,
+          quality: qualityParam,
+        );
+        print('[PlaybackManager] Got fresh stream ticket on retry');
+        return apiClient.getStreamUrlWithToken(
+          song.filePath,
+          retryTicketResponse.streamToken,
+          quality: quality,
+        );
+      }
+      // Re-throw other errors
+      rethrow;
+    }
+  }
+
+  String? _extractStreamToken(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return null;
+    return uri.queryParameters['streamToken'];
   }
 
   /// Internal: Find the next available song in the queue (starting from current index + 1)
@@ -573,7 +688,8 @@ class PlaybackManager extends ChangeNotifier {
 
     // Search forward from current position
     for (int i = currentIndex + 1; i < songs.length; i++) {
-      final isAvailable = await _offlineService.isSongAvailableOffline(songs[i].id);
+      final isAvailable =
+          await _offlineService.isSongAvailableOffline(songs[i].id);
       if (isAvailable) {
         return i;
       }
@@ -582,7 +698,8 @@ class PlaybackManager extends ChangeNotifier {
     // If repeat all is enabled, wrap around and search from beginning
     if (_repeatMode == RepeatMode.all) {
       for (int i = 0; i < currentIndex; i++) {
-        final isAvailable = await _offlineService.isSongAvailableOffline(songs[i].id);
+        final isAvailable =
+            await _offlineService.isSongAvailableOffline(songs[i].id);
         if (isAvailable) {
           return i;
         }
@@ -604,7 +721,8 @@ class PlaybackManager extends ChangeNotifier {
 
     // Search from start index
     for (int i = startIndex; i < songs.length; i++) {
-      final isAvailable = await _offlineService.isSongAvailableOffline(songs[i].id);
+      final isAvailable =
+          await _offlineService.isSongAvailableOffline(songs[i].id);
       if (isAvailable) {
         return i;
       }
@@ -626,7 +744,8 @@ class PlaybackManager extends ChangeNotifier {
 
     // Search backward from current position
     for (int i = currentIndex - 1; i >= 0; i--) {
-      final isAvailable = await _offlineService.isSongAvailableOffline(songs[i].id);
+      final isAvailable =
+          await _offlineService.isSongAvailableOffline(songs[i].id);
       if (isAvailable) {
         return i;
       }
@@ -635,7 +754,8 @@ class PlaybackManager extends ChangeNotifier {
     // If repeat all is enabled, wrap around and search from end
     if (_repeatMode == RepeatMode.all) {
       for (int i = songs.length - 1; i > currentIndex; i--) {
-        final isAvailable = await _offlineService.isSongAvailableOffline(songs[i].id);
+        final isAvailable =
+            await _offlineService.isSongAvailableOffline(songs[i].id);
         if (isAvailable) {
           return i;
         }

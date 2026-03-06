@@ -5,12 +5,14 @@ library;
 export 'models/album.dart';
 export 'models/api_models.dart';
 export 'models/artwork_size.dart';
+export 'models/auth_models.dart';
 export 'models/file_change.dart';
 export 'models/folder_playlist.dart';
 export 'models/library_structure.dart';
 export 'models/quality_preset.dart';
 export 'models/scan_result.dart';
 export 'models/song_metadata.dart';
+export 'models/sync_models.dart';
 export 'models/websocket_models.dart';
 
 // Library Services
@@ -27,6 +29,7 @@ export 'services/library/metadata_extractor.dart';
 // Server Services
 export 'services/server/connection_manager.dart';
 export 'services/server/http_server.dart';
+export 'services/server/stream_tracker.dart';
 export 'services/server/streaming_service.dart';
 
 // Transcoding Services
@@ -34,3 +37,8 @@ export 'services/transcoding/transcoding_service.dart';
 
 // Artwork Services
 export 'services/artwork/artwork_service.dart';
+
+// Auth Services
+export 'services/auth/auth_service.dart';
+export 'services/auth/session_store.dart';
+export 'services/auth/user_store.dart';

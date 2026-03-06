@@ -1,22 +1,29 @@
-import 'dart:convert';
-import 'package:http/http.dart' as http;
+import 'web_api_client.dart';
+import 'web_auth_service.dart';
 
 /// Web service for setup operations
 /// Communicates with backend API for music folder configuration and library scanning
 class WebSetupService {
+  WebSetupService()
+      : _apiClient = WebApiClient(
+          tokenProvider: _authService.getSessionToken,
+        );
+
+  static final WebAuthService _authService = WebAuthService();
+  final WebApiClient _apiClient;
+
   /// Set the music folder path on the server
   ///
   /// Returns true if successful
   Future<bool> setMusicFolder(String path) async {
     try {
-      final response = await http.post(
-        Uri.parse('/api/setup/music-folder'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'path': path}),
+      final response = await _apiClient.post(
+        '/api/setup/music-folder',
+        body: <String, dynamic>{'path': path},
       );
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body) as Map<String, dynamic>;
+      if (response.isSuccess) {
+        final data = response.jsonBody ?? <String, dynamic>{};
         return data['success'] as bool? ?? false;
       }
       return false;
@@ -30,13 +37,12 @@ class WebSetupService {
   /// Returns true if scan was started successfully
   Future<bool> startScan() async {
     try {
-      final response = await http.post(
-        Uri.parse('/api/setup/start-scan'),
-        headers: {'Content-Type': 'application/json'},
+      final response = await _apiClient.post(
+        '/api/setup/start-scan',
       );
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body) as Map<String, dynamic>;
+      if (response.isSuccess) {
+        final data = response.jsonBody ?? <String, dynamic>{};
         return data['success'] as bool? ?? false;
       }
       return false;
@@ -55,12 +61,12 @@ class WebSetupService {
   /// - 'currentStatus': String description of current operation
   Future<Map<String, dynamic>> getScanStatus() async {
     try {
-      final response = await http.get(
-        Uri.parse('/api/setup/scan-status'),
+      final response = await _apiClient.get(
+        '/api/setup/scan-status',
       );
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body) as Map<String, dynamic>;
+      if (response.isSuccess) {
+        final data = response.jsonBody ?? <String, dynamic>{};
         return {
           'isScanning': data['isScanning'] ?? false,
           'progress': (data['progress'] as num?)?.toDouble() ?? 0.0,
@@ -85,13 +91,12 @@ class WebSetupService {
   /// Mark setup as complete on the server
   Future<bool> markSetupComplete() async {
     try {
-      final response = await http.post(
-        Uri.parse('/api/setup/complete'),
-        headers: {'Content-Type': 'application/json'},
+      final response = await _apiClient.post(
+        '/api/setup/complete',
       );
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body) as Map<String, dynamic>;
+      if (response.isSuccess) {
+        final data = response.jsonBody ?? <String, dynamic>{};
         return data['success'] as bool? ?? false;
       }
       return false;
@@ -112,13 +117,12 @@ class WebSetupService {
   /// - 'pid': int process ID of background server (on success)
   Future<Map<String, dynamic>> transitionToBackground() async {
     try {
-      final response = await http.post(
-        Uri.parse('/api/setup/transition-to-background'),
-        headers: {'Content-Type': 'application/json'},
+      final response = await _apiClient.post(
+        '/api/setup/transition-to-background',
       );
 
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body) as Map<String, dynamic>;
+      if (response.isSuccess) {
+        return response.jsonBody ?? <String, dynamic>{};
       }
       return {'success': false, 'message': 'HTTP ${response.statusCode}'};
     } catch (e) {

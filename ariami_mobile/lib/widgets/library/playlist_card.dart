@@ -93,7 +93,7 @@ class _PlaylistCardState extends State<PlaylistCard> {
                     child: _buildPlaylistArt(),
                   ),
                 ),
-                
+
                 // Download indicator
                 if (widget.hasDownloadedSongs)
                   Positioned(
@@ -104,7 +104,9 @@ class _PlaylistCardState extends State<PlaylistCard> {
                       decoration: BoxDecoration(
                         color: Colors.green, // Functional green for downloads
                         shape: BoxShape.circle,
-                        border: Border.all(color: Theme.of(context).scaffoldBackgroundColor, width: 1.5),
+                        border: Border.all(
+                            color: Theme.of(context).scaffoldBackgroundColor,
+                            width: 1.5),
                         boxShadow: [
                           BoxShadow(
                             color: Colors.black.withOpacity(0.2),
@@ -123,7 +125,7 @@ class _PlaylistCardState extends State<PlaylistCard> {
             ),
           ),
           const SizedBox(height: 12),
-          
+
           // Details
           Expanded(
             child: Padding(
@@ -144,11 +146,12 @@ class _PlaylistCardState extends State<PlaylistCard> {
                       Expanded(
                         child: Text(
                           widget.playlist.name,
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14,
-                            letterSpacing: -0.2,
-                          ),
+                          style:
+                              Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 14,
+                                    letterSpacing: -0.2,
+                                  ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -159,9 +162,12 @@ class _PlaylistCardState extends State<PlaylistCard> {
                   Text(
                     '${widget.playlist.songCount} songs',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontSize: 12,
-                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
-                    ),
+                          fontSize: 12,
+                          color: Theme.of(context)
+                              .colorScheme
+                              .onSurface
+                              .withOpacity(0.6),
+                        ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -197,8 +203,14 @@ class _PlaylistCardState extends State<PlaylistCard> {
     } else if (widget.albumIds.length == 2 || widget.albumIds.length == 3) {
       return Row(
         children: [
-          Expanded(child: AspectRatio(aspectRatio: 1, child: _buildArtworkImage(widget.albumIds[0]))),
-          Expanded(child: AspectRatio(aspectRatio: 1, child: _buildArtworkImage(widget.albumIds[1]))),
+          Expanded(
+              child: AspectRatio(
+                  aspectRatio: 1,
+                  child: _buildArtworkImage(widget.albumIds[0]))),
+          Expanded(
+              child: AspectRatio(
+                  aspectRatio: 1,
+                  child: _buildArtworkImage(widget.albumIds[1]))),
         ],
       );
     } else {
@@ -207,16 +219,28 @@ class _PlaylistCardState extends State<PlaylistCard> {
           Expanded(
             child: Row(
               children: [
-                Expanded(child: AspectRatio(aspectRatio: 1, child: _buildArtworkImage(widget.albumIds[0]))),
-                Expanded(child: AspectRatio(aspectRatio: 1, child: _buildArtworkImage(widget.albumIds[1]))),
+                Expanded(
+                    child: AspectRatio(
+                        aspectRatio: 1,
+                        child: _buildArtworkImage(widget.albumIds[0]))),
+                Expanded(
+                    child: AspectRatio(
+                        aspectRatio: 1,
+                        child: _buildArtworkImage(widget.albumIds[1]))),
               ],
             ),
           ),
           Expanded(
             child: Row(
               children: [
-                Expanded(child: AspectRatio(aspectRatio: 1, child: _buildArtworkImage(widget.albumIds[2]))),
-                Expanded(child: AspectRatio(aspectRatio: 1, child: _buildArtworkImage(widget.albumIds[3]))),
+                Expanded(
+                    child: AspectRatio(
+                        aspectRatio: 1,
+                        child: _buildArtworkImage(widget.albumIds[2]))),
+                Expanded(
+                    child: AspectRatio(
+                        aspectRatio: 1,
+                        child: _buildArtworkImage(widget.albumIds[3]))),
               ],
             ),
           ),
@@ -226,25 +250,74 @@ class _PlaylistCardState extends State<PlaylistCard> {
   }
 
   Widget _buildArtworkImage(String artworkId) {
-    final connectionService = ConnectionService();
-    String? artworkUrl;
-    if (artworkId.startsWith('song_')) {
-      final songId = artworkId.substring(5);
-      artworkUrl = connectionService.apiClient != null
-          ? '${connectionService.apiClient!.baseUrl}/song-artwork/$songId'
-          : null;
-    } else {
-      artworkUrl = connectionService.apiClient != null
-          ? '${connectionService.apiClient!.baseUrl}/artwork/$artworkId'
-          : null;
+    final request = _parseArtworkRequest(artworkId);
+
+    Widget fallbackWidget = _buildFallbackArt();
+    if (request.fallbackCacheKey != null && request.fallbackUrl != null) {
+      fallbackWidget = CachedArtwork(
+        albumId: request.fallbackCacheKey!,
+        artworkUrl: request.fallbackUrl,
+        fit: BoxFit.cover,
+        fallback: _buildFallbackArt(),
+        sizeHint: ArtworkSizeHint.thumbnail,
+      );
     }
 
     return CachedArtwork(
-      albumId: artworkId,
-      artworkUrl: artworkUrl,
+      albumId: request.primaryCacheKey,
+      artworkUrl: request.primaryUrl,
       fit: BoxFit.cover,
-      fallback: _buildFallbackArt(),
+      fallback: fallbackWidget,
       sizeHint: ArtworkSizeHint.thumbnail,
+    );
+  }
+
+  _PlaylistArtworkRequest _parseArtworkRequest(String artworkId) {
+    final apiClient = ConnectionService().apiClient;
+
+    String? albumUrl(String albumId) =>
+        apiClient != null ? '${apiClient.baseUrl}/artwork/$albumId' : null;
+    String? songUrl(String songId) =>
+        apiClient != null ? '${apiClient.baseUrl}/song-artwork/$songId' : null;
+
+    if (artworkId.startsWith('a:')) {
+      final splitIndex = artworkId.indexOf('|s:');
+      final albumId = splitIndex == -1
+          ? artworkId.substring(2)
+          : artworkId.substring(2, splitIndex);
+      final songId =
+          splitIndex == -1 ? null : artworkId.substring(splitIndex + 3);
+
+      return _PlaylistArtworkRequest(
+        primaryCacheKey: albumId,
+        primaryUrl: albumUrl(albumId),
+        fallbackCacheKey:
+            (songId == null || songId.isEmpty) ? null : 'song_$songId',
+        fallbackUrl:
+            (songId == null || songId.isEmpty) ? null : songUrl(songId),
+      );
+    }
+
+    if (artworkId.startsWith('s:')) {
+      final songId = artworkId.substring(2);
+      return _PlaylistArtworkRequest(
+        primaryCacheKey: 'song_$songId',
+        primaryUrl: songUrl(songId),
+      );
+    }
+
+    // Backward compatibility with legacy artwork IDs.
+    if (artworkId.startsWith('song_')) {
+      final songId = artworkId.substring(5);
+      return _PlaylistArtworkRequest(
+        primaryCacheKey: artworkId,
+        primaryUrl: songUrl(songId),
+      );
+    }
+
+    return _PlaylistArtworkRequest(
+      primaryCacheKey: artworkId,
+      primaryUrl: albumUrl(artworkId),
     );
   }
 
@@ -263,7 +336,8 @@ class _PlaylistCardState extends State<PlaylistCard> {
             ],
           ),
         ),
-        child: const Icon(Icons.favorite_rounded, size: 48, color: Colors.white),
+        child:
+            const Icon(Icons.favorite_rounded, size: 48, color: Colors.white),
       );
     }
 
@@ -286,9 +360,24 @@ class _PlaylistCardState extends State<PlaylistCard> {
           colors: gradients[colorIndex],
         ),
       ),
-      child: const Icon(Icons.queue_music_rounded, size: 48, color: Colors.white),
+      child:
+          const Icon(Icons.queue_music_rounded, size: 48, color: Colors.white),
     );
   }
+}
+
+class _PlaylistArtworkRequest {
+  const _PlaylistArtworkRequest({
+    required this.primaryCacheKey,
+    required this.primaryUrl,
+    this.fallbackCacheKey,
+    this.fallbackUrl,
+  });
+
+  final String primaryCacheKey;
+  final String? primaryUrl;
+  final String? fallbackCacheKey;
+  final String? fallbackUrl;
 }
 
 /// Create New Playlist Card
@@ -309,7 +398,10 @@ class CreatePlaylistCard extends StatelessWidget {
             child: Container(
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(16),
-                color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.5),
+                color: Theme.of(context)
+                    .colorScheme
+                    .surfaceContainerHighest
+                    .withOpacity(0.5),
                 border: Border.all(
                   color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
                   width: 1.5,
@@ -337,10 +429,10 @@ class CreatePlaylistCard extends StatelessWidget {
             child: Text(
               'Create Playlist',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: Theme.of(context).colorScheme.onSurface,
-              ),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
             ),
           ),
         ],
@@ -382,7 +474,10 @@ class ImportFromServerCard extends StatelessWidget {
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Theme.of(context).colorScheme.secondary.withOpacity(0.3),
+                    color: Theme.of(context)
+                        .colorScheme
+                        .secondary
+                        .withOpacity(0.3),
                     blurRadius: 12,
                     offset: const Offset(0, 4),
                   ),
@@ -391,10 +486,12 @@ class ImportFromServerCard extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.cloud_download_rounded, size: 40, color: Colors.white),
+                  const Icon(Icons.cloud_download_rounded,
+                      size: 40, color: Colors.white),
                   const SizedBox(height: 8),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
                       color: Colors.white.withOpacity(0.2),
                       borderRadius: BorderRadius.circular(20),
@@ -421,10 +518,10 @@ class ImportFromServerCard extends StatelessWidget {
                 Text(
                   'Import from Server',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Theme.of(context).colorScheme.secondary,
-                  ),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Theme.of(context).colorScheme.secondary,
+                      ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -432,9 +529,12 @@ class ImportFromServerCard extends StatelessWidget {
                 Text(
                   '$serverPlaylistCount new available',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    fontSize: 12,
-                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
-                  ),
+                        fontSize: 12,
+                        color: Theme.of(context)
+                            .colorScheme
+                            .onSurface
+                            .withOpacity(0.6),
+                      ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),

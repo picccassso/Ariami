@@ -1,11 +1,19 @@
-import 'dart:convert';
-import 'package:http/http.dart' as http;
+import 'web_api_client.dart';
+import 'web_auth_service.dart';
 
 /// Web-compatible Tailscale service
 ///
 /// Since web apps cannot execute shell commands, this service communicates
 /// with the backend server to check Tailscale status and retrieve the IP address.
 class WebTailscaleService {
+  WebTailscaleService()
+      : _apiClient = WebApiClient(
+          tokenProvider: _authService.getSessionToken,
+        );
+
+  static final WebAuthService _authService = WebAuthService();
+  final WebApiClient _apiClient;
+
   /// Check if Tailscale is installed and running on the server
   ///
   /// Returns a map with:
@@ -14,13 +22,10 @@ class WebTailscaleService {
   /// - 'ip': String? with the Tailscale IP address if available
   Future<Map<String, dynamic>> checkTailscaleStatus() async {
     try {
-      // Make HTTP request to backend API endpoint
-      final response = await http.get(
-        Uri.parse('/api/tailscale/status'),
-      );
+      final response = await _apiClient.get('/api/tailscale/status');
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body) as Map<String, dynamic>;
+      if (response.isSuccess) {
+        final data = response.jsonBody ?? <String, dynamic>{};
         return {
           'isInstalled': data['isInstalled'] ?? false,
           'isRunning': data['isRunning'] ?? false,

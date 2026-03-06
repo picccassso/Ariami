@@ -46,12 +46,14 @@ class ConnectResponse {
   final String sessionId;
   final String serverVersion;
   final List<String> features;
+  final String? deviceId;
 
   ConnectResponse({
     required this.status,
     required this.sessionId,
     required this.serverVersion,
     required this.features,
+    this.deviceId,
   });
 
   factory ConnectResponse.fromJson(Map<String, dynamic> json) {
@@ -60,6 +62,7 @@ class ConnectResponse {
       sessionId: json['sessionId'] as String,
       serverVersion: json['serverVersion'] as String,
       features: (json['features'] as List<dynamic>? ?? []).cast<String>(),
+      deviceId: json['deviceId'] as String?,
     );
   }
 
@@ -69,25 +72,26 @@ class ConnectResponse {
       'sessionId': sessionId,
       'serverVersion': serverVersion,
       'features': features,
+      if (deviceId != null) 'deviceId': deviceId,
     };
   }
 }
 
 /// Request for disconnecting a device
 class DisconnectRequest {
-  final String deviceId;
+  final String? deviceId;
 
-  DisconnectRequest({required this.deviceId});
+  DisconnectRequest({this.deviceId});
 
   factory DisconnectRequest.fromJson(Map<String, dynamic> json) {
     return DisconnectRequest(
-      deviceId: json['deviceId'] as String,
+      deviceId: json['deviceId'] as String?,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
-      'deviceId': deviceId,
+      if (deviceId != null) 'deviceId': deviceId,
     };
   }
 }
@@ -136,8 +140,10 @@ class AlbumModel {
   factory AlbumModel.fromJson(Map<String, dynamic> json) {
     return AlbumModel(
       id: json['id'] as String,
-      title: EncodingUtils.fixEncoding(json['title'] as String) ?? json['title'] as String,
-      artist: EncodingUtils.fixEncoding(json['artist'] as String) ?? json['artist'] as String,
+      title: EncodingUtils.fixEncoding(json['title'] as String) ??
+          json['title'] as String,
+      artist: EncodingUtils.fixEncoding(json['artist'] as String) ??
+          json['artist'] as String,
       coverArt: json['coverArt'] as String?,
       songCount: json['songCount'] as int,
       duration: json['duration'] as int,
@@ -177,8 +183,10 @@ class SongModel {
   factory SongModel.fromJson(Map<String, dynamic> json) {
     return SongModel(
       id: json['id'] as String,
-      title: EncodingUtils.fixEncoding(json['title'] as String) ?? json['title'] as String,
-      artist: EncodingUtils.fixEncoding(json['artist'] as String) ?? json['artist'] as String,
+      title: EncodingUtils.fixEncoding(json['title'] as String) ??
+          json['title'] as String,
+      artist: EncodingUtils.fixEncoding(json['artist'] as String) ??
+          json['artist'] as String,
       albumId: json['albumId'] as String?,
       duration: json['duration'] as int,
       trackNumber: json['trackNumber'] as int?,
@@ -202,15 +210,20 @@ class PlaylistModel {
   final String id;
   final String name;
   final String? description;
+
   /// Custom cover image path (user-selected photo)
   final String? customImagePath;
   final List<String> songIds;
+
   /// Map of songId to albumId for artwork lookup
   final Map<String, String> songAlbumIds;
+
   /// Map of songId to song title for offline display
   final Map<String, String> songTitles;
+
   /// Map of songId to artist name for offline display
   final Map<String, String> songArtists;
+
   /// Map of songId to duration (seconds) for offline display
   final Map<String, int> songDurations;
   final DateTime createdAt;
@@ -236,16 +249,19 @@ class PlaylistModel {
   factory PlaylistModel.fromJson(Map<String, dynamic> json) {
     return PlaylistModel(
       id: json['id'] as String,
-      name: EncodingUtils.fixEncoding(json['name'] as String) ?? json['name'] as String,
+      name: EncodingUtils.fixEncoding(json['name'] as String) ??
+          json['name'] as String,
       description: EncodingUtils.fixEncoding(json['description'] as String?),
       customImagePath: json['customImagePath'] as String?,
       songIds: (json['songIds'] as List<dynamic>? ?? []).cast<String>(),
       songAlbumIds: (json['songAlbumIds'] as Map<String, dynamic>? ?? {})
           .map((k, v) => MapEntry(k, v as String)),
-      songTitles: (json['songTitles'] as Map<String, dynamic>? ?? {})
-          .map((k, v) => MapEntry(k, EncodingUtils.fixEncoding(v.toString()) ?? v.toString())),
-      songArtists: (json['songArtists'] as Map<String, dynamic>? ?? {})
-          .map((k, v) => MapEntry(k, EncodingUtils.fixEncoding(v.toString()) ?? v.toString())),
+      songTitles: (json['songTitles'] as Map<String, dynamic>? ?? {}).map((k,
+              v) =>
+          MapEntry(k, EncodingUtils.fixEncoding(v.toString()) ?? v.toString())),
+      songArtists: (json['songArtists'] as Map<String, dynamic>? ?? {}).map((k,
+              v) =>
+          MapEntry(k, EncodingUtils.fixEncoding(v.toString()) ?? v.toString())),
       songDurations: (json['songDurations'] as Map<String, dynamic>? ?? {})
           .map((k, v) => MapEntry(k, v as int)),
       createdAt: json['createdAt'] != null
@@ -293,7 +309,9 @@ class PlaylistModel {
       id: id ?? this.id,
       name: name ?? this.name,
       description: description ?? this.description,
-      customImagePath: clearCustomImagePath ? null : (customImagePath ?? this.customImagePath),
+      customImagePath: clearCustomImagePath
+          ? null
+          : (customImagePath ?? this.customImagePath),
       songIds: songIds ?? this.songIds,
       songAlbumIds: songAlbumIds ?? this.songAlbumIds,
       songTitles: songTitles ?? this.songTitles,
@@ -323,7 +341,8 @@ class ServerPlaylist {
   factory ServerPlaylist.fromJson(Map<String, dynamic> json) {
     return ServerPlaylist(
       id: json['id'] as String,
-      name: EncodingUtils.fixEncoding(json['name'] as String) ?? json['name'] as String,
+      name: EncodingUtils.fixEncoding(json['name'] as String) ??
+          json['name'] as String,
       songIds: (json['songIds'] as List<dynamic>? ?? []).cast<String>(),
       songCount: json['songCount'] as int? ?? 0,
     );
@@ -352,7 +371,7 @@ class LibraryResponse {
     required this.songs,
     required this.serverPlaylists,
     required this.lastUpdated,
-    this.durationsReady = true,
+    required this.durationsReady,
   });
 
   factory LibraryResponse.fromJson(Map<String, dynamic> json) {
@@ -403,8 +422,10 @@ class AlbumDetailResponse {
   factory AlbumDetailResponse.fromJson(Map<String, dynamic> json) {
     return AlbumDetailResponse(
       id: json['id'] as String,
-      title: EncodingUtils.fixEncoding(json['title'] as String) ?? json['title'] as String,
-      artist: EncodingUtils.fixEncoding(json['artist'] as String) ?? json['artist'] as String,
+      title: EncodingUtils.fixEncoding(json['title'] as String) ??
+          json['title'] as String,
+      artist: EncodingUtils.fixEncoding(json['artist'] as String) ??
+          json['artist'] as String,
       year: json['year'] as String?,
       coverArt: json['coverArt'] as String?,
       songs: (json['songs'] as List<dynamic>? ?? [])
@@ -422,6 +443,474 @@ class AlbumDetailResponse {
       'coverArt': coverArt,
       'songs': songs.map((e) => e.toJson()).toList(),
     };
+  }
+}
+
+// ============================================================================
+// V2 SYNC MODELS
+// ============================================================================
+
+class V2PageInfo {
+  final String? cursor;
+  final String? nextCursor;
+  final bool hasMore;
+  final int limit;
+
+  const V2PageInfo({
+    required this.cursor,
+    required this.nextCursor,
+    required this.hasMore,
+    required this.limit,
+  });
+
+  factory V2PageInfo.fromJson(Map<String, dynamic> json) {
+    return V2PageInfo(
+      cursor: json['cursor'] as String?,
+      nextCursor: json['nextCursor'] as String?,
+      hasMore: json['hasMore'] as bool? ?? false,
+      limit: json['limit'] as int? ?? 0,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'cursor': cursor,
+      'nextCursor': nextCursor,
+      'hasMore': hasMore,
+      'limit': limit,
+    };
+  }
+}
+
+class V2PlaylistModel {
+  final String id;
+  final String name;
+  final int songCount;
+  final int duration;
+
+  const V2PlaylistModel({
+    required this.id,
+    required this.name,
+    required this.songCount,
+    required this.duration,
+  });
+
+  factory V2PlaylistModel.fromJson(Map<String, dynamic> json) {
+    return V2PlaylistModel(
+      id: json['id'] as String,
+      name: EncodingUtils.fixEncoding(json['name'] as String) ??
+          json['name'] as String,
+      songCount: json['songCount'] as int? ?? 0,
+      duration: json['duration'] as int? ?? 0,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'songCount': songCount,
+      'duration': duration,
+    };
+  }
+}
+
+class V2BootstrapResponse {
+  final int syncToken;
+  final List<AlbumModel> albums;
+  final List<SongModel> songs;
+  final List<V2PlaylistModel> playlists;
+  final V2PageInfo pageInfo;
+
+  const V2BootstrapResponse({
+    required this.syncToken,
+    required this.albums,
+    required this.songs,
+    required this.playlists,
+    required this.pageInfo,
+  });
+
+  factory V2BootstrapResponse.fromJson(Map<String, dynamic> json) {
+    return V2BootstrapResponse(
+      syncToken: json['syncToken'] as int? ?? 0,
+      albums: (json['albums'] as List<dynamic>? ?? [])
+          .map((e) => AlbumModel.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      songs: (json['songs'] as List<dynamic>? ?? [])
+          .map((e) => SongModel.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      playlists: (json['playlists'] as List<dynamic>? ?? [])
+          .map((e) => V2PlaylistModel.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      pageInfo: V2PageInfo.fromJson(
+        (json['pageInfo'] as Map<String, dynamic>? ?? <String, dynamic>{}),
+      ),
+    );
+  }
+}
+
+class V2AlbumsPageResponse {
+  final int syncToken;
+  final List<AlbumModel> albums;
+  final V2PageInfo pageInfo;
+
+  const V2AlbumsPageResponse({
+    required this.syncToken,
+    required this.albums,
+    required this.pageInfo,
+  });
+
+  factory V2AlbumsPageResponse.fromJson(Map<String, dynamic> json) {
+    return V2AlbumsPageResponse(
+      syncToken: json['syncToken'] as int? ?? 0,
+      albums: (json['albums'] as List<dynamic>? ?? [])
+          .map((e) => AlbumModel.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      pageInfo: V2PageInfo.fromJson(
+        (json['pageInfo'] as Map<String, dynamic>? ?? <String, dynamic>{}),
+      ),
+    );
+  }
+}
+
+class V2SongsPageResponse {
+  final int syncToken;
+  final List<SongModel> songs;
+  final V2PageInfo pageInfo;
+
+  const V2SongsPageResponse({
+    required this.syncToken,
+    required this.songs,
+    required this.pageInfo,
+  });
+
+  factory V2SongsPageResponse.fromJson(Map<String, dynamic> json) {
+    return V2SongsPageResponse(
+      syncToken: json['syncToken'] as int? ?? 0,
+      songs: (json['songs'] as List<dynamic>? ?? [])
+          .map((e) => SongModel.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      pageInfo: V2PageInfo.fromJson(
+        (json['pageInfo'] as Map<String, dynamic>? ?? <String, dynamic>{}),
+      ),
+    );
+  }
+}
+
+class V2PlaylistsPageResponse {
+  final int syncToken;
+  final List<V2PlaylistModel> playlists;
+  final V2PageInfo pageInfo;
+
+  const V2PlaylistsPageResponse({
+    required this.syncToken,
+    required this.playlists,
+    required this.pageInfo,
+  });
+
+  factory V2PlaylistsPageResponse.fromJson(Map<String, dynamic> json) {
+    return V2PlaylistsPageResponse(
+      syncToken: json['syncToken'] as int? ?? 0,
+      playlists: (json['playlists'] as List<dynamic>? ?? [])
+          .map((e) => V2PlaylistModel.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      pageInfo: V2PageInfo.fromJson(
+        (json['pageInfo'] as Map<String, dynamic>? ?? <String, dynamic>{}),
+      ),
+    );
+  }
+}
+
+class V2ChangeOp {
+  static const String upsert = 'upsert';
+  static const String delete = 'delete';
+}
+
+class V2EntityType {
+  static const String album = 'album';
+  static const String song = 'song';
+  static const String playlist = 'playlist';
+  static const String playlistSong = 'playlist_song';
+  static const String artwork = 'artwork';
+}
+
+class V2ChangeEvent {
+  final int token;
+  final String op;
+  final String entityType;
+  final String entityId;
+  final Map<String, dynamic>? payload;
+  final String occurredAt;
+
+  const V2ChangeEvent({
+    required this.token,
+    required this.op,
+    required this.entityType,
+    required this.entityId,
+    this.payload,
+    required this.occurredAt,
+  });
+
+  factory V2ChangeEvent.fromJson(Map<String, dynamic> json) {
+    return V2ChangeEvent(
+      token: json['token'] as int? ?? 0,
+      op: json['op'] as String? ?? '',
+      entityType: json['entityType'] as String? ?? '',
+      entityId: json['entityId'] as String? ?? '',
+      payload:
+          (json['payload'] as Map<dynamic, dynamic>?)?.cast<String, dynamic>(),
+      occurredAt: json['occurredAt'] as String? ?? '',
+    );
+  }
+}
+
+class V2ChangesResponse {
+  final int fromToken;
+  final int toToken;
+  final List<V2ChangeEvent> events;
+  final bool hasMore;
+  final int syncToken;
+
+  const V2ChangesResponse({
+    required this.fromToken,
+    required this.toToken,
+    required this.events,
+    required this.hasMore,
+    required this.syncToken,
+  });
+
+  factory V2ChangesResponse.fromJson(Map<String, dynamic> json) {
+    return V2ChangesResponse(
+      fromToken: json['fromToken'] as int? ?? 0,
+      toToken: json['toToken'] as int? ?? 0,
+      events: (json['events'] as List<dynamic>? ?? [])
+          .map((e) => V2ChangeEvent.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      hasMore: json['hasMore'] as bool? ?? false,
+      syncToken: json['syncToken'] as int? ?? 0,
+    );
+  }
+}
+
+// ============================================================================
+// V2 DOWNLOAD JOB MODELS
+// ============================================================================
+
+class DownloadJobCreateRequest {
+  final List<String> songIds;
+  final List<String> albumIds;
+  final List<String> playlistIds;
+  final String quality;
+  final bool downloadOriginal;
+
+  const DownloadJobCreateRequest({
+    this.songIds = const <String>[],
+    this.albumIds = const <String>[],
+    this.playlistIds = const <String>[],
+    this.quality = 'high',
+    this.downloadOriginal = false,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'songIds': songIds,
+      'albumIds': albumIds,
+      'playlistIds': playlistIds,
+      'quality': quality,
+      'downloadOriginal': downloadOriginal,
+    };
+  }
+}
+
+class DownloadJobCreateResponse {
+  final String jobId;
+  final String status;
+  final String quality;
+  final bool downloadOriginal;
+  final int itemCount;
+  final String createdAt;
+  final String updatedAt;
+
+  const DownloadJobCreateResponse({
+    required this.jobId,
+    required this.status,
+    required this.quality,
+    required this.downloadOriginal,
+    required this.itemCount,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  factory DownloadJobCreateResponse.fromJson(Map<String, dynamic> json) {
+    return DownloadJobCreateResponse(
+      jobId: json['jobId'] as String,
+      status: json['status'] as String? ?? '',
+      quality: json['quality'] as String? ?? 'high',
+      downloadOriginal: json['downloadOriginal'] as bool? ?? false,
+      itemCount: json['itemCount'] as int? ?? 0,
+      createdAt: json['createdAt'] as String? ?? '',
+      updatedAt: json['updatedAt'] as String? ?? '',
+    );
+  }
+}
+
+class DownloadJobStatusResponse {
+  final String jobId;
+  final String userId;
+  final String status;
+  final String quality;
+  final bool downloadOriginal;
+  final int itemCount;
+  final int pendingCount;
+  final int cancelledCount;
+  final String createdAt;
+  final String updatedAt;
+
+  const DownloadJobStatusResponse({
+    required this.jobId,
+    required this.userId,
+    required this.status,
+    required this.quality,
+    required this.downloadOriginal,
+    required this.itemCount,
+    required this.pendingCount,
+    required this.cancelledCount,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  factory DownloadJobStatusResponse.fromJson(Map<String, dynamic> json) {
+    return DownloadJobStatusResponse(
+      jobId: json['jobId'] as String,
+      userId: json['userId'] as String? ?? '',
+      status: json['status'] as String? ?? '',
+      quality: json['quality'] as String? ?? 'high',
+      downloadOriginal: json['downloadOriginal'] as bool? ?? false,
+      itemCount: json['itemCount'] as int? ?? 0,
+      pendingCount: json['pendingCount'] as int? ?? 0,
+      cancelledCount: json['cancelledCount'] as int? ?? 0,
+      createdAt: json['createdAt'] as String? ?? '',
+      updatedAt: json['updatedAt'] as String? ?? '',
+    );
+  }
+}
+
+class DownloadJobItemModel {
+  final int itemOrder;
+  final String songId;
+  final String status;
+  final String title;
+  final String artist;
+  final String? albumId;
+  final String? albumName;
+  final String? albumArtist;
+  final int? trackNumber;
+  final int durationSeconds;
+  final int? fileSizeBytes;
+  final String? errorCode;
+  final int? retryAfterEpochMs;
+
+  const DownloadJobItemModel({
+    required this.itemOrder,
+    required this.songId,
+    required this.status,
+    required this.title,
+    required this.artist,
+    this.albumId,
+    this.albumName,
+    this.albumArtist,
+    this.trackNumber,
+    required this.durationSeconds,
+    this.fileSizeBytes,
+    this.errorCode,
+    this.retryAfterEpochMs,
+  });
+
+  factory DownloadJobItemModel.fromJson(Map<String, dynamic> json) {
+    return DownloadJobItemModel(
+      itemOrder: json['itemOrder'] as int? ?? 0,
+      songId: json['songId'] as String,
+      status: json['status'] as String? ?? '',
+      title: EncodingUtils.fixEncoding(json['title'] as String? ?? '') ??
+          (json['title'] as String? ?? ''),
+      artist: EncodingUtils.fixEncoding(json['artist'] as String? ?? '') ??
+          (json['artist'] as String? ?? ''),
+      albumId: json['albumId'] as String?,
+      albumName: EncodingUtils.fixEncoding(json['albumName'] as String?),
+      albumArtist: EncodingUtils.fixEncoding(json['albumArtist'] as String?),
+      trackNumber: json['trackNumber'] as int?,
+      durationSeconds: json['durationSeconds'] as int? ?? 0,
+      fileSizeBytes: json['fileSizeBytes'] as int?,
+      errorCode: json['errorCode'] as String?,
+      retryAfterEpochMs: json['retryAfterEpochMs'] as int?,
+    );
+  }
+}
+
+class DownloadJobItemsPageInfo {
+  final String? cursor;
+  final String? nextCursor;
+  final bool hasMore;
+  final int limit;
+
+  const DownloadJobItemsPageInfo({
+    required this.cursor,
+    required this.nextCursor,
+    required this.hasMore,
+    required this.limit,
+  });
+
+  factory DownloadJobItemsPageInfo.fromJson(Map<String, dynamic> json) {
+    return DownloadJobItemsPageInfo(
+      cursor: json['cursor'] as String?,
+      nextCursor: json['nextCursor'] as String?,
+      hasMore: json['hasMore'] as bool? ?? false,
+      limit: json['limit'] as int? ?? 0,
+    );
+  }
+}
+
+class DownloadJobItemsResponse {
+  final String jobId;
+  final List<DownloadJobItemModel> items;
+  final DownloadJobItemsPageInfo pageInfo;
+
+  const DownloadJobItemsResponse({
+    required this.jobId,
+    required this.items,
+    required this.pageInfo,
+  });
+
+  factory DownloadJobItemsResponse.fromJson(Map<String, dynamic> json) {
+    return DownloadJobItemsResponse(
+      jobId: json['jobId'] as String,
+      items: (json['items'] as List<dynamic>? ?? [])
+          .map((e) => DownloadJobItemModel.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      pageInfo: DownloadJobItemsPageInfo.fromJson(
+        (json['pageInfo'] as Map<String, dynamic>? ?? <String, dynamic>{}),
+      ),
+    );
+  }
+}
+
+class DownloadJobCancelResponse {
+  final String jobId;
+  final String status;
+  final String cancelledAt;
+
+  const DownloadJobCancelResponse({
+    required this.jobId,
+    required this.status,
+    required this.cancelledAt,
+  });
+
+  factory DownloadJobCancelResponse.fromJson(Map<String, dynamic> json) {
+    return DownloadJobCancelResponse(
+      jobId: json['jobId'] as String,
+      status: json['status'] as String? ?? '',
+      cancelledAt: json['cancelledAt'] as String? ?? '',
+    );
   }
 }
 
@@ -489,4 +978,14 @@ class ApiErrorCodes {
   static const String serverError = 'SERVER_ERROR';
   static const String invalidRequest = 'INVALID_REQUEST';
   static const String unauthorized = 'UNAUTHORIZED';
+
+  // Auth error codes
+  static const String invalidCredentials = 'INVALID_CREDENTIALS';
+  static const String userExists = 'USER_EXISTS';
+  static const String sessionExpired = 'SESSION_EXPIRED';
+  static const String streamTokenExpired = 'STREAM_TOKEN_EXPIRED';
+  static const String authRequired = 'AUTH_REQUIRED';
+  static const String rateLimited = 'RATE_LIMITED';
+  static const String alreadyLoggedInOtherDevice =
+      'ALREADY_LOGGED_IN_OTHER_DEVICE';
 }

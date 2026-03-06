@@ -4,10 +4,14 @@ import 'dart:math' as math;
 import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../models/api_models.dart';
 import '../../database/download_database.dart';
 import '../../models/download_task.dart';
+import '../../models/quality_settings.dart';
+import '../api/api_client.dart';
 import '../api/connection_service.dart';
 import '../cache/cache_manager.dart';
+import '../quality/quality_settings_service.dart';
 import 'download_queue.dart';
 
 /// Manages all download operations
@@ -22,17 +26,21 @@ class DownloadManager {
 
   final DownloadQueue _queue = DownloadQueue();
   final Map<String, CancelToken> _activeDownloads = {};
-  final Map<String, double> _activeProgress = {}; // Track progress separately to avoid queue updates
+  final Map<String, double> _activeProgress =
+      {}; // Track progress separately to avoid queue updates
   int _activeDownloadCount = 0; // Track number of concurrent downloads
-  static const int _maxConcurrentDownloads = 10; // Max concurrent downloads allowed
+  int _maxConcurrentDownloads = 10; // Max concurrent downloads allowed
   final StreamController<DownloadProgress> _progressController =
       StreamController<DownloadProgress>.broadcast();
   final StreamController<List<DownloadTask>> _queueController =
       StreamController<List<DownloadTask>>.broadcast();
+  final math.Random _retryRandom = math.Random();
 
   bool _initialized = false;
   String? _downloadPath;
   String? _lastKnownServerId;
+  String? _lastKnownUserId;
+  final QualitySettingsService _qualityService = QualitySettingsService();
 
   /// Stream of download progress updates
   Stream<DownloadProgress> get progressStream => _progressController.stream;
@@ -66,6 +74,9 @@ class DownloadManager {
     // Setup HTTP client
     _dio = Dio();
 
+    // Load quality settings (for download quality/original)
+    await _qualityService.initialize();
+
     // Get download directory
     final appDir = await getApplicationDocumentsDirectory();
     _downloadPath = '${appDir.path}/downloads';
@@ -75,7 +86,8 @@ class DownloadManager {
     _queue.queueStream.listen((tasks) {
       _database.saveDownloadQueue(tasks);
       _ensureServerScope();
-      _queueController.add(_filterTasksForCurrentServer(tasks));
+      _ensureUserScope();
+      _queueController.add(_filterTasksForCurrentScope(tasks));
     });
 
     _initialized = true;
@@ -83,6 +95,17 @@ class DownloadManager {
 
     // Run one-time artwork backfill for existing downloads (non-blocking)
     _backfillArtworkForExistingDownloads();
+  }
+
+  /// Update the maximum number of concurrent downloads (per device)
+  void setMaxConcurrentDownloads(int maxConcurrent) {
+    final clamped = maxConcurrent < 1 ? 1 : maxConcurrent;
+    if (_maxConcurrentDownloads == clamped) return;
+    _maxConcurrentDownloads = clamped;
+    print('DownloadManager: Max concurrent downloads set to $clamped');
+    if (_initialized) {
+      _fillDownloadSlots();
+    }
   }
 
   /// Ensure initialization
@@ -95,6 +118,10 @@ class DownloadManager {
   String? _getCurrentServerId() {
     final apiClient = ConnectionService().apiClient;
     return apiClient?.baseUrl;
+  }
+
+  String? _getCurrentUserId() {
+    return ConnectionService().userId;
   }
 
   void _ensureServerScope() {
@@ -116,27 +143,68 @@ class DownloadManager {
     }
 
     if (updatedCount > 0) {
-      print('DownloadManager: Scoped $updatedCount downloads to $currentServerId');
+      print(
+          'DownloadManager: Scoped $updatedCount downloads to $currentServerId');
     }
   }
 
-  List<DownloadTask> _filterTasksForCurrentServer(List<DownloadTask> tasks) {
-    final currentServerId = _getCurrentServerId();
-    if (currentServerId == null) {
-      return List<DownloadTask>.from(tasks);
+  void _ensureUserScope() {
+    final currentUserId = _getCurrentUserId();
+    if (currentUserId == null) return;
+
+    if (_lastKnownUserId != currentUserId) {
+      _lastKnownUserId = currentUserId;
     }
-    return tasks.where((task) => task.serverId == currentServerId).toList();
+
+    final currentServerId = _getCurrentServerId();
+    if (currentServerId == null) return;
+
+    final tasks = List<DownloadTask>.from(_queue.queue);
+    int updatedCount = 0;
+    for (final task in tasks) {
+      if (task.userId == null && task.serverId == currentServerId) {
+        task.userId = currentUserId;
+        _queue.updateTask(task);
+        updatedCount++;
+      }
+    }
+
+    if (updatedCount > 0) {
+      print(
+          'DownloadManager: Scoped $updatedCount downloads to user $currentUserId');
+    }
+  }
+
+  List<DownloadTask> _filterTasksForCurrentScope(List<DownloadTask> tasks) {
+    final currentServerId = _getCurrentServerId();
+    final currentUserId = _getCurrentUserId();
+    if (currentServerId == null) {
+      if (currentUserId == null) {
+        return List<DownloadTask>.from(tasks);
+      }
+      return tasks.where((task) => task.userId == currentUserId).toList();
+    }
+    return tasks.where((task) {
+      if (task.serverId != currentServerId) return false;
+      if (currentUserId == null) {
+        return task.userId == null;
+      }
+      return task.userId == currentUserId;
+    }).toList();
   }
 
   List<DownloadTask> _getScopedQueue() {
     _ensureServerScope();
-    return _filterTasksForCurrentServer(_queue.queue);
+    _ensureUserScope();
+    return _filterTasksForCurrentScope(_queue.queue);
   }
 
   QueueStats _buildQueueStats(List<DownloadTask> tasks) {
     int totalTasks = tasks.length;
-    int completed = tasks.where((t) => t.status == DownloadStatus.completed).length;
-    int downloading = tasks.where((t) => t.status == DownloadStatus.downloading).length;
+    int completed =
+        tasks.where((t) => t.status == DownloadStatus.completed).length;
+    int downloading =
+        tasks.where((t) => t.status == DownloadStatus.downloading).length;
     int failed = tasks.where((t) => t.status == DownloadStatus.failed).length;
     int paused = tasks.where((t) => t.status == DownloadStatus.paused).length;
 
@@ -161,12 +229,17 @@ class DownloadManager {
 
   DownloadTask? _getScopedTask(String taskId) {
     _ensureServerScope();
+    _ensureUserScope();
     final currentServerId = _getCurrentServerId();
+    final currentUserId = _getCurrentUserId();
     for (final task in _queue.queue) {
       if (task.id != taskId) continue;
-      if (currentServerId == null || task.serverId == currentServerId) {
-        return task;
+      if (currentServerId != null && task.serverId != currentServerId) continue;
+      if (currentUserId != null) {
+        if (task.userId == currentUserId) return task;
+        continue;
       }
+      if (task.userId == null) return task;
     }
     return null;
   }
@@ -174,6 +247,94 @@ class DownloadManager {
   // ============================================================================
   // DOWNLOAD OPERATIONS
   // ============================================================================
+
+  /// Create a server-managed download job and enqueue its items page-by-page.
+  ///
+  /// Used by "Download All" flows to avoid client-side enqueue storms.
+  Future<int> enqueueDownloadJob({
+    List<String> songIds = const <String>[],
+    List<String> albumIds = const <String>[],
+    List<String> playlistIds = const <String>[],
+    StreamingQuality? downloadQuality,
+    bool? downloadOriginal,
+  }) async {
+    await _ensureInitialized();
+
+    final apiClient = ConnectionService().apiClient;
+    if (apiClient == null) {
+      print('DownloadManager: Cannot create download job, not connected');
+      return 0;
+    }
+
+    final normalizedSongIds = _normalizeIds(songIds);
+    final normalizedAlbumIds = _normalizeIds(albumIds);
+    final normalizedPlaylistIds = _normalizeIds(playlistIds);
+
+    if (normalizedSongIds.isEmpty &&
+        normalizedAlbumIds.isEmpty &&
+        normalizedPlaylistIds.isEmpty) {
+      return 0;
+    }
+
+    final resolvedQuality =
+        downloadQuality ?? _qualityService.getDownloadQuality();
+    final resolvedOriginal =
+        downloadOriginal ?? _qualityService.getDownloadOriginal();
+    final requestedQuality =
+        (resolvedOriginal ? StreamingQuality.high : resolvedQuality)
+            .toApiParam();
+
+    final createResponse = await apiClient.createV2DownloadJob(
+      DownloadJobCreateRequest(
+        songIds: normalizedSongIds,
+        albumIds: normalizedAlbumIds,
+        playlistIds: normalizedPlaylistIds,
+        quality: requestedQuality,
+        downloadOriginal: resolvedOriginal,
+      ),
+    );
+
+    final jobQuality = StreamingQuality.fromString(createResponse.quality);
+    String? cursor;
+    var hasMore = true;
+    var queuedCount = 0;
+
+    while (hasMore) {
+      final page = await apiClient.getV2DownloadJobItems(
+        createResponse.jobId,
+        cursor: cursor,
+        limit: 100,
+      );
+
+      final batch = <DownloadTask>[];
+      for (final item in page.items) {
+        if (item.status.toLowerCase() != 'pending') continue;
+        final task = _buildTaskFromDownloadJobItem(
+          apiClient: apiClient,
+          item: item,
+          downloadQuality: jobQuality,
+          downloadOriginal: createResponse.downloadOriginal,
+        );
+        if (task != null) {
+          batch.add(task);
+        }
+      }
+
+      if (batch.isNotEmpty) {
+        _queue.enqueueBatch(batch);
+        queuedCount += batch.length;
+        _fillDownloadSlots();
+      }
+
+      hasMore = page.pageInfo.hasMore;
+      cursor = page.pageInfo.nextCursor;
+      if (hasMore && (cursor == null || cursor.isEmpty)) {
+        break;
+      }
+    }
+
+    return queuedCount;
+  }
 
   /// Download a single song
   Future<void> downloadSong({
@@ -184,14 +345,26 @@ class DownloadManager {
     String? albumName,
     String? albumArtist,
     required String albumArt,
-    required String downloadUrl,
+    StreamingQuality? downloadQuality,
+    bool? downloadOriginal,
     int duration = 0,
     int? trackNumber,
     required int totalBytes,
   }) async {
     await _ensureInitialized();
 
+    final apiClient = ConnectionService().apiClient;
+    if (apiClient == null) {
+      print('DownloadManager: Cannot download, not connected to server');
+      return;
+    }
+
     final serverId = _getCurrentServerId();
+    final userId = _getCurrentUserId();
+    final resolvedQuality =
+        downloadQuality ?? _qualityService.getDownloadQuality();
+    final resolvedOriginal =
+        downloadOriginal ?? _qualityService.getDownloadOriginal();
     final taskId = 'song_$songId';
 
     // Check if task already exists for this server
@@ -206,13 +379,21 @@ class DownloadManager {
       id: taskId,
       songId: songId,
       serverId: serverId,
+      userId: userId,
       title: title,
       artist: artist,
       albumId: albumId,
       albumName: albumName,
       albumArtist: albumArtist,
       albumArt: albumArt,
-      downloadUrl: downloadUrl,
+      downloadUrl: _buildLegacyDownloadUrl(
+        apiClient: apiClient,
+        songId: songId,
+        downloadQuality: resolvedQuality,
+        downloadOriginal: resolvedOriginal,
+      ),
+      downloadQuality: resolvedQuality,
+      downloadOriginal: resolvedOriginal,
       duration: duration,
       trackNumber: trackNumber,
       status: DownloadStatus.pending,
@@ -229,10 +410,23 @@ class DownloadManager {
     String? albumId,
     String? albumName,
     String? albumArtist,
+    StreamingQuality? downloadQuality,
+    bool? downloadOriginal,
   }) async {
     await _ensureInitialized();
 
+    final apiClient = ConnectionService().apiClient;
+    if (apiClient == null) {
+      print('DownloadManager: Cannot download, not connected to server');
+      return;
+    }
+
     final serverId = _getCurrentServerId();
+    final userId = _getCurrentUserId();
+    final resolvedQuality =
+        downloadQuality ?? _qualityService.getDownloadQuality();
+    final resolvedOriginal =
+        downloadOriginal ?? _qualityService.getDownloadOriginal();
     final newTasks = <DownloadTask>[];
 
     for (final song in songs) {
@@ -245,13 +439,21 @@ class DownloadManager {
         id: taskId,
         songId: song['id'] as String,
         serverId: serverId,
+        userId: userId,
         title: song['title'] as String,
         artist: song['artist'] as String,
         albumId: albumId ?? song['albumId'] as String?,
         albumName: albumName ?? song['albumName'] as String?,
         albumArtist: albumArtist ?? song['albumArtist'] as String?,
         albumArt: song['albumArt'] as String,
-        downloadUrl: song['downloadUrl'] as String,
+        downloadUrl: _buildLegacyDownloadUrl(
+          apiClient: apiClient,
+          songId: song['id'] as String,
+          downloadQuality: resolvedQuality,
+          downloadOriginal: resolvedOriginal,
+        ),
+        downloadQuality: resolvedQuality,
+        downloadOriginal: resolvedOriginal,
         duration: song['duration'] as int? ?? 0,
         trackNumber: song['trackNumber'] as int?,
         status: DownloadStatus.pending,
@@ -312,6 +514,7 @@ class DownloadManager {
   /// Cancel a download
   void cancelDownload(String taskId) {
     final serverId = _getCurrentServerId();
+    final userId = _getCurrentUserId();
 
     // Cancel HTTP request
     _activeDownloads[taskId]?.cancel();
@@ -319,7 +522,12 @@ class DownloadManager {
     _activeProgress.remove(taskId); // Cleanup progress tracking
 
     // Remove from queue (scoped to current server when available)
-    _queue.dequeueWhere((task) => task.id == taskId && (serverId == null || task.serverId == serverId));
+    _queue.dequeueWhere((task) {
+      if (task.id != taskId) return false;
+      if (serverId != null && task.serverId != serverId) return false;
+      if (userId != null) return task.userId == userId;
+      return task.userId == null;
+    });
 
     print('Download cancelled: $taskId');
   }
@@ -330,11 +538,15 @@ class DownloadManager {
 
   DownloadTask? _getNextPendingScoped() {
     final serverId = _getCurrentServerId();
+    final userId = _getCurrentUserId();
     for (final task in _queue.queue) {
       if (task.status != DownloadStatus.pending) continue;
-      if (serverId == null || task.serverId == serverId) {
-        return task;
+      if (serverId != null && task.serverId != serverId) continue;
+      if (userId != null) {
+        if (task.userId == userId) return task;
+        continue;
       }
+      if (task.userId == null) return task;
     }
     return null;
   }
@@ -374,9 +586,11 @@ class DownloadManager {
       final songDir = File(filePath).parent;
       await songDir.create(recursive: true);
 
-      // Download the file using the actual download URL
+      final downloadUrl = await _resolveDownloadUrl(task);
+
+      // Download the file using the resolved download URL
       await _dio.download(
-        task.downloadUrl,
+        downloadUrl,
         filePath,
         cancelToken: cancelToken,
         onReceiveProgress: (received, total) {
@@ -449,10 +663,12 @@ class DownloadManager {
       task.retryCount++;
       task.status = DownloadStatus.pending;
       _queue.updateTask(task);
-      print('Retrying download: ${task.title} (attempt ${task.retryCount}/${DownloadTask.maxRetries})');
+      print(
+          'Retrying download: ${task.title} (attempt ${task.retryCount}/${DownloadTask.maxRetries})');
 
       // Wait before retry, then try to fill slots (retry goes back to pending queue)
-      await Future.delayed(const Duration(seconds: 5));
+      final delay = _calculateRetryDelay(error, task.retryCount);
+      await Future.delayed(delay);
       _fillDownloadSlots();
     } else {
       task.status = DownloadStatus.failed;
@@ -464,6 +680,123 @@ class DownloadManager {
       await Future.delayed(const Duration(milliseconds: 50));
       _fillDownloadSlots();
     }
+  }
+
+  Duration _calculateRetryDelay(dynamic error, int attempt) {
+    if (error is DioException) {
+      final status = error.response?.statusCode;
+      if (status == 429 || status == 503) {
+        final backoffSeconds =
+            math.min(30, 2 * math.pow(2, attempt - 1).toInt());
+        final jitterMs = _retryRandom.nextInt(1000);
+        return Duration(seconds: backoffSeconds, milliseconds: jitterMs);
+      }
+      if (status == 500) {
+        final jitterMs = _retryRandom.nextInt(1000);
+        return Duration(seconds: 3, milliseconds: jitterMs);
+      }
+    }
+    return const Duration(seconds: 5);
+  }
+
+  String _buildLegacyDownloadUrl({
+    required ApiClient apiClient,
+    required String songId,
+    required StreamingQuality downloadQuality,
+    required bool downloadOriginal,
+  }) {
+    if (downloadOriginal) {
+      return apiClient.getDownloadUrl(songId);
+    }
+    return apiClient.getDownloadUrlWithQuality(songId, downloadQuality);
+  }
+
+  List<String> _normalizeIds(List<String> ids) {
+    final unique = <String>{};
+    for (final id in ids) {
+      final trimmed = id.trim();
+      if (trimmed.isNotEmpty) {
+        unique.add(trimmed);
+      }
+    }
+    return unique.toList();
+  }
+
+  DownloadTask? _buildTaskFromDownloadJobItem({
+    required ApiClient apiClient,
+    required DownloadJobItemModel item,
+    required StreamingQuality downloadQuality,
+    required bool downloadOriginal,
+  }) {
+    final taskId = 'song_${item.songId}';
+    if (_getScopedTask(taskId) != null) {
+      return null;
+    }
+
+    final albumArt = item.albumId != null
+        ? '${apiClient.baseUrl}/artwork/${item.albumId}'
+        : '';
+    final title = item.title.trim().isNotEmpty ? item.title : item.songId;
+    final artist =
+        item.artist.trim().isNotEmpty ? item.artist : 'Unknown Artist';
+
+    return DownloadTask(
+      id: taskId,
+      songId: item.songId,
+      serverId: _getCurrentServerId(),
+      userId: _getCurrentUserId(),
+      title: title,
+      artist: artist,
+      albumId: item.albumId,
+      albumName: item.albumName,
+      albumArtist: item.albumArtist,
+      albumArt: albumArt,
+      downloadUrl: _buildLegacyDownloadUrl(
+        apiClient: apiClient,
+        songId: item.songId,
+        downloadQuality: downloadQuality,
+        downloadOriginal: downloadOriginal,
+      ),
+      downloadQuality: downloadQuality,
+      downloadOriginal: downloadOriginal,
+      duration: item.durationSeconds,
+      trackNumber: item.trackNumber,
+      status: DownloadStatus.pending,
+      totalBytes: item.fileSizeBytes ?? 0,
+    );
+  }
+
+  Future<String> _resolveDownloadUrl(DownloadTask task) async {
+    final apiClient = ConnectionService().apiClient;
+    if (apiClient == null) {
+      throw Exception('Not connected to server');
+    }
+
+    if (ConnectionService().isAuthenticated) {
+      final tokenQuality = (!task.downloadOriginal &&
+              task.downloadQuality != StreamingQuality.high)
+          ? task.downloadQuality.toApiParam()
+          : null;
+      final ticketResponse = await apiClient.getStreamTicket(
+        task.songId,
+        quality: tokenQuality,
+      );
+
+      final urlQuality =
+          task.downloadOriginal ? StreamingQuality.high : task.downloadQuality;
+      return apiClient.getDownloadUrlWithToken(
+        task.songId,
+        ticketResponse.streamToken,
+        quality: urlQuality,
+      );
+    }
+
+    return _buildLegacyDownloadUrl(
+      apiClient: apiClient,
+      songId: task.songId,
+      downloadQuality: task.downloadQuality,
+      downloadOriginal: task.downloadOriginal,
+    );
   }
 
   // ============================================================================
@@ -494,7 +827,8 @@ class DownloadManager {
   }
 
   /// Cache album artwork (full-size and thumbnail) for offline use
-  Future<void> _cacheAlbumArtwork(CacheManager cacheManager, String baseUrl, String albumId) async {
+  Future<void> _cacheAlbumArtwork(
+      CacheManager cacheManager, String baseUrl, String albumId) async {
     // Cache full-size artwork (for detail views)
     final fullSizeKey = albumId;
     if (cacheManager.getArtworkPathSync(fullSizeKey) == null) {
@@ -513,7 +847,8 @@ class DownloadManager {
   }
 
   /// Cache standalone song artwork for offline use
-  Future<void> _cacheSongArtwork(CacheManager cacheManager, String baseUrl, String songId) async {
+  Future<void> _cacheSongArtwork(
+      CacheManager cacheManager, String baseUrl, String songId) async {
     // Standalone songs use "song_{songId}" as cache key
     final cacheKey = 'song_$songId';
     if (cacheManager.getArtworkPathSync(cacheKey) == null) {
@@ -550,7 +885,8 @@ class DownloadManager {
       return;
     }
 
-    print('[DownloadManager] Starting artwork backfill for ${completedTasks.length} downloaded songs...');
+    print(
+        '[DownloadManager] Starting artwork backfill for ${completedTasks.length} downloaded songs...');
 
     final cacheManager = CacheManager();
     final baseUrl = connectionService.apiClient!.baseUrl;
@@ -571,7 +907,8 @@ class DownloadManager {
 
     // Mark backfill as complete
     await prefs.setBool(backfillKey, true);
-    print('[DownloadManager] Artwork backfill complete: $backfilledCount songs processed');
+    print(
+        '[DownloadManager] Artwork backfill complete: $backfilledCount songs processed');
   }
 
   /// Get file path for a downloaded song
@@ -583,7 +920,8 @@ class DownloadManager {
   String _formatFileSize(int bytes) {
     if (bytes <= 0) return '0 B';
     const suffixes = ['B', 'KB', 'MB', 'GB'];
-    var i = (bytes == 0 ? 0 : (math.log(bytes) / math.log(1024)).floor()).toInt();
+    var i =
+        (bytes == 0 ? 0 : (math.log(bytes) / math.log(1024)).floor()).toInt();
     i = i > suffixes.length - 1 ? suffixes.length - 1 : i;
     final size = bytes / math.pow(1024, i);
     return '${size.toStringAsFixed(2)} ${suffixes[i]}';
@@ -682,8 +1020,7 @@ class DownloadManager {
     // Find all tasks matching the albumId
     final tasksToDelete = _queue.queue
         .where((task) =>
-            task.albumId == albumId &&
-            task.status == DownloadStatus.completed)
+            task.albumId == albumId && task.status == DownloadStatus.completed)
         .toList();
 
     // Cancel/delete each task
@@ -691,7 +1028,8 @@ class DownloadManager {
       cancelDownload(task.id);
     }
 
-    print('Deleted ${tasksToDelete.length} downloads for album: ${albumId ?? "Singles"}');
+    print(
+        'Deleted ${tasksToDelete.length} downloads for album: ${albumId ?? "Singles"}');
   }
 
   /// Get download settings

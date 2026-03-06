@@ -92,6 +92,16 @@ class QualitySettingsService {
     await updateSettings(_settings.copyWith(downloadOriginal: downloadOriginal));
   }
 
+  /// Update preference for local playback when online
+  Future<void> setPreferLocalWhenOnline(bool preferLocal) async {
+    await updateSettings(_settings.copyWith(preferLocalWhenOnline: preferLocal));
+  }
+
+  /// Whether to prefer local playback when online
+  bool getPreferLocalWhenOnline() {
+    return _settings.preferLocalWhenOnline;
+  }
+
   /// Get the current streaming quality based on network type
   ///
   /// Returns the appropriate quality setting based on whether

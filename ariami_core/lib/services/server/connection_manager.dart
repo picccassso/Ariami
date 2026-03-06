@@ -21,10 +21,11 @@ class ConnectionManager {
   }
 
   /// Register a new client connection
-  void registerClient(String deviceId, String deviceName) {
+  void registerClient(String deviceId, String deviceName, {String? userId}) {
     _clients[deviceId] = ConnectedClient(
       deviceId: deviceId,
       deviceName: deviceName,
+      userId: userId,
       connectedAt: DateTime.now(),
       lastHeartbeat: DateTime.now(),
     );
@@ -32,21 +33,67 @@ class ConnectionManager {
     _notifyListeners();
   }
 
-  /// Update client heartbeat timestamp
-  void updateHeartbeat(String deviceId) {
+  /// Update heartbeat only when client is already registered.
+  /// Returns true when an existing client was updated.
+  bool refreshHeartbeatIfRegistered(
+    String deviceId, {
+    String? userId,
+    String? deviceName,
+  }) {
     final client = _clients[deviceId];
-    if (client != null) {
-      _clients[deviceId] = client.copyWith(lastHeartbeat: DateTime.now());
+    if (client == null) {
+      return false;
     }
+
+    _clients[deviceId] = client.copyWith(
+      lastHeartbeat: DateTime.now(),
+      userId: userId ?? client.userId,
+      deviceName: (deviceName != null && deviceName.isNotEmpty)
+          ? deviceName
+          : client.deviceName,
+    );
+    return true;
+  }
+
+  /// Explicit helper for authenticated connection points:
+  /// register unknown clients, refresh known clients.
+  void registerOrRefreshClient(
+    String deviceId,
+    String deviceName, {
+    String? userId,
+  }) {
+    final didRefresh = refreshHeartbeatIfRegistered(
+      deviceId,
+      userId: userId,
+      deviceName: deviceName,
+    );
+    if (!didRefresh) {
+      registerClient(deviceId, deviceName, userId: userId);
+    }
+  }
+
+  /// Update client heartbeat timestamp
+  void updateHeartbeat(String deviceId, {String? userId, String? deviceName}) {
+    refreshHeartbeatIfRegistered(
+      deviceId,
+      userId: userId,
+      deviceName: deviceName,
+    );
   }
 
   /// Unregister a client connection
   void unregisterClient(String deviceId) {
+    unregisterClientAndGet(deviceId);
+  }
+
+  /// Unregister a client connection and return removed client.
+  ConnectedClient? unregisterClientAndGet(String deviceId) {
     final client = _clients.remove(deviceId);
     if (client != null) {
       print('Client disconnected: ${client.deviceName} ($deviceId)');
       _notifyListeners();
     }
+    return client;
   }
 
   /// Check if a client is connected
@@ -66,6 +113,15 @@ class ConnectionManager {
 
   /// Get count of connected clients
   int get clientCount => _clients.length;
+
+  /// Get count of unique connected users (by userId)
+  int get uniqueUserCount {
+    final uniqueUserIds = _clients.values
+        .map((client) => client.userId)
+        .whereType<String>()
+        .toSet();
+    return uniqueUserIds.length;
+  }
 
   /// Clear all connected clients (used when server stops)
   void clearAll() {
@@ -99,12 +155,14 @@ class ConnectionManager {
 class ConnectedClient {
   final String deviceId;
   final String deviceName;
+  final String? userId;
   final DateTime connectedAt;
   final DateTime lastHeartbeat;
 
   ConnectedClient({
     required this.deviceId,
     required this.deviceName,
+    required this.userId,
     required this.connectedAt,
     required this.lastHeartbeat,
   });
@@ -112,12 +170,14 @@ class ConnectedClient {
   ConnectedClient copyWith({
     String? deviceId,
     String? deviceName,
+    String? userId,
     DateTime? connectedAt,
     DateTime? lastHeartbeat,
   }) {
     return ConnectedClient(
       deviceId: deviceId ?? this.deviceId,
       deviceName: deviceName ?? this.deviceName,
+      userId: userId ?? this.userId,
       connectedAt: connectedAt ?? this.connectedAt,
       lastHeartbeat: lastHeartbeat ?? this.lastHeartbeat,
     );
@@ -127,6 +187,7 @@ class ConnectedClient {
     return {
       'deviceId': deviceId,
       'deviceName': deviceName,
+      if (userId != null) 'userId': userId,
       'connectedAt': connectedAt.toIso8601String(),
       'lastHeartbeat': lastHeartbeat.toIso8601String(),
     };
