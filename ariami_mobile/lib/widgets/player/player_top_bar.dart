@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../common/bottom_chrome_metrics.dart';
 
 /// Top bar for full player screen with minimize button and overflow menu
 class PlayerTopBar extends StatelessWidget {
@@ -52,8 +53,8 @@ class PlayerTopBar extends StatelessWidget {
       builder: (BuildContext context) {
         return SafeArea(
           minimum: EdgeInsets.only(
-            bottom: 64 +
-                kBottomNavigationBarHeight, // Mini player + download bar + nav bar
+            bottom: kMiniPlayerOverlayHeight +
+                getBottomNavigationBarTotalHeight(context),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,

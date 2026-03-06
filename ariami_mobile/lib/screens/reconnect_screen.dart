@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../models/api_models.dart';
 import '../services/api/connection_service.dart';
 
 class ReconnectScreen extends StatefulWidget {
@@ -13,11 +14,14 @@ class _ReconnectScreenState extends State<ReconnectScreen> {
   final ConnectionService _connectionService = ConnectionService();
   bool _isReconnecting = false;
   bool _isLoadingServerInfo = true;
+  bool _isAuthFailure = false;
   String? _errorMessage;
   StreamSubscription<bool>? _connectionSubscription;
 
-  String get _serverName => _connectionService.serverInfo?.name ?? 'Unknown Server';
-  String get _serverAddress => _connectionService.serverInfo?.server ?? 'Unknown Address';
+  String get _serverName =>
+      _connectionService.serverInfo?.name ?? 'Unknown Server';
+  String get _serverAddress =>
+      _connectionService.serverInfo?.server ?? 'Unknown Address';
 
   @override
   void initState() {
@@ -58,6 +62,7 @@ class _ReconnectScreenState extends State<ReconnectScreen> {
   Future<void> _attemptReconnect() async {
     setState(() {
       _isReconnecting = true;
+      _isAuthFailure = false;
       _errorMessage = null;
     });
 
@@ -68,8 +73,31 @@ class _ReconnectScreenState extends State<ReconnectScreen> {
         // Connection restored! Navigate to main app
         Navigator.pushReplacementNamed(context, '/main');
       } else {
+        final failureCode = _connectionService.lastRestoreFailureCode;
+        if (failureCode == ApiErrorCodes.authRequired ||
+            failureCode == ApiErrorCodes.sessionExpired) {
+          final serverInfo = _connectionService.serverInfo;
+          if (serverInfo != null && mounted) {
+            Navigator.pushNamedAndRemoveUntil(
+              context,
+              '/auth/login',
+              (route) => false,
+              arguments: serverInfo,
+            );
+            return;
+          }
+          setState(() {
+            _isAuthFailure = true;
+            _errorMessage =
+                'Authentication required. Please log in to reconnect.';
+            _isReconnecting = false;
+          });
+          return;
+        }
+
         setState(() {
-          _errorMessage = 'Server is offline. Please start the desktop server and try again.';
+          _errorMessage =
+              'Server is offline. Please start the desktop server and try again.';
           _isReconnecting = false;
         });
       }
@@ -123,8 +151,8 @@ class _ReconnectScreenState extends State<ReconnectScreen> {
                 const SizedBox(height: 32),
 
                 // Title
-                const Text(
-                  'Server Offline',
+                Text(
+                  _isAuthFailure ? 'Authentication Required' : 'Server Offline',
                   style: TextStyle(
                     fontSize: 32,
                     fontWeight: FontWeight.bold,
@@ -135,7 +163,9 @@ class _ReconnectScreenState extends State<ReconnectScreen> {
 
                 // Description
                 Text(
-                  'Cannot connect to your desktop server',
+                  _isAuthFailure
+                      ? 'Please log in again to continue'
+                      : 'Cannot connect to your desktop server',
                   style: TextStyle(
                     fontSize: 18,
                     color: Colors.grey[600],
@@ -208,7 +238,8 @@ class _ReconnectScreenState extends State<ReconnectScreen> {
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.info_outline_rounded, color: Color(0xFFFF4B4B), size: 20),
+                        const Icon(Icons.info_outline_rounded,
+                            color: Color(0xFFFF4B4B), size: 20),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
@@ -225,43 +256,47 @@ class _ReconnectScreenState extends State<ReconnectScreen> {
                   ),
 
                 // Instructions
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF111111),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: Colors.white.withOpacity(0.05),
-                        width: 1,
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'TO RECONNECT:',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w900,
-                            color: Colors.white,
-                            letterSpacing: 1.2,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          '1. Start the Ariami Desktop app\n'
-                          '2. Wait for the server to start\n'
-                          '3. Tap "Retry Connection" below',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Colors.grey[400],
-                            height: 1.6,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF111111),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.05),
+                      width: 1,
                     ),
                   ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'TO RECONNECT:',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        _isAuthFailure
+                            ? '1. Tap "Retry Connection" below\n'
+                                '2. Sign in with your account\n'
+                                '3. Return to your library'
+                            : '1. Start the Ariami Desktop app\n'
+                                '2. Wait for the server to start\n'
+                                '3. Tap "Retry Connection" below',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey[400],
+                          height: 1.6,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
                 const SizedBox(height: 32),
 
                 // Retry Button
@@ -276,7 +311,8 @@ class _ReconnectScreenState extends State<ReconnectScreen> {
                             height: 20,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              valueColor:
+                                  AlwaysStoppedAnimation<Color>(Colors.white),
                             ),
                           )
                         : const Icon(Icons.refresh),

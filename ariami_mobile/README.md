@@ -9,6 +9,10 @@ Mobile client for Ariami. Streams music from Ariami Desktop or CLI servers.
 - Queue management, shuffle, repeat
 - Playlist creation and management
 - QR code scanning for easy server connection
+- User authentication (login/register) when the server has auth enabled
+- Automatic quality switching based on network type (WiFi vs mobile data)
+- Option to prefer local/cached files when connected to the server
+- Listening stats for songs, albums, and artists
 
 ## Building
 
@@ -24,4 +28,5 @@ flutter build ios           # iOS
 
 1. Launch the app
 2. Scan the QR code from your Ariami server
-3. Browse and stream your music library
+3. If auth is required, create an account or log in
+4. Browse and stream your music library

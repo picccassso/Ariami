@@ -17,6 +17,7 @@ class DownloadsScreen extends StatefulWidget {
 }
 
 class _DownloadsScreenState extends State<DownloadsScreen> {
+  final ConnectionService _connectionService = ConnectionService();
   final DownloadManager _downloadManager = DownloadManager();
   final CacheManager _cacheManager = CacheManager();
   final QualitySettingsService _qualityService = QualitySettingsService();
@@ -96,7 +97,6 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
   }
 
   Future<void> _loadDownloadAllCounts() async {
-    final connectionService = ConnectionService();
     final playlistService = PlaylistService();
 
     // Ensure download manager is initialized
@@ -109,18 +109,20 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
       await playlistService.loadPlaylists();
     }
 
-    // Initialize counts with local data first (useful for offline mode)
-    final allDownloadedTasks = _downloadManager.queue.where((t) => t.status == DownloadStatus.completed).toList();
+    // Local downloaded-state snapshot (used for downloaded counters and fallback path).
+    final allDownloadedTasks = _downloadManager.queue
+        .where((t) => t.status == DownloadStatus.completed)
+        .toList();
     final downloadedSongIds = allDownloadedTasks.map((t) => t.songId).toSet();
     int localDownloadedSongs = allDownloadedTasks.length;
-    
-    // Group local downloads by album to estimate downloaded album count
+
+    // Group local downloads by album to estimate downloaded album count.
     final Set<String> localAlbumIds = allDownloadedTasks
         .where((t) => t.albumId != null)
         .map((t) => t.albumId!)
         .toSet();
-        
-    // Calculate playlist counts from local service data
+
+    // Calculate local playlist downloaded coverage.
     final Set<String> localPlaylistSongIds = {};
     for (final playlist in playlistService.playlists) {
       localPlaylistSongIds.addAll(playlist.songIds);
@@ -128,7 +130,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
     for (final serverPlaylist in playlistService.visibleServerPlaylists) {
       localPlaylistSongIds.addAll(serverPlaylist.songIds);
     }
-    
+
     int localDownloadedPlaylistSongs = 0;
     for (final songId in localPlaylistSongIds) {
       if (downloadedSongIds.contains(songId)) {
@@ -136,112 +138,80 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
       }
     }
 
-    // Get song and album counts from API if connected
-    if (connectionService.apiClient != null) {
-      try {
-        final library = await connectionService.apiClient!.getLibrary();
+    try {
+      final library =
+          await _connectionService.libraryReadFacade.getLibraryBundle();
+      final songs = library.songs;
+      final albums = library.albums;
+      final serverPlaylists = library.serverPlaylists;
 
-        // Count downloaded songs
-        int downloadedSongs = 0;
-        for (final song in library.songs) {
-          if (await _downloadManager.isSongDownloaded(song.id)) {
-            downloadedSongs++;
-          }
-        }
+      playlistService.updateServerPlaylists(serverPlaylists);
 
-        // Count fully downloaded albums (all songs in album are downloaded)
-        int downloadedAlbums = 0;
-        final albumSongsMap = <String, List<String>>{};
-        for (final song in library.songs) {
-          if (song.albumId != null) {
-            albumSongsMap.putIfAbsent(song.albumId!, () => []).add(song.id);
-          }
-        }
-        for (final album in library.albums) {
-          final albumSongIds = albumSongsMap[album.id] ?? [];
-          if (albumSongIds.isNotEmpty) {
-            bool allDownloaded = true;
-            for (final songId in albumSongIds) {
-              if (!await _downloadManager.isSongDownloaded(songId)) {
-                allDownloaded = false;
-                break;
-              }
-            }
-            if (allDownloaded) {
-              downloadedAlbums++;
-            }
-          }
-        }
-
-        // Count downloaded playlist songs
-        final Set<String> allPlaylistSongIds = {};
-        for (final playlist in playlistService.playlists) {
-          allPlaylistSongIds.addAll(playlist.songIds);
-        }
-        for (final serverPlaylist in playlistService.visibleServerPlaylists) {
-          allPlaylistSongIds.addAll(serverPlaylist.songIds);
-        }
-
-        // Build a set of library song IDs for comparison
-        final librarySongIds = library.songs.map((s) => s.id).toSet();
-
-        int downloadedPlaylistSongs = 0;
-        for (final songId in allPlaylistSongIds) {
-          if (!librarySongIds.contains(songId)) {
-            continue; 
-          }
-          if (await _downloadManager.isSongDownloaded(songId)) {
-            downloadedPlaylistSongs++;
-          }
-        }
-
-        // Recalculate total to only count valid playlist songs
-        final validPlaylistSongCount = allPlaylistSongIds.where((id) => librarySongIds.contains(id)).length;
-
-        if (mounted) {
-          setState(() {
-            _totalSongCount = library.songs.length;
-            _totalAlbumCount = library.albums.length;
-            _downloadedSongCount = downloadedSongs;
-            _downloadedAlbumCount = downloadedAlbums;
-            _totalPlaylistSongCount = validPlaylistSongCount;
-            _downloadedPlaylistSongCount = downloadedPlaylistSongs;
-            _isLoadingCounts = false;
-          });
-        }
-      } catch (e) {
-        // Error loading library counts - fallback to local counts
-        if (mounted) {
-          setState(() {
-            _totalSongCount = localDownloadedSongs; 
-            _totalAlbumCount = localAlbumIds.length;
-            _downloadedSongCount = localDownloadedSongs;
-            _downloadedAlbumCount = localAlbumIds.length;
-            _totalPlaylistSongCount = localPlaylistSongIds.length;
-            _downloadedPlaylistSongCount = localDownloadedPlaylistSongs;
-            _isLoadingCounts = false;
-          });
+      final albumSongsMap = <String, List<String>>{};
+      for (final song in songs) {
+        if (song.albumId != null) {
+          albumSongsMap.putIfAbsent(song.albumId!, () => []).add(song.id);
         }
       }
-    } else {
-      // Disconnected - show local counts
+
+      var downloadedAlbums = 0;
+      for (final album in albums) {
+        final albumSongIds = albumSongsMap[album.id] ?? const <String>[];
+        if (albumSongIds.isNotEmpty &&
+            albumSongIds.every(downloadedSongIds.contains)) {
+          downloadedAlbums++;
+        }
+      }
+
+      final allPlaylistSongIds = <String>{};
+      for (final playlist in playlistService.playlists) {
+        allPlaylistSongIds.addAll(playlist.songIds);
+      }
+      for (final serverPlaylist in serverPlaylists) {
+        allPlaylistSongIds.addAll(serverPlaylist.songIds);
+      }
+
+      final librarySongIds = songs.map((song) => song.id).toSet();
+      final validPlaylistSongIds =
+          allPlaylistSongIds.where(librarySongIds.contains).toList();
+      final downloadedPlaylistSongs =
+          validPlaylistSongIds.where(downloadedSongIds.contains).length;
+      final downloadedSongs =
+          songs.where((song) => downloadedSongIds.contains(song.id)).length;
+
       if (mounted) {
         setState(() {
-          _totalSongCount = localDownloadedSongs;
-          _totalAlbumCount = localAlbumIds.length;
-          _downloadedSongCount = localDownloadedSongs;
-          _downloadedAlbumCount = localAlbumIds.length;
-          _totalPlaylistSongCount = localPlaylistSongIds.length;
-          _downloadedPlaylistSongCount = localDownloadedPlaylistSongs;
+          _totalSongCount = songs.length;
+          _totalAlbumCount = albums.length;
+          _downloadedSongCount = downloadedSongs;
+          _downloadedAlbumCount = downloadedAlbums;
+          _totalPlaylistSongCount = validPlaylistSongIds.length;
+          _downloadedPlaylistSongCount = downloadedPlaylistSongs;
           _isLoadingCounts = false;
         });
       }
+      return;
+    } catch (_) {
+      // Fall through to local-only fallback below.
+    }
+
+    // Fallback to local-only counts using a single source class (downloaded data),
+    // avoiding mixed-source totals between songs/albums/playlists.
+    if (mounted) {
+      setState(() {
+        _totalSongCount = localDownloadedSongs;
+        _totalAlbumCount = localAlbumIds.length;
+        _downloadedSongCount = localDownloadedSongs;
+        _downloadedAlbumCount = localAlbumIds.length;
+        _totalPlaylistSongCount = localDownloadedPlaylistSongs;
+        _downloadedPlaylistSongCount = localDownloadedPlaylistSongs;
+        _isLoadingCounts = false;
+      });
     }
   }
 
   Future<void> _downloadAllSongs() async {
-    final connectionService = ConnectionService();
-    if (connectionService.apiClient == null) {
+    if (_connectionService.apiClient == null) {
       return;
     }
 
@@ -250,52 +220,14 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
     });
 
     try {
-      // Use getLibrary() instead of getSongs() as it returns the full library
-      final library = await connectionService.apiClient!.getLibrary();
-      int queuedCount = 0;
-
-      // Build album lookup map for album metadata
-      final albumMap = {for (final album in library.albums) album.id: album};
-
-      for (final song in library.songs) {
-        // Build download URL with current download mode/quality
-        final baseDownloadUrl = connectionService.apiClient!.getDownloadUrl(song.id);
-        final downloadUrl = _qualityService.getDownloadUrlWithQuality(baseDownloadUrl);
-
-        // Build artwork URL and get album metadata
-        String artworkUrl = '';
-        String? albumName;
-        String? albumArtist;
-        if (song.albumId != null) {
-          artworkUrl = '${connectionService.apiClient!.baseUrl}/artwork/${song.albumId}';
-          final album = albumMap[song.albumId];
-          if (album != null) {
-            albumName = album.title;
-            albumArtist = album.artist;
-          }
-        }
-
-        await _downloadManager.downloadSong(
-          songId: song.id,
-          title: song.title,
-          artist: song.artist,
-          albumId: song.albumId,
-          albumName: albumName,
-          albumArtist: albumArtist,
-          albumArt: artworkUrl,
-          downloadUrl: downloadUrl,
-          duration: song.duration,
-          trackNumber: song.trackNumber,
-          totalBytes: 0, // Will be determined during download
-        );
-        queuedCount++;
-
-        // Small delay to avoid overwhelming the server
-        if (queuedCount % 10 == 0) {
-          await Future.delayed(const Duration(milliseconds: 50));
-        }
-      }
-
+      final downloadQuality = _qualityService.getDownloadQuality();
+      final downloadOriginal = _qualityService.getDownloadOriginal();
+      final songs = await _connectionService.libraryReadFacade.getSongs();
+      await _downloadManager.enqueueDownloadJob(
+        songIds: songs.map((song) => song.id).toList(),
+        downloadQuality: downloadQuality,
+        downloadOriginal: downloadOriginal,
+      );
     } catch (e) {
       // Silently handle errors
     } finally {
@@ -308,8 +240,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
   }
 
   Future<void> _downloadAllAlbums() async {
-    final connectionService = ConnectionService();
-    if (connectionService.apiClient == null) {
+    if (_connectionService.apiClient == null) {
       return;
     }
 
@@ -318,58 +249,14 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
     });
 
     try {
-      // Use getLibrary() to get albums with their songs
-      final library = await connectionService.apiClient!.getLibrary();
-      int totalSongsQueued = 0;
-
-      // Build a map of albumId -> songs for quick lookup
-      final Map<String, List<dynamic>> albumSongsMap = {};
-      for (final song in library.songs) {
-        if (song.albumId != null) {
-          albumSongsMap.putIfAbsent(song.albumId!, () => []).add(song);
-        }
-      }
-
-      for (final album in library.albums) {
-        final albumSongs = albumSongsMap[album.id] ?? [];
-
-        // Build song maps for downloadAlbum
-        final songMaps = albumSongs.map((song) {
-          final baseDownloadUrl = connectionService.apiClient!.getDownloadUrl(song.id);
-          final downloadUrl = _qualityService.getDownloadUrlWithQuality(baseDownloadUrl);
-          final artworkUrl = '${connectionService.apiClient!.baseUrl}/artwork/${album.id}';
-
-          return {
-            'id': song.id,
-            'title': song.title,
-            'artist': song.artist,
-            'albumId': album.id,
-            'albumName': album.title,
-            'albumArtist': album.artist,
-            'albumArt': artworkUrl,
-            'downloadUrl': downloadUrl,
-            'duration': song.duration,
-            'trackNumber': song.trackNumber,
-            'fileSize': 0, // Will be determined during download
-          };
-        }).toList();
-
-        if (songMaps.isNotEmpty) {
-          await _downloadManager.downloadAlbum(
-            songs: songMaps,
-            albumId: album.id,
-            albumName: album.title,
-            albumArtist: album.artist,
-          );
-          totalSongsQueued += songMaps.length;
-
-          // Small delay to avoid overwhelming the server
-          if (totalSongsQueued % 10 == 0) {
-            await Future.delayed(const Duration(milliseconds: 50));
-          }
-        }
-      }
-
+      final downloadQuality = _qualityService.getDownloadQuality();
+      final downloadOriginal = _qualityService.getDownloadOriginal();
+      final albums = await _connectionService.libraryReadFacade.getAlbums();
+      await _downloadManager.enqueueDownloadJob(
+        albumIds: albums.map((album) => album.id).toList(),
+        downloadQuality: downloadQuality,
+        downloadOriginal: downloadOriginal,
+      );
     } catch (e) {
       // Silently handle errors
     } finally {
@@ -382,10 +269,9 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
   }
 
   Future<void> _downloadAllPlaylists() async {
-    final connectionService = ConnectionService();
     final playlistService = PlaylistService();
 
-    if (connectionService.apiClient == null) {
+    if (_connectionService.apiClient == null) {
       return;
     }
 
@@ -394,68 +280,35 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
     });
 
     try {
-      // Collect all unique song IDs from all playlists
-      final Set<String> allSongIds = {};
+      final downloadQuality = _qualityService.getDownloadQuality();
+      final downloadOriginal = _qualityService.getDownloadOriginal();
+      if (!playlistService.isLoaded) {
+        await playlistService.loadPlaylists();
+      }
 
-      // From local playlists
+      final library =
+          await _connectionService.libraryReadFacade.getLibraryBundle();
+      final songs = library.songs;
+      final serverPlaylists = library.serverPlaylists;
+      playlistService.updateServerPlaylists(serverPlaylists);
+      final validSongIds = songs.map((song) => song.id).toSet();
+
+      final localPlaylistSongIds = <String>{};
       for (final playlist in playlistService.playlists) {
-        allSongIds.addAll(playlist.songIds);
+        localPlaylistSongIds.addAll(playlist.songIds);
       }
+      localPlaylistSongIds
+          .removeWhere((songId) => !validSongIds.contains(songId));
 
-      // From visible server playlists
-      for (final serverPlaylist in playlistService.visibleServerPlaylists) {
-        allSongIds.addAll(serverPlaylist.songIds);
-      }
+      final serverPlaylistIds =
+          serverPlaylists.map((playlist) => playlist.id).toList();
 
-      if (allSongIds.isEmpty) {
-        return;
-      }
-
-      // Fetch library to get song metadata
-      final library = await connectionService.apiClient!.getLibrary();
-      final songMap = {for (final s in library.songs) s.id: s};
-      final albumMap = {for (final album in library.albums) album.id: album};
-
-      int queuedCount = 0;
-      for (final songId in allSongIds) {
-        final song = songMap[songId];
-        if (song == null) continue;
-
-        final baseDownloadUrl = connectionService.apiClient!.getDownloadUrl(song.id);
-        final downloadUrl = _qualityService.getDownloadUrlWithQuality(baseDownloadUrl);
-        String artworkUrl = '';
-        String? albumName;
-        String? albumArtist;
-        if (song.albumId != null) {
-          artworkUrl = '${connectionService.apiClient!.baseUrl}/artwork/${song.albumId}';
-          final album = albumMap[song.albumId];
-          if (album != null) {
-            albumName = album.title;
-            albumArtist = album.artist;
-          }
-        }
-
-        await _downloadManager.downloadSong(
-          songId: song.id,
-          title: song.title,
-          artist: song.artist,
-          albumId: song.albumId,
-          albumName: albumName,
-          albumArtist: albumArtist,
-          albumArt: artworkUrl,
-          downloadUrl: downloadUrl,
-          duration: song.duration,
-          trackNumber: song.trackNumber,
-          totalBytes: 0, // Will be determined during download
-        );
-        queuedCount++;
-
-        // Small delay to avoid overwhelming the server
-        if (queuedCount % 10 == 0) {
-          await Future.delayed(const Duration(milliseconds: 50));
-        }
-      }
-
+      await _downloadManager.enqueueDownloadJob(
+        songIds: localPlaylistSongIds.toList(),
+        playlistIds: serverPlaylistIds,
+        downloadQuality: downloadQuality,
+        downloadOriginal: downloadOriginal,
+      );
     } catch (e) {
       // Silently handle errors
     } finally {
@@ -520,7 +373,8 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Delete All', style: TextStyle(color: Colors.red)),
+            child:
+                const Text('Delete All', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -568,7 +422,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
 
               return ListView(
                 padding: EdgeInsets.only(
-                  bottom: getMiniPlayerAwareBottomPadding(),
+                  bottom: getMiniPlayerAwareBottomPadding(context),
                 ),
                 children: [
                   // Downloads statistics card
@@ -601,7 +455,9 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                   ..._buildSection(
                     context,
                     'Pending',
-                    queue.where((t) => t.status == DownloadStatus.pending).toList(),
+                    queue
+                        .where((t) => t.status == DownloadStatus.pending)
+                        .toList(),
                     isDark,
                   ),
 
@@ -618,7 +474,9 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                   ..._buildSection(
                     context,
                     'Failed',
-                    queue.where((t) => t.status == DownloadStatus.failed).toList(),
+                    queue
+                        .where((t) => t.status == DownloadStatus.failed)
+                        .toList(),
                     isDark,
                   ),
 
@@ -660,7 +518,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
               ],
             ),
             const SizedBox(height: 20),
-            
+
             // Cache size info
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -698,19 +556,23 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
               ],
             ),
             const SizedBox(height: 16),
-            
+
             // Progress bar
             ClipRRect(
               borderRadius: BorderRadius.circular(10),
               child: LinearProgressIndicator(
-                value: _cacheLimitMB > 0 ? (_cacheSizeMB / _cacheLimitMB).clamp(0.0, 1.0) : 0.0,
+                value: _cacheLimitMB > 0
+                    ? (_cacheSizeMB / _cacheLimitMB).clamp(0.0, 1.0)
+                    : 0.0,
                 minHeight: 8,
-                backgroundColor: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFEEEEEE),
-                valueColor: AlwaysStoppedAnimation<Color>(isDark ? Colors.white : Colors.black),
+                backgroundColor:
+                    isDark ? const Color(0xFF1A1A1A) : const Color(0xFFEEEEEE),
+                valueColor: AlwaysStoppedAnimation<Color>(
+                    isDark ? Colors.white : Colors.black),
               ),
             ),
             const SizedBox(height: 20),
-            
+
             // Cache limit slider
             Row(
               children: [
@@ -718,8 +580,10 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                   child: SliderTheme(
                     data: SliderTheme.of(context).copyWith(
                       trackHeight: 4,
-                      thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
-                      overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
+                      thumbShape:
+                          const RoundSliderThumbShape(enabledThumbRadius: 8),
+                      overlayShape:
+                          const RoundSliderOverlayShape(overlayRadius: 16),
                     ),
                     child: Slider(
                       value: _cacheLimitMB.toDouble(),
@@ -728,7 +592,9 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                       divisions: 19,
                       label: '$_cacheLimitMB MB',
                       activeColor: isDark ? Colors.white : Colors.black,
-                      inactiveColor: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFEEEEEE),
+                      inactiveColor: isDark
+                          ? const Color(0xFF1A1A1A)
+                          : const Color(0xFFEEEEEE),
                       onChanged: (value) {
                         setState(() {
                           _cacheLimitMB = value.round();
@@ -742,9 +608,9 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                 ),
               ],
             ),
-            
+
             const SizedBox(height: 12),
-            
+
             // Clear cache button
             SizedBox(
               width: double.infinity,
@@ -757,16 +623,18 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                   style: TextStyle(fontWeight: FontWeight.w700),
                 ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF5F5F5),
+                  backgroundColor: isDark
+                      ? const Color(0xFF1A1A1A)
+                      : const Color(0xFFF5F5F5),
                   foregroundColor: isDark ? Colors.white : Colors.black,
                   elevation: 0,
                   shape: const StadiumBorder(),
                 ),
               ),
             ),
-            
+
             const SizedBox(height: 16),
-            
+
             // Cache info text
             Text(
               'Cached content is automatically managed when you stream songs. Clearing cache won\'t affect your downloads.',
@@ -986,18 +854,27 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                   )
                 : IconButton(
                     icon: Icon(
-                      allDownloaded ? Icons.check_circle_rounded : Icons.arrow_downward_rounded,
+                      allDownloaded
+                          ? Icons.check_circle_rounded
+                          : Icons.arrow_downward_rounded,
                       size: 24,
                       color: (isLoading || !hasItemsToDownload)
-                          ? (isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.1))
+                          ? (isDark
+                              ? Colors.white.withOpacity(0.1)
+                              : Colors.black.withOpacity(0.1))
                           : (isDark ? Colors.white : Colors.black),
                     ),
-                    onPressed: (isLoading || !hasItemsToDownload) ? null : onDownload,
+                    onPressed:
+                        (isLoading || !hasItemsToDownload) ? null : onDownload,
                     style: IconButton.styleFrom(
-                      backgroundColor: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF5F5F5),
+                      backgroundColor: isDark
+                          ? const Color(0xFF1A1A1A)
+                          : const Color(0xFFF5F5F5),
                       shape: const CircleBorder(),
                     ),
-                    tooltip: allDownloaded ? 'Already downloaded' : 'Download $label',
+                    tooltip: allDownloaded
+                        ? 'Already downloaded'
+                        : 'Download $label',
                   ),
           ),
         ],
@@ -1030,7 +907,8 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                 ),
                 if (stats.downloading > 0)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
                       color: isDark ? Colors.white : Colors.black,
                       borderRadius: BorderRadius.circular(12),
@@ -1290,7 +1168,8 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                   });
                 },
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   child: Row(
                     children: [
                       // Album artwork
@@ -1301,7 +1180,8 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                           height: 50,
                           child: CachedArtwork(
                             albumId: albumId,
-                            artworkUrl: artworkUrl.isNotEmpty ? artworkUrl : null,
+                            artworkUrl:
+                                artworkUrl.isNotEmpty ? artworkUrl : null,
                             width: 50,
                             height: 50,
                             fit: BoxFit.cover,
@@ -1373,7 +1253,9 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                             songs.length,
                           ),
                           style: IconButton.styleFrom(
-                            backgroundColor: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF5F5F5),
+                            backgroundColor: isDark
+                                ? const Color(0xFF1A1A1A)
+                                : const Color(0xFFF5F5F5),
                             shape: const CircleBorder(),
                           ),
                           tooltip: 'Delete album',
@@ -1395,7 +1277,8 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
               // Expanded songs list
               if (isExpanded)
                 Container(
-                  color: isDark ? Colors.black.withOpacity(0.3) : Colors.grey[50],
+                  color:
+                      isDark ? Colors.black.withOpacity(0.3) : Colors.grey[50],
                   child: Column(
                     children: songs.asMap().entries.map((entry) {
                       final index = entry.key;
@@ -1459,7 +1342,8 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                   });
                 },
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   child: Row(
                     children: [
                       // First song's artwork or fallback
@@ -1480,10 +1364,14 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                                   sizeHint: ArtworkSizeHint.thumbnail,
                                 )
                               : Container(
-                                  color: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF5F5F5),
+                                  color: isDark
+                                      ? const Color(0xFF1A1A1A)
+                                      : const Color(0xFFF5F5F5),
                                   child: Icon(
                                     Icons.music_note_rounded,
-                                    color: isDark ? Colors.grey[700] : Colors.grey[400],
+                                    color: isDark
+                                        ? Colors.grey[700]
+                                        : Colors.grey[400],
                                     size: 24,
                                   ),
                                 ),
@@ -1547,7 +1435,9 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                             songs.length,
                           ),
                           style: IconButton.styleFrom(
-                            backgroundColor: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF5F5F5),
+                            backgroundColor: isDark
+                                ? const Color(0xFF1A1A1A)
+                                : const Color(0xFFF5F5F5),
                             shape: const CircleBorder(),
                           ),
                           tooltip: 'Delete all singles',
@@ -1569,7 +1459,8 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
               // Expanded songs list
               if (isExpanded)
                 Container(
-                  color: isDark ? Colors.black.withOpacity(0.3) : Colors.grey[50],
+                  color:
+                      isDark ? Colors.black.withOpacity(0.3) : Colors.grey[50],
                   child: Column(
                     children: songs.asMap().entries.map((entry) {
                       final index = entry.key;
@@ -1700,7 +1591,9 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                   ),
                   onPressed: () => _cancelDownload(task.id),
                   style: IconButton.styleFrom(
-                    backgroundColor: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF5F5F5),
+                    backgroundColor: isDark
+                        ? const Color(0xFF1A1A1A)
+                        : const Color(0xFFF5F5F5),
                     shape: const CircleBorder(),
                   ),
                   tooltip: 'Remove song',
@@ -1712,16 +1605,20 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
         ),
         if (!isLast)
           Padding(
-            padding: const EdgeInsets.only(left: 76.0, right: 16.0), // Aligned with artwork spacing
+            padding: const EdgeInsets.only(
+                left: 76.0, right: 16.0), // Aligned with artwork spacing
             child: Divider(
               height: 1,
               thickness: 0.5,
-              color: isDark ? const Color(0xFF1A1A1A).withOpacity(0.5) : const Color(0xFFEEEEEE),
+              color: isDark
+                  ? const Color(0xFF1A1A1A).withOpacity(0.5)
+                  : const Color(0xFFEEEEEE),
             ),
           ),
       ],
     );
   }
+
   /// Confirm deletion of an album's downloads
   Future<void> _confirmDeleteAlbum(
     BuildContext context,
@@ -1782,7 +1679,9 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF5F5F5),
+                    color: isDark
+                        ? const Color(0xFF1A1A1A)
+                        : const Color(0xFFF5F5F5),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Center(child: _buildStatusIcon(task)),
@@ -1820,7 +1719,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                 ),
               ],
             ),
-            
+
             // Progress bar or status text
             if (task.status == DownloadStatus.downloading) ...[
               const SizedBox(height: 16),
@@ -1829,8 +1728,11 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                 child: LinearProgressIndicator(
                   value: _currentProgress[task.id]?.progress ?? task.progress,
                   minHeight: 6,
-                  backgroundColor: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFEEEEEE),
-                  valueColor: AlwaysStoppedAnimation<Color>(isDark ? Colors.white : Colors.black),
+                  backgroundColor: isDark
+                      ? const Color(0xFF1A1A1A)
+                      : const Color(0xFFEEEEEE),
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                      isDark ? Colors.white : Colors.black),
                 ),
               ),
               const SizedBox(height: 8),
@@ -1880,15 +1782,17 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
   List<Widget> _buildActionButtons(DownloadTask task) {
     final buttons = <Widget>[];
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    
+
     final buttonStyle = ElevatedButton.styleFrom(
-      backgroundColor: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF5F5F5),
+      backgroundColor:
+          isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF5F5F5),
       foregroundColor: isDark ? Colors.white : Colors.black,
       elevation: 0,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
       minimumSize: const Size(0, 36),
       shape: const StadiumBorder(),
-      textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.5),
+      textStyle: const TextStyle(
+          fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.5),
     );
 
     if (task.status == DownloadStatus.downloading) {
@@ -1979,14 +1883,21 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
           ),
         );
       case DownloadStatus.paused:
-        return const Icon(Icons.pause_circle_filled_rounded, size: 22, color: Color(0xFFFFB300));
+        return const Icon(Icons.pause_circle_filled_rounded,
+            size: 22, color: Color(0xFFFFB300));
       case DownloadStatus.completed:
-        return const Icon(Icons.check_circle_rounded, size: 22, color: Color(0xFF00C853));
+        return const Icon(Icons.check_circle_rounded,
+            size: 22, color: Color(0xFF00C853));
       case DownloadStatus.failed:
-        return const Icon(Icons.error_rounded, size: 22, color: Color(0xFFFF4B4B));
+        return const Icon(Icons.error_rounded,
+            size: 22, color: Color(0xFFFF4B4B));
       case DownloadStatus.pending:
       case DownloadStatus.cancelled:
-        return Icon(Icons.schedule_rounded, size: 22, color: Theme.of(context).brightness == Brightness.dark ? Colors.grey[600] : Colors.grey[400]);
+        return Icon(Icons.schedule_rounded,
+            size: 22,
+            color: Theme.of(context).brightness == Brightness.dark
+                ? Colors.grey[600]
+                : Colors.grey[400]);
     }
   }
 }

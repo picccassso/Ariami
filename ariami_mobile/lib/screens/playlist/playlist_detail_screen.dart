@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
@@ -17,7 +18,8 @@ import 'add_to_playlist_screen.dart';
 
 /// Helper to convert SongModel to Song with album info lookup
 /// Uses album info map to populate album name and artist
-Song _songModelToSong(SongModel s, Map<String, ({String name, String artist})> albumInfoMap) {
+Song _songModelToSong(
+    SongModel s, Map<String, ({String name, String artist})> albumInfoMap) {
   String? albumName;
   String? albumArtist;
 
@@ -66,7 +68,8 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   PlaylistModel? _playlist;
   List<SongModel> _songs = [];
   bool _isLoading = true;
-  bool _isSongsLoading = false; // True while songs are being resolved in background
+  bool _isSongsLoading =
+      false; // True while songs are being resolved in background
   String? _errorMessage;
   bool _isReorderMode = false;
   Set<String> _downloadedSongIds = {};
@@ -159,7 +162,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
     // First: Try to show playlist header immediately from cached data
     // This provides instant visual feedback during screen transition
     final cachedPlaylist = _playlistService.getPlaylist(widget.playlistId);
-    
+
     if (cachedPlaylist != null) {
       // Show header immediately without loading spinner
       setState(() {
@@ -167,7 +170,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
         _isLoading = false; // Don't show loading spinner for header
         _isSongsLoading = true; // Songs are loading in background
       });
-      
+
       // Then resolve songs in background (this is now fast with local metadata)
       final songs = await _resolveSongs(cachedPlaylist.songIds);
       if (mounted) {
@@ -241,9 +244,9 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   /// Populates _albumInfoMap for enriched metadata display
   void _fetchAlbumInfoInBackground() {
     // Fire-and-forget - don't await
-    _connectionService.apiClient?.getLibrary().then((library) {
-      // Populate album info map from library response
-      for (final album in library.albums) {
+    _connectionService.libraryReadFacade.getAlbums().then((albums) {
+      // Populate album info map from local sync repository
+      for (final album in albums) {
         _albumInfoMap[album.id] = (name: album.title, artist: album.artist);
       }
 
@@ -253,10 +256,8 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
             task.albumId != null &&
             task.albumName != null &&
             !_albumInfoMap.containsKey(task.albumId)) {
-          _albumInfoMap[task.albumId!] = (
-            name: task.albumName!,
-            artist: task.albumArtist ?? task.artist
-          );
+          _albumInfoMap[task.albumId!] =
+              (name: task.albumName!, artist: task.albumArtist ?? task.artist);
         }
       }
 
@@ -265,11 +266,11 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
         setState(() {});
       }
     }).catchError((e) {
-      print('[PlaylistDetailScreen] Background album info fetch failed: $e');
+      print('[PlaylistDetailScreen] Background album info load failed: $e');
       // Non-critical - songs still display correctly without album info
     });
   }
-  
+
   /// Build SongModel objects from playlist's locally-stored metadata
   /// This is the optimized path - no server calls needed
   List<SongModel> _resolveSongsFromLocalMetadata(List<String> songIds) {
@@ -285,13 +286,11 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
           duration: task.duration,
           trackNumber: task.trackNumber,
         );
-        
+
         // Also update album info map from downloads
         if (task.albumId != null && task.albumName != null) {
-          _albumInfoMap[task.albumId!] = (
-            name: task.albumName!,
-            artist: task.albumArtist ?? task.artist
-          );
+          _albumInfoMap[task.albumId!] =
+              (name: task.albumName!, artist: task.albumArtist ?? task.artist);
         }
       }
     }
@@ -302,7 +301,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
       if (downloadedSongs.containsKey(id)) {
         return downloadedSongs[id]!;
       }
-      
+
       // Fall back to playlist's stored metadata
       final albumId = _playlist?.songAlbumIds[id];
       final title = _playlist?.songTitles[id] ?? 'Unknown Song';
@@ -334,10 +333,8 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
           task.albumName != null) {
         // Populate album info map from download task metadata
         // Use albumArtist if available, fallback to artist
-        _albumInfoMap[task.albumId!] = (
-          name: task.albumName!,
-          artist: task.albumArtist ?? task.artist
-        );
+        _albumInfoMap[task.albumId!] =
+            (name: task.albumName!, artist: task.albumArtist ?? task.artist);
       }
     }
 
@@ -401,7 +398,8 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
       return;
     }
 
-    final songs = songsToPlay.map((s) => _songModelToSong(s, _albumInfoMap)).toList();
+    final songs =
+        songsToPlay.map((s) => _songModelToSong(s, _albumInfoMap)).toList();
     await _playbackManager.playSongs(songs, startIndex: 0);
   }
 
@@ -427,7 +425,8 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
       return;
     }
 
-    final songs = songsToPlay.map((s) => _songModelToSong(s, _albumInfoMap)).toList();
+    final songs =
+        songsToPlay.map((s) => _songModelToSong(s, _albumInfoMap)).toList();
     await _playbackManager.playShuffled(songs);
   }
 
@@ -448,7 +447,8 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
       startIndex = index;
     }
 
-    final songs = songsToPlay.map((s) => _songModelToSong(s, _albumInfoMap)).toList();
+    final songs =
+        songsToPlay.map((s) => _songModelToSong(s, _albumInfoMap)).toList();
     await _playbackManager.playSongs(songs, startIndex: startIndex);
   }
 
@@ -470,9 +470,8 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
         builder: (context, setDialogState) {
           // Determine what image to show
           Widget imageWidget;
-          final currentImagePath = removeImage
-              ? null
-              : (newImagePath ?? _playlist!.customImagePath);
+          final currentImagePath =
+              removeImage ? null : (newImagePath ?? _playlist!.customImagePath);
 
           if (currentImagePath != null && File(currentImagePath).existsSync()) {
             imageWidget = ClipRRect(
@@ -518,14 +517,18 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                         final pickedPath = result.files.first.path;
                         if (pickedPath != null) {
                           // Copy to app documents directory
-                          final appDir = await getApplicationDocumentsDirectory();
-                          final playlistImagesDir = Directory('${appDir.path}/playlist_images');
+                          final appDir =
+                              await getApplicationDocumentsDirectory();
+                          final playlistImagesDir =
+                              Directory('${appDir.path}/playlist_images');
                           if (!await playlistImagesDir.exists()) {
                             await playlistImagesDir.create(recursive: true);
                           }
                           final ext = path.extension(pickedPath);
-                          final newFileName = '${_playlist!.id}_${DateTime.now().millisecondsSinceEpoch}$ext';
-                          final destPath = '${playlistImagesDir.path}/$newFileName';
+                          final newFileName =
+                              '${_playlist!.id}_${DateTime.now().millisecondsSinceEpoch}$ext';
+                          final destPath =
+                              '${playlistImagesDir.path}/$newFileName';
                           await File(pickedPath).copy(destPath);
                           setDialogState(() {
                             newImagePath = destPath;
@@ -548,14 +551,18 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                         final pickedPath = result.files.first.path;
                         if (pickedPath != null) {
                           // Copy to app documents directory
-                          final appDir = await getApplicationDocumentsDirectory();
-                          final playlistImagesDir = Directory('${appDir.path}/playlist_images');
+                          final appDir =
+                              await getApplicationDocumentsDirectory();
+                          final playlistImagesDir =
+                              Directory('${appDir.path}/playlist_images');
                           if (!await playlistImagesDir.exists()) {
                             await playlistImagesDir.create(recursive: true);
                           }
                           final ext = path.extension(pickedPath);
-                          final newFileName = '${_playlist!.id}_${DateTime.now().millisecondsSinceEpoch}$ext';
-                          final destPath = '${playlistImagesDir.path}/$newFileName';
+                          final newFileName =
+                              '${_playlist!.id}_${DateTime.now().millisecondsSinceEpoch}$ext';
+                          final destPath =
+                              '${playlistImagesDir.path}/$newFileName';
                           await File(pickedPath).copy(destPath);
                           setDialogState(() {
                             newImagePath = destPath;
@@ -568,7 +575,9 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                     label: const Text('Change Photo'),
                   ),
                   // Remove image button (only show if there's an image)
-                  if ((newImagePath != null || _playlist!.customImagePath != null) && !removeImage)
+                  if ((newImagePath != null ||
+                          _playlist!.customImagePath != null) &&
+                      !removeImage)
                     TextButton.icon(
                       onPressed: () {
                         setDialogState(() {
@@ -741,31 +750,16 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
 
   /// Navigate to add songs screen
   Future<void> _addSongs() async {
-    // Fetch all available songs from server
+    // Fetch all available songs from local sync repository
     List<SongModel> availableSongs = [];
-
-    if (_connectionService.apiClient != null) {
-      try {
-        final library = await _connectionService.apiClient!.getLibrary();
-
-        // The /api/library endpoint already returns ALL songs (album + standalone)
-        // No need to fetch individual album details!
-        final allSongs = <String, SongModel>{};
-        for (final song in library.songs) {
-          allSongs[song.id] = song;
-        }
-
-        // Filter out songs already in playlist
-        final existingSongIds = _playlist?.songIds.toSet() ?? {};
-        availableSongs = allSongs.values
-            .where((song) => !existingSongIds.contains(song.id))
-            .toList();
-
-        // Sort by title
-        availableSongs.sort((a, b) => a.title.compareTo(b.title));
-      } catch (e) {
-        print('[PlaylistDetailScreen] Error fetching songs: $e');
-      }
+    try {
+      final allSongs = await _connectionService.libraryReadFacade.getSongs();
+      final existingSongIds = _playlist?.songIds.toSet() ?? {};
+      availableSongs =
+          allSongs.where((song) => !existingSongIds.contains(song.id)).toList();
+      availableSongs.sort((a, b) => a.title.compareTo(b.title));
+    } catch (e) {
+      print('[PlaylistDetailScreen] Error fetching songs: $e');
     }
 
     if (!mounted) return;
@@ -910,7 +904,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
         // Bottom padding for mini player + download bar + nav bar
         SliverPadding(
           padding: EdgeInsets.only(
-            bottom: getMiniPlayerAwareBottomPadding(),
+            bottom: getMiniPlayerAwareBottomPadding(context),
           ),
         ),
       ],
@@ -1154,8 +1148,10 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                   style: FilledButton.styleFrom(
                     shape: const StadiumBorder(),
                     padding: const EdgeInsets.symmetric(vertical: 12),
-                    backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                    foregroundColor: Theme.of(context).colorScheme.onPrimaryContainer,
+                    backgroundColor:
+                        Theme.of(context).colorScheme.primaryContainer,
+                    foregroundColor:
+                        Theme.of(context).colorScheme.onPrimaryContainer,
                   ),
                   icon: const Icon(Icons.shuffle_rounded, size: 22),
                   label: const Text(
@@ -1167,7 +1163,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          
+
           // Secondary actions row (Reorder/Add)
           Row(
             children: [
@@ -1180,10 +1176,17 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                   style: OutlinedButton.styleFrom(
                     shape: const StadiumBorder(),
                     padding: const EdgeInsets.symmetric(vertical: 12),
-                    backgroundColor: _isReorderMode ? Theme.of(context).colorScheme.primaryContainer.withOpacity(0.5) : null,
+                    backgroundColor: _isReorderMode
+                        ? Theme.of(context)
+                            .colorScheme
+                            .primaryContainer
+                            .withOpacity(0.5)
+                        : null,
                   ),
                   icon: Icon(
-                    _isReorderMode ? Icons.check_rounded : Icons.reorder_rounded,
+                    _isReorderMode
+                        ? Icons.check_rounded
+                        : Icons.reorder_rounded,
                     size: 20,
                   ),
                   label: Text(_isReorderMode ? 'Done' : 'Reorder'),

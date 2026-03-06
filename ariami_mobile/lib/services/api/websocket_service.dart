@@ -9,7 +9,7 @@ import '../offline/offline_playback_service.dart';
 class WebSocketService {
   // Use lazy getter to avoid circular dependency during construction
   OfflinePlaybackService get _offlineService => OfflinePlaybackService();
-  
+
   WebSocketChannel? _channel;
   StreamSubscription? _subscription;
   ServerInfo? _serverInfo;
@@ -24,6 +24,9 @@ class WebSocketService {
   /// Callback for when WebSocket disconnects
   /// Used to notify ConnectionService immediately
   void Function()? onDisconnected;
+
+  /// Callback for each parsed incoming message
+  void Function(WsMessage message)? onMessage;
 
   /// Stream controller for incoming messages
   final StreamController<WsMessage> _messageController =
@@ -95,7 +98,8 @@ class WebSocketService {
   /// Handle incoming message
   void _handleMessage(dynamic rawMessage) {
     try {
-      final jsonMessage = jsonDecode(rawMessage as String) as Map<String, dynamic>;
+      final jsonMessage =
+          jsonDecode(rawMessage as String) as Map<String, dynamic>;
       final message = WsMessage.fromJson(jsonMessage);
 
       print('WebSocket received: ${message.type}');
@@ -108,6 +112,9 @@ class WebSocketService {
 
       // Emit message to stream
       _messageController.add(message);
+      if (onMessage != null) {
+        onMessage!(message);
+      }
     } catch (e) {
       print('Error parsing WebSocket message: $e');
     }
@@ -117,7 +124,7 @@ class WebSocketService {
   void _handleError(dynamic error) {
     print('WebSocket error: $error');
     _isConnected = false;
-    
+
     // Only skip reconnect if in MANUAL offline mode
     // Auto offline should still attempt reconnection
     if (!_offlineService.isManualOfflineModeEnabled) {
@@ -190,7 +197,7 @@ class WebSocketService {
   /// Schedule reconnection attempt
   void _scheduleReconnect() {
     if (_serverInfo == null) return;
-    
+
     // Don't reconnect if MANUAL offline mode is enabled
     // Auto offline should still attempt reconnection
     if (_offlineService.isManualOfflineModeEnabled) {
@@ -211,7 +218,7 @@ class WebSocketService {
   /// Attempt to reconnect
   Future<void> _attemptReconnect() async {
     if (_serverInfo == null) return;
-    
+
     // Check again in case MANUAL offline mode was enabled while waiting
     // Auto offline should still attempt reconnection
     if (_offlineService.isManualOfflineModeEnabled) {

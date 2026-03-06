@@ -420,40 +420,63 @@ class MetadataExtractor {
   Future<List<int>?> extractArtwork(String filePath) async {
     try {
       final file = File(filePath);
-      final tags = await _tagProcessor.getTagsFromByteArray(file.readAsBytes());
+      final fileStat = await file.stat();
+      final fileSize = fileStat.size;
+      final extension = filePath.split('.').last.toLowerCase();
 
-      for (final tag in tags) {
-        final tagMap = tag.tags;
-        final picture = _getTagValue(tagMap, ['picture', 'APIC', 'PIC', 'METADATA_BLOCK_PICTURE']);
+      // Optimized path for formats where metadata is typically in header sections.
+      // This avoids full-file reads on the hot artwork request path.
+      const optimizedFormats = {'mp3', 'm4a', 'mp4', 'flac'};
+      if (optimizedFormats.contains(extension)) {
+        final optimizedTags = await _readTagsOptimized(file, fileSize);
+        return _extractArtworkFromTags(optimizedTags);
+      }
 
-        if (picture != null) {
-          if (picture is List) {
-            return List<int>.from(picture);
-          } else if (picture is Map) {
-            final pictureKeys = picture.keys.toList();
-            if (pictureKeys.isNotEmpty) {
-              final imageData = picture[pictureKeys.first];
-              if (imageData is List) {
-                return List<int>.from(imageData);
-              } else {
-                // It's an AttachedPicture object - get the imageData property
-                try {
-                  final dynamic attachedPicture = imageData;
-                  final pictureData = attachedPicture.imageData;
-                  if (pictureData is List) {
-                    return List<int>.from(pictureData);
-                  }
-                } catch (e) {
-                  // Failed to extract from AttachedPicture
+      // Compatibility fallback for unsupported formats.
+      final fallbackTags = await _tagProcessor.getTagsFromByteArray(
+        file.readAsBytes(),
+      );
+      return _extractArtworkFromTags(fallbackTags);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  List<int>? _extractArtworkFromTags(List<Tag> tags) {
+    for (final tag in tags) {
+      final tagMap = tag.tags;
+      final picture = _getTagValue(tagMap, [
+        'picture',
+        'APIC',
+        'PIC',
+        'METADATA_BLOCK_PICTURE',
+      ]);
+
+      if (picture != null) {
+        if (picture is List) {
+          return List<int>.from(picture);
+        } else if (picture is Map) {
+          final pictureKeys = picture.keys.toList();
+          if (pictureKeys.isNotEmpty) {
+            final imageData = picture[pictureKeys.first];
+            if (imageData is List) {
+              return List<int>.from(imageData);
+            } else {
+              // It's an AttachedPicture object - get the imageData property
+              try {
+                final dynamic attachedPicture = imageData;
+                final pictureData = attachedPicture.imageData;
+                if (pictureData is List) {
+                  return List<int>.from(pictureData);
                 }
+              } catch (e) {
+                // Failed to extract from AttachedPicture
               }
             }
           }
         }
       }
-      return null;
-    } catch (e) {
-      return null;
     }
+    return null;
   }
 }

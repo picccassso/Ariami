@@ -6,6 +6,7 @@ import 'main/search_navigator.dart';
 import 'main/settings_navigator.dart';
 import '../widgets/player/mini_player.dart';
 import '../widgets/download/download_progress_bar.dart';
+import '../widgets/common/bottom_chrome_metrics.dart';
 import '../screens/full_player_screen.dart';
 import '../services/playback_manager.dart';
 
@@ -115,7 +116,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
           Positioned(
             left: 0,
             right: 0,
-            bottom: kBottomNavigationBarHeight,
+            bottom: getBottomNavigationBarTotalHeight(context),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [

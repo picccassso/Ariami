@@ -3,11 +3,11 @@
   <h1>Ariami</h1>
 </div>
 
-Ariami is a self-hosted server and music player. 
+Ariami is a self-hosted server and music player.
 
 ---
 
-## Quick Start 
+## Quick Start
 
 1. **Download the server app** from [releases](https://github.com/picccassso/Ariami/releases) for your platform (macOS, Windows, Linux)
 2. **Download the mobile app** from [releases](https://github.com/picccassso/Ariami/releases) (Android APK / iOS)
@@ -38,7 +38,7 @@ chmod +x ariami_cli
 
 ## Why use Ariami?
 
-Ariami is a very easy way to get into self-hosting. You do not need to setup port forwarding or pay for any subscription. It is very easy to setup. 
+Ariami is a very easy way to get into self-hosting. You do not need to setup port forwarding or pay for any subscription. It is very easy to setup.
 It is cross-platform so you can run this on your Mac/Windows/Linux machine, and is packaged for Raspberry Pis as well. Also works on Android/iOS. (iOS is untested).
 
 ## Features of Ariami:
@@ -49,6 +49,13 @@ It is cross-platform so you can run this on your Mac/Windows/Linux machine, and 
 - Groups albums correctly.
 - Supports large libraries.
 
+**Multi-User Support**
+- Create user accounts with password authentication.
+- Each user gets their own session, downloads, and playback state.
+- Admin dashboard shows connected users and devices with the ability to kick devices and change passwords.
+- One active session per user at a time to keep things simple.
+- If no users are registered, the server runs in open mode for backward compatibility.
+
 **Playlists**
 - Create and manage playlists manually from the app. Can easily edit them, edit the photo for them etc.
 - Folders with [PLAYLIST] in their name are treated as playlists. These appear in the app and can be imported to your phone for local playback.
@@ -57,16 +64,17 @@ It is cross-platform so you can run this on your Mac/Windows/Linux machine, and 
 - You can download all your music for local playback without needing to be connected to the server.
 - Imported playlists are stored locally on your phone.
 - Each song played automatically gets cached if not downloaded for smoother playback.
+- Option to prefer local/cached files even when connected to the server.
 
 **Streaming and Audio**
 - Stream music from your server to any supported client.
 - Server-side audio transcoding for compatibility with different devices.
-- Gapless playback support (if applicable — remove if not accurate).
+- Automatic quality switching based on network type (WiFi vs mobile data).
 
 **Apps and Platforms**
 - Native apps that are available for iOS, Android, macOS, Windows and Linux.
 - CLI version available for headless servers.
-- Consistent UI across devices. 
+- Consistent UI across devices.
 
 **Remote Access**
 - Secure access using Tailscale.
@@ -76,8 +84,12 @@ It is cross-platform so you can run this on your Mac/Windows/Linux machine, and 
 - Tracks basic listening stats for songs/albums/artists. Also shows average daily listening time for each.
 - More detailed planned stats (such as specific days etc).
 
+**Server Dashboard**
+- Shows connected users and active devices.
+- Admin controls to kick devices and change user passwords.
+- Auth status indicator showing whether authentication is required or open.
+
 **Planned**
-- Multi-user support
 - Additional Playlists tools
 - Ability for server to detect and transcode data in real time to optimise for different network connections (lower bit rate for worse WiFi/mobile data connections).
 
@@ -214,35 +226,45 @@ If you want to build from source, check the README in each package folder:
 
 ## Latest Updates
 
-### 2026-02-02
-- Quick fix for first-run library load timeouts on cold cache. Library returns fast now, durations warm in the background, and the mobile app refreshes when ready.
-- Raspberry Pi 5: higher default transcode concurrency (2 streaming / 4 downloads) while keeping Pi 3/4 conservative
+### Multi-User Support
 
-**Full UI Redesign** - Complete visual overhaul across mobile, desktop, and CLI web interface. Ultra-minimalist black and white "Premium Dark" theme with pill-shaped buttons, rounded corners, and glassmorphism effects. Scrolling marquee for long song titles, monochromatic offline screens, and consistent look across all three apps.
+Full multi-user authentication has been added. Users can now create accounts and log in from the mobile app. Passwords are hashed with bcrypt and sessions last 30 days with a sliding TTL. If no users are registered, the server stays in open mode so nothing breaks for existing setups. Once the first user registers, authentication becomes required.
 
-**Performance Improvements**
-- Artwork loading ~100x faster via server-side thumbnail generation
-- Playlist loading 98% faster (reduced API calls from N+1 to 1)
-- Library scanning optimized with single-pass traversal, deferred duration extraction, and progressive duplicate detection
-- Transcoding system overhaul: streaming while transcoding, hardware AAC on macOS, platform-aware concurrency, and cache index for faster eviction
-- Raspberry Pi 5: higher default transcode concurrency (2 streaming / 4 downloads) while keeping Pi 3/4 conservative
+Each user gets one active session at a time — if you try to log in on a second device, the server will tell you that you're already logged in elsewhere. The first user to register is treated as the admin.
 
-**New Features**
-- Grid/List view toggle for albums and playlists in library
-- Download indicator badge on playlists with offline songs
-- Fast Downloads mode to download original files without transcoding
-- Server-scoped downloads with automatic orphan cleanup
-- Auto-hide server playlists that match already-imported local playlists
+The server dashboards (both Desktop and CLI web) now show a connected users and devices table. From there, the admin can kick devices and change user passwords. The mobile app shows who you're logged in as in the connection settings, with a dedicated logout button.
 
-**Bug Fixes**
-- Fixed shuffle reverting to old queue when switching between playlists and albums
-- Fixed offline artwork missing for downloaded songs (now caches thumbnails + song-level artwork)
-- Fixed playlist/stats artwork missing after fresh install + data import
-- Fixed Android notification artwork not showing
-- Fixed connected clients count not updating when mobile app disconnects
-- Fixed CLI dashboard getting stuck on "Scanning..." after rescan completes
-- Fixed mini player overlapping bottom sheet and screen content
----
+Stream tokens are used for audio playback — short-lived tokens passed as query params so that just_audio can handle authenticated streaming without needing to set headers on every request. Downloads also go through stream tokens now.
+
+Rate limiting is in place for login attempts (5 tries per 15 minutes per device) to prevent brute force.
+
+### Server-Side Download Throttling
+
+Download concurrency is now managed on the server. There are global and per-user limits to stop one user from hogging all the bandwidth. The limits are configured per platform — a Raspberry Pi with a microSD gets more conservative limits than a Mac with an SSD. The mobile app reads the server's limits and adjusts its own concurrency to match. When the server is at capacity it returns 503/429 and the client backs off.
+
+### V2 Architecture Rework
+
+The entire library sync, artwork, and download pipeline has been reworked. The old approach had the mobile app fetching the full library as one big snapshot every time, artwork requests firing off in uncontrolled bursts, and "download all" flows enqueuing everything at once in a client-side loop. This didn't scale well, especially with multiple users.
+
+The v2 architecture replaces all of that:
+
+- **Catalog database** — The server now writes its library to a persistent SQLite catalog instead of rebuilding everything in memory on each request. This gives us indexed lookups, pagination, and a change log that tracks what's been added, modified, or deleted.
+- **Incremental sync** — Mobile clients do a paginated bootstrap on first connect, then only pull changes since their last sync token. No more re-fetching the entire library.
+- **Local sync store** — The mobile app maintains its own normalized SQLite database as the source of truth for library data. Screens read from local storage instead of hitting the server repeatedly.
+- **Artwork pipeline** — Artwork variants (full size and 200x200 thumbnails) are precomputed during indexing. Responses include ETag and Last-Modified headers so clients can skip re-downloading unchanged artwork. The metadata extraction has also been optimised to only read tag sections of files rather than the entire file.
+- **Media request scheduler** — A bounded concurrency scheduler with priority tiers (visible, nearby, background) replaces the old unbounded artwork request pattern. Stale low-priority requests get dropped automatically.
+- **Server-managed download jobs** — Instead of the mobile app enqueuing hundreds of items in a loop, it now creates a download job on the server and fetches items page by page. This plays nicely with the per-user download limits.
+- **Multi-user fairness** — Per-user quotas for downloads and artwork requests, with a weighted fair queue so one user can't starve the others.
+- **Observability** — Structured metrics logging with endpoint latency, queue depth per user, artwork cache hit ratios, and change log lag tracking.
+- **Feature flags** — Everything is gated behind feature flags for staged rollout. V1 endpoints remain functional during the migration, with deprecation headers and a sunset target.
+
+### Other Improvements
+
+- Metadata caching for faster library rescans — durations and tags persist across restarts so rescans don't re-read every file
+- Automatic quality switching based on network type (WiFi vs mobile data)
+- Option to prefer local/cached files even when connected to the server
+- iOS safe-area layout fixes for the mini player and bottom navigation
+- CLI daemon fixes on Linux — `start` command no longer hangs
 
 ## License
 

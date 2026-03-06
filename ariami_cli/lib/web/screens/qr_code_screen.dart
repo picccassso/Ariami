@@ -2,7 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-import 'package:http/http.dart' as http;
+import '../services/web_api_client.dart';
+import '../services/web_auth_service.dart';
 import '../utils/constants.dart';
 
 class QRCodeScreen extends StatefulWidget {
@@ -12,10 +13,16 @@ class QRCodeScreen extends StatefulWidget {
   State<QRCodeScreen> createState() => _QRCodeScreenState();
 }
 
-class _QRCodeScreenState extends State<QRCodeScreen> with SingleTickerProviderStateMixin {
+class _QRCodeScreenState extends State<QRCodeScreen>
+    with SingleTickerProviderStateMixin {
+  final WebAuthService _authService = WebAuthService();
+  late final WebApiClient _apiClient = WebApiClient(
+    tokenProvider: _authService.getSessionToken,
+  );
   String _serverIp = 'Loading...';
   int _serverPort = 8080;
   String _serverName = 'Loading...';
+  bool _authRequired = false;
   String? _qrData;
   bool _isLoading = true;
   String? _errorMessage;
@@ -56,10 +63,15 @@ class _QRCodeScreenState extends State<QRCodeScreen> with SingleTickerProviderSt
 
   Future<void> _checkForConnections() async {
     try {
-      final response = await http.get(Uri.parse('/api/stats'));
+      final response = await _apiClient.get('/api/stats');
+
+      if (response.isAuthError) {
+        await _redirectToLogin();
+        return;
+      }
 
       if (response.statusCode == 200) {
-        final stats = jsonDecode(response.body) as Map<String, dynamic>;
+        final stats = response.jsonBody ?? <String, dynamic>{};
         final clients = stats['connectedClients'] as int? ?? 0;
 
         if (mounted) {
@@ -76,16 +88,17 @@ class _QRCodeScreenState extends State<QRCodeScreen> with SingleTickerProviderSt
 
   Future<void> _loadServerInfo() async {
     try {
-      final response = await http.get(Uri.parse('/api/server-info'));
+      final response = await _apiClient.get('/api/server-info');
 
       if (response.statusCode == 200) {
-        final serverInfo = jsonDecode(response.body) as Map<String, dynamic>;
+        final serverInfo = response.jsonBody ?? <String, dynamic>{};
 
         if (mounted) {
           setState(() {
             _serverIp = serverInfo['server'] as String? ?? 'Unknown';
             _serverPort = serverInfo['port'] as int? ?? 8080;
             _serverName = serverInfo['name'] as String? ?? 'Ariami Server';
+            _authRequired = serverInfo['authRequired'] as bool? ?? false;
             _qrData = jsonEncode(serverInfo);
             _isLoading = false;
           });
@@ -108,6 +121,13 @@ class _QRCodeScreenState extends State<QRCodeScreen> with SingleTickerProviderSt
         });
       }
     }
+  }
+
+  Future<void> _redirectToLogin() async {
+    _connectionPollTimer?.cancel();
+    if (!mounted) return;
+    await _authService.clearSessionToken();
+    Navigator.pushReplacementNamed(context, '/login');
   }
 
   @override
@@ -141,15 +161,20 @@ class _QRCodeScreenState extends State<QRCodeScreen> with SingleTickerProviderSt
               child: Center(
                 child: Container(
                   constraints: const BoxConstraints(maxWidth: 1000),
-                  padding: const EdgeInsets.symmetric(horizontal: 48.0, vertical: 24.0),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 48.0, vertical: 24.0),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.qr_code_2_rounded, size: 48, color: Colors.white),
+                      const Icon(Icons.qr_code_2_rounded,
+                          size: 48, color: Colors.white),
                       const SizedBox(height: 16),
                       Text(
                         'CONNECT MOBILE APP',
-                        style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                        style: Theme.of(context)
+                            .textTheme
+                            .headlineMedium
+                            ?.copyWith(
                               fontSize: 28,
                               letterSpacing: -0.5,
                             ),
@@ -158,7 +183,9 @@ class _QRCodeScreenState extends State<QRCodeScreen> with SingleTickerProviderSt
                       if (_errorMessage != null)
                         _buildErrorState()
                       else if (_isLoading || _qrData == null)
-                        const Center(child: CircularProgressIndicator(color: Colors.white))
+                        const Center(
+                            child:
+                                CircularProgressIndicator(color: Colors.white))
                       else
                         Expanded(
                           child: Row(
@@ -174,7 +201,8 @@ class _QRCodeScreenState extends State<QRCodeScreen> with SingleTickerProviderSt
                                       decoration: AppTheme.glassDecoration,
                                       padding: const EdgeInsets.all(32.0),
                                       child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
                                           const Text(
                                             'SERVER INFORMATION',
@@ -188,9 +216,16 @@ class _QRCodeScreenState extends State<QRCodeScreen> with SingleTickerProviderSt
                                           const SizedBox(height: 24),
                                           _buildInfoRow('NAME', _serverName),
                                           const SizedBox(height: 16),
-                                          _buildInfoRow('IP ADDRESS', _serverIp),
+                                          _buildInfoRow(
+                                              'IP ADDRESS', _serverIp),
                                           const SizedBox(height: 16),
                                           _buildInfoRow('PORT', '$_serverPort'),
+                                          const SizedBox(height: 16),
+                                          _buildInfoRow(
+                                              'AUTH',
+                                              _authRequired
+                                                  ? 'REQUIRED'
+                                                  : 'OPEN'),
                                           const SizedBox(height: 24),
                                           const Divider(color: Colors.white10),
                                           const SizedBox(height: 24),
@@ -233,7 +268,8 @@ class _QRCodeScreenState extends State<QRCodeScreen> with SingleTickerProviderSt
                                         borderRadius: BorderRadius.circular(24),
                                         boxShadow: [
                                           BoxShadow(
-                                            color: Colors.white.withOpacity(0.1),
+                                            color:
+                                                Colors.white.withOpacity(0.1),
                                             blurRadius: 30,
                                             spreadRadius: 5,
                                           ),
@@ -250,7 +286,8 @@ class _QRCodeScreenState extends State<QRCodeScreen> with SingleTickerProviderSt
                                     if (_isWaitingForConnection) ...[
                                       const SizedBox(height: 32),
                                       Row(
-                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
                                         children: [
                                           FadeTransition(
                                             opacity: _pulseController,
@@ -288,7 +325,8 @@ class _QRCodeScreenState extends State<QRCodeScreen> with SingleTickerProviderSt
                         width: 280,
                         child: ElevatedButton(
                           onPressed: () {
-                            Navigator.pushReplacementNamed(context, '/dashboard');
+                            Navigator.pushReplacementNamed(
+                                context, '/dashboard');
                           },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppTheme.surfaceBlack,
@@ -321,11 +359,13 @@ class _QRCodeScreenState extends State<QRCodeScreen> with SingleTickerProviderSt
       ),
       child: Column(
         children: [
-          const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 48),
+          const Icon(Icons.error_outline_rounded,
+              color: Colors.redAccent, size: 48),
           const SizedBox(height: 16),
           Text(
             _errorMessage!,
-            style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold),
+            style: const TextStyle(
+                color: Colors.redAccent, fontWeight: FontWeight.bold),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 24),

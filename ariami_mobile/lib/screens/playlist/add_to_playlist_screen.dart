@@ -135,7 +135,7 @@ class _AddToPlaylistScreenState extends State<AddToPlaylistScreen> {
   Widget _buildSongsList() {
     return ListView.builder(
       padding: EdgeInsets.only(
-                    bottom: getMiniPlayerAwareBottomPadding(),
+                    bottom: getMiniPlayerAwareBottomPadding(context),
       ),
       itemCount: widget.availableSongs!.length,
       itemBuilder: (context, index) {
@@ -473,7 +473,7 @@ class _AddSongToPlaylistsSheetState extends State<_AddSongToPlaylistsSheet> {
               : ListView.builder(
                   controller: widget.scrollController,
                   padding: EdgeInsets.only(
-                    bottom: getMiniPlayerAwareBottomPadding(),
+                    bottom: getMiniPlayerAwareBottomPadding(context),
                   ),
                   itemCount: playlists.length,
                   itemBuilder: (context, index) {

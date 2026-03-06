@@ -1,6 +1,8 @@
 /// API request and response models for Ariami communication protocol
 library;
 
+export 'sync_models.dart';
+
 // ============================================================================
 // CONNECTION MODELS
 // ============================================================================
@@ -44,12 +46,14 @@ class ConnectResponse {
   final String sessionId;
   final String serverVersion;
   final List<String> features;
+  final String? deviceId;
 
   ConnectResponse({
     required this.status,
     required this.sessionId,
     required this.serverVersion,
     required this.features,
+    this.deviceId,
   });
 
   factory ConnectResponse.fromJson(Map<String, dynamic> json) {
@@ -58,6 +62,7 @@ class ConnectResponse {
       sessionId: json['sessionId'] as String,
       serverVersion: json['serverVersion'] as String,
       features: (json['features'] as List<dynamic>).cast<String>(),
+      deviceId: json['deviceId'] as String?,
     );
   }
 
@@ -67,6 +72,7 @@ class ConnectResponse {
       'sessionId': sessionId,
       'serverVersion': serverVersion,
       'features': features,
+      if (deviceId != null) 'deviceId': deviceId,
     };
   }
 }
@@ -234,12 +240,14 @@ class LibraryResponse {
   final List<SongModel> songs;
   final List<PlaylistModel> playlists;
   final String lastUpdated;
+  final bool durationsReady;
 
   LibraryResponse({
     required this.albums,
     required this.songs,
     required this.playlists,
     required this.lastUpdated,
+    required this.durationsReady,
   });
 
   factory LibraryResponse.fromJson(Map<String, dynamic> json) {
@@ -254,6 +262,7 @@ class LibraryResponse {
           .map((e) => PlaylistModel.fromJson(e as Map<String, dynamic>))
           .toList(),
       lastUpdated: json['lastUpdated'] as String,
+      durationsReady: json['durationsReady'] as bool? ?? true,
     );
   }
 
@@ -263,6 +272,7 @@ class LibraryResponse {
       'songs': songs.map((e) => e.toJson()).toList(),
       'playlists': playlists.map((e) => e.toJson()).toList(),
       'lastUpdated': lastUpdated,
+      'durationsReady': durationsReady,
     };
   }
 }
@@ -370,4 +380,11 @@ class ApiErrorCodes {
   static const String serverError = 'SERVER_ERROR';
   static const String invalidRequest = 'INVALID_REQUEST';
   static const String unauthorized = 'UNAUTHORIZED';
+
+  // Auth error codes
+  static const String invalidCredentials = 'INVALID_CREDENTIALS';
+  static const String userExists = 'USER_EXISTS';
+  static const String sessionExpired = 'SESSION_EXPIRED';
+  static const String streamTokenExpired = 'STREAM_TOKEN_EXPIRED';
+  static const String authRequired = 'AUTH_REQUIRED';
 }

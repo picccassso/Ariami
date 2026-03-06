@@ -6,8 +6,11 @@ GUI music server for Ariami. Indexes your music library and streams to mobile cl
 
 - Automatic library scanning (MP3, FLAC, M4A, WAV, OGG, and more)
 - Real-time folder monitoring
-- System tray integration
+- System tray integration (minimizes to tray instead of quitting)
 - QR code for mobile pairing
+- Multi-user authentication
+- Dashboard showing connected users and devices with admin controls (kick devices, change passwords)
+- Server-side audio transcoding with quality presets
 
 ## Building
 
@@ -24,3 +27,4 @@ flutter build macos         # or linux/windows
 2. Select your music folder
 3. Wait for library scan
 4. Scan the QR code with Ariami Mobile
+5. If auth is enabled, create an account from the mobile app

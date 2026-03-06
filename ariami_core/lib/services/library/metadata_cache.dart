@@ -254,25 +254,44 @@ class MetadataCache {
     _enforceLimit();
   }
 
-  /// Update cached duration for an existing entry
+  /// Update or insert metadata while preserving partialHash when possible
   ///
-  /// Returns true if the cache entry was updated.
-  bool updateDuration(String filePath, int duration) {
-    final entry = _entries[filePath];
-    if (entry == null) return false;
+  /// Uses provided mtime/size when available, falls back to existing entry,
+  /// and finally stats the file if needed.
+  Future<void> upsert(
+    String filePath,
+    SongMetadata metadata, {
+    int? mtime,
+    int? size,
+  }) async {
+    try {
+      final existing = _entries[filePath];
+      int resolvedMtime;
+      int resolvedSize;
 
-    if (entry.metadata.duration == duration) {
-      return false; // No change needed
+      if (mtime != null && size != null) {
+        resolvedMtime = mtime;
+        resolvedSize = size;
+      } else if (existing != null) {
+        resolvedMtime = mtime ?? existing.mtime;
+        resolvedSize = size ?? existing.size;
+      } else {
+        final stat = await File(filePath).stat();
+        resolvedMtime = stat.modified.millisecondsSinceEpoch;
+        resolvedSize = stat.size;
+      }
+
+      _entries[filePath] = CachedMetadataEntry(
+        mtime: resolvedMtime,
+        size: resolvedSize,
+        metadata: metadata,
+        partialHash: existing?.partialHash,
+      );
+      _isDirty = true;
+      _enforceLimit();
+    } catch (e) {
+      print('[MetadataCache] Failed to update $filePath: $e');
     }
-
-    _entries[filePath] = CachedMetadataEntry(
-      mtime: entry.mtime,
-      size: entry.size,
-      metadata: entry.metadata.copyWith(duration: duration),
-      partialHash: entry.partialHash,
-    );
-    _isDirty = true;
-    return true;
   }
 
   /// Remove entry for a file

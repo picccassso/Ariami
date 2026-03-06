@@ -10,6 +10,9 @@ import 'screens/setup/qr_scanner_screen.dart';
 import 'screens/setup/permissions_screen.dart';
 import 'screens/main_navigation_screen.dart';
 import 'screens/reconnect_screen.dart';
+import 'screens/login_screen.dart';
+import 'screens/register_screen.dart';
+import 'models/server_info.dart';
 import 'services/api/connection_service.dart';
 import 'services/audio/audio_handler.dart';
 import 'services/offline/offline_playback_service.dart';
@@ -43,9 +46,11 @@ void main() async {
       androidNotificationChannelId: 'com.example.ariami_mobile.audio',
       androidNotificationChannelName: 'Ariami Music Playback',
       androidNotificationChannelDescription: 'Controls for music playback',
-      androidNotificationOngoing: false, // Changed: Must be false when androidStopForegroundOnPause is false
+      androidNotificationOngoing:
+          false, // Changed: Must be false when androidStopForegroundOnPause is false
       androidShowNotificationBadge: true,
-      androidStopForegroundOnPause: false, // Keep service alive even when paused
+      androidStopForegroundOnPause:
+          false, // Keep service alive even when paused
       androidNotificationIcon: 'mipmap/ic_launcher',
     );
     print('[Main] Step 2: Config created successfully');
@@ -59,7 +64,8 @@ void main() async {
       config: config,
     );
     print('[Main] ✅ AudioService initialized successfully!');
-    print('[Main] audioHandler is: ${audioHandler != null ? "NOT NULL" : "NULL"}');
+    print(
+        '[Main] audioHandler is: ${audioHandler != null ? "NOT NULL" : "NULL"}');
     print('[Main] audioHandler type: ${audioHandler.runtimeType}');
     print('[Main] audioHandler hashCode: ${audioHandler.hashCode}');
   } catch (e, stackTrace) {
@@ -109,6 +115,7 @@ class _MyAppState extends State<MyApp> {
   bool _isLoading = true;
   Widget? _initialScreen;
   StreamSubscription<bool>? _connectionSubscription;
+  StreamSubscription<void>? _sessionExpiredSubscription;
   StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
   Timer? _networkDebounceTimer;
 
@@ -117,6 +124,7 @@ class _MyAppState extends State<MyApp> {
     super.initState();
     _initializeAndDetermineScreen();
     _listenToConnectionChanges();
+    _listenToSessionExpiry();
     _listenToNetworkChanges();
   }
 
@@ -128,6 +136,8 @@ class _MyAppState extends State<MyApp> {
 
   /// Initialize background services
   Future<void> _initializeServices() async {
+    // Load stored auth info (session token, userId, username) before connection attempt
+    await _connectionService.loadAuthInfo();
     // Initialize offline playback service (listens to connection changes)
     await _offlineService.initialize();
     // Initialize download manager
@@ -140,12 +150,14 @@ class _MyAppState extends State<MyApp> {
     await _networkMonitor.initialize();
     // Initialize quality settings service
     await _qualityService.initialize();
-    print('[Main] Offline, Download, Cache, Stats, Network, and Quality services initialized');
+    print(
+        '[Main] Auth, Offline, Download, Cache, Stats, Network, and Quality services initialized');
   }
 
   @override
   void dispose() {
     _connectionSubscription?.cancel();
+    _sessionExpiredSubscription?.cancel();
     _connectivitySubscription?.cancel();
     _networkDebounceTimer?.cancel();
     super.dispose();
@@ -159,7 +171,8 @@ class _MyAppState extends State<MyApp> {
           // Connection lost - check offline mode state
           if (_offlineService.isManualOfflineModeEnabled) {
             // Manual offline mode - user chose to go offline, stay in app
-            print('Connection lost but manual offline mode enabled - staying in app');
+            print(
+                'Connection lost but manual offline mode enabled - staying in app');
           } else if (_offlineService.offlineMode == OfflineMode.autoOffline) {
             // Auto offline mode - connection lost, stay in app and auto-reconnect
             print('Auto offline mode - staying in app, will auto-reconnect');
@@ -173,6 +186,36 @@ class _MyAppState extends State<MyApp> {
           }
         }
       },
+    );
+  }
+
+  /// Listen for session expiry events (401 from server)
+  void _listenToSessionExpiry() {
+    _sessionExpiredSubscription =
+        _connectionService.sessionExpiredStream.listen(
+      (_) {
+        unawaited(_navigateToLoginFromSessionExpiry());
+      },
+    );
+  }
+
+  Future<void> _navigateToLoginFromSessionExpiry() async {
+    print('Session expired or auth required - navigating to login screen');
+    await _connectionService.loadServerInfoFromStorage();
+
+    final serverInfo = _connectionService.serverInfo;
+    if (serverInfo != null) {
+      _navigatorKey.currentState?.pushNamedAndRemoveUntil(
+        '/auth/login',
+        (route) => false,
+        arguments: serverInfo,
+      );
+      return;
+    }
+
+    _navigatorKey.currentState?.pushNamedAndRemoveUntil(
+      '/',
+      (route) => false,
     );
   }
 
@@ -193,10 +236,9 @@ class _MyAppState extends State<MyApp> {
   void _handleNetworkChange(List<ConnectivityResult> results) {
     // Check if we have any network connectivity
     final hasNetwork = results.any((result) =>
-      result == ConnectivityResult.wifi ||
-      result == ConnectivityResult.mobile ||
-      result == ConnectivityResult.ethernet
-    );
+        result == ConnectivityResult.wifi ||
+        result == ConnectivityResult.mobile ||
+        result == ConnectivityResult.ethernet);
 
     print('Network change detected: $results (hasNetwork: $hasNetwork)');
 
@@ -205,7 +247,8 @@ class _MyAppState extends State<MyApp> {
       if (!_connectionService.isConnected &&
           _connectionService.hasServerInfo &&
           !_offlineService.isManualOfflineModeEnabled) {
-        print('Network available and not connected - attempting reconnection...');
+        print(
+            'Network available and not connected - attempting reconnection...');
         _connectionService.tryRestoreConnection();
       }
     }
@@ -214,7 +257,7 @@ class _MyAppState extends State<MyApp> {
   Future<void> _determineInitialScreen() async {
     // Ensure offline service is initialized before checking its state
     await _offlineService.initialize();
-    
+
     // Try to restore previous connection
     final restored = await _connectionService.tryRestoreConnection();
 
@@ -262,6 +305,16 @@ class _MyAppState extends State<MyApp> {
         '/setup/permissions': (context) => const PermissionsScreen(),
         '/main': (context) => const MainNavigationScreen(),
         '/reconnect': (context) => const ReconnectScreen(),
+        '/auth/login': (context) {
+          final serverInfo =
+              ModalRoute.of(context)!.settings.arguments as ServerInfo;
+          return LoginScreen(serverInfo: serverInfo);
+        },
+        '/auth/register': (context) {
+          final serverInfo =
+              ModalRoute.of(context)!.settings.arguments as ServerInfo;
+          return RegisterScreen(serverInfo: serverInfo);
+        },
       },
     );
   }

@@ -161,7 +161,8 @@ class DaemonService {
       // Build correct command based on execution mode
       final (executable, args) = _buildBackgroundCommand(flags);
 
-      // On Linux, use a fully detached process start (no shell)
+      // On Linux, use nohup + setsid for proper daemonization
+      // ProcessStartMode.detached doesn't fully detach on Linux
       if (Platform.isLinux) {
         return await _startServerOnLinux(executable, args);
       }
@@ -183,39 +184,30 @@ class DaemonService {
     }
   }
 
-  /// Linux-specific daemon spawning using a detached process start
+  /// Linux-specific daemon spawning using nohup + setsid
+  /// This properly detaches the process from the terminal session
   Future<int?> _startServerOnLinux(String executable, List<String> args) async {
     try {
       // Get the working directory (where the executable is located)
       final executableFile = File(executable);
       final workingDir = executableFile.parent.path;
 
-      // Start detached without a shell to avoid job-control hangs
+      // Use setsid directly (no shell). This creates a new session and
+      // fully detaches from the controlling terminal, then execs the server.
       final process = await Process.start(
-        executable,
-        args,
-        workingDirectory: workingDir,
+        'setsid',
+        [executable, ...args],
         mode: ProcessStartMode.detached,
+        workingDirectory: workingDir,
       );
 
-      // Save the PID
+      // Save the PID (setsid execs the server, so PID remains correct)
       await saveServerPid(process.pid);
 
       return process.pid;
     } catch (e) {
-      await _appendToDaemonLog('Error starting server on Linux: $e');
+      print('Error starting server on Linux: $e');
       return null;
-    }
-  }
-
-  Future<void> _appendToDaemonLog(String message) async {
-    try {
-      await _stateService.ensureConfigDir();
-      final logFile = File(CliStateService.getLogFilePath());
-      final timestamp = DateTime.now().toIso8601String();
-      await logFile.writeAsString('[$timestamp] $message\n', mode: FileMode.append);
-    } catch (_) {
-      // Ignore logging errors to avoid blocking startup/shutdown flows.
     }
   }
 }

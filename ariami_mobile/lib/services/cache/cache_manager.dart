@@ -4,6 +4,8 @@ import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
 import '../../database/cache_database.dart';
 import '../../models/cache_entry.dart';
+import '../api/connection_service.dart';
+import '../media/media_request_scheduler.dart';
 
 /// Manages caching of artwork and songs with LRU eviction
 class CacheManager {
@@ -14,6 +16,8 @@ class CacheManager {
 
   late CacheDatabase _database;
   late Dio _dio;
+  final ConnectionService _connectionService = ConnectionService();
+  final MediaRequestScheduler _mediaRequestScheduler = MediaRequestScheduler();
 
   bool _initialized = false;
   String? _artworkCachePath;
@@ -131,10 +135,32 @@ class CacheManager {
 
   /// Cache artwork from URL
   /// Returns the local file path if successful, null otherwise
-  Future<String?> cacheArtwork(String albumId, String artworkUrl) async {
+  Future<String?> cacheArtwork(
+    String albumId,
+    String artworkUrl, {
+    MediaRequestPriority priority = MediaRequestPriority.background,
+    MediaRequestCancellationToken? cancellationToken,
+  }) async {
+    return _mediaRequestScheduler.enqueueArtwork<String>(
+      priority: priority,
+      cancellationToken: cancellationToken,
+      task: () => _cacheArtworkDirect(
+        albumId,
+        artworkUrl,
+        cancellationToken: cancellationToken,
+      ),
+    );
+  }
+
+  Future<String?> _cacheArtworkDirect(
+    String albumId,
+    String artworkUrl, {
+    MediaRequestCancellationToken? cancellationToken,
+  }) async {
     await _ensureInitialized();
 
     if (!_database.isCacheEnabled()) return null;
+    if (cancellationToken?.isCancelled ?? false) return null;
 
     // Check memory cache first (instant, no DB query needed)
     // This is usually already checked by CachedArtwork widget, but double-check here
@@ -162,13 +188,22 @@ class CacheManager {
       // Download artwork
       // Timeout reduced to 15s - thumbnails are ~2.8KB, even full images are <500KB
       // On slow connections, if 15s isn't enough, network is likely too slow for streaming
+      final dioCancelToken = CancelToken();
+      cancellationToken?.onCancel(() {
+        if (!dioCancelToken.isCancelled) {
+          dioCancelToken.cancel('artwork_request_cancelled');
+        }
+      });
+
       await _dio.download(
         artworkUrl,
         filePath,
         options: Options(
           responseType: ResponseType.bytes,
           receiveTimeout: const Duration(seconds: 15),
+          headers: _connectionService.authHeaders,
         ),
+        cancelToken: dioCancelToken,
       );
 
       // Get file size
@@ -193,8 +228,15 @@ class CacheManager {
       // Store in memory cache for future instant lookups
       _artworkPathCache[albumId] = filePath;
 
-      print('[CacheManager] Cached artwork: $albumId (${entry.getFormattedSize()})');
+      print(
+          '[CacheManager] Cached artwork: $albumId (${entry.getFormattedSize()})');
       return filePath;
+    } on DioException catch (e) {
+      if (CancelToken.isCancel(e)) {
+        return null;
+      }
+      print('[CacheManager] Failed to cache artwork $albumId: $e');
+      return null;
     } catch (e) {
       print('[CacheManager] Failed to cache artwork $albumId: $e');
       return null;
@@ -234,7 +276,8 @@ class CacheManager {
   /// Tries primaryKey first, then fallbackKey if provided
   /// Checks memory cache first (instant), then disk cache for both keys
   /// Returns the path from whichever key is found first, or null if neither exists
-  Future<String?> getArtworkPathWithFallback(String primaryKey, String? fallbackKey) async {
+  Future<String?> getArtworkPathWithFallback(
+      String primaryKey, String? fallbackKey) async {
     // 1. Check memory cache for primary key (instant)
     if (_artworkPathCache.containsKey(primaryKey)) {
       return _artworkPathCache[primaryKey];
@@ -248,7 +291,8 @@ class CacheManager {
     await _ensureInitialized();
 
     // 3. Check disk cache for primary key
-    final primaryEntry = await _database.getCacheEntry(primaryKey, CacheType.artwork);
+    final primaryEntry =
+        await _database.getCacheEntry(primaryKey, CacheType.artwork);
     if (primaryEntry != null && await File(primaryEntry.path).exists()) {
       await _database.touchCacheEntry(primaryKey, CacheType.artwork);
       _artworkPathCache[primaryKey] = primaryEntry.path;
@@ -257,7 +301,8 @@ class CacheManager {
 
     // 4. Check disk cache for fallback key
     if (fallbackKey != null) {
-      final fallbackEntry = await _database.getCacheEntry(fallbackKey, CacheType.artwork);
+      final fallbackEntry =
+          await _database.getCacheEntry(fallbackKey, CacheType.artwork);
       if (fallbackEntry != null && await File(fallbackEntry.path).exists()) {
         await _database.touchCacheEntry(fallbackKey, CacheType.artwork);
         _artworkPathCache[fallbackKey] = fallbackEntry.path;
@@ -310,7 +355,8 @@ class CacheManager {
   }
 
   /// Background song download
-  Future<void> _downloadSongInBackground(String songId, String downloadUrl) async {
+  Future<void> _downloadSongInBackground(
+      String songId, String downloadUrl) async {
     try {
       final filePath = '$_songCachePath/$songId.mp3';
 
@@ -323,6 +369,7 @@ class CacheManager {
         options: Options(
           responseType: ResponseType.bytes,
           receiveTimeout: const Duration(minutes: 10),
+          headers: _connectionService.authHeaders,
         ),
       );
 
@@ -345,7 +392,8 @@ class CacheManager {
 
       _cacheUpdateController.add(null);
 
-      print('[CacheManager] Cached song: $songId (${entry.getFormattedSize()})');
+      print(
+          '[CacheManager] Cached song: $songId (${entry.getFormattedSize()})');
     } catch (e) {
       print('[CacheManager] Failed to cache song $songId: $e');
     } finally {
@@ -423,7 +471,8 @@ class CacheManager {
 
     if (_cachedTotalSize <= limitBytes) return;
 
-    print('[CacheManager] Cache limit exceeded: ${_formatBytes(_cachedTotalSize)} / ${_formatBytes(limitBytes)}');
+    print(
+        '[CacheManager] Cache limit exceeded: ${_formatBytes(_cachedTotalSize)} / ${_formatBytes(limitBytes)}');
     print('[CacheManager] Starting LRU eviction...');
 
     // Get entries sorted by last accessed (oldest first)
@@ -454,7 +503,8 @@ class CacheManager {
       _cachedTotalSize -= entry.size;
     }
 
-    print('[CacheManager] Eviction complete. New size: ${_formatBytes(_cachedTotalSize)}');
+    print(
+        '[CacheManager] Eviction complete. New size: ${_formatBytes(_cachedTotalSize)}');
   }
 
   // ============================================================================
@@ -530,7 +580,8 @@ class CacheManager {
       }
     }
     if (populated > 0) {
-      print('[CacheManager] Pre-populated $populated artwork paths into memory cache');
+      print(
+          '[CacheManager] Pre-populated $populated artwork paths into memory cache');
     }
   }
 
@@ -644,10 +695,3 @@ class CacheManager {
     _cacheUpdateController.close();
   }
 }
-
-
-
-
-
-
-
