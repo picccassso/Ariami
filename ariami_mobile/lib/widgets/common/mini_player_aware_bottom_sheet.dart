@@ -1,14 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../services/playback_manager.dart';
-
-/// Height of the mini player when visible (72px actual + 16px vertical margins)
-const double kMiniPlayerHeight = 88.0;
-
-/// Height of the download progress bar
-const double kDownloadBarHeight = 4.0;
-
-/// Total height of mini player + download bar overlay
-const double kMiniPlayerOverlayHeight = kMiniPlayerHeight + kDownloadBarHeight;
+import 'bottom_chrome_metrics.dart';
 
 /// A widget that wraps bottom sheet content with dynamic padding
 /// that accounts for the mini player when it's visible.
@@ -56,7 +48,7 @@ class MiniPlayerAwareBottomSheet extends StatelessWidget {
 
         // Calculate bottom padding: mini player + download bar + nav bar (when visible)
         final bottomPadding = isMiniPlayerVisible
-            ? kMiniPlayerOverlayHeight + kBottomNavigationBarHeight
+            ? getBottomChromeHeight(context, isMiniPlayerVisible: true)
             : 0.0;
 
         return Padding(
@@ -137,18 +129,18 @@ Future<T?> showMiniPlayerAwareBottomSheet<T>({
 /// ```dart
 /// ListView(
 ///   padding: EdgeInsets.only(
-///     bottom: getMiniPlayerAwareBottomPadding(),
+///     bottom: getMiniPlayerAwareBottomPadding(context),
 ///   ),
 ///   children: [...],
 /// )
 /// ```
-double getMiniPlayerAwareBottomPadding() {
+double getMiniPlayerAwareBottomPadding(BuildContext context) {
   final playbackManager = PlaybackManager();
   final isMiniPlayerVisible = playbackManager.currentSong != null;
-
-  return isMiniPlayerVisible
-      ? kMiniPlayerOverlayHeight + kBottomNavigationBarHeight
-      : kBottomNavigationBarHeight;
+  return getBottomChromeHeight(
+    context,
+    isMiniPlayerVisible: isMiniPlayerVisible,
+  );
 }
 
 /// Returns whether the mini player is currently visible.

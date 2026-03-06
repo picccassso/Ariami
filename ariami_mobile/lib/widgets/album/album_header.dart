@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../services/api/connection_service.dart';
 import '../common/cached_artwork.dart';
 
 /// Album artwork header with parallax effect
@@ -44,6 +45,7 @@ class AlbumArtworkHeader extends StatelessWidget {
 
   /// Build album artwork with fallback
   Widget _buildArtwork() {
+    final authHeaders = ConnectionService().authHeaders;
     // If we have an albumId, use CachedArtwork for automatic caching
     // CachedArtwork checks cache first, so it works even without a URL (offline mode)
     if (albumId != null) {
@@ -62,6 +64,7 @@ class AlbumArtworkHeader extends StatelessWidget {
       return Image.network(
         coverArt!,
         fit: BoxFit.cover,
+        headers: authHeaders,
         loadingBuilder: (context, child, loadingProgress) {
           if (loadingProgress == null) return child;
           return const Center(child: CircularProgressIndicator());

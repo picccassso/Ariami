@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:async';
 import 'package:path/path.dart' as p;
 import 'package:ariami_core/ariami_core.dart';
+import 'package:ariami_core/models/feature_flags.dart';
 import 'services/cli_state_service.dart';
 import 'services/cli_tailscale_service.dart';
 import 'services/daemon_service.dart';
@@ -17,8 +18,6 @@ class ServerRunner {
 
   bool _isShuttingDown = false;
   int _serverPort = 8080;
-  bool _scanListenerRegistered = false;
-  void Function()? _scanCompleteListener;
 
   // Store signal subscriptions so we can cancel them during transition
   StreamSubscription<ProcessSignal>? _sigtermSubscription;
@@ -29,11 +28,37 @@ class ServerRunner {
   /// - [port]: Server port (default: 8080)
   /// - [isSetupMode]: If true, server runs for setup without library scanning
   /// - [isServerMode]: If true, running as background daemon (write own PID)
-  Future<void> run({required int port, required bool isSetupMode, bool isServerMode = false}) async {
+  Future<void> run(
+      {required int port,
+      required bool isSetupMode,
+      bool isServerMode = false}) async {
     print('Ariami Server starting...');
     _serverPort = port;
 
     try {
+      final featureFlags = _loadFeatureFlagsFromEnvironment();
+      _validateFeatureFlagInvariantsOrThrow(featureFlags);
+      _httpServer.setFeatureFlags(featureFlags);
+
+      await _stateService.ensureConfigDir();
+
+      // Configure metadata cache (also initializes catalog repository for v2 mode).
+      final cachePath =
+          p.join(CliStateService.getConfigDir(), 'metadata_cache.json');
+      _libraryManager.setCachePath(cachePath);
+
+      if (featureFlags.enableV2Api &&
+          _libraryManager.createCatalogRepository() == null) {
+        throw StateError(
+          'Invalid startup configuration: enableV2Api=true requires catalog '
+          'repository availability. Failed to initialize catalog at $cachePath.',
+        );
+      }
+
+      // Detect platform early for download limits
+      final isPi = _isRaspberryPi();
+      final isPi5 = isPi && _isRaspberryPi5();
+
       // Set up signal handlers for graceful shutdown
       _setupSignalHandlers();
 
@@ -49,7 +74,8 @@ class ServerRunner {
       _httpServer.setWebAssetsPath(webPath);
 
       // Configure Tailscale status callback
-      _httpServer.setTailscaleStatusCallback(() => _tailscaleService.getStatus());
+      _httpServer
+          .setTailscaleStatusCallback(() => _tailscaleService.getStatus());
 
       // Configure setup callbacks
       _httpServer.setSetupCallbacks(
@@ -62,8 +88,30 @@ class ServerRunner {
 
       // Configure transition callback for setup mode
       if (isSetupMode) {
-        _httpServer.setTransitionToBackgroundCallback(_handleTransitionToBackground);
+        _httpServer
+            .setTransitionToBackgroundCallback(_handleTransitionToBackground);
       }
+
+      // Initialize auth services (users/sessions storage)
+      await _stateService.ensureConfigDir();
+      await _httpServer.initializeAuth(
+        usersFilePath: CliStateService.getUsersFilePath(),
+        sessionsFilePath: CliStateService.getSessionsFilePath(),
+      );
+
+      // Configure download limits (platform + storage aware)
+      final musicPathForLimits = await _stateService.getMusicFolderPath();
+      final storageType = isPi
+          ? await _detectStorageType(musicPathForLimits)
+          : _StorageType.unknown;
+      final limits =
+          _selectDownloadLimits(isPi: isPi, storageType: storageType);
+      _httpServer.setDownloadLimits(
+        maxConcurrent: limits.maxConcurrent,
+        maxQueue: limits.maxQueue,
+        maxConcurrentPerUser: limits.maxConcurrentPerUser,
+        maxQueuePerUser: limits.maxQueuePerUser,
+      );
 
       // Detect best IP for advertising to mobile clients (Tailscale > LAN > localhost)
       final advertisedIp = await _tailscaleService.getBestAdvertisedIp();
@@ -78,54 +126,31 @@ class ServerRunner {
       print('✓ HTTP server started successfully');
       print('✓ Server accessible at: http://$advertisedIp:$port');
 
-      // Configure metadata cache for fast re-scans
-      final cachePath = p.join(CliStateService.getConfigDir(), 'metadata_cache.json');
-      _libraryManager.setCachePath(cachePath);
-
-      if (!_scanListenerRegistered) {
-        _scanCompleteListener = () {
-          final library = _libraryManager.library;
-          _httpServer.notifyLibraryUpdated(
-            albumCount: library?.totalAlbums ?? 0,
-            songCount: library?.totalSongs ?? 0,
-          );
-        };
-        _libraryManager.addScanCompleteListener(_scanCompleteListener!);
-        _scanListenerRegistered = true;
-      }
-
       // Initialize transcoding service for quality-based streaming
       // Platform-aware settings: conservative for Pi, higher for desktop
-      final transcodingCachePath = p.join(CliStateService.getConfigDir(), 'transcoded_cache');
+      final transcodingCachePath =
+          p.join(CliStateService.getConfigDir(), 'transcoded_cache');
 
       // Detect platform for concurrency settings
-      final piModel = _getRaspberryPiModel();
-      final isPi = _isRaspberryPi();
       final int maxConcurrency;
       final int maxDownloadConcurrency;
       final int maxCacheSizeMB;
 
       if (isPi) {
-        final isPi5 = piModel == 5;
-        if (isPi5) {
-          // Raspberry Pi 5: can handle a bit more concurrency
-          maxConcurrency = 2;
-          maxDownloadConcurrency = 4; // Pi 5 max; higher breaks under load
-          maxCacheSizeMB = 1024; // 1GB for Pi (limited storage)
-          print('Platform: Raspberry Pi 5 detected - using higher transcoding settings');
-        } else {
-          // Raspberry Pi (3/4 or unknown): very conservative to avoid overheating
-          maxConcurrency = 1;
-          maxDownloadConcurrency = 1; // Pi 3/4 default
-          maxCacheSizeMB = 1024; // 1GB for Pi (limited storage)
-          print('Platform: Raspberry Pi detected - using conservative transcoding settings');
-        }
+        // Raspberry Pi: very conservative to avoid overheating
+        maxConcurrency = 1;
+        maxDownloadConcurrency =
+            isPi5 ? 4 : 1; // Pi 5 supports higher download concurrency
+        maxCacheSizeMB = 1024; // 1GB for Pi (limited storage)
+        print(
+            'Platform: Raspberry Pi${isPi5 ? ' 5' : ''} detected - using conservative transcoding settings');
       } else if (Platform.isMacOS || Platform.isWindows) {
         // Desktop: more resources available
         maxConcurrency = 2;
         maxDownloadConcurrency = 4;
         maxCacheSizeMB = 4096; // 4GB for desktop
-        print('Platform: Desktop (${Platform.operatingSystem}) - using standard transcoding settings');
+        print(
+            'Platform: Desktop (${Platform.operatingSystem}) - using standard transcoding settings');
       } else {
         // Linux desktop or other: moderate settings
         maxConcurrency = 2;
@@ -139,14 +164,17 @@ class ServerRunner {
         maxCacheSizeMB: maxCacheSizeMB,
         maxConcurrency: maxConcurrency,
         maxDownloadConcurrency: maxDownloadConcurrency,
-        transcodeTimeout: Duration(minutes: isPi ? 10 : 5), // Longer timeout for Pi
+        transcodeTimeout:
+            Duration(minutes: isPi ? 10 : 5), // Longer timeout for Pi
       );
       _httpServer.setTranscodingService(transcodingService);
       print('Transcoding cache: $transcodingCachePath');
-      print('Transcoding limits: maxConcurrency=$maxConcurrency, maxDownloadConcurrency=$maxDownloadConcurrency');
+      print(
+          'Transcoding limits: maxConcurrency=$maxConcurrency, maxDownloadConcurrency=$maxDownloadConcurrency');
 
       // Initialize artwork service for thumbnail generation
-      final artworkCachePath = p.join(CliStateService.getConfigDir(), 'artwork_cache');
+      final artworkCachePath =
+          p.join(CliStateService.getConfigDir(), 'artwork_cache');
       final artworkService = ArtworkService(
         cacheDirectory: artworkCachePath,
         maxCacheSizeMB: 256, // 256MB cache limit for thumbnails
@@ -159,7 +187,8 @@ class ServerRunner {
       if (ffmpegAvailable) {
         print('✓ FFmpeg available - transcoding and thumbnails enabled');
       } else {
-        print('⚠ FFmpeg not found - transcoding and thumbnails disabled (will serve original files)');
+        print(
+            '⚠ FFmpeg not found - transcoding and thumbnails disabled (will serve original files)');
       }
 
       // If not in setup mode, initialize library
@@ -214,7 +243,6 @@ class ServerRunner {
 
       // Graceful shutdown
       await _shutdown();
-
     } catch (e, stackTrace) {
       print('');
       print('ERROR: Server failed to start');
@@ -231,6 +259,44 @@ class ServerRunner {
 
       // Rethrow so caller can handle (e.g., retry logic in server mode)
       rethrow;
+    }
+  }
+
+  AriamiFeatureFlags _loadFeatureFlagsFromEnvironment() {
+    bool parseFlag(String key, {required bool defaultValue}) {
+      final value = Platform.environment[key];
+      if (value == null) return defaultValue;
+
+      final normalized = value.trim().toLowerCase();
+      return normalized == '1' ||
+          normalized == 'true' ||
+          normalized == 'yes' ||
+          normalized == 'on';
+    }
+
+    return AriamiFeatureFlags(
+      enableV2Api: parseFlag('ARIAMI_ENABLE_V2_API', defaultValue: true),
+      enableCatalogWrite:
+          parseFlag('ARIAMI_ENABLE_CATALOG_WRITE', defaultValue: false),
+      enableCatalogRead:
+          parseFlag('ARIAMI_ENABLE_CATALOG_READ', defaultValue: false),
+      enableArtworkPrecompute:
+          parseFlag('ARIAMI_ENABLE_ARTWORK_PRECOMPUTE', defaultValue: false),
+      enableDownloadJobs:
+          parseFlag('ARIAMI_ENABLE_DOWNLOAD_JOBS', defaultValue: true),
+      enableApiScopedAuthForCliWeb: parseFlag(
+        'ARIAMI_ENABLE_API_SCOPED_AUTH_FOR_CLI_WEB',
+        defaultValue: true,
+      ),
+    );
+  }
+
+  void _validateFeatureFlagInvariantsOrThrow(AriamiFeatureFlags flags) {
+    if (flags.enableDownloadJobs && !flags.enableV2Api) {
+      throw StateError(
+        'Invalid feature flag configuration: enableDownloadJobs=true '
+        'requires enableV2Api=true.',
+      );
     }
   }
 
@@ -289,12 +355,6 @@ class ServerRunner {
       print('Stopping HTTP server...');
       await _httpServer.stop();
       print('✓ HTTP server stopped');
-
-      if (_scanCompleteListener != null) {
-        _libraryManager.removeScanCompleteListener(_scanCompleteListener!);
-        _scanCompleteListener = null;
-        _scanListenerRegistered = false;
-      }
 
       // Note: LibraryManager doesn't need explicit cleanup
       // as it's just in-memory state
@@ -414,29 +474,9 @@ class ServerRunner {
 
     if (!isArm) return false;
 
-    // Fast path: model string indicates a Pi
-    if (_getRaspberryPiModel() != null) return true;
-
-    // Check for Pi-specific files
-    try {
-      final cpuInfo = File('/proc/cpuinfo');
-      if (cpuInfo.existsSync()) {
-        final content = cpuInfo.readAsStringSync().toLowerCase();
-        if (content.contains('raspberry') || content.contains('bcm')) {
-          return true;
-        }
-      }
-
-      // Check for Pi model file
-      final modelFile = File('/proc/device-tree/model');
-      if (modelFile.existsSync()) {
-        final model = modelFile.readAsStringSync().toLowerCase();
-        if (model.contains('raspberry')) {
-          return true;
-        }
-      }
-    } catch (_) {
-      // Ignore file read errors
+    final model = _getRaspberryPiModel();
+    if (model != null) {
+      return true;
     }
 
     // If we're on Linux ARM but can't confirm Pi, assume it might be
@@ -444,31 +484,30 @@ class ServerRunner {
     return true;
   }
 
-  /// Try to detect the Raspberry Pi model number (e.g., 5, 4, 3).
-  /// Returns null if not a Pi or if model cannot be determined.
-  int? _getRaspberryPiModel() {
+  bool _isRaspberryPi5() {
+    final model = _getRaspberryPiModel();
+    return model != null && model.contains('raspberry pi 5');
+  }
+
+  String? _getRaspberryPiModel() {
     if (!Platform.isLinux) return null;
 
-    final arch = Platform.version.toLowerCase();
-    final isArm = arch.contains('arm') || arch.contains('aarch64');
-    if (!isArm) return null;
-
+    // Check for Pi model file first
     try {
       final modelFile = File('/proc/device-tree/model');
       if (modelFile.existsSync()) {
-        final modelText = modelFile.readAsStringSync();
-        final model = _parseRaspberryPiModel(modelText);
-        if (model != null) return model;
+        final model = modelFile.readAsStringSync().toLowerCase();
+        if (model.contains('raspberry')) {
+          return model;
+        }
       }
 
       final cpuInfo = File('/proc/cpuinfo');
       if (cpuInfo.existsSync()) {
-        final content = cpuInfo.readAsStringSync();
-        final modelLine = content
-            .split('\n')
-            .firstWhere((line) => line.toLowerCase().startsWith('model'), orElse: () => '');
-        final model = _parseRaspberryPiModel(modelLine.isNotEmpty ? modelLine : content);
-        if (model != null) return model;
+        final content = cpuInfo.readAsStringSync().toLowerCase();
+        if (content.contains('raspberry') || content.contains('bcm')) {
+          return content;
+        }
       }
     } catch (_) {
       // Ignore file read errors
@@ -477,11 +516,96 @@ class ServerRunner {
     return null;
   }
 
-  int? _parseRaspberryPiModel(String modelText) {
-    final lower = modelText.toLowerCase().replaceAll('\u0000', '').trim();
-    final match = RegExp(r'raspberry pi\s+(\d+)').firstMatch(lower);
-    if (match == null) return null;
-    return int.tryParse(match.group(1) ?? '');
+  // ============================================================================
+  // DOWNLOAD LIMITS (PLATFORM + STORAGE AWARE)
+  // ============================================================================
+
+  Future<_StorageType> _detectStorageType(String? musicPath) async {
+    if (!Platform.isLinux || musicPath == null || musicPath.isEmpty) {
+      return _StorageType.unknown;
+    }
+
+    final mountsFile = File('/proc/mounts');
+    if (!await mountsFile.exists()) {
+      return _StorageType.unknown;
+    }
+
+    try {
+      final lines = await mountsFile.readAsLines();
+      String? bestMountPoint;
+      String? bestDevice;
+
+      for (final line in lines) {
+        final parts = line.split(' ');
+        if (parts.length < 2) continue;
+        final device = parts[0];
+        final mountPoint = parts[1];
+
+        if (musicPath.startsWith(mountPoint)) {
+          if (bestMountPoint == null ||
+              mountPoint.length > bestMountPoint.length) {
+            bestMountPoint = mountPoint;
+            bestDevice = device;
+          }
+        }
+      }
+
+      if (bestDevice == null) {
+        return _StorageType.unknown;
+      }
+
+      final device = bestDevice.toLowerCase();
+      if (device.contains('mmcblk')) {
+        return _StorageType.microSd;
+      }
+      if (device.contains('nvme') || device.contains('/dev/sd')) {
+        return _StorageType.ssd;
+      }
+    } catch (_) {
+      // Ignore mount parsing errors
+    }
+
+    return _StorageType.unknown;
+  }
+
+  _DownloadLimits _selectDownloadLimits({
+    required bool isPi,
+    required _StorageType storageType,
+  }) {
+    if (!isPi && Platform.isMacOS) {
+      return const _DownloadLimits(
+        maxConcurrent: 30,
+        maxQueue: 400,
+        maxConcurrentPerUser: 10,
+        maxQueuePerUser: 200,
+      );
+    }
+
+    if (!isPi) {
+      return const _DownloadLimits(
+        maxConcurrent: 10,
+        maxQueue: 120,
+        maxConcurrentPerUser: 3,
+        maxQueuePerUser: 50,
+      );
+    }
+
+    if (storageType == _StorageType.ssd) {
+      return const _DownloadLimits(
+        maxConcurrent: 6,
+        maxQueue: 80,
+        maxConcurrentPerUser: 2,
+        maxQueuePerUser: 30,
+      );
+    }
+
+    // Default for Pi + microSD or unknown storage
+    return const _DownloadLimits(
+      maxConcurrent: 4,
+      maxQueue: 50,
+      maxConcurrentPerUser: 2,
+      maxQueuePerUser: 20,
+    );
   }
 
   /// Handle transition from foreground setup mode to background daemon mode
@@ -542,4 +666,20 @@ class ServerRunner {
       exit(1);
     }
   }
+}
+
+enum _StorageType { microSd, ssd, unknown }
+
+class _DownloadLimits {
+  final int maxConcurrent;
+  final int maxQueue;
+  final int maxConcurrentPerUser;
+  final int maxQueuePerUser;
+
+  const _DownloadLimits({
+    required this.maxConcurrent,
+    required this.maxQueue,
+    required this.maxConcurrentPerUser,
+    required this.maxQueuePerUser,
+  });
 }

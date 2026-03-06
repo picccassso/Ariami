@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../services/cache/cache_manager.dart';
 import '../../services/offline/offline_playback_service.dart';
+import '../../services/media/media_request_scheduler.dart';
 
 /// Size hint for artwork loading.
 ///
@@ -16,7 +17,7 @@ enum ArtworkSizeHint {
 }
 
 /// A widget that displays album artwork with automatic caching
-/// 
+///
 /// This is a drop-in replacement for Image.network that:
 /// 1. Checks if artwork is already cached locally
 /// 2. If cached, loads from disk
@@ -85,7 +86,7 @@ class _CachedArtworkState extends State<CachedArtwork> {
 
   String? _localPath;
   bool _isLoading = true;
-  bool _hasError = false;
+  MediaRequestCancellationToken? _requestCancellationToken;
 
   @override
   void initState() {
@@ -106,8 +107,15 @@ class _CachedArtworkState extends State<CachedArtwork> {
     if (oldWidget.albumId != widget.albumId ||
         oldWidget.artworkUrl != widget.artworkUrl ||
         oldWidget.sizeHint != widget.sizeHint) {
+      _cancelArtworkRequest();
       _loadArtwork();
     }
+  }
+
+  @override
+  void dispose() {
+    _cancelArtworkRequest();
+    super.dispose();
   }
 
   /// Get the cache key for this artwork (includes size hint for thumbnails)
@@ -143,6 +151,9 @@ class _CachedArtworkState extends State<CachedArtwork> {
 
   Future<void> _loadArtwork() async {
     if (!mounted) return;
+    _cancelArtworkRequest();
+    final requestToken = MediaRequestCancellationToken();
+    _requestCancellationToken = requestToken;
 
     final cacheKey = _cacheKey;
     final effectiveUrl = _effectiveUrl;
@@ -154,7 +165,6 @@ class _CachedArtworkState extends State<CachedArtwork> {
         setState(() {
           _localPath = memoryPath;
           _isLoading = false;
-          _hasError = false;
         });
       }
       return;
@@ -163,7 +173,6 @@ class _CachedArtworkState extends State<CachedArtwork> {
     // Not in memory, need async lookup - show loading state
     setState(() {
       _isLoading = true;
-      _hasError = false;
       _localPath = null;
     });
 
@@ -177,7 +186,9 @@ class _CachedArtworkState extends State<CachedArtwork> {
 
       if (cachedPath != null && await File(cachedPath).exists()) {
         // Use cached version (either primary or fallback)
-        if (mounted) {
+        if (mounted &&
+            _requestCancellationToken == requestToken &&
+            !requestToken.isCancelled) {
           setState(() {
             _localPath = cachedPath;
             _isLoading = false;
@@ -189,10 +200,11 @@ class _CachedArtworkState extends State<CachedArtwork> {
       // No cached version (neither primary nor fallback) - check if we have a URL to fetch from
       if (effectiveUrl == null) {
         // No URL and no cache - show fallback
-        if (mounted) {
+        if (mounted &&
+            _requestCancellationToken == requestToken &&
+            !requestToken.isCancelled) {
           setState(() {
             _isLoading = false;
-            _hasError = true;
           });
         }
         return;
@@ -201,10 +213,11 @@ class _CachedArtworkState extends State<CachedArtwork> {
       // Check if offline - don't fetch from network in offline mode
       if (_offlineService.isOffline) {
         // Offline and not cached - show fallback
-        if (mounted) {
+        if (mounted &&
+            _requestCancellationToken == requestToken &&
+            !requestToken.isCancelled) {
           setState(() {
             _isLoading = false;
-            _hasError = true;
           });
         }
         return;
@@ -212,12 +225,17 @@ class _CachedArtworkState extends State<CachedArtwork> {
 
       // Not cached but have URL and online, try to cache from network
       // Pass the cache key and effective URL (with size parameter)
+      // Requests are always scheduled (bounded + prioritized + cancelable).
       cachedPath = await _cacheManager.cacheArtwork(
         cacheKey,
         effectiveUrl,
+        priority: _requestPriority,
+        cancellationToken: requestToken,
       );
 
-      if (mounted) {
+      if (mounted &&
+          _requestCancellationToken == requestToken &&
+          !requestToken.isCancelled) {
         if (cachedPath != null) {
           setState(() {
             _localPath = cachedPath;
@@ -231,14 +249,28 @@ class _CachedArtworkState extends State<CachedArtwork> {
         }
       }
     } catch (e) {
+      if (requestToken.isCancelled) {
+        return;
+      }
       print('[CachedArtwork] Error loading artwork for ${widget.albumId}: $e');
-      if (mounted) {
+      if (mounted && _requestCancellationToken == requestToken) {
         setState(() {
           _isLoading = false;
-          _hasError = true;
         });
       }
     }
+  }
+
+  MediaRequestPriority get _requestPriority {
+    if (widget.sizeHint == ArtworkSizeHint.thumbnail) {
+      return MediaRequestPriority.visibleNow;
+    }
+    return MediaRequestPriority.nearby;
+  }
+
+  void _cancelArtworkRequest() {
+    _requestCancellationToken?.cancel();
+    _requestCancellationToken = null;
   }
 
   @override
@@ -256,22 +288,6 @@ class _CachedArtworkState extends State<CachedArtwork> {
         height: widget.height,
         fit: widget.fit,
         gaplessPlayback: true,
-        errorBuilder: (context, error, stackTrace) {
-          return _buildFallback();
-        },
-      );
-    } else if (!_hasError && _effectiveUrl != null && !_offlineService.isOffline) {
-      // Fallback to network image (caching may have failed) - only when online
-      imageWidget = Image.network(
-        _effectiveUrl!,
-        width: widget.width,
-        height: widget.height,
-        fit: widget.fit,
-        gaplessPlayback: true,
-        loadingBuilder: (context, child, loadingProgress) {
-          if (loadingProgress == null) return child;
-          return _buildPlaceholder(showLoading: true);
-        },
         errorBuilder: (context, error, stackTrace) {
           return _buildFallback();
         },
@@ -350,5 +366,3 @@ class _CachedArtworkState extends State<CachedArtwork> {
     return colors[colorIndex.abs()];
   }
 }
-
-

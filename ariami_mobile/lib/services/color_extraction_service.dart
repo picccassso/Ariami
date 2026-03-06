@@ -131,7 +131,7 @@ class ColorExtractionService extends ChangeNotifier {
   Future<GradientColors?> _extractFromUrl(String url) async {
     try {
       final palette = await PaletteGenerator.fromImageProvider(
-        NetworkImage(url),
+        NetworkImage(url, headers: _connectionService.authHeaders),
         size: const Size(100, 100), // Small size for performance
         maximumColorCount: 16,
       );

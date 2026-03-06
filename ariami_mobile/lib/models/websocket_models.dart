@@ -8,6 +8,7 @@ library;
 class WsMessageType {
   static const String identify = 'identify';
   static const String libraryUpdated = 'library_updated';
+  static const String syncTokenAdvanced = 'sync_token_advanced';
   static const String songAdded = 'song_added';
   static const String albumAdded = 'album_added';
   static const String songRemoved = 'song_removed';
@@ -70,16 +71,42 @@ class LibraryUpdatedMessage extends WsMessage {
   int? get songCount => data?['songCount'] as int?;
 }
 
+/// Sync token advanced notification
+class SyncTokenAdvancedMessage extends WsMessage {
+  SyncTokenAdvancedMessage({
+    required int latestToken,
+    required String reason,
+  }) : super(
+          type: WsMessageType.syncTokenAdvanced,
+          data: {
+            'latestToken': latestToken,
+            'reason': reason,
+          },
+        );
+
+  factory SyncTokenAdvancedMessage.fromWsMessage(WsMessage message) {
+    return SyncTokenAdvancedMessage(
+      latestToken: message.data?['latestToken'] as int? ?? 0,
+      reason: message.data?['reason'] as String? ?? '',
+    );
+  }
+
+  int get latestToken => data?['latestToken'] as int? ?? 0;
+  String get reason => data?['reason'] as String? ?? '';
+}
+
 /// Client identify message (sent by client after WebSocket connect)
 class IdentifyMessage extends WsMessage {
   IdentifyMessage({
     required String deviceId,
     String? deviceName,
+    String? sessionToken,
   }) : super(
           type: WsMessageType.identify,
           data: {
             'deviceId': deviceId,
             if (deviceName != null) 'deviceName': deviceName,
+            if (sessionToken != null) 'sessionToken': sessionToken,
           },
         );
 
@@ -87,11 +114,13 @@ class IdentifyMessage extends WsMessage {
     return IdentifyMessage(
       deviceId: message.data?['deviceId'] as String? ?? '',
       deviceName: message.data?['deviceName'] as String?,
+      sessionToken: message.data?['sessionToken'] as String?,
     );
   }
 
   String get deviceId => data?['deviceId'] as String? ?? '';
   String? get deviceName => data?['deviceName'] as String?;
+  String? get sessionToken => data?['sessionToken'] as String?;
 }
 
 /// Song added notification

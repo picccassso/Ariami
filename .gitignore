@@ -23,6 +23,9 @@ migrate_working_dir/
 **/doc/api/
 **/ios/Flutter/.last_build_id
 .dart_tool/
+.dart-tool/
+.dartServer/
+.flutter
 .flutter-plugins
 .flutter-plugins-dependencies
 .packages
@@ -30,6 +33,10 @@ migrate_working_dir/
 .pub/
 /build/
 pubspec.lock
+
+# Dart/Flutter config and telemetry
+.config/flutter/
+.config/dart/
 
 # Web related
 lib/generated_plugin_registrant.dart
@@ -44,6 +51,11 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Android signing
+**/*.keystore
+**/*.jks
+**/key.properties
 
 # iOS/macOS related
 **/ios/**/*.mode1v3
@@ -81,11 +93,13 @@ app.*.map.json
 **/linux/flutter/generated_plugin_registrant.cc
 **/linux/flutter/generated_plugin_registrant.h
 **/linux/flutter/generated_plugins.cmake
+**/linux/flutter/ephemeral/
 
 # Windows related
 **/windows/flutter/generated_plugin_registrant.cc
 **/windows/flutter/generated_plugin_registrant.h
 **/windows/flutter/generated_plugins.cmake
+**/windows/flutter/ephemeral/
 
 # Coverage
 coverage/
@@ -130,6 +144,22 @@ Music/
 # CLI daemon files
 .ariami_cli/
 
+# Auth data (server-side user/session stores)
+**/users.json
+**/sessions.json
+
+# Catalog database
+**/catalog.db
+**/catalog.db-wal
+**/catalog.db-shm
+
+# Transcoding cache
+**/transcoding_cache/
+
 # Logs
 *.log
 logs/
+
+# Release archives
+*.zip
+*.tar.gz

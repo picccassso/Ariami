@@ -6,7 +6,8 @@ import '../../models/song.dart';
 /// AudioHandler implementation for Ariami
 /// This creates a foreground service that keeps the app alive during music playback
 /// and provides media controls in the notification and lock screen.
-class AriamiAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
+class AriamiAudioHandler extends BaseAudioHandler
+    with QueueHandler, SeekHandler {
   // The underlying audio player
   final AudioPlayer _player = AudioPlayer();
 
@@ -77,7 +78,8 @@ class AriamiAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler
       // Guard: Only construct artwork URL for http/https streams
       // file:// URLs (local/cached playback) don't have valid host:port
       if (uri.scheme != 'http' && uri.scheme != 'https') {
-        print('[AriamiAudioHandler] Cannot construct artwork URL for non-http stream: ${uri.scheme}');
+        print(
+            '[AriamiAudioHandler] Cannot construct artwork URL for non-http stream: ${uri.scheme}');
         return null;
       }
 
@@ -93,8 +95,18 @@ class AriamiAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler
         artworkUrl = '$baseUrl/api/song-artwork/${song.id}';
       }
 
-      print('[AriamiAudioHandler] Album art URL: $artworkUrl');
-      return Uri.parse(artworkUrl);
+      var artworkUri = Uri.parse(artworkUrl);
+
+      // If stream URL carries streamToken, reuse it for artwork access.
+      final streamToken = uri.queryParameters['streamToken'];
+      if (streamToken != null && streamToken.isNotEmpty) {
+        artworkUri = artworkUri.replace(
+          queryParameters: {'streamToken': streamToken},
+        );
+      }
+
+      print('[AriamiAudioHandler] Album art URL: $artworkUri');
+      return artworkUri;
     } catch (e) {
       print('[AriamiAudioHandler] Error constructing album art URI: $e');
       return null;
@@ -112,7 +124,8 @@ class AriamiAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler
       _currentSong = song;
 
       // Create MediaItem for the song
-      final mediaItem = _songToMediaItem(song, streamUrl, artworkUri: artworkUri);
+      final mediaItem =
+          _songToMediaItem(song, streamUrl, artworkUri: artworkUri);
 
       // Update the media item in the notification
       this.mediaItem.add(mediaItem);
@@ -172,7 +185,11 @@ class AriamiAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler
           MediaAction.seekForward,
           MediaAction.seekBackward,
         },
-        androidCompactActionIndices: const [0, 1, 2], // Previous, Play/Pause, Next
+        androidCompactActionIndices: const [
+          0,
+          1,
+          2
+        ], // Previous, Play/Pause, Next
         processingState: audioServiceState,
         playing: playing,
         updatePosition: _player.position,
@@ -264,7 +281,8 @@ class AriamiAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler
 
   @override
   Future<void> onTaskRemoved() async {
-    print('[AriamiAudioHandler] onTaskRemoved() - App swiped away, stopping playback');
+    print(
+        '[AriamiAudioHandler] onTaskRemoved() - App swiped away, stopping playback');
     // Stop playback when app is swiped away from recent apps
     await stop();
   }

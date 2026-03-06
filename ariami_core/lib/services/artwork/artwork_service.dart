@@ -127,6 +127,32 @@ class ArtworkService {
     }
   }
 
+  /// Precompute a variant during indexing.
+  ///
+  /// Uses the same processing/caching path as request-time artwork serving.
+  Future<Uint8List> precomputeArtworkVariant(
+    String artworkKey,
+    List<int> originalArtwork,
+    ArtworkSize size,
+  ) async {
+    return getArtwork(artworkKey, originalArtwork, size);
+  }
+
+  /// Returns the expected storage path for a variant.
+  ///
+  /// For `full`, this returns [originalReferencePath].
+  /// For processed variants, this returns the cache file path.
+  String getVariantStoragePath(
+    String artworkKey,
+    ArtworkSize size, {
+    String? originalReferencePath,
+  }) {
+    if (!size.requiresProcessing) {
+      return originalReferencePath ?? '';
+    }
+    return _getCachedFile(artworkKey, size).path;
+  }
+
   /// Get the cached file path for artwork at a specific size.
   File _getCachedFile(String albumId, ArtworkSize size) {
     // Sanitize albumId for use in filename

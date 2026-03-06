@@ -6,7 +6,6 @@ import '../../screens/playlist/add_to_playlist_screen.dart';
 import '../../services/playback_manager.dart';
 import '../../services/download/download_manager.dart';
 import '../../services/api/connection_service.dart';
-import '../../services/quality/quality_settings_service.dart';
 import '../common/cached_artwork.dart';
 
 /// Song list item widget
@@ -245,7 +244,7 @@ class SongListItem extends StatelessWidget {
       builder: (BuildContext context) {
         return SafeArea(
           minimum: EdgeInsets.only(
-            bottom: getMiniPlayerAwareBottomPadding(),
+            bottom: getMiniPlayerAwareBottomPadding(context),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -352,7 +351,6 @@ class SongListItem extends StatelessWidget {
   void _handleDownload(BuildContext context) {
     final connectionService = ConnectionService();
     final downloadManager = DownloadManager();
-    final qualityService = QualitySettingsService();
 
     // Check if connected to server
     if (connectionService.apiClient == null) {
@@ -362,10 +360,6 @@ class SongListItem extends StatelessWidget {
       return;
     }
 
-    // Construct download URL with user's download mode/quality
-    final baseDownloadUrl = connectionService.apiClient!.getDownloadUrl(song.id);
-    final downloadUrl = qualityService.getDownloadUrlWithQuality(baseDownloadUrl);
-
     downloadManager.downloadSong(
       songId: song.id,
       title: song.title,
@@ -374,7 +368,6 @@ class SongListItem extends StatelessWidget {
       albumName: albumName,
       albumArtist: albumArtist,
       albumArt: '',
-      downloadUrl: downloadUrl,
       duration: song.duration,
       trackNumber: song.trackNumber,
       totalBytes: 0, // Will be determined during download

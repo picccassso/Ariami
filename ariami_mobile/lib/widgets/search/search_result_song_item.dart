@@ -5,7 +5,6 @@ import '../../screens/playlist/add_to_playlist_screen.dart';
 import '../../services/api/connection_service.dart';
 import '../../services/playback_manager.dart';
 import '../../services/download/download_manager.dart';
-import '../../services/quality/quality_settings_service.dart';
 import '../common/cached_artwork.dart';
 
 /// Search result item for songs
@@ -198,7 +197,6 @@ class SearchResultSongItem extends StatelessWidget {
   void _handleDownload(BuildContext context) {
     final connectionService = ConnectionService();
     final downloadManager = DownloadManager();
-    final qualityService = QualitySettingsService();
 
     // Check if connected to server
     if (connectionService.apiClient == null) {
@@ -208,10 +206,6 @@ class SearchResultSongItem extends StatelessWidget {
       return;
     }
 
-    // Construct download URL with user's download mode/quality
-    final baseDownloadUrl = connectionService.apiClient!.getDownloadUrl(song.id);
-    final downloadUrl = qualityService.getDownloadUrlWithQuality(baseDownloadUrl);
-
     downloadManager.downloadSong(
       songId: song.id,
       title: song.title,
@@ -220,7 +214,6 @@ class SearchResultSongItem extends StatelessWidget {
       albumName: albumName,
       albumArtist: albumArtist,
       albumArt: '',
-      downloadUrl: downloadUrl,
       duration: song.duration,
       trackNumber: song.trackNumber,
       totalBytes: 0,

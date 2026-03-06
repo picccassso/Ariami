@@ -4,7 +4,7 @@ Platform-agnostic core library for Ariami. Contains shared business logic and se
 
 ## Overview
 
-Ariami Core is a pure Dart package (no Flutter dependencies) that provides music library management, HTTP server functionality, and data models for the Ariami ecosystem. This package enables both GUI (desktop) and headless (CLI) server deployments to share the same core functionality.
+Ariami Core is a pure Dart package (no Flutter dependencies) that provides music library management, HTTP server functionality, authentication, and data models for the Ariami ecosystem. This package enables both GUI (desktop) and headless (CLI) server deployments to share the same core functionality.
 
 ## Architecture Role
 
@@ -19,9 +19,11 @@ Located in `services/library/`:
 
 - **file_scanner.dart** - Recursively scans directories for audio files with support for multiple formats
 - **metadata_extractor.dart** - Extracts ID3 and Vorbis tags using dart_tags package
+- **metadata_cache.dart** - Caches extracted metadata for faster rescanning
 - **album_builder.dart** - Groups songs into albums with multi-artist compilation detection
 - **duplicate_detector.dart** - Identifies duplicate files via file hash and metadata comparison
 - **library_manager.dart** - Main library coordinator (singleton pattern)
+- **library_scanner_isolate.dart** - Isolate-based parallel scanning for performance
 - **folder_watcher.dart** - Monitors file system for changes and triggers updates
 - **change_processor.dart** - Processes file additions, modifications, and deletions in real-time
 - **mp3_duration_parser.dart** - Pure Dart MP3 duration parser that handles large ID3 tags with embedded album art
@@ -31,8 +33,31 @@ Located in `services/library/`:
 Located in `services/server/`:
 
 - **http_server.dart** - Shelf-based HTTP server with REST endpoints, WebSocket support, and static file serving (singleton pattern)
-- **connection_manager.dart** - Tracks connected mobile clients, sessions, and heartbeat monitoring
+- **connection_manager.dart** - Tracks connected mobile clients, sessions, per-device identification, and heartbeat monitoring
 - **streaming_service.dart** - Audio streaming with HTTP range request support for efficient seeking
+- **stream_tracker.dart** - Tracks active streams per user and issues short-lived stream tokens for playback
+
+## Auth Services
+
+Located in `services/auth/`:
+
+- **auth_service.dart** - User registration, login, logout, and session validation
+- **user_store.dart** - JSON-based user persistence with bcrypt password hashing
+- **session_store.dart** - Session token management with sliding TTL (30 days default)
+
+If no users are registered, the server runs in legacy/open mode. Once the first user registers, authentication becomes required.
+
+## Artwork Services
+
+Located in `services/artwork/`:
+
+- **artwork_service.dart** - Artwork compression and optimization for efficient delivery
+
+## Transcoding Services
+
+Located in `services/transcoding/`:
+
+- **transcoding_service.dart** - Server-side audio transcoding with quality presets and caching (requires FFmpeg on the host)
 
 ## Data Models
 
@@ -45,6 +70,7 @@ Located in `models/`:
 - **FileChange** - File system change notifications for real-time updates
 - **ApiModels** - Server request/response contracts for HTTP endpoints
 - **WebSocketModels** - Real-time message formats for WebSocket communication
+- **AuthModels** - User, session, and stream ticket contracts
 
 ## Key Features
 
@@ -73,6 +99,20 @@ MP3, M4A, MP4, FLAC, WAV, AIFF, OGG, Opus, WMA, AAC, ALAC
 - Automatic processing of new, modified, and deleted files
 - WebSocket broadcasts to connected clients
 - Incremental updates without full rescans
+
+### Multi-User Authentication
+
+- User registration and login with bcrypt password hashing
+- Session tokens with 30-day sliding TTL
+- Stream tokens with duration-based TTL for audio playback compatibility
+- Rate-limited login attempts (5 per 15 minutes per device)
+- Admin APIs for device management and password changes
+
+### Download Throttling
+
+- Server-side concurrent download limits (configurable per platform)
+- Per-user download concurrency enforcement
+- Queuing with 503/429 responses when limits are exceeded
 
 ## Usage
 
@@ -125,6 +165,7 @@ Key dependencies:
 - `shelf`, `shelf_router`, `shelf_web_socket`, `shelf_static` - HTTP server framework
 - `dart_tags` - Audio metadata extraction
 - `crypto` - File hashing for duplicate detection
+- `bcrypt` - Password hashing for user authentication
 - `watcher` - File system monitoring
 - `path` - Path manipulation utilities
 - `logging` - Structured logging
@@ -136,6 +177,7 @@ Key dependencies:
 Critical services use singleton pattern:
 - `LibraryManager` - Ensures single library instance
 - `AriamiHttpServer` - Prevents port conflicts
+- `AuthService` - Single auth coordinator
 
 ### Error Handling
 

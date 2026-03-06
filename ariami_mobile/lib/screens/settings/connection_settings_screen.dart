@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../models/api_models.dart';
 import '../../services/api/connection_service.dart';
 import '../../services/offline/offline_playback_service.dart';
 import '../../widgets/settings/connection_status_card.dart';
@@ -7,8 +8,41 @@ import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
 import '../../widgets/settings/settings_section.dart';
 import '../../widgets/settings/settings_tile.dart';
 
+class RetryConnectionResult {
+  const RetryConnectionResult({
+    required this.restored,
+    required this.didAuthFail,
+    this.failureCode,
+    this.failureMessage,
+  });
+
+  final bool restored;
+  final bool didAuthFail;
+  final String? failureCode;
+  final String? failureMessage;
+
+  factory RetryConnectionResult.fromConnectionService(
+    ConnectionService connectionService, {
+    required bool restored,
+  }) {
+    return RetryConnectionResult(
+      restored: restored,
+      didAuthFail: connectionService.didLastRestoreFailForAuth,
+      failureCode: connectionService.lastRestoreFailureCode,
+      failureMessage: connectionService.lastRestoreFailureMessage,
+    );
+  }
+}
+
+typedef RetryConnectionAttempt = Future<RetryConnectionResult> Function();
+
 class ConnectionSettingsScreen extends StatefulWidget {
-  const ConnectionSettingsScreen({super.key});
+  const ConnectionSettingsScreen({
+    super.key,
+    this.retryConnectionAttempt,
+  });
+
+  final RetryConnectionAttempt? retryConnectionAttempt;
 
   @override
   State<ConnectionSettingsScreen> createState() =>
@@ -21,13 +55,15 @@ class _ConnectionSettingsScreenState extends State<ConnectionSettingsScreen> {
   late Stream<bool> _connectionStream;
   StreamSubscription<OfflineMode>? _offlineSubscription;
   bool _isOfflineModeEnabled = false;
+  String? _deviceName;
 
   @override
   void initState() {
     super.initState();
     _connectionStream = _connectionService.connectionStateStream;
     _isOfflineModeEnabled = _offlineService.isOfflineModeEnabled;
-    
+    _loadDeviceName();
+
     // Listen to offline state changes
     _offlineSubscription = _offlineService.offlineModeStream.listen((_) {
       if (mounted) {
@@ -35,6 +71,14 @@ class _ConnectionSettingsScreenState extends State<ConnectionSettingsScreen> {
           _isOfflineModeEnabled = _offlineService.isOfflineModeEnabled;
         });
       }
+    });
+  }
+
+  Future<void> _loadDeviceName() async {
+    final deviceName = await _connectionService.getCurrentDeviceName();
+    if (!mounted) return;
+    setState(() {
+      _deviceName = deviceName;
     });
   }
 
@@ -101,6 +145,96 @@ class _ConnectionSettingsScreenState extends State<ConnectionSettingsScreen> {
     );
   }
 
+  void _handleLogout() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colorScheme = Theme.of(context).colorScheme;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF111111) : colorScheme.surface,
+        title: Text(
+          'LOG OUT',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1.5,
+            color: isDark ? Colors.white : colorScheme.onSurface,
+          ),
+        ),
+        content: Text(
+          'Are you sure you want to log out of this account?',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: isDark
+                ? Colors.grey[400]
+                : colorScheme.onSurface.withValues(alpha: 0.75),
+          ),
+        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        actions: [
+          TextButton(
+            onPressed: Navigator.of(context).pop,
+            child: Text(
+              'CANCEL',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.0,
+                color: isDark
+                    ? Colors.grey[500]
+                    : colorScheme.onSurface.withValues(alpha: 0.7),
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _logout();
+            },
+            child: Text(
+              'LOG OUT',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.0,
+                color: colorScheme.error,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _logout() async {
+    final serverInfo = _connectionService.serverInfo;
+
+    try {
+      await _connectionService.logout();
+      if (!mounted) return;
+
+      if (serverInfo != null) {
+        Navigator.of(context, rootNavigator: true).pushNamedAndRemoveUntil(
+          '/auth/login',
+          (route) => false,
+          arguments: serverInfo,
+        );
+      } else {
+        Navigator.of(context, rootNavigator: true).pushNamedAndRemoveUntil(
+          '/',
+          (route) => false,
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error logging out: $e')),
+      );
+    }
+  }
+
   Future<void> _disconnect() async {
     try {
       await _connectionService.disconnect();
@@ -121,15 +255,32 @@ class _ConnectionSettingsScreenState extends State<ConnectionSettingsScreen> {
 
   Future<void> _retryConnection() async {
     try {
-      final restored = await _connectionService.tryRestoreConnection();
+      final retryResult = widget.retryConnectionAttempt != null
+          ? await widget.retryConnectionAttempt!.call()
+          : await _runDefaultRetryConnectionAttempt();
       if (mounted) {
-        if (restored) {
+        if (retryResult.restored) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Connection restored')),
           );
-        } else {
+        } else if (retryResult.didAuthFail) {
+          final isAuthRequired =
+              retryResult.failureCode == ApiErrorCodes.authRequired;
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to restore connection')),
+            SnackBar(
+              content: Text(
+                isAuthRequired
+                    ? 'Authentication required. Please log in to reconnect.'
+                    : 'Session expired. Please log in again.',
+              ),
+            ),
+          );
+        } else {
+          final fallbackMessage = retryResult.failureMessage?.isNotEmpty == true
+              ? retryResult.failureMessage!
+              : 'Failed to restore connection';
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(fallbackMessage)),
           );
         }
       }
@@ -142,9 +293,18 @@ class _ConnectionSettingsScreenState extends State<ConnectionSettingsScreen> {
     }
   }
 
+  Future<RetryConnectionResult> _runDefaultRetryConnectionAttempt() async {
+    final restored = await _connectionService.tryRestoreConnection();
+    return RetryConnectionResult.fromConnectionService(
+      _connectionService,
+      restored: restored,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
       appBar: AppBar(
@@ -161,7 +321,7 @@ class _ConnectionSettingsScreenState extends State<ConnectionSettingsScreen> {
       ),
       body: ListView(
         padding: EdgeInsets.only(
-          bottom: getMiniPlayerAwareBottomPadding() + 20,
+          bottom: getMiniPlayerAwareBottomPadding(context) + 20,
         ),
         children: [
           // Offline Mode Banner
@@ -178,7 +338,8 @@ class _ConnectionSettingsScreenState extends State<ConnectionSettingsScreen> {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.wifi_off_rounded, color: Color(0xFFFFB300), size: 20),
+                  const Icon(Icons.wifi_off_rounded,
+                      color: Color(0xFFFFB300), size: 20),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
@@ -194,14 +355,14 @@ class _ConnectionSettingsScreenState extends State<ConnectionSettingsScreen> {
               ),
             ),
           ],
-          
+
           // Connection Status Card
           StreamBuilder<bool>(
             stream: _connectionStream,
             initialData: _connectionService.isConnected,
             builder: (context, snapshot) {
               final isConnected = snapshot.data ?? false;
-              
+
               // Offline mode takes priority
               final ConnectionStatus status;
               if (_isOfflineModeEnabled) {
@@ -216,14 +377,42 @@ class _ConnectionSettingsScreenState extends State<ConnectionSettingsScreen> {
                 status: status,
                 serverInfo: _connectionService.serverInfo,
                 lastSyncTime: DateTime.now(),
-                onRetry: (isConnected || _isOfflineModeEnabled) ? null : _retryConnection,
+                onRetry: (isConnected || _isOfflineModeEnabled)
+                    ? null
+                    : _retryConnection,
               );
             },
           ),
           const SizedBox(height: 24),
 
+          if (_connectionService.username != null) ...[
+            SettingsSection(
+              title: 'Account',
+              tiles: [
+                SettingsTile(
+                  icon: Icons.account_circle_rounded,
+                  title: 'Username',
+                  subtitle: _connectionService.username!,
+                ),
+                if ((_connectionService.userId ?? '').isNotEmpty)
+                  SettingsTile(
+                    icon: Icons.badge_rounded,
+                    title: 'User ID',
+                    subtitle: _connectionService.userId,
+                  ),
+                SettingsTile(
+                  icon: Icons.smartphone_rounded,
+                  title: 'Device',
+                  subtitle: _deviceName ?? 'Mobile Device',
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+          ],
+
           // Server Information Section (hide when offline mode is enabled)
-          if (_connectionService.serverInfo != null && !_isOfflineModeEnabled) ...[
+          if (_connectionService.serverInfo != null &&
+              !_isOfflineModeEnabled) ...[
             SettingsSection(
               title: 'Server Information',
               tiles: [
@@ -252,6 +441,34 @@ class _ConnectionSettingsScreenState extends State<ConnectionSettingsScreen> {
             const SizedBox(height: 24),
           ],
 
+          // Logout Button (auth users only; hide when offline mode is enabled)
+          if (!_isOfflineModeEnabled &&
+              _connectionService.username != null) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: SizedBox(
+                height: 54,
+                child: OutlinedButton.icon(
+                  onPressed: _handleLogout,
+                  icon: const Icon(Icons.person_remove_alt_1_rounded, size: 20),
+                  label: const Text(
+                    'Log Out',
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    backgroundColor: colorScheme.surface,
+                    foregroundColor: colorScheme.onSurface,
+                    side: BorderSide(
+                      color: colorScheme.outline.withValues(alpha: 0.35),
+                    ),
+                    shape: const StadiumBorder(),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+
           // Disconnect Button (hide when offline mode is enabled)
           if (!_isOfflineModeEnabled) ...[
             Padding(
@@ -270,7 +487,8 @@ class _ConnectionSettingsScreenState extends State<ConnectionSettingsScreen> {
                     foregroundColor: const Color(0xFFFF4B4B),
                     elevation: 0,
                     shape: const StadiumBorder(),
-                    side: BorderSide(color: const Color(0xFFFF4B4B).withOpacity(0.2)),
+                    side: BorderSide(
+                        color: const Color(0xFFFF4B4B).withOpacity(0.2)),
                   ),
                 ),
               ),

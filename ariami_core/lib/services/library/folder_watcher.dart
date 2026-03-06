@@ -119,7 +119,11 @@ class FolderWatcher {
 
   /// Checks if a file is an audio file
   bool _isAudioFile(String path) {
-    final extension = path.toLowerCase().substring(path.lastIndexOf('.'));
+    final dotIndex = path.lastIndexOf('.');
+    if (dotIndex < 0 || dotIndex == path.length - 1) {
+      return false;
+    }
+    final extension = path.toLowerCase().substring(dotIndex);
     return FileScanner.supportedExtensions.contains(extension);
   }
 

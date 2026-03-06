@@ -73,6 +73,9 @@ class QualitySettings {
   /// Quality for downloads (always uses this regardless of network)
   final StreamingQuality downloadQuality;
 
+  /// Prefer downloaded/cached files when online (instead of streaming)
+  final bool preferLocalWhenOnline;
+
   /// Whether downloads should use the original file (skip transcoding)
   final bool downloadOriginal;
 
@@ -80,6 +83,7 @@ class QualitySettings {
     this.wifiQuality = StreamingQuality.high,
     this.mobileDataQuality = StreamingQuality.medium,
     this.downloadQuality = StreamingQuality.high,
+    this.preferLocalWhenOnline = false,
     this.downloadOriginal = false,
   });
 
@@ -91,6 +95,7 @@ class QualitySettings {
           StreamingQuality.fromString(json['mobileDataQuality'] as String?),
       downloadQuality:
           StreamingQuality.fromString(json['downloadQuality'] as String?),
+      preferLocalWhenOnline: json['preferLocalWhenOnline'] as bool? ?? false,
       downloadOriginal: json['downloadOriginal'] as bool? ?? false,
     );
   }
@@ -101,6 +106,7 @@ class QualitySettings {
       'wifiQuality': wifiQuality.name,
       'mobileDataQuality': mobileDataQuality.name,
       'downloadQuality': downloadQuality.name,
+      'preferLocalWhenOnline': preferLocalWhenOnline,
       'downloadOriginal': downloadOriginal,
     };
   }
@@ -110,12 +116,14 @@ class QualitySettings {
     StreamingQuality? wifiQuality,
     StreamingQuality? mobileDataQuality,
     StreamingQuality? downloadQuality,
+    bool? preferLocalWhenOnline,
     bool? downloadOriginal,
   }) {
     return QualitySettings(
       wifiQuality: wifiQuality ?? this.wifiQuality,
       mobileDataQuality: mobileDataQuality ?? this.mobileDataQuality,
       downloadQuality: downloadQuality ?? this.downloadQuality,
+      preferLocalWhenOnline: preferLocalWhenOnline ?? this.preferLocalWhenOnline,
       downloadOriginal: downloadOriginal ?? this.downloadOriginal,
     );
   }
@@ -128,6 +136,7 @@ class QualitySettings {
           wifiQuality == other.wifiQuality &&
           mobileDataQuality == other.mobileDataQuality &&
           downloadQuality == other.downloadQuality &&
+          preferLocalWhenOnline == other.preferLocalWhenOnline &&
           downloadOriginal == other.downloadOriginal;
 
   @override
@@ -135,10 +144,12 @@ class QualitySettings {
       wifiQuality.hashCode ^
       mobileDataQuality.hashCode ^
       downloadQuality.hashCode ^
+      preferLocalWhenOnline.hashCode ^
       downloadOriginal.hashCode;
 
   @override
   String toString() =>
       'QualitySettings(wifi: $wifiQuality, mobile: $mobileDataQuality, '
-      'download: $downloadQuality, downloadOriginal: $downloadOriginal)';
+      'download: $downloadQuality, preferLocalWhenOnline: $preferLocalWhenOnline, '
+      'downloadOriginal: $downloadOriginal)';
 }

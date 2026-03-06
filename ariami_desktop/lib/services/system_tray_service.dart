@@ -13,6 +13,7 @@ class SystemTrayService with TrayListener {
   SystemTrayService._internal();
 
   bool _isInitialized = false;
+  bool _isShuttingDown = false;
   
   // Method channel for macOS dock icon visibility
   static const _dockChannel = MethodChannel('ariami_desktop/dock');
@@ -22,6 +23,9 @@ class SystemTrayService with TrayListener {
     if (_isInitialized) return;
 
     try {
+      if (Platform.isMacOS) {
+        _dockChannel.setMethodCallHandler(_handleDockChannelCall);
+      }
       // Set up the tray icon based on platform
       String iconPath = await _getTrayIconPath();
       
@@ -77,6 +81,14 @@ class SystemTrayService with TrayListener {
     }
   }
 
+  Future<dynamic> _handleDockChannelCall(MethodCall call) async {
+    if (call.method == 'requestTerminate') {
+      await quitApp();
+      return null;
+    }
+    return null;
+  }
+
   /// Get the appropriate tray icon path for the current platform.
   /// Returns absolute path that works in both debug and release modes.
   Future<String> _getTrayIconPath() async {
@@ -130,6 +142,7 @@ class SystemTrayService with TrayListener {
 
   /// Show the main window.
   Future<void> showWindow() async {
+    if (_isShuttingDown) return;
     // Show dock icon on macOS
     if (Platform.isMacOS) {
       try {
@@ -144,6 +157,7 @@ class SystemTrayService with TrayListener {
 
   /// Hide the main window to system tray.
   Future<void> hideWindow() async {
+    if (_isShuttingDown) return;
     print('[Tray] Hiding window to system tray');
     await windowManager.hide();
     // Hide dock icon on macOS
@@ -158,9 +172,25 @@ class SystemTrayService with TrayListener {
 
   /// Quit the application completely.
   Future<void> quitApp() async {
+    if (_isShuttingDown) return;
+    _isShuttingDown = true;
     trayManager.removeListener(this);
     await trayManager.destroy();
-    exit(0);
+
+    if (Platform.isMacOS) {
+      try {
+        await _dockChannel.invokeMethod('terminateApp');
+        return;
+      } catch (e) {
+        print('[Tray] Failed to terminate app via AppDelegate: $e');
+      }
+    }
+
+    try {
+      await windowManager.destroy();
+    } catch (e) {
+      print('[Tray] Failed to destroy window: $e');
+    }
   }
 
   /// Handle tray icon click - show the window.
@@ -193,4 +223,3 @@ class SystemTrayService with TrayListener {
     trayManager.removeListener(this);
   }
 }
-

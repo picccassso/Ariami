@@ -1,7 +1,7 @@
-import 'dart:convert';
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
+import '../services/web_api_client.dart';
+import '../services/web_auth_service.dart';
 import '../utils/constants.dart';
 
 class WelcomeScreen extends StatefulWidget {
@@ -12,6 +12,10 @@ class WelcomeScreen extends StatefulWidget {
 }
 
 class _WelcomeScreenState extends State<WelcomeScreen> {
+  final WebAuthService _authService = WebAuthService();
+  late final WebApiClient _apiClient = WebApiClient(
+    tokenProvider: _authService.getSessionToken,
+  );
   bool _isCheckingStatus = true;
 
   @override
@@ -23,10 +27,10 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
   /// Check if setup is already complete and redirect to dashboard if so
   Future<void> _checkSetupStatus() async {
     try {
-      final response = await http.get(Uri.parse('/api/setup/status'));
+      final response = await _apiClient.get('/api/setup/status');
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        final data = response.jsonBody ?? <String, dynamic>{};
         final isComplete = data['isComplete'] as bool? ?? false;
 
         if (isComplete && mounted) {

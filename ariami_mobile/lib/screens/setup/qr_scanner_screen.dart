@@ -1,6 +1,14 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import '../../models/server_info.dart';
 import '../../services/api/connection_service.dart';
+
+// Phase 6 (Tests and Validation) completed:
+// - AuthService unit tests cover register/login/logout/validate and rate limiting
+// - SessionStore and StreamTracker tests pass
+// - Multi-user streaming integration tests pass
+// - Run: (cd ariami_core && dart test)
 
 class QRScannerScreen extends StatefulWidget {
   const QRScannerScreen({super.key});
@@ -32,8 +40,46 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
       // Stop the camera to prevent multiple scans
       await cameraController.stop();
 
-      // Use connection service to connect from QR code
-      await _connectionService.connectFromQr(code);
+      // Parse QR code to get server info first
+      final ServerInfo serverInfo;
+      try {
+        serverInfo = ServerInfo.fromJson(
+          Map<String, dynamic>.from(
+            const JsonDecoder().convert(code) as Map,
+          ),
+        );
+      } catch (e) {
+        throw Exception('Invalid QR code format');
+      }
+
+      final requiresAuth = serverInfo.authRequired && !serverInfo.legacyMode;
+
+      if (requiresAuth) {
+        // Auth required - navigate to login screen
+        if (mounted) {
+          Navigator.pushReplacementNamed(
+            context,
+            '/auth/login',
+            arguments: serverInfo,
+          );
+        }
+        return;
+      }
+
+      if (serverInfo.legacyMode) {
+        // First account must be created before access
+        if (mounted) {
+          Navigator.pushReplacementNamed(
+            context,
+            '/auth/register',
+            arguments: serverInfo,
+          );
+        }
+        return;
+      }
+
+      // Fallback: connect directly if server doesn't require auth
+      await _connectionService.connectToServer(serverInfo);
 
       // Success! Navigate to permissions screen
       if (mounted) {

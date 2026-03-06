@@ -5,8 +5,10 @@ Headless music server for Ariami. Runs on servers and Raspberry Pi.
 ## Features
 
 - Background daemon operation
-- Web-based setup interface
+- Web-based setup interface and dashboard
 - Same streaming capabilities as Desktop
+- Multi-user authentication
+- Dashboard showing connected users and devices with admin controls (kick devices, change passwords)
 
 ## Building
 
@@ -33,3 +35,5 @@ dart compile exe bin/ariami_cli.dart -o ariami_cli
 3. Select music folder and wait for scan
 4. Server auto-transitions to background
 5. Scan QR code with Ariami Mobile
+
+See `REBUILD.md` for rebuild workflows and Raspberry Pi cross-compilation.

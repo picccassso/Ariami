@@ -9,7 +9,6 @@ import '../services/playlist_service.dart';
 import '../services/offline/offline_playback_service.dart';
 import '../services/download/download_manager.dart';
 import '../services/cache/cache_manager.dart';
-import '../services/quality/quality_settings_service.dart';
 import '../widgets/album/album_header.dart';
 import '../widgets/album/track_list.dart';
 import 'playlist/create_playlist_screen.dart';
@@ -262,7 +261,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
         // Bottom padding for mini player + download bar + nav bar
         SliverPadding(
           padding: EdgeInsets.only(
-            bottom: getMiniPlayerAwareBottomPadding(),
+            bottom: getMiniPlayerAwareBottomPadding(context),
           ),
         ),
       ],
@@ -522,12 +521,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
     // For now, we queue individual songs
     // We already have _handleDownload logic in SongListItem, but we can access DownloadManager directly
     
-    final qualityService = QualitySettingsService();
-
     for (final song in songsToDownload) {
-      final baseDownloadUrl = _connectionService.apiClient!.getDownloadUrl(song.id);
-      final downloadUrl = qualityService.getDownloadUrlWithQuality(baseDownloadUrl);
-
       _downloadManager.downloadSong(
         songId: song.id,
         title: song.title,
@@ -536,7 +530,6 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
         albumName: widget.album.title,
         albumArtist: widget.album.artist,
         albumArt: '', // Manager handles this or fetches it
-        downloadUrl: downloadUrl,
         duration: song.duration,
         trackNumber: song.trackNumber,
         totalBytes: 0,
@@ -938,7 +931,7 @@ class _AlbumPlaylistPickerState extends State<_AlbumPlaylistPicker> {
                     : ListView.builder(
                         controller: scrollController,
                         padding: EdgeInsets.only(
-                          bottom: getMiniPlayerAwareBottomPadding(),
+                          bottom: getMiniPlayerAwareBottomPadding(context),
                         ),
                         itemCount: playlists.length,
                         itemBuilder: (context, index) {

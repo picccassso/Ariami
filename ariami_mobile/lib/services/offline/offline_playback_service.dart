@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../api/connection_service.dart';
 import '../download/download_manager.dart';
 import '../cache/cache_manager.dart';
+import '../quality/quality_settings_service.dart';
 
 /// Offline mode types
 enum OfflineMode {
@@ -29,6 +30,7 @@ class OfflinePlaybackService {
   final ConnectionService _connectionService = ConnectionService();
   final DownloadManager _downloadManager = DownloadManager();
   final CacheManager _cacheManager = CacheManager();
+  final QualitySettingsService _qualityService = QualitySettingsService();
 
   // Offline mode state
   OfflineMode _offlineMode = OfflineMode.online;
@@ -132,10 +134,10 @@ class OfflinePlaybackService {
     }
   }
 
-  /// Called by ConnectionService when connection is automatically restored
-  /// Only transitions if in auto offline mode
+  /// Called by ConnectionService when connection is successfully established.
+  /// Transitions to online from any offline state (auto or manual).
   Future<void> notifyConnectionRestored() async {
-    if (_offlineMode == OfflineMode.autoOffline) {
+    if (_offlineMode != OfflineMode.online) {
       _setMode(OfflineMode.online);
       print('[OfflinePlaybackService] Online mode restored (connection regained)');
     }
@@ -177,14 +179,15 @@ class OfflinePlaybackService {
         return PlaybackSource.unavailable;
       }
     } else {
-      // Online mode - prefer downloaded/cached if setting enabled
-      if (isDownloaded && _preferDownloaded) {
-        return PlaybackSource.local;
-      } else if (isCached && _preferDownloaded) {
-        return PlaybackSource.cached;
-      } else {
-        return PlaybackSource.stream;
+      // Online mode - stream by default to respect quality settings
+      if (_qualityService.getPreferLocalWhenOnline()) {
+        if (isDownloaded) {
+          return PlaybackSource.local;
+        } else if (isCached) {
+          return PlaybackSource.cached;
+        }
       }
+      return PlaybackSource.stream;
     }
   }
 
@@ -243,6 +246,5 @@ class OfflinePlaybackService {
     _offlineStateController.close();
   }
 }
-
 
 

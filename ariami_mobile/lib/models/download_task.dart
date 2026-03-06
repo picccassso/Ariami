@@ -2,6 +2,7 @@
 library;
 
 import '../utils/encoding_utils.dart';
+import 'quality_settings.dart';
 
 enum DownloadStatus { pending, downloading, paused, completed, failed, cancelled }
 
@@ -16,6 +17,9 @@ class DownloadTask {
   final String? albumArtist; // The album's artist (not song artist which may include featured artists)
   final String albumArt;
   final String downloadUrl;
+  final StreamingQuality downloadQuality;
+  final bool downloadOriginal;
+  String? userId;
   final int duration; // Duration in seconds
   final int? trackNumber;
 
@@ -32,6 +36,7 @@ class DownloadTask {
     required this.id,
     required this.songId,
     this.serverId,
+    this.userId,
     required this.title,
     required this.artist,
     this.albumId,
@@ -39,6 +44,8 @@ class DownloadTask {
     this.albumArtist,
     required this.albumArt,
     required this.downloadUrl,
+    this.downloadQuality = StreamingQuality.high,
+    this.downloadOriginal = false,
     this.duration = 0,
     this.trackNumber,
     this.status = DownloadStatus.pending,
@@ -55,6 +62,7 @@ class DownloadTask {
       'id': id,
       'songId': songId,
       'serverId': serverId,
+      'userId': userId,
       'title': title,
       'artist': artist,
       'albumId': albumId,
@@ -62,6 +70,8 @@ class DownloadTask {
       'albumArtist': albumArtist,
       'albumArt': albumArt,
       'downloadUrl': downloadUrl,
+      'downloadQuality': downloadQuality.name,
+      'downloadOriginal': downloadOriginal,
       'duration': duration,
       'trackNumber': trackNumber,
       'status': status.toString(),
@@ -75,17 +85,26 @@ class DownloadTask {
 
   /// Create from JSON
   factory DownloadTask.fromJson(Map<String, dynamic> json) {
+    final downloadUrl = json['downloadUrl'] as String? ?? '';
+    final qualityString = json['downloadQuality'] as String?;
+    final inferredQuality = qualityString != null
+        ? StreamingQuality.fromString(qualityString)
+        : _inferQualityFromUrl(downloadUrl);
+
     return DownloadTask(
       id: json['id'] as String,
       songId: json['songId'] as String,
       serverId: json['serverId'] as String?,
+      userId: json['userId'] as String?,
       title: EncodingUtils.fixEncoding(json['title'] as String) ?? json['title'] as String,
       artist: EncodingUtils.fixEncoding(json['artist'] as String) ?? json['artist'] as String,
       albumId: json['albumId'] as String?,
       albumName: EncodingUtils.fixEncoding(json['albumName'] as String?),
       albumArtist: EncodingUtils.fixEncoding(json['albumArtist'] as String?),
       albumArt: json['albumArt'] as String,
-      downloadUrl: json['downloadUrl'] as String,
+      downloadUrl: downloadUrl,
+      downloadQuality: inferredQuality,
+      downloadOriginal: json['downloadOriginal'] as bool? ?? false,
       duration: json['duration'] as int? ?? 0,
       trackNumber: json['trackNumber'] as int?,
       status: _parseStatus(json['status'] as String),
@@ -103,6 +122,15 @@ class DownloadTask {
       (status) => status.toString() == statusString,
       orElse: () => DownloadStatus.pending,
     );
+  }
+
+  static StreamingQuality _inferQualityFromUrl(String? url) {
+    if (url == null || url.isEmpty) {
+      return StreamingQuality.high;
+    }
+    final uri = Uri.tryParse(url);
+    final qualityParam = uri?.queryParameters['quality'];
+    return StreamingQuality.fromString(qualityParam);
   }
 
   /// Check if download can be retried

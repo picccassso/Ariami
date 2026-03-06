@@ -90,7 +90,7 @@ class _PlaylistListItemState extends State<PlaylistListItem> {
                       borderRadius: BorderRadius.circular(12),
                       child: _buildPlaylistArt(),
                     ),
-                    
+
                     // Download Indicator
                     if (widget.hasDownloadedSongs)
                       Positioned(
@@ -101,7 +101,10 @@ class _PlaylistListItemState extends State<PlaylistListItem> {
                           decoration: BoxDecoration(
                             color: Colors.green,
                             shape: BoxShape.circle,
-                            border: Border.all(color: Theme.of(context).scaffoldBackgroundColor, width: 2),
+                            border: Border.all(
+                                color:
+                                    Theme.of(context).scaffoldBackgroundColor,
+                                width: 2),
                           ),
                           child: const Icon(
                             Icons.download_done,
@@ -113,9 +116,9 @@ class _PlaylistListItemState extends State<PlaylistListItem> {
                   ],
                 ),
               ),
-              
+
               const SizedBox(width: 16),
-              
+
               // Text Details
               Expanded(
                 child: Column(
@@ -135,10 +138,13 @@ class _PlaylistListItemState extends State<PlaylistListItem> {
                         Expanded(
                           child: Text(
                             widget.playlist.name,
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 16,
-                            ),
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 16,
+                                ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -149,9 +155,12 @@ class _PlaylistListItemState extends State<PlaylistListItem> {
                     Text(
                       '${widget.playlist.songCount} songs',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontSize: 14,
-                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-                      ),
+                            fontSize: 14,
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurface
+                                .withValues(alpha: 0.6),
+                          ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -161,7 +170,10 @@ class _PlaylistListItemState extends State<PlaylistListItem> {
 
               Icon(
                 Icons.chevron_right_rounded,
-                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
+                color: Theme.of(context)
+                    .colorScheme
+                    .onSurface
+                    .withValues(alpha: 0.3),
               ),
             ],
           ),
@@ -193,8 +205,14 @@ class _PlaylistListItemState extends State<PlaylistListItem> {
     } else if (widget.albumIds.length == 2 || widget.albumIds.length == 3) {
       return Row(
         children: [
-          Expanded(child: AspectRatio(aspectRatio: 1, child: _buildArtworkImage(widget.albumIds[0]))),
-          Expanded(child: AspectRatio(aspectRatio: 1, child: _buildArtworkImage(widget.albumIds[1]))),
+          Expanded(
+              child: AspectRatio(
+                  aspectRatio: 1,
+                  child: _buildArtworkImage(widget.albumIds[0]))),
+          Expanded(
+              child: AspectRatio(
+                  aspectRatio: 1,
+                  child: _buildArtworkImage(widget.albumIds[1]))),
         ],
       );
     } else {
@@ -203,16 +221,28 @@ class _PlaylistListItemState extends State<PlaylistListItem> {
           Expanded(
             child: Row(
               children: [
-                Expanded(child: AspectRatio(aspectRatio: 1, child: _buildArtworkImage(widget.albumIds[0]))),
-                Expanded(child: AspectRatio(aspectRatio: 1, child: _buildArtworkImage(widget.albumIds[1]))),
+                Expanded(
+                    child: AspectRatio(
+                        aspectRatio: 1,
+                        child: _buildArtworkImage(widget.albumIds[0]))),
+                Expanded(
+                    child: AspectRatio(
+                        aspectRatio: 1,
+                        child: _buildArtworkImage(widget.albumIds[1]))),
               ],
             ),
           ),
           Expanded(
             child: Row(
               children: [
-                Expanded(child: AspectRatio(aspectRatio: 1, child: _buildArtworkImage(widget.albumIds[2]))),
-                Expanded(child: AspectRatio(aspectRatio: 1, child: _buildArtworkImage(widget.albumIds[3]))),
+                Expanded(
+                    child: AspectRatio(
+                        aspectRatio: 1,
+                        child: _buildArtworkImage(widget.albumIds[2]))),
+                Expanded(
+                    child: AspectRatio(
+                        aspectRatio: 1,
+                        child: _buildArtworkImage(widget.albumIds[3]))),
               ],
             ),
           ),
@@ -222,25 +252,74 @@ class _PlaylistListItemState extends State<PlaylistListItem> {
   }
 
   Widget _buildArtworkImage(String artworkId) {
-    final connectionService = ConnectionService();
-    String? artworkUrl;
-    if (artworkId.startsWith('song_')) {
-      final songId = artworkId.substring(5);
-      artworkUrl = connectionService.apiClient != null
-          ? '${connectionService.apiClient!.baseUrl}/song-artwork/$songId'
-          : null;
-    } else {
-      artworkUrl = connectionService.apiClient != null
-          ? '${connectionService.apiClient!.baseUrl}/artwork/$artworkId'
-          : null;
+    final request = _parseArtworkRequest(artworkId);
+
+    Widget fallbackWidget = _buildFallbackArt();
+    if (request.fallbackCacheKey != null && request.fallbackUrl != null) {
+      fallbackWidget = CachedArtwork(
+        albumId: request.fallbackCacheKey!,
+        artworkUrl: request.fallbackUrl,
+        fit: BoxFit.cover,
+        fallback: _buildFallbackArt(),
+        sizeHint: ArtworkSizeHint.thumbnail,
+      );
     }
 
     return CachedArtwork(
-      albumId: artworkId,
-      artworkUrl: artworkUrl,
+      albumId: request.primaryCacheKey,
+      artworkUrl: request.primaryUrl,
       fit: BoxFit.cover,
-      fallback: _buildFallbackArt(),
+      fallback: fallbackWidget,
       sizeHint: ArtworkSizeHint.thumbnail,
+    );
+  }
+
+  _PlaylistArtworkRequest _parseArtworkRequest(String artworkId) {
+    final apiClient = ConnectionService().apiClient;
+
+    String? albumUrl(String albumId) =>
+        apiClient != null ? '${apiClient.baseUrl}/artwork/$albumId' : null;
+    String? songUrl(String songId) =>
+        apiClient != null ? '${apiClient.baseUrl}/song-artwork/$songId' : null;
+
+    if (artworkId.startsWith('a:')) {
+      final splitIndex = artworkId.indexOf('|s:');
+      final albumId = splitIndex == -1
+          ? artworkId.substring(2)
+          : artworkId.substring(2, splitIndex);
+      final songId =
+          splitIndex == -1 ? null : artworkId.substring(splitIndex + 3);
+
+      return _PlaylistArtworkRequest(
+        primaryCacheKey: albumId,
+        primaryUrl: albumUrl(albumId),
+        fallbackCacheKey:
+            (songId == null || songId.isEmpty) ? null : 'song_$songId',
+        fallbackUrl:
+            (songId == null || songId.isEmpty) ? null : songUrl(songId),
+      );
+    }
+
+    if (artworkId.startsWith('s:')) {
+      final songId = artworkId.substring(2);
+      return _PlaylistArtworkRequest(
+        primaryCacheKey: 'song_$songId',
+        primaryUrl: songUrl(songId),
+      );
+    }
+
+    // Backward compatibility with legacy artwork IDs.
+    if (artworkId.startsWith('song_')) {
+      final songId = artworkId.substring(5);
+      return _PlaylistArtworkRequest(
+        primaryCacheKey: artworkId,
+        primaryUrl: songUrl(songId),
+      );
+    }
+
+    return _PlaylistArtworkRequest(
+      primaryCacheKey: artworkId,
+      primaryUrl: albumUrl(artworkId),
     );
   }
 
@@ -259,7 +338,8 @@ class _PlaylistListItemState extends State<PlaylistListItem> {
             ],
           ),
         ),
-        child: const Icon(Icons.favorite_rounded, size: 24, color: Colors.white),
+        child:
+            const Icon(Icons.favorite_rounded, size: 24, color: Colors.white),
       );
     }
 
@@ -282,7 +362,22 @@ class _PlaylistListItemState extends State<PlaylistListItem> {
           colors: gradients[colorIndex],
         ),
       ),
-      child: const Icon(Icons.queue_music_rounded, size: 24, color: Colors.white),
+      child:
+          const Icon(Icons.queue_music_rounded, size: 24, color: Colors.white),
     );
   }
+}
+
+class _PlaylistArtworkRequest {
+  const _PlaylistArtworkRequest({
+    required this.primaryCacheKey,
+    required this.primaryUrl,
+    this.fallbackCacheKey,
+    this.fallbackUrl,
+  });
+
+  final String primaryCacheKey;
+  final String? primaryUrl;
+  final String? fallbackCacheKey;
+  final String? fallbackUrl;
 }

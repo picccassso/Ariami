@@ -1,6 +1,6 @@
 name: ariami_core
 description: Shared core library for Ariami - platform-agnostic services and models
-version: 2.1.0
+version: 2.0.0
 publish_to: 'none'
 
 environment:
@@ -21,8 +21,14 @@ dependencies:
   watcher: ^1.1.0
   path: ^1.8.0
 
+  # Password hashing (pure Dart, for multi-user auth)
+  bcrypt: ^1.1.3
+
   # Logging
   logging: ^1.2.0
+
+  # Catalog persistence (pure Dart SQLite runtime)
+  sqlite3: ^2.4.0
 
 dev_dependencies:
   lints: ^5.0.0

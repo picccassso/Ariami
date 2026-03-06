@@ -3,6 +3,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'package:ariami_core/ariami_core.dart';
+import 'dart:io';
 import '../services/desktop_tailscale_service.dart';
 import '../services/desktop_state_service.dart';
 import 'scanning_screen.dart';
@@ -88,6 +89,23 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
         });
         return;
       }
+
+      // Initialize auth services before starting server
+      await _stateService.ensureAuthConfigDir();
+      final usersFilePath = await _stateService.getUsersFilePath();
+      final sessionsFilePath = await _stateService.getSessionsFilePath();
+      await _httpServer.initializeAuth(
+        usersFilePath: usersFilePath,
+        sessionsFilePath: sessionsFilePath,
+      );
+
+      // Desktop-optimized download limits
+      _httpServer.setDownloadLimits(
+        maxConcurrent: Platform.isMacOS ? 30 : 10,
+        maxQueue: Platform.isMacOS ? 400 : 120,
+        maxConcurrentPerUser: Platform.isMacOS ? 10 : 3,
+        maxQueuePerUser: Platform.isMacOS ? 200 : 50,
+      );
 
       // Start HTTP server (singleton will prevent double-start)
       await _httpServer.start(advertisedIp: ip, port: 8080);
@@ -238,6 +256,30 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
                                     fontWeight: FontWeight.bold,
                                     color: Colors.white,
                                     letterSpacing: -0.5,
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: _httpServer.authRequired
+                                        ? Colors.orange.withOpacity(0.2)
+                                        : Colors.green.withOpacity(0.2),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: _httpServer.authRequired
+                                          ? Colors.orange.withOpacity(0.5)
+                                          : Colors.green.withOpacity(0.5),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    _httpServer.authRequired ? 'AUTH REQUIRED' : 'OPEN ACCESS',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      color: _httpServer.authRequired ? Colors.orange : Colors.green,
+                                      letterSpacing: 0.5,
+                                    ),
                                   ),
                                 ),
                               ],

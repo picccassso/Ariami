@@ -5,6 +5,8 @@ import FlutterMacOS
 class AppDelegate: FlutterAppDelegate {
   // Activity token to prevent App Nap when server is running
   private var backgroundActivity: NSObjectProtocol?
+  private var dockChannel: FlutterMethodChannel?
+  private var isTerminating = false
 
   override func applicationDidFinishLaunching(_ notification: Notification) {
     // CRITICAL: Ignore SIGPIPE to prevent crashes when launched from Finder
@@ -18,6 +20,7 @@ class AppDelegate: FlutterAppDelegate {
         name: "ariami_desktop/dock",
         binaryMessenger: controller.engine.binaryMessenger
       )
+      dockChannel = channel
 
       channel.setMethodCallHandler { [weak self] (call, result) in
         switch call.method {
@@ -34,11 +37,33 @@ class AppDelegate: FlutterAppDelegate {
         case "allowAppNap":
           self?.allowAppNap()
           result(nil)
+        case "terminateApp":
+          self?.isTerminating = true
+          NSApp.terminate(nil)
+          result(nil)
         default:
           result(FlutterMethodNotImplemented)
         }
       }
     }
+  }
+
+  override func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+    if isTerminating {
+      return .terminateNow
+    }
+
+    isTerminating = true
+
+    if let channel = dockChannel {
+      channel.invokeMethod("requestTerminate", arguments: nil)
+      DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+        NSApp.terminate(nil)
+      }
+      return .terminateCancel
+    }
+
+    return .terminateNow
   }
 
   /// Prevent macOS from putting the app into App Nap mode

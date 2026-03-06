@@ -82,15 +82,8 @@ class _SearchScreenState extends State<SearchScreen> {
         _errorMessage = null;
         _isOffline = true;
       });
-      
+
       await _loadDownloadedSongs();
-      return;
-    }
-    
-    if (_connectionService.apiClient == null) {
-      setState(() {
-        _errorMessage = 'Not connected to server';
-      });
       return;
     }
 
@@ -100,26 +93,55 @@ class _SearchScreenState extends State<SearchScreen> {
         _errorMessage = null;
       });
 
-      final library = await _connectionService.apiClient!.getLibrary();
-
-      // Collect all songs: standalone songs + songs from albums
-      final allSongs = <SongModel>[...library.songs];
-
-      // Fetch songs from each album for comprehensive search
-      for (final album in library.albums) {
-        try {
-          final albumDetail = await _connectionService.apiClient!
-              .getAlbumDetail(album.id);
-          allSongs.addAll(albumDetail.songs);
-        } catch (e) {
-          // If fetching album detail fails, skip it
-          print('[SearchScreen] Failed to load album ${album.id}: $e');
+      final library =
+          await _connectionService.libraryReadFacade.getLibraryBundle();
+      final albums = library.albums;
+      final allSongs = List<SongModel>.from(library.songs);
+      final songsByAlbumId = <String, List<SongModel>>{};
+      for (final song in allSongs) {
+        final albumId = song.albumId;
+        if (albumId == null) {
+          continue;
         }
+        songsByAlbumId.putIfAbsent(albumId, () => <SongModel>[]).add(song);
+      }
+
+      // If local album-song rows are missing, fall back to album detail endpoint.
+      // This preserves behavior during partial sync states.
+      final apiClient = _connectionService.apiClient;
+      if (apiClient != null) {
+        final existingSongIds = allSongs.map((song) => song.id).toSet();
+        for (final album in albums) {
+          final localAlbumSongs =
+              songsByAlbumId[album.id] ?? const <SongModel>[];
+          if (album.songCount > 0 && localAlbumSongs.isEmpty) {
+            try {
+              final albumDetail = await apiClient.getAlbumDetail(album.id);
+              for (final song in albumDetail.songs) {
+                if (existingSongIds.add(song.id)) {
+                  allSongs.add(song);
+                }
+              }
+            } catch (e) {
+              print('[SearchScreen] Failed to load album ${album.id}: $e');
+            }
+          }
+        }
+      }
+
+      if (albums.isEmpty &&
+          allSongs.isEmpty &&
+          _connectionService.apiClient == null) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'Not connected to server';
+        });
+        return;
       }
 
       setState(() {
         _allSongs = allSongs;
-        _allAlbums = library.albums;
+        _allAlbums = albums;
         _isLoading = false;
       });
     } catch (e) {
@@ -138,14 +160,16 @@ class _SearchScreenState extends State<SearchScreen> {
         .toList();
 
     // Convert DownloadTask to SongModel
-    final songs = downloadedTasks.map((task) => SongModel(
-      id: task.songId,
-      title: task.title,
-      artist: task.artist,
-      albumId: task.albumId,
-      duration: task.duration,
-      trackNumber: task.trackNumber,
-    )).toList();
+    final songs = downloadedTasks
+        .map((task) => SongModel(
+              id: task.songId,
+              title: task.title,
+              artist: task.artist,
+              albumId: task.albumId,
+              duration: task.duration,
+              trackNumber: task.trackNumber,
+            ))
+        .toList();
 
     // Group songs by album to create AlbumModel entries
     final albumMap = <String, List<DownloadTask>>{};
@@ -159,8 +183,9 @@ class _SearchScreenState extends State<SearchScreen> {
     final albums = albumMap.entries.map((entry) {
       final albumTasks = entry.value;
       final firstTask = albumTasks.first;
-      final totalDuration = albumTasks.fold<int>(0, (sum, t) => sum + t.duration);
-      
+      final totalDuration =
+          albumTasks.fold<int>(0, (sum, t) => sum + t.duration);
+
       return AlbumModel(
         id: entry.key,
         title: firstTask.albumName!,
@@ -270,14 +295,20 @@ class _SearchScreenState extends State<SearchScreen> {
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
               child: Row(
                 children: [
-                   Expanded(
+                  Expanded(
                     child: Container(
                       height: 50,
                       decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.5),
+                        color: Theme.of(context)
+                            .colorScheme
+                            .surfaceContainerHighest
+                            .withOpacity(0.5),
                         borderRadius: BorderRadius.circular(25),
                         border: Border.all(
-                          color: Theme.of(context).colorScheme.outline.withOpacity(0.1),
+                          color: Theme.of(context)
+                              .colorScheme
+                              .outline
+                              .withOpacity(0.1),
                         ),
                       ),
                       child: TextField(
@@ -285,25 +316,32 @@ class _SearchScreenState extends State<SearchScreen> {
                         autofocus: false,
                         style: const TextStyle(fontSize: 16),
                         decoration: InputDecoration(
-                          hintText: _isOffline 
-                              ? 'Search downloaded music...' 
+                          hintText: _isOffline
+                              ? 'Search downloaded music...'
                               : 'Search songs, albums & artists',
                           hintStyle: TextStyle(
-                            color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.7),
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurfaceVariant
+                                .withOpacity(0.7),
                           ),
                           prefixIcon: Icon(
                             Icons.search_rounded,
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
                           ),
                           suffixIcon: _searchController.text.isNotEmpty
                               ? IconButton(
                                   icon: const Icon(Icons.clear_rounded),
                                   onPressed: _clearSearch,
-                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant,
                                 )
                               : null,
                           border: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 20, vertical: 12),
                         ),
                       ),
                     ),
@@ -330,7 +368,7 @@ class _SearchScreenState extends State<SearchScreen> {
                 ],
               ),
             ),
-            
+
             // Main Content
             Expanded(
               child: _buildBody(),
@@ -376,7 +414,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
     return ListView(
       padding: EdgeInsets.only(
-            bottom: getMiniPlayerAwareBottomPadding(),
+        bottom: getMiniPlayerAwareBottomPadding(context),
       ),
       children: [
         // Songs Section
@@ -420,7 +458,8 @@ class _SearchScreenState extends State<SearchScreen> {
                 albumArtist: albumArtist,
                 isDownloaded: _downloadedSongIds.contains(song.id),
                 isCached: false,
-                isAvailable: !_isOffline || _downloadedSongIds.contains(song.id),
+                isAvailable:
+                    !_isOffline || _downloadedSongIds.contains(song.id),
               );
             },
           ),
@@ -473,7 +512,10 @@ class _SearchScreenState extends State<SearchScreen> {
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.9),
+                  color: Theme.of(context)
+                      .colorScheme
+                      .onSurface
+                      .withValues(alpha: 0.9),
                 ),
               ),
               TextButton(
@@ -486,7 +528,7 @@ class _SearchScreenState extends State<SearchScreen> {
         Expanded(
           child: ListView.builder(
             padding: EdgeInsets.only(
-              bottom: getMiniPlayerAwareBottomPadding(),
+              bottom: getMiniPlayerAwareBottomPadding(context),
             ),
             itemCount: _recentSongs.length,
             itemBuilder: (context, index) {
@@ -497,7 +539,8 @@ class _SearchScreenState extends State<SearchScreen> {
                 onTap: () => _playRecentSong(song),
                 isDownloaded: _downloadedSongIds.contains(song.id),
                 isCached: false,
-                isAvailable: !_isOffline || _downloadedSongIds.contains(song.id),
+                isAvailable:
+                    !_isOffline || _downloadedSongIds.contains(song.id),
               );
             },
           ),
@@ -528,9 +571,9 @@ class _SearchScreenState extends State<SearchScreen> {
           Text(
             'Discover Music',
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: Theme.of(context).colorScheme.onSurface,
-            ),
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
           ),
           const SizedBox(height: 12),
           Padding(
@@ -538,8 +581,8 @@ class _SearchScreenState extends State<SearchScreen> {
             child: Text(
               'Search for your favorite songs, albums, and artists to start listening.',
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
               textAlign: TextAlign.center,
             ),
           ),
@@ -570,9 +613,9 @@ class _SearchScreenState extends State<SearchScreen> {
           Text(
             'No Results Found',
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: Theme.of(context).colorScheme.onSurface,
-            ),
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
           ),
           const SizedBox(height: 12),
           Padding(
@@ -580,8 +623,8 @@ class _SearchScreenState extends State<SearchScreen> {
             child: Text(
               'We couldn\'t find any matches for "${_searchController.text}".\nTry checking the spelling or use different keywords.',
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
               textAlign: TextAlign.center,
             ),
           ),
@@ -596,7 +639,7 @@ class _SearchScreenState extends State<SearchScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-           Container(
+          Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
               color: Theme.of(context).colorScheme.secondary.withOpacity(0.1),
@@ -612,9 +655,9 @@ class _SearchScreenState extends State<SearchScreen> {
           Text(
             'No Downloads',
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: Theme.of(context).colorScheme.onSurface,
-            ),
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
           ),
           const SizedBox(height: 12),
           Padding(
@@ -622,8 +665,8 @@ class _SearchScreenState extends State<SearchScreen> {
             child: Text(
               'You haven\'t downloaded any music yet.\nConnect to the internet to download songs for offline playback.',
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
               textAlign: TextAlign.center,
             ),
           ),
@@ -631,7 +674,6 @@ class _SearchScreenState extends State<SearchScreen> {
       ),
     );
   }
-
 
   /// Attempt to reconnect and reload library
   Future<void> _retryConnection() async {
@@ -672,7 +714,8 @@ class _SearchScreenState extends State<SearchScreen> {
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 24),
-          ElevatedButton(onPressed: _retryConnection, child: const Text('Retry')),
+          ElevatedButton(
+              onPressed: _retryConnection, child: const Text('Retry')),
         ],
       ),
     );
