@@ -51,7 +51,7 @@ class LibraryReadFacade {
 
   static const bool _useV2SyncStoreByDefault = bool.fromEnvironment(
     'ARIAMI_USE_V2_SYNC_STORE',
-    defaultValue: false,
+    defaultValue: true,
   );
 
   final ApiClient? Function() _apiClientProvider;
