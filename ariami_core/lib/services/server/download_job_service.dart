@@ -44,7 +44,7 @@ class DownloadJobService {
   static const int defaultPageLimit = 100;
   static const int maxPageLimit = 500;
   static const int _defaultMaxActiveJobsPerUser = 8;
-  static const int _defaultMaxQueuedItemsPerUser = 2000;
+  static const int _defaultMaxQueuedItemsPerUser = 10000;
   static const int _quotaRetryAfterSeconds = 5;
   static const Set<String> _supportedQualities = <String>{
     'high',

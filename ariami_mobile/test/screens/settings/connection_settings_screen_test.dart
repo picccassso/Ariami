@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:ariami_mobile/models/api_models.dart';
 import 'package:ariami_mobile/screens/settings/connection_settings_screen.dart';
 import 'package:ariami_mobile/services/api/connection_service.dart';
@@ -235,5 +237,44 @@ void main() {
       find.text('Session expired. Please log in again.'),
       findsOneWidget,
     );
+  });
+
+  testWidgets('connection settings shows active LAN and Tailscale route info',
+      (tester) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{
+      'server_info': jsonEncode(<String, Object?>{
+        'server': '192.168.68.64',
+        'lanServer': '192.168.68.64',
+        'tailscaleServer': '100.101.102.103',
+        'port': 8080,
+        'name': 'Alexs-MacBook-Pro.local',
+        'version': '1.0.0',
+        'authRequired': false,
+        'legacyMode': false,
+        'downloadLimits': <String, int>{
+          'maxConcurrent': 4,
+          'maxQueue': 10000,
+          'maxConcurrentPerUser': 2,
+          'maxQueuePerUser': 10000,
+        },
+      }),
+    });
+
+    await ConnectionService().loadServerInfoFromStorage();
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: ConnectionSettingsScreen(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Route'), findsOneWidget);
+    expect(find.text('Local Network'), findsOneWidget);
+    expect(find.text('Active Address'), findsOneWidget);
+    expect(find.text('192.168.68.64'), findsWidgets);
+    expect(find.text('LAN Address'), findsOneWidget);
+    expect(find.text('Tailscale Address'), findsOneWidget);
+    expect(find.text('100.101.102.103'), findsOneWidget);
   });
 }

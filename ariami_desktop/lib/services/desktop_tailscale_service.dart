@@ -67,6 +67,28 @@ class DesktopTailscaleService {
     return null;
   }
 
+  /// Get a LAN IPv4 address from the current machine.
+  Future<String?> getLanIp() async {
+    try {
+      final interfaces = await NetworkInterface.list(
+        type: InternetAddressType.IPv4,
+        includeLinkLocal: false,
+      );
+
+      for (final interface in interfaces) {
+        for (final addr in interface.addresses) {
+          final ip = addr.address;
+          if (_isLanIp(ip)) {
+            return ip;
+          }
+        }
+      }
+    } catch (e) {
+      // Network interface listing failed
+    }
+    return null;
+  }
+
   /// Check if IP is in Tailscale's CGNAT range (100.64.0.0/10)
   /// Range: 100.64.0.0 - 100.127.255.255
   bool _isTailscaleCgnatIp(String ip) {
@@ -80,6 +102,23 @@ class DesktopTailscaleService {
 
     // CGNAT range: 100.64.0.0/10 means second octet is 64-127
     return secondOctet >= 64 && secondOctet <= 127;
+  }
+
+  bool _isLanIp(String ip) {
+    if (ip.startsWith('127.')) return false;
+    if (_isTailscaleCgnatIp(ip)) return false;
+
+    final parts = ip.split('.');
+    if (parts.length != 4) return false;
+
+    final first = int.tryParse(parts[0]);
+    final second = int.tryParse(parts[1]);
+    if (first == null || second == null) return false;
+
+    if (first == 10) return true;
+    if (first == 192 && second == 168) return true;
+    if (first == 172 && second >= 16 && second <= 31) return true;
+    return false;
   }
 
   /// Check if Tailscale is installed

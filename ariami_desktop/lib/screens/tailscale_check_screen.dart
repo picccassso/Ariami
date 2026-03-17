@@ -77,10 +77,12 @@ class _TailscaleCheckScreenState extends State<TailscaleCheckScreen> {
 
       if (tailscalePath != null && tailscalePath.isNotEmpty) {
         _isInstalled = true;
-        _statusMessage = 'Tailscale is installed!\n\nPlease ensure Tailscale is running before continuing.';
+        _statusMessage =
+            'Tailscale is installed.\n\nYou can continue with local setup now, and remote access will work once Tailscale is connected.';
       } else {
         _isInstalled = false;
-        _statusMessage = 'Tailscale is not installed.\nPlease install Tailscale from tailscale.com';
+        _statusMessage =
+            'Tailscale is not installed.\nYou can continue with local setup now and install Tailscale later for remote access.';
       }
     } catch (e) {
       _statusMessage = 'Error checking Tailscale: $e';
@@ -136,8 +138,8 @@ class _TailscaleCheckScreenState extends State<TailscaleCheckScreen> {
               ),
               const SizedBox(height: 16),
               Text(
-                _statusMessage.replaceAll(
-                    'Tailscale is installed!\n\n', ''), // Clean up redundant text
+                _statusMessage.replaceAll('Tailscale is installed!\n\n',
+                    ''), // Clean up redundant text
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   fontSize: 16,
@@ -164,26 +166,28 @@ class _TailscaleCheckScreenState extends State<TailscaleCheckScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                if (_isInstalled)
-                  OutlinedButton(
-                    onPressed: () {
-                      Navigator.pushReplacementNamed(
-                          context, '/folder-selection');
-                    },
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.white,
-                      side: const BorderSide(color: Color(0xFF333333)),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 48,
-                        vertical: 20,
-                      ),
-                      shape: const StadiumBorder(),
+                OutlinedButton(
+                  onPressed: () {
+                    Navigator.pushReplacementNamed(
+                        context, '/folder-selection');
+                  },
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    side: const BorderSide(color: Color(0xFF333333)),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 48,
+                      vertical: 20,
                     ),
-                    child: const Text(
-                      'Continue',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    shape: const StadiumBorder(),
+                  ),
+                  child: Text(
+                    _isInstalled ? 'Continue' : 'Continue with Local Setup',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
+                ),
               ],
             ],
           ),
