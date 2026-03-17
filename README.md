@@ -10,7 +10,7 @@ Ariami is a self-hosted server and music player.
 ## Quick Start
 
 1. **Download the server app** from [releases](https://github.com/picccassso/Ariami/releases) for your platform (macOS, Windows, Linux)
-2. **Download the mobile app** from [releases](https://github.com/picccassso/Ariami/releases) (Android APK / iOS)
+2. **Download the mobile app** from [releases](https://github.com/picccassso/Ariami/releases) (Android APK) For iOS, you will have to build it and run it yourself.
 3. **Download and install Tailscale on both devices** from (https://tailscale.com/download)
 4. **Run the server and select music folder.**
 5. **Scan the QR code** with the mobile app and you're good to go.
@@ -39,7 +39,7 @@ chmod +x ariami_cli
 ## Why use Ariami?
 
 Ariami is a very easy way to get into self-hosting. You do not need to setup port forwarding or pay for any subscription. It is very easy to setup.
-It is cross-platform so you can run this on your Mac/Windows/Linux machine, and is packaged for Raspberry Pis as well. Also works on Android/iOS. (iOS is untested).
+It is cross-platform so you can run this on your Mac/Windows/Linux machine, and is packaged for Raspberry Pis as well. Also works on Android/iOS.
 
 ## Features of Ariami:
 
