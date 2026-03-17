@@ -1327,13 +1327,22 @@ class _LibraryScreenState extends State<LibraryScreen> {
                     children: [
                       Icon(Icons.cloud_download, color: Colors.blue[700]),
                       const SizedBox(width: 8),
-                      const Text(
-                        'Import from Server',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
+                      const Expanded(
+                        child: Text(
+                          'Import from Server',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
+                      if (visiblePlaylists.isNotEmpty)
+                        TextButton.icon(
+                          onPressed: () =>
+                              _importAllServerPlaylists(visiblePlaylists),
+                          icon: const Icon(Icons.download, size: 18),
+                          label: const Text('Import All'),
+                        ),
                     ],
                   ),
                 ),
@@ -1446,6 +1455,41 @@ class _LibraryScreenState extends State<LibraryScreen> {
             ),
           ),
         );
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context); // Close loading
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to import: $e')),
+        );
+      }
+    }
+  }
+
+  /// Import all server playlists as local playlists
+  Future<void> _importAllServerPlaylists(
+      List<ServerPlaylist> serverPlaylists) async {
+    Navigator.pop(context); // Close bottom sheet
+
+    // Show loading indicator
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      // Get all songs to match IDs with metadata
+      final allSongs = _songs;
+
+      await _playlistService.importAllServerPlaylists(
+        serverPlaylists,
+        allSongs: allSongs,
+      );
+
+      if (mounted) {
+        Navigator.of(context, rootNavigator: true)
+            .pop(); // Close loading dialog
       }
     } catch (e) {
       if (mounted) {
