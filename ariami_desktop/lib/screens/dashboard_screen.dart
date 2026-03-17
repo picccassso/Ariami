@@ -181,14 +181,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   /// Automatically start server on app launch
   Future<void> _autoStartServer() async {
-    final ip = await _tailscaleService.getTailscaleIp();
-    if (ip == null) {
-      print('[Dashboard] Auto-start skipped: Tailscale not connected');
+    final tailscaleIp = await _tailscaleService.getTailscaleIp();
+    final lanIp = await _tailscaleService.getLanIp();
+    final advertisedIp = tailscaleIp ?? lanIp;
+
+    if (advertisedIp == null) {
+      print('[Dashboard] Auto-start skipped: no network address available');
       return;
     }
 
     try {
-      print('[Dashboard] Auto-starting server on $ip:8080');
+      print('[Dashboard] Auto-starting server on $advertisedIp:8080');
       await _initializeAuthIfNeeded();
       _httpServer.setDownloadLimits(
         maxConcurrent: Platform.isMacOS ? 30 : 10,
@@ -196,7 +199,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
         maxConcurrentPerUser: Platform.isMacOS ? 10 : 3,
         maxQueuePerUser: Platform.isMacOS ? 200 : 50,
       );
-      await _httpServer.start(advertisedIp: ip, port: 8080);
+      await _httpServer.start(
+        advertisedIp: advertisedIp,
+        tailscaleIp: tailscaleIp,
+        lanIp: lanIp,
+        port: 8080,
+      );
 
       // Prevent App Nap on macOS to keep server responsive when minimized
       if (Platform.isMacOS) {
@@ -948,12 +956,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }
     } else {
       // Start server
-      final ip = await _tailscaleService.getTailscaleIp();
-      if (ip == null) {
+      final tailscaleIp = await _tailscaleService.getTailscaleIp();
+      final lanIp = await _tailscaleService.getLanIp();
+      final advertisedIp = tailscaleIp ?? lanIp;
+      if (advertisedIp == null) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Cannot start server: Tailscale not connected'),
+              content:
+                  Text('Cannot start server: no network address available'),
               duration: Duration(seconds: 3),
               // backgroundColor: Colors.red, // Let theme handle it
             ),
@@ -971,7 +982,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
           maxConcurrentPerUser: Platform.isMacOS ? 10 : 3,
           maxQueuePerUser: Platform.isMacOS ? 200 : 50,
         );
-        await _httpServer.start(advertisedIp: ip, port: 8080);
+        await _httpServer.start(
+          advertisedIp: advertisedIp,
+          tailscaleIp: tailscaleIp,
+          lanIp: lanIp,
+          port: 8080,
+        );
 
         // Debug: Check music folder path
         print('[Dashboard] Music folder path: "$_musicFolderPath"');

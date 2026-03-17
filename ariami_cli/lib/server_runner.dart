@@ -104,8 +104,11 @@ class ServerRunner {
       final storageType = isPi
           ? await _detectStorageType(musicPathForLimits)
           : _StorageType.unknown;
-      final limits =
-          _selectDownloadLimits(isPi: isPi, storageType: storageType);
+      final limits = _selectDownloadLimits(
+        isPi: isPi,
+        isPi5: isPi5,
+        storageType: storageType,
+      );
       _httpServer.setDownloadLimits(
         maxConcurrent: limits.maxConcurrent,
         maxQueue: limits.maxQueue,
@@ -570,6 +573,7 @@ class ServerRunner {
 
   _DownloadLimits _selectDownloadLimits({
     required bool isPi,
+    required bool isPi5,
     required _StorageType storageType,
   }) {
     if (!isPi && Platform.isMacOS) {
@@ -594,8 +598,17 @@ class ServerRunner {
       return const _DownloadLimits(
         maxConcurrent: 6,
         maxQueue: 80,
-        maxConcurrentPerUser: 2,
+        maxConcurrentPerUser: 4,
         maxQueuePerUser: 30,
+      );
+    }
+
+    if (isPi5) {
+      return const _DownloadLimits(
+        maxConcurrent: 4,
+        maxQueue: 50,
+        maxConcurrentPerUser: 4,
+        maxQueuePerUser: 20,
       );
     }
 

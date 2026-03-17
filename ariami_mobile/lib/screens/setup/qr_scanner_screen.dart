@@ -94,7 +94,8 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
       if (e.toString().contains('Invalid QR code format')) {
         errorMessage = 'Invalid QR code. Please scan an Ariami QR code.';
       } else if (e.toString().contains('Cannot reach server')) {
-        errorMessage = 'Cannot reach server. Check your Tailscale connection.';
+        errorMessage =
+            "Cannot reach server. Make sure you're on the same Wi-Fi network, or that Tailscale is connected for remote access.";
       } else if (e.toString().contains('Connection failed')) {
         errorMessage = 'Connection failed. Please try again.';
       } else {
@@ -219,7 +220,8 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
                           height: 20,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            valueColor:
+                                AlwaysStoppedAnimation<Color>(Colors.white),
                           ),
                         ),
                         SizedBox(width: 12),

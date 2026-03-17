@@ -21,6 +21,7 @@ class _DownloadProgressBarState extends State<DownloadProgressBar>
   bool _isVisible = false;
   bool _showError = false;
   String? _currentTaskId;
+  DateTime _lastProgressUpdate = DateTime.fromMillisecondsSinceEpoch(0);
 
   late AnimationController _errorFlashController;
   late Animation<Color?> _errorColorAnimation;
@@ -51,7 +52,15 @@ class _DownloadProgressBarState extends State<DownloadProgressBar>
 
     // Listen to progress updates
     _progressSubscription = _downloadManager.progressStream.listen((progress) {
+      final now = DateTime.now();
+      final shouldRefresh = progress.progress >= 1.0 ||
+          now.difference(_lastProgressUpdate).inMilliseconds >= 100;
+      if (!shouldRefresh) {
+        return;
+      }
+
       setState(() {
+        _lastProgressUpdate = now;
         _currentTaskId = progress.taskId;
         _progress = progress.progress;
 
@@ -100,7 +109,8 @@ class _DownloadProgressBarState extends State<DownloadProgressBar>
           orElse: () => queue.first,
         );
 
-        if (currentTask.status.toString() == 'DownloadStatus.failed' && !_showError) {
+        if (currentTask.status.toString() == 'DownloadStatus.failed' &&
+            !_showError) {
           _triggerErrorFlash();
         }
       }

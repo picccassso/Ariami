@@ -14,6 +14,7 @@ import '../library/library_repository.dart';
 import '../offline/offline_playback_service.dart';
 import '../sync/library_sync_engine.dart';
 import 'api_client.dart';
+import 'endpoint_resolver.dart';
 import 'websocket_service.dart';
 
 /// Service for managing server connection and session
@@ -34,6 +35,7 @@ class ConnectionService {
       3; // Retry 3 times before going offline
 
   final WebSocketService _webSocketService = WebSocketService();
+  final EndpointResolver _endpointResolver = EndpointResolver();
   final LibraryRepository _libraryRepository = LibraryRepository();
   late final LibrarySyncEngine _librarySyncEngine = LibrarySyncEngine(
     apiClientProvider: _requireApiClient,
@@ -63,10 +65,14 @@ class ConnectionService {
   // Stream controller to broadcast connection state changes
   final StreamController<bool> _connectionStateController =
       StreamController<bool>.broadcast();
+  final StreamController<ServerInfo?> _serverInfoController =
+      StreamController<ServerInfo?>.broadcast();
 
   // Stream controller to broadcast session expiry events
   final StreamController<void> _sessionExpiredController =
       StreamController<void>.broadcast();
+  StreamSubscription<String>? _endpointSubscription;
+  bool _isSwitchingEndpoint = false;
 
   /// Check if connected to server
   bool get isConnected => _isConnected;
@@ -108,6 +114,9 @@ class ConnectionService {
   /// Stream of connection state changes (true = connected, false = disconnected)
   Stream<bool> get connectionStateStream => _connectionStateController.stream;
 
+  /// Stream of server info changes, including endpoint switches.
+  Stream<ServerInfo?> get serverInfoStream => _serverInfoController.stream;
+
   /// Stream that emits when session expires (401 from server)
   Stream<void> get sessionExpiredStream => _sessionExpiredController.stream;
 
@@ -131,6 +140,76 @@ class ConnectionService {
   /// Resolve the current device display name used for server connections.
   Future<String> getCurrentDeviceName() => _getDeviceName();
 
+  void _setServerInfo(ServerInfo? serverInfo) {
+    _serverInfo = serverInfo;
+    _serverInfoController.add(serverInfo);
+  }
+
+  Future<ServerInfo> _resolvePreferredServerInfo(ServerInfo serverInfo) async {
+    final primaryIp = serverInfo.tailscaleServer ?? serverInfo.server;
+    _endpointResolver.configure(
+      primaryIp: primaryIp,
+      lanIp: serverInfo.lanServer,
+      port: serverInfo.port,
+      activeIp: serverInfo.server,
+    );
+    final resolvedIp = await _endpointResolver.resolve();
+    if (resolvedIp == serverInfo.server) {
+      return serverInfo;
+    }
+    return serverInfo.withServer(resolvedIp);
+  }
+
+  void _configureEndpointMonitoring(ServerInfo serverInfo) {
+    final primaryIp = serverInfo.tailscaleServer ?? serverInfo.server;
+    _endpointSubscription?.cancel();
+    _endpointResolver.configure(
+      primaryIp: primaryIp,
+      lanIp: serverInfo.lanServer,
+      port: serverInfo.port,
+      activeIp: serverInfo.server,
+    );
+    _endpointSubscription = _endpointResolver.endpointChangedStream.listen(
+      (newIp) => unawaited(_handleEndpointSwitch(newIp)),
+    );
+    _endpointResolver.startMonitoring();
+  }
+
+  void _stopEndpointMonitoring() {
+    _endpointSubscription?.cancel();
+    _endpointSubscription = null;
+    _endpointResolver.stopMonitoring();
+  }
+
+  Future<ServerInfo> _hydrateServerInfoMetadata(ServerInfo serverInfo) async {
+    final apiClient = _apiClient;
+    if (apiClient == null) {
+      return serverInfo;
+    }
+
+    try {
+      final fetched = await apiClient.getServerInfo();
+      final merged = serverInfo.copyWith(
+        server: serverInfo.server,
+        lanServer: fetched.lanServer ?? serverInfo.lanServer,
+        tailscaleServer: fetched.tailscaleServer ?? serverInfo.tailscaleServer,
+        port: fetched.port,
+        name: fetched.name,
+        version: fetched.version,
+        authRequired: fetched.authRequired,
+        legacyMode: fetched.legacyMode,
+        downloadLimits: fetched.downloadLimits,
+      );
+      if (merged.toJson().toString() != serverInfo.toJson().toString()) {
+        _setServerInfo(merged);
+      }
+      return merged;
+    } catch (e) {
+      print('Failed to refresh server metadata: $e');
+      return serverInfo;
+    }
+  }
+
   // ============================================================================
   // AUTHENTICATION
   // ============================================================================
@@ -143,23 +222,24 @@ class ConnectionService {
   }) async {
     final deviceId = await _getDeviceId();
     final deviceName = await _getDeviceName();
+    final resolvedServerInfo = await _resolvePreferredServerInfo(serverInfo);
 
     // Create API client
     _apiClient = ApiClient(
-      serverInfo: serverInfo,
+      serverInfo: resolvedServerInfo,
       deviceId: deviceId,
       deviceName: deviceName,
       onSessionExpired: handleSessionExpired,
     );
-    _serverInfo = serverInfo;
-    _applyDownloadLimits(serverInfo);
+    _setServerInfo(resolvedServerInfo);
+    _applyDownloadLimits(resolvedServerInfo);
 
     // Test connection with ping
     try {
       await _apiClient!.ping();
     } catch (e) {
       _apiClient = null;
-      _serverInfo = null;
+      _setServerInfo(null);
       throw Exception('Cannot reach server: $e');
     }
 
@@ -192,12 +272,12 @@ class ConnectionService {
       _apiClient!.sessionToken = _sessionToken;
 
       // Now complete the connection with a valid session
-      await _completeAuthConnection(serverInfo, deviceId, deviceName);
+      await _completeAuthConnection(resolvedServerInfo, deviceId, deviceName);
 
       print('Registered and connected as: $_username');
     } catch (e) {
       _apiClient = null;
-      _serverInfo = null;
+      _setServerInfo(null);
       _sessionToken = null;
       _userId = null;
       _username = null;
@@ -213,23 +293,24 @@ class ConnectionService {
   }) async {
     final deviceId = await _getDeviceId();
     final deviceName = await _getDeviceName();
+    final resolvedServerInfo = await _resolvePreferredServerInfo(serverInfo);
 
     // Create API client
     _apiClient = ApiClient(
-      serverInfo: serverInfo,
+      serverInfo: resolvedServerInfo,
       deviceId: deviceId,
       deviceName: deviceName,
       onSessionExpired: handleSessionExpired,
     );
-    _serverInfo = serverInfo;
-    _applyDownloadLimits(serverInfo);
+    _setServerInfo(resolvedServerInfo);
+    _applyDownloadLimits(resolvedServerInfo);
 
     // Test connection with ping
     try {
       await _apiClient!.ping();
     } catch (e) {
       _apiClient = null;
-      _serverInfo = null;
+      _setServerInfo(null);
       throw Exception('Cannot reach server: $e');
     }
 
@@ -254,12 +335,12 @@ class ConnectionService {
       _apiClient!.sessionToken = _sessionToken;
 
       // Complete connection setup
-      await _completeAuthConnection(serverInfo, deviceId, deviceName);
+      await _completeAuthConnection(resolvedServerInfo, deviceId, deviceName);
 
       print('Logged in and connected as: $_username');
     } catch (e) {
       _apiClient = null;
-      _serverInfo = null;
+      _setServerInfo(null);
       _sessionToken = null;
       _userId = null;
       _username = null;
@@ -309,12 +390,14 @@ class ConnectionService {
     }
 
     // Disconnect without calling server (session is invalid anyway)
+    _stopEndpointMonitoring();
     _stopLibrarySyncEngine();
     _stopHeartbeat();
     _webSocketService.disconnect();
     _apiClient = null;
     _sessionId = null;
     _isConnected = false;
+    _setServerInfo(_serverInfo);
     _connectionStateController.add(false);
 
     // Emit session expired event for UI to handle navigation
@@ -342,6 +425,7 @@ class ConnectionService {
       deviceName: deviceName,
       serverInfo: serverInfo,
     );
+    final hydratedServerInfo = await _hydrateServerInfoMetadata(serverInfo);
     _sessionId = response.sessionId;
     _isConnected = true;
     _isManuallyDisconnected = false;
@@ -352,7 +436,7 @@ class ConnectionService {
     await OfflinePlaybackService().notifyConnectionRestored();
 
     // Save connection info
-    await _saveConnectionInfo(serverInfo, _sessionId!);
+    await _saveConnectionInfo(hydratedServerInfo, _sessionId!);
 
     // Start heartbeat
     _startHeartbeat();
@@ -361,9 +445,10 @@ class ConnectionService {
     _webSocketService.onReconnected = _handleWebSocketReconnect;
     _webSocketService.onDisconnected = _handleWebSocketDisconnect;
     _webSocketService.onMessage = _handleWebSocketMessage;
-    await _webSocketService.connect(serverInfo);
+    await _webSocketService.connect(hydratedServerInfo);
     await _sendWebSocketIdentify();
     _startLibrarySyncEngine();
+    _configureEndpointMonitoring(hydratedServerInfo);
   }
 
   /// Load stored auth info on app start
@@ -427,24 +512,25 @@ class ConnectionService {
   Future<void> connectToServer(ServerInfo serverInfo) async {
     final deviceId = await _getDeviceId();
     final deviceName = await _getDeviceName();
+    final resolvedServerInfo = await _resolvePreferredServerInfo(serverInfo);
 
     // Create API client (include session token if authenticated)
     _apiClient = ApiClient(
-      serverInfo: serverInfo,
+      serverInfo: resolvedServerInfo,
       deviceId: deviceId,
       deviceName: deviceName,
       sessionToken: _sessionToken,
       onSessionExpired: handleSessionExpired,
     );
-    _serverInfo = serverInfo;
-    _applyDownloadLimits(serverInfo);
+    _setServerInfo(resolvedServerInfo);
+    _applyDownloadLimits(resolvedServerInfo);
 
     // Test connection with ping
     try {
       await _apiClient!.ping();
     } catch (e) {
       _apiClient = null;
-      _serverInfo = null;
+      _setServerInfo(null);
       throw Exception('Cannot reach server: $e');
     }
 
@@ -462,8 +548,10 @@ class ConnectionService {
         responseDeviceId: response.deviceId,
         currentDeviceId: deviceId,
         deviceName: deviceName,
-        serverInfo: serverInfo,
+        serverInfo: resolvedServerInfo,
       );
+      final hydratedServerInfo =
+          await _hydrateServerInfoMetadata(resolvedServerInfo);
       _sessionId = response.sessionId;
       _isConnected = true;
       _isManuallyDisconnected = false;
@@ -474,7 +562,7 @@ class ConnectionService {
       await OfflinePlaybackService().notifyConnectionRestored();
 
       // Save connection info
-      await _saveConnectionInfo(serverInfo, _sessionId!);
+      await _saveConnectionInfo(hydratedServerInfo, _sessionId!);
 
       // Start heartbeat
       _startHeartbeat();
@@ -483,15 +571,16 @@ class ConnectionService {
       _webSocketService.onReconnected = _handleWebSocketReconnect;
       _webSocketService.onDisconnected = _handleWebSocketDisconnect;
       _webSocketService.onMessage = _handleWebSocketMessage;
-      await _webSocketService.connect(serverInfo);
+      await _webSocketService.connect(hydratedServerInfo);
       await _sendWebSocketIdentify();
       _startLibrarySyncEngine();
+      _configureEndpointMonitoring(hydratedServerInfo);
 
-      print('Connected to server: ${serverInfo.name}');
+      print('Connected to server: ${hydratedServerInfo.name}');
       print('Session ID: $_sessionId');
     } catch (e) {
       _apiClient = null;
-      _serverInfo = null;
+      _setServerInfo(null);
       _sessionId = null;
       throw Exception('Connection failed: $e');
     }
@@ -501,6 +590,7 @@ class ConnectionService {
   /// @param isManual - true if user initiated disconnect (manual offline)
   Future<void> disconnect({bool isManual = false}) async {
     _isManuallyDisconnected = isManual;
+    _stopEndpointMonitoring();
 
     if (_apiClient != null && _isConnected) {
       try {
@@ -524,6 +614,7 @@ class ConnectionService {
     _apiClient = null;
     _sessionId = null;
     _isConnected = false;
+    _setServerInfo(_serverInfo);
     _connectionStateController.add(false); // Broadcast disconnected state
 
     // Keep serverInfo in memory for potential reconnection
@@ -554,18 +645,19 @@ class ConnectionService {
     }
 
     try {
-      final serverInfo = ServerInfo.fromJson(
+      var serverInfo = ServerInfo.fromJson(
         Map<String, dynamic>.from(
           // ignore: avoid_dynamic_calls
           const JsonDecoder().convert(serverJson) as Map,
         ),
       );
+      serverInfo = await _resolvePreferredServerInfo(serverInfo);
       _applyDownloadLimits(serverInfo);
 
       // Quick reachability check first (fails fast if server is down)
       if (!await _isServerReachable(serverInfo)) {
         print('Server not reachable - skipping connection attempt');
-        _serverInfo = serverInfo; // Keep server info for later reconnect
+        _setServerInfo(serverInfo); // Keep server info for later reconnect
         return false;
       }
 
@@ -580,7 +672,7 @@ class ConnectionService {
         sessionToken: _sessionToken, // Include session token if authenticated
         onSessionExpired: handleSessionExpired,
       );
-      _serverInfo = serverInfo;
+      _setServerInfo(serverInfo);
       _applyDownloadLimits(serverInfo);
 
       // Test if server API is responding
@@ -602,6 +694,7 @@ class ConnectionService {
         serverInfo: serverInfo,
         timeout: const Duration(seconds: 3),
       );
+      serverInfo = await _hydrateServerInfoMetadata(serverInfo);
       _sessionId = response.sessionId;
       _isConnected = true;
       _isManuallyDisconnected = false;
@@ -624,6 +717,7 @@ class ConnectionService {
       await _webSocketService.connect(serverInfo);
       await _sendWebSocketIdentify();
       _startLibrarySyncEngine();
+      _configureEndpointMonitoring(serverInfo);
 
       print('Connection restored to: ${serverInfo.name}');
       print('New Session ID: $_sessionId');
@@ -690,23 +784,27 @@ class ConnectionService {
   /// Load server info from storage without attempting connection
   /// Used to check if we have saved server info
   Future<void> loadServerInfoFromStorage() async {
-    if (_serverInfo != null) return; // Already loaded
-
     final prefs = await SharedPreferences.getInstance();
     final serverJson = prefs.getString('server_info');
 
-    if (serverJson != null) {
-      try {
-        _serverInfo = ServerInfo.fromJson(
-          Map<String, dynamic>.from(
-            const JsonDecoder().convert(serverJson) as Map,
-          ),
-        );
-        _applyDownloadLimits(_serverInfo!);
-        print('Loaded server info from storage: ${_serverInfo?.name}');
-      } catch (e) {
-        print('Failed to parse stored server info: $e');
+    if (serverJson == null) {
+      if (!_isConnected) {
+        _setServerInfo(null);
       }
+      return;
+    }
+
+    try {
+      final serverInfo = ServerInfo.fromJson(
+        Map<String, dynamic>.from(
+          const JsonDecoder().convert(serverJson) as Map,
+        ),
+      );
+      _setServerInfo(serverInfo);
+      _applyDownloadLimits(serverInfo);
+      print('Loaded server info from storage: ${serverInfo.name}');
+    } catch (e) {
+      print('Failed to parse stored server info: $e');
     }
   }
 
@@ -732,6 +830,133 @@ class ConnectionService {
     } catch (e) {
       print('Server not reachable: $e');
       return false;
+    }
+  }
+
+  Future<void> _handleEndpointSwitch(String newIp) async {
+    final currentServerInfo = _serverInfo;
+    if (!_isConnected ||
+        currentServerInfo == null ||
+        _isSwitchingEndpoint ||
+        currentServerInfo.server == newIp) {
+      return;
+    }
+
+    _isSwitchingEndpoint = true;
+    final currentIp = currentServerInfo.server;
+    final nextServerInfo = currentServerInfo.withServer(newIp);
+
+    try {
+      final isReachable = await _isServerReachable(
+        nextServerInfo,
+        timeout: const Duration(milliseconds: 800),
+      );
+      if (!isReachable) {
+        print('Endpoint switch skipped; $newIp is not reachable');
+        return;
+      }
+
+      _stopLibrarySyncEngine();
+      _webSocketService.disconnect();
+      _stopHeartbeat();
+
+      final deviceId = await _getDeviceId();
+      final deviceName = await _getDeviceName();
+
+      _apiClient = ApiClient(
+        serverInfo: nextServerInfo,
+        deviceId: deviceId,
+        deviceName: deviceName,
+        sessionToken: _sessionToken,
+        onSessionExpired: handleSessionExpired,
+      );
+      await _apiClient!.ping();
+
+      final response = await _apiClient!.connect(
+        ConnectRequest(
+          deviceId: deviceId,
+          deviceName: deviceName,
+          appVersion: '1.0.0',
+          platform: Platform.isAndroid ? 'android' : 'ios',
+        ),
+      );
+      await _applyDeviceIdFromServer(
+        responseDeviceId: response.deviceId,
+        currentDeviceId: deviceId,
+        deviceName: deviceName,
+        serverInfo: nextServerInfo,
+      );
+      final hydratedServerInfo = await _hydrateServerInfoMetadata(
+        nextServerInfo,
+      );
+
+      _sessionId = response.sessionId;
+      _isConnected = true;
+      _consecutiveHeartbeatFailures = 0;
+      _isManuallyDisconnected = false;
+      _setServerInfo(hydratedServerInfo);
+      await _saveConnectionInfo(hydratedServerInfo, _sessionId!);
+
+      _webSocketService.onReconnected = _handleWebSocketReconnect;
+      _webSocketService.onDisconnected = _handleWebSocketDisconnect;
+      _webSocketService.onMessage = _handleWebSocketMessage;
+      _startHeartbeat();
+      await _webSocketService.connect(hydratedServerInfo);
+      await _sendWebSocketIdentify();
+      _startLibrarySyncEngine();
+      _configureEndpointMonitoring(hydratedServerInfo);
+
+      print('Endpoint switch complete: $currentIp -> $newIp');
+    } catch (e) {
+      print('Endpoint switch failed: $e');
+      await _restoreAfterFailedEndpointSwitch(currentServerInfo);
+    } finally {
+      _isSwitchingEndpoint = false;
+    }
+  }
+
+  Future<void> _restoreAfterFailedEndpointSwitch(ServerInfo serverInfo) async {
+    try {
+      final deviceId = await _getDeviceId();
+      final deviceName = await _getDeviceName();
+      _apiClient = ApiClient(
+        serverInfo: serverInfo,
+        deviceId: deviceId,
+        deviceName: deviceName,
+        sessionToken: _sessionToken,
+        onSessionExpired: handleSessionExpired,
+      );
+      await _apiClient!.ping();
+      final response = await _apiClient!.connect(
+        ConnectRequest(
+          deviceId: deviceId,
+          deviceName: deviceName,
+          appVersion: '1.0.0',
+          platform: Platform.isAndroid ? 'android' : 'ios',
+        ),
+      );
+      await _applyDeviceIdFromServer(
+        responseDeviceId: response.deviceId,
+        currentDeviceId: deviceId,
+        deviceName: deviceName,
+        serverInfo: serverInfo,
+      );
+      _sessionId = response.sessionId;
+      _isConnected = true;
+      _consecutiveHeartbeatFailures = 0;
+      _setServerInfo(serverInfo);
+      await _saveConnectionInfo(serverInfo, _sessionId!);
+      _webSocketService.onReconnected = _handleWebSocketReconnect;
+      _webSocketService.onDisconnected = _handleWebSocketDisconnect;
+      _webSocketService.onMessage = _handleWebSocketMessage;
+      _startHeartbeat();
+      await _webSocketService.connect(serverInfo);
+      await _sendWebSocketIdentify();
+      _startLibrarySyncEngine();
+      _configureEndpointMonitoring(serverInfo);
+    } catch (e) {
+      print('Failed to restore previous endpoint after switch error: $e');
+      await _handleConnectionLoss();
     }
   }
 
@@ -772,6 +997,7 @@ class ConnectionService {
 
     // Only handle if we thought we were connected
     if (_isConnected) {
+      _stopEndpointMonitoring();
       _stopLibrarySyncEngine();
       _isConnected = false;
       _apiClient = null;
@@ -914,6 +1140,7 @@ class ConnectionService {
   /// Handle connection loss - auto-enable offline mode
   Future<void> _handleConnectionLoss() async {
     print('Connection lost - enabling auto offline mode');
+    _stopEndpointMonitoring();
     _stopLibrarySyncEngine();
     _isConnected = false;
     _apiClient = null;

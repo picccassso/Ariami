@@ -7,6 +7,19 @@ import '../../models/cache_entry.dart';
 import '../api/connection_service.dart';
 import '../media/media_request_scheduler.dart';
 
+class CacheUpdateEvent {
+  const CacheUpdateEvent({
+    this.type,
+    this.cleared = false,
+  });
+
+  final CacheType? type;
+  final bool cleared;
+
+  bool get affectsSongCache =>
+      cleared || type == null || type == CacheType.song;
+}
+
 /// Manages caching of artwork and songs with LRU eviction
 class CacheManager {
   // Singleton pattern
@@ -49,11 +62,12 @@ class CacheManager {
   bool _enforceLimitPending = false;
 
   // Stream controller for cache updates
-  final StreamController<void> _cacheUpdateController =
-      StreamController<void>.broadcast();
+  final StreamController<CacheUpdateEvent> _cacheUpdateController =
+      StreamController<CacheUpdateEvent>.broadcast();
 
   /// Stream notifying when cache is updated
-  Stream<void> get cacheUpdateStream => _cacheUpdateController.stream;
+  Stream<CacheUpdateEvent> get cacheUpdateStream =>
+      _cacheUpdateController.stream;
 
   /// Check if initialized
   bool get isInitialized => _initialized;
@@ -223,7 +237,9 @@ class CacheManager {
       await _database.upsertCacheEntry(entry);
       _scheduleEnforceStorageLimit(size);
 
-      _cacheUpdateController.add(null);
+      _cacheUpdateController.add(
+        const CacheUpdateEvent(type: CacheType.artwork),
+      );
 
       // Store in memory cache for future instant lookups
       _artworkPathCache[albumId] = filePath;
@@ -390,7 +406,9 @@ class CacheManager {
       await _database.upsertCacheEntry(entry);
       _scheduleEnforceStorageLimit(size);
 
-      _cacheUpdateController.add(null);
+      _cacheUpdateController.add(
+        const CacheUpdateEvent(type: CacheType.song),
+      );
 
       print(
           '[CacheManager] Cached song: $songId (${entry.getFormattedSize()})');
@@ -527,7 +545,7 @@ class CacheManager {
     // Clear memory cache
     _artworkPathCache.clear();
 
-    _cacheUpdateController.add(null);
+    _cacheUpdateController.add(const CacheUpdateEvent(cleared: true));
     print('[CacheManager] All cache cleared');
   }
 
@@ -541,7 +559,9 @@ class CacheManager {
     // Clear memory cache
     _artworkPathCache.clear();
 
-    _cacheUpdateController.add(null);
+    _cacheUpdateController.add(
+      const CacheUpdateEvent(type: CacheType.artwork),
+    );
     print('[CacheManager] Artwork cache cleared');
   }
 
@@ -552,7 +572,9 @@ class CacheManager {
     await _clearDirectory(_songCachePath!);
     await _database.clearEntriesByType(CacheType.song);
 
-    _cacheUpdateController.add(null);
+    _cacheUpdateController.add(
+      const CacheUpdateEvent(type: CacheType.song),
+    );
     print('[CacheManager] Song cache cleared');
   }
 
