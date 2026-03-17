@@ -10,7 +10,8 @@ import '../models/api_models.dart';
 /// Also manages server playlists (from [PLAYLIST] folders)
 class PlaylistService extends ChangeNotifier {
   static const String _storageKey = 'ariami_playlists';
-  static const String _hiddenServerPlaylistsKey = 'ariami_hidden_server_playlists';
+  static const String _hiddenServerPlaylistsKey =
+      'ariami_hidden_server_playlists';
   static const String _importedFromServerKey = 'ariami_imported_from_server';
   static const String likedSongsId = '__LIKED_SONGS__';
   static final PlaylistService _instance = PlaylistService._internal();
@@ -34,15 +35,18 @@ class PlaylistService extends ChangeNotifier {
   List<PlaylistModel> get playlists => List.unmodifiable(_playlists);
 
   /// Get all server playlists
-  List<ServerPlaylist> get serverPlaylists => List.unmodifiable(_serverPlaylists);
+  List<ServerPlaylist> get serverPlaylists =>
+      List.unmodifiable(_serverPlaylists);
 
   /// Get visible server playlists (not hidden/imported)
-  List<ServerPlaylist> get visibleServerPlaylists =>
-      _serverPlaylists.where((p) => !_hiddenServerPlaylistIds.contains(p.id)).toList();
+  List<ServerPlaylist> get visibleServerPlaylists => _serverPlaylists
+      .where((p) => !_hiddenServerPlaylistIds.contains(p.id))
+      .toList();
 
   /// Get hidden server playlists (for recovery)
-  List<ServerPlaylist> get hiddenServerPlaylists =>
-      _serverPlaylists.where((p) => _hiddenServerPlaylistIds.contains(p.id)).toList();
+  List<ServerPlaylist> get hiddenServerPlaylists => _serverPlaylists
+      .where((p) => _hiddenServerPlaylistIds.contains(p.id))
+      .toList();
 
   /// Check if there are any visible server playlists
   bool get hasVisibleServerPlaylists => visibleServerPlaylists.isNotEmpty;
@@ -92,7 +96,8 @@ class PlaylistService extends ChangeNotifier {
       final importedJson = prefs.getString(_importedFromServerKey);
       if (importedJson != null && importedJson.isNotEmpty) {
         final Map<String, dynamic> importedMap = json.decode(importedJson);
-        _importedFromServer = importedMap.map((k, v) => MapEntry(k, v as String));
+        _importedFromServer =
+            importedMap.map((k, v) => MapEntry(k, v as String));
       }
 
       _isLoaded = true;
@@ -148,9 +153,8 @@ class PlaylistService extends ChangeNotifier {
     if (_serverPlaylists.isEmpty || _playlists.isEmpty) return;
 
     // Build set of normalized local playlist names
-    final localPlaylistNames = _playlists
-        .map((p) => p.name.toLowerCase())
-        .toSet();
+    final localPlaylistNames =
+        _playlists.map((p) => p.name.toLowerCase()).toSet();
 
     // Find and hide matching server playlists
     int hiddenCount = 0;
@@ -166,7 +170,8 @@ class PlaylistService extends ChangeNotifier {
 
     if (hiddenCount > 0) {
       await _saveHiddenServerPlaylists();
-      print('[PlaylistService] Auto-hidden $hiddenCount server playlists by name match');
+      print(
+          '[PlaylistService] Auto-hidden $hiddenCount server playlists by name match');
     }
   }
 
@@ -249,10 +254,88 @@ class PlaylistService extends ChangeNotifier {
     await _saveHiddenServerPlaylists();
     await _saveImportedFromServer();
 
-    print('[PlaylistService] Imported server playlist "${serverPlaylist.name}" as local');
+    print(
+        '[PlaylistService] Imported server playlist "${serverPlaylist.name}" as local');
     notifyListeners();
 
     return playlist;
+  }
+
+  /// Import all server playlists as local playlists
+  /// Returns the number of playlists imported
+  Future<int> importAllServerPlaylists(
+    List<ServerPlaylist> serverPlaylists, {
+    required List<SongModel> allSongs,
+  }) async {
+    int imported = 0;
+    final now = DateTime.now();
+
+    for (final serverPlaylist in serverPlaylists) {
+      // Skip if already hidden (shouldn't happen, but safety check)
+      if (_hiddenServerPlaylistIds.contains(serverPlaylist.id)) continue;
+
+      final localId = _uuid.v4();
+
+      // Build song metadata maps from allSongs
+      final songAlbumIds = <String, String>{};
+      final songTitles = <String, String>{};
+      final songArtists = <String, String>{};
+      final songDurations = <String, int>{};
+
+      for (final songId in serverPlaylist.songIds) {
+        final song = allSongs.where((s) => s.id == songId).firstOrNull;
+        if (song != null) {
+          if (song.albumId != null) {
+            songAlbumIds[songId] = song.albumId!;
+          }
+          songTitles[songId] = song.title;
+          songArtists[songId] = song.artist;
+          songDurations[songId] = song.duration;
+        }
+      }
+
+      final playlist = PlaylistModel(
+        id: localId,
+        name: serverPlaylist.name,
+        description: null,
+        songIds: List.from(serverPlaylist.songIds),
+        songAlbumIds: songAlbumIds,
+        songTitles: songTitles,
+        songArtists: songArtists,
+        songDurations: songDurations,
+        createdAt: now,
+        modifiedAt: now,
+      );
+
+      // Add to local playlists
+      _playlists.insert(0, playlist);
+
+      // Hide the server playlist
+      _hiddenServerPlaylistIds.add(serverPlaylist.id);
+
+      // Track that this local playlist came from server
+      _importedFromServer[localId] = serverPlaylist.id;
+
+      // Track as recently imported
+      _recentlyImportedIds.add(localId);
+      Timer(const Duration(seconds: 5), () {
+        _recentlyImportedIds.remove(localId);
+        notifyListeners();
+      });
+
+      imported++;
+    }
+
+    if (imported > 0) {
+      // Save all changes
+      await _savePlaylists();
+      await _saveHiddenServerPlaylists();
+      await _saveImportedFromServer();
+      notifyListeners();
+    }
+
+    print('[PlaylistService] Imported $imported server playlists');
+    return imported;
   }
 
   /// Unhide a server playlist (make it visible again)
@@ -344,7 +427,8 @@ class PlaylistService extends ChangeNotifier {
 
   /// Delete an imported playlist with option to restore server version
   /// [restoreServerVersion] - if true, unhides the original server playlist
-  Future<void> deleteImportedPlaylist(String id, {required bool restoreServerVersion}) async {
+  Future<void> deleteImportedPlaylist(String id,
+      {required bool restoreServerVersion}) async {
     final serverPlaylistId = _importedFromServer.remove(id);
 
     if (serverPlaylistId != null && restoreServerVersion) {
@@ -594,7 +678,8 @@ class PlaylistService extends ChangeNotifier {
 
     for (final playlist in _playlists) {
       var changed = false;
-      final updatedSongAlbumIds = Map<String, String>.from(playlist.songAlbumIds);
+      final updatedSongAlbumIds =
+          Map<String, String>.from(playlist.songAlbumIds);
 
       for (final songId in playlist.songIds) {
         final albumId = songIdToAlbumId[songId];
