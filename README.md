@@ -238,7 +238,8 @@ Note: Latest updates are done in order. Last update = latest update.
 - Ariami now supports dual-endpoint routing. The app can store both LAN and Tailscale endpoints, prefer LAN when you are home, switch to Tailscale when remote, and switch back to LAN when you come back.
 - Setup is less rigid now. If Tailscale is missing, users can still continue with local setup, and the QR/setup flow includes both endpoints when available.
 - V2 download-job handling was fixed on the desktop server path, including the setup flow and quota handling for large download jobs.
-- Added "Import All" button for importing all playlists at once from server. 
+- Added "Import All" button for importing all playlists at once from server.
+- Refactored and modularized the library screen (reduced from ~1,925 lines to ~350 lines) by extracting state management, UI components, and modals into separate files with comprehensive tests.
 
 ### Other Improvements
 
