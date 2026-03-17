@@ -125,8 +125,8 @@ ariami_mobile/android/app/google-services.json
 ariami_core/build/
 ariami_core/.dart_tool/
 
-# Context folder - keep documentation but ignore temp files
-context/.DS_Store
+# Context folder
+/context/
 
 # Music test folder (if used for testing)
 Music/
