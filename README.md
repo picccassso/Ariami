@@ -23,9 +23,9 @@ curl -fsSL https://tailscale.com/install.sh | sh
 sudo tailscale up
 
 # Download and extract Ariami
-curl -L https://github.com/picccassso/Ariami/releases/download/v3.0.0/ariami-cli-raspberry-pi-arm64-v3.0.0.zip -o ariami-cli.zip
+curl -L https://github.com/picccassso/Ariami/releases/download/v3.1.0/ariami-cli-raspberry-pi-arm64-v3.1.0.zip -o ariami-cli.zip
 unzip ariami-cli.zip
-cd ariami-cli-raspberry-pi-arm64-v3.0.0
+cd ariami-cli-raspberry-pi-arm64-v3.1.0
 
 # Run the server
 chmod +x ariami_cli
@@ -48,6 +48,7 @@ It is cross-platform so you can run this on your Mac/Windows/Linux machine, and 
 - It uses embedded tags so it doesn't rely on external data which could mess up your library.
 - Groups albums correctly.
 - Supports large libraries.
+- Incremental v2 sync architecture is in place, with local mobile storage and server-managed change tracking.
 
 **Multi-User Support**
 - Create user accounts with password authentication.
@@ -65,6 +66,8 @@ It is cross-platform so you can run this on your Mac/Windows/Linux machine, and 
 - Imported playlists are stored locally on your phone.
 - Each song played automatically gets cached if not downloaded for smoother playback.
 - Option to prefer local/cached files even when connected to the server.
+- Server-managed v2 download jobs are supported for large download batches.
+- Large download queues and UI updates have been optimised so bulk downloads behave much better.
 
 **Streaming and Audio**
 - Stream music from your server to any supported client.
@@ -78,6 +81,8 @@ It is cross-platform so you can run this on your Mac/Windows/Linux machine, and 
 
 **Remote Access**
 - Secure access using Tailscale.
+- If your phone is on the same LAN as your server, Ariami now prefers the local network path automatically.
+- If you leave home and Tailscale is available, Ariami switches to the remote route automatically, then switches back to LAN when you return.
 - No port forwarding or anything of the sort.
 
 **Listening Data**
@@ -88,6 +93,7 @@ It is cross-platform so you can run this on your Mac/Windows/Linux machine, and 
 - Shows connected users and active devices.
 - Admin controls to kick devices and change user passwords.
 - Auth status indicator showing whether authentication is required or open.
+- Connection setup and QR flow now include both LAN and Tailscale endpoints when available.
 
 **Planned**
 - Additional Playlists tools
@@ -226,37 +232,10 @@ If you want to build from source, check the README in each package folder:
 
 ## Latest Updates
 
-### Multi-User Support
-
-Full multi-user authentication has been added. Users can now create accounts and log in from the mobile app. Passwords are hashed with bcrypt and sessions last 30 days with a sliding TTL. If no users are registered, the server stays in open mode so nothing breaks for existing setups. Once the first user registers, authentication becomes required.
-
-Each user gets one active session at a time — if you try to log in on a second device, the server will tell you that you're already logged in elsewhere. The first user to register is treated as the admin.
-
-The server dashboards (both Desktop and CLI web) now show a connected users and devices table. From there, the admin can kick devices and change user passwords. The mobile app shows who you're logged in as in the connection settings, with a dedicated logout button.
-
-Stream tokens are used for audio playback — short-lived tokens passed as query params so that just_audio can handle authenticated streaming without needing to set headers on every request. Downloads also go through stream tokens now.
-
-Rate limiting is in place for login attempts (5 tries per 15 minutes per device) to prevent brute force.
-
-### Server-Side Download Throttling
-
-Download concurrency is now managed on the server. There are global and per-user limits to stop one user from hogging all the bandwidth. The limits are configured per platform — a Raspberry Pi with a microSD gets more conservative limits than a Mac with an SSD. The mobile app reads the server's limits and adjusts its own concurrency to match. When the server is at capacity it returns 503/429 and the client backs off.
-
-### V2 Architecture Rework
-
-The entire library sync, artwork, and download pipeline has been reworked. The old approach had the mobile app fetching the full library as one big snapshot every time, artwork requests firing off in uncontrolled bursts, and "download all" flows enqueuing everything at once in a client-side loop. This didn't scale well, especially with multiple users.
-
-The v2 architecture replaces all of that:
-
-- **Catalog database** — The server now writes its library to a persistent SQLite catalog instead of rebuilding everything in memory on each request. This gives us indexed lookups, pagination, and a change log that tracks what's been added, modified, or deleted.
-- **Incremental sync** — Mobile clients do a paginated bootstrap on first connect, then only pull changes since their last sync token. No more re-fetching the entire library.
-- **Local sync store** — The mobile app maintains its own normalized SQLite database as the source of truth for library data. Screens read from local storage instead of hitting the server repeatedly.
-- **Artwork pipeline** — Artwork variants (full size and 200x200 thumbnails) are precomputed during indexing. Responses include ETag and Last-Modified headers so clients can skip re-downloading unchanged artwork. The metadata extraction has also been optimised to only read tag sections of files rather than the entire file.
-- **Media request scheduler** — A bounded concurrency scheduler with priority tiers (visible, nearby, background) replaces the old unbounded artwork request pattern. Stale low-priority requests get dropped automatically.
-- **Server-managed download jobs** — Instead of the mobile app enqueuing hundreds of items in a loop, it now creates a download job on the server and fetches items page by page. This plays nicely with the per-user download limits.
-- **Multi-user fairness** — Per-user quotas for downloads and artwork requests, with a weighted fair queue so one user can't starve the others.
-- **Observability** — Structured metrics logging with endpoint latency, queue depth per user, artwork cache hit ratios, and change log lag tracking.
-- **Feature flags** — Everything is gated behind feature flags for staged rollout. V1 endpoints remain functional during the migration, with deprecation headers and a sunset target.
+- Bulk downloads were reworked so large libraries behave much better. Queue persistence, downloads UI churn, cache-triggered refreshes, and completion flow were tightened up, and queue limits were increased for large libraries.
+- Ariami now supports dual-endpoint routing. The app can store both LAN and Tailscale endpoints, prefer LAN when you are home, switch to Tailscale when remote, and switch back to LAN when you come back.
+- Setup is less rigid now. If Tailscale is missing, users can still continue with local setup, and the QR/setup flow includes both endpoints when available.
+- V2 download-job handling was fixed on the desktop server path, including the setup flow and quota handling for large download jobs.
 
 ### Other Improvements
 

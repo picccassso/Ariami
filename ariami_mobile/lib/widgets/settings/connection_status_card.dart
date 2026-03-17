@@ -89,9 +89,14 @@ class ConnectionStatusCard extends StatelessWidget {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: _getStatusColor(isDark),
-                  boxShadow: status == ConnectionStatus.connected 
-                    ? [BoxShadow(color: (isDark ? Colors.white : Colors.black).withOpacity(0.5), blurRadius: 8)] 
-                    : null,
+                  boxShadow: status == ConnectionStatus.connected
+                      ? [
+                          BoxShadow(
+                              color: (isDark ? Colors.white : Colors.black)
+                                  .withValues(alpha: 0.5),
+                              blurRadius: 8)
+                        ]
+                      : null,
                 ),
               ),
               const SizedBox(width: 12),
@@ -128,6 +133,41 @@ class ConnectionStatusCard extends StatelessWidget {
                 color: isDark ? Colors.grey[500] : Colors.grey[600],
               ),
             ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1D1D1D) : Colors.white,
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(
+                  color: isDark
+                      ? const Color(0xFF2A2A2A)
+                      : const Color(0xFFE5E5E5),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    serverInfo!.isUsingLocalNetworkRoute
+                        ? Icons.wifi_rounded
+                        : Icons.vpn_lock_rounded,
+                    size: 16,
+                    color: isDark ? Colors.white70 : Colors.black87,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'ROUTE: ${serverInfo!.routeLabel.toUpperCase()}',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.8,
+                      color: isDark ? Colors.white70 : Colors.black87,
+                    ),
+                  ),
+                ],
+              ),
+            ),
             const SizedBox(height: 20),
           ],
 
@@ -159,10 +199,10 @@ class ConnectionStatusCard extends StatelessWidget {
               width: double.infinity,
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: const Color(0xFFFF4B4B).withOpacity(0.1),
+                color: const Color(0xFFFF4B4B).withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: const Color(0xFFFF4B4B).withOpacity(0.2),
+                  color: const Color(0xFFFF4B4B).withValues(alpha: 0.2),
                 ),
               ),
               child: Text(
@@ -189,7 +229,8 @@ class ConnectionStatusCard extends StatelessWidget {
                 icon: const Icon(Icons.refresh_rounded, size: 20),
                 label: const Text(
                   'RETRY CONNECTION',
-                  style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.0),
+                  style: TextStyle(
+                      fontWeight: FontWeight.w900, letterSpacing: 1.0),
                 ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: isDark ? Colors.white : Colors.black,

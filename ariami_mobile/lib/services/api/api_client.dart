@@ -92,6 +92,12 @@ class ApiClient {
     return response;
   }
 
+  /// Get server metadata, including all advertised endpoints.
+  Future<ServerInfo> getServerInfo() async {
+    final response = await _get('/server-info');
+    return ServerInfo.fromJson(response);
+  }
+
   // ============================================================================
   // LIBRARY ENDPOINTS
   // ============================================================================

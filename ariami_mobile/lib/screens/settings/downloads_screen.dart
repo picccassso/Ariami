@@ -27,7 +27,8 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
   double _cacheSizeMB = 0;
   int _cachedSongCount = 0;
   int _cacheLimitMB = 500;
-  StreamSubscription<void>? _cacheSubscription;
+  StreamSubscription<CacheUpdateEvent>? _cacheSubscription;
+  Timer? _cacheStatsRefreshTimer;
 
   // Progress tracking for smooth UI updates
   StreamSubscription<DownloadProgress>? _progressSubscription;
@@ -51,6 +52,19 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
   bool _isDownloadingAllPlaylists = false;
   bool _isLoadingCounts = true;
   bool _downloadOriginal = false;
+  Set<String> _librarySongIds = {};
+  Map<String, int> _albumSongCounts = {};
+  Set<String> _playlistSongIds = {};
+  int _libraryAlbumCount = 0;
+  bool _hasLibraryReferenceData = false;
+  String _lastQueueViewSignature = '';
+  List<DownloadTask> _activeTasks = <DownloadTask>[];
+  List<DownloadTask> _pendingTasks = <DownloadTask>[];
+  List<DownloadTask> _completedTasks = <DownloadTask>[];
+  List<DownloadTask> _failedTasks = <DownloadTask>[];
+  Map<String?, List<DownloadTask>> _groupedCompletedTasks =
+      <String?, List<DownloadTask>>{};
+  List<String?> _sortedCompletedAlbumKeys = <String?>[];
 
   @override
   void initState() {
@@ -67,7 +81,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
 
     // Listen to cache updates
     _cacheSubscription = _cacheManager.cacheUpdateStream.listen((_) {
-      _loadCacheStats();
+      _scheduleCacheStatsRefresh();
     });
 
     // Listen to progress updates (separate from queue changes)
@@ -88,15 +102,28 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
 
     // Listen to queue changes to refresh Download All counts when downloads complete
     _queueSubscription = _downloadManager.queueStream.listen((_) {
-      // Refresh counts when queue changes (e.g., download completes)
-      _loadDownloadAllCounts();
+      _recomputeDownloadAllCounts();
     });
 
-    // Load counts for Download All section
-    await _loadDownloadAllCounts();
+    final playlistService = PlaylistService();
+    if (!playlistService.isLoaded) {
+      await playlistService.loadPlaylists();
+    }
+
+    // Load library reference data once, then recompute counts from queue only.
+    await _refreshLibraryReferenceData();
+    _recomputeDownloadAllCounts();
   }
 
-  Future<void> _loadDownloadAllCounts() async {
+  void _scheduleCacheStatsRefresh() {
+    _cacheStatsRefreshTimer?.cancel();
+    _cacheStatsRefreshTimer = Timer(
+      const Duration(milliseconds: 250),
+      _loadCacheStats,
+    );
+  }
+
+  Future<void> _refreshLibraryReferenceData() async {
     final playlistService = PlaylistService();
 
     // Ensure download manager is initialized
@@ -104,26 +131,60 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
       await _downloadManager.initialize();
     }
 
-    // Ensure playlist service is loaded
-    if (!playlistService.isLoaded) {
-      await playlistService.loadPlaylists();
-    }
+    try {
+      final library =
+          await _connectionService.libraryReadFacade.getLibraryBundle();
+      final songs = library.songs;
+      final serverPlaylists = library.serverPlaylists;
 
-    // Local downloaded-state snapshot (used for downloaded counters and fallback path).
+      playlistService.updateServerPlaylists(serverPlaylists);
+
+      final librarySongIds = songs.map((song) => song.id).toSet();
+      final albumSongCounts = <String, int>{};
+      for (final song in songs) {
+        if (song.albumId != null) {
+          albumSongCounts[song.albumId!] =
+              (albumSongCounts[song.albumId!] ?? 0) + 1;
+        }
+      }
+
+      final playlistSongIds = <String>{};
+      for (final playlist in playlistService.playlists) {
+        playlistSongIds.addAll(playlist.songIds);
+      }
+      for (final serverPlaylist in serverPlaylists) {
+        playlistSongIds.addAll(serverPlaylist.songIds);
+      }
+      playlistSongIds.removeWhere((songId) => !librarySongIds.contains(songId));
+
+      _librarySongIds = librarySongIds;
+      _albumSongCounts = albumSongCounts;
+      _playlistSongIds = playlistSongIds;
+      _libraryAlbumCount = library.albums.length;
+      _hasLibraryReferenceData = true;
+    } catch (_) {
+      _librarySongIds = {};
+      _albumSongCounts = {};
+      _playlistSongIds = {};
+      _libraryAlbumCount = 0;
+      _hasLibraryReferenceData = false;
+    }
+  }
+
+  void _recomputeDownloadAllCounts() {
+    final playlistService = PlaylistService();
+
     final allDownloadedTasks = _downloadManager.queue
         .where((t) => t.status == DownloadStatus.completed)
         .toList();
     final downloadedSongIds = allDownloadedTasks.map((t) => t.songId).toSet();
-    int localDownloadedSongs = allDownloadedTasks.length;
-
-    // Group local downloads by album to estimate downloaded album count.
-    final Set<String> localAlbumIds = allDownloadedTasks
+    final localDownloadedSongs = allDownloadedTasks.length;
+    final localAlbumIds = allDownloadedTasks
         .where((t) => t.albumId != null)
         .map((t) => t.albumId!)
         .toSet();
 
-    // Calculate local playlist downloaded coverage.
-    final Set<String> localPlaylistSongIds = {};
+    final localPlaylistSongIds = <String>{};
     for (final playlist in playlistService.playlists) {
       localPlaylistSongIds.addAll(playlist.songIds);
     }
@@ -131,73 +192,13 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
       localPlaylistSongIds.addAll(serverPlaylist.songIds);
     }
 
-    int localDownloadedPlaylistSongs = 0;
-    for (final songId in localPlaylistSongIds) {
-      if (downloadedSongIds.contains(songId)) {
-        localDownloadedPlaylistSongs++;
+    final localDownloadedPlaylistSongs =
+        localPlaylistSongIds.where(downloadedSongIds.contains).length;
+
+    if (!_hasLibraryReferenceData) {
+      if (!mounted) {
+        return;
       }
-    }
-
-    try {
-      final library =
-          await _connectionService.libraryReadFacade.getLibraryBundle();
-      final songs = library.songs;
-      final albums = library.albums;
-      final serverPlaylists = library.serverPlaylists;
-
-      playlistService.updateServerPlaylists(serverPlaylists);
-
-      final albumSongsMap = <String, List<String>>{};
-      for (final song in songs) {
-        if (song.albumId != null) {
-          albumSongsMap.putIfAbsent(song.albumId!, () => []).add(song.id);
-        }
-      }
-
-      var downloadedAlbums = 0;
-      for (final album in albums) {
-        final albumSongIds = albumSongsMap[album.id] ?? const <String>[];
-        if (albumSongIds.isNotEmpty &&
-            albumSongIds.every(downloadedSongIds.contains)) {
-          downloadedAlbums++;
-        }
-      }
-
-      final allPlaylistSongIds = <String>{};
-      for (final playlist in playlistService.playlists) {
-        allPlaylistSongIds.addAll(playlist.songIds);
-      }
-      for (final serverPlaylist in serverPlaylists) {
-        allPlaylistSongIds.addAll(serverPlaylist.songIds);
-      }
-
-      final librarySongIds = songs.map((song) => song.id).toSet();
-      final validPlaylistSongIds =
-          allPlaylistSongIds.where(librarySongIds.contains).toList();
-      final downloadedPlaylistSongs =
-          validPlaylistSongIds.where(downloadedSongIds.contains).length;
-      final downloadedSongs =
-          songs.where((song) => downloadedSongIds.contains(song.id)).length;
-
-      if (mounted) {
-        setState(() {
-          _totalSongCount = songs.length;
-          _totalAlbumCount = albums.length;
-          _downloadedSongCount = downloadedSongs;
-          _downloadedAlbumCount = downloadedAlbums;
-          _totalPlaylistSongCount = validPlaylistSongIds.length;
-          _downloadedPlaylistSongCount = downloadedPlaylistSongs;
-          _isLoadingCounts = false;
-        });
-      }
-      return;
-    } catch (_) {
-      // Fall through to local-only fallback below.
-    }
-
-    // Fallback to local-only counts using a single source class (downloaded data),
-    // avoiding mixed-source totals between songs/albums/playlists.
-    if (mounted) {
       setState(() {
         _totalSongCount = localDownloadedSongs;
         _totalAlbumCount = localAlbumIds.length;
@@ -205,6 +206,48 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
         _downloadedAlbumCount = localAlbumIds.length;
         _totalPlaylistSongCount = localDownloadedPlaylistSongs;
         _downloadedPlaylistSongCount = localDownloadedPlaylistSongs;
+        _isLoadingCounts = false;
+      });
+      return;
+    }
+
+    final downloadedAlbumSongIds = <String, Set<String>>{};
+    for (final task in allDownloadedTasks) {
+      final albumId = task.albumId;
+      if (albumId == null) {
+        continue;
+      }
+      downloadedAlbumSongIds
+          .putIfAbsent(albumId, () => <String>{})
+          .add(task.songId);
+    }
+
+    var downloadedAlbums = 0;
+    for (final entry in _albumSongCounts.entries) {
+      final downloadedSongsForAlbum = downloadedAlbumSongIds[entry.key];
+      if (downloadedSongsForAlbum != null &&
+          downloadedSongsForAlbum.length >= entry.value &&
+          entry.value > 0) {
+        downloadedAlbums++;
+      }
+    }
+
+    final downloadedSongs =
+        downloadedSongIds.where(_librarySongIds.contains).length;
+    final downloadedPlaylistSongs =
+        downloadedSongIds.where(_playlistSongIds.contains).length;
+
+    if (!mounted) {
+      return;
+    }
+    if (mounted) {
+      setState(() {
+        _totalSongCount = _librarySongIds.length;
+        _totalAlbumCount = _libraryAlbumCount;
+        _downloadedSongCount = downloadedSongs;
+        _downloadedAlbumCount = downloadedAlbums;
+        _totalPlaylistSongCount = _playlistSongIds.length;
+        _downloadedPlaylistSongCount = downloadedPlaylistSongs;
         _isLoadingCounts = false;
       });
     }
@@ -334,11 +377,75 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
     }
   }
 
+  void _syncVisibleQueueState(List<DownloadTask> queue) {
+    final signature = _buildQueueViewSignature(queue);
+    if (signature == _lastQueueViewSignature) {
+      return;
+    }
+
+    final activeTasks = <DownloadTask>[];
+    final pendingTasks = <DownloadTask>[];
+    final completedTasks = <DownloadTask>[];
+    final failedTasks = <DownloadTask>[];
+
+    for (final task in queue) {
+      switch (task.status) {
+        case DownloadStatus.downloading:
+        case DownloadStatus.paused:
+          activeTasks.add(task);
+          break;
+        case DownloadStatus.pending:
+          pendingTasks.add(task);
+          break;
+        case DownloadStatus.completed:
+          completedTasks.add(task);
+          break;
+        case DownloadStatus.failed:
+          failedTasks.add(task);
+          break;
+        case DownloadStatus.cancelled:
+          break;
+      }
+    }
+
+    final groupedCompleted = _groupByAlbum(completedTasks);
+    final sortedCompletedAlbumKeys = groupedCompleted.keys.toList()
+      ..sort((a, b) {
+        if (a == null && b == null) return 0;
+        if (a == null) return 1;
+        if (b == null) return -1;
+        final nameA = groupedCompleted[a]!.first.albumName ?? '';
+        final nameB = groupedCompleted[b]!.first.albumName ?? '';
+        return nameA.compareTo(nameB);
+      });
+
+    _lastQueueViewSignature = signature;
+    _activeTasks = activeTasks;
+    _pendingTasks = pendingTasks;
+    _completedTasks = completedTasks;
+    _failedTasks = failedTasks;
+    _groupedCompletedTasks = groupedCompleted;
+    _sortedCompletedAlbumKeys = sortedCompletedAlbumKeys;
+  }
+
+  String _buildQueueViewSignature(List<DownloadTask> queue) {
+    final buffer = StringBuffer();
+    for (final task in queue) {
+      buffer
+        ..write(task.id)
+        ..write(':')
+        ..write(task.status.index)
+        ..write('|');
+    }
+    return '${queue.length}#$buffer';
+  }
+
   @override
   void dispose() {
     _cacheSubscription?.cancel();
     _progressSubscription?.cancel();
     _queueSubscription?.cancel();
+    _cacheStatsRefreshTimer?.cancel();
     super.dispose();
   }
 
@@ -419,6 +526,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
             initialData: _downloadManager.queue,
             builder: (context, snapshot) {
               final queue = snapshot.data ?? [];
+              _syncVisibleQueueState(queue);
 
               return ListView(
                 padding: EdgeInsets.only(
@@ -443,11 +551,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                   ..._buildSection(
                     context,
                     'Active Downloads',
-                    queue
-                        .where((t) =>
-                            t.status == DownloadStatus.downloading ||
-                            t.status == DownloadStatus.paused)
-                        .toList(),
+                    _activeTasks,
                     isDark,
                   ),
 
@@ -455,18 +559,14 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                   ..._buildSection(
                     context,
                     'Pending',
-                    queue
-                        .where((t) => t.status == DownloadStatus.pending)
-                        .toList(),
+                    _pendingTasks,
                     isDark,
                   ),
 
                   // Completed downloads section - grouped by album
                   ..._buildDownloadedSection(
                     context,
-                    queue
-                        .where((t) => t.status == DownloadStatus.completed)
-                        .toList(),
+                    _completedTasks,
                     isDark,
                   ),
 
@@ -474,9 +574,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                   ..._buildSection(
                     context,
                     'Failed',
-                    queue
-                        .where((t) => t.status == DownloadStatus.failed)
-                        .toList(),
+                    _failedTasks,
                     isDark,
                   ),
 
@@ -1086,7 +1184,6 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
   ) {
     if (completedTasks.isEmpty) return [];
 
-    final grouped = _groupByAlbum(completedTasks);
     final widgets = <Widget>[];
 
     // Section header
@@ -1106,22 +1203,11 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
     );
 
     // Sort albums: albums with names first (alphabetically), then Singles (null) at the end
-    final sortedKeys = grouped.keys.toList()
-      ..sort((a, b) {
-        if (a == null && b == null) return 0;
-        if (a == null) return 1; // null (Singles) goes last
-        if (b == null) return -1;
-        // Sort by album name
-        final nameA = grouped[a]!.first.albumName ?? '';
-        final nameB = grouped[b]!.first.albumName ?? '';
-        return nameA.compareTo(nameB);
-      });
-
     // Build album cards
-    for (int i = 0; i < sortedKeys.length; i++) {
-      final albumId = sortedKeys[i];
-      final songs = grouped[albumId]!;
-      final isLast = i == sortedKeys.length - 1;
+    for (int i = 0; i < _sortedCompletedAlbumKeys.length; i++) {
+      final albumId = _sortedCompletedAlbumKeys[i];
+      final songs = _groupedCompletedTasks[albumId]!;
+      final isLast = i == _sortedCompletedAlbumKeys.length - 1;
 
       if (albumId == null) {
         // Singles section

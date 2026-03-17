@@ -50,7 +50,8 @@ class AriamiHttpServer {
   final StreamTracker _streamTracker = StreamTracker();
   TranscodingService? _transcodingService;
   ArtworkService? _artworkService;
-  String? _tailscaleIp; // Kept for backward compatibility
+  String? _tailscaleIp;
+  String? _lanIp;
   String? _advertisedIp; // The IP to show in QR code (Tailscale or LAN IP)
   int _port = 8080;
   final List<dynamic> _webSocketClients = [];
@@ -58,9 +59,10 @@ class AriamiHttpServer {
 
   // Download concurrency controls (multi-user fairness)
   static const int _defaultMaxConcurrentDownloads = 4;
-  static const int _defaultMaxDownloadQueue = 50;
+  static const int _defaultMaxDownloadQueue = 10000;
   static const int _defaultMaxConcurrentDownloadsPerUser = 2;
-  static const int _defaultMaxDownloadQueuePerUser = 20;
+  static const int _defaultMaxDownloadQueuePerUser = 10000;
+  static const int _defaultMaxDownloadJobQueuePerUser = 10000;
   int _maxConcurrentDownloads = _defaultMaxConcurrentDownloads;
   int _maxDownloadQueue = _defaultMaxDownloadQueue;
   int _maxConcurrentDownloadsPerUser = _defaultMaxConcurrentDownloadsPerUser;
@@ -208,6 +210,8 @@ class AriamiHttpServer {
   /// - [port]: The port to listen on (default: 8080)
   Future<void> start({
     required String advertisedIp,
+    String? tailscaleIp,
+    String? lanIp,
     String bindAddress = '0.0.0.0',
     int port = 8080,
   }) async {
@@ -215,13 +219,15 @@ class AriamiHttpServer {
     if (_server != null) {
       // Update stored IP/port even if server is already running
       _advertisedIp = advertisedIp;
-      _tailscaleIp = advertisedIp; // Backward compatibility
+      _tailscaleIp = tailscaleIp;
+      _lanIp = lanIp;
       _port = port;
       print('Ariami Server already running on http://$_advertisedIp:$_port');
       return;
     }
     _advertisedIp = advertisedIp;
-    _tailscaleIp = advertisedIp; // Backward compatibility
+    _tailscaleIp = tailscaleIp;
+    _lanIp = lanIp;
     _port = port;
 
     _validateFeatureFlagInvariantsOrThrow();
@@ -325,9 +331,11 @@ class AriamiHttpServer {
   Map<String, dynamic> getServerInfo() {
     return {
       'server': _advertisedIp ?? _tailscaleIp,
+      'lanServer': _lanIp,
+      'tailscaleServer': _tailscaleIp,
       'port': _port,
       'name': Platform.localHostname,
-      'version': '3.0.0',
+      'version': '1.0.0',
       'authRequired': _authRequired,
       'legacyMode': _legacyMode,
       'downloadLimits': {
@@ -370,6 +378,10 @@ class AriamiHttpServer {
     final downloadJobService = DownloadJobService(
       catalogRepositoryProvider: _libraryManager.createCatalogRepository,
       libraryManager: _libraryManager,
+      maxQueuedItemsPerUser: max(
+        _maxDownloadQueuePerUser,
+        _defaultMaxDownloadJobQueuePerUser,
+      ),
     );
 
     // Ping endpoint
@@ -878,7 +890,7 @@ class AriamiHttpServer {
         'status': 'ok',
         'timestamp': DateTime.now().toIso8601String(),
         'server': Platform.localHostname,
-        'version': '3.0.0',
+        'version': '1.0.0',
       }),
       headers: {'Content-Type': 'application/json; charset=utf-8'},
     );
@@ -1702,7 +1714,7 @@ class AriamiHttpServer {
         jsonEncode({
           'status': 'connected',
           'sessionId': sessionId,
-          'serverVersion': '3.0.0',
+          'serverVersion': '1.0.0',
           'features': ['library', 'streaming', 'websocket'],
           'deviceId': deviceId,
         }),

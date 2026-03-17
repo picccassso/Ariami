@@ -46,7 +46,7 @@ class _TailscaleCheckScreenState extends State<TailscaleCheckScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Tailscale Setup'),
+        title: const Text('Connect to Your Server'),
       ),
       body: SafeArea(
         child: Center(
@@ -55,45 +55,94 @@ class _TailscaleCheckScreenState extends State<TailscaleCheckScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-              // Status Icon
-              _buildStatusIcon(),
-              const SizedBox(height: 32),
-
-              // Status Title
-              Text(
-                _getStatusTitle(),
-                style: const TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.04),
+                    borderRadius: BorderRadius.circular(16),
+                    border:
+                        Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                  ),
+                  child: const Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Local network',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      SizedBox(height: 6),
+                      Text(
+                        'If your phone is on the same Wi-Fi as your desktop, you can connect directly with no extra setup.',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.white70,
+                          height: 1.4,
+                        ),
+                      ),
+                      SizedBox(height: 16),
+                      Text(
+                        'Remote access',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      SizedBox(height: 6),
+                      Text(
+                        'To use Ariami away from home, install and connect Tailscale on both your desktop and phone.',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.white70,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
+                const SizedBox(height: 32),
+                // Status Icon
+                _buildStatusIcon(),
+                const SizedBox(height: 32),
 
-              // Status Description
-              Text(
-                _getStatusDescription(),
-                style: const TextStyle(
-                  fontSize: 16,
-                  color: Colors.white70,
-                  height: 1.5,
+                // Status Title
+                Text(
+                  _getStatusTitle(),
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
                 ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 32),
+                const SizedBox(height: 16),
 
-              // Instructions (if needed)
-              if (_status != TailscaleStatus.connected &&
-                  _status != TailscaleStatus.checking)
-                _buildInstructions(),
+                // Status Description
+                Text(
+                  _getStatusDescription(),
+                  style: const TextStyle(
+                    fontSize: 16,
+                    color: Colors.white70,
+                    height: 1.5,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 32),
 
-              const SizedBox(height: 32),
+                // Instructions (if needed)
+                if (_status != TailscaleStatus.connected &&
+                    _status != TailscaleStatus.checking)
+                  _buildInstructions(),
 
-              // Action Buttons
-              _buildActionButtons(),
-            ],
+                const SizedBox(height: 32),
+
+                // Action Buttons
+                _buildActionButtons(),
+              ],
+            ),
           ),
-        ),
         ),
       ),
     );
@@ -109,9 +158,9 @@ class _TailscaleCheckScreenState extends State<TailscaleCheckScreen> {
         );
       case TailscaleStatus.notDetected:
         return Icon(
-          Icons.error,
+          Icons.info_outline_rounded,
           size: 120,
-          color: Colors.red[600],
+          color: Colors.blue[300],
         );
       case TailscaleStatus.installedNotConnected:
         return Icon(
@@ -133,26 +182,26 @@ class _TailscaleCheckScreenState extends State<TailscaleCheckScreen> {
   String _getStatusTitle() {
     switch (_status) {
       case TailscaleStatus.connected:
-        return 'Connected to Tailscale';
+        return 'Tailscale Ready';
       case TailscaleStatus.notDetected:
-        return 'Tailscale Not Detected';
+        return 'Tailscale Optional';
       case TailscaleStatus.installedNotConnected:
         return 'Tailscale Not Connected';
       case TailscaleStatus.checking:
-        return 'Checking Tailscale Status...';
+        return 'Checking Remote Access...';
     }
   }
 
   String _getStatusDescription() {
     switch (_status) {
       case TailscaleStatus.connected:
-        return 'Your device is connected to the Tailscale network. You can now scan the QR code from your desktop.';
+        return 'Tailscale is active. Local setup will work, and remote access will be available too.';
       case TailscaleStatus.notDetected:
-        return 'Tailscale is required to securely connect to your desktop music server.';
+        return 'Tailscale was not detected. You can continue with local setup now, but you will need Tailscale later for remote access.';
       case TailscaleStatus.installedNotConnected:
-        return 'Tailscale is installed but not connected. Please open Tailscale and connect to your network.';
+        return 'Tailscale is installed but not connected. You can still continue with local setup, or connect Tailscale now for remote access.';
       case TailscaleStatus.checking:
-        return 'Please wait while we check your Tailscale connection...';
+        return 'Please wait while we check whether Tailscale is available for remote access.';
     }
   }
 
@@ -170,7 +219,7 @@ class _TailscaleCheckScreenState extends State<TailscaleCheckScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Setup Instructions:',
+            'Remote Access Setup:',
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
@@ -183,11 +232,13 @@ class _TailscaleCheckScreenState extends State<TailscaleCheckScreen> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('• ', style: TextStyle(fontSize: 16, color: Colors.white70)),
+                    const Text('• ',
+                        style: TextStyle(fontSize: 16, color: Colors.white70)),
                     Expanded(
                       child: Text(
                         instruction,
-                        style: const TextStyle(fontSize: 14, color: Colors.white70),
+                        style: const TextStyle(
+                            fontSize: 14, color: Colors.white70),
                       ),
                     ),
                   ],
@@ -245,27 +296,26 @@ class _TailscaleCheckScreenState extends State<TailscaleCheckScreen> {
         ),
         const SizedBox(height: 16),
 
-        // Continue button (only when connected)
-        if (_status == TailscaleStatus.connected)
-          SizedBox(
-            width: double.infinity,
-            height: 56,
-            child: ElevatedButton(
-              onPressed: () {
-                // TODO: Navigate to QR scanner
-                Navigator.pushNamed(context, '/setup/scanner');
-              },
-              style: ElevatedButton.styleFrom(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: const Text(
-                'Continue',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+        SizedBox(
+          width: double.infinity,
+          height: 56,
+          child: ElevatedButton(
+            onPressed: () {
+              Navigator.pushNamed(context, '/setup/scanner');
+            },
+            style: ElevatedButton.styleFrom(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
               ),
             ),
+            child: Text(
+              _status == TailscaleStatus.connected
+                  ? 'Continue to Scanner'
+                  : 'Continue with Local Setup',
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+            ),
           ),
+        ),
       ],
     );
   }

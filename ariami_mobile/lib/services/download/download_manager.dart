@@ -35,6 +35,8 @@ class DownloadManager {
   final StreamController<List<DownloadTask>> _queueController =
       StreamController<List<DownloadTask>>.broadcast();
   final math.Random _retryRandom = math.Random();
+  Timer? _queueSaveTimer;
+  static const Duration _queueSaveDebounce = Duration(milliseconds: 350);
 
   bool _initialized = false;
   String? _downloadPath;
@@ -84,9 +86,9 @@ class DownloadManager {
 
     // Listen to queue changes and persist
     _queue.queueStream.listen((tasks) {
-      _database.saveDownloadQueue(tasks);
-      _ensureServerScope();
-      _ensureUserScope();
+      _ensureServerScope(tasks);
+      _ensureUserScope(tasks);
+      _scheduleQueueSave();
       _queueController.add(_filterTasksForCurrentScope(tasks));
     });
 
@@ -124,7 +126,7 @@ class DownloadManager {
     return ConnectionService().userId;
   }
 
-  void _ensureServerScope() {
+  void _ensureServerScope([List<DownloadTask>? tasks]) {
     final currentServerId = _getCurrentServerId();
     if (currentServerId == null) return;
 
@@ -132,23 +134,13 @@ class DownloadManager {
       _lastKnownServerId = currentServerId;
     }
 
-    final tasks = List<DownloadTask>.from(_queue.queue);
-    int updatedCount = 0;
-    for (final task in tasks) {
-      if (task.serverId == null) {
-        task.serverId = currentServerId;
-        _queue.updateTask(task);
-        updatedCount++;
-      }
-    }
-
-    if (updatedCount > 0) {
-      print(
-          'DownloadManager: Scoped $updatedCount downloads to $currentServerId');
+    final targetTasks = tasks ?? _queue.queue;
+    for (final task in targetTasks) {
+      task.serverId ??= currentServerId;
     }
   }
 
-  void _ensureUserScope() {
+  void _ensureUserScope([List<DownloadTask>? tasks]) {
     final currentUserId = _getCurrentUserId();
     if (currentUserId == null) return;
 
@@ -159,19 +151,11 @@ class DownloadManager {
     final currentServerId = _getCurrentServerId();
     if (currentServerId == null) return;
 
-    final tasks = List<DownloadTask>.from(_queue.queue);
-    int updatedCount = 0;
-    for (final task in tasks) {
+    final targetTasks = tasks ?? _queue.queue;
+    for (final task in targetTasks) {
       if (task.userId == null && task.serverId == currentServerId) {
         task.userId = currentUserId;
-        _queue.updateTask(task);
-        updatedCount++;
       }
-    }
-
-    if (updatedCount > 0) {
-      print(
-          'DownloadManager: Scoped $updatedCount downloads to user $currentUserId');
     }
   }
 
@@ -194,9 +178,20 @@ class DownloadManager {
   }
 
   List<DownloadTask> _getScopedQueue() {
-    _ensureServerScope();
-    _ensureUserScope();
+    _ensureServerScope(_queue.queue);
+    _ensureUserScope(_queue.queue);
     return _filterTasksForCurrentScope(_queue.queue);
+  }
+
+  void _scheduleQueueSave() {
+    _queueSaveTimer?.cancel();
+    _queueSaveTimer = Timer(_queueSaveDebounce, () {
+      unawaited(_flushQueueSave());
+    });
+  }
+
+  Future<void> _flushQueueSave() async {
+    await _database.saveDownloadQueue(_queue.queue);
   }
 
   QueueStats _buildQueueStats(List<DownloadTask> tasks) {
@@ -620,9 +615,6 @@ class DownloadManager {
 
       print('Download completed: ${task.title} (${_formatFileSize(fileSize)})');
 
-      // Cache artwork for offline use (full size for detail views)
-      await _cacheArtworkForDownload(task);
-
       // Mark as completed with actual file size
       task.status = DownloadStatus.completed;
       task.progress = 1.0;
@@ -643,6 +635,10 @@ class DownloadManager {
       _activeDownloadCount--;
       await Future.delayed(const Duration(milliseconds: 50));
       _fillDownloadSlots();
+
+      // Cache artwork after completion so network/disk prefetch doesn't block
+      // download throughput or queue status updates.
+      unawaited(_cacheArtworkForDownload(task));
     } on DioException catch (e) {
       _activeDownloadCount--;
       _handleDownloadError(task, e);
@@ -1050,6 +1046,7 @@ class DownloadManager {
 
   /// Dispose resources
   void dispose() {
+    _queueSaveTimer?.cancel();
     _progressController.close();
     _queueController.close();
     _queue.dispose();

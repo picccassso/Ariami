@@ -65,13 +65,16 @@ class _LibraryScreenState extends State<LibraryScreen> {
   Set<String> _fullyDownloadedAlbumIds = {};
   Set<String> _playlistsWithDownloads = {};
   StreamSubscription<OfflineMode>? _offlineSubscription;
-  StreamSubscription<void>? _cacheSubscription;
+  StreamSubscription<CacheUpdateEvent>? _cacheSubscription;
   StreamSubscription<bool>? _connectionSubscription;
   StreamSubscription<List<DownloadTask>>? _downloadSubscription;
   StreamSubscription<WsMessage>? _webSocketSubscription;
   Timer? _durationRetryTimer;
+  Timer? _downloadStateRefreshTimer;
+  Timer? _cacheRefreshTimer;
   bool _durationsPending = false;
   int _durationRetryCount = 0;
+  String _lastCompletedDownloadsSignature = '';
   static const int _maxDurationRetries = 3;
   static const Duration _durationRetryDelay = Duration(seconds: 3);
 
@@ -101,13 +104,16 @@ class _LibraryScreenState extends State<LibraryScreen> {
     });
 
     // Listen to cache updates
-    _cacheSubscription = _cacheManager.cacheUpdateStream.listen((_) {
-      _loadCachedSongs();
+    _cacheSubscription = _cacheManager.cacheUpdateStream.listen((event) {
+      if (!event.affectsSongCache) {
+        return;
+      }
+      _scheduleCachedSongsRefresh();
     });
 
-    // Listen to download queue changes - refresh download status when downloads complete
-    _downloadSubscription = _downloadManager.queueStream.listen((_) {
-      _loadDownloadedSongs();
+    // Listen to download queue changes - only refresh when completed set changes.
+    _downloadSubscription = _downloadManager.queueStream.listen((tasks) {
+      _scheduleDownloadedSongsRefresh(tasks);
     });
 
     // Listen for library updates from WebSocket (durations warm-up)
@@ -125,6 +131,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
     _downloadSubscription?.cancel();
     _webSocketSubscription?.cancel();
     _durationRetryTimer?.cancel();
+    _downloadStateRefreshTimer?.cancel();
+    _cacheRefreshTimer?.cancel();
     super.dispose();
   }
 
@@ -230,9 +238,50 @@ class _LibraryScreenState extends State<LibraryScreen> {
     _durationRetryTimer = null;
   }
 
+  void _scheduleDownloadedSongsRefresh(List<DownloadTask> tasks) {
+    final signature = _buildCompletedDownloadsSignature(tasks);
+    if (signature == _lastCompletedDownloadsSignature) {
+      return;
+    }
+
+    _lastCompletedDownloadsSignature = signature;
+    _downloadStateRefreshTimer?.cancel();
+    _downloadStateRefreshTimer = Timer(
+      const Duration(milliseconds: 150),
+      _loadDownloadedSongs,
+    );
+  }
+
+  void _scheduleCachedSongsRefresh() {
+    _cacheRefreshTimer?.cancel();
+    _cacheRefreshTimer = Timer(
+      const Duration(milliseconds: 250),
+      _loadCachedSongs,
+    );
+  }
+
+  String _buildCompletedDownloadsSignature(List<DownloadTask> queue) {
+    final buffer = StringBuffer();
+    var completedCount = 0;
+
+    for (final task in queue) {
+      if (task.status != DownloadStatus.completed) {
+        continue;
+      }
+      completedCount++;
+      buffer
+        ..write(task.id)
+        ..write(':')
+        ..write(task.albumId ?? '')
+        ..write('|');
+    }
+
+    return '$completedCount#$buffer';
+  }
+
   /// Load list of downloaded song IDs and albums with downloads
-  Future<void> _loadDownloadedSongs() async {
-    final queue = _downloadManager.queue;
+  Future<void> _loadDownloadedSongs([List<DownloadTask>? queueSnapshot]) async {
+    final queue = queueSnapshot ?? _downloadManager.queue;
     final downloadedIds = <String>{};
     final albumsWithDownloads = <String>{};
     final albumDownloadCounts = <String, int>{};
@@ -270,6 +319,25 @@ class _LibraryScreenState extends State<LibraryScreen> {
       }
     }
 
+    _lastCompletedDownloadsSignature = _buildCompletedDownloadsSignature(queue);
+
+    if (!mounted) {
+      return;
+    }
+
+    final downloadStateUnchanged =
+        _downloadedSongIds.length == downloadedIds.length &&
+            _downloadedSongIds.containsAll(downloadedIds) &&
+            _albumsWithDownloads.length == albumsWithDownloads.length &&
+            _albumsWithDownloads.containsAll(albumsWithDownloads) &&
+            _fullyDownloadedAlbumIds.length == fullyDownloaded.length &&
+            _fullyDownloadedAlbumIds.containsAll(fullyDownloaded) &&
+            _playlistsWithDownloads.length == playlistsWithDownloads.length &&
+            _playlistsWithDownloads.containsAll(playlistsWithDownloads);
+    if (downloadStateUnchanged) {
+      return;
+    }
+
     setState(() {
       _downloadedSongIds = downloadedIds;
       _albumsWithDownloads = albumsWithDownloads;
@@ -281,6 +349,12 @@ class _LibraryScreenState extends State<LibraryScreen> {
   /// Load list of cached song IDs using batch query
   Future<void> _loadCachedSongs() async {
     final allCachedIds = await _cacheManager.getCachedSongIds();
+
+    final cacheStateUnchanged = _cachedSongIds.length == allCachedIds.length &&
+        _cachedSongIds.containsAll(allCachedIds);
+    if (!mounted || cacheStateUnchanged) {
+      return;
+    }
 
     if (mounted) {
       setState(() {
