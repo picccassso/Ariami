@@ -45,14 +45,16 @@ class AlbumArtworkHeader extends StatelessWidget {
 
   /// Build album artwork with fallback
   Widget _buildArtwork() {
-    final authHeaders = ConnectionService().authHeaders;
+    final connectionService = ConnectionService();
+    final authHeaders = connectionService.authHeaders;
+    final resolvedCoverArt = connectionService.resolveServerUrl(coverArt);
     // If we have an albumId, use CachedArtwork for automatic caching
     // CachedArtwork checks cache first, so it works even without a URL (offline mode)
     if (albumId != null) {
       return SizedBox.expand(
         child: CachedArtwork(
           albumId: albumId!,
-          artworkUrl: coverArt,
+          artworkUrl: resolvedCoverArt,
           fit: BoxFit.cover,
           fallback: _buildFallbackArt(),
         ),
@@ -60,9 +62,9 @@ class AlbumArtworkHeader extends StatelessWidget {
     }
 
     // Fallback for when no albumId is available
-    if (coverArt != null && coverArt!.isNotEmpty) {
+    if (resolvedCoverArt != null && resolvedCoverArt.isNotEmpty) {
       return Image.network(
-        coverArt!,
+        resolvedCoverArt,
         fit: BoxFit.cover,
         headers: authHeaders,
         loadingBuilder: (context, child, loadingProgress) {

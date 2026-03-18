@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import '../../services/api/connection_service.dart';
 import '../../services/cache/cache_manager.dart';
 import '../../services/offline/offline_playback_service.dart';
 import '../../services/media/media_request_scheduler.dart';
@@ -83,6 +84,7 @@ class CachedArtwork extends StatefulWidget {
 class _CachedArtworkState extends State<CachedArtwork> {
   final CacheManager _cacheManager = CacheManager();
   final OfflinePlaybackService _offlineService = OfflinePlaybackService();
+  final ConnectionService _connectionService = ConnectionService();
 
   String? _localPath;
   bool _isLoading = true;
@@ -142,11 +144,15 @@ class _CachedArtworkState extends State<CachedArtwork> {
     if (widget.artworkUrl == null || widget.artworkUrl!.isEmpty) {
       return null;
     }
-    if (widget.sizeHint == ArtworkSizeHint.thumbnail) {
-      final separator = widget.artworkUrl!.contains('?') ? '&' : '?';
-      return '${widget.artworkUrl}${separator}size=thumbnail';
+    final resolvedUrl = _connectionService.resolveServerUrl(widget.artworkUrl);
+    if (resolvedUrl == null || resolvedUrl.isEmpty) {
+      return null;
     }
-    return widget.artworkUrl;
+    if (widget.sizeHint == ArtworkSizeHint.thumbnail) {
+      final separator = resolvedUrl.contains('?') ? '&' : '?';
+      return '$resolvedUrl${separator}size=thumbnail';
+    }
+    return resolvedUrl;
   }
 
   Future<void> _loadArtwork() async {
@@ -252,7 +258,8 @@ class _CachedArtworkState extends State<CachedArtwork> {
       if (requestToken.isCancelled) {
         return;
       }
-      print('[CachedArtwork] Error loading artwork for ${widget.albumId}: $e');
+      debugPrint(
+          '[CachedArtwork] Error loading artwork for ${widget.albumId}: $e');
       if (mounted && _requestCancellationToken == requestToken) {
         setState(() {
           _isLoading = false;
