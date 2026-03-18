@@ -49,6 +49,23 @@ class ConnectionLifecycleManager {
   /// Current session ID
   String? get sessionId => _sessionId;
 
+  /// Adopt an already-authenticated connection created outside this manager.
+  void adoptEstablishedConnection({
+    required ApiClient apiClient,
+    required String sessionId,
+    required ServerInfo serverInfo,
+  }) {
+    _apiClient = apiClient;
+    _sessionId = sessionId;
+    _stateManager.setServerInfo(serverInfo);
+    _serverInfoManager.setServerInfo(serverInfo);
+  }
+
+  /// Clear the active client/session while keeping server info for reconnects.
+  void clearActiveConnection() {
+    _cleanupConnection();
+  }
+
   /// Connect to server using QR code data (JSON string)
   Future<void> connectFromQr(
     String qrData, {
@@ -132,6 +149,8 @@ class ConnectionLifecycleManager {
 
       // Update state
       _sessionId = response.sessionId;
+      _stateManager.setServerInfo(hydratedServerInfo);
+      _serverInfoManager.setServerInfo(hydratedServerInfo);
       _stateManager.setConnected(true);
       _stateManager.setManuallyDisconnected(false);
       _stateManager.clearRestoreFailure();
@@ -233,6 +252,8 @@ class ConnectionLifecycleManager {
 
       // Update state
       _sessionId = response.sessionId;
+      _stateManager.setServerInfo(hydratedServerInfo);
+      _serverInfoManager.setServerInfo(hydratedServerInfo);
       _stateManager.setConnected(true);
       _stateManager.setManuallyDisconnected(false);
       _stateManager.clearRestoreFailure();

@@ -1,49 +1,16 @@
 import 'dart:async';
-import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
-import 'package:file_picker/file_picker.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:path/path.dart' as path;
 import '../../models/api_models.dart';
-import '../../models/song.dart';
 import '../../models/download_task.dart';
 import '../../services/api/connection_service.dart';
 import '../../services/playlist_service.dart';
 import '../../services/playback_manager.dart';
 import '../../services/offline/offline_playback_service.dart';
 import '../../services/download/download_manager.dart';
-import '../../widgets/common/cached_artwork.dart';
 import 'add_to_playlist_screen.dart';
-
-/// Helper to convert SongModel to Song with album info lookup
-/// Uses album info map to populate album name and artist
-Song _songModelToSong(
-    SongModel s, Map<String, ({String name, String artist})> albumInfoMap) {
-  String? albumName;
-  String? albumArtist;
-
-  // Lookup album info if song has albumId
-  if (s.albumId != null && albumInfoMap.containsKey(s.albumId)) {
-    final albumInfo = albumInfoMap[s.albumId]!;
-    albumName = albumInfo.name;
-    albumArtist = albumInfo.artist;
-  }
-
-  return Song(
-    id: s.id,
-    title: s.title,
-    artist: s.artist,
-    album: albumName,
-    albumId: s.albumId,
-    albumArtist: albumArtist,
-    duration: Duration(seconds: s.duration),
-    trackNumber: s.trackNumber,
-    filePath: s.id, // Use song ID as placeholder
-    fileSize: 0,
-    modifiedTime: DateTime.now(),
-  );
-}
+import 'utils/playlist_helpers.dart';
+import 'widgets/widgets.dart';
 
 /// Playlist detail screen with editable header, reorderable songs, and playback actions
 class PlaylistDetailScreen extends StatefulWidget {
@@ -68,8 +35,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   PlaylistModel? _playlist;
   List<SongModel> _songs = [];
   bool _isLoading = true;
-  bool _isSongsLoading =
-      false; // True while songs are being resolved in background
+  bool _isSongsLoading = false;
   String? _errorMessage;
   bool _isReorderMode = false;
   Set<String> _downloadedSongIds = {};
@@ -92,7 +58,6 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   }
 
   void _onPlaylistsChanged() {
-    // Only do a lightweight update - don't show loading state
     _refreshPlaylistData();
   }
 
@@ -113,25 +78,21 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   }
 
   /// Refresh playlist data without showing loading indicator
-  /// Used for lightweight updates like reordering
   Future<void> _refreshPlaylistData() async {
     final playlist = _playlistService.getPlaylist(widget.playlistId);
 
     if (playlist == null) {
-      // Playlist was deleted, go back
       if (mounted) {
         Navigator.of(context).pop();
       }
       return;
     }
 
-    // Check if song IDs changed (added/removed) vs just reordered
     final currentSongIds = _songs.map((s) => s.id).toSet();
     final newSongIds = playlist.songIds.toSet();
 
     if (currentSongIds.length != newSongIds.length ||
         !currentSongIds.containsAll(newSongIds)) {
-      // Songs were added or removed - need to resolve new songs
       final songs = await _resolveSongs(playlist.songIds);
       if (mounted) {
         setState(() {
@@ -140,7 +101,6 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
         });
       }
     } else {
-      // Just reordered - reorder our existing song objects
       final songMap = {for (var s in _songs) s.id: s};
       final reorderedSongs = playlist.songIds
           .where((id) => songMap.containsKey(id))
@@ -157,21 +117,16 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   }
 
   /// Load playlist and resolve song IDs to full song data
-  /// Shows playlist header immediately for smooth transition, then loads songs in background
   Future<void> _loadPlaylist() async {
-    // First: Try to show playlist header immediately from cached data
-    // This provides instant visual feedback during screen transition
     final cachedPlaylist = _playlistService.getPlaylist(widget.playlistId);
 
     if (cachedPlaylist != null) {
-      // Show header immediately without loading spinner
       setState(() {
         _playlist = cachedPlaylist;
-        _isLoading = false; // Don't show loading spinner for header
-        _isSongsLoading = true; // Songs are loading in background
+        _isLoading = false;
+        _isSongsLoading = true;
       });
 
-      // Then resolve songs in background (this is now fast with local metadata)
       final songs = await _resolveSongs(cachedPlaylist.songIds);
       if (mounted) {
         setState(() {
@@ -180,7 +135,6 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
         });
       }
     } else {
-      // Playlist not in cache - need to load from storage first
       setState(() {
         _isLoading = true;
         _errorMessage = null;
@@ -198,7 +152,6 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
           return;
         }
 
-        // Resolve song IDs to full song data
         final songs = await _resolveSongs(playlist.songIds);
 
         setState(() {
@@ -216,41 +169,28 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   }
 
   /// Resolve song IDs to SongModel objects
-  /// Uses locally-stored playlist metadata for INSTANT loading (no network wait)
-  /// Fetches library data in BACKGROUND only to enrich album info for stats
-  /// Also populates _albumInfoMap for stats tracking
   Future<List<SongModel>> _resolveSongs(List<String> songIds) async {
     if (songIds.isEmpty) {
       return [];
     }
 
-    // Check if offline - use downloaded song metadata instead of server
     if (_offlineService.isOffline || _connectionService.apiClient == null) {
       return _resolveSongsFromDownloads(songIds);
     }
 
-    // INSTANT: Build song models from playlist's stored metadata (no network call!)
-    // This eliminates the "gap" where header shows empty while waiting for network
     final songs = _resolveSongsFromLocalMetadata(songIds);
-
-    // BACKGROUND: Fetch library data to populate album info map (non-blocking)
-    // This enriches the data for stats tracking but doesn't block the UI
     _fetchAlbumInfoInBackground();
 
     return songs;
   }
 
-  /// Fetch album info from server in background (non-blocking)
-  /// Populates _albumInfoMap for enriched metadata display
+  /// Fetch album info from server in background
   void _fetchAlbumInfoInBackground() {
-    // Fire-and-forget - don't await
     _connectionService.libraryReadFacade.getAlbums().then((albums) {
-      // Populate album info map from local sync repository
       for (final album in albums) {
         _albumInfoMap[album.id] = (name: album.title, artist: album.artist);
       }
 
-      // Also populate from downloads for any albums not in library response
       for (final task in _downloadManager.queue) {
         if (task.status == DownloadStatus.completed &&
             task.albumId != null &&
@@ -261,20 +201,16 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
         }
       }
 
-      // Trigger lightweight rebuild if still mounted (for any UI that uses album info)
       if (mounted) {
         setState(() {});
       }
     }).catchError((e) {
       print('[PlaylistDetailScreen] Background album info load failed: $e');
-      // Non-critical - songs still display correctly without album info
     });
   }
 
   /// Build SongModel objects from playlist's locally-stored metadata
-  /// This is the optimized path - no server calls needed
   List<SongModel> _resolveSongsFromLocalMetadata(List<String> songIds) {
-    // First, collect metadata from downloads (higher priority - more complete)
     final downloadedSongs = <String, SongModel>{};
     for (final task in _downloadManager.queue) {
       if (task.status == DownloadStatus.completed) {
@@ -287,7 +223,6 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
           trackNumber: task.trackNumber,
         );
 
-        // Also update album info map from downloads
         if (task.albumId != null && task.albumName != null) {
           _albumInfoMap[task.albumId!] =
               (name: task.albumName!, artist: task.albumArtist ?? task.artist);
@@ -295,14 +230,11 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
       }
     }
 
-    // Return songs in playlist order using best available metadata
     return songIds.map((id) {
-      // Prefer downloaded song metadata (more complete)
       if (downloadedSongs.containsKey(id)) {
         return downloadedSongs[id]!;
       }
 
-      // Fall back to playlist's stored metadata
       final albumId = _playlist?.songAlbumIds[id];
       final title = _playlist?.songTitles[id] ?? 'Unknown Song';
       final artist = _playlist?.songArtists[id] ?? 'Unknown Artist';
@@ -318,27 +250,19 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
     }).toList();
   }
 
-  /// Build SongModel objects from downloaded song metadata or stored playlist metadata
-  /// Used when offline to display playlist songs
-  /// Shows ALL songs - downloaded ones with full metadata, others with stored metadata (grayed out)
+  /// Build SongModel objects from downloaded song metadata
   List<SongModel> _resolveSongsFromDownloads(List<String> songIds) {
     final downloadedSongs = <String, SongModel>{};
 
-    // FIRST PASS: Populate _albumInfoMap from ALL completed downloads
-    // This ensures we have album info even if specific playlist songs aren't downloaded
-    // but other songs from the same album are downloaded
     for (final task in _downloadManager.queue) {
       if (task.status == DownloadStatus.completed &&
           task.albumId != null &&
           task.albumName != null) {
-        // Populate album info map from download task metadata
-        // Use albumArtist if available, fallback to artist
         _albumInfoMap[task.albumId!] =
             (name: task.albumName!, artist: task.albumArtist ?? task.artist);
       }
     }
 
-    // SECOND PASS: Build SongModel from each completed download task that's in the playlist
     for (final task in _downloadManager.queue) {
       if (task.status == DownloadStatus.completed) {
         downloadedSongs[task.songId] = SongModel(
@@ -352,14 +276,10 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
       }
     }
 
-    // Return ALL songs in playlist order
-    // Downloaded songs get full metadata from download task
-    // Others get metadata stored in playlist (if available)
     return songIds.map((id) {
       if (downloadedSongs.containsKey(id)) {
         return downloadedSongs[id]!;
       } else {
-        // Use metadata stored in playlist for non-downloaded songs
         final albumId = _playlist?.songAlbumIds[id];
         final title = _playlist?.songTitles[id] ?? 'Unknown Song';
         final artist = _playlist?.songArtists[id] ?? 'Unknown Artist';
@@ -380,7 +300,6 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   Future<void> _playAll() async {
     if (_songs.isEmpty) return;
 
-    // Filter for offline mode
     final isOffline = _offlineService.isOffline;
     final songsToPlay = isOffline
         ? _songs.where((s) => _downloadedSongIds.contains(s.id)).toList()
@@ -399,7 +318,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
     }
 
     final songs =
-        songsToPlay.map((s) => _songModelToSong(s, _albumInfoMap)).toList();
+        songsToPlay.map((s) => songModelToSong(s, _albumInfoMap)).toList();
     await _playbackManager.playSongs(songs, startIndex: 0);
   }
 
@@ -407,7 +326,6 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   Future<void> _shuffleAll() async {
     if (_songs.isEmpty) return;
 
-    // Filter for offline mode
     final isOffline = _offlineService.isOffline;
     final songsToPlay = isOffline
         ? _songs.where((s) => _downloadedSongIds.contains(s.id)).toList()
@@ -426,19 +344,17 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
     }
 
     final songs =
-        songsToPlay.map((s) => _songModelToSong(s, _albumInfoMap)).toList();
+        songsToPlay.map((s) => songModelToSong(s, _albumInfoMap)).toList();
     await _playbackManager.playShuffled(songs);
   }
 
   /// Play a specific track
   Future<void> _playTrack(SongModel track, int index) async {
-    // Filter for offline mode
     final isOffline = _offlineService.isOffline;
     final songsToPlay = isOffline
         ? _songs.where((s) => _downloadedSongIds.contains(s.id)).toList()
         : _songs;
 
-    // Find the index of the clicked track in the filtered list
     int startIndex;
     if (isOffline) {
       startIndex = songsToPlay.indexWhere((s) => s.id == track.id);
@@ -448,7 +364,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
     }
 
     final songs =
-        songsToPlay.map((s) => _songModelToSong(s, _albumInfoMap)).toList();
+        songsToPlay.map((s) => songModelToSong(s, _albumInfoMap)).toList();
     await _playbackManager.playSongs(songs, startIndex: startIndex);
   }
 
@@ -456,278 +372,45 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   Future<void> _editPlaylist() async {
     if (_playlist == null) return;
 
-    final nameController = TextEditingController(text: _playlist!.name);
-    final descController =
-        TextEditingController(text: _playlist!.description ?? '');
+    final result = await showEditPlaylistDialog(context, _playlist!);
 
-    // Track image state - null means no change, empty string means remove
-    String? newImagePath;
-    bool removeImage = false;
-
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) {
-          // Determine what image to show
-          Widget imageWidget;
-          final currentImagePath =
-              removeImage ? null : (newImagePath ?? _playlist!.customImagePath);
-
-          if (currentImagePath != null && File(currentImagePath).existsSync()) {
-            imageWidget = ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.file(
-                File(currentImagePath),
-                width: 120,
-                height: 120,
-                fit: BoxFit.cover,
-              ),
-            );
-          } else {
-            // Show placeholder
-            imageWidget = Container(
-              width: 120,
-              height: 120,
-              decoration: BoxDecoration(
-                color: Colors.grey[800],
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(
-                Icons.queue_music,
-                size: 48,
-                color: Colors.grey,
-              ),
-            );
-          }
-
-          return AlertDialog(
-            title: const Text('Edit Playlist'),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Image preview and actions
-                  GestureDetector(
-                    onTap: () async {
-                      final result = await FilePicker.platform.pickFiles(
-                        type: FileType.image,
-                        allowMultiple: false,
-                      );
-                      if (result != null && result.files.isNotEmpty) {
-                        final pickedPath = result.files.first.path;
-                        if (pickedPath != null) {
-                          // Copy to app documents directory
-                          final appDir =
-                              await getApplicationDocumentsDirectory();
-                          final playlistImagesDir =
-                              Directory('${appDir.path}/playlist_images');
-                          if (!await playlistImagesDir.exists()) {
-                            await playlistImagesDir.create(recursive: true);
-                          }
-                          final ext = path.extension(pickedPath);
-                          final newFileName =
-                              '${_playlist!.id}_${DateTime.now().millisecondsSinceEpoch}$ext';
-                          final destPath =
-                              '${playlistImagesDir.path}/$newFileName';
-                          await File(pickedPath).copy(destPath);
-                          setDialogState(() {
-                            newImagePath = destPath;
-                            removeImage = false;
-                          });
-                        }
-                      }
-                    },
-                    child: imageWidget,
-                  ),
-                  const SizedBox(height: 8),
-                  // Change Photo button
-                  TextButton.icon(
-                    onPressed: () async {
-                      final result = await FilePicker.platform.pickFiles(
-                        type: FileType.image,
-                        allowMultiple: false,
-                      );
-                      if (result != null && result.files.isNotEmpty) {
-                        final pickedPath = result.files.first.path;
-                        if (pickedPath != null) {
-                          // Copy to app documents directory
-                          final appDir =
-                              await getApplicationDocumentsDirectory();
-                          final playlistImagesDir =
-                              Directory('${appDir.path}/playlist_images');
-                          if (!await playlistImagesDir.exists()) {
-                            await playlistImagesDir.create(recursive: true);
-                          }
-                          final ext = path.extension(pickedPath);
-                          final newFileName =
-                              '${_playlist!.id}_${DateTime.now().millisecondsSinceEpoch}$ext';
-                          final destPath =
-                              '${playlistImagesDir.path}/$newFileName';
-                          await File(pickedPath).copy(destPath);
-                          setDialogState(() {
-                            newImagePath = destPath;
-                            removeImage = false;
-                          });
-                        }
-                      }
-                    },
-                    icon: const Icon(Icons.camera_alt, size: 18),
-                    label: const Text('Change Photo'),
-                  ),
-                  // Remove image button (only show if there's an image)
-                  if ((newImagePath != null ||
-                          _playlist!.customImagePath != null) &&
-                      !removeImage)
-                    TextButton.icon(
-                      onPressed: () {
-                        setDialogState(() {
-                          removeImage = true;
-                          newImagePath = null;
-                        });
-                      },
-                      icon: const Icon(Icons.delete, size: 16),
-                      label: const Text('Remove Photo'),
-                      style: TextButton.styleFrom(
-                        foregroundColor: Colors.red,
-                      ),
-                    ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: nameController,
-                    decoration: const InputDecoration(
-                      labelText: 'Name',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: descController,
-                    decoration: const InputDecoration(
-                      labelText: 'Description (optional)',
-                      border: OutlineInputBorder(),
-                    ),
-                    maxLines: 2,
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext, false),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(dialogContext, true),
-                child: const Text('Save'),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-
-    if (result == true && mounted) {
+    if (result != null && mounted) {
       await _playlistService.updatePlaylist(
         id: _playlist!.id,
-        name: nameController.text.trim(),
-        description: descController.text.trim().isEmpty
-            ? null
-            : descController.text.trim(),
-        customImagePath: newImagePath,
-        clearCustomImage: removeImage,
+        name: result.name,
+        description: result.description,
+        customImagePath: result.newImagePath,
+        clearCustomImage: result.clearCustomImage,
       );
     }
   }
 
   /// Delete playlist with confirmation
-  /// For imported playlists, shows option to restore server version
   Future<void> _deletePlaylist() async {
     if (_playlist == null) return;
 
     final isImported = _playlistService.isImportedFromServer(_playlist!.id);
+    final action = await showDeletePlaylistDialog(
+      context,
+      _playlist!,
+      isImported: isImported,
+    );
+
+    if (action == DeletePlaylistAction.cancel || !mounted) return;
+
+    _playlistService.removeListener(_onPlaylistsChanged);
 
     if (isImported) {
-      // Show special dialog for imported playlists
-      final result = await showDialog<String>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Delete Imported Playlist'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('This playlist was imported from your server.'),
-              const SizedBox(height: 12),
-              Text(
-                'What would you like to do?',
-                style: TextStyle(fontWeight: FontWeight.w500),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, 'cancel'),
-              child: const Text('Cancel'),
-            ),
-            OutlinedButton.icon(
-              onPressed: () => Navigator.pop(context, 'restore'),
-              icon: const Icon(Icons.restore),
-              label: const Text('Delete & Restore Original'),
-            ),
-            FilledButton.icon(
-              onPressed: () => Navigator.pop(context, 'permanent'),
-              style: FilledButton.styleFrom(
-                backgroundColor: Colors.red,
-              ),
-              icon: const Icon(Icons.delete_forever),
-              label: const Text('Delete Permanently'),
-            ),
-          ],
-        ),
+      await _playlistService.deleteImportedPlaylist(
+        _playlist!.id,
+        restoreServerVersion: action == DeletePlaylistAction.restore,
       );
-
-      if (result != null && result != 'cancel' && mounted) {
-        _playlistService.removeListener(_onPlaylistsChanged);
-        await _playlistService.deleteImportedPlaylist(
-          _playlist!.id,
-          restoreServerVersion: result == 'restore',
-        );
-        if (mounted) {
-          Navigator.of(context).pop();
-        }
-      }
     } else {
-      // Standard delete for regular playlists
-      final confirm = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Delete Playlist'),
-          content:
-              Text('Are you sure you want to delete "${_playlist!.name}"?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              style: FilledButton.styleFrom(
-                backgroundColor: Colors.red,
-              ),
-              child: const Text('Delete'),
-            ),
-          ],
-        ),
-      );
+      await _playlistService.deletePlaylist(_playlist!.id);
+    }
 
-      if (confirm == true && mounted) {
-        // Remove listener before deleting to prevent double navigation
-        _playlistService.removeListener(_onPlaylistsChanged);
-        await _playlistService.deletePlaylist(_playlist!.id);
-        if (mounted) {
-          Navigator.of(context).pop();
-        }
-      }
+    if (mounted) {
+      Navigator.of(context).pop();
     }
   }
 
@@ -750,7 +433,6 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
 
   /// Navigate to add songs screen
   Future<void> _addSongs() async {
-    // Fetch all available songs from local sync repository
     List<SongModel> availableSongs = [];
     try {
       final allSongs = await _connectionService.libraryReadFacade.getSongs();
@@ -782,29 +464,11 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _errorMessage != null
-              ? _buildErrorState()
+              ? ErrorState(
+                  message: _errorMessage!,
+                  onRetry: _loadPlaylist,
+                )
               : _buildContent(),
-    );
-  }
-
-  Widget _buildErrorState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.error_outline, size: 64, color: Colors.grey[400]),
-          const SizedBox(height: 16),
-          Text(
-            _errorMessage!,
-            style: TextStyle(color: Colors.grey[600]),
-          ),
-          const SizedBox(height: 16),
-          ElevatedButton(
-            onPressed: _loadPlaylist,
-            child: const Text('Retry'),
-          ),
-        ],
-      ),
     );
   }
 
@@ -812,6 +476,8 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
     if (_playlist == null) {
       return const Center(child: Text('No playlist data'));
     }
+
+    final baseUrl = _connectionService.apiClient?.baseUrl;
 
     return CustomScrollView(
       slivers: [
@@ -845,21 +511,37 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
             ),
           ],
           flexibleSpace: FlexibleSpaceBar(
-            background: _buildPlaylistHeader(),
+            background: PlaylistHeader(
+              playlist: _playlist,
+              songs: _songs,
+              baseUrl: baseUrl,
+            ),
           ),
         ),
 
         // Playlist info section
         SliverToBoxAdapter(
-          child: _buildPlaylistInfo(),
+          child: PlaylistInfoSection(
+            playlist: _playlist!,
+            songs: _songs,
+          ),
         ),
 
         // Action buttons
         SliverToBoxAdapter(
-          child: _buildActionButtons(),
+          child: PlaylistActionButtons(
+            hasSongs: _songs.isNotEmpty,
+            canReorder: _songs.length > 1,
+            isReorderMode: _isReorderMode,
+            onPlay: _playAll,
+            onShuffle: _shuffleAll,
+            onToggleReorder: () =>
+                setState(() => _isReorderMode = !_isReorderMode),
+            onAddSongs: _addSongs,
+          ),
         ),
 
-        // Songs list - show loading indicator while songs are being fetched
+        // Songs list
         if (_isSongsLoading)
           const SliverToBoxAdapter(
             child: Padding(
@@ -874,8 +556,8 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
             ),
           )
         else if (_songs.isEmpty)
-          SliverToBoxAdapter(
-            child: _buildEmptyState(),
+          const SliverToBoxAdapter(
+            child: EmptyPlaylistState(),
           )
         else if (_isReorderMode)
           SliverReorderableList(
@@ -886,7 +568,11 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
               return ReorderableDragStartListener(
                 key: ValueKey(song.id),
                 index: index,
-                child: _buildReorderItem(song, index),
+                child: ReorderListItem(
+                  song: song,
+                  index: index,
+                  onRemove: () => _removeSong(song.id),
+                ),
               );
             },
           )
@@ -895,13 +581,25 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
             delegate: SliverChildBuilderDelegate(
               (context, index) {
                 final song = _songs[index];
-                return _buildSongItem(song, index);
+                final isDownloaded = _downloadedSongIds.contains(song.id);
+                final isOffline = _offlineService.isOffline;
+                final isAvailable = !isOffline || isDownloaded;
+
+                return SongListItem(
+                  song: song,
+                  index: index,
+                  isAvailable: isAvailable,
+                  isDownloaded: isDownloaded,
+                  connectionService: _connectionService,
+                  onTap: () => _playTrack(song, index),
+                  onRemove: () => _removeSong(song.id),
+                );
               },
               childCount: _songs.length,
             ),
           ),
 
-        // Bottom padding for mini player + download bar + nav bar
+        // Bottom padding for mini player
         SliverPadding(
           padding: EdgeInsets.only(
             bottom: getMiniPlayerAwareBottomPadding(context),
@@ -909,510 +607,5 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
         ),
       ],
     );
-  }
-
-  Widget _buildPlaylistHeader() {
-    // Priority 1: Custom user-selected image
-    if (_playlist?.customImagePath != null) {
-      final file = File(_playlist!.customImagePath!);
-      if (file.existsSync()) {
-        return Image.file(
-          file,
-          fit: BoxFit.cover,
-          width: double.infinity,
-          height: double.infinity,
-          errorBuilder: (context, error, stackTrace) {
-            // Fall back to collage/gradient if image fails to load
-            return _buildArtworkFromSongs();
-          },
-        );
-      }
-    }
-
-    // Priority 2: Album artwork collage or fallback
-    return _buildArtworkFromSongs();
-  }
-
-  /// Build artwork from songs (collage or fallback)
-  Widget _buildArtworkFromSongs() {
-    // Get unique artwork IDs from songs for artwork collage
-    // - Album songs: use albumId
-    // - Standalone songs: use "song_{songId}" prefix
-    final artworkIds = <String>[];
-    for (final song in _songs) {
-      if (song.albumId != null) {
-        // Song belongs to an album
-        if (!artworkIds.contains(song.albumId)) {
-          artworkIds.add(song.albumId!);
-        }
-      } else {
-        // Standalone song - use song ID with prefix
-        final songArtworkId = 'song_${song.id}';
-        if (!artworkIds.contains(songArtworkId)) {
-          artworkIds.add(songArtworkId);
-        }
-      }
-      if (artworkIds.length >= 4) break;
-    }
-
-    // If we have artwork IDs, show collage (CachedArtwork handles offline)
-    if (artworkIds.isNotEmpty) {
-      return _buildArtworkCollage(artworkIds);
-    }
-
-    // Fallback to gradient with icon
-    return _buildFallbackHeader();
-  }
-
-  /// Build artwork collage based on number of albums
-  Widget _buildArtworkCollage(List<String> albumIds) {
-    if (albumIds.length == 1) {
-      // Single artwork
-      return _buildHeaderArtwork(albumIds[0]);
-    } else if (albumIds.length == 2 || albumIds.length == 3) {
-      // Two artworks side by side - force square aspect ratio for each
-      return Row(
-        children: [
-          Expanded(
-            child: AspectRatio(
-              aspectRatio: 1.0,
-              child: _buildHeaderArtwork(albumIds[0]),
-            ),
-          ),
-          Expanded(
-            child: AspectRatio(
-              aspectRatio: 1.0,
-              child: _buildHeaderArtwork(albumIds[1]),
-            ),
-          ),
-        ],
-      );
-    } else {
-      // Four artworks in a grid (2x2)
-      return Column(
-        children: [
-          Expanded(
-            child: Row(
-              children: [
-                Expanded(
-                  child: _buildHeaderArtwork(albumIds[0]),
-                ),
-                Expanded(
-                  child: _buildHeaderArtwork(albumIds[1]),
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: Row(
-              children: [
-                Expanded(
-                  child: _buildHeaderArtwork(albumIds[2]),
-                ),
-                Expanded(
-                  child: _buildHeaderArtwork(albumIds[3]),
-                ),
-              ],
-            ),
-          ),
-        ],
-      );
-    }
-  }
-
-  /// Build a single artwork image for the header using CachedArtwork
-  /// Handles both album IDs and standalone song IDs (prefixed with "song_")
-  Widget _buildHeaderArtwork(String artworkId) {
-    // Determine artwork URL based on ID type
-    String? artworkUrl;
-    if (artworkId.startsWith('song_')) {
-      // Standalone song - use song artwork endpoint
-      final songId = artworkId.substring(5); // Remove "song_" prefix
-      artworkUrl = _connectionService.apiClient != null
-          ? '${_connectionService.apiClient!.baseUrl}/song-artwork/$songId'
-          : null;
-    } else {
-      // Album - use album artwork endpoint
-      artworkUrl = _connectionService.apiClient != null
-          ? '${_connectionService.apiClient!.baseUrl}/artwork/$artworkId'
-          : null;
-    }
-
-    return CachedArtwork(
-      albumId: artworkId, // Used as cache key
-      artworkUrl: artworkUrl,
-      fit: BoxFit.cover,
-      fallback: _buildFallbackHeader(),
-    );
-  }
-
-  /// Fallback gradient header with icon
-  Widget _buildFallbackHeader() {
-    final colorIndex = (_playlist?.name.hashCode ?? 0) % 5;
-    final gradients = [
-      [Colors.grey[700]!, Colors.grey[900]!],
-      [Colors.grey[600]!, Colors.grey[800]!],
-      [Colors.grey[500]!, Colors.grey[700]!],
-      [Colors.grey[400]!, Colors.grey[600]!],
-      [Colors.grey[300]!, Colors.grey[500]!],
-    ];
-
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: gradients[colorIndex],
-        ),
-      ),
-      child: const Center(
-        child: Icon(
-          Icons.queue_music,
-          size: 80,
-          color: Colors.white,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPlaylistInfo() {
-    final totalDuration = _songs.fold<int>(0, (sum, s) => sum + s.duration);
-    final minutes = totalDuration ~/ 60;
-
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            _playlist!.name,
-            style: const TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          if (_playlist!.description != null &&
-              _playlist!.description!.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Text(
-              _playlist!.description!,
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[600],
-              ),
-            ),
-          ],
-          const SizedBox(height: 8),
-          Text(
-            '${_songs.length} song${_songs.length != 1 ? 's' : ''} • $minutes min',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey[600],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActionButtons() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-      child: Column(
-        children: [
-          // Primary actions row (Play/Shuffle)
-          Row(
-            children: [
-              // Play All button
-              Expanded(
-                child: FilledButton.icon(
-                  onPressed: _songs.isEmpty ? null : _playAll,
-                  style: FilledButton.styleFrom(
-                    shape: const StadiumBorder(),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    backgroundColor: Theme.of(context).colorScheme.primary,
-                    foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                  ),
-                  icon: const Icon(Icons.play_arrow_rounded, size: 22),
-                  label: const Text(
-                    'Play',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              // Shuffle button
-              Expanded(
-                child: FilledButton.icon(
-                  onPressed: _songs.isEmpty ? null : _shuffleAll,
-                  style: FilledButton.styleFrom(
-                    shape: const StadiumBorder(),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    backgroundColor:
-                        Theme.of(context).colorScheme.primaryContainer,
-                    foregroundColor:
-                        Theme.of(context).colorScheme.onPrimaryContainer,
-                  ),
-                  icon: const Icon(Icons.shuffle_rounded, size: 22),
-                  label: const Text(
-                    'Shuffle',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-
-          // Secondary actions row (Reorder/Add)
-          Row(
-            children: [
-              // Reorder toggle button
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: _songs.length > 1
-                      ? () => setState(() => _isReorderMode = !_isReorderMode)
-                      : null,
-                  style: OutlinedButton.styleFrom(
-                    shape: const StadiumBorder(),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    backgroundColor: _isReorderMode
-                        ? Theme.of(context)
-                            .colorScheme
-                            .primaryContainer
-                            .withOpacity(0.5)
-                        : null,
-                  ),
-                  icon: Icon(
-                    _isReorderMode
-                        ? Icons.check_rounded
-                        : Icons.reorder_rounded,
-                    size: 20,
-                  ),
-                  label: Text(_isReorderMode ? 'Done' : 'Reorder'),
-                ),
-              ),
-              const SizedBox(width: 12),
-              // Add songs button
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: _addSongs,
-                  style: OutlinedButton.styleFrom(
-                    shape: const StadiumBorder(),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                  icon: const Icon(Icons.add_rounded, size: 20),
-                  label: const Text('Add Songs'),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildEmptyState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(48.0),
-        child: Column(
-          children: [
-            Icon(Icons.music_note, size: 64, color: Colors.grey[400]),
-            const SizedBox(height: 16),
-            Text(
-              'No songs in this playlist',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey[600],
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Tap + to add songs',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[500],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Normal song item with album artwork
-  Widget _buildSongItem(SongModel song, int index) {
-    final isDownloaded = _downloadedSongIds.contains(song.id);
-    final isOffline = _offlineService.isOffline;
-    final isAvailable = !isOffline || isDownloaded;
-    final opacity = isAvailable ? 1.0 : 0.4;
-
-    return Opacity(
-      opacity: opacity,
-      child: Dismissible(
-        key: ValueKey('dismiss_${song.id}'),
-        direction: DismissDirection.endToStart,
-        background: Container(
-          color: Colors.red,
-          alignment: Alignment.centerRight,
-          padding: const EdgeInsets.only(right: 16),
-          child: const Icon(Icons.delete, color: Colors.white),
-        ),
-        onDismissed: (_) => _removeSong(song.id),
-        child: ListTile(
-          leading: _buildAlbumArtWithBadge(song, isDownloaded),
-          title: Text(
-            song.title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: isAvailable ? null : Colors.grey,
-            ),
-          ),
-          subtitle: Text(
-            song.artist,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(color: Colors.grey[600]),
-          ),
-          trailing: Text(
-            _formatDuration(song.duration),
-            style: TextStyle(color: Colors.grey[600]),
-          ),
-          onTap: isAvailable ? () => _playTrack(song, index) : null,
-        ),
-      ),
-    );
-  }
-
-  /// Build album art with download badge
-  Widget _buildAlbumArtWithBadge(SongModel song, bool isDownloaded) {
-    return SizedBox(
-      width: 48,
-      height: 48,
-      child: Stack(
-        children: [
-          _buildAlbumArt(song),
-          if (isDownloaded)
-            Positioned(
-              bottom: 0,
-              right: 0,
-              child: Container(
-                padding: const EdgeInsets.all(2),
-                decoration: BoxDecoration(
-                  color: Colors.green[600],
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.download_done,
-                  size: 10,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  /// Reorder mode item with drag handle
-  Widget _buildReorderItem(SongModel song, int index) {
-    return Material(
-      key: ValueKey('reorder_${song.id}'),
-      child: ListTile(
-        leading: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ReorderableDragStartListener(
-              index: index,
-              child: const Icon(Icons.drag_handle, color: Colors.grey),
-            ),
-            const SizedBox(width: 8),
-            SizedBox(
-              width: 24,
-              child: Text(
-                '${index + 1}',
-                style: TextStyle(
-                  color: Colors.grey[600],
-                  fontSize: 14,
-                ),
-              ),
-            ),
-          ],
-        ),
-        title: Text(
-          song.title,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        subtitle: Text(
-          song.artist,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(color: Colors.grey[600]),
-        ),
-        trailing: IconButton(
-          icon: const Icon(Icons.remove_circle_outline, color: Colors.red),
-          onPressed: () => _removeSong(song.id),
-        ),
-      ),
-    );
-  }
-
-  /// Build album artwork or placeholder using CachedArtwork
-  /// Handles both album songs and standalone songs
-  Widget _buildAlbumArt(SongModel song) {
-    // Determine artwork URL and cache ID based on whether song has albumId
-    String? artworkUrl;
-    String cacheId;
-
-    if (song.albumId != null) {
-      // Song belongs to an album - use album artwork endpoint
-      artworkUrl = _connectionService.apiClient != null
-          ? '${_connectionService.apiClient!.baseUrl}/artwork/${song.albumId}'
-          : null;
-      cacheId = song.albumId!;
-    } else {
-      // Standalone song - use song artwork endpoint
-      artworkUrl = _connectionService.apiClient != null
-          ? '${_connectionService.apiClient!.baseUrl}/song-artwork/${song.id}'
-          : null;
-      cacheId = 'song_${song.id}';
-    }
-
-    // Force square aspect ratio to ensure BoxFit.cover crops bars completely
-    return AspectRatio(
-      aspectRatio: 1.0,
-      child: CachedArtwork(
-        albumId: cacheId, // Used as cache key
-        artworkUrl: artworkUrl,
-        width: 48,
-        height: 48,
-        fit: BoxFit.cover,
-        borderRadius: BorderRadius.circular(4),
-        fallback: _buildPlaceholder(),
-      ),
-    );
-  }
-
-  /// Placeholder for missing artwork
-  Widget _buildPlaceholder() {
-    return Container(
-      width: 48,
-      height: 48,
-      decoration: BoxDecoration(
-        color: Colors.grey[200],
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: const Icon(Icons.music_note, color: Colors.grey),
-    );
-  }
-
-  String _formatDuration(int seconds) {
-    final minutes = seconds ~/ 60;
-    final secs = seconds % 60;
-    return '$minutes:${secs.toString().padLeft(2, '0')}';
   }
 }

@@ -147,6 +147,60 @@ void main() {
     expect(secureStorage.containsKey('username'), isFalse);
   });
 
+  test('handleSessionExpired emits once and clears auth without recursion',
+      () async {
+    secureStorage['session_token'] = 'expired-session-token';
+    secureStorage['user_id'] = 'user-123';
+    secureStorage['username'] = 'test-user';
+
+    final connectionService = ConnectionService();
+    await connectionService.loadAuthInfo();
+
+    var sessionExpiredEvents = 0;
+    final sessionSub = connectionService.sessionExpiredStream.listen((_) {
+      sessionExpiredEvents++;
+    });
+    addTearDown(sessionSub.cancel);
+
+    await connectionService.handleSessionExpired();
+    await Future<void>.delayed(Duration.zero);
+
+    expect(connectionService.isAuthenticated, isFalse);
+    expect(connectionService.sessionToken, isNull);
+    expect(connectionService.userId, isNull);
+    expect(connectionService.username, isNull);
+    expect(connectionService.isConnected, isFalse);
+    expect(sessionExpiredEvents, equals(1));
+    expect(secureStorage.containsKey('session_token'), isFalse);
+    expect(secureStorage.containsKey('user_id'), isFalse);
+    expect(secureStorage.containsKey('username'), isFalse);
+  });
+
+  test('resolveServerUrl expands relative media paths using stored server info',
+      () async {
+    await _saveServerInfoForRestore(port: 8080);
+
+    final connectionService = ConnectionService();
+    await connectionService.loadServerInfoFromStorage();
+
+    expect(
+      connectionService.resolveServerUrl('/api/artwork/album-123'),
+      equals('http://127.0.0.1:8080/api/artwork/album-123'),
+    );
+    expect(
+      connectionService.resolveServerUrl(
+        '/api/artwork/album-123?size=thumbnail',
+      ),
+      equals('http://127.0.0.1:8080/api/artwork/album-123?size=thumbnail'),
+    );
+    expect(
+      connectionService.resolveServerUrl(
+        'http://cdn.example.com/api/artwork/album-123',
+      ),
+      equals('http://cdn.example.com/api/artwork/album-123'),
+    );
+  });
+
   test(
       'tryRestoreConnection handles AUTH_REQUIRED as auth failure when token is missing',
       () async {
@@ -243,8 +297,7 @@ void main() {
     expect(sessionExpiredEvents, greaterThanOrEqualTo(1));
   });
 
-  test(
-      'tryRestoreConnection with server error does not set auth failure flag',
+  test('tryRestoreConnection with server error does not set auth failure flag',
       () async {
     final mockServer = await _startReconnectFailureServer(
       connectErrorCode: ApiErrorCodes.serverError,
