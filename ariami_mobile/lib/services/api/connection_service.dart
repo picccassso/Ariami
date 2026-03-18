@@ -73,7 +73,6 @@ class ConnectionService {
     _stateManager = ConnectionStateManager();
     _authManager = AuthManager(
       persistence: _persistenceManager,
-      onSessionExpired: handleSessionExpired,
     );
     _serverInfoManager = ServerInfoManager();
     _deviceInfoManager = DeviceInfoManager();
@@ -201,6 +200,26 @@ class ConnectionService {
 
   /// Resolve the current device display name used for server connections
   Future<String> getCurrentDeviceName() => _deviceInfoManager.getDeviceName();
+
+  /// Resolve a server-relative media URL (for example `/api/artwork/...`)
+  /// into an absolute URL using the current connected server.
+  String? resolveServerUrl(String? url) {
+    if (url == null || url.isEmpty) return url;
+
+    final parsed = Uri.tryParse(url);
+    if (parsed != null && parsed.hasScheme && parsed.host.isNotEmpty) {
+      return parsed.toString();
+    }
+
+    final baseUrl = _lifecycleManager.apiClient?.serverInfo.baseUrl ??
+        _stateManager.serverInfo?.baseUrl;
+    if (baseUrl == null || baseUrl.isEmpty) {
+      return url;
+    }
+
+    final baseUri = Uri.parse(baseUrl.endsWith('/') ? baseUrl : '$baseUrl/');
+    return baseUri.resolve(url).toString();
+  }
 
   // ============================================================================
   // AUTHENTICATION
@@ -356,6 +375,7 @@ class ConnectionService {
     _librarySyncEngine.stop();
     _heartbeatManager.stop();
     _webSocketService.disconnect();
+    _lifecycleManager.clearActiveConnection();
 
     // Update state
     _stateManager.resetConnectionState();
@@ -407,7 +427,12 @@ class ConnectionService {
     if (restored) {
       await _onConnected();
     } else {
-      await _onDisconnected();
+      if (_stateManager.didLastRestoreFailForAuth &&
+          _authManager.sessionToken == null) {
+        await handleSessionExpired();
+      } else {
+        await _onDisconnected();
+      }
     }
 
     return restored;
@@ -447,6 +472,16 @@ class ConnectionService {
         await _serverInfoManager.hydrateServerInfoMetadata(
       apiClient,
       serverInfo,
+    );
+
+    _lifecycleManager.adoptEstablishedConnection(
+      apiClient: apiClient,
+      sessionId: response.sessionId,
+      serverInfo: hydratedServerInfo,
+    );
+    await _persistenceManager.saveConnectionInfo(
+      hydratedServerInfo,
+      response.sessionId,
     );
 
     // Update state
@@ -520,6 +555,7 @@ class ConnectionService {
     if (_stateManager.isConnected) {
       _endpointSwitchHandler.stopMonitoring();
       _librarySyncEngine.stop();
+      _lifecycleManager.clearActiveConnection();
       _stateManager.setConnected(false);
 
       await OfflinePlaybackService().notifyConnectionLost();
@@ -530,6 +566,7 @@ class ConnectionService {
   Future<void> _handleConnectionLoss() async {
     _endpointSwitchHandler.stopMonitoring();
     _librarySyncEngine.stop();
+    _lifecycleManager.clearActiveConnection();
     _stateManager.setConnected(false);
 
     await OfflinePlaybackService().notifyConnectionLost();

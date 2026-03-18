@@ -24,6 +24,7 @@ class AlbumContextMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final resolvedCoverArt = connectionService.resolveServerUrl(album.coverArt);
     return SafeArea(
       minimum: EdgeInsets.only(
         bottom: getMiniPlayerAwareBottomPadding(context),
@@ -42,15 +43,16 @@ class AlbumContextMenu extends StatelessWidget {
                     width: 48,
                     height: 48,
                     color: Colors.grey[300],
-                    child: album.coverArt != null
-                        ? Image.network(
-                            album.coverArt!,
-                            fit: BoxFit.cover,
-                            headers: connectionService.authHeaders,
-                            errorBuilder: (_, __, ___) =>
-                                const Icon(Icons.album),
-                          )
-                        : const Icon(Icons.album),
+                    child:
+                        resolvedCoverArt != null && resolvedCoverArt.isNotEmpty
+                            ? Image.network(
+                                resolvedCoverArt,
+                                fit: BoxFit.cover,
+                                headers: connectionService.authHeaders,
+                                errorBuilder: (_, __, ___) =>
+                                    const Icon(Icons.album),
+                              )
+                            : const Icon(Icons.album),
                   ),
                 ),
                 const SizedBox(width: 12),

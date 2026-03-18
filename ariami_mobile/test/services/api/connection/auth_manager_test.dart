@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ariami_mobile/services/api/connection/auth_manager.dart';
 import 'package:ariami_mobile/services/api/connection/connection_persistence_manager.dart';

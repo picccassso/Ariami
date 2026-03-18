@@ -1,0 +1,81 @@
+import 'dart:io';
+import 'package:flutter/material.dart';
+import '../../../models/api_models.dart';
+import 'artwork_collage.dart';
+import 'fallback_header.dart';
+
+/// Playlist header that displays custom image, artwork collage, or fallback
+class PlaylistHeader extends StatelessWidget {
+  /// The playlist model containing metadata
+  final PlaylistModel? playlist;
+
+  /// List of songs to extract artwork IDs from
+  final List<SongModel> songs;
+
+  /// Base URL for artwork images (from connection service)
+  final String? baseUrl;
+
+  const PlaylistHeader({
+    super.key,
+    this.playlist,
+    required this.songs,
+    this.baseUrl,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Priority 1: Custom user-selected image
+    if (playlist?.customImagePath != null) {
+      final file = File(playlist!.customImagePath!);
+      if (file.existsSync()) {
+        return Image.file(
+          file,
+          fit: BoxFit.cover,
+          width: double.infinity,
+          height: double.infinity,
+          errorBuilder: (context, error, stackTrace) {
+            // Fall back to collage/gradient if image fails to load
+            return _buildArtworkFromSongs();
+          },
+        );
+      }
+    }
+
+    // Priority 2: Album artwork collage or fallback
+    return _buildArtworkFromSongs();
+  }
+
+  /// Build artwork from songs (collage or fallback)
+  Widget _buildArtworkFromSongs() {
+    // Get unique artwork IDs from songs for artwork collage
+    // - Album songs: use albumId
+    // - Standalone songs: use "song_{songId}" prefix
+    final artworkIds = <String>[];
+    for (final song in songs) {
+      if (song.albumId != null) {
+        // Song belongs to an album
+        if (!artworkIds.contains(song.albumId)) {
+          artworkIds.add(song.albumId!);
+        }
+      } else {
+        // Standalone song - use song ID with prefix
+        final songArtworkId = 'song_${song.id}';
+        if (!artworkIds.contains(songArtworkId)) {
+          artworkIds.add(songArtworkId);
+        }
+      }
+      if (artworkIds.length >= 4) break;
+    }
+
+    // If we have artwork IDs, show collage (CachedArtwork handles offline)
+    if (artworkIds.isNotEmpty) {
+      return ArtworkCollage(
+        artworkIds: artworkIds,
+        baseUrl: baseUrl,
+      );
+    }
+
+    // Fallback to gradient with icon
+    return FallbackHeader(playlistName: playlist?.name);
+  }
+}
