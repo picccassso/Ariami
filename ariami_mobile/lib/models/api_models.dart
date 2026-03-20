@@ -127,6 +127,8 @@ class AlbumModel {
   final String? coverArt;
   final int songCount;
   final int duration; // in seconds
+  final DateTime? createdAt;
+  final DateTime? modifiedAt;
 
   AlbumModel({
     required this.id,
@@ -135,6 +137,8 @@ class AlbumModel {
     this.coverArt,
     required this.songCount,
     required this.duration,
+    this.createdAt,
+    this.modifiedAt,
   });
 
   factory AlbumModel.fromJson(Map<String, dynamic> json) {
@@ -147,6 +151,12 @@ class AlbumModel {
       coverArt: json['coverArt'] as String?,
       songCount: json['songCount'] as int,
       duration: json['duration'] as int,
+      createdAt: json['createdAt'] != null
+          ? DateTime.tryParse(json['createdAt'] as String)
+          : null,
+      modifiedAt: json['modifiedAt'] != null
+          ? DateTime.tryParse(json['modifiedAt'] as String)
+          : null,
     );
   }
 
@@ -158,7 +168,31 @@ class AlbumModel {
       'coverArt': coverArt,
       'songCount': songCount,
       'duration': duration,
+      'createdAt': createdAt?.toIso8601String(),
+      'modifiedAt': modifiedAt?.toIso8601String(),
     };
+  }
+
+  AlbumModel copyWith({
+    String? id,
+    String? title,
+    String? artist,
+    String? coverArt,
+    int? songCount,
+    int? duration,
+    DateTime? createdAt,
+    DateTime? modifiedAt,
+  }) {
+    return AlbumModel(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      artist: artist ?? this.artist,
+      coverArt: coverArt ?? this.coverArt,
+      songCount: songCount ?? this.songCount,
+      duration: duration ?? this.duration,
+      createdAt: createdAt ?? this.createdAt,
+      modifiedAt: modifiedAt ?? this.modifiedAt,
+    );
   }
 }
 
