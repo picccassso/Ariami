@@ -23,9 +23,9 @@ curl -fsSL https://tailscale.com/install.sh | sh
 sudo tailscale up
 
 # Download and extract Ariami
-curl -L https://github.com/picccassso/Ariami/releases/download/v3.1.0/ariami-cli-raspberry-pi-arm64-v3.1.0.zip -o ariami-cli.zip
+curl -L https://github.com/picccassso/Ariami/releases/download/v3.2.0/ariami-cli-raspberry-pi-arm64-v3.2.0.zip -o ariami-cli.zip
 unzip ariami-cli.zip
-cd ariami-cli-raspberry-pi-arm64-v3.1.0
+cd ariami-cli-raspberry-pi-arm64-v3.2.0
 
 # Run the server
 chmod +x ariami_cli
