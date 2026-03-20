@@ -218,6 +218,14 @@ It is cross-platform so you can run this on your Mac/Windows/Linux machine, and 
 
 ---
 
+## Latest Updates
+
+- Lower-quality streaming on mobile is now more reliable. `medium` and `low` quality playback now use the same file-backed streaming path as `high`, which keeps range requests and seeking behavior consistent.
+- Mixed library mode has been improved on mobile. Playlists and albums can appear together in one combined Library view, the toggle now updates correctly, and mixed items keep the same artwork and UI details as the separate sections.
+- Mixed mode sorting now prioritises recently opened albums and playlists using lightweight local history on the device, then falls back to existing timestamps when needed.
+
+---
+
 ## Building from Source
 
 If you want to build from source, check the README in each package folder:
@@ -229,10 +237,6 @@ If you want to build from source, check the README in each package folder:
 **Requirements:** Dart SDK ^3.5.0, Flutter (latest stable)
 
 ---
-
-## Latest Updates 
-
-Please check commit history. 
 
 ## License
 
