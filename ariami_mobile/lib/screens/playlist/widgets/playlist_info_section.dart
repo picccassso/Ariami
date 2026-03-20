@@ -51,8 +51,28 @@ class PlaylistInfoSection extends StatelessWidget {
               color: Colors.grey[600],
             ),
           ),
+          const SizedBox(height: 4),
+          Text(
+            'Created ${_formatDate(playlist.createdAt)}',
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey[500],
+            ),
+          ),
         ],
       ),
     );
+  }
+
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    final diff = now.difference(date);
+
+    if (diff.inDays == 0) return 'today';
+    if (diff.inDays == 1) return 'yesterday';
+    if (diff.inDays < 7) return '${diff.inDays} days ago';
+    if (diff.inDays < 30) return '${diff.inDays ~/ 7} weeks ago';
+    if (diff.inDays < 365) return '${diff.inDays ~/ 30} months ago';
+    return '${diff.inDays ~/ 365} years ago';
   }
 }

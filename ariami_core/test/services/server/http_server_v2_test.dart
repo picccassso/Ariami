@@ -4,8 +4,10 @@ import 'dart:io';
 
 import 'package:ariami_core/models/auth_models.dart';
 import 'package:ariami_core/models/feature_flags.dart';
+import 'package:ariami_core/models/quality_preset.dart';
 import 'package:ariami_core/services/catalog/catalog_repository.dart';
 import 'package:ariami_core/services/server/http_server.dart';
+import 'package:ariami_core/services/transcoding/transcoding_service.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -357,6 +359,126 @@ void main() {
     );
 
     test(
+      'P12-1: lower-quality streams remain file-backed and support range requests',
+      () async {
+        await server.initializeAuth(
+          usersFilePath: p.join(testDir.path, 'users_p12_streams.json'),
+          sessionsFilePath: p.join(testDir.path, 'sessions_p12_streams.json'),
+          forceReinitialize: true,
+        );
+
+        final musicDir =
+            await Directory(p.join(testDir.path, 'music_p12')).create();
+        await _writeAudioStub(
+          p.join(musicDir.path, 'Phase12 Artist - Track.mp3'),
+        );
+        await server.libraryManager.scanMusicFolder(musicDir.path);
+
+        final apiJson = server.libraryManager.toApiJson('http://127.0.0.1');
+        final songs = apiJson['songs'] as List<dynamic>;
+        expect(songs, hasLength(1));
+        final songId = (songs.single as Map<String, dynamic>)['id'] as String;
+
+        final transcodedBytes = List<int>.generate(12, (index) => index + 1);
+        final transcodedFile = File(
+          p.join(testDir.path, 'transcoded_cache', 'medium', '$songId.m4a'),
+        );
+        await transcodedFile.parent.create(recursive: true);
+        await transcodedFile.writeAsBytes(transcodedBytes, flush: true);
+
+        final transcodingService = _FakeTranscodingService(
+          cacheDirectory: p.join(testDir.path, 'transcoder_state'),
+          transcodedFile: transcodedFile,
+        );
+        server.setTranscodingService(transcodingService);
+
+        final port = await _findFreePort();
+        await server.start(
+          advertisedIp: '127.0.0.1',
+          bindAddress: '127.0.0.1',
+          port: port,
+        );
+
+        final registerResponse = await _sendJsonRequest(
+          method: 'POST',
+          url: Uri.parse('http://127.0.0.1:$port/api/auth/register'),
+          jsonBody: <String, dynamic>{
+            'username': 'phase12-user',
+            'password': 'phase12-pass',
+          },
+        );
+        expect(registerResponse.statusCode, 200);
+
+        final loginResponse = await _sendJsonRequest(
+          method: 'POST',
+          url: Uri.parse('http://127.0.0.1:$port/api/auth/login'),
+          jsonBody: <String, dynamic>{
+            'username': 'phase12-user',
+            'password': 'phase12-pass',
+            'deviceId': 'phase12-device',
+            'deviceName': 'Phase 12 Device',
+          },
+        );
+        expect(loginResponse.statusCode, 200);
+        final sessionToken = loginResponse.jsonBody['sessionToken'] as String?;
+        expect(sessionToken, isNotNull);
+
+        final ticketResponse = await _sendJsonRequest(
+          method: 'POST',
+          url: Uri.parse('http://127.0.0.1:$port/api/stream-ticket'),
+          headers: <String, String>{'Authorization': 'Bearer $sessionToken'},
+          jsonBody: <String, dynamic>{
+            'songId': songId,
+            'quality': 'medium',
+          },
+        );
+        expect(ticketResponse.statusCode, 200);
+        final streamToken = ticketResponse.jsonBody['streamToken'] as String?;
+        expect(streamToken, isNotNull);
+
+        final streamUrl = Uri.parse(
+          'http://127.0.0.1:$port/api/stream/$songId?streamToken=$streamToken&quality=medium',
+        );
+
+        final fullResponse = await _sendBinaryRequest(
+          method: 'GET',
+          url: streamUrl,
+        );
+        expect(fullResponse.statusCode, 200);
+        expect(fullResponse.headers[HttpHeaders.acceptRangesHeader], 'bytes');
+        expect(
+          fullResponse.headers[HttpHeaders.contentLengthHeader],
+          transcodedBytes.length.toString(),
+        );
+        expect(
+          fullResponse.headers[HttpHeaders.contentTypeHeader],
+          startsWith('audio/mp4'),
+        );
+        expect(fullResponse.bodyBytes, equals(transcodedBytes));
+        expect(transcodingService.getTranscodedFileCalls, 1);
+        expect(transcodingService.lastSongId, songId);
+        expect(transcodingService.lastQuality, QualityPreset.medium);
+        expect(
+          transcodingService.lastRequestType,
+          TranscodeRequestType.streaming,
+        );
+
+        final rangeResponse = await _sendBinaryRequest(
+          method: 'GET',
+          url: streamUrl,
+          headers: <String, String>{HttpHeaders.rangeHeader: 'bytes=2-5'},
+        );
+        expect(rangeResponse.statusCode, 206);
+        expect(
+          rangeResponse.headers[HttpHeaders.contentRangeHeader],
+          'bytes 2-5/${transcodedBytes.length}',
+        );
+        expect(rangeResponse.bodyBytes, equals(transcodedBytes.sublist(2, 6)));
+        expect(transcodingService.getTranscodedFileCalls, 2);
+      },
+    );
+
+    test(
       'P4-2: scan completion broadcasts both library_updated and sync_token_advanced',
       () async {
         await server.initializeAuth(
@@ -632,6 +754,18 @@ class _JsonHttpResponse {
   final Map<String, dynamic> jsonBody;
 }
 
+class _BinaryHttpResponse {
+  _BinaryHttpResponse({
+    required this.statusCode,
+    required this.headers,
+    required this.bodyBytes,
+  });
+
+  final int statusCode;
+  final Map<String, String> headers;
+  final List<int> bodyBytes;
+}
+
 Future<_JsonHttpResponse> _sendJsonRequest({
   required String method,
   required Uri url,
@@ -660,5 +794,66 @@ Future<_JsonHttpResponse> _sendJsonRequest({
     );
   } finally {
     client.close(force: true);
+  }
+}
+
+Future<_BinaryHttpResponse> _sendBinaryRequest({
+  required String method,
+  required Uri url,
+  Map<String, String>? headers,
+}) async {
+  final client = HttpClient();
+  try {
+    final request = await client.openUrl(method, url);
+    headers?.forEach(request.headers.set);
+
+    final response = await request.close();
+    final bodyBytes = await response.fold<List<int>>(
+      <int>[],
+      (bytes, chunk) => bytes..addAll(chunk),
+    );
+
+    final responseHeaders = <String, String>{};
+    response.headers.forEach((name, values) {
+      responseHeaders[name] = values.join(',');
+    });
+
+    return _BinaryHttpResponse(
+      statusCode: response.statusCode,
+      headers: responseHeaders,
+      bodyBytes: bodyBytes,
+    );
+  } finally {
+    client.close(force: true);
+  }
+}
+
+class _FakeTranscodingService extends TranscodingService {
+  _FakeTranscodingService({
+    required super.cacheDirectory,
+    required this.transcodedFile,
+  });
+
+  final File transcodedFile;
+
+  int getTranscodedFileCalls = 0;
+  String? lastSourcePath;
+  String? lastSongId;
+  QualityPreset? lastQuality;
+  TranscodeRequestType? lastRequestType;
+
+  @override
+  Future<File?> getTranscodedFile(
+    String sourcePath,
+    String songId,
+    QualityPreset quality, {
+    TranscodeRequestType requestType = TranscodeRequestType.streaming,
+  }) async {
+    getTranscodedFileCalls++;
+    lastSourcePath = sourcePath;
+    lastSongId = songId;
+    lastQuality = quality;
+    lastRequestType = requestType;
+    return transcodedFile;
   }
 }
