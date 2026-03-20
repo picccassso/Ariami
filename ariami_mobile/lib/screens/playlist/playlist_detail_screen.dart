@@ -4,6 +4,7 @@ import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
 import '../../models/api_models.dart';
 import '../../models/download_task.dart';
 import '../../services/api/connection_service.dart';
+import '../../services/library/library_repository.dart';
 import '../../services/playlist_service.dart';
 import '../../services/playback_manager.dart';
 import '../../services/offline/offline_playback_service.dart';
@@ -31,6 +32,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   final PlaybackManager _playbackManager = PlaybackManager();
   final OfflinePlaybackService _offlineService = OfflinePlaybackService();
   final DownloadManager _downloadManager = DownloadManager();
+  final LibraryRepository _libraryRepository = LibraryRepository();
 
   PlaylistModel? _playlist;
   List<SongModel> _songs = [];
@@ -175,10 +177,10 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
     }
 
     if (_offlineService.isOffline || _connectionService.apiClient == null) {
-      return _resolveSongsFromDownloads(songIds);
+      return await _resolveSongsFromDownloads(songIds);
     }
 
-    final songs = _resolveSongsFromLocalMetadata(songIds);
+    final songs = await _resolveSongsFromLocalMetadata(songIds);
     _fetchAlbumInfoInBackground();
 
     return songs;
@@ -210,7 +212,8 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   }
 
   /// Build SongModel objects from playlist's locally-stored metadata
-  List<SongModel> _resolveSongsFromLocalMetadata(List<String> songIds) {
+  Future<List<SongModel>> _resolveSongsFromLocalMetadata(
+      List<String> songIds) async {
     final downloadedSongs = <String, SongModel>{};
     for (final task in _downloadManager.queue) {
       if (task.status == DownloadStatus.completed) {
@@ -230,6 +233,10 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
       }
     }
 
+    // Pre-fetch song durations from library to fill in missing values
+    final librarySongs = await _libraryRepository.getSongs();
+    final libraryDurations = {for (var s in librarySongs) s.id: s.duration};
+
     return songIds.map((id) {
       if (downloadedSongs.containsKey(id)) {
         return downloadedSongs[id]!;
@@ -238,7 +245,11 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
       final albumId = _playlist?.songAlbumIds[id];
       final title = _playlist?.songTitles[id] ?? 'Unknown Song';
       final artist = _playlist?.songArtists[id] ?? 'Unknown Artist';
-      final duration = _playlist?.songDurations[id] ?? 0;
+      var duration = _playlist?.songDurations[id] ?? 0;
+      // Fallback to library duration if playlist duration is 0 or missing
+      if (duration == 0 && libraryDurations.containsKey(id)) {
+        duration = libraryDurations[id]!;
+      }
       return SongModel(
         id: id,
         title: title,
@@ -251,7 +262,8 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   }
 
   /// Build SongModel objects from downloaded song metadata
-  List<SongModel> _resolveSongsFromDownloads(List<String> songIds) {
+  Future<List<SongModel>> _resolveSongsFromDownloads(
+      List<String> songIds) async {
     final downloadedSongs = <String, SongModel>{};
 
     for (final task in _downloadManager.queue) {
@@ -276,6 +288,10 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
       }
     }
 
+    // Pre-fetch song durations from library to fill in missing values
+    final librarySongs = await _libraryRepository.getSongs();
+    final libraryDurations = {for (var s in librarySongs) s.id: s.duration};
+
     return songIds.map((id) {
       if (downloadedSongs.containsKey(id)) {
         return downloadedSongs[id]!;
@@ -283,7 +299,11 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
         final albumId = _playlist?.songAlbumIds[id];
         final title = _playlist?.songTitles[id] ?? 'Unknown Song';
         final artist = _playlist?.songArtists[id] ?? 'Unknown Artist';
-        final duration = _playlist?.songDurations[id] ?? 0;
+        var duration = _playlist?.songDurations[id] ?? 0;
+        // Fallback to library duration if playlist duration is 0 or missing
+        if (duration == 0 && libraryDurations.containsKey(id)) {
+          duration = libraryDurations[id]!;
+        }
         return SongModel(
           id: id,
           title: title,

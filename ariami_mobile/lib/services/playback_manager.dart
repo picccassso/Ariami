@@ -590,11 +590,11 @@ class PlaybackManager extends ChangeNotifier {
             ? downloadQuality.toApiParam()
             : null;
         final ticketResponse = await apiClient.getStreamTicket(
-          song.filePath,
+          song.id,
           quality: qualityParam,
         );
         downloadUrl = apiClient.getDownloadUrlWithToken(
-          song.filePath,
+          song.id,
           ticketResponse.streamToken,
           quality: downloadQuality,
         );
@@ -629,7 +629,7 @@ class PlaybackManager extends ChangeNotifier {
 
     // Legacy mode - direct stream URL (no token needed)
     if (!_connectionService.isAuthenticated) {
-      return apiClient.getStreamUrlWithQuality(song.filePath, quality);
+      return apiClient.getStreamUrlWithQuality(song.id, quality);
     }
 
     // Authenticated mode - request stream ticket with retry logic
@@ -640,12 +640,12 @@ class PlaybackManager extends ChangeNotifier {
       print(
           '[PlaybackManager] Requesting stream ticket for authenticated streaming...');
       final ticketResponse = await apiClient.getStreamTicket(
-        song.filePath,
+        song.id,
         quality: qualityParam,
       );
       print('[PlaybackManager] Got stream ticket, streaming with token');
       return apiClient.getStreamUrlWithToken(
-        song.filePath,
+        song.id,
         ticketResponse.streamToken,
         quality: quality,
       );
@@ -654,12 +654,12 @@ class PlaybackManager extends ChangeNotifier {
       if (e.isCode(ApiErrorCodes.streamTokenExpired)) {
         print('[PlaybackManager] Stream token expired, retrying once...');
         final retryTicketResponse = await apiClient.getStreamTicket(
-          song.filePath,
+          song.id,
           quality: qualityParam,
         );
         print('[PlaybackManager] Got fresh stream ticket on retry');
         return apiClient.getStreamUrlWithToken(
-          song.filePath,
+          song.id,
           retryTicketResponse.streamToken,
           quality: quality,
         );
