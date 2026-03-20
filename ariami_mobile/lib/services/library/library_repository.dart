@@ -170,6 +170,8 @@ class LibraryRepository {
             coverArt: row.coverArt,
             songCount: row.songCount,
             duration: row.duration,
+            createdAt: row.createdAt,
+            modifiedAt: row.modifiedAt,
           ),
         )
         .toList();
@@ -185,6 +187,8 @@ class LibraryRepository {
       coverArt: row.coverArt,
       songCount: row.songCount,
       duration: row.duration,
+      createdAt: row.createdAt,
+      modifiedAt: row.modifiedAt,
     );
   }
 

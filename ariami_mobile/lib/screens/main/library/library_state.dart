@@ -22,6 +22,7 @@ class LibraryState {
   final bool isGridView;
   final bool albumsExpanded;
   final bool songsExpanded;
+  final bool isMixedMode;
 
   /// Download/cache tracking
   final bool showDownloadedOnly;
@@ -30,6 +31,7 @@ class LibraryState {
   final Set<String> albumsWithDownloads;
   final Set<String> fullyDownloadedAlbumIds;
   final Set<String> playlistsWithDownloads;
+  final Map<String, DateTime> itemLastAccessedAt;
 
   const LibraryState({
     this.albums = const [],
@@ -41,12 +43,14 @@ class LibraryState {
     this.isGridView = true,
     this.albumsExpanded = true,
     this.songsExpanded = false,
+    this.isMixedMode = false,
     this.showDownloadedOnly = false,
     this.downloadedSongIds = const {},
     this.cachedSongIds = const {},
     this.albumsWithDownloads = const {},
     this.fullyDownloadedAlbumIds = const {},
     this.playlistsWithDownloads = const {},
+    this.itemLastAccessedAt = const {},
   });
 
   /// Creates a copy of this state with the given fields replaced
@@ -60,12 +64,14 @@ class LibraryState {
     bool? isGridView,
     bool? albumsExpanded,
     bool? songsExpanded,
+    bool? isMixedMode,
     bool? showDownloadedOnly,
     Set<String>? downloadedSongIds,
     Set<String>? cachedSongIds,
     Set<String>? albumsWithDownloads,
     Set<String>? fullyDownloadedAlbumIds,
     Set<String>? playlistsWithDownloads,
+    Map<String, DateTime>? itemLastAccessedAt,
     bool clearError = false,
   }) {
     return LibraryState(
@@ -78,6 +84,7 @@ class LibraryState {
       isGridView: isGridView ?? this.isGridView,
       albumsExpanded: albumsExpanded ?? this.albumsExpanded,
       songsExpanded: songsExpanded ?? this.songsExpanded,
+      isMixedMode: isMixedMode ?? this.isMixedMode,
       showDownloadedOnly: showDownloadedOnly ?? this.showDownloadedOnly,
       downloadedSongIds: downloadedSongIds ?? this.downloadedSongIds,
       cachedSongIds: cachedSongIds ?? this.cachedSongIds,
@@ -86,6 +93,7 @@ class LibraryState {
           fullyDownloadedAlbumIds ?? this.fullyDownloadedAlbumIds,
       playlistsWithDownloads:
           playlistsWithDownloads ?? this.playlistsWithDownloads,
+      itemLastAccessedAt: itemLastAccessedAt ?? this.itemLastAccessedAt,
     );
   }
 
@@ -127,6 +135,12 @@ class LibraryState {
   bool hasPlaylistDownloads(String playlistId) =>
       playlistsWithDownloads.contains(playlistId);
 
+  DateTime? lastAccessedForAlbum(String albumId) =>
+      itemLastAccessedAt['album:$albumId'];
+
+  DateTime? lastAccessedForPlaylist(String playlistId) =>
+      itemLastAccessedAt['playlist:$playlistId'];
+
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
@@ -140,12 +154,14 @@ class LibraryState {
         other.isGridView == isGridView &&
         other.albumsExpanded == albumsExpanded &&
         other.songsExpanded == songsExpanded &&
+        other.isMixedMode == isMixedMode &&
         other.showDownloadedOnly == showDownloadedOnly &&
         setEquals(other.downloadedSongIds, downloadedSongIds) &&
         setEquals(other.cachedSongIds, cachedSongIds) &&
         setEquals(other.albumsWithDownloads, albumsWithDownloads) &&
         setEquals(other.fullyDownloadedAlbumIds, fullyDownloadedAlbumIds) &&
-        setEquals(other.playlistsWithDownloads, playlistsWithDownloads);
+        setEquals(other.playlistsWithDownloads, playlistsWithDownloads) &&
+        mapEquals(other.itemLastAccessedAt, itemLastAccessedAt);
   }
 
   @override
@@ -159,12 +175,14 @@ class LibraryState {
         isGridView,
         albumsExpanded,
         songsExpanded,
+        isMixedMode,
         showDownloadedOnly,
         Object.hashAll(downloadedSongIds),
         Object.hashAll(cachedSongIds),
         Object.hashAll(albumsWithDownloads),
         Object.hashAll(fullyDownloadedAlbumIds),
         Object.hashAll(playlistsWithDownloads),
+        Object.hashAllUnordered(itemLastAccessedAt.entries),
       );
 
   @override
@@ -173,9 +191,11 @@ class LibraryState {
         'offlineSongs: ${offlineSongs.length}, isOfflineMode: $isOfflineMode, '
         'isLoading: $isLoading, errorMessage: $errorMessage, '
         'isGridView: $isGridView, albumsExpanded: $albumsExpanded, '
-        'songsExpanded: $songsExpanded, showDownloadedOnly: $showDownloadedOnly, '
+        'songsExpanded: $songsExpanded, isMixedMode: $isMixedMode, '
+        'showDownloadedOnly: $showDownloadedOnly, '
         'downloadedSongIds: ${downloadedSongIds.length}, '
-        'cachedSongIds: ${cachedSongIds.length})';
+        'cachedSongIds: ${cachedSongIds.length}, '
+        'itemLastAccessedAt: ${itemLastAccessedAt.length})';
   }
 }
 
