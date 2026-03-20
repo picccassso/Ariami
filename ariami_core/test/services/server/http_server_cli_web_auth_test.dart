@@ -244,7 +244,7 @@ void main() {
         jsonBody: <String, dynamic>{
           'deviceId': 'target-connect-device',
           'deviceName': 'Target Connect Device',
-          'appVersion': '1.0.0',
+          'appVersion': '3.2.0',
           'platform': 'test',
         },
       );
@@ -310,7 +310,7 @@ void main() {
         jsonBody: <String, dynamic>{
           'deviceId': 'admin-device',
           'deviceName': 'Admin Device',
-          'appVersion': '1.0.0',
+          'appVersion': '3.2.0',
           'platform': 'test',
         },
       );
@@ -399,7 +399,7 @@ void main() {
         jsonBody: <String, dynamic>{
           'deviceId': 'target-device',
           'deviceName': 'Target Device',
-          'appVersion': '1.0.0',
+          'appVersion': '3.2.0',
           'platform': 'test',
         },
       );
@@ -673,7 +673,7 @@ void main() {
         jsonBody: <String, dynamic>{
           'deviceId': 'offline-device',
           'deviceName': 'Offline Device',
-          'appVersion': '1.0.0',
+          'appVersion': '3.2.0',
           'platform': 'test',
         },
       );
@@ -705,7 +705,7 @@ void main() {
         jsonBody: <String, dynamic>{
           'deviceId': 'offline-device',
           'deviceName': 'Offline Device',
-          'appVersion': '1.0.0',
+          'appVersion': '3.2.0',
           'platform': 'test',
         },
       );
@@ -776,7 +776,7 @@ void main() {
         jsonBody: <String, dynamic>{
           'deviceId': 'target-device',
           'deviceName': 'Target Device',
-          'appVersion': '1.0.0',
+          'appVersion': '3.2.0',
           'platform': 'test',
         },
       );

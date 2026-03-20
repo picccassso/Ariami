@@ -63,7 +63,7 @@ void main(List<String> arguments) async {
 
     // Show version
     if (results['version'] as bool) {
-      print('Ariami CLI version 1.0.0');
+      print('Ariami CLI version 3.2.0');
       return;
     }
 

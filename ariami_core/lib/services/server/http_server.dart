@@ -335,7 +335,7 @@ class AriamiHttpServer {
       'tailscaleServer': _tailscaleIp,
       'port': _port,
       'name': Platform.localHostname,
-      'version': '1.0.0',
+      'version': '3.2.0',
       'authRequired': _authRequired,
       'legacyMode': _legacyMode,
       'downloadLimits': {
@@ -890,7 +890,7 @@ class AriamiHttpServer {
         'status': 'ok',
         'timestamp': DateTime.now().toIso8601String(),
         'server': Platform.localHostname,
-        'version': '1.0.0',
+        'version': '3.2.0',
       }),
       headers: {'Content-Type': 'application/json; charset=utf-8'},
     );
@@ -1714,7 +1714,7 @@ class AriamiHttpServer {
         jsonEncode({
           'status': 'connected',
           'sessionId': sessionId,
-          'serverVersion': '1.0.0',
+          'serverVersion': '3.2.0',
           'features': ['library', 'streaming', 'websocket'],
           'deviceId': deviceId,
         }),
