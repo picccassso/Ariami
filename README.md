@@ -232,22 +232,7 @@ If you want to build from source, check the README in each package folder:
 
 ## Latest Updates 
 
-Note: Latest updates are done in order. Last update = latest update. 
-
-- Bulk downloads were reworked so large libraries behave much better. Queue persistence, downloads UI churn, cache-triggered refreshes, and completion flow were tightened up, and queue limits were increased for large libraries.
-- Ariami now supports dual-endpoint routing. The app can store both LAN and Tailscale endpoints, prefer LAN when you are home, switch to Tailscale when remote, and switch back to LAN when you come back.
-- Setup is less rigid now. If Tailscale is missing, users can still continue with local setup, and the QR/setup flow includes both endpoints when available.
-- V2 download-job handling was fixed on the desktop server path, including the setup flow and quota handling for large download jobs.
-- Added "Import All" button for importing all playlists at once from server.
-- Refactored and modularized the library screen (reduced from ~1,925 lines to ~350 lines) by extracting state management, UI components, and modals into separate files with comprehensive tests.
-
-### Other Improvements
-
-- Metadata caching for faster library rescans — durations and tags persist across restarts so rescans don't re-read every file
-- Automatic quality switching based on network type (WiFi vs mobile data)
-- Option to prefer local/cached files even when connected to the server
-- iOS safe-area layout fixes for the mini player and bottom navigation
-- CLI daemon fixes on Linux — `start` command no longer hangs
+Please check commit history. 
 
 ## License
 
