@@ -2439,28 +2439,8 @@ class AriamiHttpServer {
 
     // If transcoding is requested and service is available
     if (quality.requiresTranscoding && _transcodingService != null) {
-      // Try streaming transcode first for immediate playback (no wait for full transcode)
-      final streamResult = await _transcodingService!.startStreamingTranscode(
-        filePath,
-        path, // songId
-        quality,
-      );
-
-      if (streamResult != null) {
-        // Return streaming response directly - playback starts immediately
-        print(
-            '[HttpServer] Streaming transcode started for $path at ${quality.name}');
-        return Response.ok(
-          streamResult.stream,
-          headers: {
-            'Content-Type': streamResult.mimeType,
-            'Transfer-Encoding': 'chunked',
-            'Cache-Control': 'no-cache',
-          },
-        );
-      }
-
-      // Fall back to cached/queued transcode
+      // Serve only completed transcodes here. This keeps lower-quality playback
+      // on the normal file streaming path with range support.
       final transcodedFile = await _transcodingService!.getTranscodedFile(
         filePath,
         path, // songId
