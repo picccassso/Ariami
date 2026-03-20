@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -30,6 +31,8 @@ class LibraryController extends ChangeNotifier {
   static const String _viewPreferenceKey = 'library_view_grid';
   static const String _albumsSectionKey = 'library_section_albums';
   static const String _songsSectionKey = 'library_section_songs';
+  static const String _mixedModeKey = 'library_mixed_mode';
+  static const String _lastAccessedKey = 'library_last_accessed';
 
   // Duration retry constants
   static const int _maxDurationRetries = 3;
@@ -75,6 +78,7 @@ class LibraryController extends ChangeNotifier {
   /// Initialize the controller and load initial data
   Future<void> initialize() async {
     await _loadUiPreferences();
+    await _loadAccessHistory();
     await _loadLibrary();
     await _playlistService.loadPlaylists();
     _playlistService.addListener(_onPlaylistsChanged);
@@ -150,6 +154,7 @@ class LibraryController extends ChangeNotifier {
       isGridView: prefs.getBool(_viewPreferenceKey) ?? true,
       albumsExpanded: prefs.getBool(_albumsSectionKey) ?? true,
       songsExpanded: prefs.getBool(_songsSectionKey) ?? false,
+      isMixedMode: prefs.getBool(_mixedModeKey) ?? false,
     ));
   }
 
@@ -174,9 +179,61 @@ class LibraryController extends ChangeNotifier {
     await prefs.setBool(_songsSectionKey, newValue);
   }
 
+  Future<void> toggleMixedMode() async {
+    final newValue = !_state.isMixedMode;
+    _updateState(_state.copyWith(isMixedMode: newValue));
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_mixedModeKey, newValue);
+  }
+
+  Future<void> markAlbumAccessed(String albumId) =>
+      _markItemAccessed('album:$albumId');
+
+  Future<void> markPlaylistAccessed(String playlistId) =>
+      _markItemAccessed('playlist:$playlistId');
+
   void toggleShowDownloadedOnly() {
     _updateState(
         _state.copyWith(showDownloadedOnly: !_state.showDownloadedOnly));
+  }
+
+  Future<void> _loadAccessHistory() async {
+    final prefs = await SharedPreferences.getInstance();
+    final jsonString = prefs.getString(_lastAccessedKey);
+    if (jsonString == null || jsonString.isEmpty) {
+      return;
+    }
+
+    try {
+      final decoded = jsonDecode(jsonString) as Map<String, dynamic>;
+      final accessHistory = <String, DateTime>{};
+
+      decoded.forEach((key, value) {
+        final epochMs = value is int ? value : int.tryParse(value.toString());
+        if (epochMs != null) {
+          accessHistory[key] = DateTime.fromMillisecondsSinceEpoch(epochMs);
+        }
+      });
+
+      _updateState(_state.copyWith(itemLastAccessedAt: accessHistory));
+    } catch (_) {
+      // Ignore corrupt local access history and keep running.
+    }
+  }
+
+  Future<void> _markItemAccessed(String key) async {
+    final now = DateTime.now();
+    final updatedAccessHistory =
+        Map<String, DateTime>.from(_state.itemLastAccessedAt)..[key] = now;
+
+    _updateState(_state.copyWith(itemLastAccessedAt: updatedAccessHistory));
+
+    final prefs = await SharedPreferences.getInstance();
+    final encoded = updatedAccessHistory.map(
+      (entryKey, value) =>
+          MapEntry(entryKey, value.millisecondsSinceEpoch),
+    );
+    await prefs.setString(_lastAccessedKey, jsonEncode(encoded));
   }
 
   // ============================================================================

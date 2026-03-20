@@ -21,6 +21,8 @@ class LibraryAlbumRow {
   final int songCount;
   final int duration;
   final bool isDeleted;
+  final DateTime? createdAt;
+  final DateTime? modifiedAt;
 
   const LibraryAlbumRow({
     required this.id,
@@ -30,6 +32,8 @@ class LibraryAlbumRow {
     required this.songCount,
     required this.duration,
     this.isDeleted = false,
+    this.createdAt,
+    this.modifiedAt,
   });
 }
 
@@ -86,7 +90,7 @@ class LibraryPlaylistSongRow {
 /// SQLite database for normalized library sync state.
 class LibrarySyncDatabase {
   static const String _databaseName = 'library_sync.db';
-  static const int _databaseVersion = 2;
+  static const int _databaseVersion = 3;
 
   static const String _albumsTable = 'albums';
   static const String _songsTable = 'songs';
@@ -132,7 +136,9 @@ class LibrarySyncDatabase {
         cover_art TEXT,
         song_count INTEGER NOT NULL DEFAULT 0,
         duration INTEGER NOT NULL DEFAULT 0,
-        is_deleted INTEGER NOT NULL DEFAULT 0
+        is_deleted INTEGER NOT NULL DEFAULT 0,
+        created_at INTEGER,
+        modified_at INTEGER
       )
     ''');
 
@@ -208,6 +214,29 @@ class LibrarySyncDatabase {
     if (oldVersion < 2) {
       await _createBootstrapStagingTables(db);
     }
+    if (oldVersion < 3) {
+      await _migrateToVersion3(db);
+    }
+  }
+
+  Future<void> _migrateToVersion3(Database db) async {
+    // Add created_at and modified_at columns to albums table
+    await db.execute('ALTER TABLE $_albumsTable ADD COLUMN created_at INTEGER');
+    await db
+        .execute('ALTER TABLE $_albumsTable ADD COLUMN modified_at INTEGER');
+
+    // Also add to bootstrap staging table
+    await db.execute(
+        'ALTER TABLE $_bootstrapAlbumsTable ADD COLUMN created_at INTEGER');
+    await db.execute(
+        'ALTER TABLE $_bootstrapAlbumsTable ADD COLUMN modified_at INTEGER');
+
+    // Populate existing albums with current timestamp (since we don't have file access here)
+    final now = DateTime.now().millisecondsSinceEpoch;
+    await db.update(
+      _albumsTable,
+      {'created_at': now, 'modified_at': now},
+    );
   }
 
   Future<void> _createBootstrapStagingTables(Database db) async {
@@ -219,7 +248,9 @@ class LibrarySyncDatabase {
         cover_art TEXT,
         song_count INTEGER NOT NULL DEFAULT 0,
         duration INTEGER NOT NULL DEFAULT 0,
-        is_deleted INTEGER NOT NULL DEFAULT 0
+        is_deleted INTEGER NOT NULL DEFAULT 0,
+        created_at INTEGER,
+        modified_at INTEGER
       )
     ''');
 
@@ -578,6 +609,12 @@ class LibrarySyncDatabase {
       songCount: row['song_count'] as int? ?? 0,
       duration: row['duration'] as int? ?? 0,
       isDeleted: (row['is_deleted'] as int? ?? 0) == 1,
+      createdAt: row['created_at'] != null
+          ? DateTime.fromMillisecondsSinceEpoch(row['created_at'] as int)
+          : null,
+      modifiedAt: row['modified_at'] != null
+          ? DateTime.fromMillisecondsSinceEpoch(row['modified_at'] as int)
+          : null,
     );
   }
 
@@ -629,6 +666,8 @@ class LibrarySyncDatabase {
           'song_count': album.songCount,
           'duration': album.duration,
           'is_deleted': album.isDeleted ? 1 : 0,
+          'created_at': album.createdAt?.millisecondsSinceEpoch,
+          'modified_at': album.modifiedAt?.millisecondsSinceEpoch,
         },
         conflictAlgorithm: ConflictAlgorithm.replace,
       );

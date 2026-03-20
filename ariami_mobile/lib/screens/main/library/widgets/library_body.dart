@@ -8,6 +8,7 @@ import '../library_state.dart';
 import 'albums_section.dart';
 import 'empty_state.dart';
 import 'error_state.dart';
+import 'mixed_section.dart';
 import 'playlists_section.dart';
 import 'section_header.dart';
 import 'songs_section.dart';
@@ -80,63 +81,110 @@ class LibraryBody extends StatelessWidget {
     return RefreshIndicator(
       onRefresh: () async => onRefresh(),
       child: CustomScrollView(
-        slivers: [
-          // Playlists Section
-          SliverToBoxAdapter(
-            child: CollapsibleSection(
-              title: 'Playlists',
-              initiallyExpanded: true,
-              persistenceKey: 'library_section_playlists',
-              child: PlaylistsSection(
-                state: state,
-                playlistService: playlistService,
-                isGridView: isGridView,
-                onCreatePlaylist: onCreatePlaylist,
-                onShowServerPlaylists: onShowServerPlaylists,
-                onPlaylistTap: onPlaylistTap,
-                onPlaylistLongPress: onPlaylistLongPress,
-              ),
-            ),
-          ),
-
-          // Albums Section
-          SectionHeader(
-            title: 'Albums',
-            isExpanded: state.albumsExpanded,
-            onTap: onToggleAlbumsExpanded,
-          ),
-          if (state.albumsExpanded)
-            AlbumsSection(
-              state: state,
-              isOffline: isOffline,
-              onAlbumTap: onAlbumTap,
-              onAlbumLongPress: onAlbumLongPress,
-            ),
-
-          // Songs Section
-          SectionHeader(
-            title: 'Songs',
-            isExpanded: state.songsExpanded,
-            onTap: onToggleSongsExpanded,
-          ),
-          if (state.songsExpanded)
-            SongsSection(
-              state: state,
-              isOffline: isOffline,
-              onSongTap: onSongTap,
-              onSongLongPress: onSongLongPress,
-              onOfflineSongTap: onOfflineSongTap,
-              onOfflineSongLongPress: onOfflineSongLongPress,
-            ),
-
-          // Bottom padding for mini player
-          SliverPadding(
-            padding: EdgeInsets.only(
-              bottom: getMiniPlayerAwareBottomPadding(context),
-            ),
-          ),
-        ],
+        slivers: state.isMixedMode
+            ? _buildMixedModeSlivers(context)
+            : _buildSeparateModeSlivers(context),
       ),
     );
+  }
+
+  List<Widget> _buildMixedModeSlivers(BuildContext context) {
+    return [
+      // Mixed Playlists + Albums Section
+      MixedSection(
+        state: state,
+        isOffline: isOffline,
+        playlistService: playlistService,
+        isGridView: isGridView,
+        onCreatePlaylist: onCreatePlaylist,
+        onShowServerPlaylists: onShowServerPlaylists,
+        onPlaylistTap: onPlaylistTap,
+        onPlaylistLongPress: onPlaylistLongPress,
+        onAlbumTap: onAlbumTap,
+        onAlbumLongPress: onAlbumLongPress,
+      ),
+
+      // Songs Section
+      SectionHeader(
+        title: 'Songs',
+        isExpanded: state.songsExpanded,
+        onTap: onToggleSongsExpanded,
+      ),
+      if (state.songsExpanded)
+        SongsSection(
+          state: state,
+          isOffline: isOffline,
+          onSongTap: onSongTap,
+          onSongLongPress: onSongLongPress,
+          onOfflineSongTap: onOfflineSongTap,
+          onOfflineSongLongPress: onOfflineSongLongPress,
+        ),
+
+      // Bottom padding for mini player
+      SliverPadding(
+        padding: EdgeInsets.only(
+          bottom: getMiniPlayerAwareBottomPadding(context),
+        ),
+      ),
+    ];
+  }
+
+  List<Widget> _buildSeparateModeSlivers(BuildContext context) {
+    return [
+      // Playlists Section
+      SliverToBoxAdapter(
+        child: CollapsibleSection(
+          title: 'Playlists',
+          initiallyExpanded: true,
+          persistenceKey: 'library_section_playlists',
+          child: PlaylistsSection(
+            state: state,
+            playlistService: playlistService,
+            isGridView: isGridView,
+            onCreatePlaylist: onCreatePlaylist,
+            onShowServerPlaylists: onShowServerPlaylists,
+            onPlaylistTap: onPlaylistTap,
+            onPlaylistLongPress: onPlaylistLongPress,
+          ),
+        ),
+      ),
+
+      // Albums Section
+      SectionHeader(
+        title: 'Albums',
+        isExpanded: state.albumsExpanded,
+        onTap: onToggleAlbumsExpanded,
+      ),
+      if (state.albumsExpanded)
+        AlbumsSection(
+          state: state,
+          isOffline: isOffline,
+          onAlbumTap: onAlbumTap,
+          onAlbumLongPress: onAlbumLongPress,
+        ),
+
+      // Songs Section
+      SectionHeader(
+        title: 'Songs',
+        isExpanded: state.songsExpanded,
+        onTap: onToggleSongsExpanded,
+      ),
+      if (state.songsExpanded)
+        SongsSection(
+          state: state,
+          isOffline: isOffline,
+          onSongTap: onSongTap,
+          onSongLongPress: onSongLongPress,
+          onOfflineSongTap: onOfflineSongTap,
+          onOfflineSongLongPress: onOfflineSongLongPress,
+        ),
+
+      // Bottom padding for mini player
+      SliverPadding(
+        padding: EdgeInsets.only(
+          bottom: getMiniPlayerAwareBottomPadding(context),
+        ),
+      ),
+    ];
   }
 }

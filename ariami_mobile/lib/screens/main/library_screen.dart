@@ -48,10 +48,12 @@ class _LibraryScreenState extends State<LibraryScreen> {
   // ============================================================================
 
   void _openPlaylist(PlaylistModel playlist) {
+    unawaited(_controller.markPlaylistAccessed(playlist.id));
     Navigator.of(context).pushNamed('/playlist', arguments: playlist.id);
   }
 
   void _openAlbum(AlbumModel album) {
+    unawaited(_controller.markAlbumAccessed(album.id));
     Navigator.of(context).pushNamed('/album', arguments: album);
   }
 
@@ -437,6 +439,16 @@ class _LibraryScreenState extends State<LibraryScreen> {
             tooltip: _controller.state.isGridView
                 ? 'Switch to List View'
                 : 'Switch to Grid View',
+          ),
+          // Mixed mode toggle
+          IconButton(
+            icon: Icon(
+              _controller.state.isMixedMode ? Icons.shuffle : Icons.layers,
+            ),
+            onPressed: _controller.toggleMixedMode,
+            tooltip: _controller.state.isMixedMode
+                ? 'Separate Playlists & Albums'
+                : 'Mix Playlists & Albums',
           ),
           IconButton(
             icon: const Icon(Icons.refresh),
