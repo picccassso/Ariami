@@ -127,6 +127,7 @@ ariami_core/.dart_tool/
 
 # Context folder
 /context/
+/plans/
 
 # Music test folder (if used for testing)
 Music/
