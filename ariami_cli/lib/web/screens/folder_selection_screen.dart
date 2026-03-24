@@ -137,7 +137,7 @@ class _FolderSelectionScreenState extends State<FolderSelectionScreen> {
                               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
                               decoration: InputDecoration(
                                 labelText: 'ABSOLUTE PATH',
-                                hintText: '/Users/music/library',
+                                hintText: '/path/to/your/music/library',
                                 prefixIcon: const Icon(Icons.dns_rounded, size: 20),
                                 errorText: _errorMessage,
                                 suffixIcon: _isValidating
