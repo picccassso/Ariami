@@ -18,7 +18,7 @@ import 'songs_section.dart';
 class LibraryBody extends StatelessWidget {
   final LibraryState state;
   final bool isOffline;
-  final VoidCallback onRefresh;
+  final Future<void> Function() onRefresh;
   final VoidCallback onRetry;
   final VoidCallback onToggleAlbumsExpanded;
   final VoidCallback onToggleSongsExpanded;
@@ -73,14 +73,31 @@ class LibraryBody extends StatelessWidget {
     }
 
     if (state.isLibraryEmpty && playlistService.playlists.isEmpty) {
-      return LibraryEmptyState(
-        isOfflineMode: state.isOfflineMode || isOffline,
+      return RefreshIndicator(
+        onRefresh: onRefresh,
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: Padding(
+                padding: EdgeInsets.only(
+                  bottom: getMiniPlayerAwareBottomPadding(context),
+                ),
+                child: LibraryEmptyState(
+                  isOfflineMode: state.isOfflineMode || isOffline,
+                ),
+              ),
+            ),
+          ],
+        ),
       );
     }
 
     return RefreshIndicator(
-      onRefresh: () async => onRefresh(),
+      onRefresh: onRefresh,
       child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
         slivers: state.isMixedMode
             ? _buildMixedModeSlivers(context)
             : _buildSeparateModeSlivers(context),

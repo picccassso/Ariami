@@ -11,6 +11,7 @@ import '../../../services/api/connection_service.dart';
 import '../../../services/cache/cache_manager.dart';
 import '../../../services/download/download_manager.dart';
 import '../../../services/library/library_read_facade.dart';
+import '../../../services/offline/offline_manual_reconnect.dart';
 import '../../../services/offline/offline_playback_service.dart';
 import '../../../services/playback_manager.dart';
 import '../../../services/playlist_service.dart';
@@ -508,8 +509,44 @@ class LibraryController extends ChangeNotifier {
   // Load Library
   // ============================================================================
 
-  Future<void> refreshLibrary() async {
+  /// Refreshes the library; attempts reconnect when offline or disconnected (same as Settings / pull-to-refresh).
+  Future<LibraryRefreshOutcome> refreshLibrary() async {
+    if (_offlineService.isManualOfflineModeEnabled) {
+      final outcome = await reconnectFromManualOffline(
+        offline: _offlineService,
+        connection: _connectionService,
+      );
+      await _loadLibrary();
+      switch (outcome) {
+        case ManualOfflineReconnectOutcome.success:
+          return LibraryRefreshOutcome.ok;
+        case ManualOfflineReconnectOutcome.authFailure:
+          return LibraryRefreshOutcome.showSessionExpiredSnack;
+        case ManualOfflineReconnectOutcome.networkFailure:
+          return LibraryRefreshOutcome.showManualReconnectFailedSnack;
+      }
+    }
+
+    if (_offlineService.isOfflineModeEnabled ||
+        !_connectionService.isConnected ||
+        _connectionService.apiClient == null) {
+      final restored = await _connectionService.tryRestoreConnection();
+      if (!restored) {
+        if (!_connectionService.hasServerInfo) {
+          await _loadLibrary();
+          return LibraryRefreshOutcome.navigateToReconnectScreen;
+        }
+        if (_connectionService.didLastRestoreFailForAuth) {
+          await _loadLibrary();
+          return LibraryRefreshOutcome.showSessionExpiredSnack;
+        }
+        await _loadLibrary();
+        return LibraryRefreshOutcome.ok;
+      }
+    }
+
     await _loadLibrary();
+    return LibraryRefreshOutcome.ok;
   }
 
   Future<void> _loadLibrary() async {
