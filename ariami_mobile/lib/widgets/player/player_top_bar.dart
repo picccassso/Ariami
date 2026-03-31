@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../common/bottom_chrome_metrics.dart';
 
 /// Top bar for full player screen with minimize button and overflow menu
 class PlayerTopBar extends StatelessWidget {
@@ -51,33 +50,27 @@ class PlayerTopBar extends StatelessWidget {
     showModalBottomSheet(
       context: context,
       builder: (BuildContext context) {
-        return SafeArea(
-          minimum: EdgeInsets.only(
-            bottom: kMiniPlayerOverlayHeight +
-                getBottomNavigationBarTotalHeight(context),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (onOpenQueue != null)
-                ListTile(
-                  leading: const Icon(Icons.queue_music),
-                  title: const Text('View Queue'),
-                  onTap: () {
-                    Navigator.pop(context);
-                    onOpenQueue!();
-                  },
-                ),
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (onOpenQueue != null)
               ListTile(
-                leading: const Icon(Icons.playlist_add),
-                title: const Text('Add to Playlist'),
+                leading: const Icon(Icons.queue_music),
+                title: const Text('View Queue'),
                 onTap: () {
                   Navigator.pop(context);
-                  // TODO: Implement in Task 7.5
+                  onOpenQueue!();
                 },
               ),
-            ],
-          ),
+            ListTile(
+              leading: const Icon(Icons.playlist_add),
+              title: const Text('Add to Playlist'),
+              onTap: () {
+                Navigator.pop(context);
+                // TODO: Implement in Task 7.5
+              },
+            ),
+          ],
         );
       },
     );
