@@ -262,6 +262,46 @@ class CacheManager {
     }
   }
 
+  /// Store artwork from local bytes (e.g. extracted from a downloaded audio file).
+  /// Does not use the network artwork download queue or concurrency slots.
+  Future<String?> cacheArtworkFromBytes(String cacheKey, List<int> bytes) async {
+    await _ensureInitialized();
+
+    if (!_database.isCacheEnabled()) return null;
+    if (bytes.isEmpty) return null;
+
+    try {
+      final filePath = '$_artworkCachePath/$cacheKey.jpg';
+      final file = File(filePath);
+      await file.writeAsBytes(bytes);
+      final size = await file.length();
+
+      final entry = CacheEntry(
+        id: cacheKey,
+        type: CacheType.artwork,
+        path: filePath,
+        size: size,
+        lastAccessed: DateTime.now(),
+      );
+
+      await _database.upsertCacheEntry(entry);
+      _scheduleEnforceStorageLimit(size);
+
+      _cacheUpdateController.add(
+        const CacheUpdateEvent(type: CacheType.artwork),
+      );
+
+      _artworkPathCache[cacheKey] = filePath;
+
+      print(
+          '[CacheManager] Cached artwork from bytes: $cacheKey (${entry.getFormattedSize()})');
+      return filePath;
+    } catch (e) {
+      print('[CacheManager] Failed to cache artwork from bytes $cacheKey: $e');
+      return null;
+    }
+  }
+
   /// Get cached artwork path if exists
   Future<String?> getArtworkPath(String albumId) async {
     // Check memory cache first (instant)

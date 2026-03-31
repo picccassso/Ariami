@@ -13,6 +13,7 @@ import '../api/connection_service.dart';
 import '../cache/cache_manager.dart';
 import '../quality/quality_settings_service.dart';
 import 'download_queue.dart';
+import 'local_artwork_extractor.dart';
 
 /// Manages all download operations
 class DownloadManager {
@@ -799,75 +800,44 @@ class DownloadManager {
   // UTILITY METHODS
   // ============================================================================
 
-  /// Cache artwork for a downloaded song (for offline use)
-  /// Caches album artwork (full + thumbnail) when albumId exists
-  /// Always caches song-specific artwork for per-song covers
+  /// Cache artwork for a downloaded song (for offline use) by reading embedded
+  /// art from the local audio file — no extra HTTP requests to the server.
   Future<void> _cacheArtworkForDownload(DownloadTask task) async {
     final cacheManager = CacheManager();
-    final connectionService = ConnectionService();
-    if (connectionService.apiClient == null) return;
-
-    final baseUrl = connectionService.apiClient!.baseUrl;
+    final localPath = _getSongFilePath(task.songId);
+    final file = File(localPath);
+    if (!await file.exists()) return;
 
     try {
-      if (task.albumId != null) {
-        // Album song: cache both full-size and thumbnail album artwork
-        await _cacheAlbumArtwork(cacheManager, baseUrl, task.albumId!);
+      final bytes = await LocalArtworkExtractor.extractArtwork(localPath);
+      if (bytes == null || bytes.isEmpty) {
+        print(
+            '[DownloadManager] No embedded artwork for song ${task.songId}');
+        return;
       }
-      // Always cache song-specific artwork for per-song covers
-      await _cacheSongArtwork(cacheManager, baseUrl, task.songId);
+
+      final songKey = 'song_${task.songId}';
+      if (!await cacheManager.isArtworkCached(songKey)) {
+        await cacheManager.cacheArtworkFromBytes(songKey, bytes);
+      }
+
+      if (task.albumId != null &&
+          !await cacheManager.isArtworkCached(task.albumId!)) {
+        await cacheManager.cacheArtworkFromBytes(task.albumId!, bytes);
+      }
     } catch (e) {
       // Don't fail the download if artwork caching fails
       print('[DownloadManager] Failed to cache artwork: $e');
     }
   }
 
-  /// Cache album artwork (full-size and thumbnail) for offline use
-  Future<void> _cacheAlbumArtwork(
-      CacheManager cacheManager, String baseUrl, String albumId) async {
-    // Cache full-size artwork (for detail views)
-    final fullSizeKey = albumId;
-    if (cacheManager.getArtworkPathSync(fullSizeKey) == null) {
-      final fullSizeUrl = '$baseUrl/artwork/$albumId';
-      await cacheManager.cacheArtwork(fullSizeKey, fullSizeUrl);
-      print('[DownloadManager] Cached full-size artwork for album: $albumId');
-    }
-
-    // Cache thumbnail artwork (for list/grid views)
-    final thumbnailKey = '${albumId}_thumb';
-    if (cacheManager.getArtworkPathSync(thumbnailKey) == null) {
-      final thumbnailUrl = '$baseUrl/artwork/$albumId?size=thumbnail';
-      await cacheManager.cacheArtwork(thumbnailKey, thumbnailUrl);
-      print('[DownloadManager] Cached thumbnail artwork for album: $albumId');
-    }
-  }
-
-  /// Cache standalone song artwork for offline use
-  Future<void> _cacheSongArtwork(
-      CacheManager cacheManager, String baseUrl, String songId) async {
-    // Standalone songs use "song_{songId}" as cache key
-    final cacheKey = 'song_$songId';
-    if (cacheManager.getArtworkPathSync(cacheKey) == null) {
-      final artworkUrl = '$baseUrl/song-artwork/$songId';
-      await cacheManager.cacheArtwork(cacheKey, artworkUrl);
-      print('[DownloadManager] Cached artwork for standalone song: $songId');
-    }
-  }
-
-  /// One-time backfill of artwork cache for existing downloads
-  /// This ensures songs downloaded before the artwork caching feature have artwork available offline
+  /// One-time backfill: extract embedded art from already-downloaded files
+  /// (works offline; no server required).
   Future<void> _backfillArtworkForExistingDownloads() async {
-    const backfillKey = 'artwork_backfill_v2';
+    const backfillKey = 'artwork_backfill_v3';
     final prefs = await SharedPreferences.getInstance();
 
-    // Check if backfill has already been completed
     if (prefs.getBool(backfillKey) == true) {
-      return;
-    }
-
-    final connectionService = ConnectionService();
-    if (connectionService.apiClient == null) {
-      // Can't backfill without server connection - will try again next launch
       return;
     }
 
@@ -876,35 +846,42 @@ class DownloadManager {
         .toList();
 
     if (completedTasks.isEmpty) {
-      // No completed downloads to backfill - mark as done
       await prefs.setBool(backfillKey, true);
       return;
     }
 
     print(
-        '[DownloadManager] Starting artwork backfill for ${completedTasks.length} downloaded songs...');
+        '[DownloadManager] Starting local artwork backfill for ${completedTasks.length} downloaded songs...');
 
     final cacheManager = CacheManager();
-    final baseUrl = connectionService.apiClient!.baseUrl;
-    int backfilledCount = 0;
+    var backfilledCount = 0;
 
     for (final task in completedTasks) {
       try {
-        if (task.albumId != null) {
-          await _cacheAlbumArtwork(cacheManager, baseUrl, task.albumId!);
+        final localPath = _getSongFilePath(task.songId);
+        final file = File(localPath);
+        if (!await file.exists()) continue;
+
+        final bytes = await LocalArtworkExtractor.extractArtwork(localPath);
+        if (bytes == null || bytes.isEmpty) continue;
+
+        final songKey = 'song_${task.songId}';
+        if (!await cacheManager.isArtworkCached(songKey)) {
+          await cacheManager.cacheArtworkFromBytes(songKey, bytes);
         }
-        await _cacheSongArtwork(cacheManager, baseUrl, task.songId);
+        if (task.albumId != null &&
+            !await cacheManager.isArtworkCached(task.albumId!)) {
+          await cacheManager.cacheArtworkFromBytes(task.albumId!, bytes);
+        }
         backfilledCount++;
       } catch (e) {
-        // Continue with next task if one fails
         print('[DownloadManager] Backfill failed for ${task.songId}: $e');
       }
     }
 
-    // Mark backfill as complete
     await prefs.setBool(backfillKey, true);
     print(
-        '[DownloadManager] Artwork backfill complete: $backfilledCount songs processed');
+        '[DownloadManager] Local artwork backfill complete: $backfilledCount songs processed');
   }
 
   /// Get file path for a downloaded song
