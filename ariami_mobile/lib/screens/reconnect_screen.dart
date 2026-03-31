@@ -42,6 +42,7 @@ class _ReconnectScreenState extends State<ReconnectScreen> {
       (isConnected) {
         if (isConnected && mounted) {
           // Connection restored automatically! Navigate to main app
+          // THIS ACTUALLY FUCKING WORKS FINALLY MAN!!!!
           print('Connection restored automatically - navigating to main app');
           Navigator.pushReplacementNamed(context, '/main');
         }

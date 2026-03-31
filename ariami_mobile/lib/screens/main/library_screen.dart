@@ -8,8 +8,6 @@ import '../playlist/create_playlist_screen.dart';
 import 'library/library.dart';
 
 /// Main library screen with collapsible sections for Playlists, Albums, and Songs.
-/// This screen uses the LibraryController for state management and delegates
-/// UI rendering to specialized widget components.
 class LibraryScreen extends StatefulWidget {
   const LibraryScreen({super.key});
 
@@ -43,9 +41,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
     }
   }
 
-  // ============================================================================
+ 
   // Action Handlers
-  // ============================================================================
+
 
   void _openPlaylist(PlaylistModel playlist) {
     unawaited(_controller.markPlaylistAccessed(playlist.id));
@@ -84,9 +82,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
     }
   }
 
-  // ============================================================================
   // Context Menu Handlers
-  // ============================================================================
+  
 
   void _showAlbumContextMenu(AlbumModel album) {
     showAlbumContextMenu(
@@ -129,9 +126,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
     );
   }
 
-  // ============================================================================
+
   // Server Playlist Import
-  // ============================================================================
+
 
   Future<void> _importServerPlaylist(ServerPlaylist serverPlaylist) async {
     Navigator.pop(context);
@@ -202,9 +199,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
     }
   }
 
-  // ============================================================================
+
   // Queue Operations
-  // ============================================================================
+
 
   Future<void> _addAlbumToQueue(AlbumModel album) async {
     if (_controller.connectionService.apiClient == null) return;
@@ -228,7 +225,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
         _playbackManager.addToQueue(song);
       }
     } catch (e) {
-      // Silently fail
+      // Silently fail, can't let em know it failed LOL
     }
   }
 
@@ -258,13 +255,11 @@ class _LibraryScreenState extends State<LibraryScreen> {
         _playbackManager.addToQueue(playSong);
       }
     } catch (e) {
-      // Silently fail
+      // Silently fail, can't let em know it failed LOL
     }
   }
 
-  // ============================================================================
   // Download Operations
-  // ============================================================================
 
   Future<void> _downloadAlbum(AlbumModel album) async {
     if (_controller.connectionService.apiClient == null) return;
@@ -356,9 +351,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
     }
   }
 
-  // ============================================================================
   // Retry/Refresh
-  // ============================================================================
 
   Future<void> _retryConnection() async {
     _controller.state.copyWith(isLoading: true, clearError: true);
@@ -378,9 +371,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
     }
   }
 
-  // ============================================================================
   // Build
-  // ============================================================================
 
   @override
   Widget build(BuildContext context) {

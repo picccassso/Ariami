@@ -8,8 +8,6 @@ import 'library_screen.dart';
 final GlobalKey<NavigatorState> libraryNavigatorKey = GlobalKey<NavigatorState>();
 
 /// Wrapper widget that provides nested navigation for the Library tab.
-/// This allows album/playlist detail screens to be shown within the tab
-/// while keeping the bottom navigation bar and mini player visible.
 class LibraryNavigator extends StatelessWidget {
   const LibraryNavigator({super.key, this.onBackAtRoot});
 
