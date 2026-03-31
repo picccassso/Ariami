@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../../services/api/connection_service.dart';
+import '../../services/offline/offline_manual_reconnect.dart';
 import '../../services/offline/offline_playback_service.dart';
 import '../../services/stats/streaming_stats_service.dart';
 import '../../widgets/settings/settings_section.dart';
@@ -105,45 +106,48 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _isReconnecting = true;
       });
 
-      await _offlineService.setManualOfflineMode(false);
-      final restored = await _connectionService.tryRestoreConnection();
+      final outcome = await reconnectFromManualOffline(
+        offline: _offlineService,
+        connection: _connectionService,
+      );
 
-      if (restored) {
-        // Connection restored
-        setState(() {
-          _isOfflineModeEnabled = false;
-          _isReconnecting = false;
-        });
-      } else if (_connectionService.didLastRestoreFailForAuth) {
-        // Auth failure - don't re-enable manual offline.
-        // Session-expired handler will navigate to login.
-        // After login, notifyConnectionRestored() clears offline state.
-        setState(() {
-          _isOfflineModeEnabled = false;
-          _isReconnecting = false;
-        });
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Session expired. Please log in to reconnect.'),
-              duration: Duration(seconds: 3),
-            ),
-          );
-        }
-      } else {
-        // Connectivity failure - put back into manual offline mode
-        await _offlineService.setManualOfflineMode(true);
-        setState(() {
-          _isReconnecting = false;
-        });
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Cannot connect to server. Staying in offline mode.'),
-              duration: Duration(seconds: 3),
-            ),
-          );
-        }
+      switch (outcome) {
+        case ManualOfflineReconnectOutcome.success:
+          setState(() {
+            _isOfflineModeEnabled = false;
+            _isReconnecting = false;
+          });
+          break;
+        case ManualOfflineReconnectOutcome.authFailure:
+          // Don't re-enable manual offline.
+          // Session-expired handler may navigate to login.
+          setState(() {
+            _isOfflineModeEnabled = false;
+            _isReconnecting = false;
+          });
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Session expired. Please log in to reconnect.'),
+                duration: Duration(seconds: 3),
+              ),
+            );
+          }
+          break;
+        case ManualOfflineReconnectOutcome.networkFailure:
+          setState(() {
+            _isReconnecting = false;
+          });
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                    'Cannot connect to server. Staying in offline mode.'),
+                duration: Duration(seconds: 3),
+              ),
+            );
+          }
+          break;
       }
     }
   }

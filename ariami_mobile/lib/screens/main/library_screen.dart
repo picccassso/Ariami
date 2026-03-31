@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../models/api_models.dart';
 import '../../models/song.dart';
+import '../../services/offline/offline_manual_reconnect.dart';
 import '../../services/playback_manager.dart';
 import '../../services/quality/quality_settings_service.dart';
 import '../playlist/create_playlist_screen.dart';
@@ -351,23 +352,38 @@ class _LibraryScreenState extends State<LibraryScreen> {
     }
   }
 
-  // Retry/Refresh
+  // Retry/Refresh (same reconnect + load path as pull-to-refresh and Settings)
 
-  Future<void> _retryConnection() async {
-    _controller.state.copyWith(isLoading: true, clearError: true);
-
-    final restored = await _controller.connectionService.tryRestoreConnection();
-
-    if (restored) {
-      await _controller.refreshLibrary();
-    } else {
-      if (mounted) {
+  Future<void> _handleLibraryRefresh() async {
+    final outcome = await _controller.refreshLibrary();
+    if (!mounted) return;
+    switch (outcome) {
+      case LibraryRefreshOutcome.ok:
+        break;
+      case LibraryRefreshOutcome.showSessionExpiredSnack:
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Session expired. Please log in to reconnect.'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+        break;
+      case LibraryRefreshOutcome.showManualReconnectFailedSnack:
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+                'Cannot connect to server. Staying in offline mode.'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+        break;
+      case LibraryRefreshOutcome.navigateToReconnectScreen:
         Navigator.pushNamedAndRemoveUntil(
           context,
           '/reconnect',
           (route) => false,
         );
-      }
+        break;
     }
   }
 
@@ -447,7 +463,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
           ),
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: isOffline ? null : _controller.refreshLibrary,
+            onPressed: _handleLibraryRefresh,
             tooltip: 'Refresh Library',
           ),
         ],
@@ -458,8 +474,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
           return LibraryBody(
             state: _controller.state,
             isOffline: isOffline,
-            onRefresh: _controller.refreshLibrary,
-            onRetry: _retryConnection,
+            onRefresh: _handleLibraryRefresh,
+            onRetry: () => unawaited(_handleLibraryRefresh()),
             onToggleAlbumsExpanded: _controller.toggleAlbumsExpanded,
             onToggleSongsExpanded: _controller.toggleSongsExpanded,
             playlistService: _controller.playlistService,
