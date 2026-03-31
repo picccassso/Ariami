@@ -14,6 +14,7 @@ import '../../../services/library/library_read_facade.dart';
 import '../../../services/offline/offline_playback_service.dart';
 import '../../../services/playback_manager.dart';
 import '../../../services/playlist_service.dart';
+import '../../../utils/artwork_url.dart';
 import 'library_state.dart';
 
 /// Controller for the LibraryScreen.
@@ -230,8 +231,7 @@ class LibraryController extends ChangeNotifier {
 
     final prefs = await SharedPreferences.getInstance();
     final encoded = updatedAccessHistory.map(
-      (entryKey, value) =>
-          MapEntry(entryKey, value.millisecondsSinceEpoch),
+      (entryKey, value) => MapEntry(entryKey, value.millisecondsSinceEpoch),
     );
     await prefs.setString(_lastAccessedKey, jsonEncode(encoded));
   }
@@ -598,6 +598,7 @@ class LibraryController extends ChangeNotifier {
         id: albumId,
         title: albumTitle,
         artist: artist,
+        coverArt: resolveAlbumArtworkUrl(albumId: albumId),
         songCount: albumTasks.length,
         duration: totalDuration,
       ));

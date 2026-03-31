@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../models/api_models.dart';
+import '../../utils/artwork_url.dart';
 import '../common/cached_artwork.dart';
 
 /// Album grid item widget
@@ -39,7 +40,7 @@ class AlbumGridItem extends StatelessWidget {
               aspectRatio: 1.0,
               child: Stack(
                 children: [
-                   // Shadow & Container
+                  // Shadow & Container
                   Container(
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(16), // Larger radius
@@ -56,10 +57,10 @@ class AlbumGridItem extends StatelessWidget {
                       child: _buildAlbumArt(context),
                     ),
                   ),
-                  
+
                   // Interactive Overlay (highlight on press - implicit via InkWell usually, but manual here for custom look if needed)
                   // For now, simple standard interaction is fine, effectively handled by GestureDetector
-                  
+
                   // Download Indicator (Floating Badge)
                   if (hasDownloadedSongs)
                     Positioned(
@@ -70,7 +71,9 @@ class AlbumGridItem extends StatelessWidget {
                         decoration: BoxDecoration(
                           color: Colors.green, // Functional green for downloads
                           shape: BoxShape.circle,
-                          border: Border.all(color: Theme.of(context).scaffoldBackgroundColor, width: 1.5),
+                          border: Border.all(
+                              color: Theme.of(context).scaffoldBackgroundColor,
+                              width: 1.5),
                           boxShadow: [
                             BoxShadow(
                               color: Colors.black.withOpacity(0.2),
@@ -88,22 +91,24 @@ class AlbumGridItem extends StatelessWidget {
                 ],
               ),
             ),
-            
+
             const SizedBox(height: 12), // More breathing room
-            
+
             // Text Details
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4.0), // Slight alignment correction
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 4.0), // Slight alignment correction
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     album.title,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                      letterSpacing: -0.2, // Tighter tracking for modern look
-                    ),
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                          letterSpacing:
+                              -0.2, // Tighter tracking for modern look
+                        ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -111,9 +116,12 @@ class AlbumGridItem extends StatelessWidget {
                   Text(
                     album.artist,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
-                      fontSize: 12,
-                    ),
+                          color: Theme.of(context)
+                              .colorScheme
+                              .onSurface
+                              .withOpacity(0.6),
+                          fontSize: 12,
+                        ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -130,7 +138,10 @@ class AlbumGridItem extends StatelessWidget {
   Widget _buildAlbumArt(BuildContext context) {
     return CachedArtwork(
       albumId: album.id,
-      artworkUrl: album.coverArt,
+      artworkUrl: resolveAlbumArtworkUrl(
+        albumId: album.id,
+        coverArt: album.coverArt,
+      ),
       fit: BoxFit.cover,
       width: double.infinity,
       height: double.infinity,
