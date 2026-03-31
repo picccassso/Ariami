@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'settings_screen.dart';
 import '../settings/connection_settings_screen.dart';
-import '../settings/downloads_screen.dart';
+import '../settings/downloads/downloads_screen.dart';
 import '../settings/import_export_screen.dart';
 import '../settings/quality_settings_screen.dart';
 import '../settings/streaming_stats_screen.dart';
