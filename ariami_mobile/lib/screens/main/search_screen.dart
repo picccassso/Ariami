@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
+import '../../widgets/common/bottom_chrome_metrics.dart';
 import '../../models/api_models.dart';
 import '../../models/download_task.dart';
 import '../../models/song.dart';
@@ -412,9 +413,23 @@ class _SearchScreenState extends State<SearchScreen> {
       return _buildNoResultsState();
     }
 
+    final bottomPadding = getMiniPlayerAwareBottomPadding(context);
+    // #region agent log
+    debugLogBottomLayout(
+      hypothesisId: 'H4',
+      location: 'search_screen.dart:_buildSearchResults',
+      message: 'Search results list padding applied',
+      data: {
+        'keyboardVisible': MediaQuery.viewInsetsOf(context).bottom > 0,
+        'queryLength': _searchController.text.length,
+        'bottomPadding': bottomPadding,
+        'hasMiniPlayer': _playbackManager.currentSong != null,
+      },
+    );
+    // #endregion
     return ListView(
       padding: EdgeInsets.only(
-        bottom: getMiniPlayerAwareBottomPadding(context),
+        bottom: bottomPadding,
       ),
       children: [
         // Songs Section
@@ -499,6 +514,20 @@ class _SearchScreenState extends State<SearchScreen> {
       return _buildStartSearchingState();
     }
 
+    final bottomPadding = getMiniPlayerAwareBottomPadding(context);
+    // #region agent log
+    debugLogBottomLayout(
+      hypothesisId: 'H5',
+      location: 'search_screen.dart:_buildRecentSearches',
+      message: 'Recent searches list padding applied',
+      data: {
+        'keyboardVisible': MediaQuery.viewInsetsOf(context).bottom > 0,
+        'recentCount': _recentSongs.length,
+        'bottomPadding': bottomPadding,
+        'hasMiniPlayer': _playbackManager.currentSong != null,
+      },
+    );
+    // #endregion
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -528,7 +557,7 @@ class _SearchScreenState extends State<SearchScreen> {
         Expanded(
           child: ListView.builder(
             padding: EdgeInsets.only(
-              bottom: getMiniPlayerAwareBottomPadding(context),
+              bottom: bottomPadding,
             ),
             itemCount: _recentSongs.length,
             itemBuilder: (context, index) {

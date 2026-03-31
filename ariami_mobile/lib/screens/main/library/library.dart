@@ -1,5 +1,6 @@
 // Library Screen Module
 // Exports all components for the library screen
+// Refactoring this piece of shit was a pain 
 
 // State and Controller
 export 'library_state.dart';
