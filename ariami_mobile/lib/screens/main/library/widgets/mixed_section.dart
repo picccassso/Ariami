@@ -70,16 +70,15 @@ class _MixedSectionState extends State<MixedSection> {
   List<_MixedItem> _buildMixedItems() {
     final items = <_MixedItem>[];
 
-    // Add playlists
     for (final playlist in widget.playlistService.playlists) {
       items.add(_MixedItem.playlist(
         playlist: playlist,
         sortAt: widget.state.lastAccessedForPlaylist(playlist.id) ??
             playlist.modifiedAt,
+        isPinned: widget.state.isPlaylistPinned(playlist.id),
       ));
     }
 
-    // Add albums to show
     for (final album in widget.state.albumsToShow) {
       items.add(_MixedItem.album(
         album: album,
@@ -87,11 +86,14 @@ class _MixedSectionState extends State<MixedSection> {
             album.modifiedAt ??
             album.createdAt ??
             DateTime(1970),
+        isPinned: widget.state.isAlbumPinned(album.id),
       ));
     }
 
-    // Sort by last access first, then fallback metadata timestamps.
-    items.sort((a, b) => b.sortAt.compareTo(a.sortAt));
+    items.sort((a, b) {
+      if (a.isPinned != b.isPinned) return a.isPinned ? -1 : 1;
+      return b.sortAt.compareTo(a.sortAt);
+    });
 
     return items;
   }
@@ -145,6 +147,7 @@ class _MixedSectionState extends State<MixedSection> {
                       widget.playlistService.isRecentlyImported(playlist.id),
                   hasDownloadedSongs:
                       widget.state.hasPlaylistDownloads(playlist.id),
+                  isPinned: item.isPinned,
                 );
               },
               album: (album) {
@@ -156,6 +159,7 @@ class _MixedSectionState extends State<MixedSection> {
                   onLongPress: () => widget.onAlbumLongPress(album),
                   isAvailable: isAvailable,
                   hasDownloadedSongs: hasDownloads,
+                  isPinned: item.isPinned,
                 );
               },
             );
@@ -184,6 +188,7 @@ class _MixedSectionState extends State<MixedSection> {
                     widget.playlistService.isRecentlyImported(playlist.id),
                 hasDownloadedSongs:
                     widget.state.hasPlaylistDownloads(playlist.id),
+                isPinned: item.isPinned,
               );
             },
             album: (album) {
@@ -195,6 +200,7 @@ class _MixedSectionState extends State<MixedSection> {
                 onLongPress: () => widget.onAlbumLongPress(album),
                 isAvailable: isAvailable,
                 hasDownloadedSongs: hasDownloads,
+                isPinned: item.isPinned,
               );
             },
           );
@@ -218,30 +224,36 @@ class _MixedItem {
   final PlaylistModel? playlist;
   final AlbumModel? album;
   final DateTime sortAt;
+  final bool isPinned;
 
   const _MixedItem._({
     this.playlist,
     this.album,
     required this.sortAt,
+    this.isPinned = false,
   }) : assert(playlist != null || album != null);
 
   factory _MixedItem.playlist({
     required PlaylistModel playlist,
     required DateTime sortAt,
+    bool isPinned = false,
   }) {
     return _MixedItem._(
       playlist: playlist,
       sortAt: sortAt,
+      isPinned: isPinned,
     );
   }
 
   factory _MixedItem.album({
     required AlbumModel album,
     required DateTime sortAt,
+    bool isPinned = false,
   }) {
     return _MixedItem._(
       album: album,
       sortAt: sortAt,
+      isPinned: isPinned,
     );
   }
 

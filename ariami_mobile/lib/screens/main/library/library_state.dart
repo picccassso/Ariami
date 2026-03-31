@@ -33,6 +33,9 @@ class LibraryState {
   final Set<String> playlistsWithDownloads;
   final Map<String, DateTime> itemLastAccessedAt;
 
+  /// Pinned library items (keys like "album:$id" or "playlist:$id")
+  final Set<String> pinnedItemIds;
+
   const LibraryState({
     this.albums = const [],
     this.songs = const [],
@@ -51,6 +54,7 @@ class LibraryState {
     this.fullyDownloadedAlbumIds = const {},
     this.playlistsWithDownloads = const {},
     this.itemLastAccessedAt = const {},
+    this.pinnedItemIds = const {},
   });
 
   /// Creates a copy of this state with the given fields replaced
@@ -72,6 +76,7 @@ class LibraryState {
     Set<String>? fullyDownloadedAlbumIds,
     Set<String>? playlistsWithDownloads,
     Map<String, DateTime>? itemLastAccessedAt,
+    Set<String>? pinnedItemIds,
     bool clearError = false,
   }) {
     return LibraryState(
@@ -94,6 +99,7 @@ class LibraryState {
       playlistsWithDownloads:
           playlistsWithDownloads ?? this.playlistsWithDownloads,
       itemLastAccessedAt: itemLastAccessedAt ?? this.itemLastAccessedAt,
+      pinnedItemIds: pinnedItemIds ?? this.pinnedItemIds,
     );
   }
 
@@ -141,6 +147,12 @@ class LibraryState {
   DateTime? lastAccessedForPlaylist(String playlistId) =>
       itemLastAccessedAt['playlist:$playlistId'];
 
+  bool isAlbumPinned(String albumId) =>
+      pinnedItemIds.contains('album:$albumId');
+
+  bool isPlaylistPinned(String playlistId) =>
+      pinnedItemIds.contains('playlist:$playlistId');
+
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
@@ -161,7 +173,8 @@ class LibraryState {
         setEquals(other.albumsWithDownloads, albumsWithDownloads) &&
         setEquals(other.fullyDownloadedAlbumIds, fullyDownloadedAlbumIds) &&
         setEquals(other.playlistsWithDownloads, playlistsWithDownloads) &&
-        mapEquals(other.itemLastAccessedAt, itemLastAccessedAt);
+        mapEquals(other.itemLastAccessedAt, itemLastAccessedAt) &&
+        setEquals(other.pinnedItemIds, pinnedItemIds);
   }
 
   @override
@@ -183,6 +196,7 @@ class LibraryState {
         Object.hashAll(fullyDownloadedAlbumIds),
         Object.hashAll(playlistsWithDownloads),
         Object.hashAllUnordered(itemLastAccessedAt.entries),
+        Object.hashAll(pinnedItemIds),
       );
 
   @override
@@ -195,6 +209,7 @@ class LibraryState {
         'showDownloadedOnly: $showDownloadedOnly, '
         'downloadedSongIds: ${downloadedSongIds.length}, '
         'cachedSongIds: ${cachedSongIds.length}, '
+        'pinnedItemIds: ${pinnedItemIds.length}, '
         'itemLastAccessedAt: ${itemLastAccessedAt.length})';
   }
 }

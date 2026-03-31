@@ -14,6 +14,7 @@ class PlaylistCard extends StatefulWidget {
   final bool isLikedSongs;
   final bool isImportedFromServer;
   final bool hasDownloadedSongs;
+  final bool isPinned;
 
   const PlaylistCard({
     super.key,
@@ -24,6 +25,7 @@ class PlaylistCard extends StatefulWidget {
     this.isLikedSongs = false,
     this.isImportedFromServer = false,
     this.hasDownloadedSongs = false,
+    this.isPinned = false,
   });
 
   @override
@@ -94,7 +96,6 @@ class _PlaylistCardState extends State<PlaylistCard> {
                   ),
                 ),
 
-                // Download indicator
                 if (widget.hasDownloadedSongs)
                   Positioned(
                     top: 8,
@@ -102,7 +103,7 @@ class _PlaylistCardState extends State<PlaylistCard> {
                     child: Container(
                       padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
-                        color: Colors.green, // Functional green for downloads
+                        color: Colors.green,
                         shape: BoxShape.circle,
                         border: Border.all(
                             color: Theme.of(context).scaffoldBackgroundColor,
@@ -118,6 +119,29 @@ class _PlaylistCardState extends State<PlaylistCard> {
                         Icons.download_done,
                         size: 12,
                         color: Colors.white,
+                      ),
+                    ),
+                  ),
+                if (widget.isPinned)
+                  Positioned(
+                    top: 8,
+                    left: 8,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.85),
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.2),
+                            blurRadius: 4,
+                          )
+                        ],
+                      ),
+                      child: const Icon(
+                        Icons.push_pin,
+                        size: 12,
+                        color: Colors.black87,
                       ),
                     ),
                   ),

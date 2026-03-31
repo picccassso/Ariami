@@ -11,6 +11,7 @@ class AlbumGridItem extends StatelessWidget {
   final VoidCallback? onLongPress;
   final bool isAvailable;
   final bool hasDownloadedSongs;
+  final bool isPinned;
 
   const AlbumGridItem({
     super.key,
@@ -19,6 +20,7 @@ class AlbumGridItem extends StatelessWidget {
     this.onLongPress,
     this.isAvailable = true,
     this.hasDownloadedSongs = false,
+    this.isPinned = false,
   });
 
   @override
@@ -61,7 +63,6 @@ class AlbumGridItem extends StatelessWidget {
                   // Interactive Overlay (highlight on press - implicit via InkWell usually, but manual here for custom look if needed)
                   // For now, simple standard interaction is fine, effectively handled by GestureDetector
 
-                  // Download Indicator (Floating Badge)
                   if (hasDownloadedSongs)
                     Positioned(
                       top: 8,
@@ -69,7 +70,7 @@ class AlbumGridItem extends StatelessWidget {
                       child: Container(
                         padding: const EdgeInsets.all(4),
                         decoration: BoxDecoration(
-                          color: Colors.green, // Functional green for downloads
+                          color: Colors.green,
                           shape: BoxShape.circle,
                           border: Border.all(
                               color: Theme.of(context).scaffoldBackgroundColor,
@@ -85,6 +86,29 @@ class AlbumGridItem extends StatelessWidget {
                           Icons.download_done,
                           size: 12,
                           color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  if (isPinned)
+                    Positioned(
+                      top: 8,
+                      left: 8,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.85),
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.2),
+                              blurRadius: 4,
+                            )
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.push_pin,
+                          size: 12,
+                          color: Colors.black87,
                         ),
                       ),
                     ),

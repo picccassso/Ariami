@@ -8,18 +8,22 @@ class AlbumContextMenu extends StatelessWidget {
   final AlbumModel album;
   final ConnectionService connectionService;
   final bool isFullyDownloaded;
+  final bool isPinned;
   final VoidCallback onPlay;
   final VoidCallback onAddToQueue;
   final VoidCallback onDownload;
+  final VoidCallback onTogglePin;
 
   const AlbumContextMenu({
     super.key,
     required this.album,
     required this.connectionService,
     required this.isFullyDownloaded,
+    this.isPinned = false,
     required this.onPlay,
     required this.onAddToQueue,
     required this.onDownload,
+    required this.onTogglePin,
   });
 
   @override
@@ -94,6 +98,15 @@ class AlbumContextMenu extends StatelessWidget {
             },
           ),
           ListTile(
+            leading: Icon(
+                isPinned ? Icons.push_pin : Icons.push_pin_outlined),
+            title: Text(isPinned ? 'Unpin' : 'Pin to Top'),
+            onTap: () {
+              Navigator.pop(context);
+              onTogglePin();
+            },
+          ),
+          ListTile(
             leading: const Icon(Icons.queue_music),
             title: const Text('Add to Queue'),
             onTap: () {
@@ -128,9 +141,11 @@ Future<void> showAlbumContextMenu({
   required AlbumModel album,
   required ConnectionService connectionService,
   required bool isFullyDownloaded,
+  bool isPinned = false,
   required VoidCallback onPlay,
   required VoidCallback onAddToQueue,
   required VoidCallback onDownload,
+  required VoidCallback onTogglePin,
 }) {
   return showModalBottomSheet(
     context: context,
@@ -139,9 +154,11 @@ Future<void> showAlbumContextMenu({
         album: album,
         connectionService: connectionService,
         isFullyDownloaded: isFullyDownloaded,
+        isPinned: isPinned,
         onPlay: onPlay,
         onAddToQueue: onAddToQueue,
         onDownload: onDownload,
+        onTogglePin: onTogglePin,
       );
     },
   );
