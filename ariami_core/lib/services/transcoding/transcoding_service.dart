@@ -6,6 +6,11 @@ import 'dart:math';
 
 import '../../models/quality_preset.dart';
 
+part 'src/transcoding_service_environment.dart';
+part 'src/transcoding_service_process.dart';
+part 'src/transcoding_service_cache.dart';
+part 'src/transcoding_service_models.dart';
+
 /// Identifies whether a transcode was requested for streaming or download.
 enum TranscodeRequestType {
   streaming,
@@ -134,103 +139,7 @@ class TranscodingService {
   }
 
   /// Check if FFmpeg is available on the system.
-  Future<bool> isFFmpegAvailable() async {
-    if (_ffmpegAvailable != null) return _ffmpegAvailable!;
-
-    try {
-      final result = await Process.run('ffmpeg', ['-version']);
-      _ffmpegAvailable = result.exitCode == 0;
-      if (_ffmpegAvailable!) {
-        print('TranscodingService: FFmpeg is available');
-      } else {
-        print('TranscodingService: FFmpeg not found (exit code ${result.exitCode})');
-      }
-    } catch (e) {
-      print('TranscodingService: FFmpeg not available - $e');
-      _ffmpegAvailable = false;
-    }
-
-    return _ffmpegAvailable!;
-  }
-
-  /// Check if ffprobe is available on the system.
-  Future<bool> _isFFprobeAvailable() async {
-    if (_ffprobeAvailable != null) return _ffprobeAvailable!;
-
-    try {
-      final result = await Process.run('ffprobe', ['-version']);
-      _ffprobeAvailable = result.exitCode == 0;
-    } catch (e) {
-      _ffprobeAvailable = false;
-    }
-
-    return _ffprobeAvailable!;
-  }
-
-  /// Get audio properties using ffprobe.
-  /// Returns null if ffprobe fails or file can't be analyzed.
-  Future<_AudioProperties?> _getAudioProperties(String sourcePath) async {
-    if (!await _isFFprobeAvailable()) return null;
-
-    try {
-      final result = await Process.run('ffprobe', [
-        '-v', 'quiet',
-        '-select_streams', 'a:0',
-        '-show_entries', 'stream=codec_name,bit_rate,sample_rate',
-        '-of', 'json',
-        sourcePath,
-      ]).timeout(const Duration(seconds: 5));
-
-      if (result.exitCode != 0) return null;
-
-      final json = jsonDecode(result.stdout as String);
-      final streams = json['streams'] as List<dynamic>?;
-      if (streams == null || streams.isEmpty) return null;
-
-      final stream = streams[0] as Map<String, dynamic>;
-      return _AudioProperties(
-        codec: stream['codec_name'] as String?,
-        bitrate: int.tryParse(stream['bit_rate']?.toString() ?? ''),
-        sampleRate: int.tryParse(stream['sample_rate']?.toString() ?? ''),
-      );
-    } catch (e) {
-      print('TranscodingService: ffprobe error - $e');
-      return null;
-    }
-  }
-
-  /// Detect and cache the best audio codec for this platform.
-  ///
-  /// On macOS, prefers `aac_at` (AudioToolbox hardware AAC) if available.
-  /// Falls back to software `aac` on all other platforms or if detection fails.
-  Future<String> _selectAudioCodec() async {
-    if (_codecDetected) return _cachedAudioCodec!;
-
-    _cachedAudioCodec = 'aac'; // Default fallback
-
-    // Only check for hardware encoder on macOS
-    if (Platform.isMacOS) {
-      try {
-        final result = await Process.run('ffmpeg', ['-encoders']);
-        if (result.exitCode == 0) {
-          final output = result.stdout as String;
-          if (output.contains('aac_at')) {
-            _cachedAudioCodec = 'aac_at';
-            print('TranscodingService: Using hardware AAC encoder (aac_at) on macOS');
-          } else {
-            print('TranscodingService: Hardware AAC (aac_at) not available, using software AAC');
-          }
-        }
-      } catch (e) {
-        print('TranscodingService: Codec detection failed, using software AAC - $e');
-      }
-    } else {
-      print('TranscodingService: Using software AAC encoder on ${Platform.operatingSystem}');
-    }
-
-    _codecDetected = true;
-    return _cachedAudioCodec!;
-  }
+  Future<bool> isFFmpegAvailable() => _isFFmpegAvailable();
 
   /// Get a transcoded file for the given source and quality.
   ///
@@ -270,7 +179,8 @@ class TranscodingService {
     // Check failure backoff
     if (_shouldSkipDueToFailure(lockKey)) {
       final record = _failures[lockKey]!;
-      print('TranscodingService: Skipping $lockKey - failed ${record.failureCount}x, '
+      print(
+          'TranscodingService: Skipping $lockKey - failed ${record.failureCount}x, '
           'backoff until ${record.lastFailure.add(failureBackoffDuration)}');
       return null;
     }
@@ -340,7 +250,8 @@ class TranscodingService {
       if (result != null) {
         // Add to cache index
         final size = await result.length();
-        _addToIndex(lockKey, '${quality.name}/$songId.${quality.fileExtension}', size);
+        _addToIndex(
+            lockKey, '${quality.name}/$songId.${quality.fileExtension}', size);
 
         // Clear any previous failure
         _clearFailure(lockKey);
@@ -368,7 +279,8 @@ class TranscodingService {
 
   /// Process next streaming task in queue if capacity available.
   void _processNextStreamingQueue() {
-    if (_streamingQueue.isEmpty || _runningStreamingCount >= maxConcurrency) return;
+    if (_streamingQueue.isEmpty || _runningStreamingCount >= maxConcurrency)
+      return;
 
     final task = _streamingQueue.removeFirst();
     // Re-invoke getTranscodedFile for the queued task (streaming cache)
@@ -377,17 +289,16 @@ class TranscodingService {
       task.songId,
       task.quality,
       requestType: TranscodeRequestType.streaming,
-    )
-        .then((file) => task.completer.complete(file))
-        .catchError((e) {
-          print('TranscodingService: Queued streaming task error - $e');
-          task.completer.complete(null);
-        });
+    ).then((file) => task.completer.complete(file)).catchError((e) {
+      print('TranscodingService: Queued streaming task error - $e');
+      task.completer.complete(null);
+    });
   }
 
   /// Process next download task in queue if capacity available.
   void _processNextDownloadQueue() {
-    if (_downloadQueue.isEmpty || _runningDownloadCount >= maxDownloadConcurrency) return;
+    if (_downloadQueue.isEmpty ||
+        _runningDownloadCount >= maxDownloadConcurrency) return;
 
     final task = _downloadQueue.removeFirst();
     _runDownloadQueueTask(task);
@@ -434,7 +345,8 @@ class TranscodingService {
 
     // Check FFmpeg availability
     if (!await isFFmpegAvailable()) {
-      print('TranscodingService: Cannot transcode for download - FFmpeg not available');
+      print(
+          'TranscodingService: Cannot transcode for download - FFmpeg not available');
       return null;
     }
 
@@ -442,7 +354,8 @@ class TranscodingService {
 
     // Check failure backoff
     if (_shouldSkipDueToFailure(lockKey)) {
-      print('TranscodingService: Skipping download transcode $lockKey - in backoff');
+      print(
+          'TranscodingService: Skipping download transcode $lockKey - in backoff');
       return null;
     }
 
@@ -491,547 +404,28 @@ class TranscodingService {
     }
   }
 
-  Future<File?> _performDownloadTranscode(
-    String sourcePath,
-    String songId,
-    QualityPreset quality,
-    String lockKey,
-  ) async {
-    try {
-      // Create temp directory if needed
-      final tempDir = Directory('$cacheDirectory/tmp');
-      if (!await tempDir.exists()) {
-        await tempDir.create(recursive: true);
-      }
-
-      // Generate unique temp filename
-      final random = Random();
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final randomSuffix = random.nextInt(999999).toString().padLeft(6, '0');
-      final tempPath = '${tempDir.path}/${songId}_${timestamp}_$randomSuffix.${quality.fileExtension}';
-
-      print('TranscodingService: Download transcode $songId to ${quality.name} '
-          '(running: $_runningDownloadCount)');
-
-      final result = await _transcodeFile(sourcePath, tempPath, quality);
-
-      if (result != null) {
-        _clearFailure(lockKey);
-        return result;
-      }
-
-      _recordFailure(lockKey, 'Download transcode returned null');
-      return null;
-    } catch (e) {
-      print('TranscodingService: Download transcode error - $e');
-      _recordFailure(lockKey, e.toString());
-      return null;
-    }
-  }
-
-  /// Get the cached file path for a song at a specific quality.
-  File _getCachedFile(String songId, QualityPreset quality) {
-    final qualityDir = Directory('$cacheDirectory/${quality.name}');
-    return File('${qualityDir.path}/$songId.${quality.fileExtension}');
-  }
-
-  /// Transcode a file using FFmpeg.
-  Future<File?> _transcodeFile(
-    String sourcePath,
-    String outputPath,
-    QualityPreset quality,
-  ) async {
-    // Ensure output directory exists
-    final outputDir = Directory(outputPath).parent;
-    if (!await outputDir.exists()) {
-      await outputDir.create(recursive: true);
-    }
-
-    // Build FFmpeg command (async for platform-aware codec detection)
-    final args = await _buildFFmpegArgs(sourcePath, outputPath, quality);
-
-    print('TranscodingService: Running ffmpeg ${args.join(' ')}');
-
-    try {
-      final result = await Process.run(
-        'ffmpeg',
-        args,
-      ).timeout(
-        transcodeTimeout,
-        onTimeout: () {
-          print('TranscodingService: Transcode timeout after ${transcodeTimeout.inMinutes} minutes');
-          return ProcessResult(-1, -1, '', 'Timeout');
-        },
-      );
-
-      if (result.exitCode == 0) {
-        final outputFile = File(outputPath);
-        if (await outputFile.exists()) {
-          final size = await outputFile.length();
-          print('TranscodingService: Transcode complete - ${(size / 1024).round()} KB');
-          return outputFile;
-        }
-      }
-
-      print('TranscodingService: FFmpeg failed (exit ${result.exitCode})');
-      print('TranscodingService: stderr: ${result.stderr}');
-
-      // Clean up partial file if it exists
-      final partialFile = File(outputPath);
-      if (await partialFile.exists()) {
-        await partialFile.delete();
-      }
-
-      return null;
-    } catch (e) {
-      print('TranscodingService: FFmpeg error - $e');
-
-      // Clean up partial file
-      try {
-        final partialFile = File(outputPath);
-        if (await partialFile.exists()) {
-          await partialFile.delete();
-        }
-      } catch (_) {}
-
-      return null;
-    }
-  }
-
-  /// Build FFmpeg arguments for transcoding.
-  ///
-  /// Uses platform-aware codec selection:
-  /// - macOS: `aac_at` (AudioToolbox hardware AAC) if available
-  /// - Other platforms: software `aac`
-  Future<List<String>> _buildFFmpegArgs(
-    String sourcePath,
-    String outputPath,
-    QualityPreset quality,
-  ) async {
-    final bitrate = quality.bitrate;
-    if (bitrate == null) {
-      throw ArgumentError('Cannot build FFmpeg args for high quality');
-    }
-
-    // Get platform-aware codec
-    final codec = await _selectAudioCodec();
-
-    return [
-      '-y', // Overwrite output file without asking
-      '-i', sourcePath, // Input file
-      '-c:a', codec, // Audio codec: platform-aware AAC
-      '-b:a', '${bitrate}k', // Bitrate
-      '-vn', // No video
-      '-movflags', '+faststart', // Enable streaming before full download
-      '-map_metadata', '-1', // Strip metadata (smaller file, privacy)
-      outputPath, // Output file
-    ];
-  }
-
-  // ==================== Cache Index Methods ====================
-
-  /// Ensure cache index is loaded.
-  Future<void> _ensureIndexLoaded() async {
-    if (_indexLoaded) return;
-    await _loadCacheIndex();
-    _indexLoaded = true;
-  }
-
-  /// Load cache index from disk.
-  Future<void> _loadCacheIndex() async {
-    final indexFile = File('$cacheDirectory/cache_index.json');
-    if (!await indexFile.exists()) {
-      // First run or index lost - rebuild from disk
-      await _rebuildCacheIndex();
-      return;
-    }
-
-    try {
-      final content = await indexFile.readAsString();
-      final json = jsonDecode(content) as Map<String, dynamic>;
-
-      final entries = json['entries'] as Map<String, dynamic>?;
-      if (entries != null) {
-        _cacheIndex.clear();
-        entries.forEach((key, value) {
-          _cacheIndex[key] = _CacheIndexEntry.fromJson(value as Map<String, dynamic>);
-        });
-      }
-
-      _cachedTotalSize = json['totalSize'] as int? ?? 0;
-      print('TranscodingService: Loaded cache index (${_cacheIndex.length} entries, '
-          '${(_cachedTotalSize / 1024 / 1024).round()} MB)');
-    } catch (e) {
-      print('TranscodingService: Index corrupt, rebuilding... ($e)');
-      await _rebuildCacheIndex();
-    }
-  }
-
-  /// Rebuild index by scanning disk (fallback).
-  Future<void> _rebuildCacheIndex() async {
-    _cacheIndex.clear();
-    _cachedTotalSize = 0;
-
-    final cacheDir = Directory(cacheDirectory);
-    if (!await cacheDir.exists()) {
-      print('TranscodingService: Cache directory does not exist, starting fresh');
-      return;
-    }
-
-    try {
-      await for (final entity in cacheDir.list(recursive: true)) {
-        if (entity is File && entity.path.endsWith('.m4a')) {
-          final stat = await entity.stat();
-          final relPath = entity.path.substring(cacheDirectory.length + 1);
-          final key = _pathToKey(relPath);
-
-          _cacheIndex[key] = _CacheIndexEntry(
-            path: relPath,
-            size: stat.size,
-            lastAccess: stat.modified,
-          );
-          _cachedTotalSize += stat.size;
-        }
-      }
-
-      print('TranscodingService: Rebuilt cache index (${_cacheIndex.length} entries, '
-          '${(_cachedTotalSize / 1024 / 1024).round()} MB)');
-      await _persistCacheIndex();
-    } catch (e) {
-      print('TranscodingService: Error rebuilding index - $e');
-    }
-  }
-
-  /// Convert relative path to cache key.
-  String _pathToKey(String relPath) {
-    // "medium/songId.m4a" -> "songId_medium"
-    final parts = relPath.split('/');
-    if (parts.length >= 2) {
-      final quality = parts[0];
-      final filename = parts[1];
-      final songId = filename.replaceAll('.m4a', '');
-      return '${songId}_$quality';
-    }
-    return relPath;
-  }
-
-  /// Persist cache index to disk.
-  Future<void> _persistCacheIndex() async {
-    try {
-      final indexFile = File('$cacheDirectory/cache_index.json');
-      final tempFile = File('$cacheDirectory/cache_index.json.tmp');
-
-      await indexFile.parent.create(recursive: true);
-
-      final json = jsonEncode({
-        'version': 1,
-        'entries': _cacheIndex.map((k, v) => MapEntry(k, v.toJson())),
-        'totalSize': _cachedTotalSize,
-      });
-
-      await tempFile.writeAsString(json);
-      await tempFile.rename(indexFile.path);
-      _indexDirty = false;
-    } catch (e) {
-      print('TranscodingService: Error persisting cache index - $e');
-    }
-  }
-
-  /// Synchronously persist cache index (for dispose).
-  void _persistCacheIndexSync() {
-    try {
-      final indexFile = File('$cacheDirectory/cache_index.json');
-      indexFile.parent.createSync(recursive: true);
-
-      final json = jsonEncode({
-        'version': 1,
-        'entries': _cacheIndex.map((k, v) => MapEntry(k, v.toJson())),
-        'totalSize': _cachedTotalSize,
-      });
-
-      indexFile.writeAsStringSync(json);
-      _indexDirty = false;
-    } catch (e) {
-      print('TranscodingService: Error persisting cache index sync - $e');
-    }
-  }
-
-  /// Add entry to cache index.
-  void _addToIndex(String key, String path, int size) {
-    _cacheIndex[key] = _CacheIndexEntry(
-      path: path,
-      size: size,
-      lastAccess: DateTime.now(),
-    );
-    _cachedTotalSize += size;
-    _indexDirty = true;
-  }
-
-  /// Update access time in index (no disk write).
-  void _recordAccess(String key) {
-    final entry = _cacheIndex[key];
-    if (entry != null) {
-      entry.lastAccess = DateTime.now();
-      _indexDirty = true;
-    }
-  }
-
   /// Mark a cache entry as in-use to prevent eviction during streaming.
   ///
   /// Call [releaseInUse] when streaming is complete.
   void markInUse(String songId, QualityPreset quality) {
-    final lockKey = '${songId}_${quality.name}';
-    _inUse.add(lockKey);
+    _markInUse(songId, quality);
   }
 
   /// Release a cache entry from in-use status.
   ///
   /// Should be called after streaming completes.
   void releaseInUse(String songId, QualityPreset quality) {
-    final lockKey = '${songId}_${quality.name}';
-    _inUse.remove(lockKey);
-  }
-
-  /// Remove entry from cache index.
-  void _removeFromIndex(String key) {
-    final entry = _cacheIndex.remove(key);
-    if (entry != null) {
-      _cachedTotalSize -= entry.size;
-      _indexDirty = true;
-    }
-  }
-
-  // ==================== Failure Backoff Methods ====================
-
-  /// Check if we should skip due to recent failure.
-  bool _shouldSkipDueToFailure(String key) {
-    final record = _failures[key];
-    if (record == null) return false;
-
-    final elapsed = DateTime.now().difference(record.lastFailure);
-    if (elapsed > failureBackoffDuration) {
-      // Backoff expired, allow retry
-      _failures.remove(key);
-      return false;
-    }
-
-    return true;
-  }
-
-  /// Record a failure.
-  void _recordFailure(String key, String? errorMessage) {
-    final existing = _failures[key];
-    _failures[key] = _FailureRecord(
-      lastFailure: DateTime.now(),
-      failureCount: (existing?.failureCount ?? 0) + 1,
-      errorMessage: errorMessage,
-    );
-    print('TranscodingService: Recorded failure for $key (count: ${_failures[key]!.failureCount})');
-  }
-
-  /// Clear failure record (on success).
-  void _clearFailure(String key) {
-    _failures.remove(key);
-  }
-
-  // ==================== Cache Cleanup Methods ====================
-
-  /// Cleanup cache if it exceeds the maximum size.
-  ///
-  /// Uses LRU (Least Recently Used) eviction strategy based on in-memory index.
-  /// Skips entries that are currently in-use to prevent deletion during streaming.
-  Future<void> _cleanupCacheIfNeeded() async {
-    if (_cachedTotalSize <= maxCacheSizeBytes) return;
-
-    print('TranscodingService: Cache cleanup needed '
-        '(${(_cachedTotalSize / 1024 / 1024).round()} MB / '
-        '${(maxCacheSizeBytes / 1024 / 1024).round()} MB)');
-
-    // Sort by lastAccess (oldest first) - O(n log n) on index, not disk
-    final entries = _cacheIndex.entries.toList()
-      ..sort((a, b) => a.value.lastAccess.compareTo(b.value.lastAccess));
-
-    int skippedInUse = 0;
-    for (final entry in entries) {
-      if (_cachedTotalSize <= maxCacheSizeBytes) break;
-
-      // Skip entries that are currently being streamed
-      if (_inUse.contains(entry.key)) {
-        skippedInUse++;
-        continue;
-      }
-
-      try {
-        final file = File('$cacheDirectory/${entry.value.path}');
-        if (await file.exists()) {
-          await file.delete();
-        }
-        _removeFromIndex(entry.key);
-        print('TranscodingService: Evicted ${entry.key}');
-      } catch (e) {
-        print('TranscodingService: Eviction failed for ${entry.key}: $e');
-      }
-    }
-
-    if (skippedInUse > 0) {
-      print('TranscodingService: Skipped $skippedInUse in-use entries during eviction');
-    }
-
-    print('TranscodingService: Cache size now '
-        '${(_cachedTotalSize / 1024 / 1024).round()} MB');
-
-    // Persist index after cleanup
-    await _persistCacheIndex();
+    _releaseInUse(songId, quality);
   }
 
   /// Get current cache size in bytes (from index, no disk scan).
-  Future<int> getCacheSize() async {
-    await _ensureIndexLoaded();
-    return _cachedTotalSize;
-  }
+  Future<int> getCacheSize() => _getCacheSize();
 
   /// Clear the entire transcoding cache.
-  Future<void> clearCache() async {
-    try {
-      final cacheDir = Directory(cacheDirectory);
-      if (await cacheDir.exists()) {
-        await cacheDir.delete(recursive: true);
-      }
-      _cacheIndex.clear();
-      _cachedTotalSize = 0;
-      _indexDirty = false;
-      print('TranscodingService: Cache cleared');
-    } catch (e) {
-      print('TranscodingService: Error clearing cache - $e');
-    }
-  }
+  Future<void> clearCache() => _clearCache();
 
   /// Delete cached transcodes for a specific song.
   ///
   /// Useful when the source file changes.
-  Future<void> invalidateSong(String songId) async {
-    for (final quality in QualityPreset.values) {
-      if (!quality.requiresTranscoding) continue;
-
-      final lockKey = '${songId}_${quality.name}';
-      final cachedFile = _getCachedFile(songId, quality);
-
-      if (await cachedFile.exists()) {
-        try {
-          await cachedFile.delete();
-          _removeFromIndex(lockKey);
-          print('TranscodingService: Invalidated $songId at ${quality.name}');
-        } catch (e) {
-          print('TranscodingService: Failed to invalidate $songId: $e');
-        }
-      } else if (_cacheIndex.containsKey(lockKey)) {
-        _removeFromIndex(lockKey);
-      }
-    }
-  }
-}
-
-// ==================== Internal Classes ====================
-
-/// Internal class for queued transcode tasks.
-class _TranscodeTask {
-  final String sourcePath;
-  final String songId;
-  final QualityPreset quality;
-  final Completer<File?> completer;
-
-  _TranscodeTask({
-    required this.sourcePath,
-    required this.songId,
-    required this.quality,
-    required this.completer,
-  });
-}
-
-/// Internal class for cache index entries.
-class _CacheIndexEntry {
-  final String path;
-  final int size;
-  DateTime lastAccess;
-
-  _CacheIndexEntry({
-    required this.path,
-    required this.size,
-    required this.lastAccess,
-  });
-
-  Map<String, dynamic> toJson() => {
-        'path': path,
-        'size': size,
-        'lastAccess': lastAccess.toIso8601String(),
-      };
-
-  factory _CacheIndexEntry.fromJson(Map<String, dynamic> json) => _CacheIndexEntry(
-        path: json['path'] as String,
-        size: json['size'] as int,
-        lastAccess: DateTime.parse(json['lastAccess'] as String),
-      );
-}
-
-/// Internal class for failure tracking.
-class _FailureRecord {
-  final DateTime lastFailure;
-  final int failureCount;
-  final String? errorMessage;
-
-  _FailureRecord({
-    required this.lastFailure,
-    required this.failureCount,
-    this.errorMessage,
-  });
-}
-
-/// Internal class for audio file properties.
-class _AudioProperties {
-  final String? codec;
-  final int? bitrate; // bits per second
-  final int? sampleRate;
-
-  _AudioProperties({
-    this.codec,
-    this.bitrate,
-    this.sampleRate,
-  });
-
-  /// Returns true if source bitrate is at or below target.
-  bool shouldSkipTranscode(QualityPreset quality) {
-    if (bitrate == null) return false;
-    final targetBps = (quality.bitrate ?? 0) * 1000; // kbps to bps
-    return bitrate! <= targetBps;
-  }
-}
-
-/// Result of a download transcode operation.
-///
-/// Contains a temporary file that should be deleted by the caller
-/// after the download completes.
-class DownloadTranscodeResult {
-  /// The temporary transcoded file.
-  final File tempFile;
-
-  /// Whether the caller should delete this file after use.
-  final bool shouldDelete;
-
-  DownloadTranscodeResult({
-    required this.tempFile,
-    required this.shouldDelete,
-  });
-
-  /// Delete the temporary file. Call this after download completes.
-  Future<void> cleanup() async {
-    if (shouldDelete) {
-      try {
-        if (await tempFile.exists()) {
-          await tempFile.delete();
-        }
-      } catch (e) {
-        // Ignore cleanup errors
-      }
-    }
-  }
+  Future<void> invalidateSong(String songId) => _invalidateSong(songId);
 }
