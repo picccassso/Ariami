@@ -6,17 +6,21 @@ import '../../../../widgets/common/mini_player_aware_bottom_sheet.dart';
 class PlaylistContextMenu extends StatelessWidget {
   final PlaylistModel playlist;
   final bool isFullyDownloaded;
+  final bool isPinned;
   final VoidCallback onPlay;
   final VoidCallback onAddToQueue;
   final VoidCallback onDownload;
+  final VoidCallback onTogglePin;
 
   const PlaylistContextMenu({
     super.key,
     required this.playlist,
     required this.isFullyDownloaded,
+    this.isPinned = false,
     required this.onPlay,
     required this.onAddToQueue,
     required this.onDownload,
+    required this.onTogglePin,
   });
 
   @override
@@ -79,6 +83,15 @@ class PlaylistContextMenu extends StatelessWidget {
             },
           ),
           ListTile(
+            leading: Icon(
+                isPinned ? Icons.push_pin : Icons.push_pin_outlined),
+            title: Text(isPinned ? 'Unpin' : 'Pin to Top'),
+            onTap: () {
+              Navigator.pop(context);
+              onTogglePin();
+            },
+          ),
+          ListTile(
             leading: const Icon(Icons.queue_music),
             title: const Text('Add to Queue'),
             onTap: () {
@@ -112,9 +125,11 @@ Future<void> showPlaylistContextMenu({
   required BuildContext context,
   required PlaylistModel playlist,
   required bool isFullyDownloaded,
+  bool isPinned = false,
   required VoidCallback onPlay,
   required VoidCallback onAddToQueue,
   required VoidCallback onDownload,
+  required VoidCallback onTogglePin,
 }) {
   return showModalBottomSheet(
     context: context,
@@ -122,9 +137,11 @@ Future<void> showPlaylistContextMenu({
       return PlaylistContextMenu(
         playlist: playlist,
         isFullyDownloaded: isFullyDownloaded,
+        isPinned: isPinned,
         onPlay: onPlay,
         onAddToQueue: onAddToQueue,
         onDownload: onDownload,
+        onTogglePin: onTogglePin,
       );
     },
   );

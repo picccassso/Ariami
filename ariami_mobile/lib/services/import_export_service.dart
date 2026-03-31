@@ -56,8 +56,10 @@ class ImportExportService {
   late StatsDatabase _statsDatabase;
   bool _initialized = false;
 
-  /// Data version for future compatibility
-  static const int _dataVersion = 1;
+  /// Data version for future compatibility (v2 adds pinnedItems)
+  static const int _dataVersion = 2;
+
+  static const String _pinnedItemsKey = 'library_pinned_items';
 
   /// Keys for SharedPreferences
   static const String _lastExportKey = 'import_export_last_export';
@@ -102,16 +104,27 @@ class ImportExportService {
       final playlists = _playlistService.playlists;
       final stats = await _statsDatabase.getAllStats();
 
+      // Get pinned items
+      final prefs = await SharedPreferences.getInstance();
+      final pinnedJson = prefs.getString(_pinnedItemsKey);
+      List<String> pinnedItems = [];
+      if (pinnedJson != null && pinnedJson.isNotEmpty) {
+        try {
+          pinnedItems =
+              (jsonDecode(pinnedJson) as List<dynamic>).cast<String>();
+        } catch (_) {}
+      }
+
       // Get app version
       final packageInfo = await PackageInfo.fromPlatform();
 
-      // Build export JSON
       final exportData = {
         'exportDate': DateTime.now().toIso8601String(),
         'appVersion': packageInfo.version,
         'dataVersion': _dataVersion,
         'playlists': playlists.map((p) => p.toJson()).toList(),
         'stats': stats.map((s) => s.toJson()).toList(),
+        'pinnedItems': pinnedItems,
       };
 
       // Generate filename with timestamp
@@ -141,7 +154,6 @@ class ImportExportService {
 
       // Save export timestamp
       _lastExportTime = DateTime.now();
-      final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_lastExportKey, _lastExportTime!.toIso8601String());
 
       return ExportResult(
@@ -220,12 +232,19 @@ class ImportExportService {
           .map((s) => SongStats.fromJson(s as Map<String, dynamic>))
           .toList();
 
+      // Parse pinned items (v2+, empty for v1 backups)
+      final importedPinnedItems = (data['pinnedItems'] as List<dynamic>?)
+              ?.cast<String>()
+              .toSet() ??
+          <String>{};
+
       // Import based on mode
       int playlistsImported = 0;
       int statsImported = 0;
 
+      final prefs = await SharedPreferences.getInstance();
+
       if (mode == ImportMode.replace) {
-        // Replace mode: clear existing data first
         await _playlistService.replaceAllPlaylists(playlists);
         playlistsImported = playlists.length;
 
@@ -234,15 +253,32 @@ class ImportExportService {
           await _statsDatabase.saveAllStats(stats);
         }
         statsImported = stats.length;
+
+        // Replace pinned items
+        await prefs.setString(
+            _pinnedItemsKey, jsonEncode(importedPinnedItems.toList()));
       } else {
-        // Merge mode: add new playlists, upsert stats
         playlistsImported = await _playlistService.importPlaylists(playlists);
 
-        // Stats use upsert via saveAllStats (ConflictAlgorithm.replace)
         if (stats.isNotEmpty) {
           await _statsDatabase.saveAllStats(stats);
         }
         statsImported = stats.length;
+
+        // Merge pinned items (union with existing)
+        if (importedPinnedItems.isNotEmpty) {
+          final existingJson = prefs.getString(_pinnedItemsKey);
+          Set<String> existing = {};
+          if (existingJson != null && existingJson.isNotEmpty) {
+            try {
+              existing =
+                  (jsonDecode(existingJson) as List<dynamic>).cast<String>().toSet();
+            } catch (_) {}
+          }
+          final merged = existing.union(importedPinnedItems);
+          await prefs.setString(
+              _pinnedItemsKey, jsonEncode(merged.toList()));
+        }
       }
 
       // Refresh stats service cache
@@ -250,7 +286,6 @@ class ImportExportService {
 
       // Save import timestamp
       _lastImportTime = DateTime.now();
-      final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_lastImportKey, _lastImportTime!.toIso8601String());
 
       return ImportResult(

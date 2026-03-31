@@ -14,6 +14,7 @@ class PlaylistListItem extends StatefulWidget {
   final bool isLikedSongs;
   final bool isImportedFromServer;
   final bool hasDownloadedSongs;
+  final bool isPinned;
 
   const PlaylistListItem({
     super.key,
@@ -24,6 +25,7 @@ class PlaylistListItem extends StatefulWidget {
     this.isLikedSongs = false,
     this.isImportedFromServer = false,
     this.hasDownloadedSongs = false,
+    this.isPinned = false,
   });
 
   @override
@@ -127,6 +129,17 @@ class _PlaylistListItemState extends State<PlaylistListItem> {
                   children: [
                     Row(
                       children: [
+                        if (widget.isPinned) ...[
+                          Icon(
+                            Icons.push_pin,
+                            size: 14,
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurface
+                                .withValues(alpha: 0.5),
+                          ),
+                          const SizedBox(width: 4),
+                        ],
                         if (widget.isImportedFromServer) ...[
                           Icon(
                             Icons.cloud_done_rounded,

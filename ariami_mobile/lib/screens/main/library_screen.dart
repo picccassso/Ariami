@@ -94,9 +94,11 @@ class _LibraryScreenState extends State<LibraryScreen> {
       album: album,
       connectionService: _controller.connectionService,
       isFullyDownloaded: _controller.state.isAlbumFullyDownloaded(album.id),
+      isPinned: _controller.state.isAlbumPinned(album.id),
       onPlay: () => _openAlbum(album),
       onAddToQueue: () => _addAlbumToQueue(album),
       onDownload: () => _downloadAlbum(album),
+      onTogglePin: () => _controller.togglePinAlbum(album.id),
     );
   }
 
@@ -108,9 +110,11 @@ class _LibraryScreenState extends State<LibraryScreen> {
       context: context,
       playlist: playlist,
       isFullyDownloaded: isFullyDownloaded,
+      isPinned: _controller.state.isPlaylistPinned(playlist.id),
       onPlay: () => _openPlaylist(playlist),
       onAddToQueue: () => _addPlaylistToQueue(playlist),
       onDownload: () => _downloadPlaylist(playlist),
+      onTogglePin: () => _controller.togglePinPlaylist(playlist.id),
     );
   }
 

@@ -59,12 +59,23 @@ class PlaylistsSection extends StatelessWidget {
     return artworkIds;
   }
 
+  List<PlaylistModel> _sortedRegularPlaylists() {
+    final list = playlistService.playlists
+        .where((p) => p.id != PlaylistService.likedSongsId)
+        .toList();
+    list.sort((a, b) {
+      final aPinned = state.isPlaylistPinned(a.id);
+      final bPinned = state.isPlaylistPinned(b.id);
+      if (aPinned != bPinned) return aPinned ? -1 : 1;
+      return 0;
+    });
+    return list;
+  }
+
   Widget _buildPlaylistsGrid(BuildContext context) {
     final likedSongsPlaylist =
         playlistService.getPlaylist(PlaylistService.likedSongsId);
-    final regularPlaylists = playlistService.playlists
-        .where((p) => p.id != PlaylistService.likedSongsId)
-        .toList();
+    final regularPlaylists = _sortedRegularPlaylists();
     final hasServerPlaylists = playlistService.hasVisibleServerPlaylists;
 
     if (regularPlaylists.isEmpty && likedSongsPlaylist == null) {
@@ -140,6 +151,7 @@ class PlaylistsSection extends StatelessWidget {
               isLikedSongs: true,
               hasDownloadedSongs:
                   state.hasPlaylistDownloads(likedSongsPlaylist.id),
+              isPinned: state.isPlaylistPinned(likedSongsPlaylist.id),
             );
           }
           if (hasLikedSongs) currentIndex++;
@@ -154,6 +166,7 @@ class PlaylistsSection extends StatelessWidget {
             isImportedFromServer:
                 playlistService.isRecentlyImported(playlist.id),
             hasDownloadedSongs: state.hasPlaylistDownloads(playlist.id),
+            isPinned: state.isPlaylistPinned(playlist.id),
           );
         },
       ),
@@ -163,9 +176,7 @@ class PlaylistsSection extends StatelessWidget {
   Widget _buildPlaylistsList(BuildContext context) {
     final likedSongsPlaylist =
         playlistService.getPlaylist(PlaylistService.likedSongsId);
-    final regularPlaylists = playlistService.playlists
-        .where((p) => p.id != PlaylistService.likedSongsId)
-        .toList();
+    final regularPlaylists = _sortedRegularPlaylists();
     final hasServerPlaylists = playlistService.hasVisibleServerPlaylists;
 
     if (regularPlaylists.isEmpty && likedSongsPlaylist == null) {
@@ -221,6 +232,7 @@ class PlaylistsSection extends StatelessWidget {
             isLikedSongs: true,
             hasDownloadedSongs:
                 state.hasPlaylistDownloads(likedSongsPlaylist.id),
+            isPinned: state.isPlaylistPinned(likedSongsPlaylist.id),
           );
         }
         if (hasLikedSongs) currentIndex++;
@@ -234,6 +246,7 @@ class PlaylistsSection extends StatelessWidget {
           albumIds: _getPlaylistArtworkIds(playlist),
           isImportedFromServer: playlistService.isRecentlyImported(playlist.id),
           hasDownloadedSongs: state.hasPlaylistDownloads(playlist.id),
+          isPinned: state.isPlaylistPinned(playlist.id),
         );
       },
     );

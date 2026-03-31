@@ -34,6 +34,7 @@ class LibraryController extends ChangeNotifier {
   static const String _songsSectionKey = 'library_section_songs';
   static const String _mixedModeKey = 'library_mixed_mode';
   static const String _lastAccessedKey = 'library_last_accessed';
+  static const String _pinnedItemsKey = 'library_pinned_items';
 
   // Duration retry constants
   static const int _maxDurationRetries = 3;
@@ -80,6 +81,7 @@ class LibraryController extends ChangeNotifier {
   Future<void> initialize() async {
     await _loadUiPreferences();
     await _loadAccessHistory();
+    await _loadPinnedItems();
     await _loadLibrary();
     await _playlistService.loadPlaylists();
     _playlistService.addListener(_onPlaylistsChanged);
@@ -234,6 +236,54 @@ class LibraryController extends ChangeNotifier {
       (entryKey, value) => MapEntry(entryKey, value.millisecondsSinceEpoch),
     );
     await prefs.setString(_lastAccessedKey, jsonEncode(encoded));
+  }
+
+  // ============================================================================
+  // Pinned Items
+  // ============================================================================
+
+  Future<void> _loadPinnedItems() async {
+    final prefs = await SharedPreferences.getInstance();
+    final jsonString = prefs.getString(_pinnedItemsKey);
+    if (jsonString == null || jsonString.isEmpty) return;
+
+    try {
+      final decoded = jsonDecode(jsonString) as List<dynamic>;
+      _updateState(
+          _state.copyWith(pinnedItemIds: decoded.cast<String>().toSet()));
+    } catch (_) {
+      // Ignore corrupt data
+    }
+  }
+
+  Future<void> _savePinnedItems() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+        _pinnedItemsKey, jsonEncode(_state.pinnedItemIds.toList()));
+  }
+
+  Future<void> togglePinAlbum(String albumId) async {
+    final key = 'album:$albumId';
+    final updated = Set<String>.from(_state.pinnedItemIds);
+    if (updated.contains(key)) {
+      updated.remove(key);
+    } else {
+      updated.add(key);
+    }
+    _updateState(_state.copyWith(pinnedItemIds: updated));
+    await _savePinnedItems();
+  }
+
+  Future<void> togglePinPlaylist(String playlistId) async {
+    final key = 'playlist:$playlistId';
+    final updated = Set<String>.from(_state.pinnedItemIds);
+    if (updated.contains(key)) {
+      updated.remove(key);
+    } else {
+      updated.add(key);
+    }
+    _updateState(_state.copyWith(pinnedItemIds: updated));
+    await _savePinnedItems();
   }
 
   // ============================================================================

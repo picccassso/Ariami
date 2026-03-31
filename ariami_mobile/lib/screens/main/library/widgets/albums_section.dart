@@ -21,7 +21,13 @@ class AlbumsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final albumsToShow = state.albumsToShow;
+    final albumsToShow = List<AlbumModel>.of(state.albumsToShow)
+      ..sort((a, b) {
+        final aPinned = state.isAlbumPinned(a.id);
+        final bPinned = state.isAlbumPinned(b.id);
+        if (aPinned != bPinned) return aPinned ? -1 : 1;
+        return 0;
+      });
 
     if (albumsToShow.isEmpty) {
       return SliverToBoxAdapter(
@@ -60,6 +66,7 @@ class AlbumsSection extends StatelessWidget {
                 onLongPress: () => onAlbumLongPress(album),
                 isAvailable: isAvailable,
                 hasDownloadedSongs: hasDownloads,
+                isPinned: state.isAlbumPinned(album.id),
               );
             },
             childCount: albumsToShow.length,
@@ -81,6 +88,7 @@ class AlbumsSection extends StatelessWidget {
             onLongPress: () => onAlbumLongPress(album),
             isAvailable: isAvailable,
             hasDownloadedSongs: hasDownloads,
+            isPinned: state.isAlbumPinned(album.id),
           );
         },
         childCount: albumsToShow.length,

@@ -11,6 +11,7 @@ class AlbumListItem extends StatelessWidget {
   final VoidCallback? onLongPress;
   final bool isAvailable;
   final bool hasDownloadedSongs;
+  final bool isPinned;
 
   const AlbumListItem({
     super.key,
@@ -19,6 +20,7 @@ class AlbumListItem extends StatelessWidget {
     this.onLongPress,
     this.isAvailable = true,
     this.hasDownloadedSongs = false,
+    this.isPinned = false,
   });
 
   @override
@@ -93,18 +95,39 @@ class AlbumListItem extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        album.title,
-                        style:
-                            Theme.of(context).textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 16,
-                                  color: isAvailable
-                                      ? Theme.of(context).colorScheme.onSurface
-                                      : Colors.grey,
-                                ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                      Row(
+                        children: [
+                          if (isPinned) ...[
+                            Icon(
+                              Icons.push_pin,
+                              size: 14,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurface
+                                  .withValues(alpha: 0.5),
+                            ),
+                            const SizedBox(width: 4),
+                          ],
+                          Expanded(
+                            child: Text(
+                              album.title,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleMedium
+                                  ?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 16,
+                                    color: isAvailable
+                                        ? Theme.of(context)
+                                            .colorScheme
+                                            .onSurface
+                                        : Colors.grey,
+                                  ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 4),
                       Text(
