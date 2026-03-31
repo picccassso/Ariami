@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../models/api_models.dart';
+import '../../utils/artwork_url.dart';
 import '../common/cached_artwork.dart';
 
 /// Album list item widget
@@ -57,7 +58,7 @@ class AlbumListItem extends StatelessWidget {
                         borderRadius: BorderRadius.circular(12),
                         child: _buildAlbumArt(context),
                       ),
-                      
+
                       // Download Indicator
                       if (hasDownloadedSongs)
                         Positioned(
@@ -68,7 +69,10 @@ class AlbumListItem extends StatelessWidget {
                             decoration: BoxDecoration(
                               color: Colors.green,
                               shape: BoxShape.circle,
-                              border: Border.all(color: Theme.of(context).scaffoldBackgroundColor, width: 2),
+                              border: Border.all(
+                                  color:
+                                      Theme.of(context).scaffoldBackgroundColor,
+                                  width: 2),
                             ),
                             child: const Icon(
                               Icons.download_done,
@@ -80,9 +84,9 @@ class AlbumListItem extends StatelessWidget {
                     ],
                   ),
                 ),
-                
+
                 const SizedBox(width: 16),
-                
+
                 // Text Details
                 Expanded(
                   child: Column(
@@ -91,11 +95,14 @@ class AlbumListItem extends StatelessWidget {
                     children: [
                       Text(
                         album.title,
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 16,
-                          color: isAvailable ? Theme.of(context).colorScheme.onSurface : Colors.grey,
-                        ),
+                        style:
+                            Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 16,
+                                  color: isAvailable
+                                      ? Theme.of(context).colorScheme.onSurface
+                                      : Colors.grey,
+                                ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -103,9 +110,12 @@ class AlbumListItem extends StatelessWidget {
                       Text(
                         album.artist,
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-                          fontSize: 14,
-                        ),
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurface
+                                  .withValues(alpha: 0.6),
+                              fontSize: 14,
+                            ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -119,15 +129,21 @@ class AlbumListItem extends StatelessWidget {
                   child: Text(
                     '${album.songCount} songs',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
-                    ),
+                          color: Theme.of(context)
+                              .colorScheme
+                              .onSurface
+                              .withValues(alpha: 0.4),
+                        ),
                   ),
                 ),
-                
+
                 const SizedBox(width: 8),
                 Icon(
                   Icons.chevron_right_rounded,
-                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
+                  color: Theme.of(context)
+                      .colorScheme
+                      .onSurface
+                      .withValues(alpha: 0.3),
                 ),
               ],
             ),
@@ -141,7 +157,10 @@ class AlbumListItem extends StatelessWidget {
   Widget _buildAlbumArt(BuildContext context) {
     return CachedArtwork(
       albumId: album.id,
-      artworkUrl: album.coverArt,
+      artworkUrl: resolveAlbumArtworkUrl(
+        albumId: album.id,
+        coverArt: album.coverArt,
+      ),
       fit: BoxFit.cover,
       width: double.infinity,
       height: double.infinity,
