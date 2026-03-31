@@ -1,14 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:path/path.dart' as p;
 import 'dart:convert';
 import 'package:ariami_core/ariami_core.dart';
-import 'package:ariami_core/models/feature_flags.dart';
-import 'dart:io';
 import '../services/desktop_tailscale_service.dart';
 import '../services/desktop_state_service.dart';
+import '../services/server_initialization_service.dart';
 import 'scanning_screen.dart';
 
 class ConnectionScreen extends StatefulWidget {
@@ -22,6 +19,7 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
   final DesktopTailscaleService _tailscaleService = DesktopTailscaleService();
   final AriamiHttpServer _httpServer = AriamiHttpServer();
   final DesktopStateService _stateService = DesktopStateService();
+  final ServerInitializationService _serverInit = ServerInitializationService();
 
   String? _tailscaleIP;
   String? _lanIP;
@@ -60,22 +58,7 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
     });
 
     try {
-      final featureFlags = _loadFeatureFlagsFromEnvironment();
-      _validateFeatureFlagInvariantsOrThrow(featureFlags);
-
-      final appDir = await getApplicationSupportDirectory();
-      final cachePath = p.join(appDir.path, 'metadata_cache.json');
-      _httpServer.libraryManager.setCachePath(cachePath);
-
-      if (featureFlags.enableV2Api &&
-          _httpServer.libraryManager.createCatalogRepository() == null) {
-        throw StateError(
-          'Invalid startup configuration: enableV2Api=true requires catalog '
-          'repository availability. Failed to initialize catalog at $cachePath.',
-        );
-      }
-
-      _httpServer.setFeatureFlags(featureFlags);
+      await _serverInit.configureLibraryCacheAndFeatureFlags(_httpServer);
 
       // Check if server is already running
       if (_httpServer.isRunning) {
@@ -115,22 +98,9 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
 
       final advertisedIp = tailscaleIp ?? lanIp!;
 
-      // Initialize auth services before starting server
-      await _stateService.ensureAuthConfigDir();
-      final usersFilePath = await _stateService.getUsersFilePath();
-      final sessionsFilePath = await _stateService.getSessionsFilePath();
-      await _httpServer.initializeAuth(
-        usersFilePath: usersFilePath,
-        sessionsFilePath: sessionsFilePath,
-      );
-
-      // Desktop-optimized download limits
-      _httpServer.setDownloadLimits(
-        maxConcurrent: Platform.isMacOS ? 30 : 10,
-        maxQueue: Platform.isMacOS ? 400 : 120,
-        maxConcurrentPerUser: Platform.isMacOS ? 10 : 3,
-        maxQueuePerUser: Platform.isMacOS ? 200 : 50,
-      );
+      await ServerInitializationService.initializeAuth(
+          _httpServer, _stateService);
+      ServerInitializationService.applyDesktopDownloadLimits(_httpServer);
 
       // Start HTTP server (singleton will prevent double-start)
       await _httpServer.start(
@@ -174,44 +144,6 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
         _errorMessage = 'Error starting server: $e';
         _isLoading = false;
       });
-    }
-  }
-
-  AriamiFeatureFlags _loadFeatureFlagsFromEnvironment() {
-    bool parseFlag(String key, {required bool defaultValue}) {
-      final value = Platform.environment[key];
-      if (value == null) return defaultValue;
-
-      final normalized = value.trim().toLowerCase();
-      return normalized == '1' ||
-          normalized == 'true' ||
-          normalized == 'yes' ||
-          normalized == 'on';
-    }
-
-    return AriamiFeatureFlags(
-      enableV2Api: parseFlag('ARIAMI_ENABLE_V2_API', defaultValue: true),
-      enableCatalogWrite:
-          parseFlag('ARIAMI_ENABLE_CATALOG_WRITE', defaultValue: false),
-      enableCatalogRead:
-          parseFlag('ARIAMI_ENABLE_CATALOG_READ', defaultValue: false),
-      enableArtworkPrecompute:
-          parseFlag('ARIAMI_ENABLE_ARTWORK_PRECOMPUTE', defaultValue: false),
-      enableDownloadJobs:
-          parseFlag('ARIAMI_ENABLE_DOWNLOAD_JOBS', defaultValue: true),
-      enableApiScopedAuthForCliWeb: parseFlag(
-        'ARIAMI_ENABLE_API_SCOPED_AUTH_FOR_CLI_WEB',
-        defaultValue: true,
-      ),
-    );
-  }
-
-  void _validateFeatureFlagInvariantsOrThrow(AriamiFeatureFlags flags) {
-    if (flags.enableDownloadJobs && !flags.enableV2Api) {
-      throw StateError(
-        'Invalid feature flag configuration: enableDownloadJobs=true '
-        'requires enableV2Api=true.',
-      );
     }
   }
 
