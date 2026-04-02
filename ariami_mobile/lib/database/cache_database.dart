@@ -10,6 +10,9 @@ import '../models/cache_entry.dart';
 class CacheDatabase {
   static const String _cacheEntriesKey = 'cache_entries';
   static const String _sqliteMigrationKey = 'cache_entries_sqlite_migrated_v1';
+  static const String _sqliteMigrationVersionKey =
+      'cache_entries_sqlite_migration_version';
+  static const int _currentSqliteMigrationVersion = 2;
   static const String _cacheLimitKey = 'cache_limit_mb';
   static const String _cacheEnabledKey = 'cache_enabled';
   static const String _databaseName = 'cache_metadata.db';
@@ -70,21 +73,25 @@ class CacheDatabase {
   }
 
   Future<void> _migrateFromSharedPreferencesIfNeeded(Database db) async {
-    if (_prefs.getBool(_sqliteMigrationKey) == true) {
+    final legacyMigrated = _prefs.getBool(_sqliteMigrationKey) == true;
+    final migrationVersion =
+        _prefs.getInt(_sqliteMigrationVersionKey) ?? (legacyMigrated ? 1 : 0);
+    final legacyJsonList = _prefs.getStringList(_cacheEntriesKey) ?? const [];
+
+    // Consider migration complete only when explicit version is current and
+    // no legacy payload remains. This keeps migration idempotent and safe
+    // across interrupted upgrades.
+    if (migrationVersion >= _currentSqliteMigrationVersion &&
+        legacyJsonList.isEmpty) {
       return;
     }
 
-    final existingCount = Sqflite.firstIntValue(
+    final beforeCount = Sqflite.firstIntValue(
           await db.rawQuery('SELECT COUNT(*) FROM $_entriesTable'),
         ) ??
         0;
-    if (existingCount > 0) {
-      await _prefs.remove(_cacheEntriesKey);
-      await _prefs.setBool(_sqliteMigrationKey, true);
-      return;
-    }
-
-    final legacyJsonList = _prefs.getStringList(_cacheEntriesKey) ?? const [];
+    var importedCount = 0;
+    var malformedCount = 0;
     if (legacyJsonList.isNotEmpty) {
       await db.transaction((txn) async {
         for (final json in legacyJsonList) {
@@ -97,15 +104,35 @@ class CacheDatabase {
               _entryToRow(entry),
               conflictAlgorithm: ConflictAlgorithm.replace,
             );
+            importedCount++;
           } catch (_) {
             // Skip malformed legacy entries.
+            malformedCount++;
           }
         }
       });
     }
 
+    final afterCount = Sqflite.firstIntValue(
+          await db.rawQuery('SELECT COUNT(*) FROM $_entriesTable'),
+        ) ??
+        0;
+    final skippedCount = legacyJsonList.length - importedCount - malformedCount;
+
     await _prefs.remove(_cacheEntriesKey);
     await _prefs.setBool(_sqliteMigrationKey, true);
+    await _prefs.setInt(
+      _sqliteMigrationVersionKey,
+      _currentSqliteMigrationVersion,
+    );
+
+    print(
+      '[CacheDatabase] Legacy cache migration complete '
+      '(legacy=${legacyJsonList.length}, '
+      'imported=$importedCount, malformed=$malformedCount, '
+      'skipped=$skippedCount, rowDelta=${afterCount - beforeCount}, '
+      'finalRows=$afterCount)',
+    );
   }
 
   Map<String, Object?> _entryToRow(CacheEntry entry) {
@@ -238,8 +265,8 @@ class CacheDatabase {
   /// Get total cache size in bytes
   Future<int> getTotalCacheSize() async {
     final db = await _ensureDatabase();
-    final rows =
-        await db.rawQuery('SELECT COALESCE(SUM(size), 0) AS total FROM $_entriesTable');
+    final rows = await db
+        .rawQuery('SELECT COALESCE(SUM(size), 0) AS total FROM $_entriesTable');
     return (rows.first['total'] as int?) ?? 0;
   }
 
@@ -262,7 +289,8 @@ class CacheDatabase {
   /// Get count of cached items
   Future<int> getCacheCount() async {
     final db = await _ensureDatabase();
-    final rows = await db.rawQuery('SELECT COUNT(*) AS count FROM $_entriesTable');
+    final rows =
+        await db.rawQuery('SELECT COUNT(*) AS count FROM $_entriesTable');
     return (rows.first['count'] as int?) ?? 0;
   }
 
@@ -314,11 +342,15 @@ class CacheDatabase {
     final entry = await getCacheEntry(id, type);
     return entry != null;
   }
+
+  /// Close the underlying database connection.
+  ///
+  /// Primarily used by tests so temporary directories can be cleaned up
+  /// deterministically between runs.
+  Future<void> close() async {
+    final db = _database;
+    if (db == null) return;
+    await db.close();
+    _database = null;
+  }
 }
-
-
-
-
-
-
-
