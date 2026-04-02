@@ -65,51 +65,62 @@ class ConnectedUsersTable extends StatelessWidget {
       );
     }
 
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: DataTable(
-        columns: const [
-          DataColumn(label: Text('User')),
-          DataColumn(label: Text('Device')),
-          DataColumn(label: Text('Connected')),
-          DataColumn(label: Text('Last Heartbeat')),
-          DataColumn(label: Text('Actions')),
-        ],
-        rows: rows.map((row) {
-          final isKicking = kickingDeviceIds.contains(row.deviceId);
-          final userLabel = row.username ?? row.userId ?? 'Unauthenticated';
-          return DataRow(cells: [
-            DataCell(Text(userLabel)),
-            DataCell(Text(ConnectedClientFormatting.formatConnectedDeviceLabel(row))),
-            DataCell(Text(formatDashboardDateTime(row.connectedAt))),
-            DataCell(Text(formatDashboardDateTime(row.lastHeartbeat))),
-            DataCell(
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextButton(
-                    onPressed: isKicking ? null : () => onKick(row),
-                    child: isKicking
-                        ? const SizedBox(
-                            width: 14,
-                            height: 14,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Kick'),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minWidth: constraints.maxWidth),
+            child: DataTable(
+              columns: const [
+                DataColumn(label: Text('User')),
+                DataColumn(label: Text('Device')),
+                DataColumn(label: Text('Connected')),
+                DataColumn(label: Text('Last Heartbeat')),
+                DataColumn(label: Text('Actions')),
+              ],
+              rows: rows.map((row) {
+                final isKicking = kickingDeviceIds.contains(row.deviceId);
+                final userLabel =
+                    row.username ?? row.userId ?? 'Unauthenticated';
+                return DataRow(cells: [
+                  DataCell(Text(userLabel)),
+                  DataCell(Text(
+                      ConnectedClientFormatting.formatConnectedDeviceLabel(
+                          row))),
+                  DataCell(Text(formatDashboardDateTime(row.connectedAt))),
+                  DataCell(Text(formatDashboardDateTime(row.lastHeartbeat))),
+                  DataCell(
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        TextButton(
+                          onPressed: isKicking ? null : () => onKick(row),
+                          child: isKicking
+                              ? const SizedBox(
+                                  width: 14,
+                                  height: 14,
+                                  child:
+                                      CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : const Text('Kick'),
+                        ),
+                        const SizedBox(width: 6),
+                        TextButton(
+                          onPressed: isChangingPassword
+                              ? null
+                              : () => onChangePassword(row),
+                          child: const Text('Change Password'),
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(width: 6),
-                  TextButton(
-                    onPressed: isChangingPassword
-                        ? null
-                        : () => onChangePassword(row),
-                    child: const Text('Change Password'),
-                  ),
-                ],
-              ),
+                ]);
+              }).toList(),
             ),
-          ]);
-        }).toList(),
-      ),
+          ),
+        );
+      },
     );
   }
 }
