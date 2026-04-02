@@ -3,8 +3,12 @@ import 'package:ariami_mobile/screens/main/library/widgets/playlists_section.dar
 import 'package:ariami_mobile/services/playlist_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import '../../../../test_support/sqflite_mock.dart';
 
 void main() {
+  setUpAll(installSqfliteTestMocks);
+  tearDownAll(uninstallSqfliteTestMocks);
+
   group('PlaylistsSection', () {
     // Create a simple mock by using the actual service and overriding properties
     late PlaylistService playlistService;
@@ -41,7 +45,7 @@ void main() {
         state: state,
         isGridView: true,
       ));
-      await tester.pumpAndSettle();
+      await tester.pump();
 
       // Should render without errors
       expect(find.byType(GridView), findsOneWidget);
@@ -54,10 +58,10 @@ void main() {
         state: state,
         isGridView: false,
       ));
-      await tester.pumpAndSettle();
+      await tester.pump();
 
-      // Should render without errors
-      expect(find.byType(ListView), findsOneWidget);
+      // Empty-state list mode renders the create/import column.
+      expect(find.text('Create Playlist'), findsOneWidget);
     });
 
     testWidgets('should display empty state when no playlists', (tester) async {
@@ -67,10 +71,11 @@ void main() {
         state: state,
         isGridView: true,
       ));
-      await tester.pumpAndSettle();
+      await tester.pump();
 
       // Should show create playlist card
       expect(find.byType(GridView), findsOneWidget);
+      expect(find.text('Create Playlist'), findsOneWidget);
     });
 
     testWidgets('should call onCreatePlaylist when triggered', (tester) async {
@@ -82,10 +87,10 @@ void main() {
         isGridView: false,
         onCreatePlaylist: () => tapped = true,
       ));
-      await tester.pumpAndSettle();
+      await tester.pump();
 
-      // Find and tap the create playlist button (first list item)
-      await tester.tap(find.byType(ListTile).first);
+      // Tap the empty-state create action.
+      await tester.tap(find.text('Create Playlist'));
       await tester.pump();
 
       expect(tapped, true);

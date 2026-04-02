@@ -168,3 +168,4 @@ logs/
 *.zip
 *.tar.gz
 examples/
+plan.md

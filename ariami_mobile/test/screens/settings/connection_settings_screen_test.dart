@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:ariami_mobile/models/api_models.dart';
 import 'package:ariami_mobile/screens/settings/connection_settings_screen.dart';
 import 'package:ariami_mobile/services/api/connection_service.dart';
+import 'package:ariami_mobile/services/offline/offline_playback_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -120,6 +121,8 @@ void main() {
     secureStorage.clear();
     SharedPreferences.setMockInitialValues(<String, Object>{});
     await ConnectionService().logout();
+    await OfflinePlaybackService().setManualOfflineMode(false);
+    await OfflinePlaybackService().notifyConnectionRestored();
   });
 
   testWidgets('connection settings renders username from auth state',

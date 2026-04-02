@@ -4,8 +4,12 @@ import 'package:ariami_mobile/screens/main/library/library_state.dart';
 import 'package:ariami_mobile/screens/main/library/widgets/songs_section.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import '../../../../test_support/sqflite_mock.dart';
 
 void main() {
+  setUpAll(installSqfliteTestMocks);
+  tearDownAll(uninstallSqfliteTestMocks);
+
   group('SongsSection', () {
     final testSongs = [
       SongModel(
@@ -66,7 +70,7 @@ void main() {
       );
 
       await tester.pumpWidget(buildTestWidget(state: state));
-      await tester.pumpAndSettle();
+      await tester.pump();
 
       expect(find.text('Test Song 1'), findsOneWidget);
       expect(find.text('Test Song 2'), findsOneWidget);
@@ -81,7 +85,7 @@ void main() {
       );
 
       await tester.pumpWidget(buildTestWidget(state: state));
-      await tester.pumpAndSettle();
+      await tester.pump();
 
       expect(find.text('Offline Song 1'), findsOneWidget);
     });
@@ -95,7 +99,7 @@ void main() {
       );
 
       await tester.pumpWidget(buildTestWidget(state: state));
-      await tester.pumpAndSettle();
+      await tester.pump();
 
       expect(find.text('No offline songs available'), findsOneWidget);
     });
@@ -109,7 +113,7 @@ void main() {
       );
 
       await tester.pumpWidget(buildTestWidget(state: state));
-      await tester.pumpAndSettle();
+      await tester.pump();
 
       expect(find.text('No standalone songs found'), findsOneWidget);
     });
@@ -124,7 +128,7 @@ void main() {
       );
 
       await tester.pumpWidget(buildTestWidget(state: state));
-      await tester.pumpAndSettle();
+      await tester.pump();
 
       expect(find.text('Test Song 1'), findsOneWidget);
       expect(find.text('Test Song 2'), findsNothing);
@@ -143,7 +147,7 @@ void main() {
         state: state,
         onSongTap: () => tapped = true,
       ));
-      await tester.pumpAndSettle();
+      await tester.pump();
 
       await tester.tap(find.text('Test Song 1'));
       await tester.pump();
@@ -164,7 +168,7 @@ void main() {
         state: state,
         onOfflineSongTap: () => tapped = true,
       ));
-      await tester.pumpAndSettle();
+      await tester.pump();
 
       await tester.tap(find.text('Offline Song 1'));
       await tester.pump();
@@ -187,7 +191,7 @@ void main() {
         isOffline: true,
         onSongTap: () => tapped = true,
       ));
-      await tester.pumpAndSettle();
+      await tester.pump();
 
       await tester.tap(find.text('Test Song 1'));
       await tester.pump();
@@ -210,7 +214,7 @@ void main() {
         isOffline: true,
         onSongTap: () => tapped = true,
       ));
-      await tester.pumpAndSettle();
+      await tester.pump();
 
       await tester.tap(find.text('Test Song 1'));
       await tester.pump();
@@ -233,7 +237,7 @@ void main() {
         isOffline: true,
         onSongTap: () => tapped = true,
       ));
-      await tester.pumpAndSettle();
+      await tester.pump();
 
       await tester.tap(find.text('Test Song 1'));
       await tester.pump();

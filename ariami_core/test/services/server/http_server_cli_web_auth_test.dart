@@ -632,6 +632,83 @@ void main() {
       );
     });
 
+    test('websocket identify without session token closes with auth-required',
+        () async {
+      final port = await _findFreePort();
+      await server.start(
+        advertisedIp: '127.0.0.1',
+        bindAddress: '127.0.0.1',
+        port: port,
+      );
+
+      final registerResponse = await _sendJsonRequest(
+        method: 'POST',
+        url: Uri.parse('http://127.0.0.1:$port/api/auth/register'),
+        jsonBody: <String, dynamic>{
+          'username': 'ws-auth-user',
+          'password': 'ws-auth-pass',
+        },
+      );
+      expect(registerResponse.statusCode, 200);
+
+      final ws = await WebSocket.connect('ws://127.0.0.1:$port/api/ws');
+      final subscription = ws.listen((_) {});
+      ws.add(
+        jsonEncode({
+          'type': 'identify',
+          'data': <String, dynamic>{
+            'deviceId': 'ws-missing-token-device',
+            'deviceName': 'WS Missing Token Device',
+          },
+          'timestamp': DateTime.now().toIso8601String(),
+        }),
+      );
+
+      await ws.done.timeout(const Duration(seconds: 5));
+      await subscription.cancel();
+      expect(ws.closeCode, equals(4001));
+      expect(ws.closeReason, contains('Authentication required'));
+    });
+
+    test('websocket identify with invalid session closes deterministically',
+        () async {
+      final port = await _findFreePort();
+      await server.start(
+        advertisedIp: '127.0.0.1',
+        bindAddress: '127.0.0.1',
+        port: port,
+      );
+
+      final registerResponse = await _sendJsonRequest(
+        method: 'POST',
+        url: Uri.parse('http://127.0.0.1:$port/api/auth/register'),
+        jsonBody: <String, dynamic>{
+          'username': 'ws-invalid-user',
+          'password': 'ws-invalid-pass',
+        },
+      );
+      expect(registerResponse.statusCode, 200);
+
+      final ws = await WebSocket.connect('ws://127.0.0.1:$port/api/ws');
+      final subscription = ws.listen((_) {});
+      ws.add(
+        jsonEncode({
+          'type': 'identify',
+          'data': <String, dynamic>{
+            'deviceId': 'ws-invalid-session-device',
+            'deviceName': 'WS Invalid Session Device',
+            'sessionToken': 'invalid-token',
+          },
+          'timestamp': DateTime.now().toIso8601String(),
+        }),
+      );
+
+      await ws.done.timeout(const Duration(seconds: 5));
+      await subscription.cancel();
+      expect(ws.closeCode, equals(4001));
+      expect(ws.closeReason, contains('Session expired or invalid'));
+    });
+
     test('disconnect preserves session token - can reconnect without re-login',
         () async {
       final port = await _findFreePort();
