@@ -18,7 +18,7 @@ extension _LibraryManagerCatalogPart on LibraryManager {
     try {
       final result = catalogWriter.writeFullSnapshot(
         library: library,
-        songIdForPath: this._generateSongId,
+        songIdForPath: _generateSongId,
       );
       _latestCatalogToken = result.latestToken;
       print('[LibraryManager] Catalog snapshot write complete '
@@ -344,11 +344,11 @@ extension _LibraryManagerCatalogPart on LibraryManager {
 
     for (final album in library.albums.values.where((a) => a.isValid)) {
       for (final song in album.songs) {
-        final songId = this._generateSongId(song.filePath);
+        final songId = _generateSongId(song.filePath);
         records[songId] = CatalogSongRecord(
           id: songId,
           filePath: song.filePath,
-          title: song.title ?? this._getFilenameWithoutExtension(song.filePath),
+          title: song.title ?? _getFilenameWithoutExtension(song.filePath),
           artist: song.artist ?? 'Unknown Artist',
           albumId: album.id,
           durationSeconds: song.duration ?? 0,
@@ -363,11 +363,11 @@ extension _LibraryManagerCatalogPart on LibraryManager {
     }
 
     for (final song in library.standaloneSongs) {
-      final songId = this._generateSongId(song.filePath);
+      final songId = _generateSongId(song.filePath);
       records[songId] = CatalogSongRecord(
         id: songId,
         filePath: song.filePath,
-        title: song.title ?? this._getFilenameWithoutExtension(song.filePath),
+        title: song.title ?? _getFilenameWithoutExtension(song.filePath),
         artist: song.artist ?? 'Unknown Artist',
         albumId: null,
         durationSeconds: song.duration ?? 0,
@@ -418,13 +418,13 @@ extension _LibraryManagerCatalogPart on LibraryManager {
 
     for (final album in library.albums.values.where((a) => a.isValid)) {
       for (final song in album.songs) {
-        final songId = this._generateSongId(song.filePath);
+        final songId = _generateSongId(song.filePath);
         index[songId] = album.id;
       }
     }
 
     for (final song in library.standaloneSongs) {
-      final songId = this._generateSongId(song.filePath);
+      final songId = _generateSongId(song.filePath);
       index[songId] = null;
     }
 

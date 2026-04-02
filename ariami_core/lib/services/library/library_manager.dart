@@ -222,53 +222,53 @@ class LibraryManager {
   }
 
   /// Force clear the metadata cache (for "Force Rescan" feature)
-  Future<void> clearMetadataCache() => this._clearMetadataCacheImpl();
+  Future<void> clearMetadataCache() => _clearMetadataCacheImpl();
 
   /// Scan the music folder and build library structure
   ///
   /// This runs in a background isolate to prevent UI blocking.
   /// Progress updates are logged and the scan complete callback is fired when done.
   Future<void> scanMusicFolder(String folderPath) =>
-      this._scanMusicFolderImpl(folderPath);
+      _scanMusicFolderImpl(folderPath);
 
   /// Convert library to API JSON format for mobile app
   Map<String, dynamic> toApiJson(String baseUrl) =>
-      this._toApiJsonImpl(baseUrl);
+      _toApiJsonImpl(baseUrl);
 
   /// Convert library to API JSON format with lazy duration extraction for songs
   Future<Map<String, dynamic>> toApiJsonWithDurations(String baseUrl) =>
-      this._toApiJsonWithDurationsImpl(baseUrl);
+      _toApiJsonWithDurationsImpl(baseUrl);
 
-  void ensureDurationWarmup() => this._ensureDurationWarmupImpl();
+  void ensureDurationWarmup() => _ensureDurationWarmupImpl();
 
   /// Get detailed album information with songs
   Future<Map<String, dynamic>?> getAlbumDetail(
           String albumId, String baseUrl) =>
-      this._getAlbumDetailImpl(albumId, baseUrl);
+      _getAlbumDetailImpl(albumId, baseUrl);
 
   /// Get song file path by song ID
-  String? getSongFilePath(String songId) => this._getSongFilePathImpl(songId);
+  String? getSongFilePath(String songId) => _getSongFilePathImpl(songId);
 
   /// Get album ID for a song by song ID.
   ///
   /// Returns:
   /// - album ID when song belongs to an album
   /// - null for standalone songs or if song is not found
-  String? getSongAlbumId(String songId) => this._getSongAlbumIdImpl(songId);
+  String? getSongAlbumId(String songId) => _getSongAlbumIdImpl(songId);
 
   /// Get album artwork by album ID (lazy extraction with caching)
   Future<List<int>?> getAlbumArtwork(String albumId) =>
-      this._getAlbumArtworkImpl(albumId);
+      _getAlbumArtworkImpl(albumId);
 
   /// Get song duration by song ID (lazy extraction with caching)
   Future<int?> getSongDuration(String songId) =>
-      this._getSongDurationImpl(songId);
+      _getSongDurationImpl(songId);
 
   /// Get song artwork by song ID (lazy extraction with caching)
   /// Used for standalone songs that don't belong to an album
   Future<List<int>?> getSongArtwork(String songId) =>
-      this._getSongArtworkImpl(songId);
+      _getSongArtworkImpl(songId);
 
   /// Clear library data
-  void clear() => this._clearImpl();
+  void clear() => _clearImpl();
 }
