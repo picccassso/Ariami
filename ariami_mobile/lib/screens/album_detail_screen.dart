@@ -194,11 +194,15 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
       return const Center(child: Text('No album data'));
     }
 
+    // Square flexible region (matches library cards) to avoid letterboxing.
+    final expandedArtHeight =
+        MediaQuery.sizeOf(context).width.clamp(200.0, 600.0);
+
     return CustomScrollView(
       slivers: [
         // Flexible header with artwork
         SliverAppBar(
-          expandedHeight: 300,
+          expandedHeight: expandedArtHeight,
           pinned: true,
           actions: [
             IconButton(
