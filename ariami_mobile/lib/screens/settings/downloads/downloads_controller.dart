@@ -46,6 +46,7 @@ class DownloadsController extends ChangeNotifier {
 
   StreamSubscription<CacheUpdateEvent>? _cacheSubscription;
   Timer? _cacheStatsRefreshTimer;
+  Timer? _countRefreshTimer;
   StreamSubscription<DownloadProgress>? _progressSubscription;
   StreamSubscription<List<DownloadTask>>? _queueSubscription;
 
@@ -81,7 +82,11 @@ class DownloadsController extends ChangeNotifier {
     });
 
     _queueSubscription = _downloadManager.queueStream.listen((_) {
-      _recomputeDownloadAllCounts();
+      _countRefreshTimer?.cancel();
+      _countRefreshTimer = Timer(
+        const Duration(milliseconds: 300),
+        _recomputeDownloadAllCounts,
+      );
     });
 
     final playlistService = PlaylistService();
@@ -475,6 +480,7 @@ class DownloadsController extends ChangeNotifier {
     _progressSubscription?.cancel();
     _queueSubscription?.cancel();
     _cacheStatsRefreshTimer?.cancel();
+    _countRefreshTimer?.cancel();
     super.dispose();
   }
 }
