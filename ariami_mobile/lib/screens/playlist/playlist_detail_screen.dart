@@ -498,12 +498,15 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
     }
 
     final baseUrl = _connectionService.apiClient?.baseUrl;
+    // Square flexible region (matches library playlist cards) to avoid letterboxing.
+    final expandedArtHeight =
+        MediaQuery.sizeOf(context).width.clamp(200.0, 600.0);
 
     return CustomScrollView(
       slivers: [
         // App bar with playlist icon
         SliverAppBar(
-          expandedHeight: 200,
+          expandedHeight: expandedArtHeight,
           pinned: true,
           actions: [
             IconButton(

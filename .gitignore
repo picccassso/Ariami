@@ -166,3 +166,4 @@ logs/
 # Release archives
 *.zip
 *.tar.gz
+examples/

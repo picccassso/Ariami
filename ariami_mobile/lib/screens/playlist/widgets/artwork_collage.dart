@@ -23,7 +23,7 @@ class ArtworkCollage extends StatelessWidget {
     }
 
     if (artworkIds.length == 1) {
-      // Single artwork - fill entire header
+      // Single artwork — playlist detail uses a square expanded app bar (see playlist_detail_screen).
       return _buildHeaderArtwork(artworkIds[0]);
     } else if (artworkIds.length == 2 || artworkIds.length == 3) {
       // Two artworks side by side
@@ -44,34 +44,50 @@ class ArtworkCollage extends StatelessWidget {
         ],
       );
     } else {
-      // Four artworks in a 2x2 grid
-      return Column(
-        children: [
-          Expanded(
-            child: Row(
-              children: [
-                Expanded(
-                  child: _buildHeaderArtwork(artworkIds[0]),
-                ),
-                Expanded(
-                  child: _buildHeaderArtwork(artworkIds[1]),
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: Row(
-              children: [
-                Expanded(
-                  child: _buildHeaderArtwork(artworkIds[2]),
-                ),
-                Expanded(
-                  child: _buildHeaderArtwork(artworkIds[3]),
-                ),
-              ],
-            ),
-          ),
-        ],
+      // Four artworks: use a Stack so quadrants meet exactly (no flex seam / subpixel gap).
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final w = constraints.maxWidth;
+          final h = constraints.maxHeight;
+          final leftW = w * 0.5;
+          final topH = h * 0.5;
+          final rightW = w - leftW;
+          final bottomH = h - topH;
+          return Stack(
+            fit: StackFit.expand,
+            clipBehavior: Clip.hardEdge,
+            children: [
+              Positioned(
+                left: 0,
+                top: 0,
+                width: leftW,
+                height: topH,
+                child: _buildHeaderArtwork(artworkIds[0]),
+              ),
+              Positioned(
+                left: leftW,
+                top: 0,
+                width: rightW,
+                height: topH,
+                child: _buildHeaderArtwork(artworkIds[1]),
+              ),
+              Positioned(
+                left: 0,
+                top: topH,
+                width: leftW,
+                height: bottomH,
+                child: _buildHeaderArtwork(artworkIds[2]),
+              ),
+              Positioned(
+                left: leftW,
+                top: topH,
+                width: rightW,
+                height: bottomH,
+                child: _buildHeaderArtwork(artworkIds[3]),
+              ),
+            ],
+          );
+        },
       );
     }
   }

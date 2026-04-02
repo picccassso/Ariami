@@ -405,6 +405,11 @@ class _CachedArtworkState extends State<CachedArtwork> {
     return key.startsWith('song_') && key.length > 'song_'.length;
   }
 
+  /// When both dimensions are null, [Image] layout can fail to fill the parent;
+  /// [LayoutBuilder] supplies explicit bounds so [BoxFit.cover] behaves reliably.
+  bool get _useLayoutBoundsForImage =>
+      widget.width == null && widget.height == null;
+
   @override
   Widget build(BuildContext context) {
     Widget imageWidget;
@@ -413,9 +418,30 @@ class _CachedArtworkState extends State<CachedArtwork> {
       // Show loading placeholder
       imageWidget = _buildPlaceholder(showLoading: true);
     } else if (_localPath != null) {
-      // Show cached image
-      imageWidget = Image.file(
-        File(_localPath!),
+      imageWidget = _buildDiskImage();
+    } else if (_networkFallbackUrl != null && !_offlineService.isOffline) {
+      imageWidget = _buildNetworkImageWidget();
+    } else {
+      // Show fallback
+      imageWidget = _buildFallback();
+    }
+
+    // Apply border radius if specified
+    if (widget.borderRadius != null) {
+      return ClipRRect(
+        borderRadius: widget.borderRadius!,
+        child: imageWidget,
+      );
+    }
+
+    return imageWidget;
+  }
+
+  Widget _buildDiskImage() {
+    final file = File(_localPath!);
+    if (!_useLayoutBoundsForImage) {
+      return Image.file(
+        file,
         width: widget.width,
         height: widget.height,
         fit: widget.fit,
@@ -424,8 +450,30 @@ class _CachedArtworkState extends State<CachedArtwork> {
           return _buildFallback();
         },
       );
-    } else if (_networkFallbackUrl != null && !_offlineService.isOffline) {
-      imageWidget = Image.network(
+    }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final w =
+            constraints.maxWidth.isFinite ? constraints.maxWidth : null;
+        final h =
+            constraints.maxHeight.isFinite ? constraints.maxHeight : null;
+        return Image.file(
+          file,
+          width: w,
+          height: h,
+          fit: widget.fit,
+          gaplessPlayback: true,
+          errorBuilder: (context, error, stackTrace) {
+            return _buildFallback();
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildNetworkImageWidget() {
+    if (!_useLayoutBoundsForImage) {
+      return Image.network(
         _networkFallbackUrl!,
         width: widget.width,
         height: widget.height,
@@ -442,20 +490,32 @@ class _CachedArtworkState extends State<CachedArtwork> {
           return _buildFallback();
         },
       );
-    } else {
-      // Show fallback
-      imageWidget = _buildFallback();
     }
-
-    // Apply border radius if specified
-    if (widget.borderRadius != null) {
-      return ClipRRect(
-        borderRadius: widget.borderRadius!,
-        child: imageWidget,
-      );
-    }
-
-    return imageWidget;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final w =
+            constraints.maxWidth.isFinite ? constraints.maxWidth : null;
+        final h =
+            constraints.maxHeight.isFinite ? constraints.maxHeight : null;
+        return Image.network(
+          _networkFallbackUrl!,
+          width: w,
+          height: h,
+          fit: widget.fit,
+          headers: _connectionService.authHeaders,
+          gaplessPlayback: true,
+          loadingBuilder: (context, child, loadingProgress) {
+            if (loadingProgress == null) {
+              return child;
+            }
+            return _buildPlaceholder(showLoading: true);
+          },
+          errorBuilder: (context, error, stackTrace) {
+            return _buildFallback();
+          },
+        );
+      },
+    );
   }
 
   Widget _buildPlaceholder({bool showLoading = false}) {
