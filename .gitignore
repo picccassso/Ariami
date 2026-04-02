@@ -118,6 +118,7 @@ ariami_desktop/.dart_tool/
 
 # Mobile app specific
 ariami_mobile/build/
+ariami_mobile/android/build/reports/problems/
 ariami_mobile/.dart_tool/
 ariami_mobile/android/app/google-services.json
 
