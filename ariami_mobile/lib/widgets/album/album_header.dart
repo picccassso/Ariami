@@ -48,36 +48,48 @@ class AlbumArtworkHeader extends StatelessWidget {
     final connectionService = ConnectionService();
     final authHeaders = connectionService.authHeaders;
     final resolvedCoverArt = connectionService.resolveServerUrl(coverArt);
-    // If we have an albumId, use CachedArtwork for automatic caching
-    // CachedArtwork checks cache first, so it works even without a URL (offline mode)
-    if (albumId != null) {
-      return SizedBox.expand(
-        child: CachedArtwork(
-          albumId: albumId!,
-          artworkUrl: resolvedCoverArt,
-          fit: BoxFit.cover,
-          fallback: _buildFallbackArt(),
-        ),
-      );
-    }
 
-    // Fallback for when no albumId is available
-    if (resolvedCoverArt != null && resolvedCoverArt.isNotEmpty) {
-      return Image.network(
-        resolvedCoverArt,
-        fit: BoxFit.cover,
-        headers: authHeaders,
-        loadingBuilder: (context, child, loadingProgress) {
-          if (loadingProgress == null) return child;
-          return const Center(child: CircularProgressIndicator());
-        },
-        errorBuilder: (context, error, stackTrace) {
-          return _buildFallbackArt();
-        },
-      );
-    } else {
-      return _buildFallbackArt();
-    }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final w =
+            constraints.maxWidth.isFinite ? constraints.maxWidth : null;
+        final h =
+            constraints.maxHeight.isFinite ? constraints.maxHeight : null;
+
+        // If we have an albumId, use CachedArtwork for automatic caching
+        // CachedArtwork checks cache first, so it works even without a URL (offline mode)
+        if (albumId != null) {
+          return CachedArtwork(
+            albumId: albumId!,
+            artworkUrl: resolvedCoverArt,
+            fit: BoxFit.cover,
+            width: w,
+            height: h,
+            fallback: _buildFallbackArt(),
+          );
+        }
+
+        // Fallback for when no albumId is available
+        if (resolvedCoverArt != null && resolvedCoverArt.isNotEmpty) {
+          return Image.network(
+            resolvedCoverArt,
+            width: w,
+            height: h,
+            fit: BoxFit.cover,
+            headers: authHeaders,
+            loadingBuilder: (context, child, loadingProgress) {
+              if (loadingProgress == null) return child;
+              return const Center(child: CircularProgressIndicator());
+            },
+            errorBuilder: (context, error, stackTrace) {
+              return _buildFallbackArt();
+            },
+          );
+        }
+
+        return _buildFallbackArt();
+      },
+    );
   }
 
   /// Fallback artwork when no cover art is available
