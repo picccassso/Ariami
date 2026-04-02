@@ -36,8 +36,12 @@ class DownloadManager {
   final StreamController<List<DownloadTask>> _queueController =
       StreamController<List<DownloadTask>>.broadcast();
   final math.Random _retryRandom = math.Random();
-  Timer? _queueSaveTimer;
-  static const Duration _queueSaveDebounce = Duration(milliseconds: 350);
+  final Map<String, String> _persistedTaskSignatures = {};
+  List<DownloadTask>? _pendingPersistenceSnapshot;
+  bool _persistenceInFlight = false;
+  List<DownloadTask>? _scopedQueueCache;
+  String? _scopedQueueCacheServerId;
+  String? _scopedQueueCacheUserId;
 
   bool _initialized = false;
   String? _downloadPath;
@@ -70,8 +74,11 @@ class DownloadManager {
 
     // Load queue from storage into the already-initialized _queue
     final savedQueue = await _database.loadDownloadQueue();
-    for (final task in savedQueue) {
-      _queue.enqueue(task);
+    if (savedQueue.isNotEmpty) {
+      _queue.enqueueBatch(savedQueue);
+      for (final task in savedQueue) {
+        _persistedTaskSignatures[task.id] = _taskSignature(task);
+      }
     }
 
     // Setup HTTP client
@@ -87,10 +94,18 @@ class DownloadManager {
 
     // Listen to queue changes and persist
     _queue.queueStream.listen((tasks) {
+      _scopedQueueCache = null;
       _ensureServerScope(tasks);
       _ensureUserScope(tasks);
-      _scheduleQueueSave();
-      _queueController.add(_filterTasksForCurrentScope(tasks));
+      _scheduleQueuePersistence(tasks);
+
+      final currentServerId = _getCurrentServerId();
+      final currentUserId = _getCurrentUserId();
+      final scoped = _filterTasksForCurrentScope(tasks);
+      _scopedQueueCache = scoped;
+      _scopedQueueCacheServerId = currentServerId;
+      _scopedQueueCacheUserId = currentUserId;
+      _queueController.add(scoped);
     });
 
     _initialized = true;
@@ -179,20 +194,94 @@ class DownloadManager {
   }
 
   List<DownloadTask> _getScopedQueue() {
+    final currentServerId = _getCurrentServerId();
+    final currentUserId = _getCurrentUserId();
+    if (_scopedQueueCache != null &&
+        _scopedQueueCacheServerId == currentServerId &&
+        _scopedQueueCacheUserId == currentUserId) {
+      return _scopedQueueCache!;
+    }
+
     _ensureServerScope(_queue.queue);
     _ensureUserScope(_queue.queue);
-    return _filterTasksForCurrentScope(_queue.queue);
+    final scoped = _filterTasksForCurrentScope(_queue.queue);
+    _scopedQueueCache = scoped;
+    _scopedQueueCacheServerId = currentServerId;
+    _scopedQueueCacheUserId = currentUserId;
+    return scoped;
   }
 
-  void _scheduleQueueSave() {
-    _queueSaveTimer?.cancel();
-    _queueSaveTimer = Timer(_queueSaveDebounce, () {
-      unawaited(_flushQueueSave());
-    });
+  void _scheduleQueuePersistence(List<DownloadTask> tasks) {
+    _pendingPersistenceSnapshot = List<DownloadTask>.from(tasks);
+    if (_persistenceInFlight) return;
+    _persistenceInFlight = true;
+    unawaited(_flushQueuePersistence());
   }
 
-  Future<void> _flushQueueSave() async {
-    await _database.saveDownloadQueue(_queue.queue);
+  Future<void> _flushQueuePersistence() async {
+    try {
+      while (true) {
+        final snapshot = _pendingPersistenceSnapshot;
+        if (snapshot == null) break;
+        _pendingPersistenceSnapshot = null;
+        try {
+          await _syncQueuePersistence(snapshot);
+        } catch (e) {
+          // Keep processing subsequent queue snapshots even if one sync fails.
+          print('[DownloadManager] Failed queue persistence sync: $e');
+        }
+      }
+    } finally {
+      _persistenceInFlight = false;
+      if (_pendingPersistenceSnapshot != null) {
+        _persistenceInFlight = true;
+        unawaited(_flushQueuePersistence());
+      }
+    }
+  }
+
+  Future<void> _syncQueuePersistence(List<DownloadTask> tasks) async {
+    final seenIds = <String>{};
+    for (final task in tasks) {
+      seenIds.add(task.id);
+      final signature = _taskSignature(task);
+      if (_persistedTaskSignatures[task.id] == signature) continue;
+      await _database.upsertTask(task);
+      _persistedTaskSignatures[task.id] = signature;
+    }
+
+    final deletedTaskIds = _persistedTaskSignatures.keys
+        .where((id) => !seenIds.contains(id))
+        .toList(growable: false);
+    for (final taskId in deletedTaskIds) {
+      await _database.deleteTask(taskId);
+      _persistedTaskSignatures.remove(taskId);
+    }
+  }
+
+  String _taskSignature(DownloadTask task) {
+    return [
+      task.songId,
+      task.serverId ?? '',
+      task.userId ?? '',
+      task.title,
+      task.artist,
+      task.albumId ?? '',
+      task.albumName ?? '',
+      task.albumArtist ?? '',
+      task.albumArt,
+      task.downloadUrl,
+      task.downloadQuality.name,
+      task.downloadOriginal ? '1' : '0',
+      task.duration.toString(),
+      task.trackNumber?.toString() ?? '',
+      task.status.toString(),
+      task.progress.toStringAsFixed(4),
+      task.bytesDownloaded.toString(),
+      task.totalBytes.toString(),
+      task.errorMessage ?? '',
+      task.retryCount.toString(),
+    ].join('|');
   }
 
   QueueStats _buildQueueStats(List<DownloadTask> tasks) {
@@ -549,21 +638,26 @@ class DownloadManager {
 
   /// Fill available download slots with pending tasks
   void _fillDownloadSlots() {
-    while (_activeDownloadCount < _maxConcurrentDownloads) {
-      final nextTask = _getNextPendingScoped();
-      if (nextTask == null) {
-        if (_activeDownloadCount == 0) {
-          print('No more pending downloads');
+    _queue.beginBatch();
+    try {
+      while (_activeDownloadCount < _maxConcurrentDownloads) {
+        final nextTask = _getNextPendingScoped();
+        if (nextTask == null) {
+          if (_activeDownloadCount == 0) {
+            print('No more pending downloads');
+          }
+          return;
         }
-        return;
+
+        // Mark as downloading BEFORE incrementing to prevent double-pickup
+        nextTask.status = DownloadStatus.downloading;
+        _queue.updateTask(nextTask);
+
+        _activeDownloadCount++;
+        _downloadTask(nextTask);
       }
-
-      // Mark as downloading BEFORE incrementing to prevent double-pickup
-      nextTask.status = DownloadStatus.downloading;
-      _queue.updateTask(nextTask);
-
-      _activeDownloadCount++;
-      _downloadTask(nextTask);
+    } finally {
+      _queue.endBatch();
     }
   }
 
@@ -1050,7 +1144,6 @@ class DownloadManager {
 
   /// Dispose resources
   void dispose() {
-    _queueSaveTimer?.cancel();
     _progressController.close();
     _queueController.close();
     _queue.dispose();

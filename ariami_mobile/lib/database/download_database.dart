@@ -1,42 +1,214 @@
 import 'dart:convert';
+
+import 'package:path/path.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sqflite/sqflite.dart';
+
 import '../models/download_task.dart';
 
 /// Database layer for managing downloads persistence
 class DownloadDatabase {
   static const String _downloadQueueKey = 'download_queue';
+  static const String _sqliteMigrationKey = 'download_queue_sqlite_migrated_v1';
+  static const String _databaseName = 'downloads.db';
+  static const int _databaseVersion = 1;
+  static const String _tasksTable = 'download_tasks';
 
   final SharedPreferences _prefs;
+  Database? _database;
 
-  DownloadDatabase(this._prefs);
+  DownloadDatabase._(this._prefs);
 
-  /// Create instance from platform
+  /// Create instance from platform.
   static Future<DownloadDatabase> create() async {
     final prefs = await SharedPreferences.getInstance();
-    return DownloadDatabase(prefs);
+    final database = DownloadDatabase._(prefs);
+    await database._ensureDatabase();
+    return database;
+  }
+
+  Future<Database> _ensureDatabase() async {
+    if (_database != null) {
+      return _database!;
+    }
+
+    final databasesPath = await getDatabasesPath();
+    final path = join(databasesPath, _databaseName);
+
+    final db = await openDatabase(
+      path,
+      version: _databaseVersion,
+      onCreate: _onCreate,
+    );
+
+    await _migrateFromSharedPreferencesIfNeeded(db);
+    _database = db;
+    return db;
+  }
+
+  Future<void> _onCreate(Database db, int version) async {
+    await db.execute('''
+      CREATE TABLE $_tasksTable (
+        id TEXT PRIMARY KEY,
+        song_id TEXT NOT NULL,
+        server_id TEXT,
+        user_id TEXT,
+        title TEXT NOT NULL,
+        artist TEXT NOT NULL,
+        album_id TEXT,
+        album_name TEXT,
+        album_artist TEXT,
+        album_art TEXT NOT NULL,
+        download_url TEXT NOT NULL,
+        download_quality TEXT NOT NULL,
+        download_original INTEGER NOT NULL DEFAULT 0,
+        duration INTEGER NOT NULL DEFAULT 0,
+        track_number INTEGER,
+        status TEXT NOT NULL DEFAULT 'DownloadStatus.pending',
+        progress REAL NOT NULL DEFAULT 0.0,
+        bytes_downloaded INTEGER NOT NULL DEFAULT 0,
+        total_bytes INTEGER NOT NULL DEFAULT 0,
+        error_message TEXT,
+        retry_count INTEGER NOT NULL DEFAULT 0
+      )
+    ''');
+
+    await db.execute(
+      'CREATE INDEX idx_download_tasks_status ON $_tasksTable(status)',
+    );
+    await db.execute(
+      'CREATE INDEX idx_download_tasks_server_user ON $_tasksTable(server_id, user_id)',
+    );
+  }
+
+  Future<void> _migrateFromSharedPreferencesIfNeeded(Database db) async {
+    if (_prefs.getBool(_sqliteMigrationKey) == true) {
+      return;
+    }
+
+    final existingCount = Sqflite.firstIntValue(
+          await db.rawQuery('SELECT COUNT(*) FROM $_tasksTable'),
+        ) ??
+        0;
+    if (existingCount > 0) {
+      await _prefs.remove(_downloadQueueKey);
+      await _prefs.setBool(_sqliteMigrationKey, true);
+      return;
+    }
+
+    final legacyJsonList = _prefs.getStringList(_downloadQueueKey) ?? const [];
+    if (legacyJsonList.isNotEmpty) {
+      await db.transaction((txn) async {
+        for (final json in legacyJsonList) {
+          try {
+            final task = DownloadTask.fromJson(
+              jsonDecode(json) as Map<String, dynamic>,
+            );
+            await txn.insert(
+              _tasksTable,
+              _taskToRow(task),
+              conflictAlgorithm: ConflictAlgorithm.replace,
+            );
+          } catch (_) {
+            // Skip malformed legacy entries.
+          }
+        }
+      });
+    }
+
+    await _prefs.remove(_downloadQueueKey);
+    await _prefs.setBool(_sqliteMigrationKey, true);
+  }
+
+  Map<String, Object?> _taskToRow(DownloadTask task) {
+    return {
+      'id': task.id,
+      'song_id': task.songId,
+      'server_id': task.serverId,
+      'user_id': task.userId,
+      'title': task.title,
+      'artist': task.artist,
+      'album_id': task.albumId,
+      'album_name': task.albumName,
+      'album_artist': task.albumArtist,
+      'album_art': task.albumArt,
+      'download_url': task.downloadUrl,
+      'download_quality': task.downloadQuality.name,
+      'download_original': task.downloadOriginal ? 1 : 0,
+      'duration': task.duration,
+      'track_number': task.trackNumber,
+      'status': task.status.toString(),
+      'progress': task.progress,
+      'bytes_downloaded': task.bytesDownloaded,
+      'total_bytes': task.totalBytes,
+      'error_message': task.errorMessage,
+      'retry_count': task.retryCount,
+    };
+  }
+
+  DownloadTask _taskFromRow(Map<String, Object?> row) {
+    return DownloadTask.fromJson({
+      'id': row['id'] as String,
+      'songId': row['song_id'] as String,
+      'serverId': row['server_id'] as String?,
+      'userId': row['user_id'] as String?,
+      'title': row['title'] as String,
+      'artist': row['artist'] as String,
+      'albumId': row['album_id'] as String?,
+      'albumName': row['album_name'] as String?,
+      'albumArtist': row['album_artist'] as String?,
+      'albumArt': row['album_art'] as String,
+      'downloadUrl': row['download_url'] as String,
+      'downloadQuality': row['download_quality'] as String,
+      'downloadOriginal': (row['download_original'] as int? ?? 0) == 1,
+      'duration': row['duration'] as int? ?? 0,
+      'trackNumber': row['track_number'] as int?,
+      'status': row['status'] as String? ?? 'DownloadStatus.pending',
+      'progress': (row['progress'] as num?)?.toDouble() ?? 0.0,
+      'bytesDownloaded': row['bytes_downloaded'] as int? ?? 0,
+      'totalBytes': row['total_bytes'] as int? ?? 0,
+      'errorMessage': row['error_message'] as String?,
+      'retryCount': row['retry_count'] as int? ?? 0,
+    });
   }
 
   // ============================================================================
   // QUEUE MANAGEMENT
   // ============================================================================
 
-  /// Save all download tasks to storage
-  Future<void> saveDownloadQueue(List<DownloadTask> tasks) async {
-    final jsonList = tasks.map((task) => jsonEncode(task.toJson())).toList();
-    await _prefs.setStringList(_downloadQueueKey, jsonList);
-  }
-
-  /// Load all download tasks from storage
+  /// Load all download tasks from storage.
   Future<List<DownloadTask>> loadDownloadQueue() async {
-    final jsonList = _prefs.getStringList(_downloadQueueKey) ?? [];
-    return jsonList
-        .map((json) => DownloadTask.fromJson(jsonDecode(json) as Map<String, dynamic>))
-        .toList();
+    final db = await _ensureDatabase();
+    final rows = await db.query(_tasksTable, orderBy: 'id ASC');
+    return rows.map(_taskFromRow).toList();
   }
 
-  /// Clear all downloads from queue
+  /// Insert or update a single task.
+  Future<void> upsertTask(DownloadTask task) async {
+    final db = await _ensureDatabase();
+    await db.insert(
+      _tasksTable,
+      _taskToRow(task),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  /// Delete a task by id.
+  Future<void> deleteTask(String id) async {
+    final db = await _ensureDatabase();
+    await db.delete(_tasksTable, where: 'id = ?', whereArgs: [id]);
+  }
+
+  /// Clear all downloads from queue.
   Future<void> clearDownloadQueue() async {
+    final db = await _ensureDatabase();
+    await db.delete(_tasksTable);
     await _prefs.remove(_downloadQueueKey);
+  }
+
+  /// Clear all download data including settings.
+  Future<void> clearAllDownloads() async {
+    await clearDownloadQueue();
   }
 
   // ============================================================================
@@ -75,50 +247,5 @@ class DownloadDatabase {
   /// Get storage limit in MB
   int? getStorageLimit() {
     return _prefs.getInt('download_storage_limit');
-  }
-
-  // ============================================================================
-  // USAGE TRACKING
-  // ============================================================================
-
-  /// Get total bytes used for downloads
-  int getTotalDownloadBytes() {
-    final queue = _prefs.getStringList(_downloadQueueKey) ?? [];
-    int total = 0;
-
-    for (final json in queue) {
-      final task = DownloadTask.fromJson(jsonDecode(json) as Map<String, dynamic>);
-      if (task.status == DownloadStatus.completed) {
-        total += task.bytesDownloaded;
-      }
-    }
-
-    return total;
-  }
-
-  /// Get number of completed downloads
-  int getCompletedDownloadCount() {
-    final queue = _prefs.getStringList(_downloadQueueKey) ?? [];
-    int count = 0;
-
-    for (final json in queue) {
-      final task = DownloadTask.fromJson(jsonDecode(json) as Map<String, dynamic>);
-      if (task.status == DownloadStatus.completed) {
-        count++;
-      }
-    }
-
-    return count;
-  }
-
-  /// Get total download size in MB
-  double getTotalDownloadSizeMB() {
-    return getTotalDownloadBytes() / (1024 * 1024);
-  }
-
-  /// Clear all download data including settings
-  Future<void> clearAllDownloads() async {
-    await _prefs.remove(_downloadQueueKey);
-    // Keep settings, just clear the queue
   }
 }

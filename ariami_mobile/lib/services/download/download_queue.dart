@@ -6,6 +6,8 @@ class DownloadQueue {
   final List<DownloadTask> _queue = [];
   final StreamController<List<DownloadTask>> _queueController =
       StreamController<List<DownloadTask>>.broadcast();
+  int _batchDepth = 0;
+  bool _batchDirty = false;
 
   /// Stream of queue changes
   Stream<List<DownloadTask>> get queueStream => _queueController.stream;
@@ -110,6 +112,21 @@ class DownloadQueue {
     _notifyListeners();
   }
 
+  /// Begin suppressing intermediate stream notifications.
+  void beginBatch() {
+    _batchDepth++;
+  }
+
+  /// End a batch and emit one consolidated queue event if needed.
+  void endBatch() {
+    if (_batchDepth == 0) return;
+    _batchDepth--;
+    if (_batchDepth == 0 && _batchDirty) {
+      _batchDirty = false;
+      _queueController.add(List.unmodifiable(_queue));
+    }
+  }
+
   /// Get queue statistics
   QueueStats getStats() {
     int totalTasks = _queue.length;
@@ -143,6 +160,10 @@ class DownloadQueue {
 
   /// Notify listeners of queue changes
   void _notifyListeners() {
+    if (_batchDepth > 0) {
+      _batchDirty = true;
+      return;
+    }
     _queueController.add(List.unmodifiable(_queue));
   }
 
