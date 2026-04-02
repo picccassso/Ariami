@@ -92,6 +92,7 @@ class _CachedArtworkState extends State<CachedArtwork> {
   final ConnectionService _connectionService = ConnectionService();
 
   String? _localPath;
+  String? _networkFallbackUrl;
   bool _isLoading = true;
   MediaRequestCancellationToken? _requestCancellationToken;
 
@@ -176,6 +177,7 @@ class _CachedArtworkState extends State<CachedArtwork> {
         setState(() {
           _localPath = memoryPath;
           _isLoading = false;
+          _networkFallbackUrl = null;
         });
       }
       return;
@@ -185,6 +187,7 @@ class _CachedArtworkState extends State<CachedArtwork> {
     setState(() {
       _isLoading = true;
       _localPath = null;
+      _networkFallbackUrl = null;
     });
 
     try {
@@ -203,6 +206,7 @@ class _CachedArtworkState extends State<CachedArtwork> {
           setState(() {
             _localPath = cachedPath;
             _isLoading = false;
+            _networkFallbackUrl = null;
           });
         }
         return;
@@ -219,6 +223,7 @@ class _CachedArtworkState extends State<CachedArtwork> {
             setState(() {
               _localPath = cachedPath;
               _isLoading = false;
+              _networkFallbackUrl = null;
             });
           }
           return;
@@ -230,6 +235,7 @@ class _CachedArtworkState extends State<CachedArtwork> {
             !requestToken.isCancelled) {
           setState(() {
             _isLoading = false;
+            _networkFallbackUrl = null;
           });
         }
         return;
@@ -243,6 +249,7 @@ class _CachedArtworkState extends State<CachedArtwork> {
             !requestToken.isCancelled) {
           setState(() {
             _isLoading = false;
+            _networkFallbackUrl = null;
           });
         }
         return;
@@ -257,6 +264,15 @@ class _CachedArtworkState extends State<CachedArtwork> {
         priority: _requestPriority,
         cancellationToken: requestToken,
       );
+      if (cachedPath == null &&
+          _requestCancellationToken == requestToken &&
+          !requestToken.isCancelled) {
+        cachedPath = await _retryOnlineArtworkCache(
+          cacheKey: cacheKey,
+          effectiveUrl: effectiveUrl,
+          requestToken: requestToken,
+        );
+      }
 
       if (mounted &&
           _requestCancellationToken == requestToken &&
@@ -265,11 +281,14 @@ class _CachedArtworkState extends State<CachedArtwork> {
           setState(() {
             _localPath = cachedPath;
             _isLoading = false;
+            _networkFallbackUrl = null;
           });
         } else {
-          // Caching failed, try loading directly from network
+          // Caching failed after retry - use direct network rendering as a
+          // visual fallback instead of a terminal placeholder state.
           setState(() {
             _isLoading = false;
+            _networkFallbackUrl = effectiveUrl;
           });
         }
       }
@@ -282,9 +301,27 @@ class _CachedArtworkState extends State<CachedArtwork> {
       if (mounted && _requestCancellationToken == requestToken) {
         setState(() {
           _isLoading = false;
+          _networkFallbackUrl = null;
         });
       }
     }
+  }
+
+  Future<String?> _retryOnlineArtworkCache({
+    required String cacheKey,
+    required String effectiveUrl,
+    required MediaRequestCancellationToken requestToken,
+  }) async {
+    await Future<void>.delayed(const Duration(milliseconds: 220));
+    if (_requestCancellationToken != requestToken || requestToken.isCancelled) {
+      return null;
+    }
+    return _cacheManager.cacheArtwork(
+      cacheKey,
+      effectiveUrl,
+      priority: _requestPriority,
+      cancellationToken: requestToken,
+    );
   }
 
   MediaRequestPriority get _requestPriority {
@@ -383,6 +420,24 @@ class _CachedArtworkState extends State<CachedArtwork> {
         height: widget.height,
         fit: widget.fit,
         gaplessPlayback: true,
+        errorBuilder: (context, error, stackTrace) {
+          return _buildFallback();
+        },
+      );
+    } else if (_networkFallbackUrl != null && !_offlineService.isOffline) {
+      imageWidget = Image.network(
+        _networkFallbackUrl!,
+        width: widget.width,
+        height: widget.height,
+        fit: widget.fit,
+        headers: _connectionService.authHeaders,
+        gaplessPlayback: true,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) {
+            return child;
+          }
+          return _buildPlaceholder(showLoading: true);
+        },
         errorBuilder: (context, error, stackTrace) {
           return _buildFallback();
         },

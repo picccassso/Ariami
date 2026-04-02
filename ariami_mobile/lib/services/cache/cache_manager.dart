@@ -37,7 +37,7 @@ class CacheManager {
   String? _songCachePath;
 
   // Track ongoing cache operations to avoid duplicates
-  final Set<String> _pendingArtwork = {};
+  final Map<String, Future<String?>> _inFlightArtworkRequests = {};
   final Set<String> _pendingSongs = {};
 
   // Concurrency limiter for artwork downloads
@@ -105,6 +105,11 @@ class CacheManager {
     print('[CacheManager] Initialized');
     print('[CacheManager] Artwork cache: $_artworkCachePath');
     print('[CacheManager] Song cache: $_songCachePath');
+
+    // Repair sparse metadata in the background on migrated installs without
+    // blocking startup. This keeps thumbnail lookups resilient if legacy files
+    // exist but metadata was only partially imported.
+    unawaited(_repairArtworkMetadataFromDiskIfNeeded());
   }
 
   /// Ensure initialization
@@ -182,21 +187,31 @@ class CacheManager {
       return _artworkPathCache[albumId];
     }
 
-    // Check if already being cached by another request
-    if (_pendingArtwork.contains(albumId)) {
-      return null;
+    // Share existing in-flight request so duplicate callers receive the same
+    // outcome instead of failing fast with null.
+    final inFlightRequest = _inFlightArtworkRequests[albumId];
+    if (inFlightRequest != null) {
+      return _awaitInFlightArtworkRequest(
+        inFlightRequest,
+        cancellationToken: cancellationToken,
+      );
     }
 
-    _pendingArtwork.add(albumId);
+    final requestCompleter = Completer<String?>();
+    _inFlightArtworkRequests[albumId] = requestCompleter.future;
+    var acquiredSlot = false;
+    String? result;
 
     // Wait for a download slot (limits concurrent network requests)
-    final acquired = await _acquireArtworkSlot();
-    if (!acquired) {
-      _pendingArtwork.remove(albumId);
-      return null;
-    }
-
     try {
+      acquiredSlot = await _acquireArtworkSlot();
+      if (!acquiredSlot) {
+        return null;
+      }
+      if (cancellationToken?.isCancelled ?? false) {
+        return null;
+      }
+
       final filePath = '$_artworkCachePath/$albumId.jpg';
 
       // Download artwork
@@ -246,7 +261,8 @@ class CacheManager {
 
       print(
           '[CacheManager] Cached artwork: $albumId (${entry.getFormattedSize()})');
-      return filePath;
+      result = filePath;
+      return result;
     } on DioException catch (e) {
       if (CancelToken.isCancel(e)) {
         return null;
@@ -257,14 +273,51 @@ class CacheManager {
       print('[CacheManager] Failed to cache artwork $albumId: $e');
       return null;
     } finally {
-      _pendingArtwork.remove(albumId);
-      _releaseArtworkSlot();
+      if (!requestCompleter.isCompleted) {
+        requestCompleter.complete(result);
+      }
+      _inFlightArtworkRequests.remove(albumId);
+      if (acquiredSlot) {
+        _releaseArtworkSlot();
+      }
     }
+  }
+
+  Future<String?> _awaitInFlightArtworkRequest(
+    Future<String?> request, {
+    MediaRequestCancellationToken? cancellationToken,
+  }) async {
+    if (cancellationToken == null) {
+      return request;
+    }
+    if (cancellationToken.isCancelled) {
+      return null;
+    }
+
+    final cancellationCompleter = Completer<String?>();
+    cancellationToken.onCancel(() {
+      if (!cancellationCompleter.isCompleted) {
+        cancellationCompleter.complete(null);
+      }
+    });
+
+    final result = await Future.any<String?>(
+      <Future<String?>>[
+        request,
+        cancellationCompleter.future,
+      ],
+    );
+
+    if (!cancellationCompleter.isCompleted) {
+      cancellationCompleter.complete(result);
+    }
+    return result;
   }
 
   /// Store artwork from local bytes (e.g. extracted from a downloaded audio file).
   /// Does not use the network artwork download queue or concurrency slots.
-  Future<String?> cacheArtworkFromBytes(String cacheKey, List<int> bytes) async {
+  Future<String?> cacheArtworkFromBytes(
+      String cacheKey, List<int> bytes) async {
     await _ensureInitialized();
 
     if (!_database.isCacheEnabled()) return null;
@@ -512,7 +565,13 @@ class CacheManager {
     _enforceLimitTimer?.cancel();
     _enforceLimitTimer = Timer(const Duration(seconds: 2), () async {
       _enforceLimitPending = false;
-      await _enforceStorageLimitActual();
+      try {
+        await _enforceStorageLimitActual();
+      } catch (e) {
+        // Timer can fire during shutdown/test teardown after DB lifecycle
+        // changes. Skip silently so delayed maintenance never crashes flows.
+        print('[CacheManager] Deferred storage limit check skipped: $e');
+      }
     });
   }
 
@@ -667,6 +726,93 @@ class CacheManager {
     }
   }
 
+  /// Opportunistically reindex artwork files that exist on disk but are
+  /// missing from the metadata database (common after interrupted migrations).
+  ///
+  /// Runs in the background and yields periodically to avoid startup jank.
+  Future<void> _repairArtworkMetadataFromDiskIfNeeded() async {
+    try {
+      final artworkPath = _artworkCachePath;
+      if (artworkPath == null || artworkPath.isEmpty) {
+        return;
+      }
+
+      final artworkDir = Directory(artworkPath);
+      if (!await artworkDir.exists()) {
+        return;
+      }
+
+      final artworkFiles = <File>[];
+      await for (final entity in artworkDir.list()) {
+        if (entity is File && entity.path.toLowerCase().endsWith('.jpg')) {
+          artworkFiles.add(entity);
+        }
+      }
+      if (artworkFiles.isEmpty) {
+        return;
+      }
+
+      final dbArtworkCount =
+          await _database.getCacheCountByType(CacheType.artwork);
+      if (dbArtworkCount >= artworkFiles.length) {
+        return;
+      }
+
+      final knownIds = (await _database.getEntriesByType(CacheType.artwork))
+          .map((entry) => entry.id)
+          .toSet();
+
+      const batchSize = 200;
+      var scanned = 0;
+      var reindexed = 0;
+      for (final file in artworkFiles) {
+        scanned++;
+        final segments = file.uri.pathSegments;
+        final fileName = segments.isEmpty ? '' : segments.last;
+        if (!fileName.toLowerCase().endsWith('.jpg') || fileName.length <= 4) {
+          continue;
+        }
+        final cacheKey = fileName.substring(0, fileName.length - 4);
+        if (cacheKey.isEmpty || knownIds.contains(cacheKey)) {
+          continue;
+        }
+
+        try {
+          final stat = await file.stat();
+          final timestamp = stat.modified.millisecondsSinceEpoch > 0
+              ? stat.modified
+              : DateTime.now();
+          final entry = CacheEntry(
+            id: cacheKey,
+            type: CacheType.artwork,
+            path: file.path,
+            size: stat.size,
+            lastAccessed: timestamp,
+            createdAt: timestamp,
+          );
+          await _database.upsertCacheEntry(entry);
+          _artworkPathCache[cacheKey] = file.path;
+          knownIds.add(cacheKey);
+          reindexed++;
+        } catch (_) {
+          // Ignore unreadable files and continue repairing.
+        }
+
+        if (scanned % batchSize == 0) {
+          await Future<void>.delayed(const Duration(milliseconds: 4));
+        }
+      }
+
+      if (reindexed > 0) {
+        _cacheSizeInitialized = false;
+        print(
+            '[CacheManager] Reindexed $reindexed artwork metadata entries from disk');
+      }
+    } catch (e) {
+      print('[CacheManager] Artwork metadata repair skipped: $e');
+    }
+  }
+
   // ============================================================================
   // SETTINGS
   // ============================================================================
@@ -754,6 +900,48 @@ class CacheManager {
   /// Dispose resources
   void dispose() {
     _enforceLimitTimer?.cancel();
+    try {
+      _dio.close(force: true);
+    } catch (_) {
+      // Safe to ignore when dispose is called before initialization.
+    }
     _cacheUpdateController.close();
+  }
+
+  /// Reset singleton state for deterministic test teardown.
+  ///
+  /// This closes open database/network resources and clears in-memory queues so
+  /// widget tests can exit cleanly without lingering async handles.
+  Future<void> resetForTests() async {
+    _enforceLimitTimer?.cancel();
+    _enforceLimitTimer = null;
+    _enforceLimitPending = false;
+
+    for (final waiter in _artworkDownloadQueue) {
+      if (!waiter.isCompleted) {
+        waiter.complete();
+      }
+    }
+    _artworkDownloadQueue.clear();
+    _activeArtworkDownloads = 0;
+
+    _inFlightArtworkRequests.clear();
+    _pendingSongs.clear();
+    _artworkPathCache.clear();
+    _cachedTotalSize = 0;
+    _cacheSizeInitialized = false;
+
+    try {
+      _dio.close(force: true);
+    } catch (_) {
+      // Safe to ignore when reset is called before initialization.
+    }
+
+    if (_initialized) {
+      await _database.close();
+    }
+    _initialized = false;
+    _artworkCachePath = null;
+    _songCachePath = null;
   }
 }
