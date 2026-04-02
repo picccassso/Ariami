@@ -23,7 +23,9 @@ class AlbumArtworkHeader extends StatelessWidget {
         fit: StackFit.expand,
         children: [
           // Album artwork (parallax effect handled by SliverAppBar)
-          _buildArtwork(),
+          Positioned.fill(
+            child: _buildArtwork(),
+          ),
 
           // Gradient overlay for text readability
           Container(
