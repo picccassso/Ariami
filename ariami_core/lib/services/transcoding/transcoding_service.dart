@@ -279,8 +279,9 @@ class TranscodingService {
 
   /// Process next streaming task in queue if capacity available.
   void _processNextStreamingQueue() {
-    if (_streamingQueue.isEmpty || _runningStreamingCount >= maxConcurrency)
+    if (_streamingQueue.isEmpty || _runningStreamingCount >= maxConcurrency) {
       return;
+    }
 
     final task = _streamingQueue.removeFirst();
     // Re-invoke getTranscodedFile for the queued task (streaming cache)
@@ -298,7 +299,9 @@ class TranscodingService {
   /// Process next download task in queue if capacity available.
   void _processNextDownloadQueue() {
     if (_downloadQueue.isEmpty ||
-        _runningDownloadCount >= maxDownloadConcurrency) return;
+        _runningDownloadCount >= maxDownloadConcurrency) {
+      return;
+    }
 
     final task = _downloadQueue.removeFirst();
     _runDownloadQueueTask(task);

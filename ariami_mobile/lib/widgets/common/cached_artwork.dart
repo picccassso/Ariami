@@ -2,6 +2,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../services/api/connection_service.dart';
 import '../../services/cache/cache_manager.dart';
+import '../../services/download/download_manager.dart';
+import '../../services/download/local_artwork_extractor.dart';
 import '../../services/offline/offline_playback_service.dart';
 import '../../services/media/media_request_scheduler.dart';
 
@@ -82,7 +84,10 @@ class CachedArtwork extends StatefulWidget {
 }
 
 class _CachedArtworkState extends State<CachedArtwork> {
+  static final Set<String> _pendingExtractions = <String>{};
+
   final CacheManager _cacheManager = CacheManager();
+  final DownloadManager _downloadManager = DownloadManager();
   final OfflinePlaybackService _offlineService = OfflinePlaybackService();
   final ConnectionService _connectionService = ConnectionService();
 
@@ -203,9 +208,23 @@ class _CachedArtworkState extends State<CachedArtwork> {
         return;
       }
 
-      // No cached version (neither primary nor fallback) - check if we have a URL to fetch from
-      if (effectiveUrl == null) {
-        // No URL and no cache - show fallback
+      // Check if offline - don't fetch from network in offline mode.
+      // If cache is missing, try a one-off extraction from local downloaded file.
+      if (_offlineService.isOffline) {
+        cachedPath = await _tryExtractFromLocalFile(requestToken: requestToken);
+        if (cachedPath != null && await File(cachedPath).exists()) {
+          if (mounted &&
+              _requestCancellationToken == requestToken &&
+              !requestToken.isCancelled) {
+            setState(() {
+              _localPath = cachedPath;
+              _isLoading = false;
+            });
+          }
+          return;
+        }
+
+        // Offline, not cached, and no extractable local artwork - show fallback
         if (mounted &&
             _requestCancellationToken == requestToken &&
             !requestToken.isCancelled) {
@@ -216,9 +235,9 @@ class _CachedArtworkState extends State<CachedArtwork> {
         return;
       }
 
-      // Check if offline - don't fetch from network in offline mode
-      if (_offlineService.isOffline) {
-        // Offline and not cached - show fallback
+      // No cached version (neither primary nor fallback) - check if we have a URL to fetch from
+      if (effectiveUrl == null) {
+        // No URL and no cache - show fallback
         if (mounted &&
             _requestCancellationToken == requestToken &&
             !requestToken.isCancelled) {
@@ -278,6 +297,75 @@ class _CachedArtworkState extends State<CachedArtwork> {
   void _cancelArtworkRequest() {
     _requestCancellationToken?.cancel();
     _requestCancellationToken = null;
+  }
+
+  Future<String?> _tryExtractFromLocalFile({
+    required MediaRequestCancellationToken requestToken,
+  }) async {
+    final sourceKey = _normalizeSourceKey(widget.albumId);
+    if (sourceKey.isEmpty) return null;
+
+    final extractionKey = 'source:$sourceKey';
+    if (_pendingExtractions.contains(extractionKey)) {
+      // Another widget is extracting this same source.
+      // Wait briefly and re-check cache instead of duplicating IO.
+      for (var attempt = 0; attempt < 6; attempt++) {
+        if (requestToken.isCancelled) return null;
+        await Future<void>.delayed(const Duration(milliseconds: 60));
+        final existingPath = await _cacheManager.getArtworkPathWithFallback(
+          _cacheKey,
+          _fallbackCacheKey,
+        );
+        if (existingPath != null && await File(existingPath).exists()) {
+          return existingPath;
+        }
+      }
+      return null;
+    }
+
+    _pendingExtractions.add(extractionKey);
+    try {
+      if (requestToken.isCancelled) return null;
+
+      String? localSongPath;
+      if (_isSongCacheKey(sourceKey)) {
+        final songId = sourceKey.substring(5).trim();
+        if (songId.isEmpty) return null;
+        localSongPath = _downloadManager.getDownloadedSongPath(songId);
+      } else {
+        localSongPath = _downloadManager.getAnyDownloadedSongPathForAlbum(
+          sourceKey,
+        );
+      }
+
+      if (localSongPath == null || localSongPath.isEmpty) return null;
+      if (!await File(localSongPath).exists()) return null;
+
+      final bytes = await LocalArtworkExtractor.extractArtwork(localSongPath);
+      if (requestToken.isCancelled || bytes == null || bytes.isEmpty) {
+        return null;
+      }
+
+      return await _cacheManager.cacheArtworkFromBytes(_cacheKey, bytes);
+    } catch (e) {
+      debugPrint(
+          '[CachedArtwork] Local artwork extraction failed for ${widget.albumId}: $e');
+      return null;
+    } finally {
+      _pendingExtractions.remove(extractionKey);
+    }
+  }
+
+  String _normalizeSourceKey(String key) {
+    final normalized = key.trim();
+    if (normalized.endsWith('_thumb')) {
+      return normalized.substring(0, normalized.length - '_thumb'.length);
+    }
+    return normalized;
+  }
+
+  bool _isSongCacheKey(String key) {
+    return key.startsWith('song_') && key.length > 'song_'.length;
   }
 
   @override

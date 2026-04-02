@@ -825,6 +825,12 @@ class DownloadManager {
           !await cacheManager.isArtworkCached(task.albumId!)) {
         await cacheManager.cacheArtworkFromBytes(task.albumId!, bytes);
       }
+      if (task.albumId != null) {
+        final thumbKey = '${task.albumId!}_thumb';
+        if (!await cacheManager.isArtworkCached(thumbKey)) {
+          await cacheManager.cacheArtworkFromBytes(thumbKey, bytes);
+        }
+      }
     } catch (e) {
       // Don't fail the download if artwork caching fails
       print('[DownloadManager] Failed to cache artwork: $e');
@@ -834,7 +840,7 @@ class DownloadManager {
   /// One-time backfill: extract embedded art from already-downloaded files
   /// (works offline; no server required).
   Future<void> _backfillArtworkForExistingDownloads() async {
-    const backfillKey = 'artwork_backfill_v3';
+    const backfillKey = 'artwork_backfill_v4';
     final prefs = await SharedPreferences.getInstance();
 
     if (prefs.getBool(backfillKey) == true) {
@@ -872,6 +878,12 @@ class DownloadManager {
         if (task.albumId != null &&
             !await cacheManager.isArtworkCached(task.albumId!)) {
           await cacheManager.cacheArtworkFromBytes(task.albumId!, bytes);
+        }
+        if (task.albumId != null) {
+          final thumbKey = '${task.albumId!}_thumb';
+          if (!await cacheManager.isArtworkCached(thumbKey)) {
+            await cacheManager.cacheArtworkFromBytes(thumbKey, bytes);
+          }
         }
         backfilledCount++;
       } catch (e) {
@@ -911,6 +923,21 @@ class DownloadManager {
     final task = _getScopedTask('song_$songId');
     if (task?.status == DownloadStatus.completed) {
       return _getSongFilePath(songId);
+    }
+    return null;
+  }
+
+  /// Get any downloaded local file path for a given album.
+  /// Returns null when the album has no completed downloads.
+  String? getAnyDownloadedSongPathForAlbum(String albumId) {
+    final normalizedAlbumId = albumId.trim();
+    if (normalizedAlbumId.isEmpty) return null;
+
+    for (final task in _getScopedQueue()) {
+      if (task.status == DownloadStatus.completed &&
+          task.albumId == normalizedAlbumId) {
+        return _getSongFilePath(task.songId);
+      }
     }
     return null;
   }

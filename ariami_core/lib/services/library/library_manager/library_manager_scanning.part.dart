@@ -65,7 +65,7 @@ extension _LibraryManagerScanningPart on LibraryManager {
       _durationsReady = false;
       _durationWarmupRunning = false;
 
-      await this._writeCatalogBatchForChanges(
+      await _writeCatalogBatchForChanges(
         update: update,
         previousLibrary: currentLibrary,
         updatedLibrary: updatedLibrary,
@@ -79,7 +79,7 @@ extension _LibraryManagerScanningPart on LibraryManager {
           'latestToken: $_latestCatalogToken)');
 
       _notifyScanComplete();
-      unawaited(this._startDurationWarmup());
+      unawaited(_startDurationWarmup());
     } catch (e, stackTrace) {
       print('[LibraryManager] ERROR applying file-change batch: $e');
       print('[LibraryManager] File-change stack trace: $stackTrace');
@@ -137,7 +137,7 @@ extension _LibraryManagerScanningPart on LibraryManager {
         print('[LibraryManager] Total songs: ${_library!.totalSongs}');
 
         // Persist deterministic catalog rows + change log for v2 sync.
-        await this._writeCatalogSnapshot();
+        await _writeCatalogSnapshot();
 
         // Watch for incremental filesystem changes after scan.
         _startWatchingFolder(folderPath);
@@ -146,7 +146,7 @@ extension _LibraryManagerScanningPart on LibraryManager {
         _notifyScanComplete();
 
         // Warm up durations asynchronously (non-blocking)
-        unawaited(this._startDurationWarmup());
+        unawaited(_startDurationWarmup());
       } else {
         print(
             '[LibraryManager] Scan returned null - possible error in isolate');

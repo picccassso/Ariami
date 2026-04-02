@@ -40,7 +40,7 @@ extension _LibraryManagerDurationPart on LibraryManager {
     for (final album in _library!.albums.values) {
       for (var i = 0; i < album.songs.length; i++) {
         final song = album.songs[i];
-        final songId = this._generateSongId(song.filePath);
+        final songId = _generateSongId(song.filePath);
 
         final cached = _durationCache[songId];
         if (cached != null &&
@@ -76,7 +76,7 @@ extension _LibraryManagerDurationPart on LibraryManager {
 
     for (var i = 0; i < _library!.standaloneSongs.length; i++) {
       final song = _library!.standaloneSongs[i];
-      final songId = this._generateSongId(song.filePath);
+      final songId = _generateSongId(song.filePath);
 
       final cached = _durationCache[songId];
       if (cached != null &&
@@ -118,7 +118,7 @@ extension _LibraryManagerDurationPart on LibraryManager {
 
   bool _songNeedsDuration(SongMetadata song) {
     if (song.duration != null && song.duration! > 0) return false;
-    final songId = this._generateSongId(song.filePath);
+    final songId = _generateSongId(song.filePath);
     final cached = _durationCache[songId];
     return cached == null || cached == 0;
   }
@@ -149,7 +149,7 @@ extension _LibraryManagerDurationPart on LibraryManager {
     // Search in all albums
     for (final album in _library!.albums.values) {
       for (final song in album.songs) {
-        if (this._generateSongId(song.filePath) == songId) {
+        if (_generateSongId(song.filePath) == songId) {
           return song.filePath;
         }
       }
@@ -157,7 +157,7 @@ extension _LibraryManagerDurationPart on LibraryManager {
 
     // Search in standalone songs
     for (final song in _library!.standaloneSongs) {
-      if (this._generateSongId(song.filePath) == songId) {
+      if (_generateSongId(song.filePath) == songId) {
         return song.filePath;
       }
     }
@@ -170,7 +170,7 @@ extension _LibraryManagerDurationPart on LibraryManager {
 
     for (final album in _library!.albums.values) {
       for (final song in album.songs) {
-        if (this._generateSongId(song.filePath) == songId) {
+        if (_generateSongId(song.filePath) == songId) {
           return album.id;
         }
       }
@@ -189,7 +189,7 @@ extension _LibraryManagerDurationPart on LibraryManager {
       return null;
     }
 
-    final source = await this._extractAlbumArtworkSource(album);
+    final source = await _extractAlbumArtworkSource(album);
     return source?.artworkBytes;
   }
 
@@ -231,14 +231,14 @@ extension _LibraryManagerDurationPart on LibraryManager {
 
     for (final album in _library!.albums.values) {
       for (final song in album.songs) {
-        if (this._generateSongId(song.filePath) == songId) {
+        if (_generateSongId(song.filePath) == songId) {
           return song;
         }
       }
     }
 
     for (final song in _library!.standaloneSongs) {
-      if (this._generateSongId(song.filePath) == songId) {
+      if (_generateSongId(song.filePath) == songId) {
         return song;
       }
     }
@@ -252,7 +252,7 @@ extension _LibraryManagerDurationPart on LibraryManager {
     for (final album in _library!.albums.values) {
       for (var i = 0; i < album.songs.length; i++) {
         final song = album.songs[i];
-        if (this._generateSongId(song.filePath) == songId) {
+        if (_generateSongId(song.filePath) == songId) {
           final updated = song.copyWith(duration: duration);
           album.songs[i] = updated;
           return updated;
@@ -262,7 +262,7 @@ extension _LibraryManagerDurationPart on LibraryManager {
 
     for (var i = 0; i < _library!.standaloneSongs.length; i++) {
       final song = _library!.standaloneSongs[i];
-      if (this._generateSongId(song.filePath) == songId) {
+      if (_generateSongId(song.filePath) == songId) {
         final updated = song.copyWith(duration: duration);
         _library!.standaloneSongs[i] = updated;
         return updated;
