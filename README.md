@@ -3,17 +3,17 @@
   <h1>Ariami</h1>
 </div>
 
-Ariami is a self-hosted server and music player.
+Ariami is a self-hosted music library server with native desktop and mobile players.
 
 ---
 
 ## Quick Start
 
-1. **Download the server app** from [releases](https://github.com/picccassso/Ariami/releases) for your platform (macOS, Windows, Linux)
-2. **Download the mobile app** from [releases](https://github.com/picccassso/Ariami/releases) (Android APK) For iOS, you will have to build it and run it yourself.
-3. **Download and install Tailscale on both devices** from (https://tailscale.com/download)
-4. **Run the server and select music folder.**
-5. **Scan the QR code** with the mobile app and you're good to go.
+1. **Download the desktop server** from [releases](https://github.com/picccassso/Ariami/releases). Pick the ZIP for your OS (for example `Ariami-Desktop-v3.2.0-macos.zip`, `Ariami-Desktop-v3.2.0-windows.zip`, or `Ariami-Desktop-v3.2.0-linux.zip` — filenames follow that pattern for each version).
+2. **Download the Android app** from the same [releases](https://github.com/picccassso/Ariami/releases) page (`ariami_apk_release_v3.2.0.apk` for v3.2.0). For iOS, you will have to build it and run it yourself.
+3. **Install Tailscale** on the computer running the server and on your phone: [tailscale.com/download](https://tailscale.com/download)
+4. **Run the server** and choose your music folder.
+5. **Scan the QR code** shown by the server with the mobile app to connect.
 
 ### For Raspberry Pi
 
@@ -44,60 +44,45 @@ It is cross-platform so you can run this on your Mac/Windows/Linux machine, and 
 ## Features of Ariami:
 
 **Music Library**
-- It automatically scans your music library.
-- It uses embedded tags so it doesn't rely on external data which could mess up your library.
-- Groups albums correctly.
-- Supports large libraries.
-- Incremental v2 sync architecture is in place, with local mobile storage and server-managed change tracking.
+- Automatically scans your library and groups albums using embedded tags, so your metadata stays yours and does not depend on flaky external lookups.
+- Handles large libraries comfortably.
+- Incremental v2 sync: the phone keeps a local copy of the catalog, and the server tracks changes so you are not constantly doing full rescans.
+- On mobile, you can use a mixed library view that shows albums and playlists in one place (toggle from the library). Sorting favours what you opened recently on the device, then falls back to the usual ordering.
 
-**Multi-User Support**
-- Create user accounts with password authentication.
-- Each user gets their own session, downloads, and playback state.
-- Admin dashboard shows connected users and devices with the ability to kick devices and change passwords.
-- One active session per user at a time to keep things simple.
-- If no users are registered, the server runs in open mode for backward compatibility.
+**Multi-user**
+- Password-protected accounts; each user gets their own session, downloads, and playback state.
+- One active session per user at a time (signing in on another device replaces the previous session).
+- If no one has registered yet, the server runs in open mode so older single-user setups still work.
 
 **Playlists**
-- Create and manage playlists manually from the app. Can easily edit them, edit the photo for them etc.
-- Folders with [PLAYLIST] in their name are treated as playlists. These appear in the app and can be imported to your phone for local playback.
+- Create and edit playlists in the app, including artwork.
+- Folders whose names start with `[PLAYLIST]` become server-side playlists; you can import them to your phone for offline playback.
 
-**Offline and Local Playback**
-- You can download all your music for local playback without needing to be connected to the server.
-- Imported playlists are stored locally on your phone.
-- Each song played automatically gets cached if not downloaded for smoother playback.
-- Option to prefer local/cached files even when connected to the server.
-- Server-managed v2 download jobs are supported for large download batches.
-- Large download queues and UI updates have been optimised so bulk downloads behave much better.
+**Offline and downloads**
+- Download music for fully offline playback; imported playlists live on the device.
+- Streaming caches tracks you have not downloaded yet, and you can prefer local or cached files even when you are online.
+- Server-managed v2 download jobs for big batches, with the download UI tuned for large queues.
 
-**Streaming and Audio**
-- Stream music from your server to any supported client.
-- Server-side audio transcoding for compatibility with different devices.
-- Automatic quality switching based on network type (WiFi vs mobile data).
+**Streaming and audio**
+- Stream from the server to any supported client.
+- Server-side transcoding (using FFmpeg when it is installed on the server) so clients can use formats and quality levels that suit the device.
+- Quality presets that follow the connection type (for example Wi‑Fi vs mobile data).
 
-**Apps and Platforms**
-- Native apps that are available for iOS, Android, macOS, Windows and Linux.
-- CLI version available for headless servers.
-- Consistent UI across devices.
+**Apps and platforms**
+- Native apps for Android, iOS (build from source), macOS, Windows, and Linux, plus a CLI build with a web dashboard for headless servers.
 
-**Remote Access**
-- Secure access using Tailscale.
-- If your phone is on the same LAN as your server, Ariami now prefers the local network path automatically.
-- If you leave home and Tailscale is available, Ariami switches to the remote route automatically, then switches back to LAN when you return.
-- No port forwarding or anything of the sort.
+**Connection, dashboard, and QR**
+- No port forwarding: Tailscale gives you a private path to the server over the internet.
+- When your phone and server are on the same LAN, the app prefers that path; when you are away it uses Tailscale if it is up, and switches back to LAN when you return.
+- The dashboard (desktop app or CLI web UI) shows who is connected, lets admins kick a device or change passwords, and shows whether authentication is required or the server is still open.
+- QR setup includes LAN and Tailscale addresses when the server has both, so pairing works at home or on the road.
 
-**Listening Data**
-- Tracks basic listening stats for songs/albums/artists. Also shows average daily listening time for each.
-- More detailed planned stats (such as specific days etc).
-
-**Server Dashboard**
-- Shows connected users and active devices.
-- Admin controls to kick devices and change user passwords.
-- Auth status indicator showing whether authentication is required or open.
-- Connection setup and QR flow now include both LAN and Tailscale endpoints when available.
+**Listening data**
+- On the device, keeps listening stats for songs, albums, and artists, including average daily listening time.
+- Richer breakdowns (for example per calendar day) are planned.
 
 **Planned**
-- Additional Playlists tools
-- Ability for server to detect and transcode data in real time to optimise for different network connections (lower bit rate for worse WiFi/mobile data connections).
+- A lot of things I have not planned yet.
 
 ---
 
@@ -218,14 +203,6 @@ It is cross-platform so you can run this on your Mac/Windows/Linux machine, and 
 
 ---
 
-## Latest Updates
-
-- Lower-quality streaming on mobile is now more reliable. `medium` and `low` quality playback now use the same file-backed streaming path as `high`, which keeps range requests and seeking behavior consistent.
-- Mixed library mode has been improved on mobile. Playlists and albums can appear together in one combined Library view, the toggle now updates correctly, and mixed items keep the same artwork and UI details as the separate sections.
-- Mixed mode sorting now prioritises recently opened albums and playlists using lightweight local history on the device, then falls back to existing timestamps when needed.
-
----
-
 ## Building from Source
 
 If you want to build from source, check the README in each package folder:
@@ -234,7 +211,7 @@ If you want to build from source, check the README in each package folder:
 - `ariami_mobile/` - Mobile client app
 - `ariami_core/` - Shared library
 
-**Requirements:** Dart SDK ^3.5.0, Flutter (latest stable)
+**Requirements:** Dart SDK ^3.5.0, and Flutter (latest stable is fine for local builds; GitHub release binaries are built with Flutter 3.29.2).
 
 ---
 
