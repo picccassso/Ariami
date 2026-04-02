@@ -3,8 +3,12 @@ import 'package:ariami_mobile/screens/main/library/library_state.dart';
 import 'package:ariami_mobile/screens/main/library/widgets/albums_section.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import '../../../../test_support/sqflite_mock.dart';
 
 void main() {
+  setUpAll(installSqfliteTestMocks);
+  tearDownAll(uninstallSqfliteTestMocks);
+
   group('AlbumsSection', () {
     final testAlbums = [
       AlbumModel(
@@ -53,7 +57,7 @@ void main() {
       );
 
       await tester.pumpWidget(buildTestWidget(state: state));
-      await tester.pumpAndSettle();
+      await tester.pump();
 
       expect(find.text('Test Album 1'), findsOneWidget);
       expect(find.text('Test Album 2'), findsOneWidget);
@@ -67,7 +71,7 @@ void main() {
       );
 
       await tester.pumpWidget(buildTestWidget(state: state));
-      await tester.pumpAndSettle();
+      await tester.pump();
 
       expect(find.text('No albums found'), findsOneWidget);
     });
@@ -83,7 +87,7 @@ void main() {
       );
 
       await tester.pumpWidget(buildTestWidget(state: state));
-      await tester.pumpAndSettle();
+      await tester.pump();
 
       expect(find.text('No albums with downloaded songs'), findsOneWidget);
     });
@@ -98,7 +102,7 @@ void main() {
       );
 
       await tester.pumpWidget(buildTestWidget(state: state));
-      await tester.pumpAndSettle();
+      await tester.pump();
 
       expect(find.text('Test Album 1'), findsOneWidget);
       expect(find.text('Test Album 2'), findsNothing);
@@ -116,7 +120,7 @@ void main() {
         state: state,
         onAlbumTap: () => tapped = true,
       ));
-      await tester.pumpAndSettle();
+      await tester.pump();
 
       await tester.tap(find.text('Test Album 1'));
       await tester.pump();
@@ -137,7 +141,7 @@ void main() {
         state: state,
         onAlbumLongPress: () => longPressed = true,
       ));
-      await tester.pumpAndSettle();
+      await tester.pump();
 
       await tester.longPress(find.text('Test Album 1'));
       await tester.pump();
@@ -159,7 +163,7 @@ void main() {
         isOffline: true,
         onAlbumTap: () => tapped = true,
       ));
-      await tester.pumpAndSettle();
+      await tester.pump();
 
       // Should not trigger tap when offline and no downloads
       await tester.tap(find.text('Test Album 1'));
@@ -183,7 +187,7 @@ void main() {
         isOffline: true,
         onAlbumTap: () => tapped = true,
       ));
-      await tester.pumpAndSettle();
+      await tester.pump();
 
       await tester.tap(find.text('Test Album 1'));
       await tester.pump();

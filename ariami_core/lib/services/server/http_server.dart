@@ -28,8 +28,17 @@ import 'package:ariami_core/services/server/download_job_service.dart';
 import 'package:ariami_core/services/server/metrics_service.dart';
 import 'package:ariami_core/services/server/v2_handlers.dart';
 
-part 'http_server_methods.dart';
 part 'http_server_limiters.dart';
+part 'http_server_parts/lifecycle_and_config_part.dart';
+part 'http_server_parts/router_registration_part.dart';
+part 'http_server_parts/middleware_and_metrics_part.dart';
+part 'http_server_parts/setup_and_stats_handlers_part.dart';
+part 'http_server_parts/auth_and_admin_handlers_part.dart';
+part 'http_server_parts/connection_handlers_part.dart';
+part 'http_server_parts/download_jobs_handlers_part.dart';
+part 'http_server_parts/library_and_artwork_handlers_part.dart';
+part 'http_server_parts/stream_and_download_handlers_part.dart';
+part 'http_server_parts/websocket_and_static_part.dart';
 
 /// HTTP server for Ariami desktop application (Singleton)
 class AriamiHttpServer {

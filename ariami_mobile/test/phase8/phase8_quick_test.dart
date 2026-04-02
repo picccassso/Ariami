@@ -7,6 +7,7 @@ import 'package:ariami_mobile/widgets/library/playlist_card.dart';
 import 'package:ariami_mobile/widgets/library/playlist_list_item.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import '../test_support/sqflite_mock.dart';
 
 void main() {
   group('Phase 8 - P8-1 scheduler', () {
@@ -163,6 +164,9 @@ void main() {
   });
 
   group('Phase 8 - P8-2 playlist artwork id handling', () {
+    setUpAll(installSqfliteTestMocks);
+    tearDownAll(uninstallSqfliteTestMocks);
+
     PlaylistModel buildPlaylist({
       required String id,
       required List<String> songIds,
