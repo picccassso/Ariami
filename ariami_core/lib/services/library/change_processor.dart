@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:ariami_core/models/file_change.dart';
 import 'package:ariami_core/models/song_metadata.dart';
 import 'package:ariami_core/models/library_structure.dart';
+import 'package:ariami_core/services/library/album_grouping.dart';
 import 'package:ariami_core/services/library/metadata_extractor.dart';
 import 'package:ariami_core/services/library/album_builder.dart';
 
@@ -86,7 +87,7 @@ class ChangeProcessor {
           addedSongIds.add(songId);
 
           // Determine which album this will affect
-          final albumKey = _getAlbumKey(metadata);
+          final albumKey = albumGroupingKey(metadata);
           if (albumKey != null) {
             final albumId = _generateAlbumId(albumKey);
             affectedAlbumIds.add(albumId);
@@ -112,7 +113,7 @@ class ChangeProcessor {
             affectedAlbumIds.add(oldAlbumId);
           }
 
-          final albumKey = _getAlbumKey(metadata);
+          final albumKey = albumGroupingKey(metadata);
           if (albumKey != null) {
             final newAlbumId = _generateAlbumId(albumKey);
             affectedAlbumIds.add(newAlbumId);
@@ -140,19 +141,6 @@ class ChangeProcessor {
   /// Generates a unique album ID from album key
   String _generateAlbumId(String albumKey) {
     return md5.convert(utf8.encode(albumKey)).toString();
-  }
-
-  /// Gets the album key for a song (same logic as AlbumBuilder)
-  String? _getAlbumKey(SongMetadata song) {
-    final album = song.album?.trim();
-    if (album == null || album.isEmpty) {
-      return null;
-    }
-
-    // Use album artist if available, otherwise use artist
-    final artist = (song.albumArtist ?? song.artist ?? 'Unknown Artist').trim();
-
-    return '${album.toLowerCase()}|||${artist.toLowerCase()}';
   }
 
   /// Applies library updates to rebuild affected portions of the library

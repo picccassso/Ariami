@@ -12,6 +12,7 @@ import '../../services/download/download_manager.dart';
 import '../../services/offline/offline_playback_service.dart';
 import '../../widgets/search/search_result_song_item.dart';
 import '../../widgets/search/search_result_album_item.dart';
+import '../../debug/agent_debug_log.dart';
 
 /// Search screen with real-time search and recent searches
 class SearchScreen extends StatefulWidget {
@@ -145,6 +146,7 @@ class _SearchScreenState extends State<SearchScreen> {
         _allAlbums = albums;
         _isLoading = false;
       });
+      _logSongIdCollisions('online_bundle', allSongs);
     } catch (e) {
       setState(() {
         _isLoading = false;
@@ -202,6 +204,28 @@ class _SearchScreenState extends State<SearchScreen> {
       _allAlbums = albums;
       _isLoading = false;
     });
+    _logSongIdCollisions('offline_downloads', songs);
+  }
+
+  void _logSongIdCollisions(String source, List<SongModel> songs) {
+    final idCounts = <String, int>{};
+    for (final s in songs) {
+      idCounts[s.id] = (idCounts[s.id] ?? 0) + 1;
+    }
+    final dups = idCounts.entries.where((e) => e.value > 1).toList();
+    if (dups.isEmpty) return;
+    // #region agent log
+    agentDebugLog(
+      location: 'search_screen.dart:_logSongIdCollisions',
+      message: 'duplicate song ids in search library list',
+      hypothesisId: 'H4',
+      data: {
+        'source': source,
+        'duplicateSummaries':
+            dups.map((e) => {'id': e.key, 'count': e.value}).toList(),
+      },
+    );
+    // #endregion
   }
 
   /// Load recent songs from storage
@@ -755,6 +779,18 @@ class _SearchScreenState extends State<SearchScreen> {
   // ============================================================================
 
   Future<void> _playSong(SongModel song) async {
+    // #region agent log
+    agentDebugLog(
+      location: 'search_screen.dart:_playSong',
+      message: 'search play tap',
+      hypothesisId: 'H5',
+      data: {
+        'songId': song.id,
+        'title': song.title,
+        'durationSec': song.duration,
+      },
+    );
+    // #endregion
     // Convert SongModel to Song and play
     final playSong = Song(
       id: song.id,
