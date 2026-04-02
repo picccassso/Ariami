@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:math' show min;
 import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
+import 'package:ariami_core/debug/agent_debug_log.dart';
 import 'package:ariami_core/models/song_metadata.dart';
 
 /// Represents a group of duplicate songs
@@ -161,6 +162,18 @@ class DuplicateDetector {
     for (final entry in hashMap.entries) {
       if (entry.value.length > 1) {
         final sorted = _sortByQuality(entry.value);
+        // #region agent log
+        agentDebugLog(
+          location: 'duplicate_detector.dart:_hashGroupAndFindDuplicates',
+          message: 'exact partial-hash duplicate group',
+          hypothesisId: 'H3',
+          data: {
+            'originalPath': sorted.first.filePath,
+            'duplicatePaths': sorted.sublist(1).map((s) => s.filePath).toList(),
+            'fileSizes': sorted.map((s) => s.fileSize).toList(),
+          },
+        );
+        // #endregion
         groups.add(DuplicateGroup(
           original: sorted.first,
           duplicates: sorted.sublist(1),
@@ -211,6 +224,21 @@ class DuplicateDetector {
           final allMatches = [candidates[i], ...matches];
           final sorted = _sortByQuality(allMatches);
 
+          // #region agent log
+          agentDebugLog(
+            location: 'duplicate_detector.dart:_findMetadataDuplicates',
+            message: 'metadata duplicate group',
+            hypothesisId: 'H1',
+            data: {
+              'originalPath': sorted.first.filePath,
+              'duplicatePaths': sorted.sublist(1).map((s) => s.filePath).toList(),
+              'title': sorted.first.title,
+              'artist': sorted.first.artist,
+              'durationsSec': sorted.map((s) => s.duration).toList(),
+              'albums': sorted.map((s) => s.album).toList(),
+            },
+          );
+          // #endregion
           groups.add(DuplicateGroup(
             original: sorted.first,
             duplicates: sorted.sublist(1),

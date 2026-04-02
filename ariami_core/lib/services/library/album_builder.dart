@@ -3,15 +3,14 @@ import 'dart:convert';
 import 'package:ariami_core/models/album.dart';
 import 'package:ariami_core/models/song_metadata.dart';
 import 'package:ariami_core/models/library_structure.dart';
+import 'package:ariami_core/services/library/album_grouping.dart';
 
 /// Service for building album structures from song metadata
 class AlbumBuilder {
   /// Groups songs into albums based on metadata
   ///
-  /// Groups by:
-  /// 1. Album name + Album Artist (preferred)
-  /// 2. Album name + Artist (fallback)
-  /// 3. Handles "Various Artists" compilations
+  /// Uses [albumGroupingKey] (album + album artist, or normalized track artist).
+  /// Handles "Various Artists" compilations via [_isCompilation].
   ///
   /// Returns a LibraryStructure with albums and standalone songs
   LibraryStructure buildLibrary(List<SongMetadata> songs) {
@@ -20,7 +19,7 @@ class AlbumBuilder {
 
     // Group songs by album
     for (final song in songs) {
-      final albumKey = _getAlbumKey(song);
+      final albumKey = albumGroupingKey(song);
 
       if (albumKey == null) {
         // No album info, treat as standalone
@@ -51,28 +50,6 @@ class AlbumBuilder {
       albums: albums,
       standaloneSongs: standaloneSongs,
     );
-  }
-
-  /// Generates a unique key for grouping songs by album
-  ///
-  /// Priority:
-  /// 1. Album + Album Artist
-  /// 2. Album + Artist (fallback)
-  /// 3. null if no album info
-  String? _getAlbumKey(SongMetadata song) {
-    final album = song.album?.trim();
-    if (album == null || album.isEmpty) {
-      return null;
-    }
-
-    // Prefer album artist, fallback to artist
-    final artist = (song.albumArtist ?? song.artist)?.trim();
-    if (artist == null || artist.isEmpty) {
-      return null;
-    }
-
-    // Create a normalized key (lowercase for case-insensitive grouping)
-    return '${album.toLowerCase()}|||${artist.toLowerCase()}';
   }
 
   /// Builds an Album object from grouped songs

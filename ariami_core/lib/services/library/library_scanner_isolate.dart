@@ -9,6 +9,7 @@ import 'package:ariami_core/models/song_metadata.dart';
 import 'package:ariami_core/services/library/file_scanner.dart';
 import 'package:ariami_core/services/library/metadata_extractor.dart';
 import 'package:ariami_core/services/library/album_builder.dart';
+import 'package:ariami_core/debug/agent_debug_log.dart';
 import 'package:ariami_core/services/library/duplicate_detector.dart';
 
 /// Message types for isolate communication
@@ -254,6 +255,28 @@ class LibraryScannerIsolate {
       }
 
       await extractor.dispose();
+
+      // #region agent log
+      final idToPaths = <String, List<String>>{};
+      for (final s in songs) {
+        final sid = _generateSongId(s.filePath);
+        idToPaths.putIfAbsent(sid, () => []).add(s.filePath);
+      }
+      for (final e in idToPaths.entries) {
+        if (e.value.length > 1) {
+          agentDebugLog(
+            location: 'library_scanner_isolate.dart:scan',
+            message: 'song id collision (same 12-char id for different paths)',
+            hypothesisId: 'H2',
+            data: {
+              'songId': e.key,
+              'paths': e.value,
+              'count': e.value.length,
+            },
+          );
+        }
+      }
+      // #endregion
 
       // Step 3: Detect duplicates
       _sendProgress(sendPort, 'duplicates', 0, songs.length, 70.0,

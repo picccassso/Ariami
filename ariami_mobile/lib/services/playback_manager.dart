@@ -16,6 +16,7 @@ import 'stats/streaming_stats_service.dart';
 import 'color_extraction_service.dart';
 import 'quality/quality_settings_service.dart';
 import '../main.dart' show audioHandler;
+import '../debug/agent_debug_log.dart';
 
 /// Central playback manager that integrates Phase 6 audio services
 /// with Phase 7 UI components. Provides a single source of truth for
@@ -432,6 +433,18 @@ class PlaybackManager extends ChangeNotifier {
           if (localPath == null) {
             throw Exception('Local file path not found for downloaded song');
           }
+          // #region agent log
+          agentDebugLog(
+            location: 'playback_manager.dart:_playCurrentSong',
+            message: 'local playback path',
+            hypothesisId: 'H5',
+            data: {
+              'songId': song.id,
+              'title': song.title,
+              'localPath': localPath,
+            },
+          );
+          // #endregion
           audioUrl = 'file://$localPath';
           print('[PlaybackManager] Playing from downloaded file: $audioUrl');
 

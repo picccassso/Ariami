@@ -133,6 +133,7 @@ ariami_core/.dart_tool/
 
 # Music test folder (if used for testing)
 Music/
+/Downloaded Music/
 
 # Environment files
 .env
