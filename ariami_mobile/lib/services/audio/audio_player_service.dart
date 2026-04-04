@@ -13,8 +13,10 @@ class AudioPlayerService {
   factory AudioPlayerService() => _instance;
   AudioPlayerService._internal() {
     print('[AudioPlayerService] ========================================');
-    print('[AudioPlayerService] Constructor called - creating singleton instance');
-    print('[AudioPlayerService] audioHandler at construction time: ${audioHandler == null ? "NULL" : "NOT NULL"}');
+    print(
+        '[AudioPlayerService] Constructor called - creating singleton instance');
+    print(
+        '[AudioPlayerService] audioHandler at construction time: ${audioHandler == null ? "NULL" : "NOT NULL"}');
     print('[AudioPlayerService] ========================================');
   }
 
@@ -24,8 +26,10 @@ class AudioPlayerService {
 
     // Check if audioHandler is initialized
     if (audioHandler == null) {
-      print('[AudioPlayerService] ERROR: audioHandler is null - AudioService not initialized');
-      throw Exception('AudioService not initialized. Background audio is not available.');
+      print(
+          '[AudioPlayerService] ERROR: audioHandler is null - AudioService not initialized');
+      throw Exception(
+          'AudioService not initialized. Background audio is not available.');
     }
 
     try {
@@ -42,15 +46,20 @@ class AudioPlayerService {
     print('[AudioPlayerService] ========================================');
     print('[AudioPlayerService] playSong() called');
     print('[AudioPlayerService] Checking audioHandler status...');
-    print('[AudioPlayerService] audioHandler is: ${audioHandler == null ? "NULL" : "NOT NULL"}');
-    print('[AudioPlayerService] audioHandler type: ${audioHandler.runtimeType}');
-    print('[AudioPlayerService] audioHandler hashCode: ${audioHandler.hashCode}');
+    print(
+        '[AudioPlayerService] audioHandler is: ${audioHandler == null ? "NULL" : "NOT NULL"}');
+    print(
+        '[AudioPlayerService] audioHandler type: ${audioHandler.runtimeType}');
+    print(
+        '[AudioPlayerService] audioHandler hashCode: ${audioHandler.hashCode}');
     print('[AudioPlayerService] ========================================');
 
     // Check if audioHandler is initialized
     if (audioHandler == null) {
-      print('[AudioPlayerService] ERROR: audioHandler is null - AudioService not initialized');
-      throw Exception('AudioService not initialized. Background audio is not available.');
+      print(
+          '[AudioPlayerService] ERROR: audioHandler is null - AudioService not initialized');
+      throw Exception(
+          'AudioService not initialized. Background audio is not available.');
     }
 
     try {
@@ -64,10 +73,12 @@ class AudioPlayerService {
 
   /// Play audio from URL (legacy method for backwards compatibility)
   /// NOTE: This method is deprecated - use playSong() instead to get proper notifications
-  @Deprecated('Use playSong() instead to provide song metadata for notifications')
+  @Deprecated(
+      'Use playSong() instead to provide song metadata for notifications')
   Future<void> play(String streamUrl) async {
     try {
-      print('[AudioPlayerService] WARNING: play() called without song metadata');
+      print(
+          '[AudioPlayerService] WARNING: play() called without song metadata');
       print('[AudioPlayerService] Notification will not show proper song info');
       // We can't call audioHandler.playSong() without a Song object
       // This is intentionally left unimplemented to force migration to playSong()
@@ -134,7 +145,8 @@ class AudioPlayerService {
   /// Stream of player states
   Stream<PlayerState> get playerStateStream {
     final handler = audioHandler;
-    return handler?.playerStateStream ?? Stream.value(PlayerState(false, ProcessingState.idle));
+    return handler?.playerStateStream ??
+        Stream.value(PlayerState(false, ProcessingState.idle));
   }
 
   /// Stream of playback positions
@@ -167,6 +179,12 @@ class AudioPlayerService {
     return handler?.duration;
   }
 
+  /// Get current loaded song
+  Song? get currentSong {
+    final handler = audioHandler;
+    return handler?.currentSong;
+  }
+
   /// Get buffered position
   Duration get bufferedPosition {
     final handler = audioHandler;
@@ -187,13 +205,16 @@ class AudioPlayerService {
 
   /// Get the underlying audio player instance (for backwards compatibility)
   /// WARNING: Direct access to the player bypasses the foreground service!
-  @Deprecated('Direct player access bypasses foreground service - use service methods instead')
-  AudioPlayer? get player => null; // Intentionally return null to prevent direct access
+  @Deprecated(
+      'Direct player access bypasses foreground service - use service methods instead')
+  AudioPlayer? get player =>
+      null; // Intentionally return null to prevent direct access
 
   /// Dispose the player
   Future<void> dispose() async {
     // AudioHandler is disposed by the audio service, not by this service
     // We don't dispose it here to avoid stopping the foreground service
-    print('[AudioPlayerService] Dispose called - AudioHandler managed by AudioService');
+    print(
+        '[AudioPlayerService] Dispose called - AudioHandler managed by AudioService');
   }
 }

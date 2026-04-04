@@ -65,6 +65,7 @@ class PlaybackManager extends ChangeNotifier {
       _pendingUiPosition; // Temporary UI override for restored seek position
   bool _isInitialized = false;
   int _restoreGeneration = 0;
+  bool _isCastTransitionInProgress = false;
 
   // Getters
   Song? get currentSong => _queue.currentSong;
@@ -85,6 +86,7 @@ class PlaybackManager extends ChangeNotifier {
   PlaybackQueue get queue => _queue;
   bool get hasNext => _queue.hasNext;
   bool get hasPrevious => _queue.hasPrevious;
+  bool get isCastTransitionInProgress => _isCastTransitionInProgress;
 
   /// Initialize the playback manager and set up listeners
   void initialize() {
@@ -419,22 +421,64 @@ class PlaybackManager extends ChangeNotifier {
   }
 
   Future<void> startCastingToDevice(GoogleCastDevice device) async {
-    final snapshot = _PlaybackHandoffState(
+    if (_isCastTransitionInProgress) {
+      print('[PlaybackManager] Cast handoff already in progress');
+      return;
+    }
+    if (_castService.isConnected || _castService.isConnecting) {
+      print('[PlaybackManager] Cast handoff ignored: session already active');
+      return;
+    }
+
+    _isCastTransitionInProgress = true;
+    notifyListeners();
+
+    var snapshot = _PlaybackHandoffState(
       song: currentSong,
       position: _pendingUiPosition ?? _audioPlayer.position,
       wasPlaying: _audioPlayer.isPlaying,
     );
-
-    if (snapshot.wasPlaying) {
-      await _audioPlayer.pause();
-      _pendingUiPosition = snapshot.position;
-      notifyListeners();
-    }
+    final initialSongId = snapshot.song?.id;
+    final shouldFreezeLocal = snapshot.wasPlaying || _audioPlayer.isLoading;
 
     try {
+      if (shouldFreezeLocal) {
+        await _audioPlayer.pause();
+        await Future.delayed(const Duration(milliseconds: 120));
+
+        final frozenSong = currentSong;
+        if (initialSongId != null && frozenSong?.id != initialSongId) {
+          throw StateError(
+            'Playback changed during Chromecast handoff; aborting cast.',
+          );
+        }
+
+        final frozenPosition = _pendingUiPosition ?? _audioPlayer.position;
+        snapshot = _PlaybackHandoffState(
+          song: frozenSong ?? snapshot.song,
+          position: frozenPosition > snapshot.position
+              ? frozenPosition
+              : snapshot.position,
+          wasPlaying: snapshot.wasPlaying,
+        );
+        _pendingUiPosition = snapshot.position;
+        print(
+          '[PlaybackManager] Frozen local playback for cast: '
+          'song=${snapshot.song?.id}/${snapshot.song?.title} '
+          'position=${snapshot.position.inMilliseconds}ms '
+          'wasPlaying=${snapshot.wasPlaying}',
+        );
+        notifyListeners();
+      }
+
       await _castService.connectToDevice(device);
 
       if (snapshot.song != null) {
+        if (currentSong?.id != snapshot.song?.id) {
+          throw StateError(
+            'Queue song changed during Chromecast handoff; aborting cast.',
+          );
+        }
         final casted = await _castService.syncFromPlayback(
           song: snapshot.song,
           position: snapshot.position,
@@ -452,6 +496,9 @@ class PlaybackManager extends ChangeNotifier {
     } catch (e) {
       await _restoreLocalPlaybackSnapshot(snapshot);
       rethrow;
+    } finally {
+      _isCastTransitionInProgress = false;
+      notifyListeners();
     }
   }
 
@@ -767,14 +814,29 @@ class PlaybackManager extends ChangeNotifier {
       return;
     }
 
+    final loadedLocalSong = _audioPlayer.currentSong;
+    final loadedSongMatches = loadedLocalSong?.id == snapshot.song?.id;
+
     print(
       '[PlaybackManager] Restoring local snapshot: '
       'song=${snapshot.song?.id}/${snapshot.song?.title} '
+      'loadedLocalSong=${loadedLocalSong?.id}/${loadedLocalSong?.title} '
+      'loadedSongMatches=$loadedSongMatches '
       'target=${snapshot.position.inMilliseconds}ms '
       'wasPlaying=${snapshot.wasPlaying} '
       'localBefore=${_audioPlayer.position.inMilliseconds}ms',
     );
     _pendingUiPosition = snapshot.position;
+
+    if (!loadedSongMatches) {
+      print(
+        '[PlaybackManager] Loaded local song mismatch during restore, '
+        'reloading snapshot song instead of resuming in-place',
+      );
+      await _reloadLocalPlaybackFromSnapshot(snapshot);
+      notifyListeners();
+      return;
+    }
 
     try {
       await _audioPlayer.seek(snapshot.position);
