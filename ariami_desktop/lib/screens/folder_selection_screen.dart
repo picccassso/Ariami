@@ -36,7 +36,7 @@ class _FolderSelectionScreenState extends State<FolderSelectionScreen> {
 
     try {
       // Use confirmDialogText to force user interaction for macOS permissions
-      String? selectedDirectory = await FilePicker.platform.getDirectoryPath(
+      String? selectedDirectory = await FilePicker.getDirectoryPath(
         dialogTitle: 'Select Music Folder',
         lockParentWindow: true,
       );
