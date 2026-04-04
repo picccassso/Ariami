@@ -115,8 +115,7 @@ class _PlayerCastButtonState extends State<PlayerCastButton> {
                             title: Text(device.friendlyName),
                             onTap: () async {
                               Navigator.of(sheetContext).pop();
-                              await _connectAndSync(
-                                  device.friendlyName, device);
+                              await _connectAndSync(device);
                             },
                           );
                         },
@@ -134,17 +133,9 @@ class _PlayerCastButtonState extends State<PlayerCastButton> {
     await _castService.stopDiscovery();
   }
 
-  Future<void> _connectAndSync(
-    String deviceName,
-    GoogleCastDevice device,
-  ) async {
+  Future<void> _connectAndSync(GoogleCastDevice device) async {
     try {
       await widget.playbackManager.startCastingToDevice(device);
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Connected to $deviceName')),
-      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
