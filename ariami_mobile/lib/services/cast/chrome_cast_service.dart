@@ -56,6 +56,12 @@ class ChromeCastService extends ChangeNotifier {
   bool get isConnected => hasActiveSession && !_forceLocalPlayback;
 
   bool get isConnecting => connectionState == GoogleCastConnectState.connecting;
+  double get deviceVolume =>
+      GoogleCastSessionManager.instance.currentSession?.currentDeviceVolume ??
+      0.0;
+  bool get isDeviceMuted =>
+      GoogleCastSessionManager.instance.currentSession?.currentDeviceMuted ??
+      false;
   GoggleCastMediaStatus? get mediaStatus =>
       GoogleCastRemoteMediaClient.instance.mediaStatus;
   Duration get rawRemotePosition =>
@@ -122,6 +128,7 @@ class ChromeCastService extends ChangeNotifier {
         GoogleCastDiscoveryCriteriaInitialize.initWithApplicationID(
           _defaultCastAppId,
         ),
+        physicalVolumeButtonsWillControlDeviceVolume: true,
         stopCastingOnAppTerminated: true,
       );
     } else {
@@ -222,6 +229,16 @@ class ChromeCastService extends ChangeNotifier {
     _lastRemotePlayerState = playAfterSeek
         ? CastMediaPlayerState.playing
         : CastMediaPlayerState.paused;
+  }
+
+  void setDeviceVolume(double value) {
+    if (!hasActiveSession) {
+      return;
+    }
+
+    GoogleCastSessionManager.instance.setDeviceVolume(
+      value.clamp(0.0, 1.0).toDouble(),
+    );
   }
 
   /// Syncs the currently playing song to Chromecast when connected.
