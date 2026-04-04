@@ -192,6 +192,7 @@ void _seedCatalog(CatalogRepository repository) {
       id: 'playlist-a',
       name: 'Playlist A',
       songCount: 2,
+      durationSeconds: 300,
       updatedToken: 5,
     ),
   );

@@ -106,7 +106,7 @@ ON CONFLICT(artwork_key, variant) DO UPDATE SET
   }) {
     final albumsById = _buildAlbumSnapshots(library);
     final songsById = _buildSongSnapshots(library, songIdForPath);
-    final playlistsById = _buildPlaylistSnapshots(library);
+    final playlistsById = _buildPlaylistSnapshots(library, songIdForPath);
     final playlistSongsByKey =
         _buildPlaylistSongSnapshots(library, playlistsById);
 
@@ -206,6 +206,7 @@ ON CONFLICT(artwork_key, variant) DO UPDATE SET
             id: snapshot.id,
             name: snapshot.name,
             songCount: snapshot.songCount,
+            durationSeconds: snapshot.durationSeconds,
             updatedToken: tokenCursor,
           ),
         );
@@ -240,7 +241,7 @@ ON CONFLICT(artwork_key, variant) DO UPDATE SET
 
       for (final key in deletedPlaylistSongKeys) {
         tokenCursor += 1;
-        _repository.deletePlaylistSong(key.playlistId, key.songId);
+        _repository.deletePlaylistSong(key.playlistId, key.position);
         _insertChangeEvent(
           entityType: 'playlist_song',
           entityId: key.entityId,
@@ -358,13 +359,19 @@ ON CONFLICT(artwork_key, variant) DO UPDATE SET
 
   Map<String, _PlaylistSnapshot> _buildPlaylistSnapshots(
     LibraryStructure library,
+    String Function(String filePath) songIdForPath,
   ) {
     final snapshots = <String, _PlaylistSnapshot>{};
+    final songDurationsById = _buildSongDurationsById(library, songIdForPath);
     for (final playlist in library.folderPlaylists) {
       snapshots[playlist.id] = _PlaylistSnapshot(
         id: playlist.id,
         name: playlist.name,
         songIds: List<String>.from(playlist.songIds),
+        durationSeconds: _playlistDurationSeconds(
+          playlist.songIds,
+          songDurationsById,
+        ),
       );
     }
     return snapshots;
@@ -384,6 +391,7 @@ ON CONFLICT(artwork_key, variant) DO UPDATE SET
         final key = _PlaylistSongKey(
           playlistId: playlist.id,
           songId: songId,
+          position: index,
         );
         snapshots[key] = _PlaylistSongSnapshot(
           playlistId: playlist.id,
@@ -421,6 +429,42 @@ ON CONFLICT(artwork_key, variant) DO UPDATE SET
     );
   }
 
+  Map<String, int> _buildSongDurationsById(
+    LibraryStructure library,
+    String Function(String filePath) songIdForPath,
+  ) {
+    final durationsById = <String, int>{};
+
+    for (final album in library.albums.values.where((a) => a.isValid)) {
+      for (final song in album.songs) {
+        final duration = song.duration;
+        if (duration != null && duration > 0) {
+          durationsById[songIdForPath(song.filePath)] = duration;
+        }
+      }
+    }
+
+    for (final song in library.standaloneSongs) {
+      final duration = song.duration;
+      if (duration != null && duration > 0) {
+        durationsById[songIdForPath(song.filePath)] = duration;
+      }
+    }
+
+    return durationsById;
+  }
+
+  int _playlistDurationSeconds(
+    List<String> songIds,
+    Map<String, int> songDurationsById,
+  ) {
+    var totalDurationSeconds = 0;
+    for (final songId in songIds) {
+      totalDurationSeconds += songDurationsById[songId] ?? 0;
+    }
+    return totalDurationSeconds;
+  }
+
   List<String> _selectActiveIds(String tableName) {
     final rows = _database.select(
       '''
@@ -436,9 +480,9 @@ ORDER BY id ASC;
   List<_PlaylistSongKey> _selectPlaylistSongKeys() {
     final rows = _database.select(
       '''
-SELECT playlist_id, song_id
+SELECT playlist_id, song_id, position
 FROM playlist_songs
-ORDER BY playlist_id ASC, song_id ASC;
+ORDER BY playlist_id ASC, position ASC, song_id ASC;
 ''',
     );
     return rows
@@ -446,6 +490,7 @@ ORDER BY playlist_id ASC, song_id ASC;
           (row) => _PlaylistSongKey(
             playlistId: row['playlist_id'] as String,
             songId: row['song_id'] as String,
+            position: row['position'] as int,
           ),
         )
         .toList();
@@ -518,7 +563,7 @@ INSERT INTO library_changes (
       'id': snapshot.id,
       'name': snapshot.name,
       'songCount': snapshot.songCount,
-      'duration': 0,
+      'duration': snapshot.durationSeconds,
       'songIds': snapshot.songIds,
     });
   }
@@ -535,6 +580,7 @@ INSERT INTO library_changes (
     return jsonEncode(<String, dynamic>{
       'playlistId': key.playlistId,
       'songId': key.songId,
+      'position': key.position,
     });
   }
 }
@@ -590,11 +636,13 @@ class _PlaylistSnapshot {
     required this.id,
     required this.name,
     required this.songIds,
+    required this.durationSeconds,
   });
 
   final String id;
   final String name;
   final List<String> songIds;
+  final int durationSeconds;
 
   int get songCount => songIds.length;
 }
@@ -610,25 +658,31 @@ class _PlaylistSongSnapshot {
   final String songId;
   final int position;
 
-  String get entityId => '$playlistId:$songId';
+  String get entityId => '$playlistId:$position';
 }
 
 class _PlaylistSongKey implements Comparable<_PlaylistSongKey> {
   const _PlaylistSongKey({
     required this.playlistId,
     required this.songId,
+    required this.position,
   });
 
   final String playlistId;
   final String songId;
+  final int position;
 
-  String get entityId => '$playlistId:$songId';
+  String get entityId => '$playlistId:$position';
 
   @override
   int compareTo(_PlaylistSongKey other) {
     final playlistCompare = playlistId.compareTo(other.playlistId);
     if (playlistCompare != 0) {
       return playlistCompare;
+    }
+    final positionCompare = position.compareTo(other.position);
+    if (positionCompare != 0) {
+      return positionCompare;
     }
     return songId.compareTo(other.songId);
   }
@@ -637,9 +691,10 @@ class _PlaylistSongKey implements Comparable<_PlaylistSongKey> {
   bool operator ==(Object other) {
     return other is _PlaylistSongKey &&
         other.playlistId == playlistId &&
-        other.songId == songId;
+        other.songId == songId &&
+        other.position == position;
   }
 
   @override
-  int get hashCode => Object.hash(playlistId, songId);
+  int get hashCode => Object.hash(playlistId, songId, position);
 }

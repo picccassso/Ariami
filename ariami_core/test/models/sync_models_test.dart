@@ -79,8 +79,12 @@ void main() {
         token: 101,
         op: V2ChangeOperation.upsert,
         entityType: V2EntityType.playlistSong,
-        entityId: 'playlist-1:song-1',
-        payload: {'playlistId': 'playlist-1', 'songId': 'song-1'},
+        entityId: 'playlist-1:0',
+        payload: {
+          'playlistId': 'playlist-1',
+          'songId': 'song-1',
+          'position': 0
+        },
         occurredAt: '2026-02-07T10:00:00Z',
       );
 
@@ -90,8 +94,9 @@ void main() {
       expect(parsed.token, 101);
       expect(parsed.op, V2ChangeOperation.upsert);
       expect(parsed.entityType, V2EntityType.playlistSong);
-      expect(parsed.entityId, 'playlist-1:song-1');
+      expect(parsed.entityId, 'playlist-1:0');
       expect(parsed.payload?['playlistId'], 'playlist-1');
+      expect(parsed.payload?['position'], 0);
       expect(parsed.occurredAt, '2026-02-07T10:00:00Z');
     });
 

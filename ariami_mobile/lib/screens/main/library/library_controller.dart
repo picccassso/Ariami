@@ -318,9 +318,6 @@ class LibraryController extends ChangeNotifier {
 
   Future<void> _handleLibraryUpdatedMessage() async {
     if (await _isUsingV2LibrarySource()) {
-      if (!_state.isLoading) {
-        await _loadLibrary();
-      }
       return;
     }
 
@@ -616,8 +613,7 @@ class LibraryController extends ChangeNotifier {
       showDownloadedOnly: false,
     ));
 
-    if (library.durationsReady ||
-        library.source == LibraryReadSource.v2LocalStore) {
+    if (library.durationsReady) {
       _clearDurationRetries();
     } else {
       _durationsPending = true;

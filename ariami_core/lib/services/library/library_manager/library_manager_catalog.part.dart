@@ -214,6 +214,7 @@ extension _LibraryManagerCatalogPart on LibraryManager {
             id: record.id,
             name: record.name,
             songCount: record.songCount,
+            durationSeconds: record.durationSeconds,
             updatedToken: tokenCursor,
             isDeleted: false,
           ),
@@ -257,7 +258,7 @@ extension _LibraryManagerCatalogPart on LibraryManager {
 
       for (final key in deletedPlaylistSongKeys) {
         tokenCursor += 1;
-        repository.deletePlaylistSong(key.playlistId, key.songId);
+        repository.deletePlaylistSong(key.playlistId, key.position);
         _insertLibraryChangeEvent(
           database: database,
           entityType: 'playlist_song',
@@ -304,7 +305,16 @@ extension _LibraryManagerCatalogPart on LibraryManager {
     final repository = CatalogRepository(database: database);
     final songRecordsById = _buildCatalogSongRecordsById(library);
     final albumRecordsById = _buildCatalogAlbumRecordsById(library);
+    final playlistRecordsById = _buildCatalogPlaylistRecordsById(library);
     final songAlbumIds = _buildSongAlbumIdIndex(library);
+    final affectedPlaylistIds = library.folderPlaylists
+        .where(
+          (playlist) => playlist.songIds.any(updatedSongIds.contains),
+        )
+        .map((playlist) => playlist.id)
+        .toSet()
+        .toList()
+      ..sort();
     final affectedAlbumIds = updatedSongIds
         .map((songId) => songAlbumIds[songId])
         .whereType<String>()
@@ -375,6 +385,35 @@ extension _LibraryManagerCatalogPart on LibraryManager {
           entityId: albumId,
           op: 'upsert',
           payloadJson: _catalogAlbumPayloadJson(record),
+          occurredEpochMs: occurredEpochMs,
+        );
+      }
+
+      for (final playlistId in affectedPlaylistIds) {
+        final record = playlistRecordsById[playlistId];
+        if (record == null) {
+          continue;
+        }
+        tokenCursor += 1;
+        repository.upsertPlaylist(
+          CatalogPlaylistRecord(
+            id: record.id,
+            name: record.name,
+            songCount: record.songCount,
+            durationSeconds: record.durationSeconds,
+            updatedToken: tokenCursor,
+            isDeleted: false,
+          ),
+        );
+        _insertLibraryChangeEvent(
+          database: database,
+          entityType: 'playlist',
+          entityId: playlistId,
+          op: 'upsert',
+          payloadJson: _catalogPlaylistPayloadJson(
+            record,
+            updatedLibrary: library,
+          ),
           occurredEpochMs: occurredEpochMs,
         );
       }
@@ -627,12 +666,15 @@ extension _LibraryManagerCatalogPart on LibraryManager {
     LibraryStructure library,
   ) {
     final records = <String, CatalogPlaylistRecord>{};
+    final songDurationsById = _buildSongDurationsById(library);
 
     for (final playlist in library.folderPlaylists) {
       records[playlist.id] = CatalogPlaylistRecord(
         id: playlist.id,
         name: playlist.name,
         songCount: playlist.songCount,
+        durationSeconds:
+            _playlistDurationSeconds(playlist.songIds, songDurationsById),
         updatedToken: 0,
         isDeleted: false,
       );
@@ -649,7 +691,10 @@ extension _LibraryManagerCatalogPart on LibraryManager {
     for (final playlist in library.folderPlaylists) {
       for (var index = 0; index < playlist.songIds.length; index++) {
         positions[_CatalogPlaylistSongKey(
-            playlistId: playlist.id, songId: playlist.songIds[index])] = index;
+          playlistId: playlist.id,
+          songId: playlist.songIds[index],
+          position: index,
+        )] = index;
       }
     }
 
@@ -672,6 +717,39 @@ extension _LibraryManagerCatalogPart on LibraryManager {
     }
 
     return index;
+  }
+
+  Map<String, int> _buildSongDurationsById(LibraryStructure library) {
+    final durationsById = <String, int>{};
+
+    for (final album in library.albums.values.where((a) => a.isValid)) {
+      for (final song in album.songs) {
+        final duration = song.duration;
+        if (duration != null && duration > 0) {
+          durationsById[_generateSongId(song.filePath)] = duration;
+        }
+      }
+    }
+
+    for (final song in library.standaloneSongs) {
+      final duration = song.duration;
+      if (duration != null && duration > 0) {
+        durationsById[_generateSongId(song.filePath)] = duration;
+      }
+    }
+
+    return durationsById;
+  }
+
+  int _playlistDurationSeconds(
+    List<String> songIds,
+    Map<String, int> songDurationsById,
+  ) {
+    var totalDurationSeconds = 0;
+    for (final songId in songIds) {
+      totalDurationSeconds += songDurationsById[songId] ?? 0;
+    }
+    return totalDurationSeconds;
   }
 
   int _readLatestTokenFromDatabase(Database database) {
@@ -701,7 +779,7 @@ INSERT INTO library_changes (
   payload_json,
   occurred_epoch_ms,
   actor_user_id
-) VALUES (?, ?, ?, NULL, ?, NULL);
+) VALUES (?, ?, ?, ?, ?, NULL);
 ''',
       <Object?>[
         entityType,
@@ -722,7 +800,8 @@ INSERT INTO library_changes (
     }
 
     return previous.name != current.name ||
-        previous.songCount != current.songCount;
+        previous.songCount != current.songCount ||
+        previous.durationSeconds != current.durationSeconds;
   }
 
   String _catalogAlbumPayloadJson(CatalogAlbumRecord record) {
@@ -759,7 +838,7 @@ INSERT INTO library_changes (
       'id': record.id,
       'name': record.name,
       'songCount': record.songCount,
-      'duration': 0,
+      'duration': record.durationSeconds,
       'songIds': playlist.songIds,
     });
   }
@@ -779,6 +858,7 @@ INSERT INTO library_changes (
     return jsonEncode(<String, dynamic>{
       'playlistId': key.playlistId,
       'songId': key.songId,
+      'position': key.position,
     });
   }
 }
@@ -799,18 +879,24 @@ class _CatalogPlaylistSongKey implements Comparable<_CatalogPlaylistSongKey> {
   const _CatalogPlaylistSongKey({
     required this.playlistId,
     required this.songId,
+    required this.position,
   });
 
   final String playlistId;
   final String songId;
+  final int position;
 
-  String get entityId => '$playlistId:$songId';
+  String get entityId => '$playlistId:$position';
 
   @override
   int compareTo(_CatalogPlaylistSongKey other) {
     final playlistCompare = playlistId.compareTo(other.playlistId);
     if (playlistCompare != 0) {
       return playlistCompare;
+    }
+    final positionCompare = position.compareTo(other.position);
+    if (positionCompare != 0) {
+      return positionCompare;
     }
     return songId.compareTo(other.songId);
   }
@@ -819,9 +905,10 @@ class _CatalogPlaylistSongKey implements Comparable<_CatalogPlaylistSongKey> {
   bool operator ==(Object other) {
     return other is _CatalogPlaylistSongKey &&
         other.playlistId == playlistId &&
-        other.songId == songId;
+        other.songId == songId &&
+        other.position == position;
   }
 
   @override
-  int get hashCode => Object.hash(playlistId, songId);
+  int get hashCode => Object.hash(playlistId, songId, position);
 }

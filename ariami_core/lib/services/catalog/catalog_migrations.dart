@@ -2,7 +2,7 @@ import 'package:sqlite3/sqlite3.dart';
 
 /// Forward-only schema migrations for the catalog database.
 class CatalogMigrations {
-  static const int currentVersion = 1;
+  static const int currentVersion = 3;
 
   static void migrate(Database database) {
     final existingVersion = database.userVersion;
@@ -23,6 +23,14 @@ class CatalogMigrations {
       if (existingVersion < 1) {
         _applyVersion1(database);
         database.userVersion = 1;
+      }
+      if (existingVersion < 2) {
+        _applyVersion2(database);
+        database.userVersion = 2;
+      }
+      if (existingVersion < 3) {
+        _applyVersion3(database);
+        database.userVersion = 3;
       }
 
       database.execute('COMMIT;');
@@ -69,6 +77,7 @@ CREATE TABLE IF NOT EXISTS playlists (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   song_count INTEGER NOT NULL,
+  duration_seconds INTEGER NOT NULL DEFAULT 0,
   updated_token INTEGER NOT NULL,
   is_deleted INTEGER NOT NULL DEFAULT 0
 );
@@ -80,7 +89,7 @@ CREATE TABLE IF NOT EXISTS playlist_songs (
   song_id TEXT NOT NULL,
   position INTEGER NOT NULL,
   updated_token INTEGER NOT NULL,
-  PRIMARY KEY (playlist_id, song_id)
+  PRIMARY KEY (playlist_id, position)
 );
 ''');
 
@@ -152,6 +161,53 @@ ON library_changes(token);
     database.execute('''
 CREATE INDEX IF NOT EXISTS idx_download_jobs_user_status
 ON download_jobs(user_id, status);
+''');
+  }
+
+  static void _applyVersion2(Database database) {
+    database.execute('''
+CREATE TABLE IF NOT EXISTS playlist_songs_v2 (
+  playlist_id TEXT NOT NULL,
+  song_id TEXT NOT NULL,
+  position INTEGER NOT NULL,
+  updated_token INTEGER NOT NULL,
+  PRIMARY KEY (playlist_id, position)
+);
+''');
+
+    database.execute('''
+INSERT INTO playlist_songs_v2 (
+  playlist_id,
+  song_id,
+  position,
+  updated_token
+)
+SELECT
+  playlist_id,
+  song_id,
+  position,
+  updated_token
+FROM playlist_songs
+ORDER BY playlist_id ASC, position ASC, song_id ASC;
+''');
+
+    database.execute('DROP TABLE playlist_songs;');
+    database.execute(
+      'ALTER TABLE playlist_songs_v2 RENAME TO playlist_songs;',
+    );
+  }
+
+  static void _applyVersion3(Database database) {
+    final existingColumns = database
+        .select('PRAGMA table_info(playlists);')
+        .map((row) => row['name'] as String)
+        .toSet();
+    if (existingColumns.contains('duration_seconds')) {
+      return;
+    }
+    database.execute('''
+ALTER TABLE playlists
+ADD COLUMN duration_seconds INTEGER NOT NULL DEFAULT 0;
 ''');
   }
 }

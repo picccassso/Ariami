@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import '../models/api_models.dart';
+import 'library/library_repository.dart';
 
 /// Service for managing playlists locally
 /// Handles CRUD operations and persistence via SharedPreferences
@@ -20,6 +21,7 @@ class PlaylistService extends ChangeNotifier {
   PlaylistService._internal();
 
   final Uuid _uuid = const Uuid();
+  LibraryRepository _libraryRepository = LibraryRepository();
   List<PlaylistModel> _playlists = [];
   bool _isLoaded = false;
 
@@ -182,6 +184,10 @@ class PlaylistService extends ChangeNotifier {
   /// Update server playlists from API response
   /// Called when library is fetched from server
   void updateServerPlaylists(List<ServerPlaylist> playlists) {
+    if (_serverPlaylistsEqual(_serverPlaylists, playlists)) {
+      return;
+    }
+
     _serverPlaylists = playlists;
     print('[PlaylistService] Updated server playlists: ${playlists.length}');
 
@@ -192,6 +198,42 @@ class PlaylistService extends ChangeNotifier {
     });
   }
 
+  bool _serverPlaylistsEqual(
+    List<ServerPlaylist> current,
+    List<ServerPlaylist> next,
+  ) {
+    if (identical(current, next)) {
+      return true;
+    }
+    if (current.length != next.length) {
+      return false;
+    }
+
+    for (var index = 0; index < current.length; index++) {
+      final currentPlaylist = current[index];
+      final nextPlaylist = next[index];
+
+      if (currentPlaylist.id != nextPlaylist.id ||
+          currentPlaylist.name != nextPlaylist.name ||
+          currentPlaylist.songCount != nextPlaylist.songCount) {
+        return false;
+      }
+      if (currentPlaylist.songIds.length != nextPlaylist.songIds.length) {
+        return false;
+      }
+      for (var songIndex = 0;
+          songIndex < currentPlaylist.songIds.length;
+          songIndex++) {
+        if (currentPlaylist.songIds[songIndex] !=
+            nextPlaylist.songIds[songIndex]) {
+          return false;
+        }
+      }
+    }
+
+    return true;
+  }
+
   /// Import a server playlist as a local playlist
   /// Creates a local copy and hides the server version
   Future<PlaylistModel> importServerPlaylist(
@@ -200,35 +242,20 @@ class PlaylistService extends ChangeNotifier {
   }) async {
     final now = DateTime.now();
     final localId = _uuid.v4();
-
-    // Build song metadata maps from allSongs
-    final songAlbumIds = <String, String>{};
-    final songTitles = <String, String>{};
-    final songArtists = <String, String>{};
-    final songDurations = <String, int>{};
-
-    for (final songId in serverPlaylist.songIds) {
-      // Find song in allSongs list
-      final song = allSongs.where((s) => s.id == songId).firstOrNull;
-      if (song != null) {
-        if (song.albumId != null) {
-          songAlbumIds[songId] = song.albumId!;
-        }
-        songTitles[songId] = song.title;
-        songArtists[songId] = song.artist;
-        songDurations[songId] = song.duration;
-      }
-    }
+    final metadata = await _buildPlaylistSongMetadata(
+      serverPlaylist.songIds,
+      allSongs: allSongs,
+    );
 
     final playlist = PlaylistModel(
       id: localId,
       name: serverPlaylist.name,
       description: null,
       songIds: List.from(serverPlaylist.songIds),
-      songAlbumIds: songAlbumIds,
-      songTitles: songTitles,
-      songArtists: songArtists,
-      songDurations: songDurations,
+      songAlbumIds: metadata.songAlbumIds,
+      songTitles: metadata.songTitles,
+      songArtists: metadata.songArtists,
+      songDurations: metadata.songDurations,
       createdAt: now,
       modifiedAt: now,
     );
@@ -269,40 +296,27 @@ class PlaylistService extends ChangeNotifier {
   }) async {
     int imported = 0;
     final now = DateTime.now();
+    final canonicalSongsById = await _buildCanonicalSongIndex(allSongs);
 
     for (final serverPlaylist in serverPlaylists) {
       // Skip if already hidden (shouldn't happen, but safety check)
       if (_hiddenServerPlaylistIds.contains(serverPlaylist.id)) continue;
 
       final localId = _uuid.v4();
-
-      // Build song metadata maps from allSongs
-      final songAlbumIds = <String, String>{};
-      final songTitles = <String, String>{};
-      final songArtists = <String, String>{};
-      final songDurations = <String, int>{};
-
-      for (final songId in serverPlaylist.songIds) {
-        final song = allSongs.where((s) => s.id == songId).firstOrNull;
-        if (song != null) {
-          if (song.albumId != null) {
-            songAlbumIds[songId] = song.albumId!;
-          }
-          songTitles[songId] = song.title;
-          songArtists[songId] = song.artist;
-          songDurations[songId] = song.duration;
-        }
-      }
+      final metadata = _buildPlaylistSongMetadataFromIndex(
+        serverPlaylist.songIds,
+        canonicalSongsById,
+      );
 
       final playlist = PlaylistModel(
         id: localId,
         name: serverPlaylist.name,
         description: null,
         songIds: List.from(serverPlaylist.songIds),
-        songAlbumIds: songAlbumIds,
-        songTitles: songTitles,
-        songArtists: songArtists,
-        songDurations: songDurations,
+        songAlbumIds: metadata.songAlbumIds,
+        songTitles: metadata.songTitles,
+        songArtists: metadata.songArtists,
+        songDurations: metadata.songDurations,
         createdAt: now,
         modifiedAt: now,
       );
@@ -336,6 +350,105 @@ class PlaylistService extends ChangeNotifier {
 
     print('[PlaylistService] Imported $imported server playlists');
     return imported;
+  }
+
+  Future<_PlaylistSongMetadata> _buildPlaylistSongMetadata(
+    List<String> songIds, {
+    required List<SongModel> allSongs,
+  }) async {
+    final canonicalSongsById = await _buildCanonicalSongIndex(allSongs);
+    return _buildPlaylistSongMetadataFromIndex(songIds, canonicalSongsById);
+  }
+
+  Future<Map<String, SongModel>> _buildCanonicalSongIndex(
+    List<SongModel> allSongs,
+  ) async {
+    final songsById = <String, SongModel>{};
+
+    void mergeSong(SongModel song) {
+      final existing = songsById[song.id];
+      if (existing == null) {
+        songsById[song.id] = song;
+        return;
+      }
+
+      final existingScore = _songMetadataScore(existing);
+      final candidateScore = _songMetadataScore(song);
+      if (candidateScore >= existingScore) {
+        songsById[song.id] = song;
+      }
+    }
+
+    for (final song in allSongs) {
+      mergeSong(song);
+    }
+
+    try {
+      final repositorySongs = await _loadCanonicalLibrarySongs();
+      for (final song in repositorySongs) {
+        mergeSong(song);
+      }
+    } catch (e) {
+      print('[PlaylistService] Error loading canonical library songs: $e');
+    }
+
+    return songsById;
+  }
+
+  Future<List<SongModel>> _loadCanonicalLibrarySongs() async {
+    try {
+      return await _libraryRepository.getSongs();
+    } catch (e) {
+      if (!_isClosedDatabaseError(e)) {
+        rethrow;
+      }
+
+      _libraryRepository = LibraryRepository();
+      return _libraryRepository.getSongs();
+    }
+  }
+
+  _PlaylistSongMetadata _buildPlaylistSongMetadataFromIndex(
+    List<String> songIds,
+    Map<String, SongModel> songsById,
+  ) {
+    final songAlbumIds = <String, String>{};
+    final songTitles = <String, String>{};
+    final songArtists = <String, String>{};
+    final songDurations = <String, int>{};
+
+    for (final songId in songIds) {
+      final song = songsById[songId];
+      if (song == null) {
+        continue;
+      }
+      if (song.albumId != null) {
+        songAlbumIds[songId] = song.albumId!;
+      }
+      songTitles[songId] = song.title;
+      songArtists[songId] = song.artist;
+      songDurations[songId] = song.duration;
+    }
+
+    return _PlaylistSongMetadata(
+      songAlbumIds: songAlbumIds,
+      songTitles: songTitles,
+      songArtists: songArtists,
+      songDurations: songDurations,
+    );
+  }
+
+  int _songMetadataScore(SongModel song) {
+    var score = 0;
+    if (song.duration > 0) score += 4;
+    if (song.albumId != null && song.albumId!.isNotEmpty) score += 2;
+    if (song.title.isNotEmpty && song.title != 'Unknown Song') score += 1;
+    if (song.artist.isNotEmpty && song.artist != 'Unknown Artist') score += 1;
+    return score;
+  }
+
+  bool _isClosedDatabaseError(Object error) {
+    return error.toString().contains('database has already been closed');
   }
 
   /// Unhide a server playlist (make it visible again)
@@ -761,4 +874,18 @@ class PlaylistService extends ChangeNotifier {
 
     return updatedCount;
   }
+}
+
+class _PlaylistSongMetadata {
+  const _PlaylistSongMetadata({
+    required this.songAlbumIds,
+    required this.songTitles,
+    required this.songArtists,
+    required this.songDurations,
+  });
+
+  final Map<String, String> songAlbumIds;
+  final Map<String, String> songTitles;
+  final Map<String, String> songArtists;
+  final Map<String, int> songDurations;
 }

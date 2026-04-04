@@ -144,11 +144,18 @@ void main() {
     test('listPlaylistsPage paginates in ascending id order', () {
       catalogDatabase.database.execute(
         '''
-INSERT INTO playlists (id, name, song_count, updated_token, is_deleted)
+INSERT INTO playlists (
+  id,
+  name,
+  song_count,
+  duration_seconds,
+  updated_token,
+  is_deleted
+)
 VALUES
-  ('playlist-2', 'Playlist 2', 2, 1, 0),
-  ('playlist-1', 'Playlist 1', 1, 1, 0),
-  ('playlist-3', 'Playlist 3', 3, 1, 0);
+  ('playlist-2', 'Playlist 2', 2, 0, 1, 0),
+  ('playlist-1', 'Playlist 1', 1, 0, 1, 0),
+  ('playlist-3', 'Playlist 3', 3, 0, 1, 0);
 ''',
       );
 
@@ -174,6 +181,7 @@ VALUES
           id: 'playlist-1',
           name: 'Playlist 1',
           songCount: 2,
+          durationSeconds: 0,
           updatedToken: 1,
         ),
       );
@@ -199,6 +207,40 @@ VALUES
         items.map((item) => item.songId).toList(),
         equals(<String>['song-a', 'song-b']),
       );
+    });
+
+    test('listPlaylistSongs preserves duplicate songs at distinct positions',
+        () {
+      repository.upsertPlaylist(
+        CatalogPlaylistRecord(
+          id: 'playlist-dup',
+          name: 'Playlist Dup',
+          songCount: 2,
+          durationSeconds: 0,
+          updatedToken: 1,
+        ),
+      );
+      repository.upsertPlaylistSong(
+        CatalogPlaylistSongRecord(
+          playlistId: 'playlist-dup',
+          songId: 'song-a',
+          position: 0,
+          updatedToken: 2,
+        ),
+      );
+      repository.upsertPlaylistSong(
+        CatalogPlaylistSongRecord(
+          playlistId: 'playlist-dup',
+          songId: 'song-a',
+          position: 1,
+          updatedToken: 3,
+        ),
+      );
+
+      final items = repository.listPlaylistSongs('playlist-dup');
+      expect(items.map((item) => item.songId).toList(),
+          equals(<String>['song-a', 'song-a']));
+      expect(items.map((item) => item.position).toList(), equals(<int>[0, 1]));
     });
   });
 
@@ -310,6 +352,7 @@ VALUES
           id: 'playlist-1',
           name: 'Playlist 1',
           songCount: 1,
+          durationSeconds: 0,
           updatedToken: 10,
         ),
       );
