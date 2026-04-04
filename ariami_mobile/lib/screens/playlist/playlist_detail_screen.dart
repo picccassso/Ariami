@@ -188,27 +188,33 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
 
   /// Fetch album info from server in background
   void _fetchAlbumInfoInBackground() {
-    _connectionService.libraryReadFacade.getAlbums().then((albums) {
-      for (final album in albums) {
-        _albumInfoMap[album.id] = (name: album.title, artist: album.artist);
-      }
+    unawaited(() async {
+      try {
+        final albums = await _connectionService.libraryReadFacade.getAlbums();
 
-      for (final task in _downloadManager.queue) {
-        if (task.status == DownloadStatus.completed &&
-            task.albumId != null &&
-            task.albumName != null &&
-            !_albumInfoMap.containsKey(task.albumId)) {
-          _albumInfoMap[task.albumId!] =
-              (name: task.albumName!, artist: task.albumArtist ?? task.artist);
+        for (final album in albums) {
+          _albumInfoMap[album.id] = (name: album.title, artist: album.artist);
         }
-      }
 
-      if (mounted) {
-        setState(() {});
+        for (final task in _downloadManager.queue) {
+          if (task.status == DownloadStatus.completed &&
+              task.albumId != null &&
+              task.albumName != null &&
+              !_albumInfoMap.containsKey(task.albumId)) {
+            _albumInfoMap[task.albumId!] = (
+              name: task.albumName!,
+              artist: task.albumArtist ?? task.artist,
+            );
+          }
+        }
+
+        if (mounted) {
+          setState(() {});
+        }
+      } catch (e) {
+        print('[PlaylistDetailScreen] Background album info load failed: $e');
       }
-    }).catchError((e) {
-      print('[PlaylistDetailScreen] Background album info load failed: $e');
-    });
+    }());
   }
 
   Future<List<SongModel>> _loadLibrarySongsForMetadata() async {

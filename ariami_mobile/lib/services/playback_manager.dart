@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_chrome_cast/flutter_chrome_cast.dart';
 import '../models/song.dart';
 import '../models/playback_queue.dart';
 import '../models/quality_settings.dart';
@@ -62,6 +63,8 @@ class PlaybackManager extends ChangeNotifier {
   Duration? _restoredPosition; // Position to seek to after restoring state
   Duration?
       _pendingUiPosition; // Temporary UI override for restored seek position
+  bool _isInitialized = false;
+  int _restoreGeneration = 0;
 
   // Getters
   Song? get currentSong => _queue.currentSong;
@@ -85,6 +88,11 @@ class PlaybackManager extends ChangeNotifier {
 
   /// Initialize the playback manager and set up listeners
   void initialize() {
+    if (_isInitialized) {
+      return;
+    }
+    _isInitialized = true;
+
     _castService.initialize();
     _castService.addListener(_onCastStateChanged);
 
@@ -110,9 +118,13 @@ class PlaybackManager extends ChangeNotifier {
 
       // Auto-advance when song completes
       if (state.processingState.toString() == 'ProcessingState.completed') {
-        _onSongCompleted().catchError((e) {
-          print('[PlaybackManager] Error in _onSongCompleted: $e');
-        });
+        unawaited(() async {
+          try {
+            await _onSongCompleted();
+          } catch (e) {
+            print('[PlaybackManager] Error in _onSongCompleted: $e');
+          }
+        }());
       }
     });
 
@@ -151,6 +163,7 @@ class PlaybackManager extends ChangeNotifier {
     print('[PlaybackManager] Duration: ${song.duration}');
 
     // Clear restored position - this is a NEW song, start from beginning
+    _invalidatePendingRestore('playSong');
     _restoredPosition = null;
     _pendingUiPosition = null;
 
@@ -188,6 +201,7 @@ class PlaybackManager extends ChangeNotifier {
       if (songs.isEmpty) return;
 
       // Clear restored position - these are NEW songs, start from beginning
+      _invalidatePendingRestore('playSongs');
       _restoredPosition = null;
       _pendingUiPosition = null;
 
@@ -221,6 +235,7 @@ class PlaybackManager extends ChangeNotifier {
       if (songs.isEmpty) return;
 
       // Clear restored position - these are NEW songs, start from beginning
+      _invalidatePendingRestore('playShuffled');
       _restoredPosition = null;
       _pendingUiPosition = null;
 
@@ -403,9 +418,83 @@ class PlaybackManager extends ChangeNotifier {
     }
   }
 
-  Future<void> pauseForCasting() async {
-    await _audioPlayer.pause();
-    notifyListeners();
+  Future<void> startCastingToDevice(GoogleCastDevice device) async {
+    final snapshot = _PlaybackHandoffState(
+      song: currentSong,
+      position: _pendingUiPosition ?? _audioPlayer.position,
+      wasPlaying: _audioPlayer.isPlaying,
+    );
+
+    if (snapshot.wasPlaying) {
+      await _audioPlayer.pause();
+      _pendingUiPosition = snapshot.position;
+      notifyListeners();
+    }
+
+    try {
+      await _castService.connectToDevice(device);
+
+      if (snapshot.song != null) {
+        final casted = await _castService.syncFromPlayback(
+          song: snapshot.song,
+          position: snapshot.position,
+          isPlaying: snapshot.wasPlaying,
+          force: true,
+        );
+        if (!casted) {
+          throw StateError(
+            'Chromecast session connected but the media handoff failed.',
+          );
+        }
+      }
+
+      notifyListeners();
+    } catch (e) {
+      await _restoreLocalPlaybackSnapshot(snapshot);
+      rethrow;
+    }
+  }
+
+  Future<void> stopCastingAndResumeLocal() async {
+    if (!_castService.isConnected) {
+      return;
+    }
+
+    _castService.logDebugSnapshot('playback-manager-pre-disconnect');
+    final snapshot = _PlaybackHandoffState(
+      song: currentSong,
+      position: _castService.remotePosition,
+      wasPlaying: _castService.isRemotePlaying,
+    );
+    print(
+      '[PlaybackManager] Disconnect snapshot: '
+      'song=${snapshot.song?.id}/${snapshot.song?.title} '
+      'rawRemote=${_castService.rawRemotePosition.inMilliseconds}ms '
+      'capturedRemote=${snapshot.position.inMilliseconds}ms '
+      'wasPlaying=${snapshot.wasPlaying}',
+    );
+
+    if (snapshot.song == null) {
+      await _castService.beginLocalPlaybackHandoff(
+        capturedPosition: snapshot.position,
+        wasPlaying: snapshot.wasPlaying,
+      );
+      _castService.disconnectInBackground();
+      notifyListeners();
+      return;
+    }
+
+    await _castService.beginLocalPlaybackHandoff(
+      capturedPosition: snapshot.position,
+      wasPlaying: snapshot.wasPlaying,
+    );
+    print(
+      '[PlaybackManager] Local handoff prepared, continuing with local restore',
+    );
+    await _restoreLocalPlaybackSnapshot(snapshot);
+    _castService.disconnectInBackground();
+    print('[PlaybackManager] Background Chromecast disconnect requested');
+    await _saveState();
   }
 
   /// Toggle shuffle mode
@@ -459,7 +548,10 @@ class PlaybackManager extends ChangeNotifier {
   }
 
   /// Internal: Play the current song in the queue
-  Future<void> _playCurrentSong() async {
+  Future<void> _playCurrentSong({
+    bool autoPlay = true,
+    bool restartStatsTracking = true,
+  }) async {
     print('[PlaybackManager] _playCurrentSong() called');
 
     final song = _queue.currentSong;
@@ -475,14 +567,16 @@ class PlaybackManager extends ChangeNotifier {
         final casted = await _castService.syncFromPlayback(
           song: song,
           position: _restoredPosition ?? Duration.zero,
-          isPlaying: true,
+          isPlaying: autoPlay,
           force: true,
         );
         if (casted) {
           await _audioPlayer.pause();
           _restoredPosition = null;
           _pendingUiPosition = null;
-          _statsService.onSongStarted(song);
+          if (restartStatsTracking) {
+            _statsService.onSongStarted(song);
+          }
           ColorExtractionService().extractColorsForSong(song);
           notifyListeners();
           return;
@@ -635,18 +729,27 @@ class PlaybackManager extends ChangeNotifier {
         notifyListeners();
 
         // NOW start playback from the seeked position
-        await _audioPlayer.resume();
+        if (autoPlay) {
+          await _audioPlayer.resume();
+        }
 
         _restoredPosition = null; // Clear so it doesn't affect next song
       } else {
-        // No restored position - play normally from the beginning
-        await _audioPlayer.playSong(song, audioUrl, artworkUri: artworkUri);
+        if (autoPlay) {
+          // No restored position - play normally from the beginning
+          await _audioPlayer.playSong(song, audioUrl, artworkUri: artworkUri);
+        } else {
+          await _audioPlayer.loadSong(song, audioUrl, artworkUri: artworkUri);
+        }
       }
 
       // Track stats for this song playback
-      print('[PlaybackManager] About to call onSongStarted for: ${song.title}');
-      _statsService.onSongStarted(song);
-      print('[PlaybackManager] onSongStarted called successfully');
+      if (restartStatsTracking) {
+        print(
+            '[PlaybackManager] About to call onSongStarted for: ${song.title}');
+        _statsService.onSongStarted(song);
+        print('[PlaybackManager] onSongStarted called successfully');
+      }
 
       // Extract colors from artwork for player gradient background
       ColorExtractionService().extractColorsForSong(song);
@@ -655,6 +758,100 @@ class PlaybackManager extends ChangeNotifier {
       print('[PlaybackManager] Stack trace: $stackTrace');
       rethrow;
     }
+  }
+
+  Future<void> _restoreLocalPlaybackSnapshot(
+    _PlaybackHandoffState snapshot,
+  ) async {
+    if (snapshot.song == null) {
+      return;
+    }
+
+    print(
+      '[PlaybackManager] Restoring local snapshot: '
+      'song=${snapshot.song?.id}/${snapshot.song?.title} '
+      'target=${snapshot.position.inMilliseconds}ms '
+      'wasPlaying=${snapshot.wasPlaying} '
+      'localBefore=${_audioPlayer.position.inMilliseconds}ms',
+    );
+    _pendingUiPosition = snapshot.position;
+
+    try {
+      await _audioPlayer.seek(snapshot.position);
+      print(
+        '[PlaybackManager] Local seek completed: '
+        'afterSeek=${_audioPlayer.position.inMilliseconds}ms',
+      );
+      if (snapshot.wasPlaying) {
+        await _audioPlayer.resume();
+        print(
+          '[PlaybackManager] Local resume requested: '
+          'afterResume=${_audioPlayer.position.inMilliseconds}ms '
+          'isPlaying=${_audioPlayer.isPlaying}',
+        );
+        final resumeRecovered =
+            await _verifyLocalResumeProgress(snapshot.position);
+        if (!resumeRecovered) {
+          print(
+            '[PlaybackManager] Local resume stalled, reloading current song at '
+            '${snapshot.position.inMilliseconds}ms',
+          );
+          await _reloadLocalPlaybackFromSnapshot(snapshot);
+        }
+      }
+    } catch (_) {
+      _restoredPosition = snapshot.position;
+      print(
+        '[PlaybackManager] Local restore fallback triggered: '
+        'restoredPosition=${_restoredPosition?.inMilliseconds}ms',
+      );
+      await _playCurrentSong(
+        autoPlay: snapshot.wasPlaying,
+        restartStatsTracking: false,
+      );
+      print(
+        '[PlaybackManager] Local restore fallback completed: '
+        'localAfterFallback=${_audioPlayer.position.inMilliseconds}ms '
+        'isPlaying=${_audioPlayer.isPlaying}',
+      );
+    }
+
+    notifyListeners();
+  }
+
+  Future<bool> _verifyLocalResumeProgress(Duration expectedPosition) async {
+    await Future.delayed(const Duration(milliseconds: 900));
+
+    final currentPosition = _audioPlayer.position;
+    final minimumAdvancedPosition =
+        expectedPosition + const Duration(milliseconds: 250);
+    final hasAdvanced = currentPosition >= minimumAdvancedPosition;
+
+    print(
+      '[PlaybackManager] Local resume verification: '
+      'current=${currentPosition.inMilliseconds}ms '
+      'expectedAtLeast=${minimumAdvancedPosition.inMilliseconds}ms '
+      'isPlaying=${_audioPlayer.isPlaying} '
+      'hasAdvanced=$hasAdvanced',
+    );
+
+    return hasAdvanced;
+  }
+
+  Future<void> _reloadLocalPlaybackFromSnapshot(
+    _PlaybackHandoffState snapshot,
+  ) async {
+    _restoredPosition = snapshot.position;
+    _pendingUiPosition = snapshot.position;
+    await _playCurrentSong(
+      autoPlay: snapshot.wasPlaying,
+      restartStatsTracking: false,
+    );
+    print(
+      '[PlaybackManager] Local reload after stalled resume completed: '
+      'localAfterReload=${_audioPlayer.position.inMilliseconds}ms '
+      'isPlaying=${_audioPlayer.isPlaying}',
+    );
   }
 
   /// Internal: Cache a song in the background for future offline playback
@@ -696,14 +893,17 @@ class PlaybackManager extends ChangeNotifier {
     }
 
     // Trigger background cache (non-blocking)
-    _cacheManager.cacheSong(song.id, downloadUrl).then((started) {
-      if (started) {
-        print(
-            '[PlaybackManager] Started background caching for: ${song.title} (mode: $downloadMode)');
+    unawaited(() async {
+      try {
+        final started = await _cacheManager.cacheSong(song.id, downloadUrl);
+        if (started) {
+          print(
+              '[PlaybackManager] Started background caching for: ${song.title} (mode: $downloadMode)');
+        }
+      } catch (e) {
+        print('[PlaybackManager] Failed to start background cache: $e');
       }
-    }).catchError((e) {
-      print('[PlaybackManager] Failed to start background cache: $e');
-    });
+    }());
   }
 
   /// Internal: Get stream URL with retry-once logic for expired stream tokens
@@ -905,6 +1105,7 @@ class PlaybackManager extends ChangeNotifier {
 
   /// Restore saved playback state from device storage
   Future<void> _restoreState() async {
+    final restoreGeneration = _restoreGeneration;
     try {
       final savedState = await _stateManager.loadCompletePlaybackState();
       if (savedState == null) return;
@@ -916,6 +1117,13 @@ class PlaybackManager extends ChangeNotifier {
       );
 
       // Restore queue
+      if (restoreGeneration != _restoreGeneration) {
+        print(
+          '[PlaybackManager] Skipping stale restore before queue apply: '
+          'restoreGeneration=$restoreGeneration currentGeneration=$_restoreGeneration',
+        );
+        return;
+      }
       _queue = restoredQueue;
 
       // Restore shuffle state and original queue
@@ -935,6 +1143,13 @@ class PlaybackManager extends ChangeNotifier {
 
       // Store playback position to seek to when user presses play
       if (_queue.currentSong != null && savedState.position > Duration.zero) {
+        if (restoreGeneration != _restoreGeneration) {
+          print(
+            '[PlaybackManager] Skipping stale restore before position apply: '
+            'restoreGeneration=$restoreGeneration currentGeneration=$_restoreGeneration',
+          );
+          return;
+        }
         _restoredPosition = savedState.position;
         _pendingUiPosition = savedState.position;
       }
@@ -947,6 +1162,7 @@ class PlaybackManager extends ChangeNotifier {
 
   @override
   void dispose() {
+    _isInitialized = false;
     _castService.removeListener(_onCastStateChanged);
     _saveTimer?.cancel();
     _positionSubscription?.cancel();
@@ -955,6 +1171,14 @@ class PlaybackManager extends ChangeNotifier {
     _skipNextSubscription?.cancel();
     _skipPreviousSubscription?.cancel();
     super.dispose();
+  }
+
+  void _invalidatePendingRestore(String reason) {
+    _restoreGeneration++;
+    print(
+      '[PlaybackManager] Invalidated pending restore: '
+      'reason=$reason generation=$_restoreGeneration',
+    );
   }
 
   Future<List<Song>> _rehydrateSongs(List<Song> songs) async {
@@ -1057,4 +1281,16 @@ class PlaybackManager extends ChangeNotifier {
     );
     unawaited(_saveState());
   }
+}
+
+class _PlaybackHandoffState {
+  final Song? song;
+  final Duration position;
+  final bool wasPlaying;
+
+  const _PlaybackHandoffState({
+    required this.song,
+    required this.position,
+    required this.wasPlaying,
+  });
 }

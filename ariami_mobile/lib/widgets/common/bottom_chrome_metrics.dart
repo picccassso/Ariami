@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -28,13 +29,16 @@ void debugLogBottomLayout({
     'data': data,
     'timestamp': DateTime.now().millisecondsSinceEpoch,
   };
-  File('/Users/alex/Documents/Ariami/Ariami/.cursor/debug-c796da.log')
-      .writeAsString(
+  unawaited(() async {
+    try {
+      await File('/Users/alex/Documents/Ariami/Ariami/.cursor/debug-c796da.log')
+          .writeAsString(
         '${jsonEncode(payload)}\n',
         mode: FileMode.append,
         flush: true,
-      )
-      .catchError((_) {});
+      );
+    } catch (_) {}
+  }());
 }
 // #endregion
 
@@ -72,8 +76,8 @@ double getBottomChromeHeight(
   required bool isMiniPlayerVisible,
 }) {
   final bottomNavHeight = getBottomNavigationBarTotalHeight(context);
-  final total = bottomNavHeight +
-      (isMiniPlayerVisible ? kMiniPlayerOverlayHeight : 0.0);
+  final total =
+      bottomNavHeight + (isMiniPlayerVisible ? kMiniPlayerOverlayHeight : 0.0);
   // #region agent log
   debugLogBottomLayout(
     hypothesisId: 'H3',

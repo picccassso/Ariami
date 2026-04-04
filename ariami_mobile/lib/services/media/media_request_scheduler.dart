@@ -175,16 +175,18 @@ class MediaRequestScheduler {
       _activeForegroundArtworkRequests++;
     }
 
-    Future<void>(() async {
+    unawaited(Future<void>(() async {
       if (request.token.isCancelled) {
         request.completeWithNull();
         return;
       }
 
-      final value = await request.task();
-      request.complete(value);
-    }).catchError((Object error, StackTrace stackTrace) {
-      request.completeError(error, stackTrace);
+      try {
+        final value = await request.task();
+        request.complete(value);
+      } catch (error, stackTrace) {
+        request.completeError(error, stackTrace);
+      }
     }).whenComplete(() {
       if (isBackground) {
         _activeBackgroundArtworkRequests--;
@@ -192,7 +194,7 @@ class MediaRequestScheduler {
         _activeForegroundArtworkRequests--;
       }
       _pumpArtworkQueue();
-    });
+    }));
   }
 }
 
