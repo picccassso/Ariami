@@ -43,6 +43,33 @@ void main() {
       expect(apiClient.changesCallCount, 0);
     });
 
+    test('emits bootstrap completion callback after local bootstrap', () async {
+      final repository = _FakeLibraryRepository();
+      final apiClient = _FakeApiClient(
+        bootstrapResponses: <V2BootstrapResponse>[
+          _bootstrapPage(
+            syncToken: 6,
+            hasMore: false,
+            cursor: null,
+            nextCursor: null,
+          ),
+        ],
+      );
+      int? completedToken;
+
+      final engine = LibrarySyncEngine(
+        apiClientProvider: () => apiClient,
+        libraryRepository: repository,
+        onBootstrapCompleted: (latestToken) async {
+          completedToken = latestToken;
+        },
+      );
+
+      await engine.syncNow();
+
+      expect(completedToken, equals(6));
+    });
+
     test('falls back to bootstrap when change upsert payload is null',
         () async {
       final repository = _FakeLibraryRepository(
@@ -194,6 +221,43 @@ void main() {
       expect(repository.resetCount, 1);
       expect(repository.abortCount, 1);
     });
+
+    test(
+        're-runs bootstrap when synced state is marked complete but backfill is pending',
+        () async {
+      final repository = _BackfillPendingLibraryRepository(
+        initialState: const LibrarySyncState(
+          lastAppliedToken: 8,
+          bootstrapComplete: true,
+          lastSyncEpochMs: 0,
+        ),
+      );
+      final apiClient = _FakeApiClient(
+        bootstrapResponses: <V2BootstrapResponse>[
+          _bootstrapPage(
+            syncToken: 11,
+            hasMore: false,
+            cursor: null,
+            nextCursor: null,
+          ),
+        ],
+      );
+
+      final engine = LibrarySyncEngine(
+        apiClientProvider: () => apiClient,
+        libraryRepository: repository,
+      );
+
+      await engine.syncNow();
+
+      final state = await repository.getSyncState();
+      expect(state.bootstrapComplete, isTrue);
+      expect(state.lastAppliedToken, 11);
+      expect(repository.resetCount, 1);
+      expect(repository.bootstrapPagesApplied, 1);
+      expect(apiClient.bootstrapCallCount, 1);
+      expect(apiClient.changesCallCount, 0);
+    });
   });
 }
 
@@ -289,6 +353,9 @@ class _FakeLibraryRepository extends LibraryRepository {
   Future<LibrarySyncState> getSyncState() async => _state;
 
   @override
+  Future<bool> hasCompletedBootstrap() async => _state.bootstrapComplete;
+
+  @override
   Future<void> resetForBootstrap() async {
     resetCount += 1;
   }
@@ -342,3 +409,22 @@ class _FakeLibraryRepository extends LibraryRepository {
 }
 
 class _FakeLibrarySyncDatabase extends LibrarySyncDatabase {}
+
+class _BackfillPendingLibraryRepository extends _FakeLibraryRepository {
+  _BackfillPendingLibraryRepository({
+    required super.initialState,
+  });
+
+  bool _backfillPending = true;
+
+  @override
+  Future<bool> hasCompletedBootstrap() async {
+    return !_backfillPending && await super.hasCompletedBootstrap();
+  }
+
+  @override
+  Future<void> completeBootstrap({required int lastAppliedToken}) async {
+    await super.completeBootstrap(lastAppliedToken: lastAppliedToken);
+    _backfillPending = false;
+  }
+}

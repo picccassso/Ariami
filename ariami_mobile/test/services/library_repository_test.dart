@@ -1,3 +1,4 @@
+import 'package:ariami_mobile/database/library_sync_database.dart';
 import 'package:ariami_mobile/services/library/library_repository.dart';
 import 'package:ariami_mobile/models/api_models.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -172,6 +173,51 @@ void main() {
       final playlists = await repository.getServerPlaylists();
       expect(playlists.single.name, equals('Renamed Playlist'));
       expect(playlists.single.songIds, equals(<String>['song-2']));
+    });
+
+    test(
+        'treats legacy playlists without playlist-song rows as bootstrap-incomplete',
+        () async {
+      final database = await LibrarySyncDatabase.create();
+      final repository = LibraryRepository(database: database);
+      addTearDown(repository.close);
+
+      await database.upsertPlaylists(
+        const <LibraryPlaylistRow>[
+          LibraryPlaylistRow(
+            id: 'playlist-1',
+            name: 'Playlist 1',
+            songCount: 2,
+            duration: 0,
+          ),
+        ],
+      );
+      await database.saveSyncState(
+        const LibrarySyncState(
+          lastAppliedToken: 9,
+          bootstrapComplete: true,
+          lastSyncEpochMs: 0,
+        ),
+      );
+
+      expect(await repository.hasCompletedBootstrap(), isFalse);
+
+      await database.upsertPlaylistSongs(
+        const <LibraryPlaylistSongRow>[
+          LibraryPlaylistSongRow(
+            playlistId: 'playlist-1',
+            songId: 'song-1',
+            position: 0,
+          ),
+          LibraryPlaylistSongRow(
+            playlistId: 'playlist-1',
+            songId: 'song-2',
+            position: 1,
+          ),
+        ],
+      );
+
+      expect(await repository.hasCompletedBootstrap(), isTrue);
     });
   });
 }

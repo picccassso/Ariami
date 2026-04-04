@@ -10,6 +10,7 @@ class LibrarySyncEngine {
   LibrarySyncEngine({
     required ApiClient Function() apiClientProvider,
     LibraryRepository? libraryRepository,
+    this.onBootstrapCompleted,
     this.bootstrapPageLimit = 200,
     this.changesPageLimit = 500,
     this.pollInterval = const Duration(seconds: 30),
@@ -20,6 +21,7 @@ class LibrarySyncEngine {
   final ApiClient Function() _apiClientProvider;
   final LibraryRepository _libraryRepository;
   final bool _ownsRepository;
+  final Future<void> Function(int latestToken)? onBootstrapCompleted;
 
   final int bootstrapPageLimit;
   final int changesPageLimit;
@@ -62,8 +64,9 @@ class LibrarySyncEngine {
 
   Future<void> syncNow() {
     return _enqueueSync(() async {
-      final state = await _libraryRepository.getSyncState();
-      if (!state.bootstrapComplete) {
+      final bootstrapComplete =
+          await _libraryRepository.hasCompletedBootstrap();
+      if (!bootstrapComplete) {
         await _runBootstrapSync();
         return;
       }
@@ -73,8 +76,9 @@ class LibrarySyncEngine {
 
   Future<void> syncUntil(int targetToken) {
     return _enqueueSync(() async {
-      final state = await _libraryRepository.getSyncState();
-      if (!state.bootstrapComplete) {
+      final bootstrapComplete =
+          await _libraryRepository.hasCompletedBootstrap();
+      if (!bootstrapComplete) {
         await _runBootstrapSync();
       }
       await _applyDeltaChanges(targetToken: targetToken);
@@ -117,6 +121,9 @@ class LibrarySyncEngine {
       }
 
       await _libraryRepository.completeBootstrap(lastAppliedToken: latestToken);
+      if (onBootstrapCompleted != null) {
+        await onBootstrapCompleted!(latestToken);
+      }
     } catch (_) {
       await _libraryRepository.abortBootstrap();
       rethrow;

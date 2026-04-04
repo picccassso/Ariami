@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../widgets/common/mini_player_aware_bottom_sheet.dart';
 import '../models/api_models.dart';
 import '../models/song.dart';
 import '../models/download_task.dart';
+import '../models/websocket_models.dart';
 import '../services/api/connection_service.dart';
 import '../services/playback_manager.dart';
 import '../services/playlist_service.dart';
@@ -38,6 +41,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
   String? _errorMessage;
   Set<String> _downloadedSongIds = {};
   Set<String> _cachedSongIds = {};
+  StreamSubscription<WsMessage>? _webSocketSubscription;
 
   @override
   void initState() {
@@ -45,6 +49,15 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
     _loadAlbumDetail();
     _loadDownloadedSongs();
     _loadCachedSongs();
+    _webSocketSubscription = _connectionService.webSocketMessages.listen(
+      _handleLibrarySyncMessage,
+    );
+  }
+
+  @override
+  void dispose() {
+    _webSocketSubscription?.cancel();
+    super.dispose();
   }
 
   /// Load downloaded song IDs
@@ -164,6 +177,17 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
       );
       _isLoading = false;
     });
+  }
+
+  void _handleLibrarySyncMessage(WsMessage message) {
+    if (message.type != WsMessageType.syncTokenAdvanced &&
+        message.type != WsMessageType.libraryUpdated) {
+      return;
+    }
+    if (!mounted || _isLoading || _offlineService.isOfflineModeEnabled) {
+      return;
+    }
+    unawaited(_loadAlbumDetail());
   }
 
   @override
