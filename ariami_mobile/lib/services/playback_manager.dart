@@ -66,6 +66,8 @@ class PlaybackManager extends ChangeNotifier {
   bool _isInitialized = false;
   int _restoreGeneration = 0;
   bool _isCastTransitionInProgress = false;
+  CastMediaPlayerState? _lastObservedCastPlayerState;
+  bool _isHandlingCastCompletion = false;
 
   // Getters
   Song? get currentSong => _queue.currentSong;
@@ -154,6 +156,39 @@ class PlaybackManager extends ChangeNotifier {
   }
 
   void _onCastStateChanged() {
+    final status = _castService.mediaStatus;
+    final nextState = status?.playerState;
+    final idleReason = status?.idleReason;
+
+    final wasAdvancing =
+        _lastObservedCastPlayerState == CastMediaPlayerState.playing ||
+            _lastObservedCastPlayerState == CastMediaPlayerState.buffering ||
+            _lastObservedCastPlayerState == CastMediaPlayerState.loading;
+    final completedRemotely = wasAdvancing &&
+        nextState == CastMediaPlayerState.idle &&
+        idleReason == GoogleCastMediaIdleReason.finished;
+
+    _lastObservedCastPlayerState = nextState;
+
+    if (!_castService.isConnected) {
+      _lastObservedCastPlayerState = null;
+      notifyListeners();
+      return;
+    }
+
+    if (completedRemotely && !_isHandlingCastCompletion) {
+      _isHandlingCastCompletion = true;
+      unawaited(() async {
+        try {
+          await _onSongCompleted();
+        } catch (e) {
+          print('[PlaybackManager] Error in remote _onSongCompleted: $e');
+        } finally {
+          _isHandlingCastCompletion = false;
+        }
+      }());
+    }
+
     notifyListeners();
   }
 
