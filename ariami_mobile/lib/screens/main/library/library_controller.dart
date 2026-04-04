@@ -625,7 +625,7 @@ class LibraryController extends ChangeNotifier {
     }
 
     final updatedPlaylists =
-        await _playlistService.rehydrateAlbumIdsFromLibrary(library.songs);
+        await _playlistService.rehydrateSongMetadataFromLibrary(library.songs);
     if (updatedPlaylists > 0) {
       // Playlists were updated
     }

@@ -5,11 +5,14 @@ import '../models/playback_queue.dart';
 import '../models/quality_settings.dart';
 import '../models/repeat_mode.dart';
 import '../models/api_models.dart';
+import '../models/download_task.dart';
 import 'audio/audio_player_service.dart';
 import 'audio/shuffle_service.dart';
 import 'audio/playback_state_manager.dart';
 import 'api/connection_service.dart';
 import 'api/api_client.dart';
+import 'download/download_manager.dart';
+import 'library/library_repository.dart';
 import 'offline/offline_playback_service.dart';
 import 'cache/cache_manager.dart';
 import 'stats/streaming_stats_service.dart';
@@ -34,6 +37,8 @@ class PlaybackManager extends ChangeNotifier {
   final PlaybackStateManager _stateManager = PlaybackStateManager();
   final OfflinePlaybackService _offlineService = OfflinePlaybackService();
   final CacheManager _cacheManager = CacheManager();
+  final DownloadManager _downloadManager = DownloadManager();
+  final LibraryRepository _libraryRepository = LibraryRepository();
   final StreamingStatsService _statsService = StreamingStatsService();
   final QualitySettingsService _qualityService = QualitySettingsService();
 
@@ -80,7 +85,10 @@ class PlaybackManager extends ChangeNotifier {
     });
 
     // Listen to duration updates
-    _durationSubscription = _audioPlayer.durationStream.listen((_) {
+    _durationSubscription = _audioPlayer.durationStream.listen((duration) {
+      if (duration != null && duration > Duration.zero) {
+        _updateCurrentSongDuration(duration);
+      }
       notifyListeners();
     });
 
@@ -835,15 +843,23 @@ class PlaybackManager extends ChangeNotifier {
       final savedState = await _stateManager.loadCompletePlaybackState();
       if (savedState == null) return;
 
+      final restoredSongs = await _rehydrateSongs(savedState.queue.songs);
+      final restoredQueue = PlaybackQueue(
+        songs: restoredSongs,
+        currentIndex: savedState.queue.currentIndex,
+      );
+
       // Restore queue
-      _queue = savedState.queue;
+      _queue = restoredQueue;
 
       // Restore shuffle state and original queue
       _isShuffleEnabled = savedState.isShuffleEnabled;
       if (_isShuffleEnabled && savedState.originalQueue != null) {
+        final restoredOriginalQueue =
+            await _rehydrateSongs(savedState.originalQueue!);
         // Manually restore shuffle service state
         _shuffleService.enableShuffle(
-          savedState.originalQueue!,
+          restoredOriginalQueue,
           _queue.currentSong,
         );
       }
@@ -872,5 +888,106 @@ class PlaybackManager extends ChangeNotifier {
     _skipNextSubscription?.cancel();
     _skipPreviousSubscription?.cancel();
     super.dispose();
+  }
+
+  Future<List<Song>> _rehydrateSongs(List<Song> songs) async {
+    if (songs.isEmpty) return songs;
+
+    final librarySongsById = <String, SongModel>{};
+    final downloadedSongsById = <String, Song>{};
+
+    try {
+      final librarySongs = await _libraryRepository.getSongs();
+      for (final song in librarySongs) {
+        librarySongsById[song.id] = song;
+      }
+    } catch (e) {
+      print('[PlaybackManager] Failed to load library songs for restore: $e');
+    }
+
+    try {
+      await _downloadManager.initialize();
+      for (final task in _downloadManager.queue) {
+        if (task.status != DownloadStatus.completed) continue;
+        downloadedSongsById[task.songId] = Song(
+          id: task.songId,
+          title: task.title,
+          artist: task.artist,
+          album: task.albumName,
+          albumId: task.albumId,
+          albumArtist: task.albumArtist,
+          trackNumber: task.trackNumber,
+          duration: Duration(seconds: task.duration),
+          filePath: task.songId,
+          fileSize: task.bytesDownloaded,
+          modifiedTime: DateTime.now(),
+        );
+      }
+    } catch (e) {
+      print(
+          '[PlaybackManager] Failed to load downloaded songs for restore: $e');
+    }
+
+    return songs
+        .map(
+          (song) => _rehydrateSong(
+            song,
+            librarySong: librarySongsById[song.id],
+            downloadedSong: downloadedSongsById[song.id],
+          ),
+        )
+        .toList();
+  }
+
+  Song _rehydrateSong(
+    Song song, {
+    SongModel? librarySong,
+    Song? downloadedSong,
+  }) {
+    var repaired = song;
+
+    if (downloadedSong != null) {
+      repaired = repaired.copyWith(
+        title: downloadedSong.title,
+        artist: downloadedSong.artist,
+        album: downloadedSong.album ?? repaired.album,
+        albumId: downloadedSong.albumId ?? repaired.albumId,
+        albumArtist: downloadedSong.albumArtist ?? repaired.albumArtist,
+        trackNumber: downloadedSong.trackNumber ?? repaired.trackNumber,
+        duration: downloadedSong.duration > Duration.zero
+            ? downloadedSong.duration
+            : repaired.duration,
+      );
+    }
+
+    if (librarySong != null) {
+      repaired = repaired.copyWith(
+        title: librarySong.title,
+        artist: librarySong.artist,
+        albumId: librarySong.albumId ?? repaired.albumId,
+        trackNumber: librarySong.trackNumber ?? repaired.trackNumber,
+        duration: librarySong.duration > 0
+            ? Duration(seconds: librarySong.duration)
+            : repaired.duration,
+      );
+    }
+
+    return repaired;
+  }
+
+  void _updateCurrentSongDuration(Duration duration) {
+    final currentSong = _queue.currentSong;
+    if (currentSong == null || currentSong.duration == duration) {
+      return;
+    }
+
+    final updatedSongs = List<Song>.from(_queue.songs);
+    updatedSongs[_queue.currentIndex] =
+        currentSong.copyWith(duration: duration);
+    _queue = PlaybackQueue(
+      songs: updatedSongs,
+      currentIndex: _queue.currentIndex,
+    );
+    unawaited(_saveState());
   }
 }

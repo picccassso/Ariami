@@ -211,6 +211,16 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
     });
   }
 
+  Future<List<SongModel>> _loadLibrarySongsForMetadata() async {
+    try {
+      return await _connectionService.libraryReadFacade.getSongs();
+    } catch (e) {
+      print(
+          '[PlaylistDetailScreen] Facade song metadata load failed, falling back to local repository: $e');
+      return _libraryRepository.getSongs();
+    }
+  }
+
   /// Build SongModel objects from playlist's locally-stored metadata
   Future<List<SongModel>> _resolveSongsFromLocalMetadata(
       List<String> songIds) async {
@@ -234,7 +244,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
     }
 
     // Pre-fetch song durations from library to fill in missing values
-    final librarySongs = await _libraryRepository.getSongs();
+    final librarySongs = await _loadLibrarySongsForMetadata();
     final libraryDurations = {for (var s in librarySongs) s.id: s.duration};
 
     return songIds.map((id) {
@@ -289,7 +299,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
     }
 
     // Pre-fetch song durations from library to fill in missing values
-    final librarySongs = await _libraryRepository.getSongs();
+    final librarySongs = await _loadLibrarySongsForMetadata();
     final libraryDurations = {for (var s in librarySongs) s.id: s.duration};
 
     return songIds.map((id) {
