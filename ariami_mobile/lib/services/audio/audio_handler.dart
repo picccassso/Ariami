@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'package:audio_service/audio_service.dart';
+import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 import '../../models/song.dart';
+import '../cast/chrome_cast_service.dart';
 
 /// AudioHandler implementation for Ariami
 /// This creates a foreground service that keeps the app alive during music playback
@@ -17,6 +19,7 @@ class AriamiAudioHandler extends BaseAudioHandler
   // Stream controllers for skip events
   final _skipNextController = StreamController<void>.broadcast();
   final _skipPreviousController = StreamController<void>.broadcast();
+  final ChromeCastService _castService = ChromeCastService();
 
   // Expose streams for PlaybackManager to listen to
   Stream<void> get onSkipNext => _skipNextController.stream;
@@ -283,6 +286,13 @@ class AriamiAudioHandler extends BaseAudioHandler
   Future<void> onTaskRemoved() async {
     print(
         '[AriamiAudioHandler] onTaskRemoved() - App swiped away, stopping playback');
+    try {
+      await _castService.pauseForAppTermination(reason: 'task-removed');
+    } catch (e) {
+      debugPrint(
+        '[AriamiAudioHandler] Failed to pause Chromecast during task removal: $e',
+      );
+    }
     // Stop playback when app is swiped away from recent apps
     await stop();
   }
