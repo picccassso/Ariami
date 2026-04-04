@@ -32,9 +32,12 @@ class StreamingStatsService extends ChangeNotifier {
   late StreamController<List<ArtistStats>> _topArtistsStreamController;
   late StreamController<List<AlbumStats>> _topAlbumsStreamController;
 
-  Stream<List<SongStats>> get topSongsStream => _topSongsStreamController.stream;
-  Stream<List<ArtistStats>> get topArtistsStream => _topArtistsStreamController.stream;
-  Stream<List<AlbumStats>> get topAlbumsStream => _topAlbumsStreamController.stream;
+  Stream<List<SongStats>> get topSongsStream =>
+      _topSongsStreamController.stream;
+  Stream<List<ArtistStats>> get topArtistsStream =>
+      _topArtistsStreamController.stream;
+  Stream<List<AlbumStats>> get topAlbumsStream =>
+      _topAlbumsStreamController.stream;
 
   /// Initialize the service
   Future<void> initialize() async {
@@ -71,7 +74,8 @@ class StreamingStatsService extends ChangeNotifier {
     _emitTopSongs();
     _emitTopArtists();
     _emitTopAlbums();
-    print('[StreamingStatsService] Initialized with ${_statsCache.length} cached songs');
+    print(
+        '[StreamingStatsService] Initialized with ${_statsCache.length} cached songs');
   }
 
   /// Called when a song starts playing
@@ -81,7 +85,8 @@ class StreamingStatsService extends ChangeNotifier {
 
     // If a song is already playing, stop tracking it first
     if (_currentSong != null) {
-      print('[StreamingStatsService] Previous song was still playing, finalizing ${_currentSong!.title}');
+      print(
+          '[StreamingStatsService] Previous song was still playing, finalizing ${_currentSong!.title}');
       // Synchronously finalize the previous song (without awaiting to keep onSongStarted synchronous)
       _finalizePreviousSong();
     }
@@ -94,7 +99,8 @@ class StreamingStatsService extends ChangeNotifier {
 
     // Start 30-second timer - use async callback to allow awaiting
     _playbackTimer = Timer(const Duration(seconds: 30), () async {
-      print('[StreamingStatsService] 30-second timer fired for: ${_currentSong?.title ?? "NULL"}');
+      print(
+          '[StreamingStatsService] 30-second timer fired for: ${_currentSong?.title ?? "NULL"}');
       await _recordPlay();
     });
     print('[StreamingStatsService] Timer set for 30 seconds');
@@ -107,9 +113,14 @@ class StreamingStatsService extends ChangeNotifier {
     final elapsedTime = DateTime.now().difference(_startTime!);
     if (elapsedTime.inSeconds > 0) {
       // Update time in background (fire and forget)
-      _updateStreamingTime(elapsedTime).catchError((e) {
-        print('[StreamingStatsService] Error updating time for previous song: $e');
-      });
+      unawaited(() async {
+        try {
+          await _updateStreamingTime(elapsedTime);
+        } catch (e) {
+          print(
+              '[StreamingStatsService] Error updating time for previous song: $e');
+        }
+      }());
     }
   }
 
@@ -128,7 +139,8 @@ class StreamingStatsService extends ChangeNotifier {
     // Record time if song was played for any duration
     if (_startTime != null) {
       final elapsedTime = DateTime.now().difference(_startTime!);
-      print('[StreamingStatsService] Elapsed time for ${_currentSong!.title}: ${elapsedTime.inSeconds}s');
+      print(
+          '[StreamingStatsService] Elapsed time for ${_currentSong!.title}: ${elapsedTime.inSeconds}s');
       if (elapsedTime.inSeconds > 0) {
         await _updateStreamingTime(elapsedTime);
       }
@@ -140,10 +152,12 @@ class StreamingStatsService extends ChangeNotifier {
 
   /// Internal: Record a play when 30 seconds have been reached
   Future<void> _recordPlay() async {
-    print('[StreamingStatsService] _recordPlay called - _currentSong: ${_currentSong?.title ?? "NULL"}');
+    print(
+        '[StreamingStatsService] _recordPlay called - _currentSong: ${_currentSong?.title ?? "NULL"}');
 
     if (_currentSong == null) {
-      print('[StreamingStatsService] ERROR: _recordPlay called but no current song');
+      print(
+          '[StreamingStatsService] ERROR: _recordPlay called but no current song');
       return;
     }
 
@@ -172,7 +186,8 @@ class StreamingStatsService extends ChangeNotifier {
     // Update in-memory cache IMMEDIATELY
     _statsCache[songId] = updatedStats;
 
-    print('[StreamingStatsService] Play count incremented: ${updatedStats.playCount}');
+    print(
+        '[StreamingStatsService] Play count incremented: ${updatedStats.playCount}');
     print('[StreamingStatsService] Cache now has ${_statsCache.length} songs');
 
     // Write to database IMMEDIATELY (no debouncing)
@@ -187,7 +202,8 @@ class StreamingStatsService extends ChangeNotifier {
   /// Internal: Update total streaming time
   Future<void> _updateStreamingTime(Duration elapsed) async {
     if (_currentSong == null) {
-      print('[StreamingStatsService] _updateStreamingTime called but no current song');
+      print(
+          '[StreamingStatsService] _updateStreamingTime called but no current song');
       return;
     }
 
@@ -201,10 +217,11 @@ class StreamingStatsService extends ChangeNotifier {
         );
 
     // Add elapsed time to total
-    final newTotalTime =
-        Duration(seconds: existingStats.totalTime.inSeconds + elapsed.inSeconds);
+    final newTotalTime = Duration(
+        seconds: existingStats.totalTime.inSeconds + elapsed.inSeconds);
 
-    print('[StreamingStatsService] Updating time for ${_currentSong!.title}: adding ${elapsed.inSeconds}s (total now: ${newTotalTime.inSeconds}s)');
+    print(
+        '[StreamingStatsService] Updating time for ${_currentSong!.title}: adding ${elapsed.inSeconds}s (total now: ${newTotalTime.inSeconds}s)');
 
     final updatedStats = existingStats.copyWith(
       totalTime: newTotalTime,
@@ -228,9 +245,7 @@ class StreamingStatsService extends ChangeNotifier {
 
   /// Get all stats (from in-memory cache for instant access)
   List<SongStats> getAllStats() {
-    return _statsCache.values
-        .where((stat) => stat.playCount > 0)
-        .toList();
+    return _statsCache.values.where((stat) => stat.playCount > 0).toList();
   }
 
   /// Get top songs (default 20) from in-memory cache
@@ -249,17 +264,20 @@ class StreamingStatsService extends ChangeNotifier {
     final Map<String, ArtistStats> artistMap = {};
 
     for (final songStat in allStats) {
-      final artistName = songStat.albumArtist ?? songStat.songArtist ?? 'Unknown Artist';
+      final artistName =
+          songStat.albumArtist ?? songStat.songArtist ?? 'Unknown Artist';
 
       if (artistMap.containsKey(artistName)) {
         final existing = artistMap[artistName]!;
         // Prefer album artwork, but capture song ID as fallback for standalone songs
         final newRandomAlbumId = existing.randomAlbumId ?? songStat.albumId;
-        final newRandomSongId = existing.randomSongId ?? 
+        final newRandomSongId = existing.randomSongId ??
             (songStat.albumId == null ? songStat.songId : null);
         artistMap[artistName] = existing.copyWith(
           playCount: existing.playCount + songStat.playCount,
-          totalTime: Duration(seconds: existing.totalTime.inSeconds + songStat.totalTime.inSeconds),
+          totalTime: Duration(
+              seconds:
+                  existing.totalTime.inSeconds + songStat.totalTime.inSeconds),
           lastPlayed: _laterDate(existing.lastPlayed, songStat.lastPlayed),
           firstPlayed: _earlierDate(existing.firstPlayed, songStat.firstPlayed),
           randomAlbumId: newRandomAlbumId,
@@ -303,9 +321,13 @@ class StreamingStatsService extends ChangeNotifier {
         final existing = albumMap[albumId]!;
         albumMap[albumId] = existing.copyWith(
           // Fill in albumArtist if we find a non-null value
-          albumArtist: existing.albumArtist ?? songStat.albumArtist ?? songStat.songArtist,
+          albumArtist: existing.albumArtist ??
+              songStat.albumArtist ??
+              songStat.songArtist,
           playCount: existing.playCount + songStat.playCount,
-          totalTime: Duration(seconds: existing.totalTime.inSeconds + songStat.totalTime.inSeconds),
+          totalTime: Duration(
+              seconds:
+                  existing.totalTime.inSeconds + songStat.totalTime.inSeconds),
           lastPlayed: _laterDate(existing.lastPlayed, songStat.lastPlayed),
           firstPlayed: _earlierDate(existing.firstPlayed, songStat.firstPlayed),
           uniqueSongsCount: existing.uniqueSongsCount + 1,
@@ -360,7 +382,8 @@ class StreamingStatsService extends ChangeNotifier {
 
   /// Get average daily listening time
   /// Returns both calendar-day average and active-day average
-  ({Duration perCalendarDay, Duration perActiveDay, int activeDays}) getAverageDailyTime() {
+  ({Duration perCalendarDay, Duration perActiveDay, int activeDays})
+      getAverageDailyTime() {
     final stats = getTotalStats();
     if (stats.totalSongsPlayed == 0) {
       return (
@@ -396,7 +419,8 @@ class StreamingStatsService extends ChangeNotifier {
           lastPlayed = stat.lastPlayed;
         }
         // Track unique dates for active days count
-        final dateKey = '${stat.lastPlayed!.year}-${stat.lastPlayed!.month}-${stat.lastPlayed!.day}';
+        final dateKey =
+            '${stat.lastPlayed!.year}-${stat.lastPlayed!.month}-${stat.lastPlayed!.day}';
         uniqueDates.add(dateKey);
       }
     }
@@ -413,13 +437,17 @@ class StreamingStatsService extends ChangeNotifier {
     // Calculate calendar days average (Option 1)
     final daysSinceStart = lastPlayed.difference(firstPlayed).inDays + 1;
     final perCalendarDay = daysSinceStart > 0
-        ? Duration(seconds: (stats.totalTimeStreamed.inSeconds / daysSinceStart).round())
+        ? Duration(
+            seconds:
+                (stats.totalTimeStreamed.inSeconds / daysSinceStart).round())
         : stats.totalTimeStreamed;
 
     // Calculate active days average (Option 2)
     final activeDaysCount = uniqueDates.length;
     final perActiveDay = activeDaysCount > 0
-        ? Duration(seconds: (stats.totalTimeStreamed.inSeconds / activeDaysCount).round())
+        ? Duration(
+            seconds:
+                (stats.totalTimeStreamed.inSeconds / activeDaysCount).round())
         : Duration.zero;
 
     return (
@@ -450,7 +478,8 @@ class StreamingStatsService extends ChangeNotifier {
     _emitTopArtists();
     _emitTopAlbums();
     notifyListeners();
-    print('[StreamingStatsService] Reloaded ${_statsCache.length} songs from database');
+    print(
+        '[StreamingStatsService] Reloaded ${_statsCache.length} songs from database');
   }
 
   /// Get stats for a specific song from in-memory cache
@@ -461,9 +490,11 @@ class StreamingStatsService extends ChangeNotifier {
   /// Emit updated top songs to stream
   void _emitTopSongs() {
     final topSongs = getTopSongs();
-    print('[StreamingStatsService] _emitTopSongs: emitting ${topSongs.length} songs to stream');
+    print(
+        '[StreamingStatsService] _emitTopSongs: emitting ${topSongs.length} songs to stream');
     if (topSongs.isNotEmpty) {
-      print('[StreamingStatsService] Top song: ${topSongs.first.songTitle} (${topSongs.first.playCount} plays)');
+      print(
+          '[StreamingStatsService] Top song: ${topSongs.first.songTitle} (${topSongs.first.playCount} plays)');
     }
     _topSongsStreamController.add(topSongs);
 

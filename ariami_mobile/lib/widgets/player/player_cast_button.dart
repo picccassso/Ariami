@@ -136,14 +136,7 @@ class _PlayerCastButtonState extends State<PlayerCastButton> {
     GoogleCastDevice device,
   ) async {
     try {
-      await _castService.connectToDevice(device);
-      await _castService.syncFromPlayback(
-        song: widget.playbackManager.currentSong,
-        position: widget.playbackManager.position,
-        isPlaying: widget.playbackManager.isPlaying,
-        force: true,
-      );
-      await widget.playbackManager.pauseForCasting();
+      await widget.playbackManager.startCastingToDevice(device);
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -177,7 +170,7 @@ class _PlayerCastButtonState extends State<PlayerCastButton> {
                 title: const Text('Disconnect'),
                 onTap: () async {
                   Navigator.of(sheetContext).pop();
-                  await _castService.disconnect();
+                  await widget.playbackManager.stopCastingAndResumeLocal();
                 },
               ),
             ],

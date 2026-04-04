@@ -184,7 +184,11 @@ class LibrarySyncEngine {
       if (_disposed) return;
       await action();
     });
-    _syncQueue = next.catchError((_) {});
+    _syncQueue = (() async {
+      try {
+        await next;
+      } catch (_) {}
+    }());
     return next;
   }
 }
