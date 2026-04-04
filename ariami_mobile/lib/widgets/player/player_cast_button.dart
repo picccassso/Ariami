@@ -29,9 +29,11 @@ class _PlayerCastButtonState extends State<PlayerCastButton> {
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: _castService,
+      listenable: Listenable.merge([_castService, widget.playbackManager]),
       builder: (context, _) {
         final isConnected = _castService.isConnected;
+        final isBusy = _castService.isConnecting ||
+            widget.playbackManager.isCastTransitionInProgress;
 
         return IconButton(
           icon: Icon(
@@ -43,7 +45,8 @@ class _PlayerCastButtonState extends State<PlayerCastButton> {
                     .onSurface
                     .withValues(alpha: 0.9),
           ),
-          onPressed: _castService.isSupportedPlatform ? _onPressed : null,
+          onPressed:
+              _castService.isSupportedPlatform && !isBusy ? _onPressed : null,
           tooltip: isConnected ? 'Disconnect Chromecast' : 'Connect Chromecast',
         );
       },
