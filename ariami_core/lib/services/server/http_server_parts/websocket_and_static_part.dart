@@ -2,7 +2,7 @@ part of '../http_server.dart';
 
 extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
   /// Handle WebSocket connection
-  void _handleWebSocket(dynamic webSocket) {
+  void _handleWebSocket(WebSocketChannel webSocket, String? subprotocol) {
     print('WebSocket client connected (${_webSocketClients.length + 1} total)');
     _webSocketClients.add(webSocket);
 
@@ -36,7 +36,7 @@ extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
   }
 
   /// Handle incoming WebSocket message
-  void _handleWebSocketMessage(dynamic webSocket, dynamic rawMessage) {
+  void _handleWebSocketMessage(WebSocketChannel webSocket, dynamic rawMessage) {
     try {
       final jsonMessage =
           jsonDecode(rawMessage as String) as Map<String, dynamic>;
@@ -123,7 +123,7 @@ extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
   }
 
   /// Send message to a specific WebSocket client
-  void _sendWebSocketMessage(dynamic webSocket, WsMessage message) {
+  void _sendWebSocketMessage(WebSocketChannel webSocket, WsMessage message) {
     try {
       final jsonString = jsonEncode(message.toJson());
       webSocket.sink.add(jsonString);

@@ -8,6 +8,7 @@ import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_router/shelf_router.dart';
 import 'package:shelf_web_socket/shelf_web_socket.dart';
 import 'package:shelf_static/shelf_static.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:crypto/crypto.dart';
 import 'package:ariami_core/services/server/connection_manager.dart';
 import 'package:ariami_core/services/server/streaming_service.dart';
@@ -66,8 +67,8 @@ class AriamiHttpServer {
   String? _lanIp;
   String? _advertisedIp; // The IP to show in QR code (Tailscale or LAN IP)
   int _port = 8080;
-  final List<dynamic> _webSocketClients = [];
-  final Map<dynamic, String> _webSocketDeviceIds = {};
+  final List<WebSocketChannel> _webSocketClients = [];
+  final Map<WebSocketChannel, String> _webSocketDeviceIds = {};
 
   // Download concurrency controls (multi-user fairness)
   static const int _defaultMaxConcurrentDownloads = 4;
