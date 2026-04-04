@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
 import '../../models/api_models.dart';
 import '../../models/download_task.dart';
+import '../../models/websocket_models.dart';
 import '../../services/api/connection_service.dart';
 import '../../services/library/library_repository.dart';
 import '../../services/playlist_service.dart';
@@ -41,6 +42,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   String? _errorMessage;
   bool _isReorderMode = false;
   Set<String> _downloadedSongIds = {};
+  StreamSubscription<WsMessage>? _webSocketSubscription;
 
   // Map of albumId to album info (name, artist) for stats tracking
   final Map<String, ({String name, String artist})> _albumInfoMap = {};
@@ -51,16 +53,43 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
     _loadDownloadedSongs();
     _loadPlaylist();
     _playlistService.addListener(_onPlaylistsChanged);
+    _webSocketSubscription = _connectionService.webSocketMessages.listen(
+      _handleLibrarySyncMessage,
+    );
   }
 
   @override
   void dispose() {
     _playlistService.removeListener(_onPlaylistsChanged);
+    _webSocketSubscription?.cancel();
     super.dispose();
   }
 
   void _onPlaylistsChanged() {
     _refreshPlaylistData();
+  }
+
+  void _handleLibrarySyncMessage(WsMessage message) {
+    if (message.type != WsMessageType.syncTokenAdvanced &&
+        message.type != WsMessageType.libraryUpdated) {
+      return;
+    }
+    if (!mounted || _isLoading || _isSongsLoading || _playlist == null) {
+      return;
+    }
+    unawaited(_reloadSongsFromLibrarySync());
+  }
+
+  Future<void> _reloadSongsFromLibrarySync() async {
+    final playlist = _playlist;
+    if (playlist == null) return;
+
+    final songs = await _resolveSongs(playlist.songIds);
+    if (!mounted) return;
+
+    setState(() {
+      _songs = songs;
+    });
   }
 
   /// Load downloaded song IDs

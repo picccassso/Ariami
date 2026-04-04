@@ -31,7 +31,12 @@ class LibraryRepository {
 
   Future<bool> hasCompletedBootstrap() async {
     final syncState = await getSyncState();
-    return syncState.bootstrapComplete;
+    if (!syncState.bootstrapComplete) {
+      return false;
+    }
+
+    final db = await _database;
+    return !(await db.hasPlaylistMembershipBackfillPending());
   }
 
   Future<LibraryRepositoryBundle> getLibraryBundle() async {

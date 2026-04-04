@@ -124,10 +124,10 @@ class LibraryReadFacade {
   }
 
   Future<int?> getActiveLastAppliedToken() async {
-    final syncState = await _libraryRepository.getSyncState();
-    if (!syncState.bootstrapComplete) {
+    if (!await _libraryRepository.hasCompletedBootstrap()) {
       return null;
     }
+    final syncState = await _libraryRepository.getSyncState();
     return syncState.lastAppliedToken;
   }
 

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../../../models/download_task.dart';
+import '../../../models/websocket_models.dart';
 import '../../../services/api/connection_service.dart';
 import '../../../services/cache/cache_manager.dart'
     show CacheManager, CacheUpdateEvent;
@@ -49,6 +50,7 @@ class DownloadsController extends ChangeNotifier {
   Timer? _countRefreshTimer;
   StreamSubscription<DownloadProgress>? _progressSubscription;
   StreamSubscription<List<DownloadTask>>? _queueSubscription;
+  StreamSubscription<WsMessage>? _webSocketSubscription;
 
   bool _disposed = false;
 
@@ -88,6 +90,9 @@ class DownloadsController extends ChangeNotifier {
         _recomputeDownloadAllCounts,
       );
     });
+    _webSocketSubscription = _connectionService.webSocketMessages.listen(
+      _handleLibrarySyncMessage,
+    );
 
     final playlistService = PlaylistService();
     if (!playlistService.isLoaded) {
@@ -104,6 +109,19 @@ class DownloadsController extends ChangeNotifier {
       const Duration(milliseconds: 250),
       _loadCacheStats,
     );
+  }
+
+  void _handleLibrarySyncMessage(WsMessage message) {
+    if (message.type != WsMessageType.syncTokenAdvanced &&
+        message.type != WsMessageType.libraryUpdated) {
+      return;
+    }
+
+    _countRefreshTimer?.cancel();
+    _countRefreshTimer = Timer(const Duration(milliseconds: 300), () async {
+      await _refreshLibraryReferenceData();
+      _recomputeDownloadAllCounts();
+    });
   }
 
   Future<void> _refreshLibraryReferenceData() async {
@@ -479,6 +497,7 @@ class DownloadsController extends ChangeNotifier {
     _cacheSubscription?.cancel();
     _progressSubscription?.cancel();
     _queueSubscription?.cancel();
+    _webSocketSubscription?.cancel();
     _cacheStatsRefreshTimer?.cancel();
     _countRefreshTimer?.cancel();
     super.dispose();

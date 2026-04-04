@@ -5,6 +5,7 @@ import '../../widgets/common/bottom_chrome_metrics.dart';
 import '../../models/api_models.dart';
 import '../../models/download_task.dart';
 import '../../models/song.dart';
+import '../../models/websocket_models.dart';
 import '../../services/api/connection_service.dart';
 import '../../services/search_service.dart';
 import '../../services/playback_manager.dart';
@@ -42,6 +43,7 @@ class _SearchScreenState extends State<SearchScreen> {
   bool _isOffline = false;
   String? _errorMessage;
   StreamSubscription<OfflineMode>? _offlineSubscription;
+  StreamSubscription<WsMessage>? _webSocketSubscription;
 
   @override
   void initState() {
@@ -64,6 +66,9 @@ class _SearchScreenState extends State<SearchScreen> {
         _loadDownloadedSongIds();
       }
     });
+    _webSocketSubscription = _connectionService.webSocketMessages.listen(
+      _handleLibrarySyncMessage,
+    );
   }
 
   @override
@@ -72,7 +77,19 @@ class _SearchScreenState extends State<SearchScreen> {
     _searchController.dispose();
     _debouncer.cancel();
     _offlineSubscription?.cancel();
+    _webSocketSubscription?.cancel();
     super.dispose();
+  }
+
+  void _handleLibrarySyncMessage(WsMessage message) {
+    if (message.type != WsMessageType.syncTokenAdvanced &&
+        message.type != WsMessageType.libraryUpdated) {
+      return;
+    }
+    if (!mounted || _isLoading || _offlineService.isOfflineModeEnabled) {
+      return;
+    }
+    unawaited(_loadLibrary());
   }
 
   /// Load library data for searching

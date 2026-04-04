@@ -58,6 +58,8 @@ class ConnectionService {
   // Legacy services still managed directly
   final WebSocketService _webSocketService = WebSocketService();
   final LibraryRepository _libraryRepository = LibraryRepository();
+  final StreamController<WsMessage> _messageController =
+      StreamController<WsMessage>.broadcast();
   late final LibrarySyncEngine _librarySyncEngine;
   late final LibraryReadFacade _libraryReadFacade;
 
@@ -109,6 +111,7 @@ class ConnectionService {
       deviceNameProvider: _deviceInfoManager.getDeviceName,
       sessionTokenProvider: () async => _authManager.sessionToken,
     );
+    _webSocketHandler.messages.listen(_forwardWebSocketMessage);
 
     // Initialize endpoint switch handler
     _endpointSwitchHandler = EndpointSwitchHandler(
@@ -128,6 +131,7 @@ class ConnectionService {
     _librarySyncEngine = LibrarySyncEngine(
       apiClientProvider: _requireApiClient,
       libraryRepository: _libraryRepository,
+      onBootstrapCompleted: _onLocalBootstrapCompleted,
     );
     _libraryReadFacade = LibraryReadFacade(
       apiClientProvider: () => _lifecycleManager.apiClient,
@@ -166,8 +170,8 @@ class ConnectionService {
   /// Check if user is authenticated
   bool get isAuthenticated => _authManager.isAuthenticated;
 
-  /// Get WebSocket message stream
-  Stream<WsMessage> get webSocketMessages => _webSocketHandler.messages;
+  /// Get WebSocket and local sync message stream.
+  Stream<WsMessage> get webSocketMessages => _messageController.stream;
 
   /// Unified library read facade for deterministic v1/v2 source selection
   LibraryReadFacade get libraryReadFacade => _libraryReadFacade;
@@ -575,6 +579,21 @@ class ConnectionService {
 
   Future<void> _onSyncTokenAdvanced(int latestToken) async {
     await _librarySyncEngine.syncUntil(latestToken);
+  }
+
+  Future<void> _onLocalBootstrapCompleted(int latestToken) async {
+    if (_messageController.isClosed) return;
+    _messageController.add(
+      SyncTokenAdvancedMessage(
+        latestToken: latestToken,
+        reason: 'bootstrap_complete',
+      ),
+    );
+  }
+
+  void _forwardWebSocketMessage(WsMessage message) {
+    if (_messageController.isClosed) return;
+    _messageController.add(message);
   }
 
   Future<void> _performEndpointSwitch(ServerInfo newServerInfo) async {
