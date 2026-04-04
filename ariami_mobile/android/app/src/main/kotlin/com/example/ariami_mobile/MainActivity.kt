@@ -1,6 +1,5 @@
 package com.example.ariami_mobile
 
-import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import com.ryanheise.audioservice.AudioServiceActivity
 
