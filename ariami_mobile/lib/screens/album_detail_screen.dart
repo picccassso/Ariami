@@ -90,14 +90,6 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
       _buildAlbumDetailFromDownloads();
       return;
     }
-    
-    if (_connectionService.apiClient == null) {
-      setState(() {
-        _isLoading = false;
-        _errorMessage = 'Not connected to server';
-      });
-      return;
-    }
 
     try {
       setState(() {
@@ -105,16 +97,11 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
         _errorMessage = null;
       });
 
-      print('[AlbumDetailScreen] ========== DEBUGGING ALBUM DETAIL ==========');
-      print('[AlbumDetailScreen] Fetching album detail for ID: ${widget.album.id}');
-      print('[AlbumDetailScreen] Album from library coverArt: ${widget.album.coverArt}');
-
-      final detail = await _connectionService.apiClient!.getAlbumDetail(widget.album.id);
-
-      print('[AlbumDetailScreen] Album detail loaded: ${detail.songs.length} tracks');
-      print('[AlbumDetailScreen] Album detail coverArt: ${detail.coverArt}');
-      print('[AlbumDetailScreen] Album detail year: ${detail.year}');
-      print('[AlbumDetailScreen] ========================================');
+      final detail = await _connectionService.libraryReadFacade
+          .getAlbumDetail(widget.album.id);
+      if (detail == null) {
+        throw StateError('Album not found');
+      }
 
       setState(() {
         _albumDetail = detail;
@@ -149,26 +136,28 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
     // Build song models from download tasks
     final albumSongs = downloadTasks
         .map((t) => SongModel(
-            id: t.songId,
-            title: t.title,
-            artist: t.artist,
-            albumId: t.albumId,
-            duration: t.duration,
-            trackNumber: t.trackNumber,
-          ))
+              id: t.songId,
+              title: t.title,
+              artist: t.artist,
+              albumId: t.albumId,
+              duration: t.duration,
+              trackNumber: t.trackNumber,
+            ))
         .toList();
 
     // Sort by track number
-    albumSongs.sort((a, b) => (a.trackNumber ?? 999).compareTo(b.trackNumber ?? 999));
+    albumSongs
+        .sort((a, b) => (a.trackNumber ?? 999).compareTo(b.trackNumber ?? 999));
 
-    print('[AlbumDetailScreen] Built ${albumSongs.length} songs from downloads');
+    print(
+        '[AlbumDetailScreen] Built ${albumSongs.length} songs from downloads');
     print('[AlbumDetailScreen] Album: $albumName by $albumArtist');
 
     setState(() {
       _albumDetail = AlbumDetailResponse(
         id: widget.album.id,
-        title: albumName,  // Use from download task if available
-        artist: albumArtist,  // Use albumArtist from download task
+        title: albumName, // Use from download task if available
+        artist: albumArtist, // Use albumArtist from download task
         songs: albumSongs,
         coverArt: null, // No cover art available offline
         year: null,
@@ -207,14 +196,20 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
           actions: [
             IconButton(
               icon: Icon(
-                _albumDetail != null && _albumDetail!.songs.every((s) => _downloadedSongIds.contains(s.id))
+                _albumDetail != null &&
+                        _albumDetail!.songs
+                            .every((s) => _downloadedSongIds.contains(s.id))
                     ? Icons.download_done_rounded
                     : Icons.download_for_offline_rounded,
-                color: _albumDetail != null && _albumDetail!.songs.every((s) => _downloadedSongIds.contains(s.id))
+                color: _albumDetail != null &&
+                        _albumDetail!.songs
+                            .every((s) => _downloadedSongIds.contains(s.id))
                     ? Colors.green
                     : Colors.white,
               ),
-              onPressed: _albumDetail != null && !_albumDetail!.songs.every((s) => _downloadedSongIds.contains(s.id))
+              onPressed: _albumDetail != null &&
+                      !_albumDetail!.songs
+                          .every((s) => _downloadedSongIds.contains(s.id))
                   ? _downloadAlbum
                   : null,
               tooltip: 'Download Album',
@@ -385,8 +380,10 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
                   style: FilledButton.styleFrom(
                     shape: const StadiumBorder(),
                     padding: const EdgeInsets.symmetric(vertical: 12),
-                    backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                    foregroundColor: Theme.of(context).colorScheme.onPrimaryContainer,
+                    backgroundColor:
+                        Theme.of(context).colorScheme.primaryContainer,
+                    foregroundColor:
+                        Theme.of(context).colorScheme.onPrimaryContainer,
                   ),
                   icon: const Icon(Icons.shuffle_rounded, size: 22),
                   label: const Text(
@@ -496,7 +493,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
   /// Download entire album
   void _downloadAlbum() {
     if (_albumDetail == null) return;
-    
+
     // Check connection
     if (_connectionService.apiClient == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -517,14 +514,16 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
     }
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Starting download of ${songsToDownload.length} songs...')),
+      SnackBar(
+          content:
+              Text('Starting download of ${songsToDownload.length} songs...')),
     );
 
     // Queue downloads
     // Note: In a real implementation, we might want to batch this or use a dedicated album download method
     // For now, we queue individual songs
     // We already have _handleDownload logic in SongListItem, but we can access DownloadManager directly
-    
+
     for (final song in songsToDownload) {
       _downloadManager.downloadSong(
         songId: song.id,
@@ -549,8 +548,11 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
     // Filter songs for offline mode (include both downloaded and cached)
     final isOffline = _offlineService.isOffline;
     final songsToPlay = isOffline
-        ? _albumDetail!.songs.where((s) => 
-            _downloadedSongIds.contains(s.id) || _cachedSongIds.contains(s.id)).toList()
+        ? _albumDetail!.songs
+            .where((s) =>
+                _downloadedSongIds.contains(s.id) ||
+                _cachedSongIds.contains(s.id))
+            .toList()
         : _albumDetail!.songs;
 
     if (songsToPlay.isEmpty) {
@@ -566,18 +568,20 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
     }
 
     // Convert songs
-    final allSongs = songsToPlay.map((songModel) => Song(
-      id: songModel.id,
-      title: songModel.title,
-      artist: songModel.artist,
-      album: widget.album.title,
-      albumId: widget.album.id,
-      duration: Duration(seconds: songModel.duration),
-      filePath: songModel.id,
-      fileSize: 0,
-      modifiedTime: DateTime.now(),
-      trackNumber: songModel.trackNumber,
-    )).toList();
+    final allSongs = songsToPlay
+        .map((songModel) => Song(
+              id: songModel.id,
+              title: songModel.title,
+              artist: songModel.artist,
+              album: widget.album.title,
+              albumId: widget.album.id,
+              duration: Duration(seconds: songModel.duration),
+              filePath: songModel.id,
+              fileSize: 0,
+              modifiedTime: DateTime.now(),
+              trackNumber: songModel.trackNumber,
+            ))
+        .toList();
 
     try {
       await _playbackManager.playSongs(allSongs);
@@ -602,8 +606,11 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
     // Filter songs for offline mode (include both downloaded and cached)
     final isOffline = _offlineService.isOffline;
     final songsToPlay = isOffline
-        ? _albumDetail!.songs.where((s) => 
-            _downloadedSongIds.contains(s.id) || _cachedSongIds.contains(s.id)).toList()
+        ? _albumDetail!.songs
+            .where((s) =>
+                _downloadedSongIds.contains(s.id) ||
+                _cachedSongIds.contains(s.id))
+            .toList()
         : _albumDetail!.songs;
 
     if (songsToPlay.isEmpty) {
@@ -619,18 +626,20 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
     }
 
     // Convert songs
-    final allSongs = songsToPlay.map((songModel) => Song(
-      id: songModel.id,
-      title: songModel.title,
-      artist: songModel.artist,
-      album: widget.album.title,
-      albumId: widget.album.id,
-      duration: Duration(seconds: songModel.duration),
-      filePath: songModel.id,
-      fileSize: 0,
-      modifiedTime: DateTime.now(),
-      trackNumber: songModel.trackNumber,
-    )).toList();
+    final allSongs = songsToPlay
+        .map((songModel) => Song(
+              id: songModel.id,
+              title: songModel.title,
+              artist: songModel.artist,
+              album: widget.album.title,
+              albumId: widget.album.id,
+              duration: Duration(seconds: songModel.duration),
+              filePath: songModel.id,
+              fileSize: 0,
+              modifiedTime: DateTime.now(),
+              trackNumber: songModel.trackNumber,
+            ))
+        .toList();
 
     try {
       await _playbackManager.playShuffled(allSongs);
@@ -653,18 +662,20 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
     }
 
     // Convert all album songs to Song objects
-    final allSongs = _albumDetail!.songs.map((songModel) => Song(
-      id: songModel.id,
-      title: songModel.title,
-      artist: songModel.artist,
-      album: widget.album.title,
-      albumId: widget.album.id,
-      duration: Duration(seconds: songModel.duration),
-      filePath: songModel.id,
-      fileSize: 0,
-      modifiedTime: DateTime.now(),
-      trackNumber: songModel.trackNumber,
-    )).toList();
+    final allSongs = _albumDetail!.songs
+        .map((songModel) => Song(
+              id: songModel.id,
+              title: songModel.title,
+              artist: songModel.artist,
+              album: widget.album.title,
+              albumId: widget.album.id,
+              duration: Duration(seconds: songModel.duration),
+              filePath: songModel.id,
+              fileSize: 0,
+              modifiedTime: DateTime.now(),
+              trackNumber: songModel.trackNumber,
+            ))
+        .toList();
 
     try {
       _playbackManager.addAllToQueue(allSongs);
@@ -713,7 +724,8 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
       // Find the index of the clicked track in the filtered list
       startIndex = songsForQueue.indexWhere((s) => s.id == track.id);
       if (startIndex == -1) startIndex = 0;
-      print('[AlbumDetailScreen] Offline mode: ${songsForQueue.length} downloaded songs in queue');
+      print(
+          '[AlbumDetailScreen] Offline mode: ${songsForQueue.length} downloaded songs in queue');
     } else {
       // Online mode - add all songs
       songsForQueue = _albumDetail!.songs;
@@ -725,22 +737,25 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
     final albumTitle = _albumDetail?.title ?? widget.album.title;
     final albumArtistName = _albumDetail?.artist ?? widget.album.artist;
 
-    final allSongs = songsForQueue.map((songModel) => Song(
-      id: songModel.id,
-      title: songModel.title,
-      artist: songModel.artist,  // Song artist (may include features)
-      album: albumTitle,  // Album title
-      albumId: widget.album.id,
-      albumArtist: albumArtistName,  // Album artist (main artist)
-      duration: Duration(seconds: songModel.duration),
-      filePath: songModel.id,
-      fileSize: 0,
-      modifiedTime: DateTime.now(),
-      trackNumber: songModel.trackNumber,
-    )).toList();
+    final allSongs = songsForQueue
+        .map((songModel) => Song(
+              id: songModel.id,
+              title: songModel.title,
+              artist: songModel.artist, // Song artist (may include features)
+              album: albumTitle, // Album title
+              albumId: widget.album.id,
+              albumArtist: albumArtistName, // Album artist (main artist)
+              duration: Duration(seconds: songModel.duration),
+              filePath: songModel.id,
+              fileSize: 0,
+              modifiedTime: DateTime.now(),
+              trackNumber: songModel.trackNumber,
+            ))
+        .toList();
 
     print('[AlbumDetailScreen] Converted ${allSongs.length} songs for queue');
-    print('[AlbumDetailScreen] Calling PlaybackManager.playSongs() starting at index $startIndex...');
+    print(
+        '[AlbumDetailScreen] Calling PlaybackManager.playSongs() starting at index $startIndex...');
 
     try {
       // Play songs starting from clicked track
@@ -845,7 +860,8 @@ class _AlbumPlaylistPickerState extends State<_AlbumPlaylistPicker> {
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Added $addedCount ${addedCount == 1 ? 'song' : 'songs'} to "${playlist.name}"'),
+          content: Text(
+              'Added $addedCount ${addedCount == 1 ? 'song' : 'songs'} to "${playlist.name}"'),
           backgroundColor: Colors.green,
         ),
       );
@@ -923,7 +939,8 @@ class _AlbumPlaylistPickerState extends State<_AlbumPlaylistPicker> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.queue_music, size: 48, color: Colors.grey[400]),
+                            Icon(Icons.queue_music,
+                                size: 48, color: Colors.grey[400]),
                             const SizedBox(height: 8),
                             Text(
                               'No playlists yet',
@@ -941,10 +958,11 @@ class _AlbumPlaylistPickerState extends State<_AlbumPlaylistPicker> {
                         itemBuilder: (context, index) {
                           final playlist = playlists[index];
                           final songsAlreadyInPlaylist = widget.albumSongs
-                              .where((song) => playlist.songIds.contains(song.id))
+                              .where(
+                                  (song) => playlist.songIds.contains(song.id))
                               .length;
-                          final allSongsInPlaylist =
-                              songsAlreadyInPlaylist == widget.albumSongs.length;
+                          final allSongsInPlaylist = songsAlreadyInPlaylist ==
+                              widget.albumSongs.length;
 
                           return ListTile(
                             leading: _buildPlaylistIcon(playlist),

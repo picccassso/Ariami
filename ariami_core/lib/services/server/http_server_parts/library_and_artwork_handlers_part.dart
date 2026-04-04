@@ -1,43 +1,6 @@
 part of '../http_server.dart';
 
 extension AriamiHttpServerLibraryAndArtworkHandlersMethods on AriamiHttpServer {
-  /// Handle get library request
-  Future<Response> _handleGetLibrary(Request request) async {
-    final userAgent = request.headers['user-agent'] ?? 'unknown';
-    print('[HttpServer][WARN] Deprecated /api/library snapshot requested by '
-        '"$userAgent". Reserved for legacy clients and CLI web screens. '
-        'Sunset date: ${AriamiHttpServer._v1LibrarySunsetDate}.');
-
-    final baseUrl = 'http://${_advertisedIp ?? _tailscaleIp}:$_port';
-    final stopwatch = Stopwatch()..start();
-    final libraryJson = _libraryManager.toApiJson(baseUrl);
-    stopwatch.stop();
-
-    final durationsReady = libraryJson['durationsReady'] as bool? ?? true;
-    if (!durationsReady) {
-      _libraryManager.ensureDurationWarmup();
-    }
-
-    // Debug logging
-    print(
-        '[HttpServer] Library response built in ${stopwatch.elapsedMilliseconds}ms');
-    print(
-        '[HttpServer] Library request - Albums: ${(libraryJson['albums'] as List).length}, Songs: ${(libraryJson['songs'] as List).length}, durationsReady: $durationsReady');
-    print(
-        '[HttpServer] Library manager has library: ${_libraryManager.library != null}');
-    print('[HttpServer] Last scan time: ${_libraryManager.lastScanTime}');
-
-    return Response.ok(
-      jsonEncode(libraryJson),
-      headers: {
-        'Content-Type': 'application/json; charset=utf-8',
-        'Deprecation': 'true',
-        'Sunset': AriamiHttpServer._v1LibrarySunsetHttpDate,
-        'Warning': AriamiHttpServer._v1LibraryWarningHeader,
-      },
-    );
-  }
-
   /// Handle get albums request (placeholder for Phase 5)
   Response _handleGetAlbums(Request request) {
     return Response.ok(

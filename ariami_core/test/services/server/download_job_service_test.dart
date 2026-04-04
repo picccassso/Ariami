@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:ariami_core/models/download_job_models.dart';
 import 'package:ariami_core/services/catalog/catalog_database.dart';
 import 'package:ariami_core/services/catalog/catalog_repository.dart';
-import 'package:ariami_core/services/library/library_manager.dart';
 import 'package:ariami_core/services/server/download_job_service.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
@@ -13,7 +12,6 @@ void main() {
     late Directory tempDir;
     late CatalogDatabase catalogDatabase;
     late CatalogRepository repository;
-    late LibraryManager libraryManager;
     late DownloadJobService service;
 
     setUp(() async {
@@ -23,19 +21,15 @@ void main() {
       );
       catalogDatabase.initialize();
       repository = CatalogRepository(database: catalogDatabase.database);
-      libraryManager = LibraryManager();
-      libraryManager.clear();
       _seedCatalog(repository);
 
       service = DownloadJobService(
         catalogRepositoryProvider: () => repository,
-        libraryManager: libraryManager,
       );
     });
 
     tearDown(() async {
       catalogDatabase.close();
-      libraryManager.clear();
       if (await tempDir.exists()) {
         await tempDir.delete(recursive: true);
       }
@@ -111,6 +105,28 @@ void main() {
         ),
       );
     });
+
+    test('resolves playlist-backed jobs from catalog membership only', () {
+      final created = service.createJob(
+        userScopeId: 'user-1',
+        request: const DownloadJobCreateRequest(
+          playlistIds: <String>['playlist-a'],
+          quality: 'high',
+        ),
+      );
+
+      expect(created.itemCount, equals(2));
+
+      final items = service.getJobItems(
+        userScopeId: 'user-1',
+        jobId: created.jobId,
+        limit: 10,
+      );
+      expect(
+        items.items.map((item) => item.songId).toList(),
+        equals(<String>['song-a', 'song-b']),
+      );
+    });
   });
 }
 
@@ -168,6 +184,31 @@ void _seedCatalog(CatalogRepository repository) {
       modifiedEpochMs: 101,
       artworkKey: 'album-b',
       updatedToken: 4,
+    ),
+  );
+
+  repository.upsertPlaylist(
+    CatalogPlaylistRecord(
+      id: 'playlist-a',
+      name: 'Playlist A',
+      songCount: 2,
+      updatedToken: 5,
+    ),
+  );
+  repository.upsertPlaylistSong(
+    CatalogPlaylistSongRecord(
+      playlistId: 'playlist-a',
+      songId: 'song-a',
+      position: 0,
+      updatedToken: 6,
+    ),
+  );
+  repository.upsertPlaylistSong(
+    CatalogPlaylistSongRecord(
+      playlistId: 'playlist-a',
+      songId: 'song-b',
+      position: 1,
+      updatedToken: 7,
     ),
   );
 }

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:ariami_core/models/library_structure.dart';
 import 'package:ariami_core/models/song_metadata.dart';
 import 'package:ariami_core/services/catalog/catalog_repository.dart';
@@ -8,15 +10,23 @@ class CatalogWriteResult {
   CatalogWriteResult({
     required this.upsertedAlbumCount,
     required this.upsertedSongCount,
+    required this.upsertedPlaylistCount,
+    required this.upsertedPlaylistSongCount,
     required this.deletedAlbumCount,
     required this.deletedSongCount,
+    required this.deletedPlaylistCount,
+    required this.deletedPlaylistSongCount,
     required this.latestToken,
   });
 
   final int upsertedAlbumCount;
   final int upsertedSongCount;
+  final int upsertedPlaylistCount;
+  final int upsertedPlaylistSongCount;
   final int deletedAlbumCount;
   final int deletedSongCount;
+  final int deletedPlaylistCount;
+  final int deletedPlaylistSongCount;
   final int latestToken;
 }
 
@@ -96,9 +106,14 @@ ON CONFLICT(artwork_key, variant) DO UPDATE SET
   }) {
     final albumsById = _buildAlbumSnapshots(library);
     final songsById = _buildSongSnapshots(library, songIdForPath);
+    final playlistsById = _buildPlaylistSnapshots(library);
+    final playlistSongsByKey =
+        _buildPlaylistSongSnapshots(library, playlistsById);
 
     final existingAlbumIds = _selectActiveIds('albums');
     final existingSongIds = _selectActiveIds('songs');
+    final existingPlaylistIds = _selectActiveIds('playlists');
+    final existingPlaylistSongKeys = _selectPlaylistSongKeys();
 
     final deletedAlbumIds = existingAlbumIds
         .where((id) => !albumsById.containsKey(id))
@@ -108,9 +123,24 @@ ON CONFLICT(artwork_key, variant) DO UPDATE SET
         .where((id) => !songsById.containsKey(id))
         .toList()
       ..sort();
+    final deletedPlaylistIds = existingPlaylistIds
+        .where((id) => !playlistsById.containsKey(id))
+        .toList()
+      ..sort();
+    final deletedPlaylistIdSet = deletedPlaylistIds.toSet();
+    final deletedPlaylistSongKeys = existingPlaylistSongKeys
+        .where(
+          (key) =>
+              !playlistSongsByKey.containsKey(key) &&
+              !deletedPlaylistIdSet.contains(key.playlistId),
+        )
+        .toList()
+      ..sort();
 
     final orderedAlbumIds = albumsById.keys.toList()..sort();
     final orderedSongIds = songsById.keys.toList()..sort();
+    final orderedPlaylistIds = playlistsById.keys.toList()..sort();
+    final orderedPlaylistSongKeys = playlistSongsByKey.keys.toList()..sort();
 
     final occurredEpochMs = DateTime.now().millisecondsSinceEpoch;
     var tokenCursor = _readLatestToken();
@@ -136,6 +166,7 @@ ON CONFLICT(artwork_key, variant) DO UPDATE SET
           entityType: 'album',
           entityId: snapshot.id,
           op: 'upsert',
+          payloadJson: _albumPayloadJson(snapshot),
           occurredEpochMs: occurredEpochMs,
         );
       }
@@ -162,6 +193,59 @@ ON CONFLICT(artwork_key, variant) DO UPDATE SET
           entityType: 'song',
           entityId: snapshot.id,
           op: 'upsert',
+          payloadJson: _songPayloadJson(snapshot),
+          occurredEpochMs: occurredEpochMs,
+        );
+      }
+
+      for (final playlistId in orderedPlaylistIds) {
+        tokenCursor += 1;
+        final snapshot = playlistsById[playlistId]!;
+        _repository.upsertPlaylist(
+          CatalogPlaylistRecord(
+            id: snapshot.id,
+            name: snapshot.name,
+            songCount: snapshot.songCount,
+            updatedToken: tokenCursor,
+          ),
+        );
+        _insertChangeEvent(
+          entityType: 'playlist',
+          entityId: snapshot.id,
+          op: 'upsert',
+          payloadJson: _playlistPayloadJson(snapshot),
+          occurredEpochMs: occurredEpochMs,
+        );
+      }
+
+      for (final key in orderedPlaylistSongKeys) {
+        tokenCursor += 1;
+        final snapshot = playlistSongsByKey[key]!;
+        _repository.upsertPlaylistSong(
+          CatalogPlaylistSongRecord(
+            playlistId: snapshot.playlistId,
+            songId: snapshot.songId,
+            position: snapshot.position,
+            updatedToken: tokenCursor,
+          ),
+        );
+        _insertChangeEvent(
+          entityType: 'playlist_song',
+          entityId: snapshot.entityId,
+          op: 'upsert',
+          payloadJson: _playlistSongPayloadJson(snapshot),
+          occurredEpochMs: occurredEpochMs,
+        );
+      }
+
+      for (final key in deletedPlaylistSongKeys) {
+        tokenCursor += 1;
+        _repository.deletePlaylistSong(key.playlistId, key.songId);
+        _insertChangeEvent(
+          entityType: 'playlist_song',
+          entityId: key.entityId,
+          op: 'delete',
+          payloadJson: _playlistSongDeletePayloadJson(key),
           occurredEpochMs: occurredEpochMs,
         );
       }
@@ -188,6 +272,17 @@ ON CONFLICT(artwork_key, variant) DO UPDATE SET
         );
       }
 
+      for (final playlistId in deletedPlaylistIds) {
+        tokenCursor += 1;
+        _repository.softDeletePlaylist(playlistId, tokenCursor);
+        _insertChangeEvent(
+          entityType: 'playlist',
+          entityId: playlistId,
+          op: 'delete',
+          occurredEpochMs: occurredEpochMs,
+        );
+      }
+
       _database.execute('COMMIT;');
     } catch (_) {
       _database.execute('ROLLBACK;');
@@ -198,8 +293,12 @@ ON CONFLICT(artwork_key, variant) DO UPDATE SET
     return CatalogWriteResult(
       upsertedAlbumCount: orderedAlbumIds.length,
       upsertedSongCount: orderedSongIds.length,
+      upsertedPlaylistCount: orderedPlaylistIds.length,
+      upsertedPlaylistSongCount: orderedPlaylistSongKeys.length,
       deletedAlbumCount: deletedAlbumIds.length,
       deletedSongCount: deletedSongIds.length,
+      deletedPlaylistCount: deletedPlaylistIds.length,
+      deletedPlaylistSongCount: deletedPlaylistSongKeys.length,
       latestToken: tokenCursor,
     );
   }
@@ -257,6 +356,45 @@ ON CONFLICT(artwork_key, variant) DO UPDATE SET
     return snapshots;
   }
 
+  Map<String, _PlaylistSnapshot> _buildPlaylistSnapshots(
+    LibraryStructure library,
+  ) {
+    final snapshots = <String, _PlaylistSnapshot>{};
+    for (final playlist in library.folderPlaylists) {
+      snapshots[playlist.id] = _PlaylistSnapshot(
+        id: playlist.id,
+        name: playlist.name,
+        songIds: List<String>.from(playlist.songIds),
+      );
+    }
+    return snapshots;
+  }
+
+  Map<_PlaylistSongKey, _PlaylistSongSnapshot> _buildPlaylistSongSnapshots(
+    LibraryStructure library,
+    Map<String, _PlaylistSnapshot> playlistsById,
+  ) {
+    final snapshots = <_PlaylistSongKey, _PlaylistSongSnapshot>{};
+    for (final playlist in library.folderPlaylists) {
+      if (!playlistsById.containsKey(playlist.id)) {
+        continue;
+      }
+      for (var index = 0; index < playlist.songIds.length; index++) {
+        final songId = playlist.songIds[index];
+        final key = _PlaylistSongKey(
+          playlistId: playlist.id,
+          songId: songId,
+        );
+        snapshots[key] = _PlaylistSongSnapshot(
+          playlistId: playlist.id,
+          songId: songId,
+          position: index,
+        );
+      }
+    }
+    return snapshots;
+  }
+
   _SongSnapshot _songToSnapshot({
     required SongMetadata song,
     required String Function(String filePath) songIdForPath,
@@ -295,6 +433,24 @@ ORDER BY id ASC;
     return rows.map((row) => row['id'] as String).toList();
   }
 
+  List<_PlaylistSongKey> _selectPlaylistSongKeys() {
+    final rows = _database.select(
+      '''
+SELECT playlist_id, song_id
+FROM playlist_songs
+ORDER BY playlist_id ASC, song_id ASC;
+''',
+    );
+    return rows
+        .map(
+          (row) => _PlaylistSongKey(
+            playlistId: row['playlist_id'] as String,
+            songId: row['song_id'] as String,
+          ),
+        )
+        .toList();
+  }
+
   int _readLatestToken() {
     final rows = _database.select(
       '''
@@ -309,6 +465,7 @@ FROM library_changes;
     required String entityType,
     required String entityId,
     required String op,
+    String? payloadJson,
     required int occurredEpochMs,
   }) {
     _database.execute(
@@ -320,15 +477,65 @@ INSERT INTO library_changes (
   payload_json,
   occurred_epoch_ms,
   actor_user_id
-) VALUES (?, ?, ?, NULL, ?, NULL);
+) VALUES (?, ?, ?, ?, ?, NULL);
 ''',
       <Object?>[
         entityType,
         entityId,
         op,
+        payloadJson,
         occurredEpochMs,
       ],
     );
+  }
+
+  String _albumPayloadJson(_AlbumSnapshot snapshot) {
+    return jsonEncode(<String, dynamic>{
+      'id': snapshot.id,
+      'title': snapshot.title,
+      'artist': snapshot.artist,
+      'coverArt': snapshot.coverArtKey == null
+          ? null
+          : '/api/artwork/${Uri.encodeComponent(snapshot.id)}',
+      'songCount': snapshot.songCount,
+      'duration': snapshot.durationSeconds,
+    });
+  }
+
+  String _songPayloadJson(_SongSnapshot snapshot) {
+    return jsonEncode(<String, dynamic>{
+      'id': snapshot.id,
+      'title': snapshot.title,
+      'artist': snapshot.artist,
+      'albumId': snapshot.albumId,
+      'duration': snapshot.durationSeconds,
+      'trackNumber': snapshot.trackNumber,
+    });
+  }
+
+  String _playlistPayloadJson(_PlaylistSnapshot snapshot) {
+    return jsonEncode(<String, dynamic>{
+      'id': snapshot.id,
+      'name': snapshot.name,
+      'songCount': snapshot.songCount,
+      'duration': 0,
+      'songIds': snapshot.songIds,
+    });
+  }
+
+  String _playlistSongPayloadJson(_PlaylistSongSnapshot snapshot) {
+    return jsonEncode(<String, dynamic>{
+      'playlistId': snapshot.playlistId,
+      'songId': snapshot.songId,
+      'position': snapshot.position,
+    });
+  }
+
+  String _playlistSongDeletePayloadJson(_PlaylistSongKey key) {
+    return jsonEncode(<String, dynamic>{
+      'playlistId': key.playlistId,
+      'songId': key.songId,
+    });
   }
 }
 
@@ -376,4 +583,63 @@ class _SongSnapshot {
   final int? fileSizeBytes;
   final int? modifiedEpochMs;
   final String? artworkKey;
+}
+
+class _PlaylistSnapshot {
+  _PlaylistSnapshot({
+    required this.id,
+    required this.name,
+    required this.songIds,
+  });
+
+  final String id;
+  final String name;
+  final List<String> songIds;
+
+  int get songCount => songIds.length;
+}
+
+class _PlaylistSongSnapshot {
+  _PlaylistSongSnapshot({
+    required this.playlistId,
+    required this.songId,
+    required this.position,
+  });
+
+  final String playlistId;
+  final String songId;
+  final int position;
+
+  String get entityId => '$playlistId:$songId';
+}
+
+class _PlaylistSongKey implements Comparable<_PlaylistSongKey> {
+  const _PlaylistSongKey({
+    required this.playlistId,
+    required this.songId,
+  });
+
+  final String playlistId;
+  final String songId;
+
+  String get entityId => '$playlistId:$songId';
+
+  @override
+  int compareTo(_PlaylistSongKey other) {
+    final playlistCompare = playlistId.compareTo(other.playlistId);
+    if (playlistCompare != 0) {
+      return playlistCompare;
+    }
+    return songId.compareTo(other.songId);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is _PlaylistSongKey &&
+        other.playlistId == playlistId &&
+        other.songId == songId;
+  }
+
+  @override
+  int get hashCode => Object.hash(playlistId, songId);
 }

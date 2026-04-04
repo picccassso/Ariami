@@ -9,7 +9,6 @@ extension AriamiHttpServerRouterMethods on AriamiHttpServer {
     );
     final downloadJobService = DownloadJobService(
       catalogRepositoryProvider: _libraryManager.createCatalogRepository,
-      libraryManager: _libraryManager,
       maxQueuedItemsPerUser: max(
         _maxDownloadQueuePerUser,
         AriamiHttpServer._defaultMaxDownloadJobQueuePerUser,
@@ -62,7 +61,6 @@ extension AriamiHttpServerRouterMethods on AriamiHttpServer {
   }
 
   void _registerLibraryAndArtworkRoutes(Router router) {
-    router.get('/api/library', _handleGetLibrary);
     router.get('/api/albums', _handleGetAlbums);
     router.get('/api/albums/<albumId>', _handleGetAlbumDetail);
     router.get('/api/songs', _handleGetSongs);

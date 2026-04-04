@@ -12,6 +12,7 @@ extension _LibraryManagerDurationPart on LibraryManager {
 
     _durationWarmupRunning = true;
     _durationsReady = false;
+    final updatedSongIds = <String>{};
 
     int pending = 0;
     for (final album in _library!.albums.values) {
@@ -49,6 +50,7 @@ extension _LibraryManagerDurationPart on LibraryManager {
           final updated = song.copyWith(duration: cached);
           album.songs[i] = updated;
           await _persistDuration(updated, cached);
+          updatedSongIds.add(songId);
           continue;
         }
 
@@ -64,6 +66,7 @@ extension _LibraryManagerDurationPart on LibraryManager {
           final updated = song.copyWith(duration: duration);
           album.songs[i] = updated;
           await _persistDuration(updated, duration);
+          updatedSongIds.add(songId);
         }
 
         processed++;
@@ -85,6 +88,7 @@ extension _LibraryManagerDurationPart on LibraryManager {
         final updated = song.copyWith(duration: cached);
         _library!.standaloneSongs[i] = updated;
         await _persistDuration(updated, cached);
+        updatedSongIds.add(songId);
         continue;
       }
 
@@ -99,6 +103,7 @@ extension _LibraryManagerDurationPart on LibraryManager {
         final updated = song.copyWith(duration: duration);
         _library!.standaloneSongs[i] = updated;
         await _persistDuration(updated, duration);
+        updatedSongIds.add(songId);
       }
 
       processed++;
@@ -109,6 +114,7 @@ extension _LibraryManagerDurationPart on LibraryManager {
     }
 
     await _metadataCache?.save();
+    await _writeCatalogDurationUpdates(updatedSongIds);
 
     _durationWarmupRunning = false;
     _durationsReady = true;

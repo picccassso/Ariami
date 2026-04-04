@@ -90,7 +90,7 @@ class LibraryPlaylistSongRow {
 /// SQLite database for normalized library sync state.
 class LibrarySyncDatabase {
   static const String _databaseName = 'library_sync.db';
-  static const int _databaseVersion = 3;
+  static const int _databaseVersion = 4;
 
   static const String _albumsTable = 'albums';
   static const String _songsTable = 'songs';
@@ -100,6 +100,8 @@ class LibrarySyncDatabase {
   static const String _bootstrapAlbumsTable = 'bootstrap_staging_albums';
   static const String _bootstrapSongsTable = 'bootstrap_staging_songs';
   static const String _bootstrapPlaylistsTable = 'bootstrap_staging_playlists';
+  static const String _bootstrapPlaylistSongsTable =
+      'bootstrap_staging_playlist_songs';
 
   Database? _database;
 
@@ -217,6 +219,9 @@ class LibrarySyncDatabase {
     if (oldVersion < 3) {
       await _migrateToVersion3(db);
     }
+    if (oldVersion < 4) {
+      await _createBootstrapStagingPlaylistSongsTable(db);
+    }
   }
 
   Future<void> _migrateToVersion3(Database db) async {
@@ -275,6 +280,20 @@ class LibrarySyncDatabase {
         is_deleted INTEGER NOT NULL DEFAULT 0
       )
     ''');
+
+    await _createBootstrapStagingPlaylistSongsTable(db);
+  }
+
+  Future<void> _createBootstrapStagingPlaylistSongsTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $_bootstrapPlaylistSongsTable (
+        playlist_id TEXT NOT NULL,
+        song_id TEXT NOT NULL,
+        position INTEGER NOT NULL,
+        is_deleted INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (playlist_id, song_id)
+      )
+    ''');
   }
 
   Future<void> runInTransaction(
@@ -296,6 +315,7 @@ class LibrarySyncDatabase {
 
   Future<void> clearBootstrapStagingData({DatabaseExecutor? executor}) async {
     final db = executor ?? await database;
+    await db.delete(_bootstrapPlaylistSongsTable);
     await db.delete(_bootstrapPlaylistsTable);
     await db.delete(_bootstrapSongsTable);
     await db.delete(_bootstrapAlbumsTable);
@@ -367,6 +387,25 @@ class LibrarySyncDatabase {
     );
   }
 
+  Future<void> upsertBootstrapStagingPlaylistSongs(
+    Iterable<LibraryPlaylistSongRow> playlistSongs, {
+    DatabaseExecutor? executor,
+  }) async {
+    final db = executor ?? await database;
+    for (final item in playlistSongs) {
+      await db.insert(
+        _bootstrapPlaylistSongsTable,
+        {
+          'playlist_id': item.playlistId,
+          'song_id': item.songId,
+          'position': item.position,
+          'is_deleted': item.isDeleted ? 1 : 0,
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    }
+  }
+
   Future<void> replacePrimaryWithBootstrapStaging({
     DatabaseExecutor? executor,
   }) async {
@@ -389,6 +428,12 @@ class LibrarySyncDatabase {
       INSERT INTO $_playlistsTable (id, name, song_count, duration, is_deleted)
       SELECT id, name, song_count, duration, is_deleted
       FROM $_bootstrapPlaylistsTable
+    ''');
+
+    await db.rawInsert('''
+      INSERT INTO $_playlistSongsTable (playlist_id, song_id, position, is_deleted)
+      SELECT playlist_id, song_id, position, is_deleted
+      FROM $_bootstrapPlaylistSongsTable
     ''');
   }
 

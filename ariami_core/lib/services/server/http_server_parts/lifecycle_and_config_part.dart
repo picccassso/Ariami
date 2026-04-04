@@ -166,7 +166,7 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
       _broadcastLibraryUpdated(syncReason: reason);
     };
     _durationsReadyListener = () {
-      _broadcastLibraryUpdated();
+      _broadcastLibraryUpdated(syncReason: 'durations_ready');
     };
 
     _libraryManager.addScanCompleteListener(_scanCompleteListener!);

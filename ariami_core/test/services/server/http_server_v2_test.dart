@@ -98,6 +98,15 @@ void main() {
         _extractIds(bootstrapPage1.jsonBody['songs'] as List<dynamic>),
         equals(<String>['song-a', 'song-b']),
       );
+      expect(
+        _extractIds(bootstrapPage1.jsonBody['playlists'] as List<dynamic>),
+        equals(<String>['playlist-a']),
+      );
+      expect(
+        ((bootstrapPage1.jsonBody['playlists'] as List<dynamic>).first
+            as Map<String, dynamic>)['songIds'],
+        equals(<dynamic>['song-a', 'song-b']),
+      );
       final bootstrapInfo1 =
           bootstrapPage1.jsonBody['pageInfo'] as Map<String, dynamic>;
       expect(bootstrapInfo1['hasMore'], isTrue);
@@ -128,6 +137,13 @@ void main() {
       expect(changesPage.jsonBody['events'], isA<List<dynamic>>());
       expect(changesPage.jsonBody['hasMore'], isTrue);
       expect(changesPage.jsonBody['syncToken'], isA<int>());
+      final events = changesPage.jsonBody['events'] as List<dynamic>;
+      expect(
+        events.any(
+          (event) => (event as Map<String, dynamic>)['payload'] != null,
+        ),
+        isTrue,
+      );
     });
 
     test(
@@ -187,6 +203,27 @@ void main() {
       );
       expect(authorizedV2.statusCode, 200);
       expect(authorizedV2.jsonBody['albums'], isA<List<dynamic>>());
+    });
+
+    test('legacy /api/library route is no longer served', () async {
+      await server.initializeAuth(
+        usersFilePath: p.join(testDir.path, 'users_legacy_route.json'),
+        sessionsFilePath: p.join(testDir.path, 'sessions_legacy_route.json'),
+        forceReinitialize: true,
+      );
+
+      final port = await _findFreePort();
+      await server.start(
+        advertisedIp: '127.0.0.1',
+        bindAddress: '127.0.0.1',
+        port: port,
+      );
+
+      final response = await _sendBinaryRequest(
+        method: 'GET',
+        url: Uri.parse('http://127.0.0.1:$port/api/library'),
+      );
+      expect(response.statusCode, equals(404));
     });
 
     test(
@@ -696,31 +733,72 @@ void _seedCatalog(CatalogRepository repository) {
     ),
   );
 
+  repository.upsertPlaylist(
+    CatalogPlaylistRecord(
+      id: 'playlist-a',
+      name: 'Playlist A',
+      songCount: 2,
+      updatedToken: 7,
+    ),
+  );
+  repository.upsertPlaylistSong(
+    CatalogPlaylistSongRecord(
+      playlistId: 'playlist-a',
+      songId: 'song-a',
+      position: 0,
+      updatedToken: 8,
+    ),
+  );
+  repository.upsertPlaylistSong(
+    CatalogPlaylistSongRecord(
+      playlistId: 'playlist-a',
+      songId: 'song-b',
+      position: 1,
+      updatedToken: 9,
+    ),
+  );
+
   final now = DateTime.now().millisecondsSinceEpoch;
   repository.appendChangeEvents(<CatalogChangeEventInput>[
     CatalogChangeEventInput(
       entityType: 'album',
       entityId: 'album-a',
       op: 'upsert',
+      payloadJson:
+          '{"id":"album-a","title":"Album A","artist":"Artist A","coverArt":"/api/artwork/album-a","songCount":1,"duration":120}',
       occurredEpochMs: now,
     ),
     CatalogChangeEventInput(
       entityType: 'song',
       entityId: 'song-a',
       op: 'upsert',
+      payloadJson:
+          '{"id":"song-a","title":"Song A","artist":"Artist A","albumId":"album-a","duration":120,"trackNumber":1}',
       occurredEpochMs: now + 1,
     ),
     CatalogChangeEventInput(
       entityType: 'song',
       entityId: 'song-b',
       op: 'upsert',
+      payloadJson:
+          '{"id":"song-b","title":"Song B","artist":"Artist B","albumId":"album-b","duration":180,"trackNumber":1}',
       occurredEpochMs: now + 2,
     ),
     CatalogChangeEventInput(
       entityType: 'song',
       entityId: 'song-c',
       op: 'upsert',
+      payloadJson:
+          '{"id":"song-c","title":"Song C","artist":"Artist C","albumId":"album-c","duration":240,"trackNumber":1}',
       occurredEpochMs: now + 3,
+    ),
+    CatalogChangeEventInput(
+      entityType: 'playlist',
+      entityId: 'playlist-a',
+      op: 'upsert',
+      payloadJson:
+          '{"id":"playlist-a","name":"Playlist A","songCount":2,"duration":0,"songIds":["song-a","song-b"]}',
+      occurredEpochMs: now + 4,
     ),
   ]);
 }

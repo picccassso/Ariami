@@ -55,10 +55,10 @@ class AriamiV2Handlers {
     );
     final latestToken = repository.getLatestToken();
 
-    final nextAlbumsCursor =
-        _cursorPosition(parsedCursor?.albumsCursor, albumsPage.items.map((r) => r.id));
-    final nextSongsCursor =
-        _cursorPosition(parsedCursor?.songsCursor, songsPage.items.map((r) => r.id));
+    final nextAlbumsCursor = _cursorPosition(
+        parsedCursor?.albumsCursor, albumsPage.items.map((r) => r.id));
+    final nextSongsCursor = _cursorPosition(
+        parsedCursor?.songsCursor, songsPage.items.map((r) => r.id));
     final nextPlaylistsCursor = _cursorPosition(
       parsedCursor?.playlistsCursor,
       playlistsPage.items.map((r) => r.id),
@@ -103,16 +103,21 @@ class AriamiV2Handlers {
             ),
           )
           .toList(),
-      playlists: playlistsPage.items
-          .map(
-            (record) => PlaylistModel(
-              id: record.id,
-              name: record.name,
-              songCount: record.songCount,
-              duration: 0,
-            ),
-          )
-          .toList(),
+      playlists: playlistsPage.items.map(
+        (record) {
+          final songIds = repository
+              .listPlaylistSongs(record.id)
+              .map((item) => item.songId)
+              .toList();
+          return PlaylistModel(
+            id: record.id,
+            name: record.name,
+            songCount: record.songCount,
+            duration: 0,
+            songIds: songIds,
+          );
+        },
+      ).toList(),
       pageInfo: V2PageInfo(
         cursor: request.url.queryParameters['cursor'],
         nextCursor: nextCursor,
@@ -228,21 +233,27 @@ class AriamiV2Handlers {
     }
 
     final cursor = request.url.queryParameters['cursor'];
-    final page = repository.listPlaylistsPage(cursor: cursor, limit: parsedLimit);
+    final page =
+        repository.listPlaylistsPage(cursor: cursor, limit: parsedLimit);
     final syncToken = repository.getLatestToken();
 
     final body = <String, dynamic>{
       'syncToken': syncToken,
-      'playlists': page.items
-          .map(
-            (record) => PlaylistModel(
-              id: record.id,
-              name: record.name,
-              songCount: record.songCount,
-              duration: 0,
-            ).toJson(),
-          )
-          .toList(),
+      'playlists': page.items.map(
+        (record) {
+          final songIds = repository
+              .listPlaylistSongs(record.id)
+              .map((item) => item.songId)
+              .toList();
+          return PlaylistModel(
+            id: record.id,
+            name: record.name,
+            songCount: record.songCount,
+            duration: 0,
+            songIds: songIds,
+          ).toJson();
+        },
+      ).toList(),
       'pageInfo': V2PageInfo(
         cursor: cursor,
         nextCursor: page.nextCursor,
@@ -259,7 +270,8 @@ class AriamiV2Handlers {
       return _catalogUnavailable();
     }
 
-    final since = _parseNonNegativeInt(request.url.queryParameters['since']) ?? 0;
+    final since =
+        _parseNonNegativeInt(request.url.queryParameters['since']) ?? 0;
     if (request.url.queryParameters['since'] != null &&
         _parseNonNegativeInt(request.url.queryParameters['since']) == null) {
       return _badRequest('since must be a non-negative integer');

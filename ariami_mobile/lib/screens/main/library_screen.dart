@@ -42,9 +42,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
     }
   }
 
- 
   // Action Handlers
-
 
   void _openPlaylist(PlaylistModel playlist) {
     unawaited(_controller.markPlaylistAccessed(playlist.id));
@@ -84,7 +82,6 @@ class _LibraryScreenState extends State<LibraryScreen> {
   }
 
   // Context Menu Handlers
-  
 
   void _showAlbumContextMenu(AlbumModel album) {
     showAlbumContextMenu(
@@ -127,9 +124,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
     );
   }
 
-
   // Server Playlist Import
-
 
   Future<void> _importServerPlaylist(ServerPlaylist serverPlaylist) async {
     Navigator.pop(context);
@@ -200,17 +195,12 @@ class _LibraryScreenState extends State<LibraryScreen> {
     }
   }
 
-
   // Queue Operations
 
-
   Future<void> _addAlbumToQueue(AlbumModel album) async {
-    if (_controller.connectionService.apiClient == null) return;
-
     try {
-      final albumDetail = await _controller.connectionService.apiClient!
-          .getAlbumDetail(album.id);
-      for (final track in albumDetail.songs) {
+      final albumSongs = _albumSongsFor(album.id);
+      for (final track in albumSongs) {
         final song = Song(
           id: track.id,
           title: track.title,
@@ -263,15 +253,12 @@ class _LibraryScreenState extends State<LibraryScreen> {
   // Download Operations
 
   Future<void> _downloadAlbum(AlbumModel album) async {
-    if (_controller.connectionService.apiClient == null) return;
-
     try {
       final downloadQuality = _qualityService.getDownloadQuality();
       final downloadOriginal = _qualityService.getDownloadOriginal();
-      final albumDetail = await _controller.connectionService.apiClient!
-          .getAlbumDetail(album.id);
+      final albumSongs = _albumSongsFor(album.id);
 
-      final songDataList = albumDetail.songs.map((track) {
+      final songDataList = albumSongs.map((track) {
         return {
           'id': track.id,
           'title': track.title,
@@ -297,6 +284,21 @@ class _LibraryScreenState extends State<LibraryScreen> {
     } catch (e) {
       // Silently fail
     }
+  }
+
+  List<SongModel> _albumSongsFor(String albumId) {
+    final songs = _controller.state.songs
+        .where((song) => song.albumId == albumId)
+        .toList();
+    songs.sort((a, b) {
+      final trackCompare =
+          (a.trackNumber ?? 1 << 30).compareTo(b.trackNumber ?? 1 << 30);
+      if (trackCompare != 0) {
+        return trackCompare;
+      }
+      return a.title.compareTo(b.title);
+    });
+    return songs;
   }
 
   Future<void> _downloadPlaylist(PlaylistModel playlist) async {
@@ -371,8 +373,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
       case LibraryRefreshOutcome.showManualReconnectFailedSnack:
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text(
-                'Cannot connect to server. Staying in offline mode.'),
+            content: Text('Cannot connect to server. Staying in offline mode.'),
             duration: Duration(seconds: 3),
           ),
         );

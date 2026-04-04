@@ -99,37 +99,6 @@ class _SearchScreenState extends State<SearchScreen> {
           await _connectionService.libraryReadFacade.getLibraryBundle();
       final albums = library.albums;
       final allSongs = List<SongModel>.from(library.songs);
-      final songsByAlbumId = <String, List<SongModel>>{};
-      for (final song in allSongs) {
-        final albumId = song.albumId;
-        if (albumId == null) {
-          continue;
-        }
-        songsByAlbumId.putIfAbsent(albumId, () => <SongModel>[]).add(song);
-      }
-
-      // If local album-song rows are missing, fall back to album detail endpoint.
-      // This preserves behavior during partial sync states.
-      final apiClient = _connectionService.apiClient;
-      if (apiClient != null) {
-        final existingSongIds = allSongs.map((song) => song.id).toSet();
-        for (final album in albums) {
-          final localAlbumSongs =
-              songsByAlbumId[album.id] ?? const <SongModel>[];
-          if (album.songCount > 0 && localAlbumSongs.isEmpty) {
-            try {
-              final albumDetail = await apiClient.getAlbumDetail(album.id);
-              for (final song in albumDetail.songs) {
-                if (existingSongIds.add(song.id)) {
-                  allSongs.add(song);
-                }
-              }
-            } catch (e) {
-              print('[SearchScreen] Failed to load album ${album.id}: $e');
-            }
-          }
-        }
-      }
 
       if (albums.isEmpty &&
           allSongs.isEmpty &&

@@ -7,17 +7,10 @@ import '../../models/quality_settings.dart';
 
 /// HTTP API client for Ariami server communication
 class ApiClient {
-  static const bool _enableV1LibrarySnapshotByDefault = bool.fromEnvironment(
-    'ARIAMI_ENABLE_V1_LIBRARY_SNAPSHOT',
-    defaultValue: true,
-  );
-  static const String _v1LibrarySunsetDate = '2026-06-30';
-
   final ServerInfo serverInfo;
   final Duration timeout;
   final String? deviceId;
   final String? deviceName;
-  final bool enableV1LibrarySnapshot;
 
   /// Session token for authenticated requests (set after login/register)
   String? sessionToken;
@@ -31,7 +24,6 @@ class ApiClient {
     this.timeout = const Duration(seconds: 10),
     this.deviceId,
     this.deviceName,
-    this.enableV1LibrarySnapshot = _enableV1LibrarySnapshotByDefault,
     this.sessionToken,
     this.onSessionExpired,
   });
@@ -101,27 +93,6 @@ class ApiClient {
   // ============================================================================
   // LIBRARY ENDPOINTS
   // ============================================================================
-
-  /// Compatibility-only v1 snapshot endpoint.
-  ///
-  /// Reserved for legacy clients and CLI web screens when needed.
-  /// Primary read paths should use the v2 sync store + local repository.
-  /// This method is gated behind `ARIAMI_ENABLE_V1_LIBRARY_SNAPSHOT`.
-  Future<LibraryResponse> getLibrary() async {
-    if (!enableV1LibrarySnapshot) {
-      throw ApiException(
-        code: ApiErrorCodes.invalidRequest,
-        message: 'Legacy /api/library endpoint is disabled by feature flag. '
-            'Use v2 sync store + local repository reads. '
-            'Sunset date: $_v1LibrarySunsetDate.',
-      );
-    }
-    print('[ApiClient][WARN] Deprecated /api/library snapshot requested. '
-        'Reserved for legacy clients and CLI web screens. '
-        'Sunset date: $_v1LibrarySunsetDate.');
-    final response = await _get('/library');
-    return LibraryResponse.fromJson(response);
-  }
 
   /// Get all albums
   Future<List<AlbumModel>> getAlbums() async {

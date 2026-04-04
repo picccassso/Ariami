@@ -87,12 +87,6 @@ class AriamiHttpServer {
   static const int _defaultMaxArtworkQueuePerUser = 8;
   final Map<String, _SimpleLimiter> _artworkUserLimiters = {};
   static const int _defaultRetryAfterSeconds = 5;
-  static const String _v1LibrarySunsetDate = '2026-06-30';
-  static const String _v1LibrarySunsetHttpDate =
-      'Tue, 30 Jun 2026 23:59:59 GMT';
-  static const String _v1LibraryWarningHeader =
-      '299 Ariami "/api/library is deprecated and reserved for legacy clients '
-      'and CLI web screens. Migrate to /api/v2/* before 2026-06-30."';
   static const String _desktopDashboardAdminDeviceId =
       'desktop_dashboard_admin';
   static const String _desktopDashboardAdminDeviceName =

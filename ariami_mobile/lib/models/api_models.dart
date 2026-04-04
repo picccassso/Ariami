@@ -521,12 +521,14 @@ class V2PlaylistModel {
   final String name;
   final int songCount;
   final int duration;
+  final List<String> songIds;
 
   const V2PlaylistModel({
     required this.id,
     required this.name,
     required this.songCount,
     required this.duration,
+    this.songIds = const <String>[],
   });
 
   factory V2PlaylistModel.fromJson(Map<String, dynamic> json) {
@@ -536,6 +538,8 @@ class V2PlaylistModel {
           json['name'] as String,
       songCount: json['songCount'] as int? ?? 0,
       duration: json['duration'] as int? ?? 0,
+      songIds: (json['songIds'] as List<dynamic>? ?? const <dynamic>[])
+          .cast<String>(),
     );
   }
 
@@ -545,6 +549,7 @@ class V2PlaylistModel {
       'name': name,
       'songCount': songCount,
       'duration': duration,
+      'songIds': songIds,
     };
   }
 }
