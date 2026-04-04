@@ -17,7 +17,13 @@ class PlaylistInfoSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final totalDuration = songs.fold<int>(0, (sum, s) => sum + s.duration);
+    final songCount = songs.isNotEmpty ? songs.length : playlist.songIds.length;
+    final totalDuration = songs.isNotEmpty
+        ? songs.fold<int>(0, (sum, s) => sum + s.duration)
+        : playlist.songIds.fold<int>(
+            0,
+            (sum, songId) => sum + (playlist.songDurations[songId] ?? 0),
+          );
     final minutes = totalDuration ~/ 60;
 
     return Padding(
@@ -45,7 +51,7 @@ class PlaylistInfoSection extends StatelessWidget {
           ],
           const SizedBox(height: 8),
           Text(
-            '${songs.length} song${songs.length != 1 ? 's' : ''} • $minutes min',
+            '$songCount song${songCount != 1 ? 's' : ''} • $minutes min',
             style: TextStyle(
               fontSize: 14,
               color: Colors.grey[600],

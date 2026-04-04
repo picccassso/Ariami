@@ -145,10 +145,11 @@ void main() {
               token: 6,
               op: V2ChangeOp.delete,
               entityType: V2EntityType.playlistSong,
-              entityId: 'playlist-1:song-1',
+              entityId: 'playlist-1:0',
               payload: <String, dynamic>{
                 'playlistId': 'playlist-1',
                 'songId': 'song-1',
+                'position': 0,
               },
               occurredAt: '2026-04-04T10:00:01Z',
             ),
@@ -156,7 +157,7 @@ void main() {
               token: 7,
               op: V2ChangeOp.upsert,
               entityType: V2EntityType.playlistSong,
-              entityId: 'playlist-1:song-2',
+              entityId: 'playlist-1:0',
               payload: <String, dynamic>{
                 'playlistId': 'playlist-1',
                 'songId': 'song-2',
@@ -173,6 +174,90 @@ void main() {
       final playlists = await repository.getServerPlaylists();
       expect(playlists.single.name, equals('Renamed Playlist'));
       expect(playlists.single.songIds, equals(<String>['song-2']));
+    });
+
+    test('preserves duplicate playlist entries across bootstrap and delta',
+        () async {
+      final repository = LibraryRepository();
+      addTearDown(repository.close);
+
+      await repository.applyBootstrapPage(
+        V2BootstrapResponse(
+          syncToken: 4,
+          albums: const <AlbumModel>[],
+          songs: <SongModel>[
+            SongModel(
+              id: 'song-1',
+              title: 'Song 1',
+              artist: 'Artist 1',
+              albumId: null,
+              duration: 180,
+            ),
+          ],
+          playlists: const <V2PlaylistModel>[
+            V2PlaylistModel(
+              id: 'playlist-1',
+              name: 'Playlist 1',
+              songCount: 2,
+              duration: 0,
+              songIds: <String>['song-1', 'song-1'],
+            ),
+          ],
+          pageInfo: V2PageInfo(
+            cursor: null,
+            nextCursor: null,
+            hasMore: false,
+            limit: 200,
+          ),
+        ),
+      );
+      await repository.completeBootstrap(lastAppliedToken: 4);
+
+      expect(await repository.hasCompletedBootstrap(), isTrue);
+      expect(
+        (await repository.getServerPlaylists()).single.songIds,
+        equals(<String>['song-1', 'song-1']),
+      );
+
+      await repository.applyChangesResponse(
+        V2ChangesResponse(
+          fromToken: 4,
+          toToken: 6,
+          events: const <V2ChangeEvent>[
+            V2ChangeEvent(
+              token: 5,
+              op: V2ChangeOp.upsert,
+              entityType: V2EntityType.playlistSong,
+              entityId: 'playlist-1:1',
+              payload: <String, dynamic>{
+                'playlistId': 'playlist-1',
+                'songId': 'song-1',
+                'position': 1,
+              },
+              occurredAt: '2026-04-05T09:00:00Z',
+            ),
+            V2ChangeEvent(
+              token: 6,
+              op: V2ChangeOp.delete,
+              entityType: V2EntityType.playlistSong,
+              entityId: 'playlist-1:0',
+              payload: <String, dynamic>{
+                'playlistId': 'playlist-1',
+                'songId': 'song-1',
+                'position': 0,
+              },
+              occurredAt: '2026-04-05T09:00:01Z',
+            ),
+          ],
+          hasMore: false,
+          syncToken: 6,
+        ),
+      );
+
+      expect(
+        (await repository.getServerPlaylists()).single.songIds,
+        equals(<String>['song-1']),
+      );
     });
 
     test(

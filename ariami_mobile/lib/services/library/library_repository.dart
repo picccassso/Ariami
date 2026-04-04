@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import '../../database/library_sync_database.dart';
 import '../../models/api_models.dart';
 import 'package:sqflite/sqflite.dart';
@@ -22,6 +24,7 @@ class LibraryRepository {
             : Future<LibrarySyncDatabase>.value(database);
 
   final Future<LibrarySyncDatabase> _databaseFuture;
+  String? _lastBootstrapDiagnosticSignature;
 
   Future<LibrarySyncDatabase> get _database async => _databaseFuture;
 
@@ -32,11 +35,32 @@ class LibraryRepository {
   Future<bool> hasCompletedBootstrap() async {
     final syncState = await getSyncState();
     if (!syncState.bootstrapComplete) {
+      _logBootstrapPending(
+        reason: 'sync_state_incomplete',
+        syncState: syncState,
+      );
       return false;
     }
 
     final db = await _database;
-    return !(await db.hasPlaylistMembershipBackfillPending());
+    final issues = await db.listPlaylistMembershipBackfillIssues();
+    if (issues.isNotEmpty) {
+      _logBootstrapPending(
+        reason: 'playlist_membership_backfill_pending',
+        syncState: syncState,
+        issues: issues,
+      );
+      return false;
+    }
+
+    if (_lastBootstrapDiagnosticSignature != null) {
+      debugPrint(
+        '[LibraryRepository][hasCompletedBootstrap] bootstrap_ready '
+        'token=${syncState.lastAppliedToken}',
+      );
+      _lastBootstrapDiagnosticSignature = null;
+    }
+    return true;
   }
 
   Future<LibraryRepositoryBundle> getLibraryBundle() async {
@@ -55,6 +79,8 @@ class LibraryRepository {
 
   Future<void> resetForBootstrap() async {
     final db = await _database;
+    debugPrint(
+        '[LibraryRepository][resetForBootstrap] clearing bootstrap staging');
     await db.runInTransaction((txn) async {
       await db.clearBootstrapStagingData(executor: txn);
     });
@@ -137,10 +163,15 @@ class LibraryRepository {
       );
       await db.clearBootstrapStagingData(executor: txn);
     });
+    debugPrint(
+      '[LibraryRepository][completeBootstrap] lastAppliedToken=$lastAppliedToken',
+    );
   }
 
   Future<void> abortBootstrap() async {
     final db = await _database;
+    debugPrint(
+        '[LibraryRepository][abortBootstrap] clearing bootstrap staging');
     await db.clearBootstrapStagingData();
   }
 
@@ -296,6 +327,40 @@ class LibraryRepository {
     await (await _database).close();
   }
 
+  void _logBootstrapPending({
+    required String reason,
+    required LibrarySyncState syncState,
+    List<PlaylistMembershipBackfillIssue> issues =
+        const <PlaylistMembershipBackfillIssue>[],
+  }) {
+    final issueSummary = issues
+        .map(
+          (issue) => '${issue.playlistName}(${issue.playlistId}): '
+              'expected=${issue.expectedSongCount} '
+              'actual=${issue.activeSongCount}',
+        )
+        .join(' | ');
+    final signature = [
+      reason,
+      syncState.lastAppliedToken,
+      syncState.bootstrapComplete,
+      issueSummary,
+    ].join('::');
+    if (_lastBootstrapDiagnosticSignature == signature) {
+      return;
+    }
+    _lastBootstrapDiagnosticSignature = signature;
+
+    debugPrint(
+      '[LibraryRepository][hasCompletedBootstrap] pending '
+      'reason=$reason '
+      'token=${syncState.lastAppliedToken} '
+      'bootstrapComplete=${syncState.bootstrapComplete} '
+      'lastSyncEpochMs=${syncState.lastSyncEpochMs}'
+      '${issueSummary.isEmpty ? '' : ' issues=$issueSummary'}',
+    );
+  }
+
   Future<void> _applyChangeEvent(
     LibrarySyncDatabase database,
     DatabaseExecutor executor,
@@ -326,13 +391,23 @@ class LibraryRepository {
         await database.softDeletePlaylist(event.entityId, executor: executor);
         return;
       case V2EntityType.playlistSong:
-        final playlistSongIds = _playlistSongIds(event);
-        if (playlistSongIds == null) return;
-        await database.softDeletePlaylistSong(
-          playlistSongIds.playlistId,
-          playlistSongIds.songId,
-          executor: executor,
-        );
+        final identity = _playlistSongIdentity(event);
+        if (identity == null) return;
+        if (identity.position != null) {
+          await database.softDeletePlaylistSong(
+            identity.playlistId,
+            identity.position!,
+            executor: executor,
+          );
+          return;
+        }
+        if (identity.songId != null) {
+          await database.softDeletePlaylistSongsBySongId(
+            identity.playlistId,
+            identity.songId!,
+            executor: executor,
+          );
+        }
         return;
       case V2EntityType.artwork:
         return;
@@ -410,17 +485,18 @@ class LibraryRepository {
         }
         return;
       case V2EntityType.playlistSong:
-        final playlistSongIds = _playlistSongIds(event);
-        if (playlistSongIds == null) return;
-        final position = _toInt(
-          payload['position'] ?? payload['itemOrder'] ?? payload['item_order'],
-        );
+        final identity = _playlistSongIdentity(event);
+        if (identity == null ||
+            identity.songId == null ||
+            identity.position == null) {
+          return;
+        }
         await database.upsertPlaylistSongs(
           <LibraryPlaylistSongRow>[
             LibraryPlaylistSongRow(
-              playlistId: playlistSongIds.playlistId,
-              songId: playlistSongIds.songId,
-              position: position,
+              playlistId: identity.playlistId,
+              songId: identity.songId!,
+              position: identity.position!,
             ),
           ],
           executor: executor,
@@ -433,18 +509,24 @@ class LibraryRepository {
     }
   }
 
-  _PlaylistSongIds? _playlistSongIds(V2ChangeEvent event) {
+  _PlaylistSongIdentity? _playlistSongIdentity(V2ChangeEvent event) {
     final payload = event.payload;
     final payloadPlaylistId = _toStringValue(
       payload?['playlistId'] ?? payload?['playlist_id'],
     );
-    final payloadSongId =
-        _toStringValue(payload?['songId'] ?? payload?['song_id']);
+    final payloadSongId = _toStringValue(
+      payload?['songId'] ?? payload?['song_id'],
+    );
+    final payloadPosition = _toNullableInt(
+      payload?['position'] ?? payload?['itemOrder'] ?? payload?['item_order'],
+    );
 
-    if (payloadPlaylistId != null && payloadSongId != null) {
-      return _PlaylistSongIds(
+    if (payloadPlaylistId != null &&
+        (payloadSongId != null || payloadPosition != null)) {
+      return _PlaylistSongIdentity(
         playlistId: payloadPlaylistId,
         songId: payloadSongId,
+        position: payloadPosition,
       );
     }
 
@@ -452,17 +534,22 @@ class LibraryRepository {
     if (separatorIndex <= 0 || separatorIndex >= event.entityId.length - 1) {
       return null;
     }
-    return _PlaylistSongIds(
-      playlistId: event.entityId.substring(0, separatorIndex),
-      songId: event.entityId.substring(separatorIndex + 1),
+    final playlistId = event.entityId.substring(0, separatorIndex);
+    final suffix = event.entityId.substring(separatorIndex + 1);
+    final parsedPosition = int.tryParse(suffix);
+    return _PlaylistSongIdentity(
+      playlistId: playlistId,
+      songId: parsedPosition == null ? _toStringValue(suffix) : null,
+      position: parsedPosition,
     );
   }
 
-  int _toInt(dynamic value) {
+  int? _toNullableInt(dynamic value) {
+    if (value == null) return null;
     if (value is int) return value;
     if (value is num) return value.toInt();
-    if (value is String) return int.tryParse(value) ?? 0;
-    return 0;
+    if (value is String) return int.tryParse(value);
+    return null;
   }
 
   String? _toStringValue(dynamic value) {
@@ -471,12 +558,14 @@ class LibraryRepository {
   }
 }
 
-class _PlaylistSongIds {
-  const _PlaylistSongIds({
+class _PlaylistSongIdentity {
+  const _PlaylistSongIdentity({
     required this.playlistId,
-    required this.songId,
+    this.songId,
+    this.position,
   });
 
   final String playlistId;
-  final String songId;
+  final String? songId;
+  final int? position;
 }

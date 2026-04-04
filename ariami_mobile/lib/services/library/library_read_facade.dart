@@ -140,7 +140,7 @@ class LibraryReadFacade {
       albums: localBundle.albums,
       songs: localBundle.songs,
       serverPlaylists: localBundle.serverPlaylists,
-      durationsReady: true,
+      durationsReady: _durationsReady(localBundle.songs),
       source: decision.source,
       sourceReason: decision.reason,
     );
@@ -171,5 +171,12 @@ class LibraryReadFacade {
       '[LibraryReadFacade][$operation] source=v2_local_store '
       'reason=${decision.reason}',
     );
+  }
+
+  bool _durationsReady(List<SongModel> songs) {
+    if (songs.isEmpty) {
+      return true;
+    }
+    return songs.every((song) => song.duration > 0);
   }
 }

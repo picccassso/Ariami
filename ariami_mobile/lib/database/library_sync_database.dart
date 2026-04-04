@@ -87,10 +87,24 @@ class LibraryPlaylistSongRow {
   });
 }
 
+class PlaylistMembershipBackfillIssue {
+  const PlaylistMembershipBackfillIssue({
+    required this.playlistId,
+    required this.playlistName,
+    required this.expectedSongCount,
+    required this.activeSongCount,
+  });
+
+  final String playlistId;
+  final String playlistName;
+  final int expectedSongCount;
+  final int activeSongCount;
+}
+
 /// SQLite database for normalized library sync state.
 class LibrarySyncDatabase {
   static const String _databaseName = 'library_sync.db';
-  static const int _databaseVersion = 4;
+  static const int _databaseVersion = 5;
 
   static const String _albumsTable = 'albums';
   static const String _songsTable = 'songs';
@@ -172,7 +186,7 @@ class LibrarySyncDatabase {
         song_id TEXT NOT NULL,
         position INTEGER NOT NULL,
         is_deleted INTEGER NOT NULL DEFAULT 0,
-        PRIMARY KEY (playlist_id, song_id)
+        PRIMARY KEY (playlist_id, position)
       )
     ''');
 
@@ -221,6 +235,9 @@ class LibrarySyncDatabase {
     }
     if (oldVersion < 4) {
       await _createBootstrapStagingPlaylistSongsTable(db);
+    }
+    if (oldVersion < 5) {
+      await _migratePlaylistSongTablesToPositionPrimaryKey(db);
     }
   }
 
@@ -291,9 +308,57 @@ class LibrarySyncDatabase {
         song_id TEXT NOT NULL,
         position INTEGER NOT NULL,
         is_deleted INTEGER NOT NULL DEFAULT 0,
-        PRIMARY KEY (playlist_id, song_id)
+        PRIMARY KEY (playlist_id, position)
       )
     ''');
+  }
+
+  Future<void> _migratePlaylistSongTablesToPositionPrimaryKey(
+      Database db) async {
+    await _rebuildPlaylistSongTableWithPositionPrimaryKey(
+        db, _playlistSongsTable);
+    await _rebuildPlaylistSongTableWithPositionPrimaryKey(
+      db,
+      _bootstrapPlaylistSongsTable,
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_playlist_songs_playlist '
+      'ON $_playlistSongsTable (playlist_id, is_deleted, position)',
+    );
+  }
+
+  Future<void> _rebuildPlaylistSongTableWithPositionPrimaryKey(
+    Database db,
+    String tableName,
+  ) async {
+    final rebuiltTableName = '${tableName}_v5';
+    await db.execute('DROP TABLE IF EXISTS $rebuiltTableName');
+    await db.execute('''
+      CREATE TABLE $rebuiltTableName (
+        playlist_id TEXT NOT NULL,
+        song_id TEXT NOT NULL,
+        position INTEGER NOT NULL,
+        is_deleted INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (playlist_id, position)
+      )
+    ''');
+    await db.execute('''
+      INSERT INTO $rebuiltTableName (
+        playlist_id,
+        song_id,
+        position,
+        is_deleted
+      )
+      SELECT
+        playlist_id,
+        song_id,
+        position,
+        is_deleted
+      FROM $tableName
+      ORDER BY playlist_id ASC, position ASC, song_id ASC
+    ''');
+    await db.execute('DROP TABLE $tableName');
+    await db.execute('ALTER TABLE $rebuiltTableName RENAME TO $tableName');
   }
 
   Future<void> runInTransaction(
@@ -509,6 +574,20 @@ class LibrarySyncDatabase {
 
   Future<void> softDeletePlaylistSong(
     String playlistId,
+    int position, {
+    DatabaseExecutor? executor,
+  }) async {
+    final db = executor ?? await database;
+    await db.update(
+      _playlistSongsTable,
+      {'is_deleted': 1},
+      where: 'playlist_id = ? AND position = ?',
+      whereArgs: [playlistId, position],
+    );
+  }
+
+  Future<void> softDeletePlaylistSongsBySongId(
+    String playlistId,
     String songId, {
     DatabaseExecutor? executor,
   }) async {
@@ -640,6 +719,44 @@ class LibrarySyncDatabase {
       LIMIT 1
     ''');
     return rows.isNotEmpty;
+  }
+
+  Future<List<PlaylistMembershipBackfillIssue>>
+      listPlaylistMembershipBackfillIssues({
+    int limit = 10,
+    DatabaseExecutor? executor,
+  }) async {
+    final db = executor ?? await database;
+    final rows = await db.rawQuery('''
+      SELECT
+        playlists.id AS playlist_id,
+        playlists.name AS playlist_name,
+        playlists.song_count AS expected_song_count,
+        COALESCE(playlist_songs.active_song_count, 0) AS active_song_count
+      FROM $_playlistsTable playlists
+      LEFT JOIN (
+        SELECT playlist_id, COUNT(*) AS active_song_count
+        FROM $_playlistSongsTable
+        WHERE is_deleted = 0
+        GROUP BY playlist_id
+      ) playlist_songs
+        ON playlist_songs.playlist_id = playlists.id
+      WHERE playlists.is_deleted = 0
+        AND playlists.song_count != COALESCE(playlist_songs.active_song_count, 0)
+      ORDER BY playlists.name COLLATE NOCASE ASC, playlists.id ASC
+      LIMIT ?
+    ''', <Object?>[limit]);
+
+    return rows
+        .map(
+          (row) => PlaylistMembershipBackfillIssue(
+            playlistId: row['playlist_id'] as String,
+            playlistName: row['playlist_name'] as String? ?? '',
+            expectedSongCount: row['expected_song_count'] as int? ?? 0,
+            activeSongCount: row['active_song_count'] as int? ?? 0,
+          ),
+        )
+        .toList();
   }
 
   Future<void> saveSyncState(

@@ -113,7 +113,7 @@ class AriamiV2Handlers {
             id: record.id,
             name: record.name,
             songCount: record.songCount,
-            duration: 0,
+            duration: record.durationSeconds,
             songIds: songIds,
           );
         },
@@ -249,7 +249,7 @@ class AriamiV2Handlers {
             id: record.id,
             name: record.name,
             songCount: record.songCount,
-            duration: 0,
+            duration: record.durationSeconds,
             songIds: songIds,
           ).toJson();
         },

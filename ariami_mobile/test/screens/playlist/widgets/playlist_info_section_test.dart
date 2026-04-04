@@ -109,5 +109,30 @@ void main() {
       // Should say "1 song" not "1 songs"
       expect(find.text('1 song • 3 min'), findsOneWidget);
     });
+
+    testWidgets('should fall back to stored playlist metadata while loading',
+        (tester) async {
+      final playlist = PlaylistModel(
+        id: 'test-id',
+        name: 'Test Playlist',
+        songIds: ['1', '2'],
+        songDurations: const {'1': 180, '2': 120},
+        createdAt: DateTime.now(),
+        modifiedAt: DateTime.now(),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: PlaylistInfoSection(
+              playlist: playlist,
+              songs: const <SongModel>[],
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('2 songs • 5 min'), findsOneWidget);
+    });
   });
 }

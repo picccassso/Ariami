@@ -738,6 +738,7 @@ void _seedCatalog(CatalogRepository repository) {
       id: 'playlist-a',
       name: 'Playlist A',
       songCount: 2,
+      durationSeconds: 300,
       updatedToken: 7,
     ),
   );
@@ -797,7 +798,7 @@ void _seedCatalog(CatalogRepository repository) {
       entityId: 'playlist-a',
       op: 'upsert',
       payloadJson:
-          '{"id":"playlist-a","name":"Playlist A","songCount":2,"duration":0,"songIds":["song-a","song-b"]}',
+          '{"id":"playlist-a","name":"Playlist A","songCount":2,"duration":300,"songIds":["song-a","song-b"]}',
       occurredEpochMs: now + 4,
     ),
   ]);

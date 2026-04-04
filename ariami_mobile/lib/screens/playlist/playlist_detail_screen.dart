@@ -43,6 +43,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   bool _isReorderMode = false;
   Set<String> _downloadedSongIds = {};
   StreamSubscription<WsMessage>? _webSocketSubscription;
+  bool _pendingSyncRefresh = false;
 
   // Map of albumId to album info (name, artist) for stats tracking
   final Map<String, ({String name, String artist})> _albumInfoMap = {};
@@ -74,7 +75,12 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
         message.type != WsMessageType.libraryUpdated) {
       return;
     }
-    if (!mounted || _isLoading || _isSongsLoading || _playlist == null) {
+    if (!mounted || _playlist == null) {
+      _pendingSyncRefresh = true;
+      return;
+    }
+    if (_isLoading || _isSongsLoading) {
+      _pendingSyncRefresh = true;
       return;
     }
     unawaited(_reloadSongsFromLibrarySync());
@@ -90,6 +96,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
     setState(() {
       _songs = songs;
     });
+    _pendingSyncRefresh = false;
   }
 
   /// Load downloaded song IDs
@@ -121,6 +128,10 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
 
     final currentSongIds = _songs.map((s) => s.id).toSet();
     final newSongIds = playlist.songIds.toSet();
+    final fallbackSongs = _buildSongsFromStoredMetadata(
+      playlist,
+      preferredSongsById: {for (final song in _songs) song.id: song},
+    );
 
     if (currentSongIds.length != newSongIds.length ||
         !currentSongIds.containsAll(newSongIds)) {
@@ -132,16 +143,10 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
         });
       }
     } else {
-      final songMap = {for (var s in _songs) s.id: s};
-      final reorderedSongs = playlist.songIds
-          .where((id) => songMap.containsKey(id))
-          .map((id) => songMap[id]!)
-          .toList();
-
       if (mounted) {
         setState(() {
           _playlist = playlist;
-          _songs = reorderedSongs;
+          _songs = fallbackSongs;
         });
       }
     }
@@ -152,18 +157,30 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
     final cachedPlaylist = _playlistService.getPlaylist(widget.playlistId);
 
     if (cachedPlaylist != null) {
+      final initialSongs = _buildSongsFromStoredMetadata(cachedPlaylist);
+      final needsLibraryMetadata = _needsLibrarySongMetadata(initialSongs);
       setState(() {
         _playlist = cachedPlaylist;
+        _songs = initialSongs;
         _isLoading = false;
-        _isSongsLoading = true;
+        _isSongsLoading = needsLibraryMetadata;
       });
 
-      final songs = await _resolveSongs(cachedPlaylist.songIds);
-      if (mounted) {
-        setState(() {
-          _songs = songs;
-          _isSongsLoading = false;
-        });
+      if (!needsLibraryMetadata && _pendingSyncRefresh) {
+        await _reloadSongsFromLibrarySync();
+      }
+
+      if (needsLibraryMetadata) {
+        final songs = await _resolveSongs(cachedPlaylist.songIds);
+        if (mounted) {
+          setState(() {
+            _songs = songs;
+            _isSongsLoading = false;
+          });
+        }
+        if (_pendingSyncRefresh) {
+          await _reloadSongsFromLibrarySync();
+        }
       }
     } else {
       setState(() {
@@ -183,13 +200,29 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
           return;
         }
 
-        final songs = await _resolveSongs(playlist.songIds);
-
         setState(() {
           _playlist = playlist;
-          _songs = songs;
+          _songs = _buildSongsFromStoredMetadata(playlist);
           _isLoading = false;
+          _isSongsLoading = _needsLibrarySongMetadata(_songs);
         });
+
+        if (!_isSongsLoading && _pendingSyncRefresh) {
+          await _reloadSongsFromLibrarySync();
+        }
+
+        if (_isSongsLoading) {
+          final songs = await _resolveSongs(playlist.songIds);
+          if (!mounted) return;
+
+          setState(() {
+            _songs = songs;
+            _isSongsLoading = false;
+          });
+          if (_pendingSyncRefresh) {
+            await _reloadSongsFromLibrarySync();
+          }
+        }
       } catch (e) {
         setState(() {
           _isLoading = false;
@@ -248,60 +281,144 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
 
   Future<List<SongModel>> _loadLibrarySongsForMetadata() async {
     try {
-      return await _connectionService.libraryReadFacade.getSongs();
+      final localSongs = await _libraryRepository.getSongs();
+      if (localSongs.isNotEmpty) {
+        return localSongs;
+      }
     } catch (e) {
       print(
-          '[PlaylistDetailScreen] Facade song metadata load failed, falling back to local repository: $e');
-      return _libraryRepository.getSongs();
+          '[PlaylistDetailScreen] Local repository song metadata load failed: $e');
     }
+
+    try {
+      return await _connectionService.libraryReadFacade.getSongs();
+    } catch (e) {
+      print('[PlaylistDetailScreen] Facade song metadata load failed: $e');
+      return const <SongModel>[];
+    }
+  }
+
+  List<SongModel> _buildSongsFromStoredMetadata(
+    PlaylistModel playlist, {
+    Map<String, SongModel> preferredSongsById = const <String, SongModel>{},
+  }) {
+    final downloadedSongs = _buildDownloadedSongsMap();
+
+    return playlist.songIds.map((id) {
+      final downloadedSong = downloadedSongs[id];
+      if (downloadedSong != null) {
+        return downloadedSong;
+      }
+
+      final preferredSong = preferredSongsById[id];
+      final cachedTitle = playlist.songTitles[id];
+      final cachedArtist = playlist.songArtists[id];
+      final cachedDuration = playlist.songDurations[id];
+
+      return SongModel(
+        id: id,
+        title: (cachedTitle != null && cachedTitle.isNotEmpty)
+            ? cachedTitle
+            : (preferredSong?.title ?? 'Unknown Song'),
+        artist: (cachedArtist != null && cachedArtist.isNotEmpty)
+            ? cachedArtist
+            : (preferredSong?.artist ?? 'Unknown Artist'),
+        albumId: playlist.songAlbumIds[id] ?? preferredSong?.albumId,
+        duration: (cachedDuration != null && cachedDuration > 0)
+            ? cachedDuration
+            : (preferredSong?.duration ?? 0),
+        trackNumber: preferredSong?.trackNumber,
+      );
+    }).toList();
+  }
+
+  Map<String, SongModel> _buildDownloadedSongsMap() {
+    final downloadedSongs = <String, SongModel>{};
+
+    for (final task in _downloadManager.queue) {
+      if (task.status != DownloadStatus.completed) {
+        continue;
+      }
+
+      downloadedSongs[task.songId] = SongModel(
+        id: task.songId,
+        title: task.title,
+        artist: task.artist,
+        albumId: task.albumId,
+        duration: task.duration,
+        trackNumber: task.trackNumber,
+      );
+
+      if (task.albumId != null && task.albumName != null) {
+        _albumInfoMap[task.albumId!] =
+            (name: task.albumName!, artist: task.albumArtist ?? task.artist);
+      }
+    }
+
+    return downloadedSongs;
+  }
+
+  bool _needsLibrarySongMetadata(List<SongModel> songs) {
+    return songs.any(
+      (song) =>
+          song.duration <= 0 ||
+          song.title.isEmpty ||
+          song.title == 'Unknown Song' ||
+          song.artist.isEmpty ||
+          song.artist == 'Unknown Artist',
+    );
   }
 
   /// Build SongModel objects from playlist's locally-stored metadata
   Future<List<SongModel>> _resolveSongsFromLocalMetadata(
       List<String> songIds) async {
-    final downloadedSongs = <String, SongModel>{};
-    for (final task in _downloadManager.queue) {
-      if (task.status == DownloadStatus.completed) {
-        downloadedSongs[task.songId] = SongModel(
-          id: task.songId,
-          title: task.title,
-          artist: task.artist,
-          albumId: task.albumId,
-          duration: task.duration,
-          trackNumber: task.trackNumber,
-        );
-
-        if (task.albumId != null && task.albumName != null) {
-          _albumInfoMap[task.albumId!] =
-              (name: task.albumName!, artist: task.albumArtist ?? task.artist);
-        }
-      }
+    final playlist = _playlist;
+    if (playlist == null) {
+      return const <SongModel>[];
     }
 
-    // Pre-fetch song durations from library to fill in missing values
+    final provisionalSongs = _buildSongsFromStoredMetadata(playlist);
+    if (!_needsLibrarySongMetadata(provisionalSongs)) {
+      return provisionalSongs;
+    }
+
     final librarySongs = await _loadLibrarySongsForMetadata();
-    final libraryDurations = {for (var s in librarySongs) s.id: s.duration};
+    final provisionalSongsById = {
+      for (final song in provisionalSongs) song.id: song,
+    };
+    final librarySongsById = {for (final song in librarySongs) song.id: song};
 
     return songIds.map((id) {
-      if (downloadedSongs.containsKey(id)) {
-        return downloadedSongs[id]!;
+      final provisionalSong = provisionalSongsById[id];
+      final librarySong = librarySongsById[id];
+
+      if (provisionalSong == null) {
+        return librarySong ??
+            SongModel(
+              id: id,
+              title: 'Unknown Song',
+              artist: 'Unknown Artist',
+              duration: 0,
+            );
       }
 
-      final albumId = _playlist?.songAlbumIds[id];
-      final title = _playlist?.songTitles[id] ?? 'Unknown Song';
-      final artist = _playlist?.songArtists[id] ?? 'Unknown Artist';
-      var duration = _playlist?.songDurations[id] ?? 0;
-      // Fallback to library duration if playlist duration is 0 or missing
-      if (duration == 0 && libraryDurations.containsKey(id)) {
-        duration = libraryDurations[id]!;
+      if (librarySong == null) {
+        return provisionalSong;
       }
+
       return SongModel(
         id: id,
-        title: title,
-        artist: artist,
-        albumId: albumId,
-        duration: duration,
-        trackNumber: null,
+        title: provisionalSong.title == 'Unknown Song'
+            ? librarySong.title
+            : provisionalSong.title,
+        artist: provisionalSong.artist == 'Unknown Artist'
+            ? librarySong.artist
+            : provisionalSong.artist,
+        albumId: provisionalSong.albumId ?? librarySong.albumId,
+        duration: provisionalSong.duration > 0
+            ? provisionalSong.duration
+            : librarySong.duration,
+        trackNumber: provisionalSong.trackNumber ?? librarySong.trackNumber,
       );
     }).toList();
   }
@@ -309,29 +426,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   /// Build SongModel objects from downloaded song metadata
   Future<List<SongModel>> _resolveSongsFromDownloads(
       List<String> songIds) async {
-    final downloadedSongs = <String, SongModel>{};
-
-    for (final task in _downloadManager.queue) {
-      if (task.status == DownloadStatus.completed &&
-          task.albumId != null &&
-          task.albumName != null) {
-        _albumInfoMap[task.albumId!] =
-            (name: task.albumName!, artist: task.albumArtist ?? task.artist);
-      }
-    }
-
-    for (final task in _downloadManager.queue) {
-      if (task.status == DownloadStatus.completed) {
-        downloadedSongs[task.songId] = SongModel(
-          id: task.songId,
-          title: task.title,
-          artist: task.artist,
-          albumId: task.albumId,
-          duration: task.duration,
-          trackNumber: task.trackNumber,
-        );
-      }
-    }
+    final downloadedSongs = _buildDownloadedSongsMap();
 
     // Pre-fetch song durations from library to fill in missing values
     final librarySongs = await _loadLibrarySongsForMetadata();
@@ -610,7 +705,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
         ),
 
         // Songs list
-        if (_isSongsLoading)
+        if (_isSongsLoading && _songs.isEmpty)
           const SliverToBoxAdapter(
             child: Padding(
               padding: EdgeInsets.symmetric(vertical: 32.0),
@@ -664,6 +759,19 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                 );
               },
               childCount: _songs.length,
+            ),
+          ),
+        if (_isSongsLoading && _songs.isNotEmpty)
+          const SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 24.0),
+              child: Center(
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
             ),
           ),
 

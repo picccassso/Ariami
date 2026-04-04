@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
+
 import '../../database/library_sync_database.dart';
 import '../../models/api_models.dart';
 import '../api/api_client.dart';
@@ -66,6 +68,9 @@ class LibrarySyncEngine {
     return _enqueueSync(() async {
       final bootstrapComplete =
           await _libraryRepository.hasCompletedBootstrap();
+      debugPrint(
+        '[LibrarySyncEngine][syncNow] bootstrapComplete=$bootstrapComplete',
+      );
       if (!bootstrapComplete) {
         await _runBootstrapSync();
         return;
@@ -78,6 +83,10 @@ class LibrarySyncEngine {
     return _enqueueSync(() async {
       final bootstrapComplete =
           await _libraryRepository.hasCompletedBootstrap();
+      debugPrint(
+        '[LibrarySyncEngine][syncUntil] targetToken=$targetToken '
+        'bootstrapComplete=$bootstrapComplete',
+      );
       if (!bootstrapComplete) {
         await _runBootstrapSync();
       }
@@ -86,6 +95,7 @@ class LibrarySyncEngine {
   }
 
   Future<void> _runBootstrapSync() async {
+    debugPrint('[LibrarySyncEngine][_runBootstrapSync] starting bootstrap');
     await _libraryRepository.resetForBootstrap();
 
     try {
@@ -96,6 +106,15 @@ class LibrarySyncEngine {
       while (true) {
         final page = await _apiClientProvider()
             .getV2BootstrapPage(cursor, bootstrapPageLimit);
+        debugPrint(
+          '[LibrarySyncEngine][_runBootstrapSync] page=${pagesProcessed + 1} '
+          'cursor=${cursor ?? '<initial>'} '
+          'albums=${page.albums.length} songs=${page.songs.length} '
+          'playlists=${page.playlists.length} '
+          'hasMore=${page.pageInfo.hasMore} '
+          'nextCursor=${page.pageInfo.nextCursor ?? '<null>'} '
+          'syncToken=${page.syncToken}',
+        );
 
         await _libraryRepository.applyBootstrapPage(page);
 
@@ -121,10 +140,19 @@ class LibrarySyncEngine {
       }
 
       await _libraryRepository.completeBootstrap(lastAppliedToken: latestToken);
+      final bootstrapReady = await _libraryRepository.hasCompletedBootstrap();
+      debugPrint(
+        '[LibrarySyncEngine][_runBootstrapSync] finished '
+        'pagesProcessed=$pagesProcessed latestToken=$latestToken '
+        'bootstrapReady=$bootstrapReady',
+      );
       if (onBootstrapCompleted != null) {
         await onBootstrapCompleted!(latestToken);
       }
-    } catch (_) {
+    } catch (error, stackTrace) {
+      debugPrint(
+        '[LibrarySyncEngine][_runBootstrapSync] failed error=$error\n$stackTrace',
+      );
       await _libraryRepository.abortBootstrap();
       rethrow;
     }
@@ -137,13 +165,26 @@ class LibrarySyncEngine {
       final state = await _libraryRepository.getSyncState();
       final since = state.lastAppliedToken;
       if (targetToken != null && since >= targetToken) {
+        debugPrint(
+          '[LibrarySyncEngine][_applyDeltaChanges] target already satisfied '
+          'since=$since targetToken=$targetToken',
+        );
         return;
       }
 
       final response =
           await _apiClientProvider().getV2Changes(since, changesPageLimit);
+      debugPrint(
+        '[LibrarySyncEngine][_applyDeltaChanges] since=$since '
+        'toToken=${response.toToken} syncToken=${response.syncToken} '
+        'events=${response.events.length} hasMore=${response.hasMore}',
+      );
 
       if (_requiresBootstrapRefresh(response)) {
+        debugPrint(
+          '[LibrarySyncEngine][_applyDeltaChanges] bootstrap refresh required '
+          'because at least one upsert payload was null',
+        );
         await _runBootstrapSync();
         return;
       }
@@ -160,6 +201,11 @@ class LibrarySyncEngine {
 
       final nextState = await _libraryRepository.getSyncState();
       final progressed = nextState.lastAppliedToken > since;
+      debugPrint(
+        '[LibrarySyncEngine][_applyDeltaChanges] nextSince='
+        '${nextState.lastAppliedToken} progressed=$progressed '
+        'bootstrapComplete=${nextState.bootstrapComplete}',
+      );
 
       if (!response.hasMore &&
           (targetToken == null || nextState.lastAppliedToken >= targetToken)) {
@@ -194,7 +240,12 @@ class LibrarySyncEngine {
     _syncQueue = (() async {
       try {
         await next;
-      } catch (_) {}
+      } catch (error, stackTrace) {
+        debugPrint(
+          '[LibrarySyncEngine][_enqueueSync] swallowed sync error='
+          '$error\n$stackTrace',
+        );
+      }
     }());
     return next;
   }

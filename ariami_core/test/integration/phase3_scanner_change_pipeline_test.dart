@@ -32,9 +32,12 @@ void main() {
     test(
       'P3-1: full scan writes catalog rows matching in-memory counts and advances latestToken',
       () async {
-        await _writeAudioStub(p.join(musicDir.path, 'Artist One - Track 01.mp3'));
-        await _writeAudioStub(p.join(musicDir.path, 'Artist One - Track 02.mp3'));
-        await _writeAudioStub(p.join(musicDir.path, 'Artist Two - Track 03.mp3'));
+        await _writeAudioStub(
+            p.join(musicDir.path, 'Artist One - Track 01.mp3'));
+        await _writeAudioStub(
+            p.join(musicDir.path, 'Artist One - Track 02.mp3'));
+        await _writeAudioStub(
+            p.join(musicDir.path, 'Artist Two - Track 03.mp3'));
 
         final startingToken = libraryManager.latestToken;
 
@@ -43,7 +46,8 @@ void main() {
         final library = libraryManager.library;
         expect(library, isNotNull);
 
-        final db = CatalogDatabase(databasePath: p.join(testDir.path, 'catalog.db'));
+        final db =
+            CatalogDatabase(databasePath: p.join(testDir.path, 'catalog.db'));
         db.initialize();
         final repository = CatalogRepository(database: db.database);
         addTearDown(db.close);
@@ -61,10 +65,13 @@ void main() {
     test(
       'P3-2: add/remove/rename file batches create monotonic library_changes tokens',
       () async {
-        final originalPath = p.join(musicDir.path, 'Source Artist - Source Song.mp3');
+        final originalPath =
+            p.join(musicDir.path, 'Source Artist - Source Song.mp3');
         final incomingPath = p.join(testDir.path, 'incoming_song.mp3');
-        final addedPath = p.join(musicDir.path, 'Added Artist - Added Song.mp3');
-        final renamedPath = p.join(musicDir.path, 'Renamed Artist - Renamed Song.mp3');
+        final addedPath =
+            p.join(musicDir.path, 'Added Artist - Added Song.mp3');
+        final renamedPath =
+            p.join(musicDir.path, 'Renamed Artist - Renamed Song.mp3');
 
         await _writeAudioStub(originalPath);
         await _writeAudioStub(incomingPath);
@@ -97,7 +104,8 @@ void main() {
           timeout: const Duration(seconds: 30),
         );
 
-        final db = CatalogDatabase(databasePath: p.join(testDir.path, 'catalog.db'));
+        final db =
+            CatalogDatabase(databasePath: p.join(testDir.path, 'catalog.db'));
         db.initialize();
         final repository = CatalogRepository(database: db.database);
         addTearDown(db.close);
@@ -116,19 +124,33 @@ void main() {
             .toList();
 
         expect(
-          addEvents.any((event) => event.entityType == 'song' && event.op == 'upsert'),
+          addEvents.any(
+              (event) => event.entityType == 'song' && event.op == 'upsert'),
           isTrue,
         );
         expect(
-          renameEvents.any((event) => event.entityType == 'song' && event.op == 'upsert'),
+          addEvents.where((event) => event.op == 'upsert').every((event) =>
+              event.payloadJson != null && event.payloadJson!.isNotEmpty),
           isTrue,
         );
         expect(
-          renameEvents.any((event) => event.entityType == 'song' && event.op == 'delete'),
+          renameEvents.any(
+              (event) => event.entityType == 'song' && event.op == 'upsert'),
           isTrue,
         );
         expect(
-          deleteEvents.any((event) => event.entityType == 'song' && event.op == 'delete'),
+          renameEvents.where((event) => event.op == 'upsert').every((event) =>
+              event.payloadJson != null && event.payloadJson!.isNotEmpty),
+          isTrue,
+        );
+        expect(
+          renameEvents.any(
+              (event) => event.entityType == 'song' && event.op == 'delete'),
+          isTrue,
+        );
+        expect(
+          deleteEvents.any(
+              (event) => event.entityType == 'song' && event.op == 'delete'),
           isTrue,
         );
 

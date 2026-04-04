@@ -59,6 +59,7 @@ class CatalogPlaylistRecord {
     required this.id,
     required this.name,
     required this.songCount,
+    required this.durationSeconds,
     required this.updatedToken,
     this.isDeleted = false,
   });
@@ -66,6 +67,7 @@ class CatalogPlaylistRecord {
   final String id;
   final String name;
   final int songCount;
+  final int durationSeconds;
   final int updatedToken;
   final bool isDeleted;
 }
@@ -233,12 +235,14 @@ INSERT INTO playlists (
   id,
   name,
   song_count,
+  duration_seconds,
   updated_token,
   is_deleted
-) VALUES (?, ?, ?, ?, ?)
+) VALUES (?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET
   name = excluded.name,
   song_count = excluded.song_count,
+  duration_seconds = excluded.duration_seconds,
   updated_token = excluded.updated_token,
   is_deleted = excluded.is_deleted;
 ''',
@@ -246,6 +250,7 @@ ON CONFLICT(id) DO UPDATE SET
         playlist.id,
         playlist.name,
         playlist.songCount,
+        playlist.durationSeconds,
         playlist.updatedToken,
         playlist.isDeleted ? 1 : 0,
       ],
@@ -261,7 +266,8 @@ INSERT INTO playlist_songs (
   position,
   updated_token
 ) VALUES (?, ?, ?, ?)
-ON CONFLICT(playlist_id, song_id) DO UPDATE SET
+ON CONFLICT(playlist_id, position) DO UPDATE SET
+  song_id = excluded.song_id,
   position = excluded.position,
   updated_token = excluded.updated_token;
 ''',
@@ -316,14 +322,14 @@ WHERE playlist_id = ?;
 
   void deletePlaylistSong(
     String playlistId,
-    String songId,
+    int position,
   ) {
     _database.execute(
       '''
 DELETE FROM playlist_songs
-WHERE playlist_id = ? AND song_id = ?;
+WHERE playlist_id = ? AND position = ?;
 ''',
-      <Object?>[playlistId, songId],
+      <Object?>[playlistId, position],
     );
   }
 
@@ -469,6 +475,7 @@ SELECT
   id,
   name,
   song_count,
+  duration_seconds,
   updated_token,
   is_deleted
 FROM playlists
@@ -484,6 +491,7 @@ SELECT
   id,
   name,
   song_count,
+  duration_seconds,
   updated_token,
   is_deleted
 FROM playlists
@@ -633,6 +641,7 @@ FROM library_changes;
       id: row['id'] as String,
       name: row['name'] as String,
       songCount: row['song_count'] as int,
+      durationSeconds: row['duration_seconds'] as int? ?? 0,
       updatedToken: row['updated_token'] as int,
       isDeleted: (row['is_deleted'] as int) == 1,
     );
