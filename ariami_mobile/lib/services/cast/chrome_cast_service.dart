@@ -215,13 +215,16 @@ class ChromeCastService extends ChangeNotifier {
     _lastRemotePlayerState = CastMediaPlayerState.paused;
   }
 
-  /// Pauses remote playback during app teardown.
+  /// Stops remote playback during app teardown.
   ///
   /// This is used as a backstop for task removal / app termination paths where
   /// relying on the plugin's activity-destroy callback is not reliable enough.
-  Future<void> pauseForAppTermination(
-      {String reason = 'app-termination'}) async {
-    if (!hasActiveSession) {
+  Future<void> stopForAppTermination({
+    String reason = 'app-termination',
+  }) async {
+    final hasKnownSession = hasActiveSession ||
+        GoogleCastSessionManager.instance.currentSession != null;
+    if (!hasKnownSession) {
       return;
     }
 
@@ -230,38 +233,63 @@ class ChromeCastService extends ChangeNotifier {
     _lastSentPlaying = false;
 
     final playerState = mediaStatus?.playerState;
-    if (playerState == CastMediaPlayerState.paused ||
-        playerState == CastMediaPlayerState.idle) {
+    final alreadyInactive = playerState == CastMediaPlayerState.paused ||
+        playerState == CastMediaPlayerState.idle;
+
+    if (alreadyInactive) {
       _lastRemotePlayerState = playerState;
       debugPrint(
         '[ChromeCastService][$reason] remote already inactive at '
         '${frozenPosition.inMilliseconds}ms',
       );
-      notifyListeners();
-      return;
+    } else {
+      try {
+        await GoogleCastRemoteMediaClient.instance
+            .stop()
+            .timeout(const Duration(milliseconds: 750));
+        _lastRemotePlayerState = CastMediaPlayerState.idle;
+        debugPrint(
+          '[ChromeCastService][$reason] remote stop acknowledged at '
+          '${frozenPosition.inMilliseconds}ms',
+        );
+      } on TimeoutException {
+        debugPrint(
+          '[ChromeCastService][$reason] remote stop timed out, continuing',
+        );
+      } catch (e) {
+        debugPrint(
+          '[ChromeCastService][$reason] remote stop failed: $e',
+        );
+      }
     }
 
     try {
-      await GoogleCastRemoteMediaClient.instance
-          .pause()
-          .timeout(const Duration(milliseconds: 750));
-      _lastRemotePlayerState = CastMediaPlayerState.paused;
+      await GoogleCastSessionManager.instance
+          .endSessionAndStopCasting()
+          .timeout(const Duration(milliseconds: 900));
       debugPrint(
-        '[ChromeCastService][$reason] remote pause acknowledged at '
-        '${frozenPosition.inMilliseconds}ms',
+        '[ChromeCastService][$reason] cast session end requested',
       );
     } on TimeoutException {
-      _lastRemotePlayerState = CastMediaPlayerState.paused;
       debugPrint(
-        '[ChromeCastService][$reason] remote pause timed out, continuing',
+        '[ChromeCastService][$reason] cast session end timed out, continuing',
       );
     } catch (e) {
       debugPrint(
-        '[ChromeCastService][$reason] remote pause failed: $e',
+        '[ChromeCastService][$reason] cast session end failed: $e',
       );
     }
 
+    _connectedDeviceName = null;
+    _lastCastedSongId = null;
+    _forceLocalPlayback = false;
     notifyListeners();
+  }
+
+  Future<void> pauseForAppTermination({
+    String reason = 'app-termination',
+  }) async {
+    await stopForAppTermination(reason: reason);
   }
 
   Future<void> seek(Duration position, {required bool playAfterSeek}) async {
