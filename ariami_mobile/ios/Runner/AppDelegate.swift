@@ -1,4 +1,5 @@
 import Flutter
+import GoogleCast
 import UIKit
 
 @main
@@ -9,5 +10,14 @@ import UIKit
   ) -> Bool {
     GeneratedPluginRegistrant.register(with: self)
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+
+  override func applicationWillTerminate(_ application: UIApplication) {
+    let sessionManager = GCKCastContext.sharedInstance().sessionManager
+    if sessionManager.hasConnectedSession() {
+      sessionManager.currentCastSession?.remoteMediaClient?.stop()
+      sessionManager.endSessionAndStopCasting(true)
+    }
+    super.applicationWillTerminate(application)
   }
 }

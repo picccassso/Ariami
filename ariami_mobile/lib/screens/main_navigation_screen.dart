@@ -61,7 +61,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.detached) {
       unawaited(
-        _castService.pauseForAppTermination(reason: 'flutter-detached'),
+        _castService.stopForAppTermination(reason: 'flutter-detached'),
       );
     }
 

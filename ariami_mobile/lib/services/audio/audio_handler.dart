@@ -287,10 +287,10 @@ class AriamiAudioHandler extends BaseAudioHandler
     print(
         '[AriamiAudioHandler] onTaskRemoved() - App swiped away, stopping playback');
     try {
-      await _castService.pauseForAppTermination(reason: 'task-removed');
+      await _castService.stopForAppTermination(reason: 'task-removed');
     } catch (e) {
       debugPrint(
-        '[AriamiAudioHandler] Failed to pause Chromecast during task removal: $e',
+        '[AriamiAudioHandler] Failed to stop Chromecast during task removal: $e',
       );
     }
     // Stop playback when app is swiped away from recent apps
