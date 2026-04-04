@@ -207,20 +207,24 @@ class PlaylistModel {
   final String name;
   final int songCount;
   final int duration; // in seconds
+  final List<String> songIds;
 
   PlaylistModel({
     required this.id,
     required this.name,
     required this.songCount,
     required this.duration,
+    this.songIds = const <String>[],
   });
 
   factory PlaylistModel.fromJson(Map<String, dynamic> json) {
     return PlaylistModel(
       id: json['id'] as String,
       name: json['name'] as String,
-      songCount: json['songCount'] as int,
-      duration: json['duration'] as int,
+      songCount: json['songCount'] as int? ?? 0,
+      duration: json['duration'] as int? ?? 0,
+      songIds: (json['songIds'] as List<dynamic>? ?? const <dynamic>[])
+          .cast<String>(),
     );
   }
 
@@ -230,6 +234,7 @@ class PlaylistModel {
       'name': name,
       'songCount': songCount,
       'duration': duration,
+      'songIds': songIds,
     };
   }
 }

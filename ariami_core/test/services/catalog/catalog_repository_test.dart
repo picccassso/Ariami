@@ -159,12 +159,46 @@ VALUES
       expect(firstPage.hasMore, isTrue);
       expect(firstPage.nextCursor, equals('playlist-2'));
 
-      final CatalogPage<CatalogPlaylistRecord> secondPage = repository
-          .listPlaylistsPage(cursor: firstPage.nextCursor, limit: firstPage.limit);
+      final CatalogPage<CatalogPlaylistRecord> secondPage =
+          repository.listPlaylistsPage(
+              cursor: firstPage.nextCursor, limit: firstPage.limit);
       expect(secondPage.items.map((item) => item.id).toList(),
           equals(<String>['playlist-3']));
       expect(secondPage.hasMore, isFalse);
       expect(secondPage.nextCursor, isNull);
+    });
+
+    test('listPlaylistSongs returns playlist membership in position order', () {
+      repository.upsertPlaylist(
+        CatalogPlaylistRecord(
+          id: 'playlist-1',
+          name: 'Playlist 1',
+          songCount: 2,
+          updatedToken: 1,
+        ),
+      );
+      repository.upsertPlaylistSong(
+        CatalogPlaylistSongRecord(
+          playlistId: 'playlist-1',
+          songId: 'song-b',
+          position: 1,
+          updatedToken: 2,
+        ),
+      );
+      repository.upsertPlaylistSong(
+        CatalogPlaylistSongRecord(
+          playlistId: 'playlist-1',
+          songId: 'song-a',
+          position: 0,
+          updatedToken: 3,
+        ),
+      );
+
+      final items = repository.listPlaylistSongs('playlist-1');
+      expect(
+        items.map((item) => item.songId).toList(),
+        equals(<String>['song-a', 'song-b']),
+      );
     });
   });
 
@@ -188,7 +222,8 @@ VALUES
       }
     });
 
-    test('softDeleteAlbum and softDeleteSong mark deleted and hide from pages', () {
+    test('softDeleteAlbum and softDeleteSong mark deleted and hide from pages',
+        () {
       repository.upsertAlbum(
         CatalogAlbumRecord(
           id: 'album-1',
@@ -267,6 +302,31 @@ VALUES
       expect(songRow.first['is_deleted'], equals(1));
       expect(songRow.first['updated_token'], equals(22));
     });
+
+    test('softDeletePlaylist removes playlist membership from active reads',
+        () {
+      repository.upsertPlaylist(
+        CatalogPlaylistRecord(
+          id: 'playlist-1',
+          name: 'Playlist 1',
+          songCount: 1,
+          updatedToken: 10,
+        ),
+      );
+      repository.upsertPlaylistSong(
+        CatalogPlaylistSongRecord(
+          playlistId: 'playlist-1',
+          songId: 'song-1',
+          position: 0,
+          updatedToken: 11,
+        ),
+      );
+
+      repository.softDeletePlaylist('playlist-1', 12);
+
+      expect(repository.listPlaylistsPage(limit: 10).items, isEmpty);
+      expect(repository.listPlaylistSongs('playlist-1'), isEmpty);
+    });
   });
 
   group('CatalogRepository token ordering', () {
@@ -289,7 +349,8 @@ VALUES
       }
     });
 
-    test('appendChangeEvents and readChangesSince return monotonic token order', () {
+    test('appendChangeEvents and readChangesSince return monotonic token order',
+        () {
       repository.appendChangeEvents(
         <CatalogChangeEventInput>[
           CatalogChangeEventInput(

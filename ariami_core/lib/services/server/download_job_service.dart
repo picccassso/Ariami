@@ -2,9 +2,7 @@ import 'dart:collection';
 import 'dart:math';
 
 import 'package:ariami_core/models/download_job_models.dart';
-import 'package:ariami_core/models/folder_playlist.dart';
 import 'package:ariami_core/services/catalog/catalog_repository.dart';
-import 'package:ariami_core/services/library/library_manager.dart';
 
 typedef DownloadJobCatalogRepositoryProvider = CatalogRepository? Function();
 
@@ -28,16 +26,13 @@ class DownloadJobServiceException implements Exception {
 class DownloadJobService {
   DownloadJobService({
     required DownloadJobCatalogRepositoryProvider catalogRepositoryProvider,
-    required LibraryManager libraryManager,
     int maxActiveJobsPerUser = _defaultMaxActiveJobsPerUser,
     int maxQueuedItemsPerUser = _defaultMaxQueuedItemsPerUser,
   })  : _catalogRepositoryProvider = catalogRepositoryProvider,
-        _libraryManager = libraryManager,
         _maxActiveJobsPerUser = maxActiveJobsPerUser,
         _maxQueuedItemsPerUser = maxQueuedItemsPerUser;
 
   final DownloadJobCatalogRepositoryProvider _catalogRepositoryProvider;
-  final LibraryManager _libraryManager;
   final Random _random = Random.secure();
   final Map<String, _DownloadJobRecord> _jobs = <String, _DownloadJobRecord>{};
 
@@ -93,7 +88,6 @@ class DownloadJobService {
     }
 
     final snapshot = _buildCatalogSnapshot(repository);
-    final playlistsById = _buildFolderPlaylistsById();
 
     final invalidSongIds = normalizedSongIds
         .where((songId) => !snapshot.songsById.containsKey(songId))
@@ -102,7 +96,7 @@ class DownloadJobService {
         .where((albumId) => !snapshot.albumsById.containsKey(albumId))
         .toList();
     final invalidPlaylistIds = normalizedPlaylistIds
-        .where((playlistId) => !playlistsById.containsKey(playlistId))
+        .where((playlistId) => !snapshot.playlistsById.containsKey(playlistId))
         .toList();
 
     if (invalidSongIds.isNotEmpty ||
@@ -133,7 +127,7 @@ class DownloadJobService {
     }
 
     for (final playlistId in normalizedPlaylistIds) {
-      final playlist = playlistsById[playlistId];
+      final playlist = snapshot.playlistsById[playlistId];
       if (playlist == null) continue;
       for (final songId in playlist.songIds) {
         if (snapshot.songsById.containsKey(songId)) {
@@ -327,6 +321,7 @@ class DownloadJobService {
     final songsById = <String, _CatalogSongView>{};
     final songsByAlbumId = <String, List<_CatalogSongView>>{};
     final albumsById = <String, _CatalogAlbumView>{};
+    final playlistsById = <String, _CatalogPlaylistView>{};
 
     String? songCursor;
     while (true) {
@@ -380,22 +375,32 @@ class DownloadJobService {
       albumCursor = page.nextCursor;
     }
 
+    String? playlistCursor;
+    while (true) {
+      final page =
+          repository.listPlaylistsPage(cursor: playlistCursor, limit: 500);
+      for (final playlist in page.items) {
+        playlistsById[playlist.id] = _CatalogPlaylistView(
+          id: playlist.id,
+          name: playlist.name,
+          songIds: repository
+              .listPlaylistSongs(playlist.id)
+              .map((item) => item.songId)
+              .toList(),
+        );
+      }
+      if (!page.hasMore || page.nextCursor == null) {
+        break;
+      }
+      playlistCursor = page.nextCursor;
+    }
+
     return _CatalogSnapshot(
       songsById: songsById,
       songsByAlbumId: songsByAlbumId,
       albumsById: albumsById,
+      playlistsById: playlistsById,
     );
-  }
-
-  Map<String, FolderPlaylist> _buildFolderPlaylistsById() {
-    final library = _libraryManager.library;
-    if (library == null) {
-      return <String, FolderPlaylist>{};
-    }
-
-    return <String, FolderPlaylist>{
-      for (final playlist in library.folderPlaylists) playlist.id: playlist,
-    };
   }
 
   void _enforcePerUserQuotas({
@@ -449,11 +454,13 @@ class _CatalogSnapshot {
     required this.songsById,
     required this.songsByAlbumId,
     required this.albumsById,
+    required this.playlistsById,
   });
 
   final Map<String, _CatalogSongView> songsById;
   final Map<String, List<_CatalogSongView>> songsByAlbumId;
   final Map<String, _CatalogAlbumView> albumsById;
+  final Map<String, _CatalogPlaylistView> playlistsById;
 }
 
 class _CatalogSongView {
@@ -486,6 +493,18 @@ class _CatalogAlbumView {
   final String id;
   final String title;
   final String artist;
+}
+
+class _CatalogPlaylistView {
+  _CatalogPlaylistView({
+    required this.id,
+    required this.name,
+    required this.songIds,
+  });
+
+  final String id;
+  final String name;
+  final List<String> songIds;
 }
 
 class _DownloadJobRecord {

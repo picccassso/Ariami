@@ -101,6 +101,20 @@ class LibraryRepository {
             .toList(),
         executor: txn,
       );
+      await db.upsertBootstrapStagingPlaylistSongs(
+        page.playlists
+            .expand(
+              (playlist) => playlist.songIds.asMap().entries.map(
+                    (entry) => LibraryPlaylistSongRow(
+                      playlistId: playlist.id,
+                      songId: entry.value,
+                      position: entry.key,
+                    ),
+                  ),
+            )
+            .toList(),
+        executor: txn,
+      );
     });
   }
 
@@ -376,6 +390,19 @@ class LibraryRepository {
           ],
           executor: executor,
         );
+        if (playlist.songIds.isNotEmpty || playlist.songCount == 0) {
+          await database.replacePlaylistSongs(
+            playlist.id,
+            playlist.songIds.asMap().entries.map(
+                  (entry) => LibraryPlaylistSongRow(
+                    playlistId: playlist.id,
+                    songId: entry.value,
+                    position: entry.key,
+                  ),
+                ),
+            executor: executor,
+          );
+        }
         return;
       case V2EntityType.playlistSong:
         final playlistSongIds = _playlistSongIds(event);

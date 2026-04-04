@@ -8,28 +8,6 @@ import 'package:ariami_mobile/services/api/api_client.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  group('ApiClient.getLibrary', () {
-    test('throws when v1 snapshot endpoint is disabled', () async {
-      final client = ApiClient(
-        serverInfo: ServerInfo(
-          server: '127.0.0.1',
-          port: 8080,
-          name: 'test',
-          version: 'test',
-        ),
-        enableV1LibrarySnapshot: false,
-      );
-
-      await expectLater(
-        client.getLibrary(),
-        throwsA(
-          isA<ApiException>()
-              .having((e) => e.code, 'code', ApiErrorCodes.invalidRequest),
-        ),
-      );
-    });
-  });
-
   group('ApiClient v2 download jobs', () {
     late HttpServer server;
     late ApiClient client;

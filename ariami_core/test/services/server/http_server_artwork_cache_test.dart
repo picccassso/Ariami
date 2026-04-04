@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:ariami_core/models/feature_flags.dart';
 import 'package:ariami_core/services/server/http_server.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
@@ -15,6 +16,7 @@ void main() {
       server = AriamiHttpServer();
       await server.stop();
       server.libraryManager.clear();
+      server.setFeatureFlags(const AriamiFeatureFlags(enableV2Api: true));
 
       testDir = await Directory.systemTemp.createTemp('ariami_phase5_');
       server.libraryManager
@@ -37,7 +39,8 @@ void main() {
     test(
       'P5-3: artwork endpoints return ETag/Last-Modified and honor If-None-Match',
       () async {
-        final musicDir = await Directory(p.join(testDir.path, 'music')).create();
+        final musicDir =
+            await Directory(p.join(testDir.path, 'music')).create();
 
         final artworkBytes = base64Decode(
           '/9j/4AAQSkZJRgABAQAAAQABAAD/2wCEAAkGBxAQEBAQEBAPEA8PDw8QDw8QDw8PDw8PFREWFhURFRUYHSggGBolGxUVITEhJSkrLi4uFx8zODMtNygtLisBCgoKDQ0NDg0NDisZFRkrKysrKysrKysrKysrKysrKysrKysrKysrKysrKysrKysrKysrKysrKysrKysrK//AABEIABQAFAMBIgACEQEDEQH/xAAXAAADAQAAAAAAAAAAAAAAAAAAAQID/8QAFhABAQEAAAAAAAAAAAAAAAAAAQAC/8QAFQEBAQAAAAAAAAAAAAAAAAAAAwX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCfAAH/2Q==',
@@ -74,32 +77,24 @@ void main() {
           port: port,
         );
 
-        final libraryResponse = await _sendBinaryRequest(
-          method: 'GET',
-          url: Uri.parse('http://127.0.0.1:$port/api/library'),
-        );
-        expect(libraryResponse.statusCode, 200);
-        final libraryJson =
-            jsonDecode(utf8.decode(libraryResponse.body)) as Map<String, dynamic>;
-
-        final albums = (libraryJson['albums'] as List<dynamic>)
-            .map((item) => item as Map<String, dynamic>)
-            .toList();
-        expect(albums, isNotEmpty);
-        final albumId = albums.first['id'] as String;
-
-        final songs = (libraryJson['songs'] as List<dynamic>)
-            .map((item) => item as Map<String, dynamic>)
-            .toList();
-        final standaloneSong = songs.firstWhere(
-          (song) => song['albumId'] == null,
-          orElse: () => throw StateError('Expected at least one standalone song'),
-        );
-        final standaloneSongId = standaloneSong['id'] as String;
+        final repository = server.libraryManager.createCatalogRepository();
+        expect(repository, isNotNull);
+        final albumId = repository!.listAlbumsPage(limit: 10).items.first.id;
+        final standaloneSongId = repository
+            .listSongsPage(limit: 20)
+            .items
+            .firstWhere(
+              (song) => song.albumId == null,
+              orElse: () => throw StateError(
+                'Expected at least one standalone song',
+              ),
+            )
+            .id;
 
         final albumArtworkResponse = await _sendBinaryRequest(
           method: 'GET',
-          url: Uri.parse('http://127.0.0.1:$port/api/artwork/$albumId?size=full'),
+          url: Uri.parse(
+              'http://127.0.0.1:$port/api/artwork/$albumId?size=full'),
         );
         expect(albumArtworkResponse.statusCode, 200);
         final albumEtag = albumArtworkResponse.headers['etag'];
@@ -110,7 +105,8 @@ void main() {
 
         final albumNotModifiedResponse = await _sendBinaryRequest(
           method: 'GET',
-          url: Uri.parse('http://127.0.0.1:$port/api/artwork/$albumId?size=full'),
+          url: Uri.parse(
+              'http://127.0.0.1:$port/api/artwork/$albumId?size=full'),
           headers: <String, String>{'If-None-Match': albumEtag!},
         );
         expect(albumNotModifiedResponse.statusCode, 304);

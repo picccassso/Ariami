@@ -24,6 +24,8 @@ extension _LibraryManagerCatalogPart on LibraryManager {
       print('[LibraryManager] Catalog snapshot write complete '
           '(albums: +${result.upsertedAlbumCount}/-${result.deletedAlbumCount}, '
           'songs: +${result.upsertedSongCount}/-${result.deletedSongCount}, '
+          'playlists: +${result.upsertedPlaylistCount}/-${result.deletedPlaylistCount}, '
+          'playlistSongs: +${result.upsertedPlaylistSongCount}/-${result.deletedPlaylistSongCount}, '
           'latestToken: ${result.latestToken})');
 
       await _precomputeAndPersistArtworkVariantsForAlbums(
@@ -52,6 +54,14 @@ extension _LibraryManagerCatalogPart on LibraryManager {
     final repository = CatalogRepository(database: database);
     final songRecordsById = _buildCatalogSongRecordsById(updatedLibrary);
     final albumRecordsById = _buildCatalogAlbumRecordsById(updatedLibrary);
+    final playlistRecordsById =
+        _buildCatalogPlaylistRecordsById(updatedLibrary);
+    final previousPlaylistRecordsById =
+        _buildCatalogPlaylistRecordsById(previousLibrary);
+    final playlistSongPositions =
+        _buildCatalogPlaylistSongPositions(updatedLibrary);
+    final previousPlaylistSongPositions =
+        _buildCatalogPlaylistSongPositions(previousLibrary);
     final previousSongAlbumIds = _buildSongAlbumIdIndex(previousLibrary);
     final updatedSongAlbumIds = _buildSongAlbumIdIndex(updatedLibrary);
 
@@ -82,6 +92,36 @@ extension _LibraryManagerCatalogPart on LibraryManager {
     final orderedUpsertSongIds = upsertSongIds.toList()..sort();
     final orderedDeletedSongIds = deletedSongIds.toList()..sort();
     final orderedAffectedAlbumIds = affectedAlbumIds.toList()..sort();
+    final upsertPlaylistIds = playlistRecordsById.entries
+        .where(
+          (entry) => _playlistRecordChanged(
+            previousPlaylistRecordsById[entry.key],
+            entry.value,
+          ),
+        )
+        .map((entry) => entry.key)
+        .toList()
+      ..sort();
+    final deletedPlaylistIds = previousPlaylistRecordsById.keys
+        .where((playlistId) => !playlistRecordsById.containsKey(playlistId))
+        .toList()
+      ..sort();
+    final deletedPlaylistIdSet = deletedPlaylistIds.toSet();
+    final upsertPlaylistSongKeys = playlistSongPositions.entries
+        .where(
+          (entry) => previousPlaylistSongPositions[entry.key] != entry.value,
+        )
+        .map((entry) => entry.key)
+        .toList()
+      ..sort();
+    final deletedPlaylistSongKeys = previousPlaylistSongPositions.keys
+        .where(
+          (key) =>
+              !playlistSongPositions.containsKey(key) &&
+              !deletedPlaylistIdSet.contains(key.playlistId),
+        )
+        .toList()
+      ..sort();
 
     var tokenCursor = _readLatestTokenFromDatabase(database);
     final occurredEpochMs = DateTime.now().millisecondsSinceEpoch;
@@ -112,6 +152,7 @@ extension _LibraryManagerCatalogPart on LibraryManager {
           entityType: 'song',
           entityId: songId,
           op: 'upsert',
+          payloadJson: _catalogSongPayloadJson(record),
           occurredEpochMs: occurredEpochMs,
         );
       }
@@ -150,6 +191,7 @@ extension _LibraryManagerCatalogPart on LibraryManager {
             entityType: 'album',
             entityId: albumId,
             op: 'upsert',
+            payloadJson: _catalogAlbumPayloadJson(record),
             occurredEpochMs: occurredEpochMs,
           );
         } else {
@@ -164,6 +206,80 @@ extension _LibraryManagerCatalogPart on LibraryManager {
         }
       }
 
+      for (final playlistId in upsertPlaylistIds) {
+        tokenCursor += 1;
+        final record = playlistRecordsById[playlistId]!;
+        repository.upsertPlaylist(
+          CatalogPlaylistRecord(
+            id: record.id,
+            name: record.name,
+            songCount: record.songCount,
+            updatedToken: tokenCursor,
+            isDeleted: false,
+          ),
+        );
+        _insertLibraryChangeEvent(
+          database: database,
+          entityType: 'playlist',
+          entityId: playlistId,
+          op: 'upsert',
+          payloadJson: _catalogPlaylistPayloadJson(
+            record,
+            updatedLibrary: updatedLibrary,
+          ),
+          occurredEpochMs: occurredEpochMs,
+        );
+      }
+
+      for (final key in upsertPlaylistSongKeys) {
+        tokenCursor += 1;
+        final position = playlistSongPositions[key]!;
+        repository.upsertPlaylistSong(
+          CatalogPlaylistSongRecord(
+            playlistId: key.playlistId,
+            songId: key.songId,
+            position: position,
+            updatedToken: tokenCursor,
+          ),
+        );
+        _insertLibraryChangeEvent(
+          database: database,
+          entityType: 'playlist_song',
+          entityId: key.entityId,
+          op: 'upsert',
+          payloadJson: _catalogPlaylistSongPayloadJson(
+            key: key,
+            position: position,
+          ),
+          occurredEpochMs: occurredEpochMs,
+        );
+      }
+
+      for (final key in deletedPlaylistSongKeys) {
+        tokenCursor += 1;
+        repository.deletePlaylistSong(key.playlistId, key.songId);
+        _insertLibraryChangeEvent(
+          database: database,
+          entityType: 'playlist_song',
+          entityId: key.entityId,
+          op: 'delete',
+          payloadJson: _catalogPlaylistSongDeletePayloadJson(key),
+          occurredEpochMs: occurredEpochMs,
+        );
+      }
+
+      for (final playlistId in deletedPlaylistIds) {
+        tokenCursor += 1;
+        repository.softDeletePlaylist(playlistId, tokenCursor);
+        _insertLibraryChangeEvent(
+          database: database,
+          entityType: 'playlist',
+          entityId: playlistId,
+          op: 'delete',
+          occurredEpochMs: occurredEpochMs,
+        );
+      }
+
       database.execute('COMMIT;');
       _latestCatalogToken = tokenCursor;
     } catch (_) {
@@ -175,6 +291,100 @@ extension _LibraryManagerCatalogPart on LibraryManager {
       library: updatedLibrary,
       albumIds: orderedAffectedAlbumIds,
     );
+  }
+
+  Future<void> _writeCatalogDurationUpdates(Set<String> updatedSongIds) async {
+    final catalogDatabase = _catalogDatabase;
+    final library = _library;
+    if (catalogDatabase == null || library == null || updatedSongIds.isEmpty) {
+      return;
+    }
+
+    final database = catalogDatabase.database;
+    final repository = CatalogRepository(database: database);
+    final songRecordsById = _buildCatalogSongRecordsById(library);
+    final albumRecordsById = _buildCatalogAlbumRecordsById(library);
+    final songAlbumIds = _buildSongAlbumIdIndex(library);
+    final affectedAlbumIds = updatedSongIds
+        .map((songId) => songAlbumIds[songId])
+        .whereType<String>()
+        .toSet()
+        .toList()
+      ..sort();
+    final orderedSongIds = updatedSongIds.toList()..sort();
+
+    var tokenCursor = _readLatestTokenFromDatabase(database);
+    final occurredEpochMs = DateTime.now().millisecondsSinceEpoch;
+
+    database.execute('BEGIN IMMEDIATE TRANSACTION;');
+    try {
+      for (final songId in orderedSongIds) {
+        final record = songRecordsById[songId];
+        if (record == null) {
+          continue;
+        }
+        tokenCursor += 1;
+        repository.upsertSong(
+          CatalogSongRecord(
+            id: record.id,
+            filePath: record.filePath,
+            title: record.title,
+            artist: record.artist,
+            albumId: record.albumId,
+            durationSeconds: record.durationSeconds,
+            trackNumber: record.trackNumber,
+            fileSizeBytes: record.fileSizeBytes,
+            modifiedEpochMs: record.modifiedEpochMs,
+            artworkKey: record.artworkKey,
+            updatedToken: tokenCursor,
+            isDeleted: false,
+          ),
+        );
+        _insertLibraryChangeEvent(
+          database: database,
+          entityType: 'song',
+          entityId: songId,
+          op: 'upsert',
+          payloadJson: _catalogSongPayloadJson(record),
+          occurredEpochMs: occurredEpochMs,
+        );
+      }
+
+      for (final albumId in affectedAlbumIds) {
+        final record = albumRecordsById[albumId];
+        if (record == null) {
+          continue;
+        }
+        tokenCursor += 1;
+        repository.upsertAlbum(
+          CatalogAlbumRecord(
+            id: record.id,
+            title: record.title,
+            artist: record.artist,
+            year: record.year,
+            coverArtKey: record.coverArtKey,
+            songCount: record.songCount,
+            durationSeconds: record.durationSeconds,
+            updatedToken: tokenCursor,
+            isDeleted: false,
+          ),
+        );
+        _insertLibraryChangeEvent(
+          database: database,
+          entityType: 'album',
+          entityId: albumId,
+          op: 'upsert',
+          payloadJson: _catalogAlbumPayloadJson(record),
+          occurredEpochMs: occurredEpochMs,
+        );
+      }
+
+      database.execute('COMMIT;');
+      _latestCatalogToken = tokenCursor;
+    } catch (_) {
+      database.execute('ROLLBACK;');
+      rethrow;
+    }
   }
 
   Future<void> _precomputeAndPersistArtworkVariantsForAlbums({
@@ -413,6 +623,39 @@ extension _LibraryManagerCatalogPart on LibraryManager {
     return records;
   }
 
+  Map<String, CatalogPlaylistRecord> _buildCatalogPlaylistRecordsById(
+    LibraryStructure library,
+  ) {
+    final records = <String, CatalogPlaylistRecord>{};
+
+    for (final playlist in library.folderPlaylists) {
+      records[playlist.id] = CatalogPlaylistRecord(
+        id: playlist.id,
+        name: playlist.name,
+        songCount: playlist.songCount,
+        updatedToken: 0,
+        isDeleted: false,
+      );
+    }
+
+    return records;
+  }
+
+  Map<_CatalogPlaylistSongKey, int> _buildCatalogPlaylistSongPositions(
+    LibraryStructure library,
+  ) {
+    final positions = <_CatalogPlaylistSongKey, int>{};
+
+    for (final playlist in library.folderPlaylists) {
+      for (var index = 0; index < playlist.songIds.length; index++) {
+        positions[_CatalogPlaylistSongKey(
+            playlistId: playlist.id, songId: playlist.songIds[index])] = index;
+      }
+    }
+
+    return positions;
+  }
+
   Map<String, String?> _buildSongAlbumIdIndex(LibraryStructure library) {
     final index = <String, String?>{};
 
@@ -446,6 +689,7 @@ FROM library_changes;
     required String entityType,
     required String entityId,
     required String op,
+    String? payloadJson,
     required int occurredEpochMs,
   }) {
     database.execute(
@@ -463,9 +707,79 @@ INSERT INTO library_changes (
         entityType,
         entityId,
         op,
+        payloadJson,
         occurredEpochMs,
       ],
     );
+  }
+
+  bool _playlistRecordChanged(
+    CatalogPlaylistRecord? previous,
+    CatalogPlaylistRecord current,
+  ) {
+    if (previous == null) {
+      return true;
+    }
+
+    return previous.name != current.name ||
+        previous.songCount != current.songCount;
+  }
+
+  String _catalogAlbumPayloadJson(CatalogAlbumRecord record) {
+    return jsonEncode(<String, dynamic>{
+      'id': record.id,
+      'title': record.title,
+      'artist': record.artist,
+      'coverArt': record.coverArtKey == null
+          ? null
+          : '/api/artwork/${Uri.encodeComponent(record.id)}',
+      'songCount': record.songCount,
+      'duration': record.durationSeconds,
+    });
+  }
+
+  String _catalogSongPayloadJson(CatalogSongRecord record) {
+    return jsonEncode(<String, dynamic>{
+      'id': record.id,
+      'title': record.title,
+      'artist': record.artist,
+      'albumId': record.albumId,
+      'duration': record.durationSeconds,
+      'trackNumber': record.trackNumber,
+    });
+  }
+
+  String _catalogPlaylistPayloadJson(
+    CatalogPlaylistRecord record, {
+    required LibraryStructure updatedLibrary,
+  }) {
+    final playlist =
+        updatedLibrary.folderPlaylists.where((p) => p.id == record.id).first;
+    return jsonEncode(<String, dynamic>{
+      'id': record.id,
+      'name': record.name,
+      'songCount': record.songCount,
+      'duration': 0,
+      'songIds': playlist.songIds,
+    });
+  }
+
+  String _catalogPlaylistSongPayloadJson({
+    required _CatalogPlaylistSongKey key,
+    required int position,
+  }) {
+    return jsonEncode(<String, dynamic>{
+      'playlistId': key.playlistId,
+      'songId': key.songId,
+      'position': position,
+    });
+  }
+
+  String _catalogPlaylistSongDeletePayloadJson(_CatalogPlaylistSongKey key) {
+    return jsonEncode(<String, dynamic>{
+      'playlistId': key.playlistId,
+      'songId': key.songId,
+    });
   }
 }
 
@@ -479,4 +793,35 @@ class _AlbumArtworkSource {
   final List<int> artworkBytes;
   final String referencePath;
   final int lastModifiedEpochMs;
+}
+
+class _CatalogPlaylistSongKey implements Comparable<_CatalogPlaylistSongKey> {
+  const _CatalogPlaylistSongKey({
+    required this.playlistId,
+    required this.songId,
+  });
+
+  final String playlistId;
+  final String songId;
+
+  String get entityId => '$playlistId:$songId';
+
+  @override
+  int compareTo(_CatalogPlaylistSongKey other) {
+    final playlistCompare = playlistId.compareTo(other.playlistId);
+    if (playlistCompare != 0) {
+      return playlistCompare;
+    }
+    return songId.compareTo(other.songId);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is _CatalogPlaylistSongKey &&
+        other.playlistId == playlistId &&
+        other.songId == songId;
+  }
+
+  @override
+  int get hashCode => Object.hash(playlistId, songId);
 }

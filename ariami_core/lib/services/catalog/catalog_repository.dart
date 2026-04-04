@@ -70,6 +70,20 @@ class CatalogPlaylistRecord {
   final bool isDeleted;
 }
 
+class CatalogPlaylistSongRecord {
+  CatalogPlaylistSongRecord({
+    required this.playlistId,
+    required this.songId,
+    required this.position,
+    required this.updatedToken,
+  });
+
+  final String playlistId;
+  final String songId;
+  final int position;
+  final int updatedToken;
+}
+
 class CatalogChangeEventInput {
   CatalogChangeEventInput({
     required this.entityType,
@@ -212,6 +226,54 @@ ON CONFLICT(id) DO UPDATE SET
     );
   }
 
+  void upsertPlaylist(CatalogPlaylistRecord playlist) {
+    _database.execute(
+      '''
+INSERT INTO playlists (
+  id,
+  name,
+  song_count,
+  updated_token,
+  is_deleted
+) VALUES (?, ?, ?, ?, ?)
+ON CONFLICT(id) DO UPDATE SET
+  name = excluded.name,
+  song_count = excluded.song_count,
+  updated_token = excluded.updated_token,
+  is_deleted = excluded.is_deleted;
+''',
+      <Object?>[
+        playlist.id,
+        playlist.name,
+        playlist.songCount,
+        playlist.updatedToken,
+        playlist.isDeleted ? 1 : 0,
+      ],
+    );
+  }
+
+  void upsertPlaylistSong(CatalogPlaylistSongRecord playlistSong) {
+    _database.execute(
+      '''
+INSERT INTO playlist_songs (
+  playlist_id,
+  song_id,
+  position,
+  updated_token
+) VALUES (?, ?, ?, ?)
+ON CONFLICT(playlist_id, song_id) DO UPDATE SET
+  position = excluded.position,
+  updated_token = excluded.updated_token;
+''',
+      <Object?>[
+        playlistSong.playlistId,
+        playlistSong.songId,
+        playlistSong.position,
+        playlistSong.updatedToken,
+      ],
+    );
+  }
+
   void softDeleteAlbum(String albumId, int updatedToken) {
     _database.execute(
       '''
@@ -231,6 +293,37 @@ SET is_deleted = 1, updated_token = ?
 WHERE id = ?;
 ''',
       <Object?>[updatedToken, songId],
+    );
+  }
+
+  void softDeletePlaylist(String playlistId, int updatedToken) {
+    _database.execute(
+      '''
+UPDATE playlists
+SET is_deleted = 1, updated_token = ?
+WHERE id = ?;
+''',
+      <Object?>[updatedToken, playlistId],
+    );
+    _database.execute(
+      '''
+DELETE FROM playlist_songs
+WHERE playlist_id = ?;
+''',
+      <Object?>[playlistId],
+    );
+  }
+
+  void deletePlaylistSong(
+    String playlistId,
+    String songId,
+  ) {
+    _database.execute(
+      '''
+DELETE FROM playlist_songs
+WHERE playlist_id = ? AND song_id = ?;
+''',
+      <Object?>[playlistId, songId],
     );
   }
 
@@ -281,9 +374,12 @@ LIMIT ?;
           );
 
     final bool hasMore = rows.length > limit;
-    final List<Row> pageRows = hasMore ? rows.take(limit).toList() : rows.toList();
-    final List<CatalogAlbumRecord> items = pageRows.map(_mapAlbumRecord).toList();
-    final String? nextCursor = hasMore && items.isNotEmpty ? items.last.id : null;
+    final List<Row> pageRows =
+        hasMore ? rows.take(limit).toList() : rows.toList();
+    final List<CatalogAlbumRecord> items =
+        pageRows.map(_mapAlbumRecord).toList();
+    final String? nextCursor =
+        hasMore && items.isNotEmpty ? items.last.id : null;
 
     return CatalogPage<CatalogAlbumRecord>(
       items: items,
@@ -346,9 +442,11 @@ LIMIT ?;
           );
 
     final bool hasMore = rows.length > limit;
-    final List<Row> pageRows = hasMore ? rows.take(limit).toList() : rows.toList();
+    final List<Row> pageRows =
+        hasMore ? rows.take(limit).toList() : rows.toList();
     final List<CatalogSongRecord> items = pageRows.map(_mapSongRecord).toList();
-    final String? nextCursor = hasMore && items.isNotEmpty ? items.last.id : null;
+    final String? nextCursor =
+        hasMore && items.isNotEmpty ? items.last.id : null;
 
     return CatalogPage<CatalogSongRecord>(
       items: items,
@@ -397,10 +495,12 @@ LIMIT ?;
           );
 
     final bool hasMore = rows.length > limit;
-    final List<Row> pageRows = hasMore ? rows.take(limit).toList() : rows.toList();
+    final List<Row> pageRows =
+        hasMore ? rows.take(limit).toList() : rows.toList();
     final List<CatalogPlaylistRecord> items =
         pageRows.map(_mapPlaylistRecord).toList();
-    final String? nextCursor = hasMore && items.isNotEmpty ? items.last.id : null;
+    final String? nextCursor =
+        hasMore && items.isNotEmpty ? items.last.id : null;
 
     return CatalogPage<CatalogPlaylistRecord>(
       items: items,
@@ -408,6 +508,24 @@ LIMIT ?;
       hasMore: hasMore,
       limit: limit,
     );
+  }
+
+  List<CatalogPlaylistSongRecord> listPlaylistSongs(String playlistId) {
+    final ResultSet rows = _database.select(
+      '''
+SELECT
+  playlist_id,
+  song_id,
+  position,
+  updated_token
+FROM playlist_songs
+WHERE playlist_id = ?
+ORDER BY position ASC, song_id ASC;
+''',
+      <Object?>[playlistId],
+    );
+
+    return rows.map(_mapPlaylistSongRecord).toList();
   }
 
   void appendChangeEvents(List<CatalogChangeEventInput> events) {
@@ -517,6 +635,15 @@ FROM library_changes;
       songCount: row['song_count'] as int,
       updatedToken: row['updated_token'] as int,
       isDeleted: (row['is_deleted'] as int) == 1,
+    );
+  }
+
+  CatalogPlaylistSongRecord _mapPlaylistSongRecord(Row row) {
+    return CatalogPlaylistSongRecord(
+      playlistId: row['playlist_id'] as String,
+      songId: row['song_id'] as String,
+      position: row['position'] as int,
+      updatedToken: row['updated_token'] as int,
     );
   }
 
