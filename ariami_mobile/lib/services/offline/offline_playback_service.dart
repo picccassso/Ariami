@@ -74,9 +74,14 @@ class OfflinePlaybackService {
 
     final prefs = await SharedPreferences.getInstance();
 
-    // Don't persist manual offline mode across app restarts
-    // Always start in online mode and let connection attempts determine state
-    _offlineMode = OfflineMode.online;
+    // Load persisted manual offline mode preference
+    final wasManualOffline = prefs.getBool('manual_offline_mode') ?? false;
+    if (wasManualOffline) {
+      _offlineMode = OfflineMode.manualOffline;
+      print('[OfflinePlaybackService] Restored manual offline mode from preferences');
+    } else {
+      _offlineMode = OfflineMode.online;
+    }
 
     _preferDownloaded = prefs.getBool('prefer_downloaded') ?? true;
 
@@ -106,12 +111,16 @@ class OfflinePlaybackService {
   /// Enable manual offline mode (user toggle)
   /// Tells ConnectionService to disconnect fully
   Future<void> setManualOfflineMode(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+
     if (enabled) {
-      // User wants to go offline manually
+      // User wants to go offline manually - persist preference
+      await prefs.setBool('manual_offline_mode', true);
       _setMode(OfflineMode.manualOffline);
-      print('[OfflinePlaybackService] Manual offline mode enabled');
+      print('[OfflinePlaybackService] Manual offline mode enabled (persisted)');
     } else {
-      // User wants to go back online - attempt reconnect
+      // User wants to go back online - clear persisted preference
+      await prefs.remove('manual_offline_mode');
       print('[OfflinePlaybackService] Manual offline mode disabled - attempting reconnect');
 
       // Transition to online optimistically (ConnectionService will handle reconnect)
