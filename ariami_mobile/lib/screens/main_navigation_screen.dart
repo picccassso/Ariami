@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -8,6 +9,7 @@ import '../widgets/player/mini_player.dart';
 import '../widgets/download/download_progress_bar.dart';
 import '../widgets/common/bottom_chrome_metrics.dart';
 import '../screens/full_player_screen.dart';
+import '../services/cast/chrome_cast_service.dart';
 import '../services/playback_manager.dart';
 
 class MainNavigationScreen extends StatefulWidget {
@@ -17,9 +19,11 @@ class MainNavigationScreen extends StatefulWidget {
   State<MainNavigationScreen> createState() => _MainNavigationScreenState();
 }
 
-class _MainNavigationScreenState extends State<MainNavigationScreen> with WidgetsBindingObserver {
+class _MainNavigationScreenState extends State<MainNavigationScreen>
+    with WidgetsBindingObserver {
   int _currentIndex = 0;
   final PlaybackManager _playbackManager = PlaybackManager();
+  final ChromeCastService _castService = ChromeCastService();
 
   void _goToLibrary() {
     setState(() {
@@ -55,9 +59,17 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.detached) {
+      unawaited(
+        _castService.pauseForAppTermination(reason: 'flutter-detached'),
+      );
+    }
+
     // Persist playback state when app goes to background/closed
-    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive || state == AppLifecycleState.detached) {
-      _playbackManager.saveStateImmediately();
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.detached) {
+      unawaited(_playbackManager.saveStateImmediately());
     }
   }
 
