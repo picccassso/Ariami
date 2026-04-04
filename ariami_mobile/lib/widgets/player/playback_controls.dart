@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
-import '../../models/repeat_mode.dart';
+import '../../models/repeat_mode.dart' as playback_repeat;
 
 /// Playback controls widget with play/pause, skip, shuffle, and repeat buttons
 class PlaybackControls extends StatelessWidget {
   final bool isPlaying;
   final bool isLoading;
   final bool isShuffleEnabled;
-  final RepeatMode repeatMode;
+  final playback_repeat.RepeatMode repeatMode;
   final bool hasNext;
   final bool hasPrevious;
   final VoidCallback onPlayPause;
@@ -101,12 +101,14 @@ class PlaybackControls extends StatelessWidget {
         // Repeat button
         IconButton(
           icon: Icon(
-            repeatMode == RepeatMode.one ? Icons.repeat_one : Icons.repeat,
+            repeatMode == playback_repeat.RepeatMode.one
+                ? Icons.repeat_one
+                : Icons.repeat,
           ),
           iconSize: 28,
           onPressed: onToggleRepeat,
           tooltip: 'Repeat: ${repeatMode.displayName}',
-          style: repeatMode != RepeatMode.none
+          style: repeatMode != playback_repeat.RepeatMode.none
               ? IconButton.styleFrom(
                   backgroundColor:
                       Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),

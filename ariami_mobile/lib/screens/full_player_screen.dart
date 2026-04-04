@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/playback_manager.dart';
 import '../services/playlist_service.dart';
 import '../services/color_extraction_service.dart';
-import '../models/repeat_mode.dart';
+import '../models/repeat_mode.dart' as playback_repeat;
 import '../widgets/player/player_top_bar.dart';
 import '../widgets/player/player_artwork.dart';
 import '../widgets/player/player_info.dart';
@@ -291,7 +291,8 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
             icon: const Icon(Icons.skip_next_rounded),
             iconSize: 48,
             onPressed: (_playbackManager.hasNext ||
-                    (_playbackManager.repeatMode == RepeatMode.all &&
+                    (_playbackManager.repeatMode ==
+                            playback_repeat.RepeatMode.all &&
                         _playbackManager.queue.isNotEmpty))
                 ? _playbackManager.skipNext
                 : null,
