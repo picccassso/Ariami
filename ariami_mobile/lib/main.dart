@@ -258,6 +258,17 @@ class _MyAppState extends State<MyApp> {
     // Ensure offline service is initialized before checking its state
     await _offlineService.initialize();
 
+    // If manual offline mode was persisted, skip connection restoration
+    if (_offlineService.isManualOfflineModeEnabled) {
+      print('Manual offline mode persisted - skipping connection restoration');
+      await _connectionService.loadServerInfoFromStorage();
+      setState(() {
+        _initialScreen = const MainNavigationScreen();
+        _isLoading = false;
+      });
+      return;
+    }
+
     // Try to restore previous connection
     final restored = await _connectionService.tryRestoreConnection();
 
