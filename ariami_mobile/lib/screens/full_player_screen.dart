@@ -8,11 +8,10 @@ import '../widgets/player/player_artwork.dart';
 import '../widgets/player/player_info.dart';
 import '../widgets/player/player_seek_bar.dart';
 import '../widgets/player/player_secondary_controls.dart';
+import '../widgets/player/player_cast_button.dart';
 import 'playlist/add_to_playlist_screen.dart';
 import 'queue_screen.dart';
 
-/// Full-screen immersive player with gestures and complete controls
-/// Implements Phase 7.4 specification
 class FullPlayerScreen extends StatefulWidget {
   const FullPlayerScreen({super.key});
 
@@ -28,14 +27,10 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
   @override
   void initState() {
     super.initState();
-    // Listen to playback state changes
     _playbackManager.addListener(_onPlaybackStateChanged);
-    // Listen to playlist changes (for liked songs)
     _playlistService.loadPlaylists();
     _playlistService.addListener(_onPlaylistsChanged);
-    // Listen to color changes for gradient background
     _colorService.addListener(_onColorsChanged);
-    // Trigger color extraction for current song if already playing
     if (_playbackManager.currentSong != null) {
       _colorService.extractColorsForSong(_playbackManager.currentSong);
     }
@@ -54,12 +49,10 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
   }
 
   void _onPlaybackStateChanged() {
-    // Rebuild when playback state changes
     setState(() {});
   }
 
   void _onPlaylistsChanged() {
-    // Rebuild when playlists change (liked songs status)
     setState(() {});
   }
 
@@ -117,17 +110,15 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
     );
   }
 
-  /// Build empty state when no song is playing
   Widget _buildEmptyState() {
     return SafeArea(
       child: Column(
         children: [
-          // Top bar (still show minimize button)
           PlayerTopBar(
             onMinimize: () => Navigator.pop(context),
             onOpenQueue: _openQueue,
+            castButton: PlayerCastButton(playbackManager: _playbackManager),
           ),
-          // Empty state message
           Expanded(
             child: Center(
               child: Column(
@@ -154,40 +145,35 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
     );
   }
 
-  /// Build full player interface
   Widget _buildPlayer() {
     return GestureDetector(
-      // Swipe down to minimize
       onVerticalDragEnd: (details) {
         if (details.primaryVelocity! > 0) {
-          // Swiped down
           Navigator.pop(context);
         }
       },
       child: SafeArea(
         child: Column(
           children: [
-            // Top Bar - Minimize arrow, "Now Playing", overflow menu
             PlayerTopBar(
               onMinimize: () => Navigator.pop(context),
               onOpenQueue: _openQueue,
+              castButton: PlayerCastButton(playbackManager: _playbackManager),
             ),
-
             const SizedBox(height: 16),
-
-            // Album Artwork - Large, centered, with swipe gestures
             Expanded(
               flex: 4,
               child: PlayerArtwork(
                 song: _playbackManager.currentSong!,
-                onSwipeLeft: _playbackManager.hasNext ? _playbackManager.skipNext : () {},
-                onSwipeRight: _playbackManager.hasPrevious ? _playbackManager.skipPrevious : () {},
+                onSwipeLeft: _playbackManager.hasNext
+                    ? _playbackManager.skipNext
+                    : () {},
+                onSwipeRight: _playbackManager.hasPrevious
+                    ? _playbackManager.skipPrevious
+                    : () {},
               ),
             ),
-
             const SizedBox(height: 24),
-
-            // Song Info - Title, artist, album, favorite button
             PlayerInfo(
               song: _playbackManager.currentSong!,
               isFavorite: _isFavorite,
@@ -204,24 +190,15 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
                 }
               },
             ),
-
             const SizedBox(height: 24),
-
-            // Seek Bar - Position, seekable progress, duration
             PlayerSeekBar(
               position: _playbackManager.position,
               duration: _playbackManager.duration ?? Duration.zero,
               onSeek: _playbackManager.seek,
             ),
-
             const SizedBox(height: 24),
-
-            // Main Controls - Previous, Play/Pause (large), Next
             _buildMainControls(),
-
             const SizedBox(height: 16),
-
-            // Secondary Controls - Shuffle, Repeat, Queue, Add to Playlist
             PlayerSecondaryControls(
               isShuffleEnabled: _playbackManager.isShuffleEnabled,
               repeatMode: _playbackManager.repeatMode,
@@ -242,7 +219,6 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
                 }
               },
             ),
-
             const SizedBox(height: 24),
           ],
         ),
@@ -261,7 +237,9 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
           IconButton(
             icon: const Icon(Icons.skip_previous_rounded),
             iconSize: 48,
-            onPressed: _playbackManager.hasPrevious ? _playbackManager.skipPrevious : null,
+            onPressed: _playbackManager.hasPrevious
+                ? _playbackManager.skipPrevious
+                : null,
             tooltip: 'Previous',
           ),
 
@@ -274,7 +252,9 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
               color: Theme.of(context).colorScheme.primary,
               boxShadow: [
                 BoxShadow(
-                  color: Theme.of(context).colorScheme.primary.withOpacity(0.4),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.primary.withValues(alpha: 0.4),
                   blurRadius: 20,
                   offset: const Offset(0, 8),
                 ),
@@ -295,7 +275,9 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
                   )
                 : IconButton(
                     icon: Icon(
-                      _playbackManager.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                      _playbackManager.isPlaying
+                          ? Icons.pause_rounded
+                          : Icons.play_arrow_rounded,
                       color: Theme.of(context).colorScheme.onPrimary,
                     ),
                     iconSize: 42,
@@ -309,7 +291,8 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
             icon: const Icon(Icons.skip_next_rounded),
             iconSize: 48,
             onPressed: (_playbackManager.hasNext ||
-                        (_playbackManager.repeatMode == RepeatMode.all && _playbackManager.queue.isNotEmpty))
+                    (_playbackManager.repeatMode == RepeatMode.all &&
+                        _playbackManager.queue.isNotEmpty))
                 ? _playbackManager.skipNext
                 : null,
             tooltip: 'Next',

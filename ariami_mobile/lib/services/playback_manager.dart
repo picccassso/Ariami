@@ -13,6 +13,7 @@ import 'api/connection_service.dart';
 import 'api/api_client.dart';
 import 'download/download_manager.dart';
 import 'library/library_repository.dart';
+import 'cast/chrome_cast_service.dart';
 import 'offline/offline_playback_service.dart';
 import 'cache/cache_manager.dart';
 import 'stats/streaming_stats_service.dart';
@@ -41,6 +42,7 @@ class PlaybackManager extends ChangeNotifier {
   final LibraryRepository _libraryRepository = LibraryRepository();
   final StreamingStatsService _statsService = StreamingStatsService();
   final QualitySettingsService _qualityService = QualitySettingsService();
+  final ChromeCastService _castService = ChromeCastService();
 
   // State
   PlaybackQueue _queue = PlaybackQueue();
@@ -63,11 +65,18 @@ class PlaybackManager extends ChangeNotifier {
 
   // Getters
   Song? get currentSong => _queue.currentSong;
-  bool get isPlaying => _audioPlayer.isPlaying;
-  bool get isLoading => _audioPlayer.isLoading;
-  Duration get position => _pendingUiPosition ?? _audioPlayer.position;
-  Duration? get duration =>
-      _audioPlayer.duration ?? _queue.currentSong?.duration;
+  bool get isPlaying => _castService.isConnected
+      ? _castService.isRemotePlaying
+      : _audioPlayer.isPlaying;
+  bool get isLoading => _castService.isConnected
+      ? _castService.isRemoteBuffering
+      : _audioPlayer.isLoading;
+  Duration get position => _castService.isConnected
+      ? _castService.remotePosition
+      : (_pendingUiPosition ?? _audioPlayer.position);
+  Duration? get duration => _castService.isConnected
+      ? (_castService.remoteDuration ?? _queue.currentSong?.duration)
+      : (_audioPlayer.duration ?? _queue.currentSong?.duration);
   bool get isShuffleEnabled => _isShuffleEnabled;
   RepeatMode get repeatMode => _repeatMode;
   PlaybackQueue get queue => _queue;
@@ -76,6 +85,9 @@ class PlaybackManager extends ChangeNotifier {
 
   /// Initialize the playback manager and set up listeners
   void initialize() {
+    _castService.initialize();
+    _castService.addListener(_onCastStateChanged);
+
     // Listen to position updates
     _positionSubscription = _audioPlayer.positionStream.listen((pos) {
       if (_pendingUiPosition != null && pos >= _pendingUiPosition!) {
@@ -125,6 +137,10 @@ class PlaybackManager extends ChangeNotifier {
 
     // Restore saved state
     _restoreState();
+  }
+
+  void _onCastStateChanged() {
+    notifyListeners();
   }
 
   /// Play a single song immediately (clears queue and starts fresh)
@@ -250,6 +266,19 @@ class PlaybackManager extends ChangeNotifier {
   /// Toggle play/pause
   Future<void> togglePlayPause() async {
     try {
+      if (_castService.isConnected) {
+        if (isPlaying) {
+          await _statsService.onSongStopped();
+          await _castService.pause();
+        } else {
+          if (currentSong == null) return;
+          _statsService.onSongStarted(currentSong!);
+          await _castService.play();
+        }
+        notifyListeners();
+        return;
+      }
+
       if (isPlaying) {
         // Pausing - stop stats tracking
         await _statsService.onSongStopped();
@@ -294,7 +323,11 @@ class PlaybackManager extends ChangeNotifier {
           // Replay current song
           await seek(Duration.zero);
           _statsService.onSongStarted(currentSong!);
-          await _audioPlayer.resume();
+          if (_castService.isConnected) {
+            await _castService.play();
+          } else {
+            await _audioPlayer.resume();
+          }
         }
         return;
       }
@@ -357,11 +390,22 @@ class PlaybackManager extends ChangeNotifier {
   /// Seek to position
   Future<void> seek(Duration position) async {
     try {
+      if (_castService.isConnected) {
+        await _castService.seek(position, playAfterSeek: isPlaying);
+        notifyListeners();
+        return;
+      }
+
       await _audioPlayer.seek(position);
       notifyListeners();
     } catch (e) {
       print('[PlaybackManager] Error seeking: $e');
     }
+  }
+
+  Future<void> pauseForCasting() async {
+    await _audioPlayer.pause();
+    notifyListeners();
   }
 
   /// Toggle shuffle mode
@@ -425,6 +469,28 @@ class PlaybackManager extends ChangeNotifier {
     }
 
     print('[PlaybackManager] Current song: ${song.title}');
+
+    if (_castService.isConnected) {
+      try {
+        final casted = await _castService.syncFromPlayback(
+          song: song,
+          position: _restoredPosition ?? Duration.zero,
+          isPlaying: true,
+          force: true,
+        );
+        if (casted) {
+          await _audioPlayer.pause();
+          _restoredPosition = null;
+          _pendingUiPosition = null;
+          _statsService.onSongStarted(song);
+          ColorExtractionService().extractColorsForSong(song);
+          notifyListeners();
+          return;
+        }
+      } catch (e) {
+        print('[PlaybackManager] Cast sync failed, falling back to local: $e');
+      }
+    }
 
     try {
       // Determine playback source (local file or stream)
@@ -881,6 +947,7 @@ class PlaybackManager extends ChangeNotifier {
 
   @override
   void dispose() {
+    _castService.removeListener(_onCastStateChanged);
     _saveTimer?.cancel();
     _positionSubscription?.cancel();
     _durationSubscription?.cancel();
