@@ -658,18 +658,38 @@ class PlaylistService extends ChangeNotifier {
   /// Rehydrate missing album IDs for playlist songs using current library data.
   /// Returns number of playlists updated.
   Future<int> rehydrateAlbumIdsFromLibrary(List<SongModel> librarySongs) async {
+    return _rehydrateSongMetadataFromLibrary(
+      librarySongs,
+      updateTitles: false,
+      updateArtists: false,
+      updateDurations: false,
+    );
+  }
+
+  /// Rehydrate cached playlist song metadata using current library data.
+  /// Returns number of playlists updated.
+  Future<int> rehydrateSongMetadataFromLibrary(
+    List<SongModel> librarySongs,
+  ) async {
+    return _rehydrateSongMetadataFromLibrary(librarySongs);
+  }
+
+  Future<int> _rehydrateSongMetadataFromLibrary(
+    List<SongModel> librarySongs, {
+    bool updateTitles = true,
+    bool updateArtists = true,
+    bool updateDurations = true,
+  }) async {
     if (!_isLoaded) {
       await loadPlaylists();
     }
 
-    final songIdToAlbumId = <String, String>{};
+    final songsById = <String, SongModel>{};
     for (final song in librarySongs) {
-      if (song.albumId != null) {
-        songIdToAlbumId[song.id] = song.albumId!;
-      }
+      songsById[song.id] = song;
     }
 
-    if (songIdToAlbumId.isEmpty || _playlists.isEmpty) {
+    if (songsById.isEmpty || _playlists.isEmpty) {
       return 0;
     }
 
@@ -680,11 +700,39 @@ class PlaylistService extends ChangeNotifier {
       var changed = false;
       final updatedSongAlbumIds =
           Map<String, String>.from(playlist.songAlbumIds);
+      final updatedSongTitles = Map<String, String>.from(playlist.songTitles);
+      final updatedSongArtists = Map<String, String>.from(playlist.songArtists);
+      final updatedSongDurations =
+          Map<String, int>.from(playlist.songDurations);
 
       for (final songId in playlist.songIds) {
-        final albumId = songIdToAlbumId[songId];
+        final song = songsById[songId];
+        if (song == null) continue;
+
+        final albumId = song.albumId;
         if (albumId != null && updatedSongAlbumIds[songId] != albumId) {
           updatedSongAlbumIds[songId] = albumId;
+          changed = true;
+        }
+
+        if (updateTitles &&
+            song.title.isNotEmpty &&
+            updatedSongTitles[songId] != song.title) {
+          updatedSongTitles[songId] = song.title;
+          changed = true;
+        }
+
+        if (updateArtists &&
+            song.artist.isNotEmpty &&
+            updatedSongArtists[songId] != song.artist) {
+          updatedSongArtists[songId] = song.artist;
+          changed = true;
+        }
+
+        if (updateDurations &&
+            song.duration > 0 &&
+            updatedSongDurations[songId] != song.duration) {
+          updatedSongDurations[songId] = song.duration;
           changed = true;
         }
       }
@@ -694,6 +742,9 @@ class PlaylistService extends ChangeNotifier {
         updatedPlaylists.add(
           playlist.copyWith(
             songAlbumIds: updatedSongAlbumIds,
+            songTitles: updatedSongTitles,
+            songArtists: updatedSongArtists,
+            songDurations: updatedSongDurations,
             modifiedAt: DateTime.now(),
           ),
         );
