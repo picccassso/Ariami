@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import '../../models/repeat_mode.dart';
+import '../../models/repeat_mode.dart' as playback_repeat;
 
 /// Secondary controls row (Shuffle, Repeat, Queue, Add to Playlist)
 class PlayerSecondaryControls extends StatelessWidget {
   final bool isShuffleEnabled;
-  final RepeatMode repeatMode;
+  final playback_repeat.RepeatMode repeatMode;
   final VoidCallback onToggleShuffle;
   final VoidCallback onToggleRepeat;
   final VoidCallback? onOpenQueue;
@@ -48,7 +48,7 @@ class PlayerSecondaryControls extends StatelessWidget {
             onPressed: onToggleRepeat,
             tooltip: _getRepeatTooltip(),
             iconSize: 24,
-            style: repeatMode != RepeatMode.none
+            style: repeatMode != playback_repeat.RepeatMode.none
                 ? IconButton.styleFrom(
                     backgroundColor:
                         Theme.of(context).colorScheme.primary.withOpacity(0.2),
@@ -80,11 +80,11 @@ class PlayerSecondaryControls extends StatelessWidget {
   /// Get repeat mode icon
   IconData _getRepeatIcon() {
     switch (repeatMode) {
-      case RepeatMode.none:
+      case playback_repeat.RepeatMode.none:
         return Icons.repeat_rounded;
-      case RepeatMode.all:
+      case playback_repeat.RepeatMode.all:
         return Icons.repeat_rounded;
-      case RepeatMode.one:
+      case playback_repeat.RepeatMode.one:
         return Icons.repeat_one_rounded;
     }
   }
@@ -92,11 +92,11 @@ class PlayerSecondaryControls extends StatelessWidget {
   /// Get repeat mode tooltip
   String _getRepeatTooltip() {
     switch (repeatMode) {
-      case RepeatMode.none:
+      case playback_repeat.RepeatMode.none:
         return 'Repeat off';
-      case RepeatMode.all:
+      case playback_repeat.RepeatMode.all:
         return 'Repeat all';
-      case RepeatMode.one:
+      case playback_repeat.RepeatMode.one:
         return 'Repeat one';
     }
   }
