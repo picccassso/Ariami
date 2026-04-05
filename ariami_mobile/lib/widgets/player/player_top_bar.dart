@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 
 /// Top bar for full player screen with minimize button and overflow menu
 class PlayerTopBar extends StatelessWidget {
@@ -21,7 +22,7 @@ class PlayerTopBar extends StatelessWidget {
         children: [
           // Minimize button
           IconButton(
-            icon: const Icon(Icons.keyboard_arrow_down),
+            icon: const Icon(LucideIcons.chevronDown),
             onPressed: onMinimize,
             tooltip: 'Minimize',
             iconSize: 32,
@@ -42,7 +43,7 @@ class PlayerTopBar extends StatelessWidget {
 
           // Overflow menu
           IconButton(
-            icon: const Icon(Icons.more_vert),
+            icon: const Icon(LucideIcons.moreVertical),
             onPressed: () => _showOverflowMenu(context),
             tooltip: 'More options',
           ),
@@ -61,7 +62,7 @@ class PlayerTopBar extends StatelessWidget {
           children: [
             if (onOpenQueue != null)
               ListTile(
-                leading: const Icon(Icons.queue_music),
+                leading: const Icon(LucideIcons.listMusic),
                 title: const Text('View Queue'),
                 onTap: () {
                   Navigator.pop(context);
@@ -69,7 +70,7 @@ class PlayerTopBar extends StatelessWidget {
                 },
               ),
             ListTile(
-              leading: const Icon(Icons.playlist_add),
+              leading: const Icon(LucideIcons.listPlus),
               title: const Text('Add to Playlist'),
               onTap: () {
                 Navigator.pop(context);
