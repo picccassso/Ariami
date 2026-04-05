@@ -6,9 +6,24 @@ import 'package:dart_tags/dart_tags.dart';
 import 'package:ariami_core/models/song_metadata.dart';
 import 'package:ariami_core/services/library/mp3_duration_parser.dart';
 
+typedef ProcessRunner = Future<ProcessResult> Function(
+  String executable,
+  List<String> arguments,
+);
+
 /// Service for extracting metadata from audio files
 class MetadataExtractor {
-  final TagProcessor _tagProcessor = TagProcessor();
+  MetadataExtractor({
+    TagProcessor? tagProcessor,
+    Mp3DurationParser? mp3DurationParser,
+    ProcessRunner? processRunner,
+  })  : _tagProcessor = tagProcessor ?? TagProcessor(),
+        _mp3DurationParser = mp3DurationParser ?? Mp3DurationParser(),
+        _processRunner = processRunner ?? Process.run;
+
+  final TagProcessor _tagProcessor;
+  final Mp3DurationParser _mp3DurationParser;
+  final ProcessRunner _processRunner;
 
   /// Extracts metadata from a single audio file
   ///
@@ -150,10 +165,11 @@ class MetadataExtractor {
         if (header[0] == 0x49 && header[1] == 0x44 && header[2] == 0x33) {
           hasId3v2 = true;
           // Calculate tag size using syncsafe integer (7 bits per byte)
-          tagSize = 10 + (((header[6] & 0x7F) << 21) |
-                         ((header[7] & 0x7F) << 14) |
-                         ((header[8] & 0x7F) << 7) |
-                         (header[9] & 0x7F));
+          tagSize = 10 +
+              (((header[6] & 0x7F) << 21) |
+                  ((header[7] & 0x7F) << 14) |
+                  ((header[8] & 0x7F) << 7) |
+                  (header[9] & 0x7F));
         }
 
         // Read tag section (or first 64KB for non-ID3v2 formats like M4A/FLAC)
@@ -167,7 +183,10 @@ class MetadataExtractor {
           await raf.setPosition(fileSize - 128);
           final tail = await raf.read(128);
           if (tail.length == 128 &&
-              tail[0] == 0x54 && tail[1] == 0x41 && tail[2] == 0x47) { // "TAG"
+              tail[0] == 0x54 &&
+              tail[1] == 0x41 &&
+              tail[2] == 0x47) {
+            // "TAG"
             id3v1Bytes = tail;
           }
         }
@@ -233,7 +252,7 @@ class MetadataExtractor {
   }
 
   /// Extracts metadata and duration from a single audio file in one call
-  /// 
+  ///
   /// This is more efficient than calling extractMetadata and extractDuration
   /// separately as it reduces the number of method calls and allows for
   /// potential future optimizations like shared file reads.
@@ -258,9 +277,8 @@ class MetadataExtractor {
 
     // Split into batches
     for (var i = 0; i < filePaths.length; i += batchSize) {
-      final end = (i + batchSize < filePaths.length)
-          ? i + batchSize
-          : filePaths.length;
+      final end =
+          (i + batchSize < filePaths.length) ? i + batchSize : filePaths.length;
       batches.add(filePaths.sublist(i, end));
     }
 
@@ -350,7 +368,7 @@ class MetadataExtractor {
     if (_ffprobeAvailable != null) return _ffprobeAvailable!;
 
     try {
-      final result = await Process.run('ffprobe', ['-version']);
+      final result = await _processRunner('ffprobe', ['-version']);
       _ffprobeAvailable = result.exitCode == 0;
     } catch (e) {
       _ffprobeAvailable = false;
@@ -361,51 +379,64 @@ class MetadataExtractor {
 
   /// Extract audio duration from file
   ///
-  /// Uses ffprobe for all formats (most reliable), falls back to
-  /// pure Dart MP3 parser if ffprobe is unavailable.
+  /// Uses the in-process MP3 parser first for `.mp3` files to avoid
+  /// expensive process spawning, and falls back to ffprobe when needed.
   Future<int?> extractDuration(String filePath) async {
-    // Try ffprobe first (works for all formats)
-    if (await _isFFprobeAvailable()) {
-      try {
-        final result = await Process.run('ffprobe', [
-          '-v', 'quiet',
-          '-show_entries', 'format=duration',
-          '-of', 'json',
-          filePath,
-        ]).timeout(const Duration(seconds: 5));
+    final extension = filePath.split('.').last.toLowerCase();
 
-        if (result.exitCode == 0) {
-          final json = jsonDecode(result.stdout as String);
-          final format = json['format'] as Map<String, dynamic>?;
-          if (format != null) {
-            final durationStr = format['duration']?.toString();
-            if (durationStr != null) {
-              final durationSeconds = double.tryParse(durationStr);
-              if (durationSeconds != null) {
-                return durationSeconds.round();
-              }
+    if (extension == 'mp3') {
+      try {
+        final duration = await _mp3DurationParser.getDuration(filePath);
+        if (duration != null && duration > 0) {
+          return duration;
+        }
+      } catch (e) {
+        // Parser failed, fall back to ffprobe below.
+      }
+    }
+
+    // Use ffprobe for non-MP3 formats and as a fallback for MP3s the parser
+    // cannot resolve reliably.
+    if (await _isFFprobeAvailable()) {
+      final duration = await _extractDurationWithFfprobe(filePath);
+      if (duration != null && duration > 0) {
+        return duration;
+      }
+    }
+
+    return null;
+  }
+
+  Future<int?> _extractDurationWithFfprobe(String filePath) async {
+    try {
+      final result = await _processRunner('ffprobe', [
+        '-v',
+        'quiet',
+        '-show_entries',
+        'format=duration',
+        '-of',
+        'json',
+        filePath,
+      ]).timeout(const Duration(seconds: 5));
+
+      if (result.exitCode == 0) {
+        final json = jsonDecode(result.stdout as String);
+        final format = json['format'] as Map<String, dynamic>?;
+        if (format != null) {
+          final durationStr = format['duration']?.toString();
+          if (durationStr != null) {
+            final durationSeconds = double.tryParse(durationStr);
+            if (durationSeconds != null) {
+              return durationSeconds.round();
             }
           }
         }
-      } catch (e) {
-        // ffprobe failed, try fallback
       }
-    }
-
-    // Fallback to pure Dart MP3 parser for MP3 files
-    try {
-      final extension = filePath.split('.').last.toLowerCase();
-
-      if (extension == 'mp3') {
-        final parser = Mp3DurationParser();
-        return await parser.getDuration(filePath);
-      }
-
-      return null;
     } catch (e) {
       // Silently fail - duration is optional
-      return null;
     }
+
+    return null;
   }
 
   /// Cleanup method - no longer needed but kept for API compatibility
