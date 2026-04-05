@@ -612,6 +612,44 @@ class PlaybackManager extends ChangeNotifier {
     await _saveState(); // Save state after shuffle toggle
   }
 
+  /// Reorder queue after a drag in the queue screen's "current first" display order.
+  /// Indices match [ReorderableListView] after the usual `newIndex -= 1` adjustment when moving down.
+  /// The playing track stays pinned at display index 0.
+  void reorderQueueFromDisplayOrder(int oldDisplayIndex, int newDisplayIndex) {
+    final songs = _queue.songs;
+    if (songs.isEmpty) return;
+
+    final len = songs.length;
+    final c = _queue.currentIndex.clamp(0, len - 1);
+    final displayed = <Song>[
+      ...songs.sublist(c),
+      ...songs.sublist(0, c),
+    ];
+
+    if (oldDisplayIndex < 0 ||
+        oldDisplayIndex >= len ||
+        newDisplayIndex < 0 ||
+        newDisplayIndex >= len) {
+      return;
+    }
+
+    // Now playing is pinned at the top; drag handle is disabled for row 0.
+    if (oldDisplayIndex == 0) return;
+    if (newDisplayIndex == 0 && oldDisplayIndex != 0) return;
+
+    final moved = displayed.removeAt(oldDisplayIndex);
+    displayed.insert(newDisplayIndex, moved);
+
+    final current = _queue.currentSong;
+    if (current != null && displayed.first.id != current.id) {
+      return;
+    }
+
+    _queue.setQueue(displayed, currentIndex: 0);
+    notifyListeners();
+    unawaited(_saveState());
+  }
+
   /// Toggle repeat mode (cycles through none → all → one)
   void toggleRepeat() async {
     _repeatMode = _repeatMode.next;
