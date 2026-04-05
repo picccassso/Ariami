@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../common/mini_player_aware_bottom_sheet.dart';
 import '../../models/song.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import '../../services/api/connection_service.dart';
 import '../../services/offline/offline_playback_service.dart';
 import '../common/cached_artwork.dart';
@@ -92,7 +93,7 @@ class _ReorderableQueueListState extends State<ReorderableQueueList> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              Icons.queue_music,
+              LucideIcons.listMusic,
               size: 64,
               color: Theme.of(context).colorScheme.outline,
             ),
@@ -171,7 +172,7 @@ class QueueItem extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
         ),
         child: const Icon(
-          Icons.delete_sweep_rounded,
+          LucideIcons.trash2,
           color: Colors.white70,
           size: 28,
         ),
@@ -246,7 +247,7 @@ class QueueItem extends StatelessWidget {
 
     if (isCurrentlyPlaying || !isAvailable) {
       return Icon(
-        Icons.drag_handle_rounded,
+        LucideIcons.gripHorizontal,
         color: iconColor,
         size: 20,
       );
@@ -255,7 +256,7 @@ class QueueItem extends StatelessWidget {
     return ReorderableDragStartListener(
       index: index,
       child: Icon(
-        Icons.drag_handle_rounded,
+        LucideIcons.gripHorizontal,
         color: Colors.grey[500],
         size: 20,
       ),
@@ -303,7 +304,7 @@ class QueueItem extends StatelessWidget {
             fit: BoxFit.cover,
             borderRadius: BorderRadius.circular(12),
             fallback: _buildPlaceholder(context),
-            fallbackIcon: Icons.music_note_rounded,
+            fallbackIcon: LucideIcons.music,
             fallbackIconSize: 24,
             sizeHint: ArtworkSizeHint.thumbnail,
           ),
@@ -322,7 +323,7 @@ class QueueItem extends StatelessWidget {
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(
-                      Icons.play_arrow_rounded,
+                      LucideIcons.play,
                       color: Colors.black,
                       size: 16,
                     ),
@@ -344,7 +345,7 @@ class QueueItem extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
       ),
       child: Icon(
-        Icons.music_note_rounded,
+        LucideIcons.music,
         color: Colors.grey[600],
         size: 24,
       ),
