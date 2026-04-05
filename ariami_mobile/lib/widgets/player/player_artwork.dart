@@ -79,9 +79,11 @@ class _PlayerArtworkState extends State<PlayerArtwork> {
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
+              child: AspectRatio(
+                aspectRatio: 1.0,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
                   _buildArtwork(context),
                   IgnorePointer(
                     child: AnimatedSwitcher(
@@ -89,7 +91,8 @@ class _PlayerArtworkState extends State<PlayerArtwork> {
                       child: _buildOverlay(context),
                     ),
                   ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
