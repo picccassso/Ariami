@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:marquee/marquee.dart';
 import '../../models/song.dart';
 
@@ -51,7 +52,7 @@ class PlayerInfo extends StatelessWidget {
           // Favorite button
           IconButton(
             icon: Icon(
-              isFavorite ? Icons.favorite : Icons.favorite_border,
+              LucideIcons.heart,
               color: isFavorite ? Colors.red : null,
             ),
             onPressed: onToggleFavorite,

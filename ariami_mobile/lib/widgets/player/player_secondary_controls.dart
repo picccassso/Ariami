@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 
 /// Secondary controls row (Queue, Add to Playlist)
 class PlayerSecondaryControls extends StatelessWidget {
@@ -20,7 +21,7 @@ class PlayerSecondaryControls extends StatelessWidget {
         children: [
           // Add to playlist button
           IconButton(
-            icon: const Icon(Icons.playlist_add_rounded),
+            icon: const Icon(LucideIcons.listPlus),
             onPressed: onAddToPlaylist ?? () {},
             tooltip: 'Add to playlist',
             iconSize: 24,
@@ -30,7 +31,7 @@ class PlayerSecondaryControls extends StatelessWidget {
 
           // Queue button
           IconButton(
-            icon: const Icon(Icons.queue_music_rounded),
+            icon: const Icon(LucideIcons.listMusic),
             onPressed: onOpenQueue,
             tooltip: 'View queue',
             iconSize: 24,

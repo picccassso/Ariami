@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import '../services/playback_manager.dart';
 import '../services/playlist_service.dart';
 import '../services/color_extraction_service.dart';
@@ -125,7 +126,7 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(
-                    Icons.music_note,
+                    LucideIcons.music,
                     size: 100,
                     color: Theme.of(context).colorScheme.outline,
                   ),
@@ -231,7 +232,7 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
         children: [
           // Shuffle button
           IconButton(
-            icon: const Icon(Icons.shuffle_rounded),
+            icon: const Icon(LucideIcons.shuffle),
             onPressed: _playbackManager.toggleShuffle,
             tooltip: _playbackManager.isShuffleEnabled ? 'Shuffle on' : 'Shuffle off',
             iconSize: 28,
@@ -242,7 +243,7 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
 
           // Previous button
           IconButton(
-            icon: const Icon(Icons.skip_previous_rounded),
+            icon: const Icon(LucideIcons.skipBack),
             iconSize: 48,
             onPressed: _playbackManager.hasPrevious
                 ? _playbackManager.skipPrevious
@@ -283,8 +284,8 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
                 : IconButton(
                     icon: Icon(
                       _playbackManager.isPlaying
-                          ? Icons.pause_rounded
-                          : Icons.play_arrow_rounded,
+                          ? LucideIcons.pause
+                          : LucideIcons.play,
                       color: Theme.of(context).colorScheme.onPrimary,
                     ),
                     iconSize: 42,
@@ -295,7 +296,7 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
 
           // Next button
           IconButton(
-            icon: const Icon(Icons.skip_next_rounded),
+            icon: const Icon(LucideIcons.skipForward),
             iconSize: 48,
             onPressed: (_playbackManager.hasNext ||
                     (_playbackManager.repeatMode ==
@@ -325,11 +326,11 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
   IconData _getRepeatIcon(playback_repeat.RepeatMode mode) {
     switch (mode) {
       case playback_repeat.RepeatMode.none:
-        return Icons.repeat_rounded;
+        return LucideIcons.repeat;
       case playback_repeat.RepeatMode.all:
-        return Icons.repeat_rounded;
+        return LucideIcons.repeat;
       case playback_repeat.RepeatMode.one:
-        return Icons.repeat_one_rounded;
+        return LucideIcons.repeat1;
     }
   }
 

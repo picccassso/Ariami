@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_chrome_cast/flutter_chrome_cast.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../services/cast/chrome_cast_service.dart';
 import '../../services/playback_manager.dart';
@@ -37,7 +38,7 @@ class _PlayerCastButtonState extends State<PlayerCastButton> {
 
         return IconButton(
           icon: Icon(
-            isConnected ? Icons.cast_connected_rounded : Icons.cast_rounded,
+            isConnected ? LucideIcons.cast : LucideIcons.cast,
             color: isConnected
                 ? Theme.of(context).colorScheme.primary
                 : Theme.of(context)
@@ -111,7 +112,7 @@ class _PlayerCastButtonState extends State<PlayerCastButton> {
                         itemBuilder: (context, index) {
                           final device = devices[index];
                           return ListTile(
-                            leading: const Icon(Icons.speaker_group_rounded),
+                            leading: const Icon(LucideIcons.speaker),
                             title: Text(device.friendlyName),
                             onTap: () async {
                               Navigator.of(sheetContext).pop();
@@ -153,14 +154,14 @@ class _PlayerCastButtonState extends State<PlayerCastButton> {
             mainAxisSize: MainAxisSize.min,
             children: [
               ListTile(
-                leading: const Icon(Icons.cast_connected_rounded),
+                leading: const Icon(LucideIcons.cast),
                 title: Text(
                   _castService.connectedDeviceName ?? 'Chromecast connected',
                 ),
                 subtitle: const Text('Audio is being cast from Ariami'),
               ),
               ListTile(
-                leading: const Icon(Icons.cast_rounded),
+                leading: const Icon(LucideIcons.cast),
                 title: const Text('Disconnect'),
                 onTap: () async {
                   Navigator.of(sheetContext).pop();
