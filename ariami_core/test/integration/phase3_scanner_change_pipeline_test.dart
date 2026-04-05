@@ -161,6 +161,86 @@ void main() {
       },
       timeout: const Timeout(Duration(seconds: 60)),
     );
+
+    test(
+      'P3-3: full rescan refreshes cached metadata entries that are missing duration',
+      () async {
+        final cachedSongPath = p.join(musicDir.path, 'cached song.mp3');
+        await _copyFixtureAudio(
+          sourceFileName: 'Atat De Liberi.mp3',
+          destinationPath: cachedSongPath,
+        );
+
+        final stat = await File(cachedSongPath).stat();
+        final staleCache = MetadataCache(
+          p.join(testDir.path, 'metadata_cache.json'),
+        );
+        staleCache.putWithStats(
+          cachedSongPath,
+          SongMetadata(
+            filePath: cachedSongPath,
+            title: 'cached song',
+            fileSize: stat.size,
+            modifiedTime: stat.modified,
+          ),
+          stat.modified.millisecondsSinceEpoch,
+          stat.size,
+        );
+        await staleCache.save();
+
+        await libraryManager.scanMusicFolder(musicDir.path);
+
+        final scannedSong = _findSongByPath(
+          libraryManager.library!,
+          cachedSongPath,
+        );
+        expect(scannedSong, isNotNull);
+        expect(scannedSong!.duration, greaterThan(0));
+
+        final refreshedCache = MetadataCache(
+          p.join(testDir.path, 'metadata_cache.json'),
+        );
+        await refreshedCache.load();
+        final cachedMetadata = await refreshedCache.get(cachedSongPath);
+        expect(cachedMetadata, isNotNull);
+        expect(cachedMetadata!.duration, greaterThan(0));
+      },
+    );
+
+    test(
+      'P3-4: incremental file adds persist duration during change processing',
+      () async {
+        final originalPath = p.join(musicDir.path, 'initial song.mp3');
+        await _copyFixtureAudio(
+          sourceFileName: 'A Very Strange Time.mp3',
+          destinationPath: originalPath,
+        );
+        await libraryManager.scanMusicFolder(musicDir.path);
+
+        final tokenAfterScan = libraryManager.latestToken;
+
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+
+        final addedPath = p.join(musicDir.path, 'added song.mp3');
+        await _copyFixtureAudio(
+          sourceFileName: 'Everything is Everything.mp3',
+          destinationPath: addedPath,
+        );
+
+        await _waitForTokenAdvance(
+          libraryManager: libraryManager,
+          previousToken: tokenAfterScan,
+          timeout: const Duration(seconds: 30),
+        );
+
+        final addedSong = await _waitForSongByPath(
+          libraryManager: libraryManager,
+          filePath: addedPath,
+        );
+        expect(addedSong.duration, greaterThan(0));
+      },
+      timeout: const Timeout(Duration(seconds: 60)),
+    );
   });
 }
 
@@ -168,6 +248,17 @@ Future<void> _writeAudioStub(String filePath) async {
   final file = File(filePath);
   await file.parent.create(recursive: true);
   await file.writeAsBytes(List<int>.filled(1024, 0), flush: true);
+}
+
+Future<void> _copyFixtureAudio({
+  required String sourceFileName,
+  required String destinationPath,
+}) async {
+  final sourcePath = p.normalize(
+      p.join(Directory.current.path, '..', 'examples', sourceFileName));
+  final destinationFile = File(destinationPath);
+  await destinationFile.parent.create(recursive: true);
+  await File(sourcePath).copy(destinationPath);
 }
 
 int _countSongs(CatalogRepository repository) {
@@ -196,6 +287,45 @@ int _countAlbums(CatalogRepository repository) {
     }
   } while (true);
   return count;
+}
+
+SongMetadata? _findSongByPath(LibraryStructure library, String filePath) {
+  for (final album in library.albums.values) {
+    for (final song in album.songs) {
+      if (song.filePath == filePath) {
+        return song;
+      }
+    }
+  }
+
+  for (final song in library.standaloneSongs) {
+    if (song.filePath == filePath) {
+      return song;
+    }
+  }
+
+  return null;
+}
+
+Future<SongMetadata> _waitForSongByPath({
+  required LibraryManager libraryManager,
+  required String filePath,
+  Duration timeout = const Duration(seconds: 20),
+}) async {
+  final deadline = DateTime.now().add(timeout);
+
+  while (DateTime.now().isBefore(deadline)) {
+    final library = libraryManager.library;
+    if (library != null) {
+      final song = _findSongByPath(library, filePath);
+      if (song != null) {
+        return song;
+      }
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 150));
+  }
+
+  fail('Timed out waiting for song to appear: $filePath');
 }
 
 Future<int> _waitForTokenAdvance({

@@ -82,7 +82,8 @@ class ChangeProcessor {
     if (addedFiles.isNotEmpty) {
       for (final path in addedFiles) {
         try {
-          final metadata = await _metadataExtractor.extractMetadata(path);
+          final metadata =
+              await _metadataExtractor.extractMetadataWithDuration(path);
           final songId = _generateSongId(metadata.filePath);
           addedSongIds.add(songId);
 
@@ -102,7 +103,8 @@ class ChangeProcessor {
     if (modifiedFiles.isNotEmpty) {
       for (final path in modifiedFiles) {
         try {
-          final metadata = await _metadataExtractor.extractMetadata(path);
+          final metadata =
+              await _metadataExtractor.extractMetadataWithDuration(path);
           final songId = _generateSongId(metadata.filePath);
           modifiedSongIds.add(songId);
 
@@ -147,10 +149,8 @@ class ChangeProcessor {
   ///
   /// Returns updated LibraryStructure with changes applied
   Future<LibraryStructure> applyUpdates(
-    LibraryUpdate update,
-    LibraryStructure currentLibrary,
-    {List<FileChange>? sourceChanges}
-  ) async {
+      LibraryUpdate update, LibraryStructure currentLibrary,
+      {List<FileChange>? sourceChanges}) async {
     // Collect all songs that need to be in the updated library
     final allSongs = <SongMetadata>[];
 
@@ -198,7 +198,8 @@ class ChangeProcessor {
     if (changedPaths.isNotEmpty) {
       for (final path in changedPaths) {
         try {
-          final updatedMetadata = await _metadataExtractor.extractMetadata(path);
+          final updatedMetadata =
+              await _metadataExtractor.extractMetadataWithDuration(path);
           allSongs.add(updatedMetadata);
         } catch (e) {
           print('Error re-extracting metadata for "$path": $e');
