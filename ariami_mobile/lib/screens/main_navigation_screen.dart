@@ -161,6 +161,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
                   hasPrevious: _playbackManager.hasPrevious,
                   position: _playbackManager.position,
                   duration: _playbackManager.duration ?? Duration.zero,
+                  playbackManager: _playbackManager,
                 ),
                 // Download progress bar (between mini player and bottom nav)
                 const DownloadProgressBar(),
