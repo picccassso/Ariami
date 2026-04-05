@@ -1,8 +1,8 @@
 part of '../library_manager.dart';
 
 extension _LibraryManagerScanningPart on LibraryManager {
-  void _markDurationsDirty() {
-    _durationsReady = false;
+  void _resetDurationsForRescan() {
+    _durationsReady = true;
     _durationWarmupRunning = false;
     _durationCache.clear();
   }
@@ -62,8 +62,9 @@ extension _LibraryManagerScanningPart on LibraryManager {
       );
       _library = updatedLibrary;
       _lastScanTime = DateTime.now();
-      _durationsReady = false;
+      _durationsReady = true;
       _durationWarmupRunning = false;
+      _durationCache.clear();
 
       await _writeCatalogBatchForChanges(
         update: update,
@@ -79,7 +80,6 @@ extension _LibraryManagerScanningPart on LibraryManager {
           'latestToken: $_latestCatalogToken)');
 
       _notifyScanComplete();
-      unawaited(_startDurationWarmup());
     } catch (e, stackTrace) {
       print('[LibraryManager] ERROR applying file-change batch: $e');
       print('[LibraryManager] File-change stack trace: $stackTrace');
@@ -119,7 +119,7 @@ extension _LibraryManagerScanningPart on LibraryManager {
       if (result.library != null) {
         _library = result.library;
         _lastScanTime = DateTime.now();
-        _markDurationsDirty();
+        _resetDurationsForRescan();
 
         // Save updated cache
         if (_metadataCache != null && result.updatedCache != null) {
@@ -144,9 +144,6 @@ extension _LibraryManagerScanningPart on LibraryManager {
 
         // Notify listeners that scan is complete
         _notifyScanComplete();
-
-        // Warm up durations asynchronously (non-blocking)
-        unawaited(_startDurationWarmup());
       } else {
         print(
             '[LibraryManager] Scan returned null - possible error in isolate');

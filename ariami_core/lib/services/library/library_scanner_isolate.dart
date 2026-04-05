@@ -101,12 +101,19 @@ class LibraryScannerIsolate {
       return 25; // High-end workstations
     }
   }
+
   /// Spawn an isolate to scan the library and return the result
   ///
   /// Progress updates are sent via [onProgress] callback.
   /// Pass [cacheData] from MetadataCache for fast re-scans.
   /// Returns a record with the library and updated cache data.
-  static Future<({LibraryStructure? library, Map<String, Map<String, dynamic>>? updatedCache, int cacheHits, int cacheMisses})> scan(
+  static Future<
+      ({
+        LibraryStructure? library,
+        Map<String, Map<String, dynamic>>? updatedCache,
+        int cacheHits,
+        int cacheMisses
+      })> scan(
     String folderPath, {
     void Function(ScanProgressMessage)? onProgress,
     Map<String, Map<String, dynamic>>? cacheData,
@@ -149,10 +156,20 @@ class LibraryScannerIsolate {
 
       if (errorMessage != null) {
         print('[LibraryScannerIsolate] Scan failed: $errorMessage');
-        return (library: null, updatedCache: null, cacheHits: 0, cacheMisses: 0);
+        return (
+          library: null,
+          updatedCache: null,
+          cacheHits: 0,
+          cacheMisses: 0
+        );
       }
 
-      return (library: result, updatedCache: updatedCache, cacheHits: cacheHits, cacheMisses: cacheMisses);
+      return (
+        library: result,
+        updatedCache: updatedCache,
+        cacheHits: cacheHits,
+        cacheMisses: cacheMisses
+      );
     } catch (e) {
       print('[LibraryScannerIsolate] Error spawning isolate: $e');
       return (library: null, updatedCache: null, cacheHits: 0, cacheMisses: 0);
@@ -176,7 +193,8 @@ class LibraryScannerIsolate {
 
     try {
       // Step 1: Collect audio files and detect [PLAYLIST] folders
-      _sendProgress(sendPort, 'collecting', 0, 0, 0.0, 'Scanning for audio files...');
+      _sendProgress(
+          sendPort, 'collecting', 0, 0, 0.0, 'Scanning for audio files...');
 
       final scanResult = await _collectAudioFiles(folderPath);
       final audioFiles = scanResult.files;
@@ -207,24 +225,25 @@ class LibraryScannerIsolate {
       }
 
       // Step 2: Extract metadata (with cache support)
-      _sendProgress(sendPort, 'metadata', 0, totalFiles, 10.0,
-          'Extracting metadata...');
+      _sendProgress(
+          sendPort, 'metadata', 0, totalFiles, 10.0, 'Extracting metadata...');
 
       final extractor = MetadataExtractor();
       final songs = <SongMetadata>[];
 
       final batchSize = _calculateBatchSize();
       for (var i = 0; i < totalFiles; i += batchSize) {
-        final batchEnd = (i + batchSize < totalFiles) ? i + batchSize : totalFiles;
+        final batchEnd =
+            (i + batchSize < totalFiles) ? i + batchSize : totalFiles;
         final batch = audioFiles.sublist(i, batchEnd);
 
         // Process batch in parallel (with cache check)
         final results = await Future.wait(
           batch.map((filePath) => _extractOrUseCached(
-            extractor,
-            filePath,
-            existingCache,
-          )),
+                extractor,
+                filePath,
+                existingCache,
+              )),
         );
 
         // Collect successful results and update cache
@@ -250,7 +269,12 @@ class LibraryScannerIsolate {
         final cacheInfo = existingCache.isNotEmpty
             ? ' (cache: $cacheHits hits, $cacheMisses misses)'
             : '';
-        _sendProgress(sendPort, 'metadata', batchEnd, totalFiles, metadataProgress,
+        _sendProgress(
+            sendPort,
+            'metadata',
+            batchEnd,
+            totalFiles,
+            metadataProgress,
             'Processed $batchEnd/$totalFiles files$cacheInfo');
       }
 
@@ -296,7 +320,8 @@ class LibraryScannerIsolate {
         songs,
         cachedHashes: cachedHashes,
       );
-      final uniqueSongs = duplicateDetector.filterDuplicates(songs, duplicateGroups);
+      final uniqueSongs =
+          duplicateDetector.filterDuplicates(songs, duplicateGroups);
 
       // Store computed hashes back in cache for future scans
       for (final entry in duplicateDetector.computedHashes.entries) {
@@ -306,8 +331,8 @@ class LibraryScannerIsolate {
         }
       }
 
-      _sendProgress(sendPort, 'duplicates', uniqueSongs.length, songs.length, 85.0,
-          '${uniqueSongs.length} unique songs after filtering');
+      _sendProgress(sendPort, 'duplicates', uniqueSongs.length, songs.length,
+          85.0, '${uniqueSongs.length} unique songs after filtering');
 
       // Step 4: Build albums
       _sendProgress(sendPort, 'albums', 0, uniqueSongs.length, 85.0,
@@ -363,7 +388,12 @@ class LibraryScannerIsolate {
       final playlistStats = folderPlaylistsList.isNotEmpty
           ? ', ${folderPlaylistsList.length} playlists'
           : '';
-      _sendProgress(sendPort, 'complete', library.totalSongs, library.totalSongs, 100.0,
+      _sendProgress(
+          sendPort,
+          'complete',
+          library.totalSongs,
+          library.totalSongs,
+          100.0,
           'Scan complete: ${library.totalAlbums} albums, ${library.totalSongs} songs$playlistStats$cacheStats');
 
       // Send the result with updated cache
@@ -388,7 +418,8 @@ class LibraryScannerIsolate {
   }
 
   /// Result from cache-aware metadata extraction
-  static Future<({SongMetadata metadata, int mtime, int size, bool fromCache})?> _extractOrUseCached(
+  static Future<({SongMetadata metadata, int mtime, int size, bool fromCache})?>
+      _extractOrUseCached(
     MetadataExtractor extractor,
     String filePath,
     Map<String, Map<String, dynamic>> cache,
@@ -405,11 +436,14 @@ class LibraryScannerIsolate {
         final cachedMtime = cached['mtime'] as int?;
         final cachedSize = cached['size'] as int?;
 
-        // Validate cache entry
+        // Validate cache entry and only trust it when duration data is already
+        // present. Older cache entries without duration should be refreshed.
         if (cachedMtime == currentMtime && cachedSize == currentSize) {
-          // Cache hit! Reconstruct metadata from cached JSON
           final metadataJson = cached['metadata'] as Map<String, dynamic>?;
-          if (metadataJson != null) {
+          final cachedDuration = metadataJson?['duration'] as int?;
+          if (metadataJson != null &&
+              cachedDuration != null &&
+              cachedDuration > 0) {
             final metadata = SongMetadata.fromJson(metadataJson);
             return (
               metadata: metadata,
@@ -421,8 +455,9 @@ class LibraryScannerIsolate {
         }
       }
 
-      // Cache miss - extract metadata (duration deferred to on-demand via LibraryManager.getSongDuration)
-      final metadata = await extractor.extractMetadata(filePath);
+      // Cache miss (or stale partial metadata) - extract metadata and duration
+      // in a single pass so the scan persists ready-to-use durations.
+      final metadata = await extractor.extractMetadataWithDuration(filePath);
 
       return (
         metadata: metadata,
@@ -473,7 +508,9 @@ class LibraryScannerIsolate {
   /// Uses single-pass traversal for efficiency - handles both directory
   /// detection and file collection in one loop.
   /// Filters out hidden/system paths (e.g., .DS_Store, .Spotlight-V100).
-  static Future<({List<String> files, Map<String, List<String>> playlistFolders})> _collectAudioFiles(String folderPath) async {
+  static Future<
+          ({List<String> files, Map<String, List<String>> playlistFolders})>
+      _collectAudioFiles(String folderPath) async {
     final files = <String>[];
     final playlistFolders = <String, List<String>>{};
     final playlistPaths = <String>{};
@@ -484,7 +521,8 @@ class LibraryScannerIsolate {
     }
 
     // Single-pass traversal: detect playlist folders and collect audio files together
-    await for (final entity in rootDir.list(recursive: true, followLinks: false)) {
+    await for (final entity
+        in rootDir.list(recursive: true, followLinks: false)) {
       // Skip hidden/system paths
       if (_isHiddenOrSystem(entity.path)) continue;
 
@@ -492,7 +530,8 @@ class LibraryScannerIsolate {
         final folderName = path.basename(entity.path);
         if (FolderPlaylist.isPlaylistFolder(folderName)) {
           // Check this isn't nested inside another playlist folder
-          final isNested = playlistPaths.any((p) => entity.path.startsWith('$p${path.separator}'));
+          final isNested = playlistPaths
+              .any((p) => entity.path.startsWith('$p${path.separator}'));
           if (!isNested) {
             playlistPaths.add(entity.path);
             playlistFolders[entity.path] = [];
@@ -524,4 +563,3 @@ class LibraryScannerIsolate {
     return hash.toString().substring(0, 12);
   }
 }
-
