@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/playback_queue.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import '../models/song.dart';
 import '../widgets/queue/reorderable_queue_list.dart';
 
@@ -49,13 +50,13 @@ class _QueueScreenState extends State<QueueScreen> {
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: textColor),
+          icon: const Icon(LucideIcons.chevronLeft, size: 20, color: textColor),
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
           if (widget.queue.isNotEmpty && widget.onClear != null)
             IconButton(
-              icon: const Icon(Icons.clear_all_rounded, color: textColor),
+              icon: const Icon(LucideIcons.trash2, color: textColor),
               onPressed: () => _showClearDialog(context),
               tooltip: 'Clear queue',
             ),
@@ -92,7 +93,7 @@ class _QueueScreenState extends State<QueueScreen> {
                       Row(
                         children: [
                           const Icon(
-                            Icons.play_circle_fill_rounded,
+                            LucideIcons.playCircle,
                             size: 16,
                             color: Colors.white,
                           ),
