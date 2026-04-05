@@ -430,8 +430,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
           IconButton(
             icon: Icon(
               _controller.state.showDownloadedOnly
-                  ? Icons.download_done
-                  : Icons.download_outlined,
+                  ? Icons.check_circle_rounded
+                  : Icons.arrow_circle_down_rounded,
               color: _controller.state.showDownloadedOnly
                   ? Theme.of(context).colorScheme.primary
                   : null,
@@ -444,7 +444,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
           IconButton(
             icon: Icon(
               _controller.state.isGridView
-                  ? Icons.view_list_rounded
+                  ? Icons.list_rounded
                   : Icons.grid_view_rounded,
             ),
             onPressed: _controller.toggleViewMode,
@@ -455,7 +455,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
           // Mixed mode toggle
           IconButton(
             icon: Icon(
-              _controller.state.isMixedMode ? Icons.shuffle : Icons.layers,
+              _controller.state.isMixedMode
+                  ? Icons.view_agenda_rounded
+                  : Icons.all_inclusive_rounded,
             ),
             onPressed: _controller.toggleMixedMode,
             tooltip: _controller.state.isMixedMode
@@ -463,7 +465,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                 : 'Mix Playlists & Albums',
           ),
           IconButton(
-            icon: const Icon(Icons.refresh),
+            icon: const Icon(Icons.sync_rounded),
             onPressed: _handleLibraryRefresh,
             tooltip: 'Refresh Library',
           ),

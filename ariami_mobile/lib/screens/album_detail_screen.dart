@@ -374,78 +374,68 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-      child: Column(
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // Primary actions row (Play/Shuffle)
+          // Left side: Secondary actions
           Row(
             children: [
-              // Play Button
-              Expanded(
-                child: FilledButton.icon(
-                  onPressed: songs.isEmpty ? null : _playAll,
-                  style: FilledButton.styleFrom(
-                    shape: const StadiumBorder(),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    backgroundColor: Theme.of(context).colorScheme.primary,
-                    foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                  ),
-                  icon: const Icon(Icons.play_arrow_rounded, size: 22),
-                  label: const Text(
-                    'Play',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
+              IconButton(
+                icon: Icon(
+                  _albumDetail != null &&
+                          _albumDetail!.songs
+                              .every((s) => _downloadedSongIds.contains(s.id))
+                      ? Icons.download_done_rounded
+                      : Icons.download_for_offline_outlined,
+                  color: _albumDetail != null &&
+                          _albumDetail!.songs
+                              .every((s) => _downloadedSongIds.contains(s.id))
+                      ? Colors.green
+                      : null,
                 ),
+                onPressed: _albumDetail != null &&
+                        !_albumDetail!.songs
+                            .every((s) => _downloadedSongIds.contains(s.id))
+                    ? _downloadAlbum
+                    : null,
+                iconSize: 28,
               ),
-              const SizedBox(width: 12),
-              // Shuffle Button
-              Expanded(
-                child: FilledButton.icon(
-                  onPressed: songs.isEmpty ? null : _shuffleAll,
-                  style: FilledButton.styleFrom(
-                    shape: const StadiumBorder(),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    backgroundColor:
-                        Theme.of(context).colorScheme.primaryContainer,
-                    foregroundColor:
-                        Theme.of(context).colorScheme.onPrimaryContainer,
-                  ),
-                  icon: const Icon(Icons.shuffle_rounded, size: 22),
-                  label: const Text(
-                    'Shuffle',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                ),
+              IconButton(
+                icon: const Icon(Icons.playlist_add_rounded),
+                onPressed: _addToPlaylist,
+                iconSize: 28,
+              ),
+              IconButton(
+                icon: const Icon(Icons.queue_music_rounded),
+                onPressed: _addToQueue,
+                iconSize: 28,
               ),
             ],
           ),
-          const SizedBox(height: 12),
-
-          // Secondary actions row (Queue/Playlist)
+          
+          // Right side: Play and Shuffle
           Row(
             children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: _addToQueue,
-                  style: OutlinedButton.styleFrom(
-                    shape: const StadiumBorder(),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    foregroundColor: Theme.of(context).colorScheme.onSurface,
-                  ),
-                  icon: const Icon(Icons.queue_music_rounded, size: 20),
-                  label: const Text('Queue'),
-                ),
+              IconButton(
+                icon: const Icon(Icons.shuffle_rounded),
+                onPressed: songs.isEmpty ? null : _shuffleAll,
+                iconSize: 28,
+                color: Theme.of(context).colorScheme.primary,
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: _addToPlaylist,
-                  style: OutlinedButton.styleFrom(
-                    shape: const StadiumBorder(),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    foregroundColor: Theme.of(context).colorScheme.onSurface,
-                  ),
-                  icon: const Icon(Icons.playlist_add_rounded, size: 20),
-                  label: const Text('Playlist'),
+              const SizedBox(width: 8),
+              // Big Play Button
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                child: IconButton(
+                  icon: const Icon(Icons.play_arrow_rounded),
+                  color: Colors.black,
+                  iconSize: 36,
+                  onPressed: songs.isEmpty ? null : _playAll,
                 ),
               ),
             ],

@@ -200,10 +200,6 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
             _buildMainControls(),
             const SizedBox(height: 16),
             PlayerSecondaryControls(
-              isShuffleEnabled: _playbackManager.isShuffleEnabled,
-              repeatMode: _playbackManager.repeatMode,
-              onToggleShuffle: _playbackManager.toggleShuffle,
-              onToggleRepeat: _playbackManager.toggleRepeat,
               onOpenQueue: _openQueue,
               onAddToPlaylist: () {
                 final song = _playbackManager.currentSong;
@@ -226,13 +222,24 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
     );
   }
 
-  /// Build main playback controls (Previous, Play/Pause, Next)
+  /// Build main playback controls (Shuffle, Previous, Play/Pause, Next, Repeat)
   Widget _buildMainControls() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 32.0),
+      padding: const EdgeInsets.symmetric(horizontal: 16.0),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
+          // Shuffle button
+          IconButton(
+            icon: const Icon(Icons.shuffle_rounded),
+            onPressed: _playbackManager.toggleShuffle,
+            tooltip: _playbackManager.isShuffleEnabled ? 'Shuffle on' : 'Shuffle off',
+            iconSize: 28,
+            color: _playbackManager.isShuffleEnabled
+                ? Theme.of(context).colorScheme.primary
+                : Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+          ),
+
           // Previous button
           IconButton(
             icon: const Icon(Icons.skip_previous_rounded),
@@ -298,8 +305,43 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
                 : null,
             tooltip: 'Next',
           ),
+
+          // Repeat button
+          IconButton(
+            icon: Icon(_getRepeatIcon(_playbackManager.repeatMode)),
+            onPressed: _playbackManager.toggleRepeat,
+            tooltip: _getRepeatTooltip(_playbackManager.repeatMode),
+            iconSize: 28,
+            color: _playbackManager.repeatMode != playback_repeat.RepeatMode.none
+                ? Theme.of(context).colorScheme.primary
+                : Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+          ),
         ],
       ),
     );
+  }
+
+  /// Get repeat mode icon
+  IconData _getRepeatIcon(playback_repeat.RepeatMode mode) {
+    switch (mode) {
+      case playback_repeat.RepeatMode.none:
+        return Icons.repeat_rounded;
+      case playback_repeat.RepeatMode.all:
+        return Icons.repeat_rounded;
+      case playback_repeat.RepeatMode.one:
+        return Icons.repeat_one_rounded;
+    }
+  }
+
+  /// Get repeat mode tooltip
+  String _getRepeatTooltip(playback_repeat.RepeatMode mode) {
+    switch (mode) {
+      case playback_repeat.RepeatMode.none:
+        return 'Repeat off';
+      case playback_repeat.RepeatMode.all:
+        return 'Repeat all';
+      case playback_repeat.RepeatMode.one:
+        return 'Repeat one';
+    }
   }
 }

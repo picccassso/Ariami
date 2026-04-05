@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../../models/api_models.dart';
 import 'artwork_collage.dart';
@@ -24,25 +25,75 @@ class PlaylistHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    Widget artworkWidget;
+    
     // Priority 1: Custom user-selected image
-    if (playlist?.customImagePath != null) {
-      final file = File(playlist!.customImagePath!);
-      if (file.existsSync()) {
-        return Image.file(
-          file,
-          fit: BoxFit.cover,
-          width: double.infinity,
-          height: double.infinity,
-          errorBuilder: (context, error, stackTrace) {
-            // Fall back to collage/gradient if image fails to load
-            return _buildArtworkFromSongs();
-          },
-        );
-      }
+    if (playlist?.customImagePath != null && File(playlist!.customImagePath!).existsSync()) {
+      artworkWidget = Image.file(
+        File(playlist!.customImagePath!),
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+        errorBuilder: (context, error, stackTrace) {
+          return _buildArtworkFromSongs();
+        },
+      );
+    } else {
+      // Priority 2: Album artwork collage or fallback
+      artworkWidget = _buildArtworkFromSongs();
     }
 
-    // Priority 2: Album artwork collage or fallback
-    return _buildArtworkFromSongs();
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        // Blurred background artwork
+        Positioned.fill(
+          child: artworkWidget,
+        ),
+        
+        // Blur effect and gradient overlay
+        Positioned.fill(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withValues(alpha: 0.2),
+                    Theme.of(context).scaffoldBackgroundColor,
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+
+        // Centered clear artwork with shadow
+        Center(
+          child: Padding(
+            padding: const EdgeInsets.only(top: 40.0, bottom: 20.0),
+            child: Container(
+              width: 200,
+              height: 200,
+              decoration: BoxDecoration(
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.5),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                child: artworkWidget,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   /// Build artwork from songs (collage or fallback)
