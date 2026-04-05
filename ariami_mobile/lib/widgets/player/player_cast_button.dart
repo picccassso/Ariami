@@ -38,7 +38,7 @@ class _PlayerCastButtonState extends State<PlayerCastButton> {
 
         return IconButton(
           icon: Icon(
-            isConnected ? LucideIcons.cast : LucideIcons.cast,
+            isConnected ? Icons.cast_connected_rounded : LucideIcons.cast,
             color: isConnected
                 ? Theme.of(context).colorScheme.primary
                 : Theme.of(context)
