@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../services/api/connection_service.dart';
 import '../common/cached_artwork.dart';
@@ -22,21 +23,47 @@ class AlbumArtworkHeader extends StatelessWidget {
       background: Stack(
         fit: StackFit.expand,
         children: [
-          // Album artwork (parallax effect handled by SliverAppBar)
+          // Blurred background artwork
           Positioned.fill(
-            child: _buildArtwork(),
+            child: _buildArtwork(fit: BoxFit.cover),
+          ),
+          
+          // Blur effect and gradient overlay
+          Positioned.fill(
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.black.withValues(alpha: 0.2),
+                      Theme.of(context).scaffoldBackgroundColor,
+                    ],
+                  ),
+                ),
+              ),
+            ),
           ),
 
-          // Gradient overlay for text readability
-          Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.black.withValues(alpha: 0.3),
-                  Colors.black.withValues(alpha: 0.7),
-                ],
+          // Centered clear artwork with shadow
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.only(top: 40.0, bottom: 20.0),
+              child: Container(
+                width: 200,
+                height: 200,
+                decoration: BoxDecoration(
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.5),
+                      blurRadius: 20,
+                      offset: const Offset(0, 10),
+                    ),
+                  ],
+                ),
+                child: _buildArtwork(fit: BoxFit.cover),
               ),
             ),
           ),
@@ -46,7 +73,7 @@ class AlbumArtworkHeader extends StatelessWidget {
   }
 
   /// Build album artwork with fallback
-  Widget _buildArtwork() {
+  Widget _buildArtwork({BoxFit fit = BoxFit.cover}) {
     final connectionService = ConnectionService();
     final authHeaders = connectionService.authHeaders;
     final resolvedCoverArt = connectionService.resolveServerUrl(coverArt);
@@ -64,7 +91,7 @@ class AlbumArtworkHeader extends StatelessWidget {
           return CachedArtwork(
             albumId: albumId!,
             artworkUrl: resolvedCoverArt,
-            fit: BoxFit.cover,
+            fit: fit,
             width: w,
             height: h,
             fallback: _buildFallbackArt(),
@@ -77,7 +104,7 @@ class AlbumArtworkHeader extends StatelessWidget {
             resolvedCoverArt,
             width: w,
             height: h,
-            fit: BoxFit.cover,
+            fit: fit,
             headers: authHeaders,
             loadingBuilder: (context, child, loadingProgress) {
               if (loadingProgress == null) return child;

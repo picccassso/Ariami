@@ -81,17 +81,10 @@ class _PlaylistCardState extends State<PlaylistCard> {
               children: [
                 Container(
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.3),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
+                    borderRadius: BorderRadius.circular(0),
                   ),
                   child: ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(0),
                     child: _buildPlaylistArt(),
                   ),
                 ),
@@ -419,19 +412,15 @@ class CreatePlaylistCard extends StatelessWidget {
         children: [
           AspectRatio(
             aspectRatio: 1.0,
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                color: Theme.of(context)
-                    .colorScheme
-                    .surfaceContainerHighest
-                    .withOpacity(0.5),
-                border: Border.all(
-                  color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
-                  width: 1.5,
+            child:               Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(0),
+                  color: Theme.of(context)
+                      .colorScheme
+                      .surfaceContainerHighest
+                      .withOpacity(0.5),
                 ),
-              ),
-              child: Center(
+                child: Center(
                 child: Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
@@ -485,29 +474,19 @@ class ImportFromServerCard extends StatelessWidget {
         children: [
           AspectRatio(
             aspectRatio: 1.0,
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Theme.of(context).colorScheme.secondary,
-                    Theme.of(context).colorScheme.primary,
-                  ],
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .secondary
-                        .withOpacity(0.3),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
+            child:               Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(0),
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Theme.of(context).colorScheme.secondary,
+                      Theme.of(context).colorScheme.primary,
+                    ],
                   ),
-                ],
-              ),
-              child: Column(
+                ),
+                child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   const Icon(Icons.cloud_download_rounded,

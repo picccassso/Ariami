@@ -64,129 +64,112 @@ class _MiniPlayerState extends State<MiniPlayer> {
 
     final colors = _colorService.currentColors;
     
-    // Floating style with margins
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 500),
-        curve: Curves.easeInOut,
-        height: 72, // Taller for better touch targets
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20), // More rounded
-          color: Theme.of(context).colorScheme.surfaceContainerHighest, // Fallback
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              colors.primary.withOpacity(0.9),
-              colors.secondary.withOpacity(0.95), // Less transparent for visibility
-            ],
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.3),
-              blurRadius: 16,
-              offset: const Offset(0, 8),
-            ),
+    // Flush style
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 500),
+      curve: Curves.easeInOut,
+      height: 64, // Slightly shorter for flush look
+      decoration: BoxDecoration(
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(8),
+          topRight: Radius.circular(8),
+        ),
+        color: Theme.of(context).colorScheme.surfaceContainerHighest, // Fallback
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            colors.primary.withOpacity(0.9),
+            colors.secondary.withOpacity(0.95), // Less transparent for visibility
           ],
         ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(20),
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: widget.onTap,
-              child: Column(
-                children: [
-                  // Content Row
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12.0),
-                      child: Row(
-                        children: [
-                          // Album artwork with rotation or shadow? Keep simple for mini.
-                          _buildAlbumArt(context),
-            
-                          const SizedBox(width: 12),
-            
-                          // Song info
-                          Expanded(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  widget.currentSong!.title,
-                                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.white, // Always white on gradient
-                                      ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                Text(
-                                  widget.currentSong!.artist,
-                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                        color: Colors.white.withOpacity(0.8),
-                                      ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ],
-                            ),
-                          ),
-            
-                          // Controls
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.3),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(8),
+          topRight: Radius.circular(8),
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: widget.onTap,
+            child: Column(
+              children: [
+                // Content Row
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                    child: Row(
+                      children: [
+                        // Album artwork with rotation or shadow? Keep simple for mini.
+                        _buildAlbumArt(context),
+          
+                        const SizedBox(width: 12),
+          
+                        // Song info
+                        Expanded(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              IconButton(
-                                icon: const Icon(Icons.skip_previous_rounded),
-                                color: Colors.white,
-                                onPressed: widget.hasPrevious ? widget.onSkipPrevious : null,
-                                disabledColor: Colors.white24,
+                              Text(
+                                widget.currentSong!.title,
+                                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white, // Always white on gradient
+                                    ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
-                              
-                              // Play/Pause with Circle
-                              Container(
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.2),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: IconButton(
-                                  icon: Icon(widget.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded),
-                                  color: Colors.white,
-                                  onPressed: widget.onPlayPause,
-                                  iconSize: 28,
-                                ),
-                              ),
-                              
-                              IconButton(
-                                icon: const Icon(Icons.skip_next_rounded),
-                                color: Colors.white,
-                                onPressed: widget.hasNext ? widget.onSkipNext : null,
-                                disabledColor: Colors.white24,
+                              Text(
+                                widget.currentSong!.artist,
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: Colors.white.withOpacity(0.8),
+                                    ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ],
                           ),
-                        ],
-                      ),
+                        ),
+          
+                        // Controls
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Play/Pause
+                            IconButton(
+                              icon: Icon(widget.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded),
+                              color: Colors.white,
+                              onPressed: widget.onPlayPause,
+                              iconSize: 28,
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
-                  
-                  // Progress Indicator at bottom edge
-                  LinearProgressIndicator(
-                    value: widget.duration.inMilliseconds > 0
-                        ? widget.position.inMilliseconds / widget.duration.inMilliseconds
-                        : 0.0,
-                    minHeight: 3,
-                    backgroundColor: Colors.white12,
-                    valueColor: const AlwaysStoppedAnimation<Color>(
-                      Colors.white, // Clean white progress
-                    ),
+                ),
+                
+                // Progress Indicator at bottom edge
+                LinearProgressIndicator(
+                  value: widget.duration.inMilliseconds > 0
+                      ? widget.position.inMilliseconds / widget.duration.inMilliseconds
+                      : 0.0,
+                  minHeight: 2,
+                  backgroundColor: Colors.white12,
+                  valueColor: const AlwaysStoppedAnimation<Color>(
+                    Colors.white, // Clean white progress
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),

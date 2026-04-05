@@ -37,93 +37,56 @@ class PlaylistActionButtons extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-      child: Column(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // Primary actions row (Play/Shuffle)
+          // Left side: Secondary actions
           Row(
             children: [
-              // Play All button
-              Expanded(
-                child: FilledButton.icon(
+              IconButton(
+                icon: Icon(
+                  isReorderMode ? Icons.check_rounded : Icons.reorder_rounded,
+                  color: isReorderMode ? Theme.of(context).colorScheme.primary : null,
+                ),
+                onPressed: canReorder ? onToggleReorder : null,
+                iconSize: 28,
+              ),
+              IconButton(
+                icon: const Icon(Icons.add_rounded),
+                onPressed: onAddSongs,
+                iconSize: 28,
+              ),
+            ],
+          ),
+          
+          // Right side: Play and Shuffle
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.shuffle_rounded),
+                onPressed: hasSongs ? onShuffle : null,
+                iconSize: 28,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+              const SizedBox(width: 8),
+              // Big Play Button
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                child: IconButton(
+                  icon: const Icon(Icons.play_arrow_rounded),
+                  color: Colors.black,
+                  iconSize: 36,
                   onPressed: hasSongs ? onPlay : null,
-                  style: FilledButton.styleFrom(
-                    shape: const StadiumBorder(),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    backgroundColor: Theme.of(context).colorScheme.primary,
-                    foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                  ),
-                  icon: const Icon(Icons.play_arrow_rounded, size: 22),
-                  label: const Text(
-                    'Play',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              // Shuffle button
-              Expanded(
-                child: FilledButton.icon(
-                  onPressed: hasSongs ? onShuffle : null,
-                  style: FilledButton.styleFrom(
-                    shape: const StadiumBorder(),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    backgroundColor:
-                        Theme.of(context).colorScheme.primaryContainer,
-                    foregroundColor:
-                        Theme.of(context).colorScheme.onPrimaryContainer,
-                  ),
-                  icon: const Icon(Icons.shuffle_rounded, size: 22),
-                  label: const Text(
-                    'Shuffle',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
-
-          // Secondary actions row (Reorder/Add)
-          Row(
-            children: [
-              // Reorder toggle button
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: canReorder ? onToggleReorder : null,
-                  style: OutlinedButton.styleFrom(
-                    shape: const StadiumBorder(),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    backgroundColor: isReorderMode
-                        ? Theme.of(context)
-                            .colorScheme
-                            .primaryContainer
-                            .withOpacity(0.5)
-                        : null,
-                  ),
-                  icon: Icon(
-                    isReorderMode ? Icons.check_rounded : Icons.reorder_rounded,
-                    size: 20,
-                  ),
-                  label: Text(isReorderMode ? 'Done' : 'Reorder'),
-                ),
-              ),
-              const SizedBox(width: 12),
-              // Add songs button
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: onAddSongs,
-                  style: OutlinedButton.styleFrom(
-                    shape: const StadiumBorder(),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                  icon: const Icon(Icons.add_rounded, size: 20),
-                  label: const Text('Add Songs'),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
         ],
       ),
     );

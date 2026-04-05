@@ -45,17 +45,10 @@ class AlbumGridItem extends StatelessWidget {
                   // Shadow & Container
                   Container(
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(16), // Larger radius
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.3),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
+                      borderRadius: BorderRadius.circular(0), // Spotify borderless
                     ),
                     child: ClipRRect(
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(0),
                       child: _buildAlbumArt(context),
                     ),
                   ),
