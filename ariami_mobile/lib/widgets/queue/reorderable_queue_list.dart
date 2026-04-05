@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../common/mini_player_aware_bottom_sheet.dart';
 import '../../models/song.dart';
+import 'queue_display_order.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../services/api/connection_service.dart';
 import '../../services/offline/offline_playback_service.dart';
@@ -109,26 +110,37 @@ class _ReorderableQueueListState extends State<ReorderableQueueList> {
       );
     }
 
+    final displayedSongs = QueueDisplayOrder.songsInDisplayOrder(
+      widget.songs,
+      widget.currentIndex,
+    );
+
     return ReorderableListView.builder(
       padding: EdgeInsets.only(
         bottom: getMiniPlayerAwareBottomPadding(context),
       ),
-      itemCount: widget.songs.length,
+      itemCount: displayedSongs.length,
       onReorder: widget.onReorder,
-      itemBuilder: (context, index) {
-        final song = widget.songs[index];
-        final isCurrentlyPlaying = index == widget.currentIndex;
+      itemBuilder: (context, displayIndex) {
+        final song = displayedSongs[displayIndex];
+        final isCurrentlyPlaying = displayIndex == 0;
+        final realIndex = QueueDisplayOrder.displayIndexToReal(
+          displayIndex,
+          widget.songs.length,
+          widget.currentIndex,
+        );
         // Default to available if not yet checked (avoids flicker)
         final isAvailable = _availabilityMap[song.id] ?? true;
 
         return QueueItem(
           key: ValueKey(song.id),
           song: song,
-          index: index,
+          index: displayIndex,
           isCurrentlyPlaying: isCurrentlyPlaying,
           isAvailable: isAvailable,
-          onTap: widget.onTap != null ? () => widget.onTap!(index) : null,
-          onRemove: widget.onRemove != null ? () => widget.onRemove!(index) : null,
+          onTap: widget.onTap != null ? () => widget.onTap!(realIndex) : null,
+          onRemove:
+              widget.onRemove != null ? () => widget.onRemove!(realIndex) : null,
         );
       },
     );

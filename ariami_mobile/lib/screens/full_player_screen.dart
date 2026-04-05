@@ -70,7 +70,7 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
         builder: (context) => QueueScreen(
           queue: _playbackManager.queue,
           onReorder: (oldIndex, newIndex) {
-            _playbackManager.queue.moveSong(oldIndex, newIndex);
+            _playbackManager.reorderQueueFromDisplayOrder(oldIndex, newIndex);
           },
           onTap: (index) {
             _playbackManager.queue.jumpToIndex(index);
