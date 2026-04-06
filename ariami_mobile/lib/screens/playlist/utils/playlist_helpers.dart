@@ -36,3 +36,24 @@ String formatDuration(int seconds) {
   final secs = seconds % 60;
   return '$minutes:${secs.toString().padLeft(2, '0')}';
 }
+
+/// Format playlist total duration in a human-readable form.
+///
+/// Examples:
+/// - 540s  -> 9 min
+/// - 5520s -> 1 hour 32 mins
+String formatPlaylistTotalDuration(int totalSeconds) {
+  final hours = totalSeconds ~/ 3600;
+  final minutes = (totalSeconds % 3600) ~/ 60;
+
+  if (hours == 0) {
+    return '$minutes min';
+  }
+
+  final hourLabel = hours == 1 ? 'hour' : 'hours';
+  if (minutes == 0) {
+    return '$hours $hourLabel';
+  }
+
+  return '$hours $hourLabel $minutes mins';
+}

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../models/api_models.dart';
+import '../utils/playlist_helpers.dart';
 
 /// Playlist information section showing name, description, and song stats
 class PlaylistInfoSection extends StatelessWidget {
@@ -24,7 +25,7 @@ class PlaylistInfoSection extends StatelessWidget {
             0,
             (sum, songId) => sum + (playlist.songDurations[songId] ?? 0),
           );
-    final minutes = totalDuration ~/ 60;
+    final formattedDuration = formatPlaylistTotalDuration(totalDuration);
 
     return Padding(
       padding: const EdgeInsets.all(16.0),
@@ -51,7 +52,7 @@ class PlaylistInfoSection extends StatelessWidget {
           ],
           const SizedBox(height: 8),
           Text(
-            '$songCount song${songCount != 1 ? 's' : ''} • $minutes min',
+            '$songCount song${songCount != 1 ? 's' : ''} • $formattedDuration',
             style: TextStyle(
               fontSize: 14,
               color: Colors.grey[600],
