@@ -439,6 +439,27 @@ class PlaybackManager extends ChangeNotifier {
     }
   }
 
+  /// Skip to a specific queue item
+  Future<void> skipToQueueItem(int index) async {
+    try {
+      if (index < 0 || index >= _queue.length) return;
+      if (index == _queue.currentIndex) return;
+
+      // Stop tracking current song
+      await _statsService.onSongStopped();
+
+      _queue.jumpToIndex(index);
+      // Clear restored position so new song starts from beginning
+      _restoredPosition = null;
+      _pendingUiPosition = null;
+      await _playCurrentSong();
+      notifyListeners();
+      await _saveState(); // Save state after skipping to specific item
+    } catch (e) {
+      print('[PlaybackManager] Error skipping to queue item: $e');
+    }
+  }
+
   /// Seek to position
   Future<void> seek(Duration position) async {
     try {

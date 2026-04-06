@@ -165,13 +165,11 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
             Expanded(
               flex: 4,
               child: PlayerArtwork(
-                song: _playbackManager.currentSong!,
-                onSwipeLeft: _playbackManager.hasNext
-                    ? _playbackManager.skipNext
-                    : () {},
-                onSwipeRight: _playbackManager.hasPrevious
-                    ? _playbackManager.skipPrevious
-                    : () {},
+                queue: _playbackManager.queue,
+                currentIndex: _playbackManager.queue.currentIndex,
+                onPageChanged: (index) {
+                  _playbackManager.skipToQueueItem(index);
+                },
               ),
             ),
             const SizedBox(height: 24),
