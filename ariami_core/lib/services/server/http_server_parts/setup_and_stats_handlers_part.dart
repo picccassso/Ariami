@@ -15,7 +15,7 @@ extension AriamiHttpServerSetupAndStatsHandlersMethods on AriamiHttpServer {
         'status': 'ok',
         'timestamp': DateTime.now().toIso8601String(),
         'server': Platform.localHostname,
-        'version': '3.2.0',
+        'version': '4.0.0',
       }),
       headers: {'Content-Type': 'application/json; charset=utf-8'},
     );

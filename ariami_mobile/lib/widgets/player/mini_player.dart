@@ -304,8 +304,8 @@ class _MiniPlayerState extends State<MiniPlayer> {
                   value: widget.duration.inMilliseconds > 0
                       ? widget.position.inMilliseconds / widget.duration.inMilliseconds
                       : 0.0,
-                  minHeight: 2,
-                  backgroundColor: Colors.white12,
+                  minHeight: 2.5,
+                  backgroundColor: Colors.white.withOpacity(0.25),
                   valueColor: const AlwaysStoppedAnimation<Color>(
                     Colors.white, // Clean white progress
                   ),

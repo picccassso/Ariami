@@ -244,7 +244,7 @@ void main() {
         jsonBody: <String, dynamic>{
           'deviceId': 'target-connect-device',
           'deviceName': 'Target Connect Device',
-          'appVersion': '3.2.0',
+          'appVersion': '4.0.0',
           'platform': 'test',
         },
       );
@@ -310,7 +310,7 @@ void main() {
         jsonBody: <String, dynamic>{
           'deviceId': 'admin-device',
           'deviceName': 'Admin Device',
-          'appVersion': '3.2.0',
+          'appVersion': '4.0.0',
           'platform': 'test',
         },
       );
@@ -336,6 +336,106 @@ void main() {
           () => DateTime.parse(row['connectedAt'] as String), returnsNormally);
       expect(() => DateTime.parse(row['lastHeartbeat'] as String),
           returnsNormally);
+    });
+
+    test('dashboard login stays active while the same user logs in on mobile',
+        () async {
+      final port = await _findFreePort();
+      await server.start(
+        advertisedIp: '127.0.0.1',
+        bindAddress: '127.0.0.1',
+        port: port,
+      );
+
+      final registerResponse = await _sendJsonRequest(
+        method: 'POST',
+        url: Uri.parse('http://127.0.0.1:$port/api/auth/register'),
+        jsonBody: <String, dynamic>{
+          'username': 'shared-user',
+          'password': 'shared-pass',
+        },
+      );
+      expect(registerResponse.statusCode, 200);
+
+      final dashboardLogin = await _sendJsonRequest(
+        method: 'POST',
+        url: Uri.parse('http://127.0.0.1:$port/api/auth/login'),
+        jsonBody: <String, dynamic>{
+          'username': 'shared-user',
+          'password': 'shared-pass',
+          'deviceId': 'cli-web-dashboard',
+          'deviceName': 'Ariami CLI Web Dashboard',
+        },
+      );
+      expect(dashboardLogin.statusCode, 200);
+      final dashboardToken = dashboardLogin.jsonBody['sessionToken'] as String;
+
+      final mobileLogin = await _sendJsonRequest(
+        method: 'POST',
+        url: Uri.parse('http://127.0.0.1:$port/api/auth/login'),
+        jsonBody: <String, dynamic>{
+          'username': 'shared-user',
+          'password': 'shared-pass',
+          'deviceId': 'mobile-device',
+          'deviceName': 'Alex iPhone',
+        },
+      );
+      expect(mobileLogin.statusCode, 200);
+      final mobileToken = mobileLogin.jsonBody['sessionToken'] as String;
+
+      final dashboardStats = await _sendJsonRequest(
+        method: 'GET',
+        url: Uri.parse('http://127.0.0.1:$port/api/stats'),
+        headers: <String, String>{
+          'Authorization': 'Bearer $dashboardToken',
+        },
+      );
+      expect(dashboardStats.statusCode, 200);
+
+      final dashboardConnect = await _sendJsonRequest(
+        method: 'POST',
+        url: Uri.parse('http://127.0.0.1:$port/api/connect'),
+        headers: <String, String>{
+          'Authorization': 'Bearer $dashboardToken',
+        },
+        jsonBody: <String, dynamic>{
+          'deviceId': 'cli-web-dashboard',
+          'deviceName': 'Ariami CLI Web Dashboard',
+          'appVersion': '4.0.0',
+          'platform': 'web',
+        },
+      );
+      expect(dashboardConnect.statusCode, 200);
+
+      final mobileConnect = await _sendJsonRequest(
+        method: 'POST',
+        url: Uri.parse('http://127.0.0.1:$port/api/connect'),
+        headers: <String, String>{
+          'Authorization': 'Bearer $mobileToken',
+        },
+        jsonBody: <String, dynamic>{
+          'deviceId': 'mobile-device',
+          'deviceName': 'Alex iPhone',
+          'appVersion': '4.0.0',
+          'platform': 'ios',
+        },
+      );
+      expect(mobileConnect.statusCode, 200);
+
+      final connectedClients = await _sendJsonRequest(
+        method: 'GET',
+        url: Uri.parse('http://127.0.0.1:$port/api/admin/connected-clients'),
+        headers: <String, String>{
+          'Authorization': 'Bearer $dashboardToken',
+        },
+      );
+      expect(connectedClients.statusCode, 200);
+
+      final rows = (connectedClients.jsonBody['clients'] as List<dynamic>? ??
+              <dynamic>[])
+          .cast<Map<String, dynamic>>();
+      expect(rows.any((row) => row['deviceId'] == 'cli-web-dashboard'), isTrue);
+      expect(rows.any((row) => row['deviceId'] == 'mobile-device'), isTrue);
     });
 
     test('admin kick-client disconnects target and revokes sessions', () async {
@@ -399,7 +499,7 @@ void main() {
         jsonBody: <String, dynamic>{
           'deviceId': 'target-device',
           'deviceName': 'Target Device',
-          'appVersion': '3.2.0',
+          'appVersion': '4.0.0',
           'platform': 'test',
         },
       );
@@ -750,7 +850,7 @@ void main() {
         jsonBody: <String, dynamic>{
           'deviceId': 'offline-device',
           'deviceName': 'Offline Device',
-          'appVersion': '3.2.0',
+          'appVersion': '4.0.0',
           'platform': 'test',
         },
       );
@@ -782,7 +882,7 @@ void main() {
         jsonBody: <String, dynamic>{
           'deviceId': 'offline-device',
           'deviceName': 'Offline Device',
-          'appVersion': '3.2.0',
+          'appVersion': '4.0.0',
           'platform': 'test',
         },
       );
@@ -853,7 +953,7 @@ void main() {
         jsonBody: <String, dynamic>{
           'deviceId': 'target-device',
           'deviceName': 'Target Device',
-          'appVersion': '3.2.0',
+          'appVersion': '4.0.0',
           'platform': 'test',
         },
       );

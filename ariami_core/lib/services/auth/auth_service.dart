@@ -6,6 +6,12 @@ import 'session_store.dart';
 /// Main authentication service coordinating user registration, login, and session management.
 /// Singleton pattern - use AuthService() to get the instance.
 class AuthService {
+  static const String _desktopDashboardAdminDeviceId =
+      'desktop_dashboard_admin';
+  static const String _desktopDashboardAdminDeviceName =
+      'Ariami Desktop Dashboard';
+  static const String _cliWebDashboardDeviceName = 'Ariami CLI Web Dashboard';
+
   // Singleton pattern
   static final AuthService _instance = AuthService._internal();
   factory AuthService() => _instance;
@@ -128,11 +134,18 @@ class AuthService {
     // Success - reset rate limit tracker for this device
     tracker.reset();
 
+    final isDashboardControlLogin = _isDashboardControlDevice(
+      deviceId: deviceId,
+      deviceName: deviceName,
+    );
+
     // Enforce single active session policy:
+    // - dashboard control sessions can coexist with one real device session
     // - same-device re-login is allowed (replace existing same-device session)
-    // - different-device login is rejected while an active session exists
-    if (_sessionStore.hasActiveSessionOnDifferentDevice(
-        user.userId, deviceId)) {
+    // - different non-dashboard device login is rejected while an active
+    //   non-dashboard session exists
+    if (!isDashboardControlLogin &&
+        _hasActiveUserDeviceSessionOnDifferentDevice(user.userId, deviceId)) {
       throw AuthException(
         AuthErrorCodes.alreadyLoggedInOtherDevice,
         'You are logged in on another device.',
@@ -239,6 +252,35 @@ class AuthService {
   Future<void> revokeAllSessionsForUser(String userId) async {
     _ensureInitialized();
     await _sessionStore.revokeAllForUser(userId);
+  }
+
+  bool _hasActiveUserDeviceSessionOnDifferentDevice(
+    String userId,
+    String deviceId,
+  ) {
+    final sessions = _sessionStore.getSessionsForUser(userId);
+    return sessions
+        .where((session) => !_isDashboardControlSession(session))
+        .any((session) => session.deviceId != deviceId);
+  }
+
+  bool _isDashboardControlSession(Session session) {
+    return _isDashboardControlDevice(
+      deviceId: session.deviceId,
+      deviceName: session.deviceName,
+    );
+  }
+
+  bool _isDashboardControlDevice({
+    required String deviceId,
+    required String deviceName,
+  }) {
+    if (deviceId == _desktopDashboardAdminDeviceId) {
+      return true;
+    }
+
+    return deviceName == _desktopDashboardAdminDeviceName ||
+        deviceName == _cliWebDashboardDeviceName;
   }
 
   /// Revoke all sessions for a user and return the revoked sessions.

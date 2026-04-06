@@ -11,10 +11,12 @@ void main() {
   late String sessionsFilePath;
   int counter = 0;
 
-  String unique(String prefix) => '${prefix}_${DateTime.now().microsecondsSinceEpoch}_${counter++}';
+  String unique(String prefix) =>
+      '${prefix}_${DateTime.now().microsecondsSinceEpoch}_${counter++}';
 
   setUpAll(() async {
-    tempDir = await Directory.systemTemp.createTemp('ariami_auth_service_tests_');
+    tempDir =
+        await Directory.systemTemp.createTemp('ariami_auth_service_tests_');
     usersFilePath = '${tempDir.path}/users.json';
     sessionsFilePath = '${tempDir.path}/sessions.json';
 
@@ -82,7 +84,8 @@ void main() {
       await authService.register(username, password);
 
       final deviceId = unique('device');
-      final response = await authService.login(username, password, deviceId, 'Test Device');
+      final response =
+          await authService.login(username, password, deviceId, 'Test Device');
 
       expect(response.sessionToken, isNotEmpty);
       expect(response.sessionToken.length, equals(64));
@@ -98,7 +101,8 @@ void main() {
       final password = 'password123';
       await authService.register(username, password);
 
-      final response = await authService.login(username, password, unique('device'), 'Logout Device');
+      final response = await authService.login(
+          username, password, unique('device'), 'Logout Device');
       await authService.logout(response.sessionToken);
 
       final session = await authService.validateSession(response.sessionToken);
@@ -107,7 +111,8 @@ void main() {
 
     test('login rejects invalid username', () async {
       expect(
-        () => authService.login('nonexistent_user', 'password', unique('device'), 'Device'),
+        () => authService.login(
+            'nonexistent_user', 'password', unique('device'), 'Device'),
         throwsA(isA<AuthException>()),
       );
     });
@@ -117,24 +122,29 @@ void main() {
       await authService.register(username, 'correctpassword');
 
       expect(
-        () => authService.login(username, 'wrongpassword', unique('device'), 'Device'),
+        () => authService.login(
+            username, 'wrongpassword', unique('device'), 'Device'),
         throwsA(isA<AuthException>()),
       );
     });
   });
 
   group('AuthService Single-Session Enforcement', () {
-    test('rejects login from different device when user already has active session', () async {
+    test(
+        'rejects login from different device when user already has active session',
+        () async {
       final username = unique('single_session_block');
       const password = 'strongpassword';
       await authService.register(username, password);
 
       final firstDeviceId = unique('device');
-      await authService.login(username, password, firstDeviceId, 'First Device');
+      await authService.login(
+          username, password, firstDeviceId, 'First Device');
 
       final secondDeviceId = unique('device');
       try {
-        await authService.login(username, password, secondDeviceId, 'Second Device');
+        await authService.login(
+            username, password, secondDeviceId, 'Second Device');
         fail('Expected ALREADY_LOGGED_IN_OTHER_DEVICE');
       } catch (e) {
         expect(e, isA<AuthException>());
@@ -150,7 +160,8 @@ void main() {
       }
     });
 
-    test('allows re-login from same device and replaces prior device session', () async {
+    test('allows re-login from same device and replaces prior device session',
+        () async {
       final username = unique('single_session_replace');
       const password = 'strongpassword';
       await authService.register(username, password);
@@ -173,7 +184,8 @@ void main() {
       expect(secondLogin.sessionToken, isNotEmpty);
       expect(secondLogin.sessionToken, isNot(equals(firstLogin.sessionToken)));
 
-      final firstSession = await authService.validateSession(firstLogin.sessionToken);
+      final firstSession =
+          await authService.validateSession(firstLogin.sessionToken);
       expect(firstSession, isNull);
 
       final secondSession =
@@ -181,9 +193,11 @@ void main() {
       expect(secondSession, isNotNull);
       expect(secondSession!.deviceId, equals(deviceId));
 
-      final sessionsForUser = authService.getSessionsForUser(secondLogin.userId);
+      final sessionsForUser =
+          authService.getSessionsForUser(secondLogin.userId);
       expect(sessionsForUser.length, equals(1));
-      expect(sessionsForUser.first.sessionToken, equals(secondLogin.sessionToken));
+      expect(
+          sessionsForUser.first.sessionToken, equals(secondLogin.sessionToken));
     });
 
     test(
@@ -238,6 +252,72 @@ void main() {
       expect(activeSessions.length, equals(1));
       expect(activeSessions.first.deviceId, equals(secondDeviceId));
     });
+
+    test(
+        'allows a mobile device login when the existing session is the web dashboard',
+        () async {
+      final username = unique('dashboard_then_mobile');
+      const password = 'strongpassword';
+      await authService.register(username, password);
+
+      final dashboardLogin = await authService.login(
+        username,
+        password,
+        unique('dashboard'),
+        'Ariami CLI Web Dashboard',
+      );
+
+      final mobileLogin = await authService.login(
+        username,
+        password,
+        unique('phone'),
+        'Alex iPhone',
+      );
+
+      final dashboardSession =
+          await authService.validateSession(dashboardLogin.sessionToken);
+      final mobileSession =
+          await authService.validateSession(mobileLogin.sessionToken);
+
+      expect(dashboardSession, isNotNull);
+      expect(mobileSession, isNotNull);
+
+      final sessions = authService.getSessionsForUser(mobileLogin.userId);
+      expect(sessions.length, equals(2));
+    });
+
+    test(
+        'allows the web dashboard to log in while a mobile device session is active',
+        () async {
+      final username = unique('mobile_then_dashboard');
+      const password = 'strongpassword';
+      await authService.register(username, password);
+
+      final mobileLogin = await authService.login(
+        username,
+        password,
+        unique('phone'),
+        'Alex iPhone',
+      );
+
+      final dashboardLogin = await authService.login(
+        username,
+        password,
+        unique('dashboard'),
+        'Ariami CLI Web Dashboard',
+      );
+
+      final mobileSession =
+          await authService.validateSession(mobileLogin.sessionToken);
+      final dashboardSession =
+          await authService.validateSession(dashboardLogin.sessionToken);
+
+      expect(mobileSession, isNotNull);
+      expect(dashboardSession, isNotNull);
+
+      final sessions = authService.getSessionsForUser(dashboardLogin.userId);
+      expect(sessions.length, equals(2));
+    });
   });
 
   group('AuthService Rate Limiting', () {
@@ -249,11 +329,13 @@ void main() {
       final deviceId = unique('device');
       for (int i = 0; i < 5; i++) {
         try {
-          await authService.login(username, 'wrongpassword', deviceId, 'Device');
+          await authService.login(
+              username, 'wrongpassword', deviceId, 'Device');
           fail('Expected AuthException for invalid credentials');
         } catch (e) {
           expect(e, isA<AuthException>());
-          expect((e as AuthException).code, equals(AuthErrorCodes.invalidCredentials));
+          expect((e as AuthException).code,
+              equals(AuthErrorCodes.invalidCredentials));
         }
       }
 
@@ -276,11 +358,13 @@ void main() {
       // Fail twice
       for (int i = 0; i < 2; i++) {
         try {
-          await authService.login(username, 'wrongpassword', deviceId, 'Device');
+          await authService.login(
+              username, 'wrongpassword', deviceId, 'Device');
           fail('Expected AuthException for invalid credentials');
         } catch (e) {
           expect(e, isA<AuthException>());
-          expect((e as AuthException).code, equals(AuthErrorCodes.invalidCredentials));
+          expect((e as AuthException).code,
+              equals(AuthErrorCodes.invalidCredentials));
         }
       }
 
@@ -290,11 +374,13 @@ void main() {
       // Now it should allow 5 more failures before rate limit
       for (int i = 0; i < 5; i++) {
         try {
-          await authService.login(username, 'wrongpassword', deviceId, 'Device');
+          await authService.login(
+              username, 'wrongpassword', deviceId, 'Device');
           fail('Expected AuthException for invalid credentials');
         } catch (e) {
           expect(e, isA<AuthException>());
-          expect((e as AuthException).code, equals(AuthErrorCodes.invalidCredentials));
+          expect((e as AuthException).code,
+              equals(AuthErrorCodes.invalidCredentials));
         }
       }
 
