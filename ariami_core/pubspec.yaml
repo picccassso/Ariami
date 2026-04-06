@@ -31,5 +31,5 @@ dependencies:
   sqlite3: ^2.4.0
 
 dev_dependencies:
-  lints: ^6.1.0
+  lints: ^5.1.1
   test: ^1.25.0
