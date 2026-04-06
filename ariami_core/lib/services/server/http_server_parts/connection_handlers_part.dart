@@ -56,7 +56,7 @@ extension AriamiHttpServerConnectionHandlersMethods on AriamiHttpServer {
         jsonEncode({
           'status': 'connected',
           'sessionId': sessionId,
-          'serverVersion': '3.2.0',
+          'serverVersion': '4.0.0',
           'features': ['library', 'streaming', 'websocket'],
           'deviceId': deviceId,
         }),

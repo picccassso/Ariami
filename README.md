@@ -9,8 +9,8 @@ Ariami is a self-hosted music library server with native desktop and mobile play
 
 ## Quick Start
 
-1. **Download the desktop server** from [releases](https://github.com/picccassso/Ariami/releases). Pick the ZIP for your OS (for example `Ariami-Desktop-v3.2.0-macos.zip`, `Ariami-Desktop-v3.2.0-windows.zip`, or `Ariami-Desktop-v3.2.0-linux.zip` — filenames follow that pattern for each version).
-2. **Download the Android app** from the same [releases](https://github.com/picccassso/Ariami/releases) page (`ariami_apk_release_v3.2.0.apk` for v3.2.0). For iOS, you will have to build it and run it yourself.
+1. **Download the desktop server** from [releases](https://github.com/picccassso/Ariami/releases). Pick the ZIP for your OS (for example `Ariami-Desktop-v4.0.0-macos.zip`, `Ariami-Desktop-v4.0.0-windows.zip`, or `Ariami-Desktop-v4.0.0-linux.zip` — filenames follow that pattern for each version).
+2. **Download the Android app** from the same [releases](https://github.com/picccassso/Ariami/releases) page (`ariami_apk_release_v4.0.0.apk` for v4.0.0). For iOS, you will have to build it and run it yourself.
 3. **Install Tailscale** on the computer running the server and on your phone: [tailscale.com/download](https://tailscale.com/download)
 4. **Run the server** and choose your music folder.
 5. **Scan the QR code** shown by the server with the mobile app to connect.
@@ -23,9 +23,9 @@ curl -fsSL https://tailscale.com/install.sh | sh
 sudo tailscale up
 
 # Download and extract Ariami
-curl -L https://github.com/picccassso/Ariami/releases/download/v3.2.0/ariami-cli-raspberry-pi-arm64-v3.2.0.zip -o ariami-cli.zip
+curl -L https://github.com/picccassso/Ariami/releases/download/v4.0.0/ariami-cli-raspberry-pi-arm64-v4.0.0.zip -o ariami-cli.zip
 unzip ariami-cli.zip
-cd ariami-cli-raspberry-pi-arm64-v3.2.0
+cd ariami-cli-raspberry-pi-arm64-v4.0.0
 
 # Run the server
 chmod +x ariami_cli
@@ -77,6 +77,9 @@ It is cross-platform so you can run this on your Mac/Windows/Linux machine, and 
 - The dashboard (desktop app or CLI web UI) shows who is connected, lets admins kick a device or change passwords, and shows whether authentication is required or the server is still open.
 - QR setup includes LAN and Tailscale addresses when the server has both, so pairing works at home or on the road.
 
+**Chromecast**
+- The mobile app supports casting to Chromecast devices on the same network.
+
 **Listening data**
 - On the device, keeps listening stats for songs, albums, and artists, including average daily listening time.
 - Richer breakdowns (for example per calendar day) are planned.
@@ -94,12 +97,11 @@ It is cross-platform so you can run this on your Mac/Windows/Linux machine, and 
 ### Library View
 <p align="center">
   <img src="app%20photos/Ariami%20Mobile/library_view_1_grid.png" alt="Library View Grid 1" width="30%">
-  <img src="app%20photos/Ariami%20Mobile/library_view_1_list.png" alt="Library View List 1" width="30%">
   <img src="app%20photos/Ariami%20Mobile/library_view_2_grid.png" alt="Library View Grid 2" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/library_view_mixed.png" alt="Library View Mixed" width="30%">
 </p>
 <p align="center">
-  <img src="app%20photos/Ariami%20Mobile/library_view_2_list.png" alt="Library View List 2" width="30%">
-  <img src="app%20photos/Ariami%20Mobile/library_view_3.png" alt="Library View 3" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/library_view_pinned.png" alt="Library View Pinned" width="30%">
 </p>
 
 ### Playlist View
@@ -123,6 +125,7 @@ It is cross-platform so you can run this on your Mac/Windows/Linux machine, and 
 <p align="center">
   <img src="app%20photos/Ariami%20Mobile/queue_view_1.png" alt="Queue View 1" width="30%">
   <img src="app%20photos/Ariami%20Mobile/queue_view_2.png" alt="Queue View 2" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/queue_view_3.png" alt="Queue View 3" width="30%">
 </p>
 
 ### Search View
@@ -131,21 +134,23 @@ It is cross-platform so you can run this on your Mac/Windows/Linux machine, and 
   <img src="app%20photos/Ariami%20Mobile/search_view_2.png" alt="Search View 2" width="30%">
 </p>
 
-### Offline Mode
+### Offline View
 <p align="center">
-  <img src="app%20photos/Ariami%20Mobile/offline_mode_1.png" alt="Offline Mode 1" width="30%">
-  <img src="app%20photos/Ariami%20Mobile/offline_mode_2.png" alt="Offline Mode 2" width="30%">
-  <img src="app%20photos/Ariami%20Mobile/offline_mode_3.png" alt="Offline Mode 3" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/offline_view_1.png" alt="Offline View 1" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/offline_view_2.png" alt="Offline View 2" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/offline_view_3.png" alt="Offline View 3" width="30%">
 </p>
 
 ### Settings View
 <p align="center">
-  <img src="app%20photos/Ariami%20Mobile/settings_view_1.png" alt="Settings" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/settings_view_1.png" alt="Settings 1" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/setting_view_4.png" alt="Settings 4" width="30%">
 </p>
 
 ### Streaming Quality View
 <p align="center">
-  <img src="app%20photos/Ariami%20Mobile/streaming_quality_view_1.png" alt="Streaming Quality" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/streaming_quality_view_1.png" alt="Streaming Quality 1" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/streaming_quality_view_2.png" alt="Streaming Quality 2" width="30%">
 </p>
 
 ### Streaming Stats View
@@ -160,10 +165,21 @@ It is cross-platform so you can run this on your Mac/Windows/Linux machine, and 
   <img src="app%20photos/Ariami%20Mobile/downloads_view_2.png" alt="Downloads 2" width="30%">
   <img src="app%20photos/Ariami%20Mobile/downloads_view_3.png" alt="Downloads 3" width="30%">
 </p>
+<p align="center">
+  <img src="app%20photos/Ariami%20Mobile/downloads_view_4.png" alt="Downloads 4" width="30%">
+</p>
 
 ### Connection Stats View
 <p align="center">
-  <img src="app%20photos/Ariami%20Mobile/connection_stats_view.png" alt="Connection Stats" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/connection_stats_view_LAN.png" alt="Connection Stats LAN" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/connection_stats_view_TAILSCALE.jpg" alt="Connection Stats Tailscale" width="30%">
+</p>
+
+### Chromecast View
+<p align="center">
+  <img src="app%20photos/Ariami%20Mobile/chromecast_view_1.png" alt="Chromecast 1" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/chromecast_view_2.png" alt="Chromecast 2" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/chromecast_view_3.png" alt="Chromecast 3" width="30%">
 </p>
 
 ### Import/Export View
@@ -171,9 +187,6 @@ It is cross-platform so you can run this on your Mac/Windows/Linux machine, and 
   <img src="app%20photos/Ariami%20Mobile/import_export_view_1.png" alt="Import Export View" width="30%">
   <img src="app%20photos/Ariami%20Mobile/import_playlist_1.png" alt="Import Playlist 1" width="30%">
   <img src="app%20photos/Ariami%20Mobile/import_playlist_2.png" alt="Import Playlist 2" width="30%">
-</p>
-<p align="center">
-  <img src="app%20photos/Ariami%20Mobile/import_playlist_3.png" alt="Import Playlist 3" width="30%">
 </p>
 
 </details>
@@ -187,7 +200,6 @@ It is cross-platform so you can run this on your Mac/Windows/Linux machine, and 
 </p>
 <p align="center">
   <img src="app%20photos/Ariami%20Desktop/main_3.png" alt="Desktop Main 3" width="45%">
-  <img src="app%20photos/Ariami%20Desktop/main_4.png" alt="Desktop Main 4" width="45%">
 </p>
 
 </details>
@@ -196,7 +208,8 @@ It is cross-platform so you can run this on your Mac/Windows/Linux machine, and 
 <summary>CLI (Web Interface)</summary>
 
 <p align="center">
-  <img src="app%20photos/Ariami%20CLI/main_dashboard.png" alt="CLI Dashboard" width="60%">
+  <img src="app%20photos/Ariami%20CLI/main_1.png" alt="CLI Dashboard 1" width="45%">
+  <img src="app%20photos/Ariami%20CLI/main_2.png" alt="CLI Dashboard 2" width="45%">
 </p>
 
 </details>
