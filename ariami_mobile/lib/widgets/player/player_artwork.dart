@@ -54,7 +54,12 @@ class _PlayerArtworkState extends State<PlayerArtwork> {
   @override
   void didUpdateWidget(covariant PlayerArtwork oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.currentIndex != oldWidget.currentIndex) {
+    if (widget.queue != oldWidget.queue) {
+      if (_pageController.hasClients) {
+        _pageController.jumpToPage(widget.currentIndex);
+      }
+      _visualIndex = widget.currentIndex;
+    } else if (widget.currentIndex != oldWidget.currentIndex) {
       if (widget.currentIndex != _visualIndex) {
         if (_pageController.hasClients && _pageController.page?.round() != widget.currentIndex) {
           _pageController.animateToPage(

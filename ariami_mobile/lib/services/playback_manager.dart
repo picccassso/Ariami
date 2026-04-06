@@ -367,6 +367,11 @@ class PlaybackManager extends ChangeNotifier {
             _queue.jumpToIndex(nextIndex);
             _restoredPosition = null;
             _pendingUiPosition = null;
+            
+            notifyListeners();
+            await Future.delayed(const Duration(milliseconds: 300));
+            if (_queue.currentIndex != nextIndex) return;
+            
             await _playCurrentSong();
             notifyListeners();
             await _saveState();
@@ -398,6 +403,11 @@ class PlaybackManager extends ChangeNotifier {
       // Clear restored position so new song starts from beginning
       _restoredPosition = null;
       _pendingUiPosition = null;
+      
+      notifyListeners();
+      await Future.delayed(const Duration(milliseconds: 300));
+      if (_queue.currentIndex != nextIndex) return;
+      
       await _playCurrentSong();
       notifyListeners();
       await _saveState(); // Save state after skipping to next song
@@ -431,6 +441,11 @@ class PlaybackManager extends ChangeNotifier {
       // Clear restored position so new song starts from beginning
       _restoredPosition = null;
       _pendingUiPosition = null;
+      
+      notifyListeners();
+      await Future.delayed(const Duration(milliseconds: 300));
+      if (_queue.currentIndex != previousIndex) return;
+      
       await _playCurrentSong();
       notifyListeners();
       await _saveState(); // Save state after skipping to previous song
