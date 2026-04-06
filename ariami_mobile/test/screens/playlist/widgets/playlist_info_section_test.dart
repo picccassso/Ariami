@@ -58,6 +58,37 @@ void main() {
       expect(find.text('3 songs • 9 min'), findsOneWidget);
     });
 
+    testWidgets('should display hours and minutes for long playlists',
+        (tester) async {
+      final playlist = PlaylistModel(
+        id: 'test-id',
+        name: 'Long Playlist',
+        songIds: ['1', '2', '3'],
+        createdAt: DateTime.now(),
+        modifiedAt: DateTime.now(),
+      );
+
+      final songs = [
+        SongModel(id: '1', title: 'Song 1', artist: 'Artist 1', duration: 3600),
+        SongModel(id: '2', title: 'Song 2', artist: 'Artist 2', duration: 1800),
+        SongModel(id: '3', title: 'Song 3', artist: 'Artist 3', duration: 120),
+      ];
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: PlaylistInfoSection(
+              playlist: playlist,
+              songs: songs,
+            ),
+          ),
+        ),
+      );
+
+      // Total duration: 5520 seconds = 1 hour 32 mins
+      expect(find.text('3 songs • 1 hour 32 mins'), findsOneWidget);
+    });
+
     testWidgets('should display description when provided', (tester) async {
       final playlist = PlaylistModel(
         id: 'test-id',
