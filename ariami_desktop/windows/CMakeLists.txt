@@ -57,6 +57,21 @@ add_subdirectory("runner")
 # them to the application.
 include(flutter/generated_plugins.cmake)
 
+# Build and bundle Sonic FFI library for desktop transcoding.
+set(SONIC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../sonic")
+set(SONIC_DLL "${SONIC_DIR}/target/release/sonic_transcoder.dll")
+
+if(EXISTS "${SONIC_DIR}/Cargo.toml")
+  add_custom_target(build_sonic_library ALL
+    COMMAND cargo build --release --features aac-fdk --lib
+    WORKING_DIRECTORY "${SONIC_DIR}"
+    BYPRODUCTS "${SONIC_DLL}"
+    COMMENT "Building Sonic FFI library")
+  add_dependencies(${BINARY_NAME} build_sonic_library)
+else()
+  message(WARNING "Sonic source not found at ${SONIC_DIR}; low/medium transcoding will be disabled.")
+endif()
+
 
 # === Installation ===
 # Support files are copied into place next to the executable, so that it can
@@ -106,3 +121,8 @@ install(DIRECTORY "${PROJECT_BUILD_DIR}/${FLUTTER_ASSET_DIR_NAME}"
 install(FILES "${AOT_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
   CONFIGURATIONS Profile;Release
   COMPONENT Runtime)
+
+if(EXISTS "${SONIC_DLL}")
+  install(FILES "${SONIC_DLL}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+    COMPONENT Runtime)
+endif()

@@ -232,6 +232,20 @@ extension _LibraryManagerDurationPart on LibraryManager {
     return duration;
   }
 
+  int? _getKnownSongDurationImpl(String songId) {
+    if (_durationCache.containsKey(songId)) {
+      return _durationCache[songId];
+    }
+
+    final existingMetadata = _findSongMetadataById(songId);
+    if (existingMetadata?.duration != null && existingMetadata!.duration! > 0) {
+      _durationCache[songId] = existingMetadata.duration;
+      return existingMetadata.duration;
+    }
+
+    return null;
+  }
+
   SongMetadata? _findSongMetadataById(String songId) {
     if (_library == null) return null;
 

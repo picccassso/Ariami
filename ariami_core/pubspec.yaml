@@ -20,6 +20,7 @@ dependencies:
   crypto: ^3.0.3
   watcher: ^1.1.0
   path: ^1.8.0
+  ffi: ^2.1.2
 
   # Password hashing (pure Dart, for multi-user auth)
   bcrypt: ^1.1.3

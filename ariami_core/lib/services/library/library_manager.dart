@@ -232,8 +232,7 @@ class LibraryManager {
       _scanMusicFolderImpl(folderPath);
 
   /// Convert library to API JSON format for mobile app
-  Map<String, dynamic> toApiJson(String baseUrl) =>
-      _toApiJsonImpl(baseUrl);
+  Map<String, dynamic> toApiJson(String baseUrl) => _toApiJsonImpl(baseUrl);
 
   /// Convert library to API JSON format with lazy duration extraction for songs
   Future<Map<String, dynamic>> toApiJsonWithDurations(String baseUrl) =>
@@ -261,8 +260,12 @@ class LibraryManager {
       _getAlbumArtworkImpl(albumId);
 
   /// Get song duration by song ID (lazy extraction with caching)
-  Future<int?> getSongDuration(String songId) =>
-      _getSongDurationImpl(songId);
+  Future<int?> getSongDuration(String songId) => _getSongDurationImpl(songId);
+
+  /// Get known song duration by song ID without triggering extraction.
+  ///
+  /// Returns a cached or already-indexed duration when available, otherwise null.
+  int? getKnownSongDuration(String songId) => _getKnownSongDurationImpl(songId);
 
   /// Get song artwork by song ID (lazy extraction with caching)
   /// Used for standalone songs that don't belong to an album

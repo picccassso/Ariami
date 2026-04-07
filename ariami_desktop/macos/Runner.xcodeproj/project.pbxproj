@@ -239,6 +239,7 @@
 				33CC10EA2044A3C60003C045 /* Frameworks */,
 				33CC10EB2044A3C60003C045 /* Resources */,
 				33CC110E2044A8840003C045 /* Bundle Framework */,
+				A1B2C3D4E5F6078901234ABC /* Build Sonic FFI */,
 				3399D490228B24CF009A79C7 /* ShellScript */,
 				5E91C03906F7D1FC44E682C0 /* [CP] Embed Pods Frameworks */,
 			);
@@ -323,6 +324,27 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		A1B2C3D4E5F6078901234ABC /* Build Sonic FFI */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(PROJECT_DIR)/../../sonic/Cargo.toml",
+			);
+			name = "Build Sonic FFI";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(TARGET_BUILD_DIR)/$(FRAMEWORKS_FOLDER_PATH)/libsonic_transcoder.dylib",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -euo pipefail\nSONIC_DIR=\"${PROJECT_DIR}/../../sonic\"\nif [ ! -f \"$SONIC_DIR/Cargo.toml\" ]; then\n  echo \"error: Sonic source not found at $SONIC_DIR\"\n  exit 1\nfi\nif ! command -v cargo >/dev/null 2>&1; then\n  echo \"error: cargo not found. Install Rust toolchain to build Sonic.\"\n  exit 1\nfi\n(cd \"$SONIC_DIR\" && cargo build --release --features aac-fdk --lib)\nSONIC_LIB=\"$SONIC_DIR/target/release/libsonic_transcoder.dylib\"\nif [ ! -f \"$SONIC_LIB\" ]; then\n  echo \"error: Sonic dylib not produced at $SONIC_LIB\"\n  exit 1\nfi\nmkdir -p \"$TARGET_BUILD_DIR/$FRAMEWORKS_FOLDER_PATH\"\ncp -f \"$SONIC_LIB\" \"$TARGET_BUILD_DIR/$FRAMEWORKS_FOLDER_PATH/libsonic_transcoder.dylib\"\n";
+			showEnvVarsInLog = 0;
+		};
 		3399D490228B24CF009A79C7 /* ShellScript */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
@@ -340,7 +362,7 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "echo \"$PRODUCT_NAME.app\" > \"$PROJECT_DIR\"/Flutter/ephemeral/.app_filename && \"$FLUTTER_ROOT\"/packages/flutter_tools/bin/macos_assemble.sh embed\n";
-		};
+			};
 		33CC111E2044C6BF0003C045 /* ShellScript */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;

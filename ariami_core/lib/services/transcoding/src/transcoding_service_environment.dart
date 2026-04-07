@@ -1,25 +1,112 @@
 part of 'package:ariami_core/services/transcoding/transcoding_service.dart';
 
 extension _TranscodingServiceEnvironment on TranscodingService {
-  /// Check if FFmpeg is available on the system.
-  Future<bool> _isFFmpegAvailable() async {
-    if (_ffmpegAvailable != null) return _ffmpegAvailable!;
-
-    try {
-      final result = await Process.run('ffmpeg', ['-version']);
-      _ffmpegAvailable = result.exitCode == 0;
-      if (_ffmpegAvailable!) {
-        print('TranscodingService: FFmpeg is available');
-      } else {
-        print(
-            'TranscodingService: FFmpeg not found (exit code ${result.exitCode})');
-      }
-    } catch (e) {
-      print('TranscodingService: FFmpeg not available - $e');
-      _ffmpegAvailable = false;
+  /// Check if Sonic FFI library is available on this system.
+  Future<bool> _isSonicAvailable() async {
+    if (_sonicFfiAdapter != null) {
+      return true;
     }
 
-    return _ffmpegAvailable!;
+    for (final candidate in _buildSonicLibraryCandidates()) {
+      final adapter = _SonicFfiAdapter.tryLoad(candidate);
+      if (adapter != null) {
+        _sonicFfiAdapter = adapter;
+        print(
+            'TranscodingService: Sonic FFI loaded from ${adapter.libraryPath}');
+        return true;
+      }
+    }
+
+    print(
+        'TranscodingService: Sonic FFI library not found. Set ARIAMI_SONIC_LIB or pass sonicLibraryPath.');
+    return false;
+  }
+
+  Iterable<String> _buildSonicLibraryCandidates() sync* {
+    final seen = <String>{};
+
+    // Dart doesn't allow yielding from nested function, so do inlined flow.
+    String? explicit = sonicLibraryPath;
+    if (explicit != null) {
+      final trimmed = explicit.trim();
+      if (trimmed.isNotEmpty && seen.add(trimmed)) {
+        final file = File(trimmed);
+        if (!trimmed.contains(Platform.pathSeparator) &&
+            !trimmed.startsWith('.') &&
+            !trimmed.startsWith('/')) {
+          yield trimmed;
+        } else if (file.existsSync()) {
+          yield trimmed;
+        }
+      }
+    }
+
+    final fromEnv = Platform.environment['ARIAMI_SONIC_LIB'];
+    if (fromEnv != null) {
+      final trimmed = fromEnv.trim();
+      if (trimmed.isNotEmpty && seen.add(trimmed)) {
+        final file = File(trimmed);
+        if (!trimmed.contains(Platform.pathSeparator) &&
+            !trimmed.startsWith('.') &&
+            !trimmed.startsWith('/')) {
+          yield trimmed;
+        } else if (file.existsSync()) {
+          yield trimmed;
+        }
+      }
+    }
+
+    final libName = _platformSonicLibraryName();
+
+    if (seen.add(libName)) {
+      // Let OS loader search default paths/rpaths first.
+      yield libName;
+    }
+
+    final exeDir = File(Platform.resolvedExecutable).parent.path;
+    final nearExecutable = <String>[
+      p.join(exeDir, libName),
+      p.join(exeDir, 'lib', libName),
+      p.join(exeDir, '..', 'lib', libName),
+      p.join(exeDir, '..', 'Frameworks', libName),
+      p.join(exeDir, '..', '..', 'Frameworks', libName),
+      p.join(exeDir, '..', '..', '..', 'Frameworks', libName),
+    ];
+
+    for (final candidate in nearExecutable) {
+      if (!seen.add(candidate)) continue;
+      if (File(candidate).existsSync()) {
+        yield candidate;
+      }
+    }
+
+    final cwd = Directory.current.path;
+    final repoCandidates = <String>[
+      p.join(cwd, 'sonic', 'target', 'release', libName),
+      p.join(cwd, '..', 'sonic', 'target', 'release', libName),
+      p.join(cwd, '..', '..', 'sonic', 'target', 'release', libName),
+    ];
+    for (final candidate in repoCandidates) {
+      if (!seen.add(candidate)) continue;
+      if (File(candidate).existsSync()) {
+        yield candidate;
+      }
+    }
+  }
+
+  String _platformSonicLibraryName() {
+    if (Platform.isMacOS) return 'libsonic_transcoder.dylib';
+    if (Platform.isLinux) return 'libsonic_transcoder.so';
+    if (Platform.isWindows) return 'sonic_transcoder.dll';
+    return 'libsonic_transcoder.so';
+  }
+
+  int _sonicPresetForQuality(QualityPreset quality) {
+    final adapter = _sonicFfiAdapter;
+    if (adapter == null) {
+      throw StateError('Sonic adapter is not loaded');
+    }
+    return adapter.presetForQuality(quality);
   }
 
   /// Check if ffprobe is available on the system.
@@ -70,72 +157,5 @@ extension _TranscodingServiceEnvironment on TranscodingService {
       print('TranscodingService: ffprobe error - $e');
       return null;
     }
-  }
-
-  /// Detect and cache the best audio codec for this platform.
-  ///
-  /// On macOS, prefers `aac_at` (AudioToolbox hardware AAC) if available.
-  /// Falls back to software `aac` on all other platforms or if detection fails.
-  Future<String> _selectAudioCodec() async {
-    if (_codecDetected) return _cachedAudioCodec!;
-
-    _cachedAudioCodec = 'aac'; // Default fallback
-
-    // Only check for hardware encoder on macOS
-    if (Platform.isMacOS) {
-      try {
-        final result = await Process.run('ffmpeg', ['-encoders']);
-        if (result.exitCode == 0) {
-          final output = result.stdout as String;
-          if (output.contains('aac_at')) {
-            _cachedAudioCodec = 'aac_at';
-            print(
-                'TranscodingService: Using hardware AAC encoder (aac_at) on macOS');
-          } else {
-            print(
-                'TranscodingService: Hardware AAC (aac_at) not available, using software AAC');
-          }
-        }
-      } catch (e) {
-        print(
-            'TranscodingService: Codec detection failed, using software AAC - $e');
-      }
-    } else {
-      print(
-          'TranscodingService: Using software AAC encoder on ${Platform.operatingSystem}');
-    }
-
-    _codecDetected = true;
-    return _cachedAudioCodec!;
-  }
-
-  /// Build FFmpeg arguments for transcoding.
-  ///
-  /// Uses platform-aware codec selection:
-  /// - macOS: `aac_at` (AudioToolbox hardware AAC) if available
-  /// - Other platforms: software `aac`
-  Future<List<String>> _buildFFmpegArgs(
-    String sourcePath,
-    String outputPath,
-    QualityPreset quality,
-  ) async {
-    final bitrate = quality.bitrate;
-    if (bitrate == null) {
-      throw ArgumentError('Cannot build FFmpeg args for high quality');
-    }
-
-    // Get platform-aware codec
-    final codec = await _selectAudioCodec();
-
-    return [
-      '-y', // Overwrite output file without asking
-      '-i', sourcePath, // Input file
-      '-c:a', codec, // Audio codec: platform-aware AAC
-      '-b:a', '${bitrate}k', // Bitrate
-      '-vn', // No video
-      '-movflags', '+faststart', // Enable streaming before full download
-      '-map_metadata', '-1', // Strip metadata (smaller file, privacy)
-      outputPath, // Output file
-    ];
   }
 }

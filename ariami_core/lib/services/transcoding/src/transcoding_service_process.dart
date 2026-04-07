@@ -46,7 +46,7 @@ extension _TranscodingServiceProcess on TranscodingService {
     return File('${qualityDir.path}/$songId.${quality.fileExtension}');
   }
 
-  /// Transcode a file using FFmpeg.
+  /// Transcode a file using Sonic.
   Future<File?> _transcodeFile(
     String sourcePath,
     String outputPath,
@@ -58,55 +58,84 @@ extension _TranscodingServiceProcess on TranscodingService {
       await outputDir.create(recursive: true);
     }
 
-    // Build FFmpeg command (async for platform-aware codec detection)
-    final args = await _buildFFmpegArgs(sourcePath, outputPath, quality);
-
-    print('TranscodingService: Running ffmpeg ${args.join(' ')}');
-
-    try {
-      final result = await Process.run(
-        'ffmpeg',
-        args,
-      ).timeout(
-        transcodeTimeout,
-        onTimeout: () {
-          print(
-              'TranscodingService: Transcode timeout after ${transcodeTimeout.inMinutes} minutes');
-          return ProcessResult(-1, -1, '', 'Timeout');
-        },
-      );
-
-      if (result.exitCode == 0) {
-        final outputFile = File(outputPath);
-        if (await outputFile.exists()) {
-          final size = await outputFile.length();
-          print(
-              'TranscodingService: Transcode complete - ${(size / 1024).round()} KB');
-          return outputFile;
-        }
-      }
-
-      print('TranscodingService: FFmpeg failed (exit ${result.exitCode})');
-      print('TranscodingService: stderr: ${result.stderr}');
-
-      // Clean up partial file if it exists
-      final partialFile = File(outputPath);
-      if (await partialFile.exists()) {
-        await partialFile.delete();
-      }
-
+    final sourceFile = File(sourcePath);
+    if (!await sourceFile.exists()) {
+      print('TranscodingService: Source file missing: $sourcePath');
       return null;
-    } catch (e) {
-      print('TranscodingService: FFmpeg error - $e');
+    }
 
-      // Clean up partial file
+    final adapter = _sonicFfiAdapter;
+    if (adapter == null) {
+      print('TranscodingService: Sonic adapter is not initialized');
+      return null;
+    }
+
+    final preset = _sonicPresetForQuality(quality);
+    print(
+        'TranscodingService: Running Sonic FFI (${adapter.libraryPath}, preset=$preset)');
+
+    Future<void> cleanupPartialOutput() async {
       try {
         final partialFile = File(outputPath);
         if (await partialFile.exists()) {
           await partialFile.delete();
         }
       } catch (_) {}
+    }
 
+    try {
+      final pathResult = await adapter.transcodeFileToFileAsync(
+        sourcePath,
+        outputPath,
+        preset,
+      );
+
+      if (pathResult.status == _SonicFfiAdapter.statusOk) {
+        print('TranscodingService: Sonic FFI file-to-file path succeeded');
+        final outputFile = File(outputPath);
+        if (await outputFile.exists() && await outputFile.length() > 0) {
+          final size = await outputFile.length();
+          print(
+              'TranscodingService: Transcode complete - ${(size / 1024).round()} KB');
+          return outputFile;
+        }
+      } else if (pathResult.status != _SonicFfiAdapter.statusNotImplemented) {
+        print(
+            'TranscodingService: Sonic FFI file transcode failed (status ${pathResult.status})');
+        if (pathResult.errorMessage != null &&
+            pathResult.errorMessage!.isNotEmpty) {
+          print('TranscodingService: Sonic error: ${pathResult.errorMessage}');
+        }
+        await cleanupPartialOutput();
+        return null;
+      }
+
+      // Backward compatibility path for older Sonic builds without file API.
+      print(
+          'TranscodingService: Sonic file API unavailable, falling back to buffer API');
+      final inputBytes = await sourceFile.readAsBytes();
+      final result = adapter.transcode(inputBytes, preset);
+      final outputBytes = result.outputBytes;
+      if (result.status == _SonicFfiAdapter.statusOk &&
+          outputBytes != null &&
+          outputBytes.isNotEmpty) {
+        final outputFile = File(outputPath);
+        await outputFile.writeAsBytes(outputBytes, flush: true);
+        final size = await outputFile.length();
+        print(
+            'TranscodingService: Transcode complete - ${(size / 1024).round()} KB');
+        return outputFile;
+      }
+
+      print('TranscodingService: Sonic FFI failed (status ${result.status})');
+      if (result.errorMessage != null && result.errorMessage!.isNotEmpty) {
+        print('TranscodingService: Sonic error: ${result.errorMessage}');
+      }
+      await cleanupPartialOutput();
+      return null;
+    } catch (e) {
+      print('TranscodingService: Sonic FFI error - $e');
+      await cleanupPartialOutput();
       return null;
     }
   }
