@@ -170,6 +170,3 @@ logs/
 *.tar.gz
 examples/
 plan.md
-
-# Nested Sonic repo (managed separately)
-/sonic/
