@@ -74,6 +74,21 @@ set_target_properties(${BINARY_NAME}
 # them to the application.
 include(flutter/generated_plugins.cmake)
 
+# Build and bundle Sonic FFI library for desktop transcoding.
+set(SONIC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../sonic")
+set(SONIC_LIB "${SONIC_DIR}/target/release/libsonic_transcoder.so")
+
+if(EXISTS "${SONIC_DIR}/Cargo.toml")
+  add_custom_target(build_sonic_library ALL
+    COMMAND cargo build --release --features aac-fdk --lib
+    WORKING_DIRECTORY "${SONIC_DIR}"
+    BYPRODUCTS "${SONIC_LIB}"
+    COMMENT "Building Sonic FFI library")
+  add_dependencies(${BINARY_NAME} build_sonic_library)
+else()
+  message(WARNING "Sonic source not found at ${SONIC_DIR}; low/medium transcoding will be disabled.")
+endif()
+
 
 # === Installation ===
 # By default, "installing" just makes a relocatable bundle in the build
@@ -124,5 +139,10 @@ install(DIRECTORY "${PROJECT_BUILD_DIR}/${FLUTTER_ASSET_DIR_NAME}"
 # Install the AOT library on non-Debug builds only.
 if(NOT CMAKE_BUILD_TYPE MATCHES "Debug")
   install(FILES "${AOT_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+    COMPONENT Runtime)
+endif()
+
+if(EXISTS "${SONIC_LIB}")
+  install(FILES "${SONIC_LIB}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
     COMPONENT Runtime)
 endif()

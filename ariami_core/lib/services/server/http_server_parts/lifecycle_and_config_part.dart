@@ -12,7 +12,7 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
   /// Set the transcoding service for quality-based streaming.
   ///
   /// Must be called before streaming at non-high quality levels.
-  /// The transcoding service handles FFmpeg-based transcoding and caching.
+  /// The transcoding service handles Sonic-based transcoding and caching.
   void setTranscodingService(TranscodingService service) {
     _transcodingService = service;
   }

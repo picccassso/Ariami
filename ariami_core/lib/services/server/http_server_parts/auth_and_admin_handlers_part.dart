@@ -480,9 +480,9 @@ extension AriamiHttpServerAuthAndAdminHandlersMethods on AriamiHttpServer {
         );
       }
 
-      // Get song duration from LibraryManager
-      final durationSeconds =
-          await _libraryManager.getSongDuration(songId) ?? 0;
+      // Keep ticket issuing fast for bulk downloads by using only known/cached
+      // duration values here (no on-demand file metadata extraction).
+      final durationSeconds = _libraryManager.getKnownSongDuration(songId) ?? 0;
 
       // Issue stream ticket
       final ticket = _streamTracker.issueTicket(

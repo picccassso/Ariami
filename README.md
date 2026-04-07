@@ -65,7 +65,7 @@ It is cross-platform so you can run this on your Mac/Windows/Linux machine, and 
 
 **Streaming and audio**
 - Stream from the server to any supported client.
-- Server-side transcoding (using FFmpeg when it is installed on the server) so clients can use formats and quality levels that suit the device.
+- Server-side transcoding powered by Sonic (MP3 -> AAC) so clients can use formats and quality levels that suit the device.
 - Quality presets that follow the connection type (for example Wi‑Fi vs mobile data).
 
 **Apps and platforms**
