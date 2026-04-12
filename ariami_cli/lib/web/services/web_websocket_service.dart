@@ -49,6 +49,7 @@ class WebWebSocketService {
           deviceId: deviceId,
           deviceName: 'Ariami CLI Web Dashboard',
           sessionToken: sessionToken,
+          clientType: 'dashboard',
         );
         _socket!.send(jsonEncode(identify.toJson()));
         _startPingTimer();

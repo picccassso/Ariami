@@ -1,6 +1,50 @@
 part of '../http_server.dart';
 
 extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
+  Response _songIdRequiredResponse() {
+    return _jsonBadRequest({
+      'error': 'Invalid request',
+      'message': 'Song ID is required',
+    });
+  }
+
+  Response _streamTokenForbiddenResponse(String message) {
+    return _jsonForbidden({
+      'error': {
+        'code': AuthErrorCodes.streamTokenExpired,
+        'message': message,
+      },
+    });
+  }
+
+  Response _songNotFoundResponse(String songId) {
+    return _jsonNotFound({
+      'error': 'Song not found',
+      'message': 'Song ID not found in library: $songId',
+    });
+  }
+
+  Response _audioFileNotFoundResponse(String songId) {
+    return _jsonNotFound({
+      'error': 'File not found',
+      'message': 'Audio file does not exist: $songId',
+    });
+  }
+
+  Response _fileOutsideLibraryResponse() {
+    return _jsonForbidden({
+      'error': 'Forbidden',
+      'message': 'File is outside music library',
+    });
+  }
+
+  Response _downloadFailedResponse() {
+    return _jsonInternalServerError({
+      'error': 'Download failed',
+      'message': 'Unexpected server error during download',
+    });
+  }
+
   /// Handle stream request
   ///
   /// Supports quality parameter for transcoded streaming:
@@ -10,13 +54,7 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
   Future<Response> _handleStream(Request request, String path) async {
     // Validate path is provided
     if (path.isEmpty) {
-      return Response.badRequest(
-        body: jsonEncode({
-          'error': 'Invalid request',
-          'message': 'Song ID is required',
-        }),
-        headers: {'Content-Type': 'application/json; charset=utf-8'},
-      );
+      return _songIdRequiredResponse();
     }
 
     // Validate stream token if auth is required
@@ -24,40 +62,18 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
     if (_authRequired && !_legacyMode) {
       streamToken = request.url.queryParameters['streamToken'];
       if (streamToken == null || streamToken.isEmpty) {
-        return Response.forbidden(
-          jsonEncode({
-            'error': {
-              'code': AuthErrorCodes.streamTokenExpired,
-              'message': 'Stream token required',
-            },
-          }),
-          headers: {'Content-Type': 'application/json; charset=utf-8'},
-        );
+        return _streamTokenForbiddenResponse('Stream token required');
       }
 
       final ticket = _streamTracker.validateToken(streamToken);
       if (ticket == null) {
-        return Response.forbidden(
-          jsonEncode({
-            'error': {
-              'code': AuthErrorCodes.streamTokenExpired,
-              'message': 'Stream token expired or invalid',
-            },
-          }),
-          headers: {'Content-Type': 'application/json; charset=utf-8'},
-        );
+        return _streamTokenForbiddenResponse('Stream token expired or invalid');
       }
 
       // Verify the token is for the requested song
       if (ticket.songId != path) {
-        return Response.forbidden(
-          jsonEncode({
-            'error': {
-              'code': AuthErrorCodes.streamTokenExpired,
-              'message': 'Stream token does not match requested song',
-            },
-          }),
-          headers: {'Content-Type': 'application/json; charset=utf-8'},
+        return _streamTokenForbiddenResponse(
+          'Stream token does not match requested song',
         );
       }
 
@@ -72,39 +88,21 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
     // Look up file path from library by song ID
     final filePath = _libraryManager.getSongFilePath(path);
     if (filePath == null) {
-      return Response.notFound(
-        jsonEncode({
-          'error': 'Song not found',
-          'message': 'Song ID not found in library: $path',
-        }),
-        headers: {'Content-Type': 'application/json; charset=utf-8'},
-      );
+      return _songNotFoundResponse(path);
     }
 
     final File originalFile = File(filePath);
 
     // Check if file exists
     if (!await originalFile.exists()) {
-      return Response.notFound(
-        jsonEncode({
-          'error': 'File not found',
-          'message': 'Audio file does not exist: $path',
-        }),
-        headers: {'Content-Type': 'application/json; charset=utf-8'},
-      );
+      return _audioFileNotFoundResponse(path);
     }
 
     // Check if file is in allowed music folder (security check)
     if (_musicFolderPath != null) {
       final canonicalPath = originalFile.absolute.path;
       if (!canonicalPath.startsWith(_musicFolderPath!)) {
-        return Response.forbidden(
-          jsonEncode({
-            'error': 'Forbidden',
-            'message': 'File is outside music library',
-          }),
-          headers: {'Content-Type': 'application/json; charset=utf-8'},
-        );
+        return _fileOutsideLibraryResponse();
       }
     }
 
@@ -158,13 +156,7 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
   Future<Response> _handleDownload(Request request, String path) async {
     // Validate path is provided
     if (path.isEmpty) {
-      return Response.badRequest(
-        body: jsonEncode({
-          'error': 'Invalid request',
-          'message': 'Song ID is required',
-        }),
-        headers: {'Content-Type': 'application/json; charset=utf-8'},
-      );
+      return _songIdRequiredResponse();
     }
 
     // Validate stream token if auth is required
@@ -172,40 +164,18 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
     if (_authRequired && !_legacyMode) {
       final streamToken = request.url.queryParameters['streamToken'];
       if (streamToken == null || streamToken.isEmpty) {
-        return Response.forbidden(
-          jsonEncode({
-            'error': {
-              'code': AuthErrorCodes.streamTokenExpired,
-              'message': 'Stream token required',
-            },
-          }),
-          headers: {'Content-Type': 'application/json; charset=utf-8'},
-        );
+        return _streamTokenForbiddenResponse('Stream token required');
       }
 
       final ticket = _streamTracker.validateToken(streamToken);
       if (ticket == null) {
-        return Response.forbidden(
-          jsonEncode({
-            'error': {
-              'code': AuthErrorCodes.streamTokenExpired,
-              'message': 'Stream token expired or invalid',
-            },
-          }),
-          headers: {'Content-Type': 'application/json; charset=utf-8'},
-        );
+        return _streamTokenForbiddenResponse('Stream token expired or invalid');
       }
 
       // Verify the token is for the requested song
       if (ticket.songId != path) {
-        return Response.forbidden(
-          jsonEncode({
-            'error': {
-              'code': AuthErrorCodes.streamTokenExpired,
-              'message': 'Stream token does not match requested song',
-            },
-          }),
-          headers: {'Content-Type': 'application/json; charset=utf-8'},
+        return _streamTokenForbiddenResponse(
+          'Stream token does not match requested song',
         );
       }
 
@@ -219,39 +189,21 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
     // Look up file path from library by song ID
     final filePath = _libraryManager.getSongFilePath(path);
     if (filePath == null) {
-      return Response.notFound(
-        jsonEncode({
-          'error': 'Song not found',
-          'message': 'Song ID not found in library: $path',
-        }),
-        headers: {'Content-Type': 'application/json; charset=utf-8'},
-      );
+      return _songNotFoundResponse(path);
     }
 
     final File originalFile = File(filePath);
 
     // Check if file exists
     if (!await originalFile.exists()) {
-      return Response.notFound(
-        jsonEncode({
-          'error': 'File not found',
-          'message': 'Audio file does not exist: $path',
-        }),
-        headers: {'Content-Type': 'application/json; charset=utf-8'},
-      );
+      return _audioFileNotFoundResponse(path);
     }
 
     // Check if file is in allowed music folder (security check)
     if (_musicFolderPath != null) {
       final canonicalPath = originalFile.absolute.path;
       if (!canonicalPath.startsWith(_musicFolderPath!)) {
-        return Response.forbidden(
-          jsonEncode({
-            'error': 'Forbidden',
-            'message': 'File is outside music library',
-          }),
-          headers: {'Content-Type': 'application/json; charset=utf-8'},
-        );
+        return _fileOutsideLibraryResponse();
       }
     }
 
@@ -382,13 +334,7 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
           message: 'File system error during download, try again',
         );
       }
-      return Response.internalServerError(
-        body: jsonEncode({
-          'error': 'Download failed',
-          'message': 'Unexpected server error during download',
-        }),
-        headers: {'Content-Type': 'application/json; charset=utf-8'},
-      );
+      return _downloadFailedResponse();
     }
   }
 

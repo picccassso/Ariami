@@ -483,6 +483,7 @@ class ConnectionService {
       sessionId: response.sessionId,
       serverInfo: hydratedServerInfo,
     );
+    _applyDownloadLimits(hydratedServerInfo);
     await _persistenceManager.saveConnectionInfo(
       hydratedServerInfo,
       response.sessionId,

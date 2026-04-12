@@ -151,6 +151,7 @@ class ConnectionLifecycleManager {
       _sessionId = response.sessionId;
       _stateManager.setServerInfo(hydratedServerInfo);
       _serverInfoManager.setServerInfo(hydratedServerInfo);
+      _onDownloadLimitsChanged?.call(hydratedServerInfo);
       _stateManager.setConnected(true);
       _stateManager.setManuallyDisconnected(false);
       _stateManager.clearRestoreFailure();
@@ -254,6 +255,7 @@ class ConnectionLifecycleManager {
       _sessionId = response.sessionId;
       _stateManager.setServerInfo(hydratedServerInfo);
       _serverInfoManager.setServerInfo(hydratedServerInfo);
+      _onDownloadLimitsChanged?.call(hydratedServerInfo);
       _stateManager.setConnected(true);
       _stateManager.setManuallyDisconnected(false);
       _stateManager.clearRestoreFailure();

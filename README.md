@@ -3,6 +3,10 @@
   <h1>Ariami</h1>
 </div>
 
+> **Sonic Branch Notice (`sonic`)**  
+> This branch focuses on integrating and tuning **Sonic**, Ariami's in-process audio transcoder.  
+> Sonic is a high-throughput, music-focused transcoder used by Ariami for quality conversions (for example MP3 -> AAC for medium/low presets) without relying on HTTP-side transcoding services.
+
 Ariami is a self-hosted music library server with native desktop and mobile players.
 
 ---
@@ -65,7 +69,7 @@ It is cross-platform so you can run this on your Mac/Windows/Linux machine, and 
 
 **Streaming and audio**
 - Stream from the server to any supported client.
-- Server-side transcoding (using FFmpeg when it is installed on the server) so clients can use formats and quality levels that suit the device.
+- Server-side transcoding powered by Sonic (MP3 -> AAC) so clients can use formats and quality levels that suit the device.
 - Quality presets that follow the connection type (for example Wi‑Fi vs mobile data).
 
 **Apps and platforms**

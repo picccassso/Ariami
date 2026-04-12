@@ -103,12 +103,14 @@ class IdentifyMessage extends WsMessage {
     required String deviceId,
     String? deviceName,
     String? sessionToken,
+    String? clientType,
   }) : super(
           type: WsMessageType.identify,
           data: {
             'deviceId': deviceId,
             if (deviceName != null) 'deviceName': deviceName,
             if (sessionToken != null) 'sessionToken': sessionToken,
+            if (clientType != null) 'clientType': clientType,
           },
         );
 
@@ -117,12 +119,14 @@ class IdentifyMessage extends WsMessage {
       deviceId: message.data?['deviceId'] as String? ?? '',
       deviceName: message.data?['deviceName'] as String?,
       sessionToken: message.data?['sessionToken'] as String?,
+      clientType: message.data?['clientType'] as String?,
     );
   }
 
   String get deviceId => data?['deviceId'] as String? ?? '';
   String? get deviceName => data?['deviceName'] as String?;
   String? get sessionToken => data?['sessionToken'] as String?;
+  String? get clientType => data?['clientType'] as String?;
 }
 
 /// Song added notification

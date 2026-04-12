@@ -185,13 +185,22 @@ class ServerRunner {
       _httpServer.setArtworkService(artworkService);
       print('Artwork cache: $artworkCachePath');
 
-      // Check FFmpeg availability (used by both transcoding and artwork services)
-      final ffmpegAvailable = await transcodingService.isFFmpegAvailable();
-      if (ffmpegAvailable) {
-        print('✓ FFmpeg available - transcoding and thumbnails enabled');
+      // Check Sonic availability for audio transcoding.
+      final sonicAvailable = await transcodingService.isSonicAvailable();
+      if (sonicAvailable) {
+        print('✓ Sonic available - audio transcoding enabled');
       } else {
         print(
-            '⚠ FFmpeg not found - transcoding and thumbnails disabled (will serve original files)');
+            '⚠ Sonic not available - audio transcoding disabled (will serve original files)');
+      }
+
+      // Artwork thumbnails still rely on FFmpeg.
+      final artworkFfmpegAvailable = await artworkService.isFFmpegAvailable();
+      if (artworkFfmpegAvailable) {
+        print('✓ FFmpeg available - artwork thumbnails enabled');
+      } else {
+        print(
+            '⚠ FFmpeg not found - artwork thumbnails disabled (original artwork only)');
       }
 
       // If not in setup mode, initialize library
