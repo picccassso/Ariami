@@ -56,7 +56,8 @@ extension _TranscodingServiceCache on TranscodingService {
 
     try {
       await for (final entity in cacheDir.list(recursive: true)) {
-        if (entity is File && entity.path.endsWith('.m4a')) {
+        if (entity is File &&
+            (entity.path.endsWith('.aac') || entity.path.endsWith('.m4a'))) {
           final stat = await entity.stat();
           final relPath = entity.path.substring(cacheDirectory.length + 1);
           final key = _pathToKey(relPath);
@@ -81,12 +82,12 @@ extension _TranscodingServiceCache on TranscodingService {
 
   /// Convert relative path to cache key.
   String _pathToKey(String relPath) {
-    // "medium/songId.m4a" -> "songId_medium"
+    // "medium/songId.aac" -> "songId_medium"
     final parts = relPath.split('/');
     if (parts.length >= 2) {
       final quality = parts[0];
       final filename = parts[1];
-      final songId = filename.replaceAll('.m4a', '');
+      final songId = filename.replaceFirst(RegExp(r'\.(aac|m4a)$'), '');
       return '${songId}_$quality';
     }
     return relPath;
