@@ -21,11 +21,17 @@ class ConnectionManager {
   }
 
   /// Register a new client connection
-  void registerClient(String deviceId, String deviceName, {String? userId}) {
+  void registerClient(
+    String deviceId,
+    String deviceName, {
+    String? userId,
+    String? clientType,
+  }) {
     _clients[deviceId] = ConnectedClient(
       deviceId: deviceId,
       deviceName: deviceName,
       userId: userId,
+      clientType: clientType,
       connectedAt: DateTime.now(),
       lastHeartbeat: DateTime.now(),
     );
@@ -61,6 +67,7 @@ class ConnectionManager {
     String deviceId,
     String deviceName, {
     String? userId,
+    String? clientType,
   }) {
     final didRefresh = refreshHeartbeatIfRegistered(
       deviceId,
@@ -68,7 +75,7 @@ class ConnectionManager {
       deviceName: deviceName,
     );
     if (!didRefresh) {
-      registerClient(deviceId, deviceName, userId: userId);
+      registerClient(deviceId, deviceName, userId: userId, clientType: clientType);
     }
   }
 
@@ -114,6 +121,13 @@ class ConnectionManager {
   /// Get count of connected clients
   int get clientCount => _clients.length;
 
+  /// Get count of mobile clients (excludes dashboard clients)
+  int get mobileClientCount {
+    return _clients.values
+        .where((client) => client.clientType != 'dashboard')
+        .length;
+  }
+
   /// Get count of unique connected users (by userId)
   int get uniqueUserCount {
     final uniqueUserIds = _clients.values
@@ -156,6 +170,7 @@ class ConnectedClient {
   final String deviceId;
   final String deviceName;
   final String? userId;
+  final String? clientType;
   final DateTime connectedAt;
   final DateTime lastHeartbeat;
 
@@ -163,6 +178,7 @@ class ConnectedClient {
     required this.deviceId,
     required this.deviceName,
     required this.userId,
+    this.clientType,
     required this.connectedAt,
     required this.lastHeartbeat,
   });
@@ -171,6 +187,7 @@ class ConnectedClient {
     String? deviceId,
     String? deviceName,
     String? userId,
+    String? clientType,
     DateTime? connectedAt,
     DateTime? lastHeartbeat,
   }) {
@@ -178,6 +195,7 @@ class ConnectedClient {
       deviceId: deviceId ?? this.deviceId,
       deviceName: deviceName ?? this.deviceName,
       userId: userId ?? this.userId,
+      clientType: clientType ?? this.clientType,
       connectedAt: connectedAt ?? this.connectedAt,
       lastHeartbeat: lastHeartbeat ?? this.lastHeartbeat,
     );
@@ -188,6 +206,7 @@ class ConnectedClient {
       'deviceId': deviceId,
       'deviceName': deviceName,
       if (userId != null) 'userId': userId,
+      if (clientType != null) 'clientType': clientType,
       'connectedAt': connectedAt.toIso8601String(),
       'lastHeartbeat': lastHeartbeat.toIso8601String(),
     };

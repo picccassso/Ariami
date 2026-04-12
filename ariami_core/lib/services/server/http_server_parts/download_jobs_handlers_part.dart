@@ -15,10 +15,7 @@ extension AriamiHttpServerDownloadJobsHandlersMethods on AriamiHttpServer {
         userScopeId: _resolveDownloadJobScopeUserId(request),
         request: createRequest,
       );
-      return Response.ok(
-        jsonEncode(response.toJson()),
-        headers: {'Content-Type': 'application/json; charset=utf-8'},
-      );
+      return _jsonOk(response.toJson());
     } on DownloadJobServiceException catch (e) {
       return _downloadJobErrorResponse(e);
     } on FormatException {
@@ -50,10 +47,7 @@ extension AriamiHttpServerDownloadJobsHandlersMethods on AriamiHttpServer {
         userScopeId: _resolveDownloadJobScopeUserId(request),
         jobId: jobId,
       );
-      return Response.ok(
-        jsonEncode(response.toJson()),
-        headers: {'Content-Type': 'application/json; charset=utf-8'},
-      );
+      return _jsonOk(response.toJson());
     } on DownloadJobServiceException catch (e) {
       return _downloadJobErrorResponse(e);
     }
@@ -99,10 +93,7 @@ extension AriamiHttpServerDownloadJobsHandlersMethods on AriamiHttpServer {
         cursor: cursor,
         limit: limit ?? DownloadJobService.defaultPageLimit,
       );
-      return Response.ok(
-        jsonEncode(response.toJson()),
-        headers: {'Content-Type': 'application/json; charset=utf-8'},
-      );
+      return _jsonOk(response.toJson());
     } on DownloadJobServiceException catch (e) {
       return _downloadJobErrorResponse(e);
     }
@@ -118,10 +109,7 @@ extension AriamiHttpServerDownloadJobsHandlersMethods on AriamiHttpServer {
         userScopeId: _resolveDownloadJobScopeUserId(request),
         jobId: jobId,
       );
-      return Response.ok(
-        jsonEncode(response.toJson()),
-        headers: {'Content-Type': 'application/json; charset=utf-8'},
-      );
+      return _jsonOk(response.toJson());
     } on DownloadJobServiceException catch (e) {
       return _downloadJobErrorResponse(e);
     }
@@ -133,24 +121,22 @@ extension AriamiHttpServerDownloadJobsHandlersMethods on AriamiHttpServer {
   }
 
   Response _downloadJobErrorResponse(DownloadJobServiceException error) {
-    final headers = <String, String>{
-      'Content-Type': 'application/json; charset=utf-8',
-    };
+    final headers = <String, String>{};
     if (error.statusCode == 429 || error.statusCode == 503) {
       headers['Retry-After'] =
           '${error.retryAfterSeconds ?? AriamiHttpServer._defaultRetryAfterSeconds}';
     }
 
-    return Response(
+    return _jsonResponse(
       error.statusCode,
-      body: jsonEncode({
+      {
         'error': {
           'code': error.code,
           'message': error.message,
           if (error.details != null) 'details': error.details,
         },
-      }),
-      headers: headers,
+      },
+      headers: headers.isEmpty ? null : headers,
     );
   }
 
@@ -160,16 +146,13 @@ extension AriamiHttpServerDownloadJobsHandlersMethods on AriamiHttpServer {
     required String message,
     int retryAfterSeconds = AriamiHttpServer._defaultRetryAfterSeconds,
   }) {
-    return Response(
+    return _jsonResponse(
       statusCode,
-      body: jsonEncode({
+      {
         'error': error,
         'message': message,
-      }),
-      headers: {
-        'Content-Type': 'application/json; charset=utf-8',
-        'Retry-After': '$retryAfterSeconds',
       },
+      headers: {'Retry-After': '$retryAfterSeconds'},
     );
   }
 

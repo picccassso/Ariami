@@ -1,6 +1,76 @@
 part of '../http_server.dart';
 
 extension AriamiHttpServerMiddlewareAndMetricsMethods on AriamiHttpServer {
+  static const String _jsonContentType = 'application/json; charset=utf-8';
+
+  Map<String, String> _jsonHeaders([Map<String, String>? extraHeaders]) {
+    if (extraHeaders == null || extraHeaders.isEmpty) {
+      return const {'Content-Type': _jsonContentType};
+    }
+    return {
+      'Content-Type': _jsonContentType,
+      ...extraHeaders,
+    };
+  }
+
+  Response _jsonResponse(
+    int statusCode,
+    Object body, {
+    Map<String, String>? headers,
+  }) {
+    return Response(
+      statusCode,
+      body: body is String ? body : jsonEncode(body),
+      headers: _jsonHeaders(headers),
+    );
+  }
+
+  Response _jsonOk(
+    Object body, {
+    Map<String, String>? headers,
+  }) {
+    return _jsonResponse(HttpStatus.ok, body, headers: headers);
+  }
+
+  Response _jsonBadRequest(
+    Object body, {
+    Map<String, String>? headers,
+  }) {
+    return _jsonResponse(HttpStatus.badRequest, body, headers: headers);
+  }
+
+  Response _jsonUnauthorized(
+    Object body, {
+    Map<String, String>? headers,
+  }) {
+    return _jsonResponse(HttpStatus.unauthorized, body, headers: headers);
+  }
+
+  Response _jsonForbidden(
+    Object body, {
+    Map<String, String>? headers,
+  }) {
+    return _jsonResponse(HttpStatus.forbidden, body, headers: headers);
+  }
+
+  Response _jsonNotFound(
+    Object body, {
+    Map<String, String>? headers,
+  }) {
+    return _jsonResponse(HttpStatus.notFound, body, headers: headers);
+  }
+
+  Response _jsonInternalServerError(
+    Object body, {
+    Map<String, String>? headers,
+  }) {
+    return _jsonResponse(
+      HttpStatus.internalServerError,
+      body,
+      headers: headers,
+    );
+  }
+
   /// CORS middleware
   Middleware _corsMiddleware() {
     return (Handler handler) {
@@ -101,39 +171,30 @@ extension AriamiHttpServerMiddlewareAndMetricsMethods on AriamiHttpServer {
   }
 
   Response _authRequiredResponse() {
-    return Response.unauthorized(
-      jsonEncode({
-        'error': {
-          'code': AuthErrorCodes.authRequired,
-          'message': 'Authentication required',
-        },
-      }),
-      headers: {'Content-Type': 'application/json; charset=utf-8'},
-    );
+    return _jsonUnauthorized({
+      'error': {
+        'code': AuthErrorCodes.authRequired,
+        'message': 'Authentication required',
+      },
+    });
   }
 
   Response _forbiddenAdminResponse() {
-    return Response.forbidden(
-      jsonEncode({
-        'error': {
-          'code': AuthErrorCodes.forbiddenAdmin,
-          'message': 'Admin privileges required',
-        },
-      }),
-      headers: {'Content-Type': 'application/json; charset=utf-8'},
-    );
+    return _jsonForbidden({
+      'error': {
+        'code': AuthErrorCodes.forbiddenAdmin,
+        'message': 'Admin privileges required',
+      },
+    });
   }
 
   Response _sessionExpiredResponse() {
-    return Response.unauthorized(
-      jsonEncode({
-        'error': {
-          'code': AuthErrorCodes.sessionExpired,
-          'message': 'Session expired or invalid',
-        },
-      }),
-      headers: {'Content-Type': 'application/json; charset=utf-8'},
-    );
+    return _jsonUnauthorized({
+      'error': {
+        'code': AuthErrorCodes.sessionExpired,
+        'message': 'Session expired or invalid',
+      },
+    });
   }
 
   Future<Response> _handleProtectedV2Request(
@@ -165,15 +226,12 @@ extension AriamiHttpServerMiddlewareAndMetricsMethods on AriamiHttpServer {
   }
 
   Response _forbiddenStreamTokenResponse(String message) {
-    return Response.forbidden(
-      jsonEncode({
-        'error': {
-          'code': AuthErrorCodes.streamTokenExpired,
-          'message': message,
-        },
-      }),
-      headers: {'Content-Type': 'application/json; charset=utf-8'},
-    );
+    return _jsonForbidden({
+      'error': {
+        'code': AuthErrorCodes.streamTokenExpired,
+        'message': message,
+      },
+    });
   }
 
   Response? _authorizeArtworkRequest(
@@ -254,13 +312,10 @@ extension AriamiHttpServerMiddlewareAndMetricsMethods on AriamiHttpServer {
         } catch (e, stackTrace) {
           print('Error handling request: $e');
           print('Stack trace: $stackTrace');
-          return Response.internalServerError(
-            body: jsonEncode({
-              'error': 'Internal server error',
-              'message': e.toString(),
-            }),
-            headers: {'Content-Type': 'application/json; charset=utf-8'},
-          );
+          return _jsonInternalServerError({
+            'error': 'Internal server error',
+            'message': e.toString(),
+          });
         }
       };
     };
