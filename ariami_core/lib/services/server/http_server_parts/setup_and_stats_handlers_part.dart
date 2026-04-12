@@ -1,6 +1,19 @@
 part of '../http_server.dart';
 
 extension AriamiHttpServerSetupAndStatsHandlersMethods on AriamiHttpServer {
+  Response _setupNotConfiguredResponse({
+    String message = 'Setup not configured',
+  }) {
+    return _jsonOk({'success': false, 'message': message});
+  }
+
+  Response _setupCallbackErrorResponse(String action, Object error) {
+    return _jsonInternalServerError({
+      'error': 'Failed to $action',
+      'message': error.toString(),
+    });
+  }
+
   /// Handle ping request
   /// Optionally accepts deviceId query parameter to update heartbeat
   Response _handlePing(Request request) {
@@ -10,15 +23,12 @@ extension AriamiHttpServerSetupAndStatsHandlersMethods on AriamiHttpServer {
       _connectionManager.refreshHeartbeatIfRegistered(deviceId);
     }
 
-    return Response.ok(
-      jsonEncode({
-        'status': 'ok',
-        'timestamp': DateTime.now().toIso8601String(),
-        'server': Platform.localHostname,
-        'version': '4.0.0',
-      }),
-      headers: {'Content-Type': 'application/json; charset=utf-8'},
-    );
+    return _jsonOk({
+      'status': 'ok',
+      'timestamp': DateTime.now().toIso8601String(),
+      'server': Platform.localHostname,
+      'version': '4.0.0',
+    });
   }
 
   /// Handle Tailscale status request
@@ -26,98 +36,59 @@ extension AriamiHttpServerSetupAndStatsHandlersMethods on AriamiHttpServer {
     if (_tailscaleStatusCallback != null) {
       try {
         final status = await _tailscaleStatusCallback!();
-        return Response.ok(
-          jsonEncode(status),
-          headers: {'Content-Type': 'application/json; charset=utf-8'},
-        );
+        return _jsonOk(status);
       } catch (e) {
-        return Response.internalServerError(
-          body: jsonEncode({
-            'error': 'Failed to get Tailscale status',
-            'message': e.toString(),
-          }),
-          headers: {'Content-Type': 'application/json; charset=utf-8'},
-        );
+        return _setupCallbackErrorResponse('get Tailscale status', e);
       }
-    } else {
-      // Tailscale not configured (e.g., desktop app)
-      return Response.ok(
-        jsonEncode({
-          'isInstalled': false,
-          'isRunning': false,
-          'ip': null,
-        }),
-        headers: {'Content-Type': 'application/json; charset=utf-8'},
-      );
     }
+
+    // Tailscale not configured (e.g., desktop app)
+    return _jsonOk({
+      'isInstalled': false,
+      'isRunning': false,
+      'ip': null,
+    });
   }
 
   /// Handle set music folder request
   Future<Response> _handleSetMusicFolder(Request request) async {
-    if (_setMusicFolderCallback != null) {
-      try {
-        final body = await request.readAsString();
-        final data = jsonDecode(body) as Map<String, dynamic>;
-        final path = data['path'] as String?;
+    if (_setMusicFolderCallback == null) {
+      return _setupNotConfiguredResponse();
+    }
 
-        if (path == null || path.isEmpty) {
-          return Response.badRequest(
-            body: jsonEncode({
-              'error': 'Missing required field',
-              'message': 'path is required',
-            }),
-            headers: {'Content-Type': 'application/json; charset=utf-8'},
-          );
-        }
+    try {
+      final body = await request.readAsString();
+      final data = jsonDecode(body) as Map<String, dynamic>;
+      final path = data['path'] as String?;
 
-        final success = await _setMusicFolderCallback!(path);
-        return Response.ok(
-          jsonEncode({'success': success}),
-          headers: {'Content-Type': 'application/json; charset=utf-8'},
-        );
-      } catch (e) {
-        return Response.internalServerError(
-          body: jsonEncode({
-            'error': 'Failed to set music folder',
-            'message': e.toString(),
-          }),
-          headers: {'Content-Type': 'application/json; charset=utf-8'},
-        );
+      if (path == null || path.isEmpty) {
+        return _jsonBadRequest({
+          'error': 'Missing required field',
+          'message': 'path is required',
+        });
       }
-    } else {
-      return Response.ok(
-        jsonEncode({'success': false, 'message': 'Setup not configured'}),
-        headers: {'Content-Type': 'application/json; charset=utf-8'},
-      );
+
+      final success = await _setMusicFolderCallback!(path);
+      return _jsonOk({'success': success});
+    } catch (e) {
+      return _setupCallbackErrorResponse('set music folder', e);
     }
   }
 
   /// Handle start scan request
   Future<Response> _handleStartScan(Request request) async {
-    if (_startScanCallback != null) {
-      try {
-        final success = await _startScanCallback!();
-        return Response.ok(
-          jsonEncode({
-            'success': success,
-            'message': success ? 'Scan started' : 'Failed to start scan',
-          }),
-          headers: {'Content-Type': 'application/json; charset=utf-8'},
-        );
-      } catch (e) {
-        return Response.internalServerError(
-          body: jsonEncode({
-            'error': 'Failed to start scan',
-            'message': e.toString(),
-          }),
-          headers: {'Content-Type': 'application/json; charset=utf-8'},
-        );
-      }
-    } else {
-      return Response.ok(
-        jsonEncode({'success': false, 'message': 'Setup not configured'}),
-        headers: {'Content-Type': 'application/json; charset=utf-8'},
-      );
+    if (_startScanCallback == null) {
+      return _setupNotConfiguredResponse();
+    }
+
+    try {
+      final success = await _startScanCallback!();
+      return _jsonOk({
+        'success': success,
+        'message': success ? 'Scan started' : 'Failed to start scan',
+      });
+    } catch (e) {
+      return _setupCallbackErrorResponse('start scan', e);
     }
   }
 
@@ -126,57 +97,33 @@ extension AriamiHttpServerSetupAndStatsHandlersMethods on AriamiHttpServer {
     if (_getScanStatusCallback != null) {
       try {
         final status = await _getScanStatusCallback!();
-        return Response.ok(
-          jsonEncode(status),
-          headers: {'Content-Type': 'application/json; charset=utf-8'},
-        );
+        return _jsonOk(status);
       } catch (e) {
-        return Response.internalServerError(
-          body: jsonEncode({
-            'error': 'Failed to get scan status',
-            'message': e.toString(),
-          }),
-          headers: {'Content-Type': 'application/json; charset=utf-8'},
-        );
+        return _setupCallbackErrorResponse('get scan status', e);
       }
-    } else {
-      // Return default status if not configured
-      return Response.ok(
-        jsonEncode({
-          'isScanning': false,
-          'progress': 0.0,
-          'songsFound': 0,
-          'albumsFound': 0,
-          'currentStatus': 'Not configured',
-        }),
-        headers: {'Content-Type': 'application/json; charset=utf-8'},
-      );
     }
+
+    // Return default status if not configured
+    return _jsonOk({
+      'isScanning': false,
+      'progress': 0.0,
+      'songsFound': 0,
+      'albumsFound': 0,
+      'currentStatus': 'Not configured',
+    });
   }
 
   /// Handle mark setup complete request
   Future<Response> _handleMarkSetupComplete(Request request) async {
-    if (_markSetupCompleteCallback != null) {
-      try {
-        final success = await _markSetupCompleteCallback!();
-        return Response.ok(
-          jsonEncode({'success': success}),
-          headers: {'Content-Type': 'application/json; charset=utf-8'},
-        );
-      } catch (e) {
-        return Response.internalServerError(
-          body: jsonEncode({
-            'error': 'Failed to mark setup complete',
-            'message': e.toString(),
-          }),
-          headers: {'Content-Type': 'application/json; charset=utf-8'},
-        );
-      }
-    } else {
-      return Response.ok(
-        jsonEncode({'success': false, 'message': 'Setup not configured'}),
-        headers: {'Content-Type': 'application/json; charset=utf-8'},
-      );
+    if (_markSetupCompleteCallback == null) {
+      return _setupNotConfiguredResponse();
+    }
+
+    try {
+      final success = await _markSetupCompleteCallback!();
+      return _jsonOk({'success': success});
+    } catch (e) {
+      return _setupCallbackErrorResponse('mark setup complete', e);
     }
   }
 
@@ -185,51 +132,27 @@ extension AriamiHttpServerSetupAndStatsHandlersMethods on AriamiHttpServer {
     if (_getSetupStatusCallback != null) {
       try {
         final isComplete = await _getSetupStatusCallback!();
-        return Response.ok(
-          jsonEncode({'isComplete': isComplete}),
-          headers: {'Content-Type': 'application/json; charset=utf-8'},
-        );
+        return _jsonOk({'isComplete': isComplete});
       } catch (e) {
-        return Response.internalServerError(
-          body: jsonEncode({
-            'error': 'Failed to get setup status',
-            'message': e.toString(),
-          }),
-          headers: {'Content-Type': 'application/json; charset=utf-8'},
-        );
+        return _setupCallbackErrorResponse('get setup status', e);
       }
-    } else {
-      // If no callback configured, assume setup is not complete
-      return Response.ok(
-        jsonEncode({'isComplete': false}),
-        headers: {'Content-Type': 'application/json; charset=utf-8'},
-      );
     }
+
+    // If no callback configured, assume setup is not complete
+    return _jsonOk({'isComplete': false});
   }
 
   /// Handle transition to background mode request (CLI use)
   Future<Response> _handleTransitionToBackground(Request request) async {
-    if (_transitionToBackgroundCallback != null) {
-      try {
-        final result = await _transitionToBackgroundCallback!();
-        return Response.ok(
-          jsonEncode(result),
-          headers: {'Content-Type': 'application/json; charset=utf-8'},
-        );
-      } catch (e) {
-        return Response.internalServerError(
-          body: jsonEncode({
-            'error': 'Failed to transition to background',
-            'message': e.toString(),
-          }),
-          headers: {'Content-Type': 'application/json; charset=utf-8'},
-        );
-      }
-    } else {
-      return Response.ok(
-        jsonEncode({'success': false, 'message': 'Transition not configured'}),
-        headers: {'Content-Type': 'application/json; charset=utf-8'},
-      );
+    if (_transitionToBackgroundCallback == null) {
+      return _setupNotConfiguredResponse(message: 'Transition not configured');
+    }
+
+    try {
+      final result = await _transitionToBackgroundCallback!();
+      return _jsonOk(result);
+    } catch (e) {
+      return _setupCallbackErrorResponse('transition to background', e);
     }
   }
 
@@ -239,12 +162,14 @@ extension AriamiHttpServerSetupAndStatsHandlersMethods on AriamiHttpServer {
     final isScanning = _libraryManager.isScanning;
     final lastScanTime = _libraryManager.lastScanTime;
     final connectedClients = _connectionManager.clientCount;
+    final mobileClients = _connectionManager.mobileClientCount;
 
-    return Response.ok(
-      jsonEncode({
+    return _jsonOk(
+      {
         'songCount': library?.totalSongs ?? 0,
         'albumCount': library?.totalAlbums ?? 0,
         'connectedClients': connectedClients,
+        'mobileClients': mobileClients,
         'isScanning': isScanning,
         'lastScanTime': lastScanTime?.toIso8601String(),
         'serverRunning': true,
@@ -255,9 +180,8 @@ extension AriamiHttpServerSetupAndStatsHandlersMethods on AriamiHttpServer {
         'registeredUsers': _authService.userCount,
         'authRequired': _authRequired,
         'legacyMode': _legacyMode,
-      }),
+      },
       headers: {
-        'Content-Type': 'application/json; charset=utf-8',
         'Cache-Control': 'no-cache, no-store, must-revalidate',
       },
     );
@@ -266,9 +190,6 @@ extension AriamiHttpServerSetupAndStatsHandlersMethods on AriamiHttpServer {
   /// Handle get server info request (for QR code generation)
   Response _handleGetServerInfo(Request request) {
     final serverInfo = getServerInfo();
-    return Response.ok(
-      jsonEncode(serverInfo),
-      headers: {'Content-Type': 'application/json; charset=utf-8'},
-    );
+    return _jsonOk(serverInfo);
   }
 }

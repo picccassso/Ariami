@@ -28,6 +28,10 @@ class SessionStore {
   /// Serialize persist operations to avoid temp-file rename collisions
   Future<void> _persistQueue = Future.value();
 
+  /// Throttle how often session expiry is persisted for hot session tokens.
+  static const Duration refreshPersistInterval = Duration(minutes: 10);
+  final Map<String, DateTime> _lastRefreshPersistAt = {};
+
   /// Random number generator for token generation
   final Random _random = Random.secure();
 
@@ -131,15 +135,23 @@ class SessionStore {
     final session = _sessions[sessionToken];
     if (session == null) return;
 
+    final now = DateTime.now().toUtc();
+    final lastPersistAt = _lastRefreshPersistAt[sessionToken];
+    if (lastPersistAt != null &&
+        now.difference(lastPersistAt) < refreshPersistInterval) {
+      return;
+    }
+
     // Check if expired first
     final expiresAt = DateTime.parse(session.expiresAt);
-    if (expiresAt.isBefore(DateTime.now().toUtc())) {
+    if (expiresAt.isBefore(now)) {
       _sessions.remove(sessionToken);
+      _lastRefreshPersistAt.remove(sessionToken);
       return;
     }
 
     // Create new session with extended expiry
-    final newExpiresAt = DateTime.now().toUtc().add(defaultTtl);
+    final newExpiresAt = now.add(defaultTtl);
     final refreshedSession = Session(
       sessionToken: session.sessionToken,
       userId: session.userId,
@@ -150,6 +162,7 @@ class SessionStore {
     );
 
     _sessions[sessionToken] = refreshedSession;
+    _lastRefreshPersistAt[sessionToken] = now;
     await _persist();
   }
 
@@ -158,6 +171,7 @@ class SessionStore {
     _ensureInitialized();
 
     if (_sessions.remove(sessionToken) != null) {
+      _lastRefreshPersistAt.remove(sessionToken);
       await _persist();
     }
   }
@@ -177,6 +191,7 @@ class SessionStore {
 
     for (final session in sessionsToRemove) {
       _sessions.remove(session.sessionToken);
+      _lastRefreshPersistAt.remove(session.sessionToken);
     }
 
     await _persist();
@@ -219,6 +234,7 @@ class SessionStore {
 
     for (final token in tokensToRemove) {
       _sessions.remove(token);
+      _lastRefreshPersistAt.remove(token);
     }
 
     await _persist();
@@ -244,6 +260,7 @@ class SessionStore {
 
     for (final session in sessionsToRemove) {
       _sessions.remove(session.sessionToken);
+      _lastRefreshPersistAt.remove(session.sessionToken);
     }
 
     await _persist();
@@ -282,7 +299,7 @@ class SessionStore {
         'lastModified': DateTime.now().toUtc().toIso8601String(),
       };
 
-      final jsonString = const JsonEncoder.withIndent('  ').convert(data);
+      final jsonString = jsonEncode(data);
 
       // Atomic write: write to temp file, then rename
       await tempFile.writeAsString(jsonString);
@@ -316,6 +333,7 @@ class SessionStore {
 
     for (final token in expiredTokens) {
       _sessions.remove(token);
+      _lastRefreshPersistAt.remove(token);
     }
 
     await _persist();
@@ -343,6 +361,7 @@ class SessionStore {
     _cleanupTimer?.cancel();
     _cleanupTimer = null;
     _sessions.clear();
+    _lastRefreshPersistAt.clear();
     _filePath = null;
     _initialized = false;
     _persistQueue = Future.value();

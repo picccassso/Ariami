@@ -57,7 +57,7 @@ Located in `services/artwork/`:
 
 Located in `services/transcoding/`:
 
-- **transcoding_service.dart** - Server-side audio transcoding with quality presets and caching (requires FFmpeg on the host)
+- **transcoding_service.dart** - Server-side audio transcoding with quality presets and caching (uses Sonic for MP3 -> AAC)
 
 ## Data Models
 

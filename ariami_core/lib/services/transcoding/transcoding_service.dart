@@ -1,15 +1,21 @@
 import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
+import 'dart:ffi' as ffi;
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:math';
+import 'dart:typed_data';
 
+import 'package:ffi/ffi.dart' as pkg_ffi;
+import 'package:path/path.dart' as p;
 import '../../models/quality_preset.dart';
 
 part 'src/transcoding_service_environment.dart';
 part 'src/transcoding_service_process.dart';
 part 'src/transcoding_service_cache.dart';
 part 'src/transcoding_service_models.dart';
+part 'src/transcoding_service_ffi.dart';
 
 /// Identifies whether a transcode was requested for streaming or download.
 enum TranscodeRequestType {
@@ -19,7 +25,7 @@ enum TranscodeRequestType {
 
 /// Service for transcoding audio files to different quality levels.
 ///
-/// Uses FFmpeg for transcoding and maintains a cache of transcoded files
+/// Uses Sonic for MP3 -> AAC transcoding and maintains a cache of transcoded files
 /// to avoid re-transcoding on subsequent requests.
 ///
 /// Features:
@@ -50,8 +56,11 @@ class TranscodingService {
   /// Interval between cache index persist operations
   final Duration indexPersistInterval;
 
-  /// Whether FFmpeg is available on this system
-  bool? _ffmpegAvailable;
+  /// Optional explicit path to Sonic's dynamic library.
+  final String? sonicLibraryPath;
+
+  /// Loaded Sonic FFI adapter (initialized lazily).
+  _SonicFfiAdapter? _sonicFfiAdapter;
 
   /// Whether ffprobe is available on this system
   bool? _ffprobeAvailable;
@@ -92,12 +101,6 @@ class TranscodingService {
   /// In-use cache entries (prevents eviction while streaming)
   final Set<String> _inUse = {};
 
-  /// Cached audio codec selection (detected once at init)
-  String? _cachedAudioCodec;
-
-  /// Whether codec detection has been performed
-  bool _codecDetected = false;
-
   /// Creates a new TranscodingService.
   ///
   /// [cacheDirectory] - Base directory for storing transcoded files.
@@ -107,6 +110,7 @@ class TranscodingService {
   /// [transcodeTimeout] - Timeout per transcode (default 5 minutes).
   /// [failureBackoffDuration] - How long to skip after failure (default 5 minutes).
   /// [indexPersistInterval] - Interval for persisting cache index (default 30 seconds).
+  /// [sonicLibraryPath] - Optional explicit path to the Sonic dynamic library.
   TranscodingService({
     required this.cacheDirectory,
     int maxCacheSizeMB = 2048,
@@ -115,6 +119,7 @@ class TranscodingService {
     this.transcodeTimeout = const Duration(minutes: 5),
     this.failureBackoffDuration = const Duration(minutes: 5),
     this.indexPersistInterval = const Duration(seconds: 30),
+    this.sonicLibraryPath,
   })  : maxCacheSizeBytes = maxCacheSizeMB * 1024 * 1024,
         maxDownloadConcurrency = maxDownloadConcurrency ?? maxConcurrency {
     _startPersistTimer();
@@ -138,15 +143,18 @@ class TranscodingService {
     });
   }
 
-  /// Check if FFmpeg is available on the system.
-  Future<bool> isFFmpegAvailable() => _isFFmpegAvailable();
+  /// Check if Sonic is available on the system.
+  Future<bool> isSonicAvailable() => _isSonicAvailable();
+
+  /// Backward-compatible alias for older callers.
+  Future<bool> isFFmpegAvailable() => isSonicAvailable();
 
   /// Get a transcoded file for the given source and quality.
   ///
   /// Returns the transcoded file if it exists in cache or after transcoding.
   /// Returns null if:
   /// - Quality is [QualityPreset.high] (no transcoding needed)
-  /// - FFmpeg is not available
+  /// - Sonic is not available
   /// - Transcoding fails
   /// - Source bitrate is already at or below target (fast-path)
   ///
@@ -168,9 +176,9 @@ class TranscodingService {
       return null;
     }
 
-    // Check FFmpeg availability
-    if (!await isFFmpegAvailable()) {
-      print('TranscodingService: Cannot transcode - FFmpeg not available');
+    // Check Sonic availability
+    if (!await isSonicAvailable()) {
+      print('TranscodingService: Cannot transcode - Sonic not available');
       return null;
     }
 
@@ -346,10 +354,10 @@ class TranscodingService {
       return null;
     }
 
-    // Check FFmpeg availability
-    if (!await isFFmpegAvailable()) {
+    // Check Sonic availability
+    if (!await isSonicAvailable()) {
       print(
-          'TranscodingService: Cannot transcode for download - FFmpeg not available');
+          'TranscodingService: Cannot transcode for download - Sonic not available');
       return null;
     }
 
@@ -362,13 +370,8 @@ class TranscodingService {
       return null;
     }
 
-    // Fast-path: check if source bitrate is already low enough
-    final props = await _getAudioProperties(sourcePath);
-    if (props != null && props.shouldSkipTranscode(quality)) {
-      print('TranscodingService: Skipping download transcode - source bitrate '
-          '(${props.bitrate! ~/ 1000} kbps) <= target (${quality.bitrate} kbps)');
-      return null;
-    }
+    // Download requests should produce the requested quality deterministically
+    // and avoid per-file ffprobe process overhead in bulk jobs.
 
     // Check download concurrency - queue if at limit
     if (_runningDownloadCount >= maxDownloadConcurrency) {

@@ -50,6 +50,7 @@ extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
         final deviceId = identifyMsg.deviceId;
         final deviceName = identifyMsg.deviceName;
         final sessionToken = identifyMsg.sessionToken;
+        final clientType = identifyMsg.clientType;
 
         // Validate session token if auth is required
         if (_authRequired && !_legacyMode) {
@@ -75,6 +76,7 @@ extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
                   deviceId,
                   deviceName ?? 'Unknown Device',
                   userId: session.userId,
+                  clientType: clientType,
                 );
               } else {
                 _connectionManager.updateHeartbeat(
@@ -95,6 +97,7 @@ extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
             _connectionManager.registerClient(
               deviceId,
               deviceName ?? 'Unknown Device',
+              clientType: clientType,
             );
           } else {
             _connectionManager.updateHeartbeat(

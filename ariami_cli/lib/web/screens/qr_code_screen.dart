@@ -72,10 +72,10 @@ class _QRCodeScreenState extends State<QRCodeScreen>
 
       if (response.statusCode == 200) {
         final stats = response.jsonBody ?? <String, dynamic>{};
-        final clients = stats['connectedClients'] as int? ?? 0;
+        final mobileClients = stats['mobileClients'] as int? ?? 0;
 
         if (mounted) {
-          if (clients > 0) {
+          if (mobileClients > 0) {
             _connectionPollTimer?.cancel();
             Navigator.pushReplacementNamed(context, '/dashboard');
           }

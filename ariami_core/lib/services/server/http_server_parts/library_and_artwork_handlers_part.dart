@@ -3,24 +3,18 @@ part of '../http_server.dart';
 extension AriamiHttpServerLibraryAndArtworkHandlersMethods on AriamiHttpServer {
   /// Handle get albums request (placeholder for Phase 5)
   Response _handleGetAlbums(Request request) {
-    return Response.ok(
-      jsonEncode({
-        'albums': [],
-        'timestamp': DateTime.now().toIso8601String(),
-      }),
-      headers: {'Content-Type': 'application/json; charset=utf-8'},
-    );
+    return _jsonOk({
+      'albums': [],
+      'timestamp': DateTime.now().toIso8601String(),
+    });
   }
 
   /// Handle get songs request (placeholder for Phase 5)
   Response _handleGetSongs(Request request) {
-    return Response.ok(
-      jsonEncode({
-        'songs': [],
-        'timestamp': DateTime.now().toIso8601String(),
-      }),
-      headers: {'Content-Type': 'application/json; charset=utf-8'},
-    );
+    return _jsonOk({
+      'songs': [],
+      'timestamp': DateTime.now().toIso8601String(),
+    });
   }
 
   /// Handle get album detail request
@@ -30,21 +24,15 @@ extension AriamiHttpServerLibraryAndArtworkHandlersMethods on AriamiHttpServer {
     final albumDetail = await _libraryManager.getAlbumDetail(albumId, baseUrl);
 
     if (albumDetail == null) {
-      return Response.notFound(
-        jsonEncode({
-          'error': {
-            'code': 'ALBUM_NOT_FOUND',
-            'message': 'Album not found: $albumId',
-          },
-        }),
-        headers: {'Content-Type': 'application/json; charset=utf-8'},
-      );
+      return _jsonNotFound({
+        'error': {
+          'code': 'ALBUM_NOT_FOUND',
+          'message': 'Album not found: $albumId',
+        },
+      });
     }
 
-    return Response.ok(
-      jsonEncode(albumDetail),
-      headers: {'Content-Type': 'application/json; charset=utf-8'},
-    );
+    return _jsonOk(albumDetail);
   }
 
   /// Handle get album artwork request (lazy extraction with caching)
@@ -68,15 +56,12 @@ extension AriamiHttpServerLibraryAndArtworkHandlersMethods on AriamiHttpServer {
     final artworkData = await _libraryManager.getAlbumArtwork(albumId);
 
     if (artworkData == null) {
-      return Response.notFound(
-        jsonEncode({
-          'error': {
-            'code': 'ARTWORK_NOT_FOUND',
-            'message': 'Artwork not found for album: $albumId',
-          },
-        }),
-        headers: {'Content-Type': 'application/json; charset=utf-8'},
-      );
+      return _jsonNotFound({
+        'error': {
+          'code': 'ARTWORK_NOT_FOUND',
+          'message': 'Artwork not found for album: $albumId',
+        },
+      });
     }
 
     final shouldApplyArtworkQuota = size.requiresProcessing &&
@@ -174,15 +159,12 @@ extension AriamiHttpServerLibraryAndArtworkHandlersMethods on AriamiHttpServer {
     final artworkData = await _libraryManager.getSongArtwork(songId);
 
     if (artworkData == null) {
-      return Response.notFound(
-        jsonEncode({
-          'error': {
-            'code': 'ARTWORK_NOT_FOUND',
-            'message': 'Artwork not found for song: $songId',
-          },
-        }),
-        headers: {'Content-Type': 'application/json; charset=utf-8'},
-      );
+      return _jsonNotFound({
+        'error': {
+          'code': 'ARTWORK_NOT_FOUND',
+          'message': 'Artwork not found for song: $songId',
+        },
+      });
     }
 
     final shouldApplyArtworkQuota = size.requiresProcessing &&

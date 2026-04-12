@@ -51,16 +51,17 @@ class ServerInitializationService {
         cacheDirectory: transcodingCachePath,
         maxCacheSizeMB: 4096,
         maxConcurrency: 2,
-        maxDownloadConcurrency: 6,
+        maxDownloadConcurrency: Platform.isMacOS ? 10 : 6,
+        sonicLibraryPath: _resolveBundledSonicLibraryPath(),
       );
       httpServer.setTranscodingService(_transcodingService!);
       print(
           '[ServerInit] Transcoding service initialized at: $transcodingCachePath');
 
-      _transcodingService!.isFFmpegAvailable().then((available) {
+      _transcodingService!.isSonicAvailable().then((available) {
         if (!available) {
           print(
-              '[ServerInit] Warning: FFmpeg not found - transcoding will be disabled');
+              '[ServerInit] Warning: Sonic not available - transcoding will be disabled');
         }
       });
     }
@@ -97,5 +98,46 @@ class ServerInitializationService {
       maxConcurrentPerUser: Platform.isMacOS ? 10 : 3,
       maxQueuePerUser: Platform.isMacOS ? 200 : 50,
     );
+  }
+
+  String? _resolveBundledSonicLibraryPath() {
+    final exeDir = File(Platform.resolvedExecutable).parent.path;
+
+    if (Platform.isMacOS) {
+      final candidates = <String>[
+        p.join(exeDir, '..', '..', '..', 'Frameworks',
+            'libsonic_transcoder.dylib'),
+        p.join(exeDir, '..', '..', 'Frameworks', 'libsonic_transcoder.dylib'),
+      ];
+      for (final candidate in candidates) {
+        if (File(candidate).existsSync()) {
+          return candidate;
+        }
+      }
+      return null;
+    }
+
+    if (Platform.isLinux) {
+      final candidates = <String>[
+        p.join(exeDir, 'lib', 'libsonic_transcoder.so'),
+        p.join(exeDir, 'libsonic_transcoder.so'),
+      ];
+      for (final candidate in candidates) {
+        if (File(candidate).existsSync()) {
+          return candidate;
+        }
+      }
+      return null;
+    }
+
+    if (Platform.isWindows) {
+      final candidate = p.join(exeDir, 'sonic_transcoder.dll');
+      if (File(candidate).existsSync()) {
+        return candidate;
+      }
+      return null;
+    }
+
+    return null;
   }
 }
