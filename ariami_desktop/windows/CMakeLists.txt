@@ -59,11 +59,14 @@ include(flutter/generated_plugins.cmake)
 
 # Build and bundle Sonic FFI library for desktop transcoding.
 set(SONIC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../sonic")
-set(SONIC_DLL "${SONIC_DIR}/target/release/sonic_transcoder.dll")
+set(SONIC_TARGET_DIR "${CMAKE_BINARY_DIR}/sonic_target")
+set(SONIC_DLL "${SONIC_TARGET_DIR}/release/sonic_transcoder.dll")
+set(SONIC_SOURCE_AVAILABLE FALSE)
 
 if(EXISTS "${SONIC_DIR}/Cargo.toml")
+  set(SONIC_SOURCE_AVAILABLE TRUE)
   add_custom_target(build_sonic_library ALL
-    COMMAND cargo build --release --features aac-fdk --lib
+    COMMAND ${CMAKE_COMMAND} -E env CARGO_TARGET_DIR=${SONIC_TARGET_DIR} cargo build --release --features aac-fdk --lib
     WORKING_DIRECTORY "${SONIC_DIR}"
     BYPRODUCTS "${SONIC_DLL}"
     COMMENT "Building Sonic FFI library")
@@ -122,7 +125,9 @@ install(FILES "${AOT_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
   CONFIGURATIONS Profile;Release
   COMPONENT Runtime)
 
-if(EXISTS "${SONIC_DLL}")
+if(SONIC_SOURCE_AVAILABLE)
+  # Install the Sonic library produced during the build step above.
+  # Do not gate this on SONIC_DLL existence here; that path is generated later.
   install(FILES "${SONIC_DLL}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
     COMPONENT Runtime)
 endif()

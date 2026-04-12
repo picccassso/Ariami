@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
 # Ariami CLI - Raspberry Pi Release Builder for Mac
 # Builds ARM64 release using Docker (no Raspberry Pi needed)
@@ -7,6 +7,11 @@ set -e
 VERSION="4.1.0"
 RELEASE_NAME="ariami-cli-raspberry-pi-arm64-v${VERSION}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PARENT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+SONIC_DIR="${PARENT_DIR}/sonic"
+SONIC_TARGET_DIR="/workspace/ariami_cli/build/sonic_target"
+SONIC_LIB_RELATIVE_PATH="build/sonic_target/release/libsonic_transcoder.so"
+SONIC_LIB_LOCAL_PATH="${SCRIPT_DIR}/${SONIC_LIB_RELATIVE_PATH}"
 
 echo "=== Ariami CLI - Raspberry Pi Release Builder (Mac) ==="
 echo "Version: ${VERSION}"
@@ -31,6 +36,13 @@ fi
 echo "✓ Docker is ready"
 echo ""
 
+# Ensure Sonic source is present (required for low/medium quality transcoding).
+if [ ! -f "${SONIC_DIR}/Cargo.toml" ]; then
+    echo "ERROR: Sonic source not found at ${SONIC_DIR}"
+    echo "This release builder now requires the sonic/ workspace to package libsonic_transcoder.so"
+    exit 1
+fi
+
 # Step 1: Clean previous builds
 echo "[1/7] Cleaning previous builds..."
 rm -rf build/
@@ -39,18 +51,15 @@ rm -f "${RELEASE_NAME}.zip"
 rm -f ariami_cli
 
 # Step 2: Get dependencies on Mac
-echo "[2/6] Getting dependencies on Mac..."
+echo "[2/7] Getting dependencies on Mac..."
 flutter pub get
 
 # Step 3: Build web UI (natively on Mac)
-echo "[3/6] Building web UI on Mac..."
+echo "[3/7] Building web UI on Mac..."
 flutter build web -t lib/web/main.dart
 
 # Step 4: Compile ARM64 binary using Docker
-echo "[4/6] Compiling ARM64 binary in Docker (this may take a minute)..."
-
-# Get parent directory (contains both ariami_cli and ariami_core)
-PARENT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+echo "[4/7] Compiling ARM64 binary in Docker (this may take a minute)..."
 
 docker run --rm \
   -v "${PARENT_DIR}:/workspace" \
@@ -61,14 +70,31 @@ docker run --rm \
 
 echo "✓ ARM64 binary compiled successfully"
 
-# Step 5: Create release directory structure
-echo "[5/6] Creating release directory structure..."
-mkdir -p "${RELEASE_NAME}/web"
+# Step 5: Build Sonic ARM64 library in Docker
+echo "[5/7] Building Sonic ARM64 library in Docker..."
+docker run --rm \
+  -v "${PARENT_DIR}:/workspace" \
+  -w /workspace/sonic \
+  --platform linux/arm64 \
+  rust:1-bookworm \
+  sh -c "CARGO_TARGET_DIR=${SONIC_TARGET_DIR} cargo build --release --features aac-fdk --lib"
 
-# Step 6: Copy files and create zip
-echo "[6/6] Copying files and creating zip archive..."
+if [ ! -f "${SONIC_LIB_LOCAL_PATH}" ]; then
+    echo "ERROR: Sonic library was not produced at ${SONIC_LIB_LOCAL_PATH}"
+    exit 1
+fi
+echo "✓ Sonic ARM64 library built successfully"
+
+# Step 6: Create release directory structure
+echo "[6/7] Creating release directory structure..."
+mkdir -p "${RELEASE_NAME}/web"
+mkdir -p "${RELEASE_NAME}/lib"
+
+# Step 7: Copy files and create zip
+echo "[7/7] Copying files and creating zip archive..."
 cp ariami_cli "${RELEASE_NAME}/"
 cp -r build/web/* "${RELEASE_NAME}/web/"
+cp "${SONIC_LIB_RELATIVE_PATH}" "${RELEASE_NAME}/lib/libsonic_transcoder.so"
 cp SETUP.txt "${RELEASE_NAME}/"
 
 zip -r -q "${RELEASE_NAME}.zip" "${RELEASE_NAME}"
@@ -83,6 +109,8 @@ echo "=== Verifying Binary ==="
 unzip -q "${RELEASE_NAME}.zip"
 ARCH_INFO=$(file "${RELEASE_NAME}/ariami_cli" 2>/dev/null || echo "unknown")
 echo "Binary info: ${ARCH_INFO}"
+SONIC_INFO=$(file "${RELEASE_NAME}/lib/libsonic_transcoder.so" 2>/dev/null || echo "unknown")
+echo "Sonic info: ${SONIC_INFO}"
 rm -rf "${RELEASE_NAME}"
 
 # Summary

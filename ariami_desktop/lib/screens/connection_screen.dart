@@ -100,7 +100,7 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
 
       await ServerInitializationService.initializeAuth(
           _httpServer, _stateService);
-      ServerInitializationService.applyDesktopDownloadLimits(_httpServer);
+      await ServerInitializationService.applyDesktopDownloadLimits(_httpServer);
 
       // Start HTTP server (singleton will prevent double-start)
       await _httpServer.start(
