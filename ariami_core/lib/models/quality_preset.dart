@@ -33,7 +33,7 @@ enum QualityPreset {
         return null;
       case QualityPreset.medium:
       case QualityPreset.low:
-        return 'm4a';
+        return 'aac';
     }
   }
 
@@ -45,7 +45,7 @@ enum QualityPreset {
         return null;
       case QualityPreset.medium:
       case QualityPreset.low:
-        return 'audio/mp4';
+        return 'audio/aac';
     }
   }
 
