@@ -20,6 +20,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
   final ConnectionService _connectionService = ConnectionService();
   StreamSubscription<bool>? _connectionSubscription;
   bool _wasConnected = false;
+  bool _isReconnectPromptVisible = false;
 
   @override
   void initState() {
@@ -64,28 +65,44 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
           return;
         }
 
-        _showReconnectRecoverySnackBar(interruptedCount);
+        unawaited(_showReconnectRecoveryPrompt(interruptedCount));
       },
     );
   }
 
-  void _showReconnectRecoverySnackBar(int interruptedCount) {
-    if (!mounted) {
+  Future<void> _showReconnectRecoveryPrompt(int interruptedCount) async {
+    if (!mounted || _isReconnectPromptVisible) {
       return;
     }
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.hideCurrentSnackBar();
-    messenger.showSnackBar(
-      SnackBar(
-        content: Text(
-          '$interruptedCount interrupted download${interruptedCount == 1 ? '' : 's'} paused after connection loss.',
+    _isReconnectPromptVisible = true;
+    try {
+      final shouldResume = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Connection Restored'),
+          content: Text(
+            '$interruptedCount interrupted download${interruptedCount == 1 ? '' : 's'} are waiting. Resume now?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Keep Paused'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Resume All'),
+            ),
+          ],
         ),
-        action: SnackBarAction(
-          label: 'Resume All',
-          onPressed: () => unawaited(_resumeInterruptedDownloads()),
-        ),
-      ),
-    );
+      );
+
+      if (!mounted || shouldResume != true) {
+        return;
+      }
+      await _resumeInterruptedDownloads();
+    } finally {
+      _isReconnectPromptVisible = false;
+    }
   }
 
   Future<void> _clearAllDownloads() async {
