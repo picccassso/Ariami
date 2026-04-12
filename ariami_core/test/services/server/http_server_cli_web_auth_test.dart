@@ -244,7 +244,7 @@ void main() {
         jsonBody: <String, dynamic>{
           'deviceId': 'target-connect-device',
           'deviceName': 'Target Connect Device',
-          'appVersion': '4.0.0',
+          'appVersion': '4.1.0',
           'platform': 'test',
         },
       );
@@ -310,7 +310,7 @@ void main() {
         jsonBody: <String, dynamic>{
           'deviceId': 'admin-device',
           'deviceName': 'Admin Device',
-          'appVersion': '4.0.0',
+          'appVersion': '4.1.0',
           'platform': 'test',
         },
       );
@@ -401,7 +401,7 @@ void main() {
         jsonBody: <String, dynamic>{
           'deviceId': 'cli-web-dashboard',
           'deviceName': 'Ariami CLI Web Dashboard',
-          'appVersion': '4.0.0',
+          'appVersion': '4.1.0',
           'platform': 'web',
         },
       );
@@ -416,7 +416,7 @@ void main() {
         jsonBody: <String, dynamic>{
           'deviceId': 'mobile-device',
           'deviceName': 'Alex iPhone',
-          'appVersion': '4.0.0',
+          'appVersion': '4.1.0',
           'platform': 'ios',
         },
       );
@@ -499,7 +499,7 @@ void main() {
         jsonBody: <String, dynamic>{
           'deviceId': 'target-device',
           'deviceName': 'Target Device',
-          'appVersion': '4.0.0',
+          'appVersion': '4.1.0',
           'platform': 'test',
         },
       );
@@ -850,7 +850,7 @@ void main() {
         jsonBody: <String, dynamic>{
           'deviceId': 'offline-device',
           'deviceName': 'Offline Device',
-          'appVersion': '4.0.0',
+          'appVersion': '4.1.0',
           'platform': 'test',
         },
       );
@@ -882,7 +882,7 @@ void main() {
         jsonBody: <String, dynamic>{
           'deviceId': 'offline-device',
           'deviceName': 'Offline Device',
-          'appVersion': '4.0.0',
+          'appVersion': '4.1.0',
           'platform': 'test',
         },
       );
@@ -953,7 +953,7 @@ void main() {
         jsonBody: <String, dynamic>{
           'deviceId': 'target-device',
           'deviceName': 'Target Device',
-          'appVersion': '4.0.0',
+          'appVersion': '4.1.0',
           'platform': 'test',
         },
       );
