@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../models/download_task.dart';
+import '../../../services/api/connection_service.dart';
 import '../../../widgets/common/mini_player_aware_bottom_sheet.dart';
 import 'downloads_controller.dart';
 import 'widgets/widgets.dart';
@@ -16,16 +17,22 @@ class DownloadsScreen extends StatefulWidget {
 
 class _DownloadsScreenState extends State<DownloadsScreen> {
   late final DownloadsController _controller;
+  final ConnectionService _connectionService = ConnectionService();
+  StreamSubscription<bool>? _connectionSubscription;
+  bool _wasConnected = false;
 
   @override
   void initState() {
     super.initState();
     _controller = DownloadsController();
     _controller.addListener(_onControllerChanged);
+    _wasConnected = _connectionService.isConnected;
+    _listenForConnectionRecovery();
   }
 
   @override
   void dispose() {
+    _connectionSubscription?.cancel();
     _controller.removeListener(_onControllerChanged);
     _controller.dispose();
     super.dispose();
@@ -35,6 +42,50 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
     if (mounted) {
       setState(() {});
     }
+  }
+
+  void _showSnackBarMessage(String message) {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  void _listenForConnectionRecovery() {
+    _connectionSubscription = _connectionService.connectionStateStream.listen(
+      (isConnected) {
+        final reconnected = !_wasConnected && isConnected;
+        _wasConnected = isConnected;
+        if (!reconnected || !mounted) {
+          return;
+        }
+
+        final interruptedCount = _controller.state.interruptedDownloadCount;
+        if (interruptedCount <= 0) {
+          return;
+        }
+
+        _showReconnectRecoverySnackBar(interruptedCount);
+      },
+    );
+  }
+
+  void _showReconnectRecoverySnackBar(int interruptedCount) {
+    if (!mounted) {
+      return;
+    }
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          '$interruptedCount interrupted download${interruptedCount == 1 ? '' : 's'} paused after connection loss.',
+        ),
+        action: SnackBarAction(
+          label: 'Resume All',
+          onPressed: () => unawaited(_resumeInterruptedDownloads()),
+        ),
+      ),
+    );
   }
 
   Future<void> _clearAllDownloads() async {
@@ -64,6 +115,55 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
     if (confirmed == true) {
       await _controller.deleteAlbumDownloads(albumId);
     }
+  }
+
+  Future<void> _resumeInterruptedDownloads() async {
+    final resumedCount = await _controller.resumeInterruptedDownloads();
+    if (!mounted) return;
+    if (resumedCount == 0) {
+      _showSnackBarMessage('No interrupted downloads to resume.');
+      return;
+    }
+    _showSnackBarMessage(
+      'Resuming $resumedCount interrupted download${resumedCount == 1 ? '' : 's'}.',
+    );
+  }
+
+  Future<void> _cancelInterruptedDownloads() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Cancel Remaining Downloads'),
+        content: const Text(
+          'This will remove all downloads that were paused after connection loss. Already completed songs stay saved.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Keep Paused'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text(
+              'Cancel Remaining',
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    final cancelledCount = await _controller.cancelInterruptedDownloads();
+    if (!mounted) return;
+    if (cancelledCount == 0) {
+      _showSnackBarMessage('No interrupted downloads to cancel.');
+      return;
+    }
+    _showSnackBarMessage(
+      'Cancelled $cancelledCount interrupted download${cancelledCount == 1 ? '' : 's'}.',
+    );
   }
 
   @override
@@ -121,6 +221,24 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                       await _controller.setDownloadOriginal(value);
                     },
                   ),
+                  DownloadsRecoveryPreferencesCard(
+                    isDark: isDark,
+                    autoResumeOnLaunch: state.autoResumeInterruptedOnLaunch,
+                    onChanged: (enabled) {
+                      unawaited(
+                        _controller.setAutoResumeInterruptedOnLaunch(enabled),
+                      );
+                    },
+                  ),
+                  if (state.interruptedDownloadCount > 0)
+                    DownloadsInterruptionRecoveryCard(
+                      isDark: isDark,
+                      interruptedDownloadCount: state.interruptedDownloadCount,
+                      onResumeAll: () =>
+                          unawaited(_resumeInterruptedDownloads()),
+                      onCancelAll: () =>
+                          unawaited(_cancelInterruptedDownloads()),
+                    ),
                   DownloadAllCard(
                     isDark: isDark,
                     downloadedSongCount: state.downloadedSongCount,

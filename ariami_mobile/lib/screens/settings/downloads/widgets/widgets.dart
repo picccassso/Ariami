@@ -10,6 +10,7 @@ export 'download_item_card.dart';
 export 'download_mode_card.dart';
 export 'downloaded_section.dart';
 export 'download_queue_section.dart';
+export 'recovery_cards.dart';
 export 'singles_card.dart';
 export 'statistics_card.dart';
 export 'status_icon.dart';

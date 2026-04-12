@@ -103,7 +103,7 @@ class MyApp extends StatefulWidget {
   State<MyApp> createState() => _MyAppState();
 }
 
-class _MyAppState extends State<MyApp> {
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   final ConnectionService _connectionService = ConnectionService();
   final OfflinePlaybackService _offlineService = OfflinePlaybackService();
   final DownloadManager _downloadManager = DownloadManager();
@@ -112,16 +112,22 @@ class _MyAppState extends State<MyApp> {
   final QualitySettingsService _qualityService = QualitySettingsService();
   final NetworkMonitorService _networkMonitor = NetworkMonitorService();
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
+  final GlobalKey<ScaffoldMessengerState> _scaffoldMessengerKey =
+      GlobalKey<ScaffoldMessengerState>();
   bool _isLoading = true;
   Widget? _initialScreen;
   StreamSubscription<bool>? _connectionSubscription;
   StreamSubscription<void>? _sessionExpiredSubscription;
   StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
   Timer? _networkDebounceTimer;
+  bool _startupRecoveryPromptShown = false;
+  int _startupInterruptedDownloadCount = 0;
+  bool _startupAutoResumeInterruptedOnLaunch = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initializeAndDetermineScreen();
     _listenToConnectionChanges();
     _listenToSessionExpiry();
@@ -142,6 +148,10 @@ class _MyAppState extends State<MyApp> {
     await _offlineService.initialize();
     // Initialize download manager
     await _downloadManager.initialize();
+    _startupInterruptedDownloadCount =
+        _downloadManager.getInterruptedDownloadCount();
+    _startupAutoResumeInterruptedOnLaunch =
+        _downloadManager.getAutoResumeInterruptedOnLaunch();
     // Initialize cache manager for artwork and song caching
     await _cacheManager.initialize();
     // Initialize streaming stats service for play tracking
@@ -156,11 +166,20 @@ class _MyAppState extends State<MyApp> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _connectionSubscription?.cancel();
     _sessionExpiredSubscription?.cancel();
     _connectivitySubscription?.cancel();
     _networkDebounceTimer?.cancel();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Swiping the app away transitions to detached on supported platforms.
+    if (state == AppLifecycleState.detached) {
+      unawaited(_downloadManager.pauseDownloadsForAppClosure());
+    }
   }
 
   /// Listen for connection state changes
@@ -294,6 +313,89 @@ class _MyAppState extends State<MyApp> {
       }
       _isLoading = false;
     });
+
+    if (_startupAutoResumeInterruptedOnLaunch) {
+      _maybeAutoResumeStartupDownloads();
+    } else {
+      _maybePromptStartupDownloadRecovery();
+    }
+  }
+
+  void _maybeAutoResumeStartupDownloads() {
+    if (_startupInterruptedDownloadCount <= 0 || _isLoading) {
+      return;
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_autoResumeStartupDownloads());
+    });
+  }
+
+  Future<void> _autoResumeStartupDownloads() async {
+    if (!mounted) return;
+    final resumed = await _downloadManager.resumeInterruptedDownloads();
+    if (!mounted || resumed <= 0) return;
+
+    _scaffoldMessengerKey.currentState?.showSnackBar(
+      SnackBar(
+        content: Text(
+          'Auto-resumed $resumed paused download${resumed == 1 ? '' : 's'}.',
+        ),
+      ),
+    );
+  }
+
+  void _maybePromptStartupDownloadRecovery() {
+    if (_startupRecoveryPromptShown ||
+        _startupInterruptedDownloadCount <= 0 ||
+        _isLoading) {
+      return;
+    }
+    _startupRecoveryPromptShown = true;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_showStartupDownloadRecoveryDialog());
+    });
+  }
+
+  Future<void> _showStartupDownloadRecoveryDialog() async {
+    if (!mounted) return;
+    final context = _navigatorKey.currentContext;
+    if (context == null) return;
+
+    final pausedCount = _startupInterruptedDownloadCount;
+    final shouldResume = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Continue Downloads?'),
+        content: Text(
+          '$pausedCount download${pausedCount == 1 ? '' : 's'} were paused when the app was closed. Continue now or keep them paused?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Keep Paused'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Continue Downloads'),
+          ),
+        ],
+      ),
+    );
+
+    if (!mounted || shouldResume != true) return;
+
+    final resumed = await _downloadManager.resumeInterruptedDownloads();
+    if (!mounted || resumed <= 0) return;
+
+    _scaffoldMessengerKey.currentState?.showSnackBar(
+      SnackBar(
+        content: Text(
+          'Resumed $resumed paused download${resumed == 1 ? '' : 's'}.',
+        ),
+      ),
+    );
   }
 
   @override
@@ -301,6 +403,7 @@ class _MyAppState extends State<MyApp> {
     return MaterialApp(
       title: 'Ariami',
       navigatorKey: _navigatorKey,
+      scaffoldMessengerKey: _scaffoldMessengerKey,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       home: _isLoading

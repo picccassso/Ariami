@@ -9,6 +9,8 @@ import '../models/download_task.dart';
 /// Database layer for managing downloads persistence
 class DownloadDatabase {
   static const String _downloadQueueKey = 'download_queue';
+  static const String _autoResumeInterruptedOnLaunchKey =
+      'download_auto_resume_interrupted_on_launch';
   static const String _sqliteMigrationKey = 'download_queue_sqlite_migrated_v1';
   static const String _databaseName = 'downloads.db';
   static const int _databaseVersion = 1;
@@ -247,5 +249,15 @@ class DownloadDatabase {
   /// Get storage limit in MB
   int? getStorageLimit() {
     return _prefs.getInt('download_storage_limit');
+  }
+
+  /// Set whether interrupted downloads should auto-resume on app launch.
+  Future<void> setAutoResumeInterruptedOnLaunch(bool enabled) async {
+    await _prefs.setBool(_autoResumeInterruptedOnLaunchKey, enabled);
+  }
+
+  /// Get whether interrupted downloads auto-resume on launch.
+  bool getAutoResumeInterruptedOnLaunch() {
+    return _prefs.getBool(_autoResumeInterruptedOnLaunchKey) ?? false;
   }
 }
