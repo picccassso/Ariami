@@ -136,10 +136,11 @@ The script will:
 2. Build the web UI natively on Mac
 3. Pull Dart dependencies in Docker container
 4. Compile ARM64 Linux binary using Docker (--platform linux/arm64)
-5. Create release directory structure
-6. Copy all necessary files (binary, web UI, SETUP.txt)
-7. Package everything into `ariami-cli-raspberry-pi-arm64-v4.1.0.zip`
-8. Verify the binary is correct architecture
+5. Build `libsonic_transcoder.so` for ARM64 in Docker
+6. Create release directory structure
+7. Copy all necessary files (binary, web UI, Sonic library, SETUP.txt)
+8. Package everything into `ariami-cli-raspberry-pi-arm64-v4.1.0.zip`
+9. Verify the binary and Sonic library architectures
 
 ### Why This Works on M2/M3 Macs
 
@@ -152,6 +153,7 @@ On Intel Macs, Docker will use emulation (slower but still works).
 Same as Pi build - a ready-to-distribute zip file containing:
 - `ariami_cli` - Compiled ARM64 Linux executable
 - `web/` - Built Flutter web UI
+- `lib/libsonic_transcoder.so` - Bundled Sonic library for low/medium transcoding
 - `SETUP.txt` - User instructions
 
 ### Updating Version

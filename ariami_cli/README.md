@@ -19,6 +19,9 @@ flutter build web -t lib/web/main.dart
 dart compile exe bin/ariami_cli.dart -o ariami_cli
 ```
 
+For Raspberry Pi release artifacts (including bundled Sonic transcoding
+library), use `./build-pi-release-mac.sh` from this directory.
+
 ## Usage
 
 ```bash

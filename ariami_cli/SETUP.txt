@@ -54,6 +54,16 @@ This includes:
 - Server settings
 - Process ID file
 
+TRANSCODING
+-----------
+The release package includes:
+- lib/libsonic_transcoder.so
+
+With this file present, low/medium quality requests transcode correctly.
+If low/medium requests fall back to high quality, verify:
+- The file exists at: ./lib/libsonic_transcoder.so
+- You started the server from the extracted release directory
+
 MOBILE APP
 ----------
 Scan the QR code displayed in the web interface to connect

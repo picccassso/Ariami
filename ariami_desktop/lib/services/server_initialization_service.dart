@@ -5,6 +5,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import '../utils/feature_flags_loader.dart';
+import 'desktop_download_limits_service.dart';
 import 'desktop_state_service.dart';
 
 /// Shared desktop server configuration: feature flags, library cache, transcoding/artwork.
@@ -91,12 +92,14 @@ class ServerInitializationService {
     );
   }
 
-  static void applyDesktopDownloadLimits(AriamiHttpServer httpServer) {
+  static Future<void> applyDesktopDownloadLimits(
+      AriamiHttpServer httpServer) async {
+    final downloadLimits = await DesktopDownloadLimitsService.resolve();
     httpServer.setDownloadLimits(
-      maxConcurrent: Platform.isMacOS ? 30 : 10,
-      maxQueue: Platform.isMacOS ? 400 : 120,
-      maxConcurrentPerUser: Platform.isMacOS ? 10 : 3,
-      maxQueuePerUser: Platform.isMacOS ? 200 : 50,
+      maxConcurrent: downloadLimits.maxConcurrent,
+      maxQueue: downloadLimits.maxQueue,
+      maxConcurrentPerUser: downloadLimits.maxConcurrentPerUser,
+      maxQueuePerUser: downloadLimits.maxQueuePerUser,
     );
   }
 

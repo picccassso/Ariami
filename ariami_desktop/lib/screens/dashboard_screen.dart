@@ -152,7 +152,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       print('[Dashboard] Auto-starting server on $advertisedIp:8080');
       await ServerInitializationService.initializeAuth(
           _httpServer, _stateService);
-      ServerInitializationService.applyDesktopDownloadLimits(_httpServer);
+      await ServerInitializationService.applyDesktopDownloadLimits(_httpServer);
       await _httpServer.start(
         advertisedIp: advertisedIp,
         tailscaleIp: tailscaleIp,
@@ -434,7 +434,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       try {
         await ServerInitializationService.initializeAuth(
             _httpServer, _stateService);
-        ServerInitializationService.applyDesktopDownloadLimits(_httpServer);
+        await ServerInitializationService.applyDesktopDownloadLimits(
+            _httpServer);
         await _httpServer.start(
           advertisedIp: advertisedIp,
           tailscaleIp: tailscaleIp,
