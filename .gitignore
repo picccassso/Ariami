@@ -171,8 +171,5 @@ logs/
 examples/
 plan.md
 
-# Nested Sonic repo (managed separately)
-/sonic/
-
 # Local Claude artifacts
 .claude/
