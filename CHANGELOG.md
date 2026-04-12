@@ -2,7 +2,7 @@
 
 This is a massive update, I have done a lot of work to make Ariami better and more usable, some edge cases are not 100% covered still, however, I am more than proud of where I have come with it thus far, and I hope you enjoy using it too.
 
-Down below is a summary of all the changes made since version 3.2.0, and since this is a big update, I am jumping up to 4.0.0!
+Down below is a summary of all the changes made under each update!
 
 Thank you for those that actually support and use this project at all! :D
 
@@ -15,6 +15,9 @@ Thank you for those that actually support and use this project at all! :D
 - Fixed QR screen redirecting when only the CLI dashboard is connected
 - Added client type tracking to distinguish dashboard vs mobile clients in WebSocket connections
 - Stats endpoint now reports mobile client count separately from total connections
+- Fixed interrupted downloads handling: active/pending downloads now pause cleanly on connection loss or app closure, with recovery controls and auto-resume preference support
+- Added reconnect recovery prompt in Downloads so interrupted items can be resumed explicitly after connection is restored
+- Fixed resume reconnection flow by triggering immediate reconnect on app resume and deduplicating concurrent restore attempts
 
 ## 4.0.0
 
