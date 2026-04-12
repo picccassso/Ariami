@@ -8,6 +8,7 @@ import '../../../services/api/connection_service.dart';
 import '../../../services/cache/cache_manager.dart'
     show CacheManager, CacheUpdateEvent;
 import '../../../services/download/download_manager.dart';
+import '../../../services/download/download_helpers.dart';
 import '../../../services/playlist_service.dart';
 import '../../../services/quality/quality_settings_service.dart';
 import 'downloads_state.dart';
@@ -63,6 +64,10 @@ class DownloadsController extends ChangeNotifier {
     await _loadCacheStats();
     _state = _state.copyWith(
       downloadOriginal: _qualityService.getDownloadOriginal(),
+      autoResumeInterruptedOnLaunch:
+          _downloadManager.getAutoResumeInterruptedOnLaunch(),
+      interruptedDownloadCount:
+          _countInterruptedDownloads(_downloadManager.queue),
     );
 
     _cacheSubscription = _cacheManager.cacheUpdateStream.listen((_) {
@@ -83,7 +88,14 @@ class DownloadsController extends ChangeNotifier {
       }
     });
 
-    _queueSubscription = _downloadManager.queueStream.listen((_) {
+    _queueSubscription = _downloadManager.queueStream.listen((queue) {
+      final interruptedCount = _countInterruptedDownloads(queue);
+      if (_state.interruptedDownloadCount != interruptedCount) {
+        _state = _state.copyWith(interruptedDownloadCount: interruptedCount);
+        if (!_disposed) {
+          notifyListeners();
+        }
+      }
       _countRefreshTimer?.cancel();
       _countRefreshTimer = Timer(
         const Duration(milliseconds: 300),
@@ -417,6 +429,7 @@ class DownloadsController extends ChangeNotifier {
       pendingTasks: pendingTasks,
       completedTasks: completedTasks,
       failedTasks: failedTasks,
+      interruptedDownloadCount: _countInterruptedDownloads(queue),
       groupedCompletedTasks: groupedCompleted,
       sortedCompletedAlbumKeys: sortedCompletedAlbumKeys,
     );
@@ -442,8 +455,16 @@ class DownloadsController extends ChangeNotifier {
     await _downloadManager.resumeDownload(taskId);
   }
 
+  Future<int> resumeInterruptedDownloads() async {
+    return _downloadManager.resumeInterruptedDownloads();
+  }
+
   void cancelDownload(String taskId) {
     _downloadManager.cancelDownload(taskId);
+  }
+
+  Future<int> cancelInterruptedDownloads() async {
+    return _downloadManager.cancelInterruptedDownloads();
   }
 
   void retryDownload(String taskId) {
@@ -463,6 +484,14 @@ class DownloadsController extends ChangeNotifier {
     await _qualityService.setDownloadOriginal(value);
     if (!_disposed) {
       _state = _state.copyWith(downloadOriginal: value);
+      notifyListeners();
+    }
+  }
+
+  Future<void> setAutoResumeInterruptedOnLaunch(bool enabled) async {
+    await _downloadManager.setAutoResumeInterruptedOnLaunch(enabled);
+    if (!_disposed) {
+      _state = _state.copyWith(autoResumeInterruptedOnLaunch: enabled);
       notifyListeners();
     }
   }
@@ -489,6 +518,10 @@ class DownloadsController extends ChangeNotifier {
 
   Future<void> deleteAlbumDownloads(String? albumId) async {
     await _downloadManager.deleteAlbumDownloads(albumId);
+  }
+
+  int _countInterruptedDownloads(List<DownloadTask> queue) {
+    return queue.where(isInterruptedDownloadTask).length;
   }
 
   @override

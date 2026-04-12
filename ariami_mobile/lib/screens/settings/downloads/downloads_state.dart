@@ -21,6 +21,8 @@ class DownloadsState {
     this.isDownloadingAllAlbums = false,
     this.isDownloadingAllPlaylists = false,
     this.downloadOriginal = false,
+    this.autoResumeInterruptedOnLaunch = false,
+    this.interruptedDownloadCount = 0,
     this.activeTasks = const <DownloadTask>[],
     this.pendingTasks = const <DownloadTask>[],
     this.completedTasks = const <DownloadTask>[],
@@ -47,6 +49,8 @@ class DownloadsState {
   final bool isDownloadingAllAlbums;
   final bool isDownloadingAllPlaylists;
   final bool downloadOriginal;
+  final bool autoResumeInterruptedOnLaunch;
+  final int interruptedDownloadCount;
 
   final List<DownloadTask> activeTasks;
   final List<DownloadTask> pendingTasks;
@@ -73,6 +77,8 @@ class DownloadsState {
     bool? isDownloadingAllAlbums,
     bool? isDownloadingAllPlaylists,
     bool? downloadOriginal,
+    bool? autoResumeInterruptedOnLaunch,
+    int? interruptedDownloadCount,
     List<DownloadTask>? activeTasks,
     List<DownloadTask>? pendingTasks,
     List<DownloadTask>? completedTasks,
@@ -102,6 +108,10 @@ class DownloadsState {
       isDownloadingAllPlaylists:
           isDownloadingAllPlaylists ?? this.isDownloadingAllPlaylists,
       downloadOriginal: downloadOriginal ?? this.downloadOriginal,
+      autoResumeInterruptedOnLaunch:
+          autoResumeInterruptedOnLaunch ?? this.autoResumeInterruptedOnLaunch,
+      interruptedDownloadCount:
+          interruptedDownloadCount ?? this.interruptedDownloadCount,
       activeTasks: activeTasks ?? this.activeTasks,
       pendingTasks: pendingTasks ?? this.pendingTasks,
       completedTasks: completedTasks ?? this.completedTasks,

@@ -14,6 +14,7 @@ import '../cache/cache_manager.dart';
 import '../quality/quality_settings_service.dart';
 import 'download_queue.dart';
 import 'local_artwork_extractor.dart';
+import 'download_helpers.dart';
 
 /// Manages all download operations
 class DownloadManager {
@@ -42,6 +43,7 @@ class DownloadManager {
   List<DownloadTask>? _scopedQueueCache;
   String? _scopedQueueCacheServerId;
   String? _scopedQueueCacheUserId;
+  StreamSubscription<bool>? _connectionStateSubscription;
 
   bool _initialized = false;
   String? _downloadPath;
@@ -75,6 +77,13 @@ class DownloadManager {
     // Load queue from storage into the already-initialized _queue
     final savedQueue = await _database.loadDownloadQueue();
     if (savedQueue.isNotEmpty) {
+      for (final task in savedQueue) {
+        if (task.status == DownloadStatus.downloading ||
+            task.status == DownloadStatus.pending) {
+          task.status = DownloadStatus.paused;
+          task.errorMessage = appClosedDownloadPauseMessage;
+        }
+      }
       _queue.enqueueBatch(savedQueue);
       for (final task in savedQueue) {
         _persistedTaskSignatures[task.id] = _taskSignature(task);
@@ -106,6 +115,16 @@ class DownloadManager {
       _scopedQueueCacheServerId = currentServerId;
       _scopedQueueCacheUserId = currentUserId;
       _queueController.add(scoped);
+    });
+
+    _connectionStateSubscription?.cancel();
+    _connectionStateSubscription =
+        ConnectionService().connectionStateStream.listen((isConnected) {
+      if (isConnected) {
+        _fillDownloadSlots();
+        return;
+      }
+      _pauseScopedDownloadsForInterruption();
     });
 
     _initialized = true;
@@ -565,6 +584,7 @@ class DownloadManager {
     _activeProgress.remove(taskId); // Cleanup progress tracking
 
     task.status = DownloadStatus.paused;
+    task.errorMessage = null;
     _queue.updateTask(task);
   }
 
@@ -576,9 +596,58 @@ class DownloadManager {
     if (task == null || task.status != DownloadStatus.paused) return;
 
     task.status = DownloadStatus.pending;
+    task.errorMessage = null;
     _queue.updateTask(task);
 
     _fillDownloadSlots();
+  }
+
+  /// Resume all interrupted (auto-paused) downloads in the current scope.
+  Future<int> resumeInterruptedDownloads() async {
+    await _ensureInitialized();
+
+    var resumedCount = 0;
+    for (final task in _getScopedQueue()) {
+      if (!isInterruptedDownloadTask(task)) continue;
+      task.status = DownloadStatus.pending;
+      task.errorMessage = null;
+      _queue.updateTask(task);
+      resumedCount++;
+    }
+
+    if (resumedCount > 0) {
+      _fillDownloadSlots();
+    }
+    return resumedCount;
+  }
+
+  /// Cancel all interrupted (auto-paused) downloads in the current scope.
+  Future<int> cancelInterruptedDownloads() async {
+    await _ensureInitialized();
+
+    final interruptedTaskIds = _getScopedQueue()
+        .where(isInterruptedDownloadTask)
+        .map((task) => task.id)
+        .toList(growable: false);
+
+    for (final taskId in interruptedTaskIds) {
+      cancelDownload(taskId);
+    }
+    return interruptedTaskIds.length;
+  }
+
+  /// Number of interrupted (auto-paused) downloads in the current scope.
+  int getInterruptedDownloadCount() {
+    return _getScopedQueue().where(isInterruptedDownloadTask).length;
+  }
+
+  /// Pause active/pending downloads and flush queue state when app closes.
+  Future<void> pauseDownloadsForAppClosure() async {
+    if (!_initialized) return;
+    _pauseScopedDownloadsForInterruption(
+      reasonMessage: appClosedDownloadPauseMessage,
+    );
+    await _flushQueuePersistence();
   }
 
   /// Retry a failed download
@@ -638,6 +707,10 @@ class DownloadManager {
 
   /// Fill available download slots with pending tasks
   void _fillDownloadSlots() {
+    if (!_canProcessDownloads()) {
+      return;
+    }
+
     _queue.beginBatch();
     try {
       while (_activeDownloadCount < _maxConcurrentDownloads) {
@@ -750,9 +823,29 @@ class DownloadManager {
     _activeDownloads.remove(task.id);
     _activeProgress.remove(task.id); // Cleanup progress tracking
 
-    if (task.canRetry()) {
+    if (_getScopedTask(task.id) == null) {
+      await Future.delayed(const Duration(milliseconds: 50));
+      _fillDownloadSlots();
+      return;
+    }
+
+    if (_isCancellationExpected(task, error)) {
+      await Future.delayed(const Duration(milliseconds: 50));
+      _fillDownloadSlots();
+      return;
+    }
+
+    if (_isNetworkInterruptionError(error)) {
+      _pauseScopedDownloadsForInterruption();
+      await Future.delayed(const Duration(milliseconds: 50));
+      _fillDownloadSlots();
+      return;
+    }
+
+    if (task.retryCount < DownloadTask.maxRetries) {
       task.retryCount++;
       task.status = DownloadStatus.pending;
+      task.errorMessage = null;
       _queue.updateTask(task);
       print(
           'Retrying download: ${task.title} (attempt ${task.retryCount}/${DownloadTask.maxRetries})');
@@ -773,6 +866,35 @@ class DownloadManager {
     }
   }
 
+  void _pauseScopedDownloadsForInterruption({
+    String reasonMessage = interruptedDownloadPauseMessage,
+  }) {
+    final taskIdsToCancel = <String>[];
+    final tasksToPause = <DownloadTask>[];
+
+    for (final task in _queue.queue) {
+      if (!_isTaskInCurrentScope(task)) continue;
+      if (task.status == DownloadStatus.downloading) {
+        taskIdsToCancel.add(task.id);
+        tasksToPause.add(task);
+        continue;
+      }
+      if (task.status == DownloadStatus.pending) {
+        tasksToPause.add(task);
+      }
+    }
+
+    for (final task in tasksToPause) {
+      task.status = DownloadStatus.paused;
+      task.errorMessage = reasonMessage;
+      _queue.updateTask(task);
+    }
+
+    for (final taskId in taskIdsToCancel) {
+      _activeDownloads[taskId]?.cancel('connection-lost');
+    }
+  }
+
   Duration _calculateRetryDelay(dynamic error, int attempt) {
     if (error is DioException) {
       final status = error.response?.statusCode;
@@ -788,6 +910,58 @@ class DownloadManager {
       }
     }
     return const Duration(seconds: 5);
+  }
+
+  bool _canProcessDownloads() {
+    final connection = ConnectionService();
+    return connection.isConnected && connection.apiClient != null;
+  }
+
+  bool _isTaskInCurrentScope(DownloadTask task) {
+    final serverId = _getCurrentServerId();
+    final userId = _getCurrentUserId();
+
+    if (serverId != null && task.serverId != serverId) {
+      return false;
+    }
+    if (userId != null && task.userId != userId) {
+      return false;
+    }
+    return true;
+  }
+
+  bool _isCancellationExpected(DownloadTask task, dynamic error) {
+    if (error is! DioException) {
+      return false;
+    }
+
+    final cancelled =
+        error.type == DioExceptionType.cancel || CancelToken.isCancel(error);
+    if (!cancelled) {
+      return false;
+    }
+
+    return task.status == DownloadStatus.paused ||
+        task.status == DownloadStatus.cancelled;
+  }
+
+  bool _isNetworkInterruptionError(dynamic error) {
+    if (error is! DioException) {
+      return false;
+    }
+
+    if (error.type == DioExceptionType.cancel || CancelToken.isCancel(error)) {
+      return false;
+    }
+
+    if (error.type == DioExceptionType.connectionTimeout ||
+        error.type == DioExceptionType.receiveTimeout ||
+        error.type == DioExceptionType.sendTimeout ||
+        error.type == DioExceptionType.connectionError) {
+      return true;
+    }
+
+    return error.response == null;
   }
 
   String _buildLegacyDownloadUrl({
@@ -905,8 +1079,7 @@ class DownloadManager {
     try {
       final bytes = await LocalArtworkExtractor.extractArtwork(localPath);
       if (bytes == null || bytes.isEmpty) {
-        print(
-            '[DownloadManager] No embedded artwork for song ${task.songId}');
+        print('[DownloadManager] No embedded artwork for song ${task.songId}');
         return;
       }
 
@@ -1133,6 +1306,9 @@ class DownloadManager {
 
   int? getStorageLimit() => _database.getStorageLimit();
 
+  bool getAutoResumeInterruptedOnLaunch() =>
+      _database.getAutoResumeInterruptedOnLaunch();
+
   /// Set download settings
   Future<void> setWifiOnly(bool wifiOnly) => _database.setWifiOnly(wifiOnly);
 
@@ -1142,8 +1318,12 @@ class DownloadManager {
   Future<void> setStorageLimit(int? limitMB) =>
       _database.setStorageLimit(limitMB);
 
+  Future<void> setAutoResumeInterruptedOnLaunch(bool enabled) =>
+      _database.setAutoResumeInterruptedOnLaunch(enabled);
+
   /// Dispose resources
   void dispose() {
+    _connectionStateSubscription?.cancel();
     _progressController.close();
     _queueController.close();
     _queue.dispose();
