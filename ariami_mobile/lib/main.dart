@@ -120,6 +120,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   StreamSubscription<void>? _sessionExpiredSubscription;
   StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
   Timer? _networkDebounceTimer;
+  Future<void>? _resumeReconnectFuture;
   bool _startupRecoveryPromptShown = false;
   int _startupInterruptedDownloadCount = 0;
   bool _startupAutoResumeInterruptedOnLaunch = false;
@@ -179,6 +180,60 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     // Swiping the app away transitions to detached on supported platforms.
     if (state == AppLifecycleState.detached) {
       unawaited(_downloadManager.pauseDownloadsForAppClosure());
+      return;
+    }
+
+    if (state == AppLifecycleState.resumed) {
+      _triggerResumeReconnectIfNeeded();
+    }
+  }
+
+  void _triggerResumeReconnectIfNeeded() {
+    if (_resumeReconnectFuture != null) {
+      return;
+    }
+
+    _resumeReconnectFuture = _attemptResumeReconnect().whenComplete(() {
+      _resumeReconnectFuture = null;
+    });
+  }
+
+  Future<void> _attemptResumeReconnect() async {
+    if (_isLoading) {
+      return;
+    }
+
+    if (_offlineService.isManualOfflineModeEnabled) {
+      return;
+    }
+
+    final connectivityResults = await Connectivity().checkConnectivity();
+    final hasNetwork = connectivityResults.any((result) =>
+        result == ConnectivityResult.wifi ||
+        result == ConnectivityResult.mobile ||
+        result == ConnectivityResult.ethernet);
+
+    if (!hasNetwork) {
+      return;
+    }
+
+    if (_connectionService.isConnected) {
+      return;
+    }
+
+    if (!_connectionService.hasServerInfo) {
+      await _connectionService.loadServerInfoFromStorage();
+      if (!_connectionService.hasServerInfo) {
+        return;
+      }
+    }
+
+    print('App resumed while disconnected - attempting immediate reconnect...');
+    final restored = await _connectionService.tryRestoreConnection();
+    if (!restored) {
+      print(
+        'Immediate reconnect on resume failed; automatic retries remain active',
+      );
     }
   }
 

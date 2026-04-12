@@ -17,7 +17,6 @@ class HeartbeatManager {
   final Future<ApiClient?> Function() _apiClientProvider;
   final Future<String> Function() _deviceIdProvider;
   final Future<bool> Function() _isManualOfflineProvider;
-  final Future<bool> Function() _isWebSocketConnectedProvider;
   final Future<bool> Function() _tryRestoreConnection;
   final Future<void> Function() _onConnectionLoss;
 
@@ -32,14 +31,12 @@ class HeartbeatManager {
     required Future<ApiClient?> Function() apiClientProvider,
     required Future<String> Function() deviceIdProvider,
     required Future<bool> Function() isManualOfflineProvider,
-    required Future<bool> Function() isWebSocketConnectedProvider,
     required Future<bool> Function() tryRestoreConnection,
     required Future<void> Function() onConnectionLoss,
   })  : _stateManager = stateManager,
         _apiClientProvider = apiClientProvider,
         _deviceIdProvider = deviceIdProvider,
         _isManualOfflineProvider = isManualOfflineProvider,
-        _isWebSocketConnectedProvider = isWebSocketConnectedProvider,
         _tryRestoreConnection = tryRestoreConnection,
         _onConnectionLoss = onConnectionLoss;
 
@@ -107,12 +104,9 @@ class HeartbeatManager {
 
   /// Handle auto-reconnect logic when in auto-offline mode
   Future<void> _handleAutoReconnect() async {
-    final isWebSocketConnected = await _isWebSocketConnectedProvider();
-    if (isWebSocketConnected) {
-      final restored = await _tryRestoreConnection();
-      if (restored) {
-        // Connection restored successfully
-      }
+    final restored = await _tryRestoreConnection();
+    if (restored) {
+      // Connection restored successfully
     }
   }
 

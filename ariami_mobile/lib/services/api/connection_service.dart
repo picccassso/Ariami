@@ -54,6 +54,7 @@ class ConnectionService {
   late final DeviceInfoManager _deviceInfoManager;
   late final ConnectionPersistenceManager _persistenceManager;
   late final EndpointSwitchHandler _endpointSwitchHandler;
+  Future<bool>? _restoreConnectionInFlight;
 
   // Legacy services still managed directly
   final WebSocketService _webSocketService = WebSocketService();
@@ -96,7 +97,6 @@ class ConnectionService {
       deviceIdProvider: _deviceInfoManager.getDeviceId,
       isManualOfflineProvider: () async =>
           OfflinePlaybackService().isManualOfflineModeEnabled,
-      isWebSocketConnectedProvider: () async => _webSocketService.isConnected,
       tryRestoreConnection: tryRestoreConnection,
       onConnectionLoss: _handleConnectionLoss,
     );
@@ -423,6 +423,24 @@ class ConnectionService {
 
   /// Try to restore previous connection
   Future<bool> tryRestoreConnection() async {
+    final inFlight = _restoreConnectionInFlight;
+    if (inFlight != null) {
+      return inFlight;
+    }
+
+    final restoreFuture = _tryRestoreConnectionInternal();
+    _restoreConnectionInFlight = restoreFuture;
+
+    try {
+      return await restoreFuture;
+    } finally {
+      if (identical(_restoreConnectionInFlight, restoreFuture)) {
+        _restoreConnectionInFlight = null;
+      }
+    }
+  }
+
+  Future<bool> _tryRestoreConnectionInternal() async {
     final restored = await _lifecycleManager.tryRestoreConnection(
       sessionToken: _authManager.sessionToken,
       onSessionExpired: handleSessionExpired,
