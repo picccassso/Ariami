@@ -72,6 +72,19 @@ It is cross-platform so you can run this on your Mac/Windows/Linux machine, and 
 - Server-side transcoding powered by Sonic (MP3 -> AAC) so clients can use formats and quality levels that suit the device.
 - Quality presets that follow the connection type (for example Wi‑Fi vs mobile data).
 
+**Sonic transcoder (Raspberry Pi 5 benchmarks)**
+- Sonic is Ariami's purpose-built transcoder and is much faster than ffmpeg for Ariami's quality-conversion tasks.
+- Test setup: Raspberry Pi 5 connected over ethernet, active cooler enabled.
+- Average temperature during hard Sonic transcoding: about 68 C (cooler kicked in to dissipate heat).
+
+| Scenario (Pi 5) | Sonic | FFmpeg | Difference |
+| --- | --- | --- | --- |
+| Original quality (single device, full run) | 57s, 3877.4 MB | 1m 8s, 3877.4 MB | Sonic faster by 11s |
+| Medium quality (single device) | 4m 22s, 1993.4 MB (full run) | 53 songs after 2m | Sonic completed full job; FFmpeg was still in progress |
+| Low quality (single device) | 4m 36s, 1122.7 MB (full run) | 54 songs after 2m | Sonic completed full job; FFmpeg was still in progress |
+| Medium quality, 2 devices at same time | S23: 4m 56s, iPhone 12: 4m 54s (1993.4 MB each) | S23: 41 songs, iPhone 12: 40 songs after 2m | Sonic completed both full jobs |
+| Different quality, 2 devices at same time | S23 Low: 8m 12s, iPhone 12 Medium: 7m 55s | S23 Low: 22 songs, iPhone 12 Medium: 28 songs after 2m | Sonic completed both full jobs |
+
 **Apps and platforms**
 - Native apps for Android, iOS (build from source), macOS, Windows, and Linux, plus a CLI build with a web dashboard for headless servers.
 
