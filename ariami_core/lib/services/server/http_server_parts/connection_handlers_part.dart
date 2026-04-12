@@ -52,24 +52,18 @@ extension AriamiHttpServerConnectionHandlersMethods on AriamiHttpServer {
       final sessionId =
           'session_${DateTime.now().millisecondsSinceEpoch}_$deviceId';
 
-      return Response.ok(
-        jsonEncode({
-          'status': 'connected',
-          'sessionId': sessionId,
-          'serverVersion': '4.0.0',
-          'features': ['library', 'streaming', 'websocket'],
-          'deviceId': deviceId,
-        }),
-        headers: {'Content-Type': 'application/json; charset=utf-8'},
-      );
+      return _jsonOk({
+        'status': 'connected',
+        'sessionId': sessionId,
+        'serverVersion': '4.0.0',
+        'features': ['library', 'streaming', 'websocket'],
+        'deviceId': deviceId,
+      });
     } catch (e) {
-      return Response.badRequest(
-        body: jsonEncode({
-          'error': 'Invalid request',
-          'message': e.toString(),
-        }),
-        headers: {'Content-Type': 'application/json; charset=utf-8'},
-      );
+      return _jsonBadRequest({
+        'error': 'Invalid request',
+        'message': e.toString(),
+      });
     }
   }
 
@@ -90,15 +84,12 @@ extension AriamiHttpServerConnectionHandlersMethods on AriamiHttpServer {
 
       if (_authRequired && !_legacyMode) {
         if (session == null) {
-          return Response.unauthorized(
-            jsonEncode({
-              'error': {
-                'code': AuthErrorCodes.authRequired,
-                'message': 'Not authenticated',
-              },
-            }),
-            headers: {'Content-Type': 'application/json; charset=utf-8'},
-          );
+          return _jsonUnauthorized({
+            'error': {
+              'code': AuthErrorCodes.authRequired,
+              'message': 'Not authenticated',
+            },
+          });
         }
 
         resolvedDeviceId = session.deviceId;
@@ -107,13 +98,10 @@ extension AriamiHttpServerConnectionHandlersMethods on AriamiHttpServer {
         // Explicit logout (/api/auth/logout) and admin actions still revoke.
       } else {
         if (deviceId == null || deviceId.isEmpty) {
-          return Response.badRequest(
-            body: jsonEncode({
-              'error': 'Missing required field',
-              'message': 'deviceId is required',
-            }),
-            headers: {'Content-Type': 'application/json; charset=utf-8'},
-          );
+          return _jsonBadRequest({
+            'error': 'Missing required field',
+            'message': 'deviceId is required',
+          });
         }
         resolvedDeviceId = deviceId;
       }
@@ -129,21 +117,15 @@ extension AriamiHttpServerConnectionHandlersMethods on AriamiHttpServer {
         deviceName: deviceName,
       ));
 
-      return Response.ok(
-        jsonEncode({
-          'status': 'disconnected',
-          'deviceId': resolvedDeviceId,
-        }),
-        headers: {'Content-Type': 'application/json; charset=utf-8'},
-      );
+      return _jsonOk({
+        'status': 'disconnected',
+        'deviceId': resolvedDeviceId,
+      });
     } catch (e) {
-      return Response.badRequest(
-        body: jsonEncode({
-          'error': 'Invalid request',
-          'message': e.toString(),
-        }),
-        headers: {'Content-Type': 'application/json; charset=utf-8'},
-      );
+      return _jsonBadRequest({
+        'error': 'Invalid request',
+        'message': e.toString(),
+      });
     }
   }
 }
