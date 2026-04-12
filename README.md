@@ -3,10 +3,6 @@
   <h1>Ariami</h1>
 </div>
 
-> **Sonic Branch Notice (`sonic`)**  
-> This branch focuses on integrating and tuning **Sonic**, Ariami's in-process audio transcoder.  
-> Sonic is a high-throughput, music-focused transcoder used by Ariami for quality conversions (for example MP3 -> AAC for medium/low presets) without relying on HTTP-side transcoding services.
-
 Ariami is a self-hosted music library server with native desktop and mobile players.
 
 ---
