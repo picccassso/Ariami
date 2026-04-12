@@ -8,6 +8,14 @@ Thank you for those that actually support and use this project at all! :D
 
 ---
 
+## 4.1.0
+
+- Integrated FFI-based transcoder for improved performance and reliability
+- Tuned download pipeline for better throughput and resource usage
+- Fixed QR screen redirecting when only the CLI dashboard is connected
+- Added client type tracking to distinguish dashboard vs mobile clients in WebSocket connections
+- Stats endpoint now reports mobile client count separately from total connections
+
 ## 4.0.0
 
 - Major internal refactoring: split the HTTP server, library manager, and transcoding service into focused part files for maintainability
