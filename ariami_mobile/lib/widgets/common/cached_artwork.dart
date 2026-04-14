@@ -212,23 +212,24 @@ class _CachedArtworkState extends State<CachedArtwork> {
         return;
       }
 
-      // Check if offline - don't fetch from network in offline mode.
       // If cache is missing, try a one-off extraction from local downloaded file.
-      if (_offlineService.isOffline) {
-        cachedPath = await _tryExtractFromLocalFile(requestToken: requestToken);
-        if (cachedPath != null && await File(cachedPath).exists()) {
-          if (mounted &&
-              _requestCancellationToken == requestToken &&
-              !requestToken.isCancelled) {
-            setState(() {
-              _localPath = cachedPath;
-              _isLoading = false;
-              _networkFallbackUrl = null;
-            });
-          }
-          return;
+      // This saves network requests even when online.
+      cachedPath = await _tryExtractFromLocalFile(requestToken: requestToken);
+      if (cachedPath != null && await File(cachedPath).exists()) {
+        if (mounted &&
+            _requestCancellationToken == requestToken &&
+            !requestToken.isCancelled) {
+          setState(() {
+            _localPath = cachedPath;
+            _isLoading = false;
+            _networkFallbackUrl = null;
+          });
         }
+        return;
+      }
 
+      // Check if offline - don't fetch from network in offline mode.
+      if (_offlineService.isOffline) {
         // Offline, not cached, and no extractable local artwork - show fallback
         if (mounted &&
             _requestCancellationToken == requestToken &&
