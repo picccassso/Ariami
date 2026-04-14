@@ -119,14 +119,13 @@ class _ImportExportScreenState extends State<ImportExportScreen> {
     return Scaffold(
       backgroundColor: isDark ? Colors.black : Colors.white,
       appBar: AppBar(
-        title: const Text('BACKUP & RESTORE'),
+        title: const Text('Backup & Restore'),
         titleTextStyle: TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 1.5,
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
           color: isDark ? Colors.white : Colors.black,
         ),
-        centerTitle: true,
+        centerTitle: false,
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
@@ -145,14 +144,6 @@ class _ImportExportScreenState extends State<ImportExportScreen> {
               // Icon with minimalist glow/halo effect if desired, but let's stick to clean
               Container(
                 padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF111111) : const Color(0xFFF9F9F9),
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: isDark ? const Color(0xFF222222) : const Color(0xFFEEEEEE),
-                    width: 1,
-                  ),
-                ),
                 child: Icon(
                   Icons.auto_awesome_motion_rounded,
                   size: 64,
@@ -189,15 +180,7 @@ class _ImportExportScreenState extends State<ImportExportScreen> {
 
               // Status Card
               Container(
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF111111) : const Color(0xFFF9F9F9),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: isDark ? const Color(0xFF222222) : const Color(0xFFEEEEEE),
-                    width: 1,
-                  ),
-                ),
+                padding: const EdgeInsets.symmetric(vertical: 12),
                 child: Column(
                   children: [
                     _buildStatusRow(

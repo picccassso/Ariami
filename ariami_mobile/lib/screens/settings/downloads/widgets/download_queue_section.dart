@@ -37,14 +37,14 @@ class DownloadQueueSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 32, 16, 12),
+          padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
           child: Text(
             title.toUpperCase(),
             style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w800,
-              color: isDark ? Colors.grey[400] : Colors.grey[700],
-              letterSpacing: 1.2,
+              fontSize: 14,
+              fontWeight: FontWeight.w900,
+              color: isDark ? Colors.white : Colors.black,
+              letterSpacing: 1.5,
             ),
           ),
         ),

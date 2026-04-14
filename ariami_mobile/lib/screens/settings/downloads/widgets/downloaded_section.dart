@@ -36,14 +36,14 @@ class DownloadedSection extends StatelessWidget {
 
     final widgets = <Widget>[
       Padding(
-        padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
+        padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
         child: Text(
-          'Downloaded',
+          'DOWNLOADED',
           style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: Colors.blue[700],
-            letterSpacing: 0.5,
+            fontSize: 14,
+            fontWeight: FontWeight.w900,
+            color: isDark ? Colors.white : Colors.black,
+            letterSpacing: 1.5,
           ),
         ),
       ),

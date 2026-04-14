@@ -48,14 +48,13 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
     return Scaffold(
       backgroundColor: isDark ? Colors.black : Colors.white,
       appBar: AppBar(
-        title: const Text('LISTENING STATS'),
+        title: const Text('Listening Stats'),
         titleTextStyle: TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 1.5,
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
           color: isDark ? Colors.white : Colors.black,
         ),
-        centerTitle: true,
+        centerTitle: false,
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
@@ -178,17 +177,9 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
         }
 
         return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
           child: Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF111111) : const Color(0xFFF9F9F9),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: isDark ? const Color(0xFF222222) : const Color(0xFFEEEEEE),
-                width: 1,
-              ),
-            ),
+            padding: const EdgeInsets.symmetric(vertical: 12),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
@@ -262,11 +253,11 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
       padding: const EdgeInsets.only(bottom: 120),
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+          padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
           child: Text(
             'TOP SONGS',
             style: TextStyle(
-              fontSize: 12,
+              fontSize: 14,
               fontWeight: FontWeight.w900,
               color: isDark ? Colors.white : Colors.black,
               letterSpacing: 1.5,
@@ -312,11 +303,11 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
       padding: const EdgeInsets.only(bottom: 120),
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+          padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
           child: Text(
             'TOP ARTISTS',
             style: TextStyle(
-              fontSize: 12,
+              fontSize: 14,
               fontWeight: FontWeight.w900,
               color: isDark ? Colors.white : Colors.black,
               letterSpacing: 1.5,
@@ -362,11 +353,11 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
       padding: const EdgeInsets.only(bottom: 120),
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+          padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
           child: Text(
             'TOP ALBUMS',
             style: TextStyle(
-              fontSize: 12,
+              fontSize: 14,
               fontWeight: FontWeight.w900,
               color: isDark ? Colors.white : Colors.black,
               letterSpacing: 1.5,

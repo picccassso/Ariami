@@ -36,11 +36,9 @@ class DownloadAllCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
@@ -108,7 +106,6 @@ class DownloadAllCard extends StatelessWidget {
             ),
           ],
         ),
-      ),
     );
   }
 }

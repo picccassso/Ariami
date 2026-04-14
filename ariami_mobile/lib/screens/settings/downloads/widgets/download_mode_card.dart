@@ -14,11 +14,9 @@ class DownloadModeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Row(
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
           children: [
             Icon(
               Icons.speed_rounded,
@@ -59,7 +57,6 @@ class DownloadModeCard extends StatelessWidget {
             ),
           ],
         ),
-      ),
     );
   }
 }

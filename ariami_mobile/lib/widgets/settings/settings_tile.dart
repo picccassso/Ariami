@@ -28,22 +28,17 @@ class SettingsTile extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
           child: Row(
             children: [
               // Icon container
               Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFEEEEEE),
-                  borderRadius: BorderRadius.circular(12),
-                ),
+                padding: const EdgeInsets.all(8),
                 child: Icon(
                   icon,
-                  color: isDark ? Colors.white : Colors.black,
-                  size: 20,
+                  color: iconColor ?? (isDark ? Colors.white : Colors.black),
+                  size: 24,
                 ),
               ),
               const SizedBox(width: 16),
@@ -54,20 +49,20 @@ class SettingsTile extends StatelessWidget {
                     Text(
                       title,
                       style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
                         color: isDark ? Colors.white : Colors.black,
                       ),
                     ),
                     if (subtitle != null)
                       Padding(
-                        padding: const EdgeInsets.only(top: 2.0),
+                        padding: const EdgeInsets.only(top: 4.0),
                         child: Text(
                           subtitle!,
                           style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                            color: isDark ? Colors.grey[500] : Colors.grey[600],
+                            fontSize: 13,
+                            fontWeight: FontWeight.w400,
+                            color: isDark ? Colors.grey[400] : Colors.grey[600],
                           ),
                         ),
                       ),
@@ -81,8 +76,8 @@ class SettingsTile extends StatelessWidget {
                 const SizedBox(width: 8),
                 Icon(
                   Icons.chevron_right_rounded,
-                  color: isDark ? Colors.white.withOpacity(0.3) : Colors.black26,
-                  size: 20,
+                  color: isDark ? Colors.grey[600] : Colors.grey[400],
+                  size: 24,
                 ),
               ],
             ],

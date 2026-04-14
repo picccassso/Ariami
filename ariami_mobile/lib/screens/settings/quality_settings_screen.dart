@@ -77,14 +77,13 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
     return Scaffold(
       backgroundColor: backgroundColor,
       appBar: AppBar(
-        title: const Text('STREAMING QUALITY'),
+        title: const Text('Streaming Quality'),
         titleTextStyle: const TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 1.5,
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
           color: textColor,
         ),
-        centerTitle: true,
+        centerTitle: false,
         backgroundColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
@@ -178,27 +177,15 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
     }
 
     return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFF141414),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: const Color(0xFF222222),
-          width: 1,
-        ),
-      ),
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(15),
-            ),
+            padding: const EdgeInsets.all(8),
             child: Icon(
               networkIcon,
-              color: Colors.black,
-              size: 22,
+              color: Colors.white,
+              size: 24,
             ),
           ),
           const SizedBox(width: 16),
@@ -209,19 +196,18 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
                 Text(
                   networkLabel,
                   style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
                     color: Colors.white,
-                    letterSpacing: 0.1,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   'Currently ${currentQuality.displayName.toLowerCase()}',
                   style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.grey[500],
+                    fontSize: 13,
+                    fontWeight: FontWeight.w400,
+                    color: Colors.grey[400],
                   ),
                 ),
               ],
@@ -243,14 +229,14 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
 
   Widget _buildSectionHeader(String title) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(4, 24, 16, 12),
+      padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
       child: Text(
-        title,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w800,
-          color: Colors.grey[400],
-          letterSpacing: 1.2,
+        title.toUpperCase(),
+        style: const TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w900,
+          color: Colors.white,
+          letterSpacing: 1.5,
         ),
       ),
     );
@@ -264,15 +250,8 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
     required StreamingQuality currentQuality,
     required Function(StreamingQuality) onChanged,
   }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFF141414),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: const Color(0xFF222222),
-          width: 1,
-        ),
-      ),
+    return Material(
+      color: Colors.transparent,
       child: InkWell(
         onTap: () => _showQualityPicker(
           context,
@@ -280,25 +259,16 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
           currentQuality: currentQuality,
           onChanged: onChanged,
         ),
-        borderRadius: BorderRadius.circular(20),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF252525),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: const Color(0xFF333333),
-                    width: 1,
-                  ),
-                ),
+                padding: const EdgeInsets.all(8),
                 child: Icon(
                   icon,
                   color: Colors.white,
-                  size: 20,
+                  size: 24,
                 ),
               ),
               const SizedBox(width: 16),
@@ -310,21 +280,20 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
                     Text(
                       title,
                       style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
                         color: Colors.white,
-                        letterSpacing: 0.1,
                       ),
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 4),
                     Text(
                       subtitle,
                       overflow: TextOverflow.ellipsis,
                       maxLines: 1,
                       style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.grey[500],
+                        fontSize: 13,
+                        fontWeight: FontWeight.w400,
+                        color: Colors.grey[400],
                       ),
                     ),
                   ],
@@ -338,21 +307,20 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
                   children: [
                     Flexible(
                       child: Text(
-                        currentQuality.displayName.toUpperCase(),
+                        currentQuality.displayName,
                         textAlign: TextAlign.right,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                          letterSpacing: 0.5,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.grey[400],
                         ),
                       ),
                     ),
-                    const SizedBox(width: 4),
+                    const SizedBox(width: 8),
                     Icon(
                       Icons.chevron_right_rounded,
-                      color: Colors.grey[700],
-                      size: 20,
+                      color: Colors.grey[600],
+                      size: 24,
                     ),
                   ],
                 ),
@@ -371,61 +339,58 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
     required bool value,
     required ValueChanged<bool> onChanged,
   }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFF141414),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: const Color(0xFF222222),
-          width: 1,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => onChanged(!value),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                child: Icon(
+                  icon,
+                  color: Colors.white,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w400,
+                        color: Colors.grey[400],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Switch(
+                value: value,
+                onChanged: onChanged,
+                activeThumbColor: Colors.white,
+                activeTrackColor: Colors.grey[800],
+                inactiveThumbColor: Colors.grey[600],
+                inactiveTrackColor: const Color(0xFF111111),
+              ),
+            ],
+          ),
         ),
-      ),
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(
-              icon,
-              color: Colors.black,
-              size: 20,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.grey[500],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Switch(
-            value: value,
-            onChanged: onChanged,
-            activeThumbColor: Colors.white,
-          ),
-        ],
       ),
     );
   }
@@ -535,15 +500,7 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
 
   Widget _buildInfoSection() {
     return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFF141414),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: const Color(0xFF222222),
-          width: 1,
-        ),
-      ),
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -551,44 +508,52 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
             children: [
               Icon(
                 Icons.info_outline_rounded,
-                size: 18,
+                size: 24,
                 color: Colors.white,
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 16),
               Text(
                 'SYSTEM INFO',
                 style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w900,
                   color: Colors.white,
-                  letterSpacing: 1.0,
+                  letterSpacing: 1.5,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 16),
-          _buildInfoRow(
-            'High (Original)',
-            'Full quality, largest file size. Best for WiFi.',
-          ),
-          const SizedBox(height: 12),
-          _buildInfoRow(
-            'Medium (128 kbps)',
-            'Good quality, ~40% smaller files.',
-          ),
-          const SizedBox(height: 12),
-          _buildInfoRow(
-            'Low (64 kbps)',
-            'Acceptable quality, ~80% smaller files.',
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Lower quality settings reduce data usage and improve playback on slow connections.',
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w500,
-              fontStyle: FontStyle.italic,
-              color: Colors.grey[500],
+          Padding(
+            padding: const EdgeInsets.only(left: 40),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildInfoRow(
+                  'High (Original)',
+                  'Full quality, largest file size. Best for WiFi.',
+                ),
+                const SizedBox(height: 12),
+                _buildInfoRow(
+                  'Medium (128 kbps)',
+                  'Good quality, ~40% smaller files.',
+                ),
+                const SizedBox(height: 12),
+                _buildInfoRow(
+                  'Low (64 kbps)',
+                  'Acceptable quality, ~80% smaller files.',
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Lower quality settings reduce data usage and improve playback on slow connections.',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w400,
+                    fontStyle: FontStyle.italic,
+                    color: Colors.grey[400],
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -603,8 +568,8 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
         Text(
           title,
           style: const TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w700,
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
             color: Colors.white,
           ),
         ),
@@ -612,8 +577,8 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
         Text(
           description,
           style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
+            fontSize: 13,
+            fontWeight: FontWeight.w400,
             color: Colors.grey[400],
           ),
         ),

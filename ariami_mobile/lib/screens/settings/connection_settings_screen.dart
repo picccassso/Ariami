@@ -309,14 +309,13 @@ class _ConnectionSettingsScreenState extends State<ConnectionSettingsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('CONNECTION'),
+        title: const Text('Connection'),
         titleTextStyle: TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 1.5,
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
           color: isDark ? Colors.white : Colors.black,
         ),
-        centerTitle: true,
+        centerTitle: false,
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
@@ -335,16 +334,7 @@ class _ConnectionSettingsScreenState extends State<ConnectionSettingsScreen> {
                 children: [
                   if (_isOfflineModeEnabled) ...[
                     Container(
-                      margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 14),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFFB300).withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: const Color(0xFFFFB300).withValues(alpha: 0.2),
-                        ),
-                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                       child: Row(
                         children: [
                           const Icon(Icons.wifi_off_rounded,

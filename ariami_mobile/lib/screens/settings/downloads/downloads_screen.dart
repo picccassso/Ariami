@@ -191,6 +191,14 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Downloads'),
+        titleTextStyle: TextStyle(
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+          color: isDark ? Colors.white : Colors.black,
+        ),
+        centerTitle: false,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         actions: [
           if (dm.queue.isNotEmpty)
             IconButton(

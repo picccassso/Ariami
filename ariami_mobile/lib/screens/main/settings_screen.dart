@@ -152,6 +152,62 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  Widget _buildUserProfileHeader() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final username = _connectionService.username ?? 'Guest';
+    final initial = username.isNotEmpty ? username[0].toUpperCase() : '?';
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 24, 16, 32),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 36,
+            backgroundColor: isDark ? Colors.grey[800] : Colors.grey[300],
+            child: Text(
+              initial,
+              style: TextStyle(
+                fontSize: 32,
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white : Colors.black,
+              ),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  username,
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : Colors.black,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'View Profile',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: isDark ? Colors.grey[400] : Colors.grey[600],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Icon(
+            Icons.chevron_right_rounded,
+            color: isDark ? Colors.grey[600] : Colors.grey[400],
+            size: 28,
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -159,14 +215,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Scaffold(
       backgroundColor: isDark ? Colors.black : Colors.white,
       appBar: AppBar(
-        title: const Text('SETTINGS'),
+        title: const Text('Settings'),
         titleTextStyle: TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 1.5,
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
           color: isDark ? Colors.white : Colors.black,
         ),
-        centerTitle: true,
+        centerTitle: false,
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
@@ -175,6 +230,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           bottom: getMiniPlayerAwareBottomPadding(context),
         ),
         children: [
+          _buildUserProfileHeader(),
           // Connection section
           SettingsSection(
             title: 'CONNECTION',
