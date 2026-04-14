@@ -40,46 +40,10 @@ class PlayerTopBar extends StatelessWidget {
           ),
 
           if (castButton != null) castButton!,
-
-          // Overflow menu
-          IconButton(
-            icon: const Icon(LucideIcons.moreVertical),
-            onPressed: () => _showOverflowMenu(context),
-            tooltip: 'More options',
-          ),
         ],
       ),
     );
   }
 
-  /// Show overflow menu with additional options
-  void _showOverflowMenu(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      builder: (BuildContext context) {
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (onOpenQueue != null)
-              ListTile(
-                leading: const Icon(LucideIcons.listMusic),
-                title: const Text('View Queue'),
-                onTap: () {
-                  Navigator.pop(context);
-                  onOpenQueue!();
-                },
-              ),
-            ListTile(
-              leading: const Icon(LucideIcons.listPlus),
-              title: const Text('Add to Playlist'),
-              onTap: () {
-                Navigator.pop(context);
-                // TODO: Implement in Task 7.5
-              },
-            ),
-          ],
-        );
-      },
-    );
-  }
+
 }
