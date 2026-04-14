@@ -14,7 +14,7 @@ class SettingsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 0.0, vertical: 12.0),
@@ -28,7 +28,7 @@ class SettingsSection extends StatelessWidget {
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w900,
-                color: isDark ? Colors.white : Colors.black,
+                color: colorScheme.onSurface,
                 letterSpacing: 1.5,
               ),
             ),

@@ -153,7 +153,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _buildUserProfileHeader() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colorScheme = Theme.of(context).colorScheme;
     final username = _connectionService.username ?? 'Guest';
     final initial = username.isNotEmpty ? username[0].toUpperCase() : '?';
 
@@ -169,13 +169,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
             children: [
               CircleAvatar(
                 radius: 36,
-                backgroundColor: isDark ? Colors.grey[800] : Colors.grey[300],
+                backgroundColor: colorScheme.surfaceContainerHighest,
                 child: Text(
                   initial,
                   style: TextStyle(
                     fontSize: 32,
                     fontWeight: FontWeight.bold,
-                    color: isDark ? Colors.white : Colors.black,
+                    color: colorScheme.onSurface,
                   ),
                 ),
               ),
@@ -189,7 +189,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       style: TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
-                        color: isDark ? Colors.white : Colors.black,
+                        color: colorScheme.onSurface,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -198,7 +198,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
-                        color: isDark ? Colors.grey[400] : Colors.grey[600],
+                        color: colorScheme.onSurface.withValues(alpha: 0.7),
                       ),
                     ),
                   ],
@@ -206,7 +206,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               Icon(
                 Icons.chevron_right_rounded,
-                color: isDark ? Colors.grey[600] : Colors.grey[400],
+                color: colorScheme.onSurface.withValues(alpha: 0.5),
                 size: 28,
               ),
             ],
@@ -218,7 +218,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
       appBar: AppBar(
@@ -226,7 +226,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         titleTextStyle: TextStyle(
           fontSize: 20,
           fontWeight: FontWeight.bold,
-          color: isDark ? Colors.white : Colors.black,
+          color: colorScheme.onSurface,
         ),
         centerTitle: false,
         backgroundColor: Colors.transparent,
@@ -264,14 +264,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       )
                     : Switch(
                         value: _isOfflineModeEnabled,
-                        activeThumbColor: isDark ? Colors.white : Colors.black,
-                        activeTrackColor:
-                            isDark ? Colors.grey[800] : Colors.grey[300],
-                        inactiveThumbColor:
-                            isDark ? Colors.grey[600] : Colors.grey[400],
-                        inactiveTrackColor: isDark
-                            ? const Color(0xFF111111)
-                            : const Color(0xFFF9F9F9),
+                        activeColor: colorScheme.onPrimary,
+                        activeTrackColor: colorScheme.primary,
+                        inactiveThumbColor: colorScheme.onSurfaceVariant,
+                        inactiveTrackColor: colorScheme.surfaceContainerHighest,
                         onChanged: (value) => _handleOfflineModeToggle(value),
                       ),
               ),
@@ -362,18 +358,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _showResetStatsDialog() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colorScheme = Theme.of(context).colorScheme;
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: isDark ? const Color(0xFF111111) : Colors.white,
+        backgroundColor: colorScheme.surface,
         title: Text(
           'RESET STATS',
           style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w900,
             letterSpacing: 1.5,
-            color: isDark ? Colors.white : Colors.black,
+            color: colorScheme.onSurface,
           ),
         ),
         content: Text(
@@ -381,7 +377,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w500,
-            color: isDark ? Colors.grey[400] : Colors.grey[600],
+            color: colorScheme.onSurface.withValues(alpha: 0.7),
           ),
         ),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -394,7 +390,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 fontSize: 11,
                 fontWeight: FontWeight.w900,
                 letterSpacing: 1.0,
-                color: isDark ? Colors.grey[500] : Colors.grey[600],
+                color: colorScheme.onSurface.withValues(alpha: 0.5),
               ),
             ),
           ),
@@ -425,18 +421,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _showAboutDialog() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colorScheme = Theme.of(context).colorScheme;
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: isDark ? const Color(0xFF111111) : Colors.white,
+        backgroundColor: colorScheme.surface,
         title: Text(
           'ABOUT ARIAMI',
           style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w900,
             letterSpacing: 1.5,
-            color: isDark ? Colors.white : Colors.black,
+            color: colorScheme.onSurface,
           ),
         ),
         content: Column(
@@ -448,7 +444,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w800,
-                color: isDark ? Colors.white : Colors.black,
+                color: colorScheme.onSurface,
                 letterSpacing: 0.5,
               ),
             ),
@@ -458,7 +454,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
-                color: isDark ? Colors.grey[400] : Colors.grey[600],
+                color: colorScheme.onSurface.withValues(alpha: 0.7),
               ),
             ),
             const SizedBox(height: 8),
@@ -467,7 +463,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
-                color: isDark ? Colors.grey[500] : Colors.grey[500],
+                color: colorScheme.onSurface.withValues(alpha: 0.5),
               ),
             ),
           ],
@@ -482,7 +478,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 fontSize: 11,
                 fontWeight: FontWeight.w900,
                 letterSpacing: 1.0,
-                color: isDark ? Colors.white : Colors.black,
+                color: colorScheme.onSurface,
               ),
             ),
           ),

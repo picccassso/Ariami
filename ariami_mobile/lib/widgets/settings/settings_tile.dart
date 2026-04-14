@@ -22,7 +22,7 @@ class SettingsTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colorScheme = Theme.of(context).colorScheme;
     
     return Material(
       color: Colors.transparent,
@@ -37,7 +37,7 @@ class SettingsTile extends StatelessWidget {
                 padding: const EdgeInsets.all(8),
                 child: Icon(
                   icon,
-                  color: iconColor ?? (isDark ? Colors.white : Colors.black),
+                  color: iconColor ?? colorScheme.onSurface,
                   size: 24,
                 ),
               ),
@@ -51,7 +51,7 @@ class SettingsTile extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
-                        color: isDark ? Colors.white : Colors.black,
+                        color: colorScheme.onSurface,
                       ),
                     ),
                     if (subtitle != null)
@@ -62,7 +62,7 @@ class SettingsTile extends StatelessWidget {
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w400,
-                            color: isDark ? Colors.grey[400] : Colors.grey[600],
+                            color: colorScheme.onSurface.withValues(alpha: 0.7),
                           ),
                         ),
                       ),
@@ -76,7 +76,7 @@ class SettingsTile extends StatelessWidget {
                 const SizedBox(width: 8),
                 Icon(
                   Icons.chevron_right_rounded,
-                  color: isDark ? Colors.grey[600] : Colors.grey[400],
+                  color: colorScheme.onSurface.withValues(alpha: 0.5),
                   size: 24,
                 ),
               ],
