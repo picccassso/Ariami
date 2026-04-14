@@ -7,6 +7,7 @@ import '../../services/stats/streaming_stats_service.dart';
 import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
 import '../../widgets/settings/settings_section.dart';
 import '../../widgets/settings/settings_tile.dart';
+import 'appearance_settings_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -138,7 +139,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final shouldLogout = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: isDark ? const Color(0xFF111111) : colorScheme.surface,
         title: Text(
           'LOG OUT',
           style: TextStyle(
@@ -384,6 +384,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
       title: 'Quick Actions',
       tiles: [
         SettingsTile(
+          icon: Icons.palette_rounded,
+          title: 'Appearance',
+          subtitle: 'Customize app colors and theme',
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => const AppearanceSettingsScreen(),
+            ),
+          ),
+        ),
+        SettingsTile(
           icon: Icons.bar_chart_rounded,
           title: 'Listening Stats',
           subtitle: 'Open full listening insights',
@@ -419,7 +429,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         (_username?.trim().isNotEmpty ?? false) ? _username! : 'Guest';
 
     return Scaffold(
-      backgroundColor: isDark ? Colors.black : Colors.white,
       appBar: AppBar(
         title: const Text('Profile'),
         titleTextStyle: TextStyle(

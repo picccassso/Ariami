@@ -23,6 +23,8 @@ import 'services/quality/quality_settings_service.dart';
 import 'services/quality/network_monitor_service.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 
+import 'services/theme_service.dart';
+
 // Global audio handler instance - accessible throughout the app
 // Nullable because initialization might fail on some devices
 AriamiAudioHandler? audioHandler;
@@ -92,6 +94,9 @@ void main() async {
   // Pre-load SharedPreferences for synchronous access throughout the app
   // This eliminates flicker in widgets that need persisted state on first build
   sharedPrefs = await SharedPreferences.getInstance();
+
+  // Initialize ThemeService after SharedPreferences is loaded
+  ThemeService().init();
 
   runApp(const MyApp());
 }
@@ -455,20 +460,24 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Ariami',
-      navigatorKey: _navigatorKey,
-      scaffoldMessengerKey: _scaffoldMessengerKey,
-      theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
-      home: _isLoading
-          ? const Scaffold(
-              body: Center(
-                child: CircularProgressIndicator(),
-              ),
-            )
-          : _initialScreen,
-      routes: {
+    return ListenableBuilder(
+      listenable: ThemeService(),
+      builder: (context, _) {
+        return MaterialApp(
+          title: 'Ariami',
+          navigatorKey: _navigatorKey,
+          scaffoldMessengerKey: _scaffoldMessengerKey,
+          theme: ThemeService().lightTheme,
+          darkTheme: ThemeService().darkTheme,
+          themeMode: ThemeService().themeMode,
+          home: _isLoading
+              ? const Scaffold(
+                  body: Center(
+                    child: CircularProgressIndicator(),
+                  ),
+                )
+              : _initialScreen,
+          routes: {
         '/setup/tailscale': (context) => const TailscaleCheckScreen(),
         '/setup/scanner': (context) => const QRScannerScreen(),
         '/setup/permissions': (context) => const PermissionsScreen(),
@@ -484,6 +493,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
               ModalRoute.of(context)!.settings.arguments as ServerInfo;
           return RegisterScreen(serverInfo: serverInfo);
         },
+      },
+    );
       },
     );
   }

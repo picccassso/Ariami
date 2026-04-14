@@ -117,7 +117,6 @@ class _ImportExportScreenState extends State<ImportExportScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: isDark ? Colors.black : Colors.white,
       appBar: AppBar(
         title: const Text('Backup & Restore'),
         titleTextStyle: TextStyle(

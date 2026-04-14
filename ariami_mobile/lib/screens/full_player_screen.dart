@@ -3,6 +3,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../services/playback_manager.dart';
 import '../services/playlist_service.dart';
 import '../services/color_extraction_service.dart';
+import '../utils/constants.dart';
 import '../models/repeat_mode.dart' as playback_repeat;
 import '../widgets/player/player_top_bar.dart';
 import '../widgets/player/player_artwork.dart';
@@ -88,8 +89,13 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
   Widget build(BuildContext context) {
     final colors = _colorService.currentColors;
 
-    return Scaffold(
-      body: AnimatedContainer(
+    return Theme(
+      data: AppTheme.buildTheme(
+        brightness: Brightness.dark,
+        seedColor: colors.primary,
+      ),
+      child: Scaffold(
+        body: AnimatedContainer(
         duration: const Duration(milliseconds: 500),
         curve: Curves.easeInOut,
         decoration: BoxDecoration(
@@ -107,6 +113,7 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
         child: _playbackManager.currentSong == null
             ? _buildEmptyState()
             : _buildPlayer(),
+      ),
       ),
     );
   }

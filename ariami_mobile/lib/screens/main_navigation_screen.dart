@@ -175,7 +175,13 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
           filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
           child: Container(
             decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.5),
+              color: Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0.85),
+              border: Border(
+                top: BorderSide(
+                  color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
+                  width: 0.5,
+                ),
+              ),
             ),
             child: BottomNavigationBar(
               currentIndex: _currentIndex,

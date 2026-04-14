@@ -5,6 +5,7 @@ import '../../models/song.dart';
 import '../../services/api/connection_service.dart';
 import '../../services/cast/chrome_cast_service.dart';
 import '../../services/color_extraction_service.dart';
+import '../../utils/constants.dart';
 import '../../services/playback_manager.dart';
 import '../common/cached_artwork.dart';
 
@@ -186,8 +187,13 @@ class _MiniPlayerState extends State<MiniPlayer> {
     final colors = _colorService.currentColors;
     
     // Flush style
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 500),
+    return Theme(
+      data: AppTheme.buildTheme(
+        brightness: Brightness.dark,
+        seedColor: colors.primary,
+      ),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 500),
       curve: Curves.easeInOut,
       height: 64, // Slightly shorter for flush look
       decoration: BoxDecoration(
@@ -315,6 +321,7 @@ class _MiniPlayerState extends State<MiniPlayer> {
           ),
         ),
       ),
+    ),
     );
   }
 
@@ -374,3 +381,4 @@ class _MiniPlayerState extends State<MiniPlayer> {
     );
   }
 }
+

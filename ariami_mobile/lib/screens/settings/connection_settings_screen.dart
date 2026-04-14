@@ -153,7 +153,6 @@ class _ConnectionSettingsScreenState extends State<ConnectionSettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: isDark ? const Color(0xFF111111) : colorScheme.surface,
         title: Text(
           'LOG OUT',
           style: TextStyle(
