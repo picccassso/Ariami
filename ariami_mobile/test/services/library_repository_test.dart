@@ -77,6 +77,56 @@ void main() {
       expect(playlists.single.songIds, equals(<String>['song-2', 'song-1']));
     });
 
+    test('bootstrap normalizes playlist songCount from membership rows',
+        () async {
+      final repository = LibraryRepository();
+      addTearDown(repository.close);
+
+      await repository.applyBootstrapPage(
+        V2BootstrapResponse(
+          syncToken: 8,
+          albums: const <AlbumModel>[],
+          songs: <SongModel>[
+            SongModel(
+              id: 'song-1',
+              title: 'Song 1',
+              artist: 'Artist 1',
+              albumId: null,
+              duration: 180,
+            ),
+            SongModel(
+              id: 'song-2',
+              title: 'Song 2',
+              artist: 'Artist 1',
+              albumId: null,
+              duration: 180,
+            ),
+          ],
+          playlists: const <V2PlaylistModel>[
+            V2PlaylistModel(
+              id: 'playlist-1',
+              name: 'Playlist 1',
+              songCount: 200,
+              duration: 0,
+              songIds: <String>['song-1', 'song-2'],
+            ),
+          ],
+          pageInfo: V2PageInfo(
+            cursor: null,
+            nextCursor: null,
+            hasMore: false,
+            limit: 200,
+          ),
+        ),
+      );
+      await repository.completeBootstrap(lastAppliedToken: 8);
+
+      expect(await repository.hasCompletedBootstrap(), isTrue);
+      final playlist = (await repository.getServerPlaylists()).single;
+      expect(playlist.songCount, equals(2));
+      expect(playlist.songIds, equals(<String>['song-1', 'song-2']));
+    });
+
     test('delta sync updates playlist metadata and membership ordering',
         () async {
       final repository = LibraryRepository();

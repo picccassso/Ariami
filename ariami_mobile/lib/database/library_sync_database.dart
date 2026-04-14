@@ -500,6 +500,25 @@ class LibrarySyncDatabase {
       SELECT playlist_id, song_id, position, is_deleted
       FROM $_bootstrapPlaylistSongsTable
     ''');
+
+    // Keep playlist counts aligned with the actual membership rows in case the
+    // bootstrap payload carried stale song_count values.
+    await db.rawUpdate('''
+      UPDATE $_playlistsTable
+      SET song_count = (
+        SELECT COUNT(*)
+        FROM $_playlistSongsTable playlist_songs
+        WHERE playlist_songs.playlist_id = $_playlistsTable.id
+          AND playlist_songs.is_deleted = 0
+      )
+      WHERE is_deleted = 0
+        AND song_count != (
+          SELECT COUNT(*)
+          FROM $_playlistSongsTable playlist_songs
+          WHERE playlist_songs.playlist_id = $_playlistsTable.id
+            AND playlist_songs.is_deleted = 0
+        )
+    ''');
   }
 
   Future<void> upsertPlaylistSongs(

@@ -28,11 +28,20 @@ class LibrarySyncEngine {
   final int bootstrapPageLimit;
   final int changesPageLimit;
   final Duration pollInterval;
+  static const List<int> _bootstrapRetryScheduleSeconds = <int>[
+    30,
+    60,
+    120,
+    240,
+    300,
+  ];
 
   Timer? _pollTimer;
   bool _running = false;
   bool _disposed = false;
   Future<void> _syncQueue = Future<void>.value();
+  DateTime? _nextBootstrapRetryAt;
+  int _bootstrapRetryAttempts = 0;
 
   bool get isRunning => _running;
 
@@ -65,36 +74,47 @@ class LibrarySyncEngine {
   }
 
   Future<void> syncNow() {
-    return _enqueueSync(() async {
-      final bootstrapComplete =
-          await _libraryRepository.hasCompletedBootstrap();
-      debugPrint(
-        '[LibrarySyncEngine][syncNow] bootstrapComplete=$bootstrapComplete',
-      );
-      if (!bootstrapComplete) {
-        await _runBootstrapSync();
-        return;
-      }
-      await _applyDeltaChanges();
-    });
+    return _enqueueSync(() => _syncInternal());
   }
 
   Future<void> syncUntil(int targetToken) {
-    return _enqueueSync(() async {
-      final bootstrapComplete =
-          await _libraryRepository.hasCompletedBootstrap();
-      debugPrint(
-        '[LibrarySyncEngine][syncUntil] targetToken=$targetToken '
-        'bootstrapComplete=$bootstrapComplete',
-      );
-      if (!bootstrapComplete) {
-        await _runBootstrapSync();
-      }
-      await _applyDeltaChanges(targetToken: targetToken);
-    });
+    return _enqueueSync(() => _syncInternal(targetToken: targetToken));
   }
 
-  Future<void> _runBootstrapSync() async {
+  Future<void> _syncInternal({int? targetToken}) async {
+    final bootstrapReady = await _libraryRepository.hasCompletedBootstrap();
+    debugPrint(
+      '[LibrarySyncEngine][syncInternal] bootstrapReady=$bootstrapReady '
+      'targetToken=${targetToken ?? '<none>'}',
+    );
+
+    if (!bootstrapReady) {
+      if (_isBootstrapRetryDeferred()) {
+        final until = _nextBootstrapRetryAt!.difference(DateTime.now());
+        debugPrint(
+          '[LibrarySyncEngine][syncInternal] skipping bootstrap due to backoff '
+          'retryIn=${until.inSeconds}s',
+        );
+        return;
+      }
+
+      final readyAfterBootstrap = await _runBootstrapSync();
+      if (!readyAfterBootstrap) {
+        _scheduleBootstrapRetryBackoff();
+        return;
+      }
+      _clearBootstrapRetryBackoff();
+      if (targetToken == null) {
+        return;
+      }
+    } else {
+      _clearBootstrapRetryBackoff();
+    }
+
+    await _applyDeltaChanges(targetToken: targetToken);
+  }
+
+  Future<bool> _runBootstrapSync() async {
     debugPrint('[LibrarySyncEngine][_runBootstrapSync] starting bootstrap');
     await _libraryRepository.resetForBootstrap();
 
@@ -146,9 +166,15 @@ class LibrarySyncEngine {
         'pagesProcessed=$pagesProcessed latestToken=$latestToken '
         'bootstrapReady=$bootstrapReady',
       );
-      if (onBootstrapCompleted != null) {
+      if (bootstrapReady && onBootstrapCompleted != null) {
         await onBootstrapCompleted!(latestToken);
+      } else if (!bootstrapReady) {
+        debugPrint(
+          '[LibrarySyncEngine][_runBootstrapSync] suppressed bootstrap-complete '
+          'notification because readiness gate is still pending',
+        );
       }
+      return bootstrapReady;
     } catch (error, stackTrace) {
       debugPrint(
         '[LibrarySyncEngine][_runBootstrapSync] failed error=$error\n$stackTrace',
@@ -185,7 +211,12 @@ class LibrarySyncEngine {
           '[LibrarySyncEngine][_applyDeltaChanges] bootstrap refresh required '
           'because at least one upsert payload was null',
         );
-        await _runBootstrapSync();
+        final readyAfterBootstrap = await _runBootstrapSync();
+        if (!readyAfterBootstrap) {
+          _scheduleBootstrapRetryBackoff();
+        } else {
+          _clearBootstrapRetryBackoff();
+        }
         return;
       }
 
@@ -230,6 +261,38 @@ class LibrarySyncEngine {
       }
     }
     return false;
+  }
+
+  bool _isBootstrapRetryDeferred() {
+    final retryAt = _nextBootstrapRetryAt;
+    if (retryAt == null) return false;
+    return DateTime.now().isBefore(retryAt);
+  }
+
+  void _scheduleBootstrapRetryBackoff() {
+    _bootstrapRetryAttempts += 1;
+    final index = _bootstrapRetryAttempts - 1;
+    final boundedIndex = index < 0
+        ? 0
+        : (index >= _bootstrapRetryScheduleSeconds.length
+            ? _bootstrapRetryScheduleSeconds.length - 1
+            : index);
+    final delay =
+        Duration(seconds: _bootstrapRetryScheduleSeconds[boundedIndex]);
+    _nextBootstrapRetryAt = DateTime.now().add(delay);
+
+    debugPrint(
+      '[LibrarySyncEngine][bootstrapBackoff] scheduled '
+      'attempt=$_bootstrapRetryAttempts retryIn=${delay.inSeconds}s',
+    );
+  }
+
+  void _clearBootstrapRetryBackoff() {
+    if (_bootstrapRetryAttempts == 0 && _nextBootstrapRetryAt == null) {
+      return;
+    }
+    _bootstrapRetryAttempts = 0;
+    _nextBootstrapRetryAt = null;
   }
 
   Future<void> _enqueueSync(Future<void> Function() action) {

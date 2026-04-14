@@ -70,6 +70,37 @@ void main() {
       expect(completedToken, equals(6));
     });
 
+    test('suppresses bootstrap completion callback when readiness is pending',
+        () async {
+      final repository = _AlwaysBackfillPendingLibraryRepository();
+      final apiClient = _FakeApiClient(
+        bootstrapResponses: <V2BootstrapResponse>[
+          _bootstrapPage(
+            syncToken: 10,
+            hasMore: false,
+            cursor: null,
+            nextCursor: null,
+          ),
+        ],
+      );
+      int callbackCount = 0;
+
+      final engine = LibrarySyncEngine(
+        apiClientProvider: () => apiClient,
+        libraryRepository: repository,
+        onBootstrapCompleted: (_) async {
+          callbackCount += 1;
+        },
+      );
+
+      await engine.syncNow();
+      await engine.syncNow();
+
+      expect(callbackCount, equals(0));
+      expect(apiClient.bootstrapCallCount, equals(1));
+      expect(repository.resetCount, equals(1));
+    });
+
     test('falls back to bootstrap when change upsert payload is null',
         () async {
       final repository = _FakeLibraryRepository(
@@ -427,4 +458,9 @@ class _BackfillPendingLibraryRepository extends _FakeLibraryRepository {
     await super.completeBootstrap(lastAppliedToken: lastAppliedToken);
     _backfillPending = false;
   }
+}
+
+class _AlwaysBackfillPendingLibraryRepository extends _FakeLibraryRepository {
+  @override
+  Future<bool> hasCompletedBootstrap() async => false;
 }

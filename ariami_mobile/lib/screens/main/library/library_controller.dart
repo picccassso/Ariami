@@ -51,6 +51,7 @@ class LibraryController extends ChangeNotifier {
 
   // Signature for download state comparison
   String _lastCompletedDownloadsSignature = '';
+  int _lastHandledSyncToken = 0;
 
   // Timers
   Timer? _durationRetryTimer;
@@ -313,7 +314,13 @@ class LibraryController extends ChangeNotifier {
 
   Future<void> _handleSyncTokenAdvanced(int latestToken) async {
     if (!await _isUsingV2LibrarySource()) return;
+    if (latestToken > 0 && latestToken <= _lastHandledSyncToken) {
+      return;
+    }
     await _refreshFromSyncToken(latestToken);
+    if (latestToken > 0) {
+      _lastHandledSyncToken = latestToken;
+    }
   }
 
   Future<void> _handleLibraryUpdatedMessage() async {
