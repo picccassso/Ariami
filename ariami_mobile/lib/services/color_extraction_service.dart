@@ -106,6 +106,50 @@ class ColorExtractionService extends ChangeNotifier {
     }
   }
 
+  /// Get the dominant color for a specific song without changing the current theme
+  Future<Color> getDominantColorForSong(String songId, String? albumId) async {
+    final cacheId = albumId ?? 'song_$songId';
+
+    // Check if already cached in memory
+    if (_colorCache.containsKey(cacheId)) {
+      return _colorCache[cacheId]!.primary;
+    }
+
+    try {
+      GradientColors? colors;
+
+      // Try to extract from cached artwork file first (fastest)
+      final cachedPath = await _cacheManager.getArtworkPath(cacheId);
+
+      if (cachedPath != null) {
+        colors = await _extractFromFile(cachedPath);
+      }
+
+      // If not cached locally, try to extract from network
+      if (colors == null && _connectionService.isConnected) {
+        final serverInfo = _connectionService.serverInfo;
+        if (serverInfo != null) {
+          final baseUrl = 'http://${serverInfo.server}:${serverInfo.port}/api';
+          final artworkUrl = albumId != null 
+              ? '$baseUrl/artwork/$albumId' 
+              : '$baseUrl/song-artwork/$songId';
+          colors = await _extractFromUrl(artworkUrl);
+        }
+      }
+
+      // Use fallback if extraction failed
+      colors ??= GradientColors.fallback;
+
+      // Cache the result
+      _colorCache[cacheId] = colors;
+
+      return colors.primary;
+    } catch (e) {
+      print('[ColorExtractionService] Error extracting color for song $songId: $e');
+      return GradientColors.fallback.primary;
+    }
+  }
+
   /// Extract colors from a local file
   Future<GradientColors?> _extractFromFile(String filePath) async {
     try {

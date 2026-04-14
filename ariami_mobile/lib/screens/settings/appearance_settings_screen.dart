@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import '../../../services/theme_service.dart';
 import '../../../services/playback_manager.dart';
+import '../../../services/color_extraction_service.dart';
 import '../../../widgets/settings/settings_section.dart';
 import '../../../widgets/settings/settings_tile.dart';
+import 'song_selection_screen.dart';
 
 class AppearanceSettingsScreen extends StatefulWidget {
   const AppearanceSettingsScreen({super.key});
@@ -238,37 +240,49 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
               if (_themeService.themeSource == ThemeSource.staticCoverArt)
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: _themeService.staticCoverArtColor,
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: isDark ? Colors.white24 : Colors.black12,
-                            width: 1,
-                          ),
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        ElevatedButton(
+                          onPressed: _playbackManager.currentSong != null
+                              ? () async {
+                                  final song = _playbackManager.currentSong!;
+                                  final color = await ColorExtractionService().getDominantColorForSong(song.id, song.albumId);
+                                  _themeService.setStaticCoverArtColor(color);
+                                  if (mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('Set to current song\'s color')),
+                                    );
+                                  }
+                                }
+                              : null,
+                          child: const Text('Use Current Song'),
                         ),
-                      ),
-                      const SizedBox(width: 16),
-                      ElevatedButton(
-                        onPressed: _playbackManager.currentSong != null
-                            ? () {
-                                // We can use the ColorExtractionService's current color since it's already extracted for the current song
-                                final currentColor = ThemeService().currentSeedColor; // This is a bit hacky, better to access ColorExtractionService directly
-                                // For simplicity, let's just use the current theme's primary color if we are playing something
-                                // Actually, we need to extract it. Let's just use the current theme's primary color
-                                _themeService.setStaticCoverArtColor(Theme.of(context).colorScheme.primary);
+                        const SizedBox(width: 12),
+                        ElevatedButton(
+                          onPressed: () async {
+                            final selectedSong = await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const SongSelectionScreen(),
+                              ),
+                            );
+                            
+                            if (selectedSong != null && mounted) {
+                              final color = await ColorExtractionService().getDominantColorForSong(selectedSong.id, selectedSong.albumId);
+                              _themeService.setStaticCoverArtColor(color);
+                              if (mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Set to current song\'s color')),
+                                  SnackBar(content: Text('Set color from ${selectedSong.title}')),
                                 );
                               }
-                            : null,
-                        child: const Text('Use Current Song'),
-                      ),
-                    ],
+                            }
+                          },
+                          child: const Text('Use Different Song'),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
             ],
