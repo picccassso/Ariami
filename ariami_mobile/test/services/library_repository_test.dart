@@ -3,7 +3,6 @@ import 'package:ariami_mobile/services/library/library_repository.dart';
 import 'package:ariami_mobile/models/api_models.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
-import 'package:sqflite/sqflite.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 void main() {
