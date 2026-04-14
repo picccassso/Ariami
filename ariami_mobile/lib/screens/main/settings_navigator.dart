@@ -5,9 +5,11 @@ import '../settings/downloads/downloads_screen.dart';
 import '../settings/import_export_screen.dart';
 import '../settings/quality_settings_screen.dart';
 import '../settings/streaming_stats_screen.dart';
+import '../settings/profile_screen.dart';
 
 /// A navigator key for the settings tab's nested navigation
-final GlobalKey<NavigatorState> settingsNavigatorKey = GlobalKey<NavigatorState>();
+final GlobalKey<NavigatorState> settingsNavigatorKey =
+    GlobalKey<NavigatorState>();
 
 /// Wrapper widget that provides nested navigation for the Settings tab.
 /// This allows detail screens to be shown within the tab
@@ -55,6 +57,9 @@ class SettingsNavigator extends StatelessWidget {
               break;
             case '/quality':
               page = const QualitySettingsScreen();
+              break;
+            case '/profile':
+              page = const ProfileScreen();
               break;
             // Add more routes here as settings sub-screens are added
             default:

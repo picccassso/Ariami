@@ -141,8 +141,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content: Text(
-                    'Cannot connect to server. Staying in offline mode.'),
+                content:
+                    Text('Cannot connect to server. Staying in offline mode.'),
                 duration: Duration(seconds: 3),
               ),
             );
@@ -157,53 +157,61 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final username = _connectionService.username ?? 'Guest';
     final initial = username.isNotEmpty ? username[0].toUpperCase() : '?';
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 24, 16, 32),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 36,
-            backgroundColor: isDark ? Colors.grey[800] : Colors.grey[300],
-            child: Text(
-              initial,
-              style: TextStyle(
-                fontSize: 32,
-                fontWeight: FontWeight.bold,
-                color: isDark ? Colors.white : Colors.black,
-              ),
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  username,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          Navigator.of(context).pushNamed('/profile');
+        },
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 24, 16, 32),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 36,
+                backgroundColor: isDark ? Colors.grey[800] : Colors.grey[300],
+                child: Text(
+                  initial,
                   style: TextStyle(
-                    fontSize: 24,
+                    fontSize: 32,
                     fontWeight: FontWeight.bold,
                     color: isDark ? Colors.white : Colors.black,
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  'View Profile',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: isDark ? Colors.grey[400] : Colors.grey[600],
-                  ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      username,
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white : Colors.black,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'View Profile',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: isDark ? Colors.grey[400] : Colors.grey[600],
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: isDark ? Colors.grey[600] : Colors.grey[400],
+                size: 28,
+              ),
+            ],
           ),
-          Icon(
-            Icons.chevron_right_rounded,
-            color: isDark ? Colors.grey[600] : Colors.grey[400],
-            size: 28,
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -258,9 +266,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     : Switch(
                         value: _isOfflineModeEnabled,
                         activeThumbColor: isDark ? Colors.white : Colors.black,
-                        activeTrackColor: isDark ? Colors.grey[800] : Colors.grey[300],
-                        inactiveThumbColor: isDark ? Colors.grey[600] : Colors.grey[400],
-                        inactiveTrackColor: isDark ? const Color(0xFF111111) : const Color(0xFFF9F9F9),
+                        activeTrackColor:
+                            isDark ? Colors.grey[800] : Colors.grey[300],
+                        inactiveThumbColor:
+                            isDark ? Colors.grey[600] : Colors.grey[400],
+                        inactiveTrackColor: isDark
+                            ? const Color(0xFF111111)
+                            : const Color(0xFFF9F9F9),
                         onChanged: (value) => _handleOfflineModeToggle(value),
                       ),
               ),
@@ -389,13 +401,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           TextButton(
             onPressed: () async {
+              final navigator = Navigator.of(context);
+              final messenger = ScaffoldMessenger.of(context);
               await _statsService.resetAllStats();
-              if (mounted) {
-                Navigator.of(context).pop();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Statistics reset')),
-                );
-              }
+              if (!mounted) return;
+              navigator.pop();
+              messenger.showSnackBar(
+                const SnackBar(content: Text('Statistics reset')),
+              );
             },
             child: const Text(
               'RESET',
