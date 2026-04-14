@@ -178,6 +178,25 @@ class _MiniPlayerState extends State<MiniPlayer> {
     );
   }
 
+  void _onHorizontalSwipeEnd(DragEndDetails details) {
+    final velocity = details.primaryVelocity;
+    if (velocity == null) return;
+
+    const threshold = 300.0;
+
+    if (velocity < -threshold) {
+      // Swipe left -> Next
+      if (widget.hasNext) {
+        widget.onSkipNext();
+      }
+    } else if (velocity > threshold) {
+      // Swipe right -> Previous
+      if (widget.hasPrevious) {
+        widget.onSkipPrevious();
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!widget.isVisible || widget.currentSong == null) {
@@ -235,35 +254,45 @@ class _MiniPlayerState extends State<MiniPlayer> {
                     padding: const EdgeInsets.symmetric(horizontal: 12.0),
                     child: Row(
                       children: [
-                        // Album artwork with rotation or shadow? Keep simple for mini.
-                        _buildAlbumArt(context),
-          
-                        const SizedBox(width: 12),
-          
-                        // Song info
                         Expanded(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                widget.currentSong!.title,
-                                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white, // Always white on gradient
-                                    ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              Text(
-                                widget.currentSong!.artist,
-                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                      color: Colors.white.withOpacity(0.8),
-                                    ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onHorizontalDragEnd: _onHorizontalSwipeEnd,
+                            child: Row(
+                              children: [
+                                // Album artwork with rotation or shadow? Keep simple for mini.
+                                _buildAlbumArt(context),
+                  
+                                const SizedBox(width: 12),
+                  
+                                // Song info
+                                Expanded(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        widget.currentSong!.title,
+                                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.white, // Always white on gradient
+                                            ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      Text(
+                                        widget.currentSong!.artist,
+                                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                              color: Colors.white.withOpacity(0.8),
+                                            ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
           
