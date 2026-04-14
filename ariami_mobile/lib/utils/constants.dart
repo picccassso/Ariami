@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 
 class AppTheme {
   // Modern Shape
@@ -56,6 +57,9 @@ class AppTheme {
       ),
 
       // Component Themes
+      actionIconTheme: ActionIconThemeData(
+        backButtonIconBuilder: (BuildContext context) => const Icon(LucideIcons.chevronLeft, size: 20),
+      ),
       appBarTheme: AppBarTheme(
         backgroundColor: scaffoldBg,
         foregroundColor: textPrimary,

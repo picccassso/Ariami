@@ -22,9 +22,9 @@ class PlayerTopBar extends StatelessWidget {
         children: [
           // Minimize button
           IconButton(
-            icon: const Icon(LucideIcons.chevronDown),
+            icon: const Icon(LucideIcons.chevronLeft),
             onPressed: onMinimize,
-            tooltip: 'Minimize',
+            tooltip: 'Back',
             iconSize: 32,
           ),
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import '../../models/quality_settings.dart';
 import '../../services/quality/quality_settings_service.dart';
 import '../../services/quality/network_monitor_service.dart';
@@ -88,7 +89,7 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: textColor),
+          icon: const Icon(LucideIcons.chevronLeft, size: 20, color: textColor),
           onPressed: () => Navigator.pop(context),
         ),
       ),
