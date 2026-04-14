@@ -67,7 +67,7 @@ class _PlaylistListItemState extends State<PlaylistListItem> {
       child: InkWell(
         onTap: widget.onTap,
         onLongPress: widget.onLongPress,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(0),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Row(
@@ -77,7 +77,7 @@ class _PlaylistListItemState extends State<PlaylistListItem> {
                 width: 56,
                 height: 56,
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(0),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.2),
@@ -89,7 +89,7 @@ class _PlaylistListItemState extends State<PlaylistListItem> {
                 child: Stack(
                   children: [
                     ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(0),
                       child: _buildPlaylistArt(),
                     ),
 

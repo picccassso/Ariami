@@ -35,7 +35,7 @@ class AlbumListItem extends StatelessWidget {
         child: InkWell(
           onTap: isAvailable ? onTap : null,
           onLongPress: onLongPress,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(0),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Row(
@@ -45,7 +45,7 @@ class AlbumListItem extends StatelessWidget {
                   width: 56,
                   height: 56,
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(0),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withValues(alpha: 0.2),
@@ -57,7 +57,7 @@ class AlbumListItem extends StatelessWidget {
                   child: Stack(
                     children: [
                       ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(0),
                         child: _buildAlbumArt(context),
                       ),
 

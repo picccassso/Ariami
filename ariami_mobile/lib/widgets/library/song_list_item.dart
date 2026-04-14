@@ -44,7 +44,7 @@ class SongListItem extends StatelessWidget {
         child: InkWell(
           onTap: isAvailable ? onTap : null,
           onLongPress: onLongPress,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(0),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Row(
@@ -121,7 +121,7 @@ class SongListItem extends StatelessWidget {
       width: 56, // Larger size
       height: 56,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12), // Smoother corners
+        borderRadius: BorderRadius.circular(0), // Smoother corners
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.2),
@@ -133,7 +133,7 @@ class SongListItem extends StatelessWidget {
       child: Stack(
         children: [
           ClipRRect(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(0),
             child: _buildAlbumArt(context),
           ),
           if (isDownloaded)
@@ -208,7 +208,7 @@ class SongListItem extends StatelessWidget {
         width: 48,
         height: 48,
         fit: BoxFit.cover,
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(0),
         fallback: _buildPlaceholder(),
         fallbackIcon: Icons.music_note,
         fallbackIconSize: 24,
@@ -224,7 +224,7 @@ class SongListItem extends StatelessWidget {
       height: 48,
       decoration: BoxDecoration(
         color: Colors.grey[200],
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(0),
       ),
       child: const Icon(Icons.music_note, color: Colors.grey),
     );
