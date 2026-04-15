@@ -444,7 +444,14 @@ class LibraryScannerIsolate {
           if (metadataJson != null &&
               cachedDuration != null &&
               cachedDuration > 0) {
-            final metadata = SongMetadata.fromJson(metadataJson);
+            var metadata = SongMetadata.fromJson(metadataJson);
+            if (metadata.trackNumber == null) {
+              final inferredTrack =
+                  _inferTrackNumberFromPath(metadata.filePath);
+              if (inferredTrack != null) {
+                metadata = metadata.copyWith(trackNumber: inferredTrack);
+              }
+            }
             return (
               metadata: metadata,
               mtime: currentMtime,
@@ -561,5 +568,17 @@ class LibraryScannerIsolate {
     final bytes = utf8.encode(filePath);
     final hash = md5.convert(bytes);
     return hash.toString().substring(0, 12);
+  }
+
+  /// Infer track number from common numeric filename prefixes.
+  static int? _inferTrackNumberFromPath(String filePath) {
+    final fileName = path.basenameWithoutExtension(filePath).trim();
+    final match =
+        RegExp(r'^(\d{1,3})(?:\s*[-._)]\s*|\s+)').firstMatch(fileName);
+    if (match == null) return null;
+
+    final parsed = int.tryParse(match.group(1)!);
+    if (parsed == null || parsed <= 0) return null;
+    return parsed;
   }
 }

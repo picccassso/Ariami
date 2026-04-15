@@ -101,6 +101,20 @@ class PlaylistMembershipBackfillIssue {
   final int activeSongCount;
 }
 
+class AlbumSongCountIssue {
+  const AlbumSongCountIssue({
+    required this.albumId,
+    required this.albumTitle,
+    required this.expectedSongCount,
+    required this.activeSongCount,
+  });
+
+  final String albumId;
+  final String albumTitle;
+  final int expectedSongCount;
+  final int activeSongCount;
+}
+
 /// SQLite database for normalized library sync state.
 class LibrarySyncDatabase {
   static const String _databaseName = 'library_sync.db';
@@ -738,6 +752,64 @@ class LibrarySyncDatabase {
       LIMIT 1
     ''');
     return rows.isNotEmpty;
+  }
+
+  Future<bool> hasAlbumSongCountMismatch({
+    DatabaseExecutor? executor,
+  }) async {
+    final db = executor ?? await database;
+    final rows = await db.rawQuery('''
+      SELECT 1
+      FROM $_albumsTable albums
+      LEFT JOIN (
+        SELECT album_id, COUNT(*) AS active_song_count
+        FROM $_songsTable
+        WHERE is_deleted = 0 AND album_id IS NOT NULL
+        GROUP BY album_id
+      ) album_songs
+        ON album_songs.album_id = albums.id
+      WHERE albums.is_deleted = 0
+        AND albums.song_count != COALESCE(album_songs.active_song_count, 0)
+      LIMIT 1
+    ''');
+    return rows.isNotEmpty;
+  }
+
+  Future<List<AlbumSongCountIssue>> listAlbumSongCountIssues({
+    int limit = 10,
+    DatabaseExecutor? executor,
+  }) async {
+    final db = executor ?? await database;
+    final rows = await db.rawQuery('''
+      SELECT
+        albums.id AS album_id,
+        albums.title AS album_title,
+        albums.song_count AS expected_song_count,
+        COALESCE(album_songs.active_song_count, 0) AS active_song_count
+      FROM $_albumsTable albums
+      LEFT JOIN (
+        SELECT album_id, COUNT(*) AS active_song_count
+        FROM $_songsTable
+        WHERE is_deleted = 0 AND album_id IS NOT NULL
+        GROUP BY album_id
+      ) album_songs
+        ON album_songs.album_id = albums.id
+      WHERE albums.is_deleted = 0
+        AND albums.song_count != COALESCE(album_songs.active_song_count, 0)
+      ORDER BY albums.title COLLATE NOCASE ASC, albums.id ASC
+      LIMIT ?
+    ''', <Object?>[limit]);
+
+    return rows
+        .map(
+          (row) => AlbumSongCountIssue(
+            albumId: row['album_id'] as String,
+            albumTitle: row['album_title'] as String? ?? '',
+            expectedSongCount: row['expected_song_count'] as int? ?? 0,
+            activeSongCount: row['active_song_count'] as int? ?? 0,
+          ),
+        )
+        .toList();
   }
 
   Future<List<PlaylistMembershipBackfillIssue>>

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math' show min;
 import 'dart:typed_data';
+import 'package:path/path.dart' as p;
 import 'package:dart_tags/dart_tags.dart';
 import 'package:ariami_core/models/song_metadata.dart';
 import 'package:ariami_core/services/library/mp3_duration_parser.dart';
@@ -90,6 +91,10 @@ class MetadataExtractor {
 
         // Skip duration and album art extraction during scan - done lazily on demand
       }
+
+      // Fallback: infer track number from filename prefix when tag is missing.
+      // Example: "01 - Song Title.mp3" => 1
+      trackNumber ??= _inferTrackNumberFromFilename(filePath);
 
       // Create metadata object
       var songMetadata = SongMetadata(
@@ -358,6 +363,18 @@ class MetadataExtractor {
       return fileName;
     }
     return fileName.substring(0, lastDot);
+  }
+
+  /// Attempts to infer track number from filename prefixes like:
+  /// "01 - Title", "1. Title", "07_Title", "12 Title".
+  int? _inferTrackNumberFromFilename(String filePath) {
+    final fileName = p.basenameWithoutExtension(filePath).trim();
+    final match = RegExp(r'^(\d{1,3})(?:\s*[-._)]\s*|\s+)').firstMatch(fileName);
+    if (match == null) return null;
+
+    final parsed = int.tryParse(match.group(1)!);
+    if (parsed == null || parsed <= 0) return null;
+    return parsed;
   }
 
   /// Cache for ffprobe availability check

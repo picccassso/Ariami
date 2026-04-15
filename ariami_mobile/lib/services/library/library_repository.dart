@@ -43,6 +43,24 @@ class LibraryRepository {
     }
 
     final db = await _database;
+    final albumIssues = await db.listAlbumSongCountIssues();
+    if (albumIssues.isNotEmpty) {
+      final issueSummary = albumIssues
+          .map(
+            (issue) => '${issue.albumTitle}(${issue.albumId}): '
+                'expected=${issue.expectedSongCount} '
+                'actual=${issue.activeSongCount}',
+          )
+          .join(' | ');
+      _logBootstrapPending(
+        reason: 'album_song_count_mismatch',
+        syncState: syncState,
+        issues: <PlaylistMembershipBackfillIssue>[],
+        extraDetail: issueSummary,
+      );
+      return false;
+    }
+
     final issues = await db.listPlaylistMembershipBackfillIssues();
     if (issues.isNotEmpty) {
       _logBootstrapPending(
@@ -332,6 +350,7 @@ class LibraryRepository {
     required LibrarySyncState syncState,
     List<PlaylistMembershipBackfillIssue> issues =
         const <PlaylistMembershipBackfillIssue>[],
+    String extraDetail = '',
   }) {
     final issueSummary = issues
         .map(
@@ -340,11 +359,15 @@ class LibraryRepository {
               'actual=${issue.activeSongCount}',
         )
         .join(' | ');
+    final combinedSummary = [
+      if (issueSummary.isNotEmpty) issueSummary,
+      if (extraDetail.isNotEmpty) extraDetail,
+    ].join(' | ');
     final signature = [
       reason,
       syncState.lastAppliedToken,
       syncState.bootstrapComplete,
-      issueSummary,
+      combinedSummary,
     ].join('::');
     if (_lastBootstrapDiagnosticSignature == signature) {
       return;
@@ -357,7 +380,7 @@ class LibraryRepository {
       'token=${syncState.lastAppliedToken} '
       'bootstrapComplete=${syncState.bootstrapComplete} '
       'lastSyncEpochMs=${syncState.lastSyncEpochMs}'
-      '${issueSummary.isEmpty ? '' : ' issues=$issueSummary'}',
+      '${combinedSummary.isEmpty ? '' : ' issues=$combinedSummary'}',
     );
   }
 
