@@ -823,8 +823,16 @@ class PlaylistService extends ChangeNotifier {
         if (song == null) continue;
 
         final albumId = song.albumId;
-        if (albumId != null && updatedSongAlbumIds[songId] != albumId) {
-          updatedSongAlbumIds[songId] = albumId;
+        if (albumId != null && albumId.isNotEmpty) {
+          if (updatedSongAlbumIds[songId] != albumId) {
+            updatedSongAlbumIds[songId] = albumId;
+            changed = true;
+          }
+        } else if (updatedSongAlbumIds.containsKey(songId)) {
+          // Remove stale album mapping when the canonical library now reports
+          // the song as standalone. This ensures per-song artwork lookup uses
+          // /song-artwork/{songId} instead of an outdated shared album ID.
+          updatedSongAlbumIds.remove(songId);
           changed = true;
         }
 

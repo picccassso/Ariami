@@ -14,6 +14,8 @@ final RegExp _trailingFeatPattern = RegExp(
   caseSensitive: false,
 );
 
+final RegExp _albumPrefixPattern = RegExp(r'^album\s*[-:–—]\s*', caseSensitive: false);
+
 /// Artist string used only for grouping (not for display).
 String? albumGroupingArtist(SongMetadata song) {
   final albumArtist = song.albumArtist?.trim();
@@ -42,7 +44,7 @@ String? _primaryArtistForGrouping(String? artist) {
 
 /// Composite key `album|||artist` for grouping, or null if not album-groupable.
 String? albumGroupingKey(SongMetadata song) {
-  final album = song.album?.trim();
+  final album = normalizeAlbumTitle(song.album);
   if (album == null || album.isEmpty) {
     return null;
   }
@@ -54,3 +56,22 @@ String? albumGroupingKey(SongMetadata song) {
 
   return '${album.toLowerCase()}|||${artist.toLowerCase()}';
 }
+
+/// Normalizes album titles for grouping/display stability.
+///
+/// - Trims whitespace
+/// - Removes noisy leading prefixes like "Album - "
+/// - Collapses repeated spaces
+String? normalizeAlbumTitle(String? album) {
+  if (album == null) return null;
+
+  var normalized = album.trim();
+  if (normalized.isEmpty) return null;
+
+  normalized = normalized.replaceFirst(_albumPrefixPattern, '').trim();
+  normalized = normalized.replaceAll(RegExp(r'\s+'), ' ').trim();
+
+  if (normalized.isEmpty) return null;
+  return normalized;
+}
+

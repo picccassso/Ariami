@@ -56,7 +56,7 @@ class AlbumBuilder {
   Album _buildAlbum(String key, List<SongMetadata> songs) {
     // Extract album info from first song
     final firstSong = songs.first;
-    final albumTitle = firstSong.album ?? 'Unknown Album';
+    final albumTitle = normalizeAlbumTitle(firstSong.album) ?? 'Unknown Album';
     final albumArtist = firstSong.albumArtist ?? firstSong.artist ?? 'Unknown Artist';
 
     // Determine if it's a compilation
@@ -84,7 +84,7 @@ class AlbumBuilder {
 
   /// Determines if an album is a compilation (Various Artists)
   bool _isCompilation(List<SongMetadata> songs, String albumArtist) {
-    final albumTitle = songs.first.album ?? 'Unknown';
+    final albumTitle = normalizeAlbumTitle(songs.first.album) ?? 'Unknown';
 
     // Check if album artist is "Various Artists"
     if (albumArtist.toLowerCase().contains('various')) {

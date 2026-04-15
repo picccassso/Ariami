@@ -6,14 +6,18 @@ import 'package:test/test.dart';
 SongMetadata _song({
   required String path,
   String? album,
+  String? title,
   String? artist,
   String? albumArtist,
+  int? trackNumber,
 }) {
   return SongMetadata(
     filePath: path,
     album: album,
+    title: title,
     artist: artist,
     albumArtist: albumArtist,
+    trackNumber: trackNumber,
   );
 }
 
@@ -93,6 +97,11 @@ void main() {
     test('null when no artist derivable', () {
       expect(albumGroupingKey(_song(path: '/a.mp3', album: 'X')), isNull);
     });
+
+    test('normalizes noisy album prefix', () {
+      expect(normalizeAlbumTitle('Album - BULLY'), 'BULLY');
+      expect(normalizeAlbumTitle('  album:  Test  '), 'Test');
+    });
   });
 
   group('AlbumBuilder integration', () {
@@ -105,6 +114,30 @@ void main() {
       final library = AlbumBuilder().buildLibrary(songs);
       expect(library.albums.length, 1);
       expect(library.albums.values.first.songs.length, 3);
+    });
+
+    test('keeps legitimate album even if title contains playlist word', () {
+      final songs = [
+        _song(
+          path: '/l1.mp3',
+          album: 'The Playlist',
+          title: 'Song 1',
+          artist: 'Same Artist',
+          trackNumber: 1,
+        ),
+        _song(
+          path: '/l2.mp3',
+          album: 'The Playlist',
+          title: 'Song 2',
+          artist: 'Same Artist',
+          trackNumber: 2,
+        ),
+      ];
+
+      final library = AlbumBuilder().buildLibrary(songs);
+      expect(library.albums.length, 1);
+      expect(library.albums.values.first.title, 'The Playlist');
+      expect(library.albums.values.first.songs.length, 2);
     });
   });
 }

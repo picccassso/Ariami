@@ -106,6 +106,37 @@ void main() {
       expect(updatedPlaylist.songDurations['song-1'], 180);
     });
 
+    test('clears stale song album mapping when library song is standalone',
+        () async {
+      final playlist = await playlistService.createPlaylist(name: 'Test');
+
+      await playlistService.addSongToPlaylist(
+        playlistId: playlist.id,
+        songId: 'song-1',
+        albumId: 'legacy-playlist-album',
+        title: 'Track Title',
+        artist: 'Track Artist',
+        duration: 210,
+      );
+
+      final updatedCount = await playlistService.rehydrateSongMetadataFromLibrary(
+        <SongModel>[
+          SongModel(
+            id: 'song-1',
+            title: 'Track Title',
+            artist: 'Track Artist',
+            albumId: null,
+            duration: 210,
+          ),
+        ],
+      );
+
+      final updatedPlaylist = playlistService.getPlaylist(playlist.id)!;
+
+      expect(updatedCount, 1);
+      expect(updatedPlaylist.songAlbumIds.containsKey('song-1'), isFalse);
+    });
+
     test('does not notify when server playlists are unchanged', () async {
       await playlistService.loadPlaylists();
 
