@@ -71,30 +71,29 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Force dark theme colors for the premium look
-    const backgroundColor = Color(0xFF050505);
-    const textColor = Colors.white;
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: backgroundColor,
+      backgroundColor: colorScheme.surface,
       appBar: AppBar(
         title: const Text('Streaming Quality'),
-        titleTextStyle: const TextStyle(
+        titleTextStyle: TextStyle(
           fontSize: 20,
           fontWeight: FontWeight.bold,
-          color: textColor,
+          color: colorScheme.onSurface,
         ),
         centerTitle: false,
         backgroundColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: IconButton(
-          icon: const Icon(LucideIcons.chevronLeft, size: 20, color: textColor),
+          icon: Icon(LucideIcons.chevronLeft, size: 20, color: colorScheme.onSurface),
           onPressed: () => Navigator.pop(context),
         ),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Colors.white))
+          ? Center(child: CircularProgressIndicator(color: colorScheme.primary))
           : ListView(
               padding: EdgeInsets.fromLTRB(
                 16,
@@ -161,6 +160,7 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
   Widget _buildCurrentNetworkCard() {
     final networkType = _networkMonitor.currentNetworkType;
     final currentQuality = _qualityService.getCurrentStreamingQuality();
+    final colorScheme = Theme.of(context).colorScheme;
 
     IconData networkIcon;
     String networkLabel;
@@ -185,7 +185,7 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
             padding: const EdgeInsets.all(8),
             child: Icon(
               networkIcon,
-              color: Colors.white,
+              color: colorScheme.onSurface,
               size: 24,
             ),
           ),
@@ -196,10 +196,10 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
               children: [
                 Text(
                   networkLabel,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
-                    color: Colors.white,
+                    color: colorScheme.onSurface,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -208,7 +208,7 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w400,
-                    color: Colors.grey[400],
+                    color: colorScheme.onSurfaceVariant,
                   ),
                 ),
               ],
@@ -218,8 +218,8 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
             Container(
               width: 8,
               height: 8,
-              decoration: const BoxDecoration(
-                color: Color(0xFF00C853), // Maintain functional green for connection
+              decoration: BoxDecoration(
+                color: colorScheme.tertiary, // Use theme tertiary color for status indicator
                 shape: BoxShape.circle,
               ),
             ),
@@ -229,14 +229,15 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
   }
 
   Widget _buildSectionHeader(String title) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
       child: Text(
         title.toUpperCase(),
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 14,
           fontWeight: FontWeight.w900,
-          color: Colors.white,
+          color: colorScheme.onSurface,
           letterSpacing: 1.5,
         ),
       ),
@@ -251,6 +252,7 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
     required StreamingQuality currentQuality,
     required Function(StreamingQuality) onChanged,
   }) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -268,7 +270,7 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
                 padding: const EdgeInsets.all(8),
                 child: Icon(
                   icon,
-                  color: Colors.white,
+                  color: colorScheme.onSurface,
                   size: 24,
                 ),
               ),
@@ -280,10 +282,10 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
                   children: [
                     Text(
                       title,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
-                        color: Colors.white,
+                        color: colorScheme.onSurface,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -294,7 +296,7 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w400,
-                        color: Colors.grey[400],
+                        color: colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ],
@@ -313,14 +315,14 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
-                          color: Colors.grey[400],
+                          color: colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ),
                     const SizedBox(width: 8),
                     Icon(
                       Icons.chevron_right_rounded,
-                      color: Colors.grey[600],
+                      color: colorScheme.onSurfaceVariant,
                       size: 24,
                     ),
                   ],
@@ -340,6 +342,7 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
     required bool value,
     required ValueChanged<bool> onChanged,
   }) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -352,7 +355,7 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
                 padding: const EdgeInsets.all(8),
                 child: Icon(
                   icon,
-                  color: Colors.white,
+                  color: colorScheme.onSurface,
                   size: 24,
                 ),
               ),
@@ -363,10 +366,10 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
                   children: [
                     Text(
                       title,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
-                        color: Colors.white,
+                        color: colorScheme.onSurface,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -375,7 +378,7 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w400,
-                        color: Colors.grey[400],
+                        color: colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ],
@@ -384,10 +387,6 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
               Switch(
                 value: value,
                 onChanged: onChanged,
-                activeThumbColor: Colors.white,
-                activeTrackColor: Colors.grey[800],
-                inactiveThumbColor: Colors.grey[600],
-                inactiveTrackColor: const Color(0xFF111111),
               ),
             ],
           ),
@@ -402,9 +401,10 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
     required StreamingQuality currentQuality,
     required Function(StreamingQuality) onChanged,
   }) {
+    final colorScheme = Theme.of(context).colorScheme;
     showMiniPlayerAwareBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF111111),
+      backgroundColor: colorScheme.surface,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -421,11 +421,11 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 24),
                   child: Text(
                     '${title.toUpperCase()} QUALITY',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 1.5,
-                      color: Colors.white,
+                      color: colorScheme.onSurface,
                     ),
                   ),
                 ),
@@ -436,13 +436,13 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                     child: Container(
                       decoration: BoxDecoration(
-                        color: isSelected ? Colors.white : Colors.transparent,
+                        color: isSelected ? colorScheme.primary : Colors.transparent,
                         borderRadius: BorderRadius.circular(15),
                       ),
                       child: ListTile(
                         leading: Icon(
                           _getQualityIcon(quality),
-                          color: isSelected ? Colors.black : Colors.grey[500],
+                          color: isSelected ? colorScheme.onPrimary : colorScheme.onSurfaceVariant,
                           size: 20,
                         ),
                         title: Text(
@@ -450,7 +450,7 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w700,
-                            color: isSelected ? Colors.black : Colors.white,
+                            color: isSelected ? colorScheme.onPrimary : colorScheme.onSurface,
                           ),
                         ),
                         subtitle: Text(
@@ -458,13 +458,13 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w500,
-                            color: isSelected ? Colors.black54 : Colors.grey[500],
+                            color: isSelected ? colorScheme.onPrimary.withOpacity(0.7) : colorScheme.onSurfaceVariant,
                           ),
                         ),
                         trailing: isSelected
-                            ? const Icon(
+                            ? Icon(
                                 Icons.check_circle_rounded,
-                                color: Colors.black,
+                                color: colorScheme.onPrimary,
                                 size: 20,
                               )
                             : null,
@@ -500,6 +500,7 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
   }
 
   Widget _buildInfoSection() {
+    final colorScheme = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Column(
@@ -510,7 +511,7 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
               Icon(
                 Icons.info_outline_rounded,
                 size: 24,
-                color: Colors.white,
+                color: colorScheme.onSurface,
               ),
               const SizedBox(width: 16),
               Text(
@@ -518,7 +519,7 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w900,
-                  color: Colors.white,
+                  color: colorScheme.onSurface,
                   letterSpacing: 1.5,
                 ),
               ),
@@ -533,16 +534,19 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
                 _buildInfoRow(
                   'High (Original)',
                   'Full quality, largest file size. Best for WiFi.',
+                  colorScheme,
                 ),
                 const SizedBox(height: 12),
                 _buildInfoRow(
                   'Medium (128 kbps)',
                   'Good quality, ~40% smaller files.',
+                  colorScheme,
                 ),
                 const SizedBox(height: 12),
                 _buildInfoRow(
                   'Low (64 kbps)',
                   'Acceptable quality, ~80% smaller files.',
+                  colorScheme,
                 ),
                 const SizedBox(height: 16),
                 Text(
@@ -551,7 +555,7 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
                     fontSize: 13,
                     fontWeight: FontWeight.w400,
                     fontStyle: FontStyle.italic,
-                    color: Colors.grey[400],
+                    color: colorScheme.onSurfaceVariant,
                   ),
                 ),
               ],
@@ -562,16 +566,16 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
     );
   }
 
-  Widget _buildInfoRow(String title, String description) {
+  Widget _buildInfoRow(String title, String description, ColorScheme colorScheme) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           title,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w600,
-            color: Colors.white,
+            color: colorScheme.onSurface,
           ),
         ),
         const SizedBox(height: 2),
@@ -580,7 +584,7 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
           style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w400,
-            color: Colors.grey[400],
+            color: colorScheme.onSurfaceVariant,
           ),
         ),
       ],
