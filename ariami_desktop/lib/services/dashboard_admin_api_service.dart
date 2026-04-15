@@ -8,7 +8,7 @@ import '../models/admin_credentials.dart';
 import '../models/connected_client_row.dart';
 import '../models/dashboard_http_response.dart';
 
-/// Admin HTTP client for the desktop dashboard (login, kick, change password, heartbeat).
+/// Owner-authorized HTTP client for dashboard management actions.
 class DashboardAdminApiService {
   DashboardAdminApiService({
     required this.httpServer,
@@ -103,6 +103,16 @@ class DashboardAdminApiService {
   }
 
   Future<String?> ensureAdminSessionToken({bool forcePrompt = false}) async {
+    if (!httpServer.authRequired) {
+      if (isMounted()) {
+        showMessage(
+          'Owner account is not set up yet. Create the owner account first.',
+          isError: true,
+        );
+      }
+      return null;
+    }
+
     if (!forcePrompt &&
         _adminSessionToken != null &&
         _adminSessionToken!.isNotEmpty) {
@@ -133,7 +143,7 @@ class DashboardAdminApiService {
 
       if (!response.isSuccess) {
         if (isMounted()) {
-          showMessage(response.errorMessage ?? 'Admin login failed',
+          showMessage(response.errorMessage ?? 'Owner sign-in failed',
               isError: true);
         }
         return null;
@@ -142,7 +152,8 @@ class DashboardAdminApiService {
       final token = response.jsonBody?['sessionToken'] as String?;
       if (token == null || token.isEmpty) {
         if (isMounted()) {
-          showMessage('Admin login failed: missing session token', isError: true);
+          showMessage('Owner sign-in failed: missing session token',
+              isError: true);
         }
         return null;
       }
@@ -152,7 +163,7 @@ class DashboardAdminApiService {
       return token;
     } catch (e) {
       if (isMounted()) {
-        showMessage('Admin login error: $e', isError: true);
+        showMessage('Owner sign-in error: $e', isError: true);
       }
       return null;
     }

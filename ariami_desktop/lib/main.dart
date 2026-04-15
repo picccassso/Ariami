@@ -4,6 +4,7 @@ import 'utils/constants.dart';
 import 'screens/welcome_screen.dart';
 import 'screens/tailscale_check_screen.dart';
 import 'screens/folder_selection_screen.dart';
+import 'screens/owner_setup_screen.dart';
 import 'screens/connection_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'services/desktop_state_service.dart';
@@ -185,6 +186,7 @@ class _MyAppState extends State<MyApp> with WindowListener {
       routes: {
         '/tailscale-check': (context) => const TailscaleCheckScreen(),
         '/folder-selection': (context) => const FolderSelectionScreen(),
+        '/owner-setup': (context) => const OwnerSetupScreen(),
         '/connection': (context) => const ConnectionScreen(),
         '/dashboard': (context) => const DashboardScreen(),
       },

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../services/playback_manager.dart';
 import '../services/playlist_service.dart';
@@ -88,37 +89,49 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = _colorService.currentColors;
+    final useDarkStatusIcons = colors.primary.computeLuminance() > 0.55;
+    final overlayStyle = (useDarkStatusIcons
+            ? SystemUiOverlayStyle.dark
+            : SystemUiOverlayStyle.light)
+        .copyWith(statusBarColor: Colors.transparent);
 
     return Theme(
       data: AppTheme.buildTheme(
         brightness: Brightness.dark,
         seedColor: colors.primary,
       ),
-      child: Scaffold(
-        body: AnimatedContainer(
-        duration: const Duration(milliseconds: 500),
-        curve: Curves.easeInOut,
-        decoration: BoxDecoration(
-          gradient: RadialGradient(
-            center: Alignment.topCenter,
-            radius: 1.5,
-            colors: [
-              colors.primary.withValues(alpha: 0.85),
-              colors.secondary.withValues(alpha: 0.65),
-              Colors.black,
-            ],
-            stops: const [0.0, 0.4, 1.0],
-          ),
-        ),
-        child: _playbackManager.currentSong == null
-            ? _buildEmptyState()
-            : _buildPlayer(),
-      ),
+      child: Builder(
+        builder: (themedContext) {
+          return AnnotatedRegion<SystemUiOverlayStyle>(
+            value: overlayStyle,
+            child: Scaffold(
+              body: AnimatedContainer(
+                duration: const Duration(milliseconds: 500),
+                curve: Curves.easeInOut,
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    center: Alignment.topCenter,
+                    radius: 1.5,
+                    colors: [
+                      colors.primary.withValues(alpha: 0.85),
+                      colors.secondary.withValues(alpha: 0.65),
+                      Colors.black,
+                    ],
+                    stops: const [0.0, 0.4, 1.0],
+                  ),
+                ),
+                child: _playbackManager.currentSong == null
+                    ? _buildEmptyState(themedContext)
+                    : _buildPlayer(themedContext),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(BuildContext themedContext) {
     return SafeArea(
       child: Column(
         children: [
@@ -135,13 +148,16 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
                   Icon(
                     LucideIcons.music,
                     size: 100,
-                    color: Theme.of(context).colorScheme.outline,
+                    color: Theme.of(themedContext).colorScheme.outline,
                   ),
                   const SizedBox(height: 24),
                   Text(
                     'No song playing',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          color: Theme.of(context).colorScheme.outline,
+                    style: Theme.of(themedContext)
+                        .textTheme
+                        .headlineSmall
+                        ?.copyWith(
+                          color: Theme.of(themedContext).colorScheme.outline,
                         ),
                   ),
                 ],
@@ -153,7 +169,7 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
     );
   }
 
-  Widget _buildPlayer() {
+  Widget _buildPlayer(BuildContext themedContext) {
     return GestureDetector(
       onVerticalDragEnd: (details) {
         if (details.primaryVelocity! > 0) {
@@ -203,7 +219,7 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
               onSeek: _playbackManager.seek,
             ),
             const SizedBox(height: 24),
-            _buildMainControls(),
+            _buildMainControls(themedContext),
             const SizedBox(height: 16),
             PlayerSecondaryControls(
               onOpenQueue: _openQueue,
@@ -229,7 +245,7 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
   }
 
   /// Build main playback controls (Shuffle, Previous, Play/Pause, Next, Repeat)
-  Widget _buildMainControls() {
+  Widget _buildMainControls(BuildContext themedContext) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
       child: Row(
@@ -237,13 +253,18 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
         children: [
           // Shuffle button
           IconButton(
-            icon: const Icon(LucideIcons.shuffle),
+            icon: const Icon(Icons.shuffle_rounded),
             onPressed: _playbackManager.toggleShuffle,
-            tooltip: _playbackManager.isShuffleEnabled ? 'Shuffle on' : 'Shuffle off',
+            tooltip: _playbackManager.isShuffleEnabled
+                ? 'Shuffle on'
+                : 'Shuffle off',
             iconSize: 28,
             color: _playbackManager.isShuffleEnabled
-                ? Theme.of(context).colorScheme.primary
-                : Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                ? Theme.of(themedContext).colorScheme.primary
+                : Theme.of(themedContext)
+                    .colorScheme
+                    .onSurface
+                    .withValues(alpha: 0.9),
           ),
 
           // Previous button
@@ -262,11 +283,11 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
             height: 72,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: Theme.of(context).colorScheme.primary,
+              color: Theme.of(themedContext).colorScheme.primary,
               boxShadow: [
                 BoxShadow(
                   color: Theme.of(
-                    context,
+                    themedContext,
                   ).colorScheme.primary.withValues(alpha: 0.4),
                   blurRadius: 20,
                   offset: const Offset(0, 8),
@@ -281,7 +302,7 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
                       child: CircularProgressIndicator(
                         strokeWidth: 3,
                         valueColor: AlwaysStoppedAnimation<Color>(
-                          Theme.of(context).colorScheme.onPrimary,
+                          Theme.of(themedContext).colorScheme.onPrimary,
                         ),
                       ),
                     ),
@@ -291,7 +312,7 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
                       _playbackManager.isPlaying
                           ? LucideIcons.pause
                           : LucideIcons.play,
-                      color: Theme.of(context).colorScheme.onPrimary,
+                      color: Theme.of(themedContext).colorScheme.onPrimary,
                     ),
                     iconSize: 42,
                     onPressed: _playbackManager.togglePlayPause,
@@ -318,9 +339,13 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
             onPressed: _playbackManager.toggleRepeat,
             tooltip: _getRepeatTooltip(_playbackManager.repeatMode),
             iconSize: 28,
-            color: _playbackManager.repeatMode != playback_repeat.RepeatMode.none
-                ? Theme.of(context).colorScheme.primary
-                : Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+            color:
+                _playbackManager.repeatMode != playback_repeat.RepeatMode.none
+                    ? Theme.of(themedContext).colorScheme.primary
+                    : Theme.of(themedContext)
+                        .colorScheme
+                        .onSurface
+                        .withValues(alpha: 0.9),
           ),
         ],
       ),
@@ -331,11 +356,11 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
   IconData _getRepeatIcon(playback_repeat.RepeatMode mode) {
     switch (mode) {
       case playback_repeat.RepeatMode.none:
-        return LucideIcons.repeat;
+        return Icons.repeat_rounded;
       case playback_repeat.RepeatMode.all:
-        return LucideIcons.repeat;
+        return Icons.repeat_rounded;
       case playback_repeat.RepeatMode.one:
-        return LucideIcons.repeat1;
+        return Icons.repeat_one_rounded;
     }
   }
 

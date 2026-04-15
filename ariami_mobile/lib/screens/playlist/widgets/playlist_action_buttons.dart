@@ -47,7 +47,9 @@ class PlaylistActionButtons extends StatelessWidget {
               IconButton(
                 icon: Icon(
                   isReorderMode ? Icons.check_rounded : Icons.reorder_rounded,
-                  color: isReorderMode ? Theme.of(context).colorScheme.primary : null,
+                  color: isReorderMode
+                      ? Theme.of(context).colorScheme.primary
+                      : null,
                 ),
                 onPressed: canReorder ? onToggleReorder : null,
                 iconSize: 28,
@@ -59,7 +61,7 @@ class PlaylistActionButtons extends StatelessWidget {
               ),
             ],
           ),
-          
+
           // Right side: Play and Shuffle
           Row(
             children: [
@@ -80,7 +82,7 @@ class PlaylistActionButtons extends StatelessWidget {
                 ),
                 child: IconButton(
                   icon: const Icon(Icons.play_arrow_rounded),
-                  color: Colors.black,
+                  color: Theme.of(context).colorScheme.onPrimary,
                   iconSize: 36,
                   onPressed: hasSongs ? onPlay : null,
                 ),

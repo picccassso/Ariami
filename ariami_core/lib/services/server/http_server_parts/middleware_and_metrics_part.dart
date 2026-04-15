@@ -183,7 +183,7 @@ extension AriamiHttpServerMiddlewareAndMetricsMethods on AriamiHttpServer {
     return _jsonForbidden({
       'error': {
         'code': AuthErrorCodes.forbiddenAdmin,
-        'message': 'Admin privileges required',
+        'message': 'Owner privileges required',
       },
     });
   }

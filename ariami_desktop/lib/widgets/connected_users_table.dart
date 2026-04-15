@@ -10,19 +10,23 @@ class ConnectedUsersTable extends StatelessWidget {
     required this.isLoading,
     required this.errorMessage,
     required this.rows,
+    required this.ownerActionsEnabled,
     required this.kickingDeviceIds,
     required this.isChangingPassword,
     required this.onKick,
     required this.onChangePassword,
+    required this.onSetUpOwner,
   });
 
   final bool isLoading;
   final String? errorMessage;
   final List<ConnectedClientRow> rows;
+  final bool ownerActionsEnabled;
   final Set<String> kickingDeviceIds;
   final bool isChangingPassword;
   final void Function(ConnectedClientRow row) onKick;
   final void Function(ConnectedClientRow row) onChangePassword;
+  final VoidCallback onSetUpOwner;
 
   @override
   Widget build(BuildContext context) {
@@ -38,9 +42,9 @@ class ConnectedUsersTable extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.red.withOpacity(0.15),
+          color: Colors.red.withValues(alpha: 0.15),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.red.withOpacity(0.3)),
+          border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
         ),
         child: Text(
           errorMessage!,
@@ -94,24 +98,31 @@ class ConnectedUsersTable extends StatelessWidget {
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        TextButton(
-                          onPressed: isKicking ? null : () => onKick(row),
-                          child: isKicking
-                              ? const SizedBox(
-                                  width: 14,
-                                  height: 14,
-                                  child:
-                                      CircularProgressIndicator(strokeWidth: 2),
-                                )
-                              : const Text('Kick'),
-                        ),
-                        const SizedBox(width: 6),
-                        TextButton(
-                          onPressed: isChangingPassword
-                              ? null
-                              : () => onChangePassword(row),
-                          child: const Text('Change Password'),
-                        ),
+                        if (!ownerActionsEnabled)
+                          TextButton(
+                            onPressed: onSetUpOwner,
+                            child: const Text('Set Up Owner'),
+                          )
+                        else ...[
+                          TextButton(
+                            onPressed: isKicking ? null : () => onKick(row),
+                            child: isKicking
+                                ? const SizedBox(
+                                    width: 14,
+                                    height: 14,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2),
+                                  )
+                                : const Text('Kick'),
+                          ),
+                          const SizedBox(width: 6),
+                          TextButton(
+                            onPressed: isChangingPassword
+                                ? null
+                                : () => onChangePassword(row),
+                            child: const Text('Change Password'),
+                          ),
+                        ],
                       ],
                     ),
                   ),

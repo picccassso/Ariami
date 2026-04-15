@@ -264,7 +264,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       )
                     : Switch(
                         value: _isOfflineModeEnabled,
-                        activeColor: colorScheme.onPrimary,
+                        activeThumbColor: colorScheme.onPrimary,
                         activeTrackColor: colorScheme.primary,
                         inactiveThumbColor: colorScheme.onSurfaceVariant,
                         inactiveTrackColor: colorScheme.surfaceContainerHighest,

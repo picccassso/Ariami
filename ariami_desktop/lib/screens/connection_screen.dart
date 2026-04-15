@@ -26,6 +26,8 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
   bool _isLoading = true;
   String _errorMessage = '';
   bool _serverStarted = false;
+  bool _hasOwnerAccount = false;
+  bool _ownerSetupSkipped = false;
 
   @override
   void initState() {
@@ -62,6 +64,7 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
 
       // Check if server is already running
       if (_httpServer.isRunning) {
+        await _refreshOwnerSetupState();
         final serverInfo = _httpServer.getServerInfo();
         final existingIp = serverInfo['server'] as String?;
 
@@ -100,6 +103,7 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
 
       await ServerInitializationService.initializeAuth(
           _httpServer, _stateService);
+      await _refreshOwnerSetupState();
       await ServerInitializationService.applyDesktopDownloadLimits(_httpServer);
 
       // Start HTTP server (singleton will prevent double-start)
@@ -147,6 +151,16 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
     }
   }
 
+  Future<void> _refreshOwnerSetupState() async {
+    final hasOwner = await _stateService.hasOwnerAccount();
+    final skipped = await _stateService.isOwnerSetupSkipped();
+    if (!mounted) return;
+    setState(() {
+      _hasOwnerAccount = hasOwner;
+      _ownerSetupSkipped = skipped;
+    });
+  }
+
   String _generateQRData() {
     if (!_serverStarted) return '';
 
@@ -190,6 +204,44 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
               ),
             ),
             const SizedBox(height: 16),
+              if (!_hasOwnerAccount && _ownerSetupSkipped)
+                Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                        color: Colors.orange.withValues(alpha: 0.3)),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.warning_amber_rounded,
+                          color: Colors.orange.shade300),
+                      const SizedBox(width: 10),
+                      const Expanded(
+                        child: Text(
+                          'Owner setup is still pending. Owner-only actions in Dashboard remain locked until you create the first account.',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.white,
+                            height: 1.4,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      TextButton(
+                        onPressed: () async {
+                          await Navigator.pushNamed(context, '/owner-setup');
+                          await _refreshOwnerSetupState();
+                        },
+                        child: const Text('Set Up Owner'),
+                      ),
+                    ],
+                  ),
+                ),
             if (_isLoading)
               Column(
                 children: [

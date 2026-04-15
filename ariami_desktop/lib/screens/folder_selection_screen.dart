@@ -175,7 +175,7 @@ class _FolderSelectionScreenState extends State<FolderSelectionScreen> {
               if (_selectedFolderPath != null)
                 OutlinedButton(
                   onPressed: () {
-                    Navigator.pushReplacementNamed(context, '/connection');
+                    Navigator.pushReplacementNamed(context, '/owner-setup');
                   },
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Colors.white,

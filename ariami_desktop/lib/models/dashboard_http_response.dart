@@ -1,4 +1,4 @@
-/// HTTP response wrapper for dashboard admin API calls.
+/// HTTP response wrapper for dashboard owner-authorized API calls.
 class DashboardHttpResponse {
   const DashboardHttpResponse({
     required this.statusCode,

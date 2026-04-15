@@ -17,6 +17,7 @@ import '../widgets/admin_credentials_dialog.dart';
 import '../widgets/change_password_dialog.dart';
 import '../widgets/connected_users_table.dart';
 import '../widgets/info_card.dart';
+import 'owner_setup_screen.dart';
 import 'scanning_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -38,7 +39,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   String? _musicFolderPath;
   String? _tailscaleIP;
+  String? _ownerUsername;
   bool _isLoading = true;
+  bool _hasOwnerAccount = false;
   int _connectedClients = 0;
   bool _isLoadingConnectedRows = false;
   bool _isChangingPassword = false;
@@ -53,7 +56,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.initState();
     _adminApi = DashboardAdminApiService(
       httpServer: _httpServer,
-      promptCredentials: () => showAdminCredentialsDialog(context),
+      promptCredentials: () =>
+          showAdminCredentialsDialog(context, ownerUsername: _ownerUsername),
       showMessage: (message, {bool isError = false}) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -127,6 +131,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
 
     await _updateServerStatus();
+    await _refreshOwnerState();
     await _refreshConnectedClientRows(showLoading: true);
 
     setState(() {
@@ -172,6 +177,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if (mounted) {
         setState(() {});
       }
+      await _refreshOwnerState();
       await _refreshConnectedClientRows(showLoading: false);
 
       if (_musicFolderPath != null &&
@@ -201,6 +207,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _tailscaleIP = ip;
       _connectedClients = clientCount;
     });
+  }
+
+  Future<void> _refreshOwnerState() async {
+    final hasOwner = await _stateService.hasOwnerAccount();
+    final ownerUsername = hasOwner ? await _stateService.getOwnerUsername() : null;
+    if (!mounted) return;
+    setState(() {
+      _hasOwnerAccount = hasOwner;
+      _ownerUsername = ownerUsername;
+    });
+  }
+
+  Future<void> _openOwnerSetup() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const OwnerSetupScreen(isOnboarding: false),
+      ),
+    );
+    await _refreshOwnerState();
+    await _updateServerStatus();
   }
 
   Future<Map<String, String>> _loadUsernameMap() async {
@@ -279,6 +306,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _kickClient(ConnectedClientRow row) async {
+    if (!_hasOwnerAccount) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Set up the Owner account first to manage connected devices.',
+            ),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+      await _openOwnerSetup();
+      return;
+    }
+
     if (_kickingDeviceIds.contains(row.deviceId)) return;
     setState(() {
       _kickingDeviceIds.add(row.deviceId);
@@ -324,6 +366,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _promptChangePassword({String? initialUsername}) async {
+    if (!_hasOwnerAccount) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Set up the Owner account first to change passwords.',
+            ),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+      await _openOwnerSetup();
+      return;
+    }
+
     final payload = await showChangePasswordDialog(
       context,
       initialUsername: initialUsername,
@@ -486,6 +543,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           );
         }
         await _refreshConnectedClientRows(showLoading: false);
+        await _refreshOwnerState();
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -499,6 +557,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
 
     await _updateServerStatus();
+    await _refreshOwnerState();
     await _refreshConnectedClientRows(showLoading: false);
   }
 
@@ -583,16 +642,60 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                   ),
                   const SizedBox(height: 24),
-                  if (_httpServer.authRequired)
+                  if (!_hasOwnerAccount)
                     Container(
                       width: double.infinity,
                       margin: const EdgeInsets.only(bottom: 8),
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: Colors.orange.withOpacity(0.15),
+                        color: Colors.orange.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(12),
-                        border:
-                            Border.all(color: Colors.orange.withOpacity(0.3)),
+                        border: Border.all(
+                            color: Colors.orange.withValues(alpha: 0.3)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.person_add_alt_1_rounded,
+                                  color: Colors.orange.shade300, size: 20),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  'Owner setup is pending. Owner is the first account created on this server.',
+                                  style: TextStyle(
+                                    color: Colors.orange.shade200,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          OutlinedButton.icon(
+                            onPressed: _openOwnerSetup,
+                            icon: const Icon(Icons.person_add_rounded, size: 18),
+                            label: const Text('Set Up Owner Account'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.orange.shade100,
+                              side: BorderSide(color: Colors.orange.shade400),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else if (_httpServer.authRequired)
+                    Container(
+                      width: double.infinity,
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                            color: Colors.orange.withValues(alpha: 0.3)),
                       ),
                       child: Row(
                         children: [
@@ -601,7 +704,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           const SizedBox(width: 12),
                           Expanded(
                             child: Text(
-                              'Authentication is enabled. Users must log in to access this server.',
+                              'Owner authentication is enabled. Users must sign in to access this server.',
                               style: TextStyle(
                                 color: Colors.orange.shade200,
                                 fontSize: 13,
@@ -691,7 +794,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ElevatedButton.icon(
                         onPressed: _isChangingPassword
                             ? null
-                            : () => _promptChangePassword(),
+                            : (_hasOwnerAccount
+                                ? () => _promptChangePassword()
+                                : _openOwnerSetup),
                         icon: _isChangingPassword
                             ? const SizedBox(
                                 width: 14,
@@ -701,8 +806,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   color: Colors.black,
                                 ),
                               )
-                            : const Icon(Icons.lock_reset_rounded, size: 18),
-                        label: const Text('Change Password'),
+                            : Icon(
+                                _hasOwnerAccount
+                                    ? Icons.lock_reset_rounded
+                                    : Icons.person_add_alt_1_rounded,
+                                size: 18,
+                              ),
+                        label: Text(
+                          _hasOwnerAccount
+                              ? 'Change Password'
+                              : 'Set Up Owner',
+                        ),
                       ),
                     ],
                   ),
@@ -716,12 +830,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         isLoading: _isLoadingConnectedRows,
                         errorMessage: _connectedRowsError,
                         rows: _connectedClientRows,
+                        ownerActionsEnabled: _hasOwnerAccount,
                         kickingDeviceIds: _kickingDeviceIds,
                         isChangingPassword: _isChangingPassword,
                         onKick: _kickClient,
                         onChangePassword: (row) => _promptChangePassword(
                           initialUsername: row.username,
                         ),
+                        onSetUpOwner: _openOwnerSetup,
                       ),
                     ),
                   ),

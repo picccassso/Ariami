@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_displaymode/flutter_displaymode.dart';
 import 'package:audio_service/audio_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'utils/constants.dart';
 import 'screens/welcome_screen.dart';
 import 'screens/setup/tailscale_check_screen.dart';
 import 'screens/setup/qr_scanner_screen.dart';

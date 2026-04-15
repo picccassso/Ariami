@@ -1,4 +1,4 @@
-/// Admin login credentials (e.g. from [showAdminCredentialsDialog]).
+/// Owner sign-in credentials (e.g. from [showAdminCredentialsDialog]).
 class AdminCredentials {
   const AdminCredentials({
     required this.username,
