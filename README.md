@@ -98,7 +98,7 @@ It is cross-platform so you can run this on your Mac/Windows/Linux machine, and 
 - Richer breakdowns (for example per calendar day) are planned.
 
 **Planned**
-- A lot of things I have not planned yet.
+- Improve the reliability of Ariami. 
 
 ---
 
