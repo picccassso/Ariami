@@ -276,6 +276,24 @@ extension AriamiHttpServerAuthAndAdminHandlersMethods on AriamiHttpServer {
     return closedCount;
   }
 
+  void _revokeStreamTicketsAndDisconnectDevices(List<Session> revokedSessions) {
+    for (final session in revokedSessions) {
+      _streamTracker.revokeSessionTickets(session.sessionToken);
+    }
+
+    final deviceIds = revokedSessions.map((s) => s.deviceId).toSet();
+    for (final deviceId in deviceIds) {
+      final closedWebSockets = _closeWebSocketsForDevice(deviceId);
+      final removedClient = _connectionManager.unregisterClientAndGet(deviceId);
+      if (removedClient != null || closedWebSockets > 0) {
+        broadcastWebSocketMessage(ClientDisconnectedMessage(
+          clientCount: _connectionManager.clientCount,
+          deviceName: removedClient?.deviceName,
+        ));
+      }
+    }
+  }
+
   Future<Response> _handleAdminKickClient(Request request) async {
     final authResponse = _authorizeAdminRequest(request);
     if (authResponse != null) return authResponse;
@@ -396,23 +414,7 @@ extension AriamiHttpServerAuthAndAdminHandlersMethods on AriamiHttpServer {
           await _authService.revokeAllSessionsForUserWithDetails(
         targetUser.userId,
       );
-
-      for (final session in revokedSessions) {
-        _streamTracker.revokeSessionTickets(session.sessionToken);
-      }
-
-      final deviceIds = revokedSessions.map((s) => s.deviceId).toSet();
-      for (final deviceId in deviceIds) {
-        final closedWebSockets = _closeWebSocketsForDevice(deviceId);
-        final removedClient =
-            _connectionManager.unregisterClientAndGet(deviceId);
-        if (removedClient != null || closedWebSockets > 0) {
-          broadcastWebSocketMessage(ClientDisconnectedMessage(
-            clientCount: _connectionManager.clientCount,
-            deviceName: removedClient?.deviceName,
-          ));
-        }
-      }
+      _revokeStreamTicketsAndDisconnectDevices(revokedSessions);
 
       return Response.ok(
         jsonEncode({
@@ -433,6 +435,128 @@ extension AriamiHttpServerAuthAndAdminHandlersMethods on AriamiHttpServer {
         headers: {'Content-Type': 'application/json; charset=utf-8'},
       );
     } catch (e) {
+      return Response.badRequest(
+        body: jsonEncode({
+          'error': {
+            'code': 'INVALID_REQUEST',
+            'message': 'Invalid request body',
+          },
+        }),
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
+      );
+    }
+  }
+
+  Future<Response> _handleAdminDeleteUser(Request request) async {
+    final authResponse = _authorizeAdminRequest(request);
+    if (authResponse != null) return authResponse;
+
+    try {
+      final body = await request.readAsString();
+      final data = body.trim().isEmpty
+          ? <String, dynamic>{}
+          : jsonDecode(body) as Map<String, dynamic>;
+
+      final requestedUserId = data['userId'] as String?;
+      final requestedUsername = data['username'] as String?;
+      if ((requestedUserId == null || requestedUserId.trim().isEmpty) &&
+          (requestedUsername == null || requestedUsername.trim().isEmpty)) {
+        return Response.badRequest(
+          body: jsonEncode({
+            'error': {
+              'code': 'INVALID_REQUEST',
+              'message': 'userId or username is required',
+            },
+          }),
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
+        );
+      }
+
+      User? targetUser;
+      if (requestedUserId != null && requestedUserId.trim().isNotEmpty) {
+        targetUser = _authService.getUserById(requestedUserId.trim());
+      }
+      targetUser ??= requestedUsername == null
+          ? null
+          : _authService.getUserByUsername(requestedUsername.trim());
+
+      if (targetUser == null) {
+        return Response.notFound(
+          jsonEncode({
+            'error': {
+              'code': 'USER_NOT_FOUND',
+              'message': 'User not found',
+            },
+          }),
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
+        );
+      }
+      final targetUserId = targetUser.userId;
+      final isDeletingOnlyAdmin =
+          _authService.isAdminUser(targetUserId) && _authService.userCount <= 1;
+      if (isDeletingOnlyAdmin) {
+        return Response(
+          409,
+          body: jsonEncode({
+            'error': {
+              'code': AuthErrorCodes.lastAdminProtected,
+              'message': 'Cannot delete the last remaining admin account',
+            },
+          }),
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
+        );
+      }
+
+      final revokedSessions =
+          await _authService.revokeAllSessionsForUserWithDetails(
+        targetUserId,
+      );
+      _revokeStreamTicketsAndDisconnectDevices(revokedSessions);
+
+      // Defensive cleanup for any stale connected rows that might not map to a
+      // currently active session.
+      final staleConnectedDeviceIds = _connectionManager
+          .getConnectedClients()
+          .where((client) => client.userId == targetUserId)
+          .map((client) => client.deviceId)
+          .toSet();
+      for (final deviceId in staleConnectedDeviceIds) {
+        final closedWebSockets = _closeWebSocketsForDevice(deviceId);
+        final removedClient =
+            _connectionManager.unregisterClientAndGet(deviceId);
+        if (removedClient != null || closedWebSockets > 0) {
+          broadcastWebSocketMessage(ClientDisconnectedMessage(
+            clientCount: _connectionManager.clientCount,
+            deviceName: removedClient?.deviceName,
+          ));
+        }
+      }
+
+      final deletedUser = await _authService.deleteUserById(targetUserId);
+      if (deletedUser == null) {
+        return Response.notFound(
+          jsonEncode({
+            'error': {
+              'code': 'USER_NOT_FOUND',
+              'message': 'User not found',
+            },
+          }),
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
+        );
+      }
+
+      updateAuthMode();
+
+      return Response.ok(
+        jsonEncode({
+          'status': 'user_deleted',
+          'userId': deletedUser.userId,
+          'username': deletedUser.username,
+          'revokedSessionCount': revokedSessions.length,
+        }),
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
+      );
+    } catch (_) {
       return Response.badRequest(
         body: jsonEncode({
           'error': {

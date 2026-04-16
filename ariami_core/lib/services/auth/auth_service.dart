@@ -322,6 +322,13 @@ class AuthService {
     return _userStore.updatePasswordHash(user.userId, passwordHash);
   }
 
+  /// Delete a user account by user ID.
+  /// Returns deleted user, or null if no such user exists.
+  Future<User?> deleteUserById(String userId) async {
+    _ensureInitialized();
+    return _userStore.deleteUser(userId);
+  }
+
   /// Clean up resources. Call when shutting down.
   void dispose() {
     _sessionStore.dispose();

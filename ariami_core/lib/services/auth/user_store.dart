@@ -155,6 +155,19 @@ class UserStore {
     return updatedUser;
   }
 
+  /// Delete an existing user by ID.
+  /// Returns deleted user, or null when user does not exist.
+  Future<User?> deleteUser(String userId) async {
+    _ensureInitialized();
+
+    final existingUser = _users.remove(userId);
+    if (existingUser == null) return null;
+
+    _usernameIndex.remove(existingUser.username.toLowerCase());
+    await _persist();
+    return existingUser;
+  }
+
   /// Persist the current state to the JSON file.
   /// Uses atomic write (write to temp, then rename) for safety.
   Future<void> _persist() async {

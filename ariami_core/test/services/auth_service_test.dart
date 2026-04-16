@@ -320,6 +320,27 @@ void main() {
     });
   });
 
+  group('AuthService User Deletion', () {
+    test('deleteUserById removes user from store', () async {
+      final username = unique('delete_user');
+      final password = 'password123';
+      final registerResponse = await authService.register(username, password);
+
+      final deleted = await authService.deleteUserById(registerResponse.userId);
+      expect(deleted, isNotNull);
+      expect(deleted!.userId, equals(registerResponse.userId));
+      expect(deleted.username, equals(username));
+
+      expect(authService.getUserById(registerResponse.userId), isNull);
+      expect(authService.getUserByUsername(username), isNull);
+    });
+
+    test('deleteUserById returns null when user does not exist', () async {
+      final deleted = await authService.deleteUserById('missing-user-id');
+      expect(deleted, isNull);
+    });
+  });
+
   group('AuthService Rate Limiting', () {
     test('rate limits after max failed attempts', () async {
       final username = unique('ratelimit');
@@ -411,6 +432,10 @@ void main() {
       expect(AuthErrorCodes.streamTokenExpired, equals('STREAM_TOKEN_EXPIRED'));
       expect(AuthErrorCodes.authRequired, equals('AUTH_REQUIRED'));
       expect(AuthErrorCodes.rateLimited, equals('RATE_LIMITED'));
+      expect(
+        AuthErrorCodes.lastAdminProtected,
+        equals('LAST_ADMIN_PROTECTED'),
+      );
     });
   });
 }

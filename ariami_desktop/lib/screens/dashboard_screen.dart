@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/connected_client_row.dart';
+import '../models/server_user_row.dart';
 import '../services/dashboard_admin_api_service.dart';
 import '../services/desktop_state_service.dart';
 import '../services/desktop_tailscale_service.dart';
@@ -17,6 +18,7 @@ import '../widgets/admin_credentials_dialog.dart';
 import '../widgets/change_password_dialog.dart';
 import '../widgets/connected_users_table.dart';
 import '../widgets/info_card.dart';
+import '../widgets/server_users_table.dart';
 import 'owner_setup_screen.dart';
 import 'scanning_screen.dart';
 
@@ -44,10 +46,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
   bool _hasOwnerAccount = false;
   int _connectedClients = 0;
   bool _isLoadingConnectedRows = false;
+  bool _isLoadingServerUsers = false;
   bool _isChangingPassword = false;
   String? _connectedRowsError;
+  String? _serverUsersError;
   List<ConnectedClientRow> _connectedClientRows = const <ConnectedClientRow>[];
+  List<ServerUserRow> _serverUserRows = const <ServerUserRow>[];
   final Set<String> _kickingDeviceIds = <String>{};
+  final Set<String> _deletingUserIds = <String>{};
   Timer? _connectedRowsRefreshTimer;
   Timer? _adminHeartbeatTimer;
 
@@ -70,6 +76,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       isMounted: () => mounted,
       onSessionInvalidated: () async {
         await _refreshConnectedClientRows(showLoading: false);
+        await _refreshServerUsers(showLoading: false);
         await _updateServerStatus();
       },
     );
@@ -80,6 +87,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _connectedRowsRefreshTimer =
         Timer.periodic(const Duration(seconds: 15), (_) {
       unawaited(_refreshConnectedClientRows(showLoading: false));
+      unawaited(_refreshServerUsers(showLoading: false));
     });
     _adminHeartbeatTimer = Timer.periodic(const Duration(seconds: 20), (_) {
       unawaited(_adminApi.sendAdminHeartbeat());
@@ -109,6 +117,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       });
     }
     unawaited(_refreshConnectedClientRows(showLoading: false));
+    unawaited(_refreshServerUsers(showLoading: false));
   }
 
   Future<void> _loadData() async {
@@ -133,6 +142,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     await _updateServerStatus();
     await _refreshOwnerState();
     await _refreshConnectedClientRows(showLoading: true);
+    await _refreshServerUsers(showLoading: true);
 
     setState(() {
       _isLoading = false;
@@ -179,6 +189,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }
       await _refreshOwnerState();
       await _refreshConnectedClientRows(showLoading: false);
+      await _refreshServerUsers(showLoading: false);
 
       if (_musicFolderPath != null &&
           _musicFolderPath!.isNotEmpty &&
@@ -211,7 +222,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Future<void> _refreshOwnerState() async {
     final hasOwner = await _stateService.hasOwnerAccount();
-    final ownerUsername = hasOwner ? await _stateService.getOwnerUsername() : null;
+    final ownerUsername =
+        hasOwner ? await _stateService.getOwnerUsername() : null;
     if (!mounted) return;
     setState(() {
       _hasOwnerAccount = hasOwner;
@@ -228,33 +240,111 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
     await _refreshOwnerState();
     await _updateServerStatus();
+    await _refreshServerUsers(showLoading: true);
+  }
+
+  Future<List<_StoredDashboardUser>> _loadStoredUsers() async {
+    final usersPath = await _stateService.getUsersFilePath();
+    final usersFile = File(usersPath);
+    if (!await usersFile.exists()) return const <_StoredDashboardUser>[];
+
+    final raw = await usersFile.readAsString();
+    if (raw.trim().isEmpty) return const <_StoredDashboardUser>[];
+    final decoded = jsonDecode(raw);
+    if (decoded is! Map<String, dynamic>) return const <_StoredDashboardUser>[];
+    final users = decoded['users'];
+    if (users is! List) return const <_StoredDashboardUser>[];
+
+    final parsed = <_StoredDashboardUser>[];
+    for (final userEntry in users) {
+      if (userEntry is! Map) continue;
+      final userId = userEntry['userId']?.toString().trim();
+      if (userId == null || userId.isEmpty) continue;
+
+      final username = userEntry['username']?.toString().trim();
+      final createdAtRaw = userEntry['createdAt']?.toString() ?? '';
+      parsed.add(
+        _StoredDashboardUser(
+          userId: userId,
+          username: (username == null || username.isEmpty)
+              ? 'Unknown User'
+              : username,
+          createdAt: DateTime.tryParse(createdAtRaw),
+          createdAtRaw: createdAtRaw,
+        ),
+      );
+    }
+
+    parsed.sort((a, b) {
+      final createdCompare = a.createdAtRaw.compareTo(b.createdAtRaw);
+      if (createdCompare != 0) return createdCompare;
+      return a.userId.compareTo(b.userId);
+    });
+    return parsed;
   }
 
   Future<Map<String, String>> _loadUsernameMap() async {
     try {
-      final usersPath = await _stateService.getUsersFilePath();
-      final usersFile = File(usersPath);
-      if (!await usersFile.exists()) return const <String, String>{};
-
-      final raw = await usersFile.readAsString();
-      if (raw.trim().isEmpty) return const <String, String>{};
-      final decoded = jsonDecode(raw);
-      if (decoded is! Map<String, dynamic>) return const <String, String>{};
-      final users = decoded['users'];
-      if (users is! List) return const <String, String>{};
-
-      final map = <String, String>{};
-      for (final userEntry in users) {
-        if (userEntry is! Map) continue;
-        final userId = userEntry['userId']?.toString();
-        final username = userEntry['username']?.toString();
-        if (userId == null || userId.isEmpty) continue;
-        map[userId] =
-            (username == null || username.isEmpty) ? 'Unknown User' : username;
-      }
-      return map;
+      final users = await _loadStoredUsers();
+      return <String, String>{
+        for (final user in users) user.userId: user.username,
+      };
     } catch (_) {
       return const <String, String>{};
+    }
+  }
+
+  Future<void> _refreshServerUsers({required bool showLoading}) async {
+    if (showLoading && mounted) {
+      setState(() {
+        _isLoadingServerUsers = true;
+      });
+    }
+
+    try {
+      final users = await _loadStoredUsers();
+      final connectedDeviceCountByUserId = <String, int>{};
+      for (final client
+          in _httpServer.connectionManager.getConnectedClients()) {
+        final userId = client.userId;
+        if (userId == null || userId.isEmpty) continue;
+        if (ConnectedClientFormatting.isDashboardControlClient(
+          deviceId: client.deviceId,
+          deviceName: client.deviceName,
+        )) {
+          continue;
+        }
+        connectedDeviceCountByUserId[userId] =
+            (connectedDeviceCountByUserId[userId] ?? 0) + 1;
+      }
+
+      final adminUserId = users.isEmpty ? null : users.first.userId;
+      final rows = users
+          .map(
+            (user) => ServerUserRow(
+              userId: user.userId,
+              username: user.username,
+              createdAt: user.createdAt,
+              isAdmin: adminUserId == user.userId,
+              connectedDeviceCount:
+                  connectedDeviceCountByUserId[user.userId] ?? 0,
+            ),
+          )
+          .toList(growable: false);
+
+      if (!mounted) return;
+      setState(() {
+        _serverUserRows = rows;
+        _serverUsersError = null;
+        _isLoadingServerUsers = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _serverUserRows = const <ServerUserRow>[];
+        _serverUsersError = 'Failed to load registered users.';
+        _isLoadingServerUsers = false;
+      });
     }
   }
 
@@ -355,6 +445,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         );
       }
       await _refreshConnectedClientRows(showLoading: false);
+      await _refreshServerUsers(showLoading: false);
       await _updateServerStatus();
     } finally {
       if (mounted) {
@@ -423,11 +514,113 @@ class _DashboardScreenState extends State<DashboardScreen> {
         );
       }
       await _refreshConnectedClientRows(showLoading: false);
+      await _refreshServerUsers(showLoading: false);
       await _updateServerStatus();
     } finally {
       if (mounted) {
         setState(() {
           _isChangingPassword = false;
+        });
+      }
+    }
+  }
+
+  Future<bool> _confirmDeleteUser(ServerUserRow row) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Delete User'),
+          content: Text(
+            'Delete "${row.username}" from this server?\n\n'
+            'If they are currently logged in, they will be disconnected immediately.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.redAccent,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Delete User'),
+            ),
+          ],
+        );
+      },
+    );
+
+    return confirmed ?? false;
+  }
+
+  Future<void> _deleteUser(ServerUserRow row) async {
+    if (!_hasOwnerAccount) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Set up the Owner account first to manage users.',
+            ),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+      await _openOwnerSetup();
+      return;
+    }
+
+    if (_deletingUserIds.contains(row.userId)) return;
+    final confirmed = await _confirmDeleteUser(row);
+    if (!confirmed) return;
+
+    setState(() {
+      _deletingUserIds.add(row.userId);
+    });
+
+    try {
+      final response = await _adminApi.sendAdminRequest(
+        path: '/api/admin/delete-user',
+        body: <String, dynamic>{'userId': row.userId},
+      );
+      if (response == null) return;
+
+      if (!response.isSuccess) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(response.errorMessage ?? 'Failed to delete user'),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+        }
+        return;
+      }
+
+      if (row.isAdmin) {
+        _adminApi.clearAdminSessionToken();
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Deleted user ${row.username}'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+
+      await _refreshOwnerState();
+      await _refreshConnectedClientRows(showLoading: false);
+      await _refreshServerUsers(showLoading: false);
+      await _updateServerStatus();
+    } finally {
+      if (mounted) {
+        setState(() {
+          _deletingUserIds.remove(row.userId);
         });
       }
     }
@@ -543,6 +736,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           );
         }
         await _refreshConnectedClientRows(showLoading: false);
+        await _refreshServerUsers(showLoading: false);
         await _refreshOwnerState();
       } catch (e) {
         if (mounted) {
@@ -559,6 +753,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     await _updateServerStatus();
     await _refreshOwnerState();
     await _refreshConnectedClientRows(showLoading: false);
+    await _refreshServerUsers(showLoading: false);
   }
 
   @override
@@ -676,7 +871,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           const SizedBox(height: 10),
                           OutlinedButton.icon(
                             onPressed: _openOwnerSetup,
-                            icon: const Icon(Icons.person_add_rounded, size: 18),
+                            icon:
+                                const Icon(Icons.person_add_rounded, size: 18),
                             label: const Text('Set Up Owner Account'),
                             style: OutlinedButton.styleFrom(
                               foregroundColor: Colors.orange.shade100,
@@ -779,46 +975,43 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     isActive: _httpServer.libraryManager.lastScanTime != null,
                   ),
                   const SizedBox(height: 32),
-                  Row(
-                    children: [
-                      const Expanded(
-                        child: Text(
-                          'Connected Users & Devices',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: -0.5,
-                          ),
+                  const Text(
+                    'Registered Users',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Card(
+                    elevation: 0,
+                    margin: EdgeInsets.zero,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: ServerUsersTable(
+                        isLoading: _isLoadingServerUsers,
+                        errorMessage: _serverUsersError,
+                        rows: _serverUserRows,
+                        ownerActionsEnabled: _hasOwnerAccount,
+                        isChangingPassword: _isChangingPassword,
+                        deletingUserIds: _deletingUserIds,
+                        onChangePassword: (row) => _promptChangePassword(
+                          initialUsername: row.username,
                         ),
+                        onDeleteUser: _deleteUser,
+                        onSetUpOwner: _openOwnerSetup,
                       ),
-                      ElevatedButton.icon(
-                        onPressed: _isChangingPassword
-                            ? null
-                            : (_hasOwnerAccount
-                                ? () => _promptChangePassword()
-                                : _openOwnerSetup),
-                        icon: _isChangingPassword
-                            ? const SizedBox(
-                                width: 14,
-                                height: 14,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.black,
-                                ),
-                              )
-                            : Icon(
-                                _hasOwnerAccount
-                                    ? Icons.lock_reset_rounded
-                                    : Icons.person_add_alt_1_rounded,
-                                size: 18,
-                              ),
-                        label: Text(
-                          _hasOwnerAccount
-                              ? 'Change Password'
-                              : 'Set Up Owner',
-                        ),
-                      ),
-                    ],
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                  const Text(
+                    'Connected Users & Devices',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: -0.5,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   Card(
@@ -832,11 +1025,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         rows: _connectedClientRows,
                         ownerActionsEnabled: _hasOwnerAccount,
                         kickingDeviceIds: _kickingDeviceIds,
-                        isChangingPassword: _isChangingPassword,
                         onKick: _kickClient,
-                        onChangePassword: (row) => _promptChangePassword(
-                          initialUsername: row.username,
-                        ),
                         onSetUpOwner: _openOwnerSetup,
                       ),
                     ),
@@ -910,4 +1099,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
     );
   }
+}
+
+class _StoredDashboardUser {
+  const _StoredDashboardUser({
+    required this.userId,
+    required this.username,
+    required this.createdAt,
+    required this.createdAtRaw,
+  });
+
+  final String userId;
+  final String username;
+  final DateTime? createdAt;
+  final String createdAtRaw;
 }

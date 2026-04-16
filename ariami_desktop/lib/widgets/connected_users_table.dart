@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/connected_client_row.dart';
 import '../utils/date_formatter.dart';
 
-/// Table of connected users/devices with kick / change-password actions.
+/// Table of connected users/devices with admin kick actions.
 class ConnectedUsersTable extends StatelessWidget {
   const ConnectedUsersTable({
     super.key,
@@ -12,9 +12,7 @@ class ConnectedUsersTable extends StatelessWidget {
     required this.rows,
     required this.ownerActionsEnabled,
     required this.kickingDeviceIds,
-    required this.isChangingPassword,
     required this.onKick,
-    required this.onChangePassword,
     required this.onSetUpOwner,
   });
 
@@ -23,9 +21,7 @@ class ConnectedUsersTable extends StatelessWidget {
   final List<ConnectedClientRow> rows;
   final bool ownerActionsEnabled;
   final Set<String> kickingDeviceIds;
-  final bool isChangingPassword;
   final void Function(ConnectedClientRow row) onKick;
-  final void Function(ConnectedClientRow row) onChangePassword;
   final VoidCallback onSetUpOwner;
 
   @override
@@ -114,13 +110,6 @@ class ConnectedUsersTable extends StatelessWidget {
                                         strokeWidth: 2),
                                   )
                                 : const Text('Kick'),
-                          ),
-                          const SizedBox(width: 6),
-                          TextButton(
-                            onPressed: isChangingPassword
-                                ? null
-                                : () => onChangePassword(row),
-                            child: const Text('Change Password'),
                           ),
                         ],
                       ],

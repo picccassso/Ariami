@@ -652,6 +652,169 @@ void main() {
       expect(newPasswordLogin.jsonBody['sessionToken'], isA<String>());
     });
 
+    test('admin delete-user removes account and revokes active sessions',
+        () async {
+      final port = await _findFreePort();
+      await server.start(
+        advertisedIp: '127.0.0.1',
+        bindAddress: '127.0.0.1',
+        port: port,
+      );
+
+      final registerAdmin = await _sendJsonRequest(
+        method: 'POST',
+        url: Uri.parse('http://127.0.0.1:$port/api/auth/register'),
+        jsonBody: <String, dynamic>{
+          'username': 'admin-user',
+          'password': 'admin-pass',
+        },
+      );
+      expect(registerAdmin.statusCode, 200);
+
+      final loginAdmin = await _sendJsonRequest(
+        method: 'POST',
+        url: Uri.parse('http://127.0.0.1:$port/api/auth/login'),
+        jsonBody: <String, dynamic>{
+          'username': 'admin-user',
+          'password': 'admin-pass',
+          'deviceId': 'admin-device',
+          'deviceName': 'Admin Device',
+        },
+      );
+      expect(loginAdmin.statusCode, 200);
+      final adminToken = loginAdmin.jsonBody['sessionToken'] as String;
+
+      final registerTarget = await _sendJsonRequest(
+        method: 'POST',
+        url: Uri.parse('http://127.0.0.1:$port/api/auth/register'),
+        jsonBody: <String, dynamic>{
+          'username': 'target-user',
+          'password': 'target-pass',
+        },
+      );
+      expect(registerTarget.statusCode, 200);
+      final targetUserId = registerTarget.jsonBody['userId'] as String;
+
+      final loginTarget = await _sendJsonRequest(
+        method: 'POST',
+        url: Uri.parse('http://127.0.0.1:$port/api/auth/login'),
+        jsonBody: <String, dynamic>{
+          'username': 'target-user',
+          'password': 'target-pass',
+          'deviceId': 'target-device',
+          'deviceName': 'Target Device',
+        },
+      );
+      expect(loginTarget.statusCode, 200);
+      final targetToken = loginTarget.jsonBody['sessionToken'] as String;
+
+      final connectTarget = await _sendJsonRequest(
+        method: 'POST',
+        url: Uri.parse('http://127.0.0.1:$port/api/connect'),
+        headers: <String, String>{'Authorization': 'Bearer $targetToken'},
+        jsonBody: <String, dynamic>{
+          'deviceId': 'target-device',
+          'deviceName': 'Target Device',
+          'appVersion': '4.1.0',
+          'platform': 'test',
+        },
+      );
+      expect(connectTarget.statusCode, 200);
+
+      final deleteUser = await _sendJsonRequest(
+        method: 'POST',
+        url: Uri.parse('http://127.0.0.1:$port/api/admin/delete-user'),
+        headers: <String, String>{'Authorization': 'Bearer $adminToken'},
+        jsonBody: <String, dynamic>{'userId': targetUserId},
+      );
+      expect(deleteUser.statusCode, 200);
+      expect(deleteUser.jsonBody['status'], equals('user_deleted'));
+      expect(deleteUser.jsonBody['userId'], equals(targetUserId));
+      expect(deleteUser.jsonBody['username'], equals('target-user'));
+      expect(
+          deleteUser.jsonBody['revokedSessionCount'], greaterThanOrEqualTo(1));
+
+      final targetMe = await _sendJsonRequest(
+        method: 'GET',
+        url: Uri.parse('http://127.0.0.1:$port/api/me'),
+        headers: <String, String>{'Authorization': 'Bearer $targetToken'},
+      );
+      expect(targetMe.statusCode, 401);
+      expect(
+        (targetMe.jsonBody['error'] as Map<String, dynamic>)['code'],
+        AuthErrorCodes.sessionExpired,
+      );
+
+      final deletedUserLogin = await _sendJsonRequest(
+        method: 'POST',
+        url: Uri.parse('http://127.0.0.1:$port/api/auth/login'),
+        jsonBody: <String, dynamic>{
+          'username': 'target-user',
+          'password': 'target-pass',
+          'deviceId': 'target-device',
+          'deviceName': 'Target Device',
+        },
+      );
+      expect(deletedUserLogin.statusCode, 401);
+      expect(
+        (deletedUserLogin.jsonBody['error'] as Map<String, dynamic>)['code'],
+        AuthErrorCodes.invalidCredentials,
+      );
+    });
+
+    test('cannot delete the last remaining admin account', () async {
+      final port = await _findFreePort();
+      await server.start(
+        advertisedIp: '127.0.0.1',
+        bindAddress: '127.0.0.1',
+        port: port,
+      );
+
+      final registerAdmin = await _sendJsonRequest(
+        method: 'POST',
+        url: Uri.parse('http://127.0.0.1:$port/api/auth/register'),
+        jsonBody: <String, dynamic>{
+          'username': 'admin-user',
+          'password': 'admin-pass',
+        },
+      );
+      expect(registerAdmin.statusCode, 200);
+      final adminUserId = registerAdmin.jsonBody['userId'] as String;
+
+      final loginAdmin = await _sendJsonRequest(
+        method: 'POST',
+        url: Uri.parse('http://127.0.0.1:$port/api/auth/login'),
+        jsonBody: <String, dynamic>{
+          'username': 'admin-user',
+          'password': 'admin-pass',
+          'deviceId': 'admin-device',
+          'deviceName': 'Admin Device',
+        },
+      );
+      expect(loginAdmin.statusCode, 200);
+      final adminToken = loginAdmin.jsonBody['sessionToken'] as String;
+
+      final deleteAdmin = await _sendJsonRequest(
+        method: 'POST',
+        url: Uri.parse('http://127.0.0.1:$port/api/admin/delete-user'),
+        headers: <String, String>{'Authorization': 'Bearer $adminToken'},
+        jsonBody: <String, dynamic>{'userId': adminUserId},
+      );
+      expect(deleteAdmin.statusCode, 409);
+      expect(
+        (deleteAdmin.jsonBody['error'] as Map<String, dynamic>)['code'],
+        AuthErrorCodes.lastAdminProtected,
+      );
+
+      final meAfterRejectedDelete = await _sendJsonRequest(
+        method: 'GET',
+        url: Uri.parse('http://127.0.0.1:$port/api/me'),
+        headers: <String, String>{'Authorization': 'Bearer $adminToken'},
+      );
+      expect(meAfterRejectedDelete.statusCode, 200);
+      expect(meAfterRejectedDelete.jsonBody['username'], equals('admin-user'));
+    });
+
     test('non-admin is blocked from admin endpoints', () async {
       final port = await _findFreePort();
       await server.start(
@@ -728,6 +891,20 @@ void main() {
       expect(changePassword.statusCode, 403);
       expect(
         (changePassword.jsonBody['error'] as Map<String, dynamic>)['code'],
+        AuthErrorCodes.forbiddenAdmin,
+      );
+
+      final deleteUser = await _sendJsonRequest(
+        method: 'POST',
+        url: Uri.parse('http://127.0.0.1:$port/api/admin/delete-user'),
+        headers: <String, String>{'Authorization': 'Bearer $nonAdminToken'},
+        jsonBody: <String, dynamic>{
+          'username': 'admin-user',
+        },
+      );
+      expect(deleteUser.statusCode, 403);
+      expect(
+        (deleteUser.jsonBody['error'] as Map<String, dynamic>)['code'],
         AuthErrorCodes.forbiddenAdmin,
       );
     });
