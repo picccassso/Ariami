@@ -17,6 +17,7 @@ class DownloadAllCard extends StatelessWidget {
     required this.onDownloadAllSongs,
     required this.onDownloadAllAlbums,
     required this.onDownloadAllPlaylists,
+    this.isDisabled = false,
   });
 
   final bool isDark;
@@ -30,6 +31,7 @@ class DownloadAllCard extends StatelessWidget {
   final bool isDownloadingAllSongs;
   final bool isDownloadingAllAlbums;
   final bool isDownloadingAllPlaylists;
+  final bool isDisabled;
   final VoidCallback onDownloadAllSongs;
   final VoidCallback onDownloadAllAlbums;
   final VoidCallback onDownloadAllPlaylists;
@@ -70,6 +72,7 @@ class DownloadAllCard extends StatelessWidget {
               countLabel: 'songs',
               isLoading: isLoadingCounts,
               isDownloading: isDownloadingAllSongs,
+              isDisabled: isDisabled,
               onDownload: onDownloadAllSongs,
             ),
             const SizedBox(height: 16),
@@ -82,6 +85,7 @@ class DownloadAllCard extends StatelessWidget {
               countLabel: 'albums',
               isLoading: isLoadingCounts,
               isDownloading: isDownloadingAllAlbums,
+              isDisabled: isDisabled,
               onDownload: onDownloadAllAlbums,
             ),
             const SizedBox(height: 16),
@@ -94,6 +98,7 @@ class DownloadAllCard extends StatelessWidget {
               countLabel: 'songs',
               isLoading: isLoadingCounts,
               isDownloading: isDownloadingAllPlaylists,
+              isDisabled: isDisabled,
               onDownload: onDownloadAllPlaylists,
             ),
             const SizedBox(height: 16),
@@ -122,6 +127,7 @@ class DownloadAllRow extends StatelessWidget {
     required this.isLoading,
     required this.isDownloading,
     required this.onDownload,
+    this.isDisabled = false,
   });
 
   final bool isDark;
@@ -132,12 +138,14 @@ class DownloadAllRow extends StatelessWidget {
   final String countLabel;
   final bool isLoading;
   final bool isDownloading;
+  final bool isDisabled;
   final VoidCallback onDownload;
 
   @override
   Widget build(BuildContext context) {
     final bool allDownloaded = downloadedCount >= totalCount && totalCount > 0;
     final bool hasItemsToDownload = totalCount > 0 && !allDownloaded;
+    final bool effectivelyDisabled = isLoading || !hasItemsToDownload || isDisabled;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -214,14 +222,14 @@ class DownloadAllRow extends StatelessWidget {
                           ? Icons.check_circle_rounded
                           : Icons.arrow_downward_rounded,
                       size: 24,
-                      color: (isLoading || !hasItemsToDownload)
+                      color: effectivelyDisabled
                           ? (isDark
                               ? Colors.white.withOpacity(0.1)
                               : Colors.black.withOpacity(0.1))
                           : (isDark ? Colors.white : Colors.black),
                     ),
                     onPressed:
-                        (isLoading || !hasItemsToDownload) ? null : onDownload,
+                        effectivelyDisabled ? null : onDownload,
                     style: IconButton.styleFrom(
                       backgroundColor: isDark
                           ? const Color(0xFF1A1A1A)

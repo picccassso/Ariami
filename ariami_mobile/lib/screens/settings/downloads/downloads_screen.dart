@@ -228,6 +228,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
               final queue = snapshot.data ?? [];
               _controller.syncVisibleQueueState(queue);
               final state = _controller.state;
+              final bool hasActiveDownloads = state.activeTasks.isNotEmpty || state.pendingTasks.isNotEmpty;
 
               return ListView(
                 padding: EdgeInsets.only(
@@ -277,6 +278,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                     isDownloadingAllSongs: state.isDownloadingAllSongs,
                     isDownloadingAllAlbums: state.isDownloadingAllAlbums,
                     isDownloadingAllPlaylists: state.isDownloadingAllPlaylists,
+                    isDisabled: hasActiveDownloads,
                     onDownloadAllSongs: () =>
                         unawaited(_controller.downloadAllSongs()),
                     onDownloadAllAlbums: () =>
