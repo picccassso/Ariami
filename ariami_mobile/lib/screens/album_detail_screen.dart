@@ -8,13 +8,14 @@ import '../models/download_task.dart';
 import '../models/websocket_models.dart';
 import '../services/api/connection_service.dart';
 import '../services/playback_manager.dart';
-import '../services/playlist_service.dart';
 import '../services/offline/offline_playback_service.dart';
 import '../services/download/download_manager.dart';
 import '../services/cache/cache_manager.dart';
+import '../widgets/album/album_action_buttons.dart';
 import '../widgets/album/album_header.dart';
+import '../widgets/album/album_info_section.dart';
+import '../widgets/album/album_playlist_picker_sheet.dart';
 import '../widgets/album/track_list.dart';
-import 'playlist/create_playlist_screen.dart';
 
 /// Album detail screen with track listing and album actions
 class AlbumDetailScreen extends StatefulWidget {
@@ -248,12 +249,35 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
 
         // Album info section
         SliverToBoxAdapter(
-          child: _buildAlbumInfo(),
+          child: AlbumInfoSection(
+            albumTitle: widget.album.title,
+            albumArtist: widget.album.artist,
+            year: _albumDetail?.year,
+            songCount: _albumDetail?.songs.length ?? widget.album.songCount,
+            totalDurationSeconds: _albumDetail != null
+                ? _albumDetail!.songs
+                    .fold<int>(0, (sum, song) => sum + song.duration)
+                : widget.album.duration,
+          ),
         ),
 
         // Action buttons
         SliverToBoxAdapter(
-          child: _buildActionButtons(),
+          child: AlbumActionButtons(
+            isAlbumFullyDownloaded: _albumDetail != null &&
+                _albumDetail!.songs
+                    .every((song) => _downloadedSongIds.contains(song.id)),
+            hasSongs: (_albumDetail?.songs ?? []).isNotEmpty,
+            onDownloadAlbum: _albumDetail != null &&
+                    !_albumDetail!.songs
+                        .every((song) => _downloadedSongIds.contains(song.id))
+                ? _downloadAlbum
+                : null,
+            onAddToPlaylist: _addToPlaylist,
+            onAddToQueue: _addToQueue,
+            onShuffleAll: _shuffleAll,
+            onPlayAll: _playAll,
+          ),
         ),
 
         // Track listing
@@ -288,160 +312,6 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
           ),
         ),
       ],
-    );
-  }
-
-  /// Build album information section
-  Widget _buildAlbumInfo() {
-    // Calculate total duration from loaded songs
-    final totalDuration = _albumDetail != null
-        ? _albumDetail!.songs.fold<int>(0, (sum, song) => sum + song.duration)
-        : widget.album.duration;
-    final songCount = _albumDetail?.songs.length ?? widget.album.songCount;
-
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Album title (large)
-          Text(
-            widget.album.title,
-            style: const TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 8),
-
-          // Artist name
-          Text(
-            widget.album.artist,
-            style: TextStyle(
-              fontSize: 18,
-              color: Colors.grey[600],
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // Metadata row
-          Row(
-            children: [
-              // Year (if available)
-              if (_albumDetail?.year != null) ...[
-                Text(
-                  _albumDetail!.year!,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey[600],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text('•', style: TextStyle(color: Colors.grey[600])),
-                const SizedBox(width: 8),
-              ],
-
-              // Number of songs
-              Text(
-                '$songCount ${songCount == 1 ? 'song' : 'songs'}',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[600],
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text('•', style: TextStyle(color: Colors.grey[600])),
-              const SizedBox(width: 8),
-
-              // Total duration
-              Text(
-                _formatDuration(totalDuration),
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[600],
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Action buttons (Play, Shuffle, etc.)
-  Widget _buildActionButtons() {
-    final songs = _albumDetail?.songs ?? [];
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          // Left side: Secondary actions
-          Row(
-            children: [
-              IconButton(
-                icon: Icon(
-                  _albumDetail != null &&
-                          _albumDetail!.songs
-                              .every((s) => _downloadedSongIds.contains(s.id))
-                      ? Icons.download_done_rounded
-                      : Icons.download_for_offline_outlined,
-                  color: _albumDetail != null &&
-                          _albumDetail!.songs
-                              .every((s) => _downloadedSongIds.contains(s.id))
-                      ? Colors.green
-                      : null,
-                ),
-                onPressed: _albumDetail != null &&
-                        !_albumDetail!.songs
-                            .every((s) => _downloadedSongIds.contains(s.id))
-                    ? _downloadAlbum
-                    : null,
-                iconSize: 28,
-              ),
-              IconButton(
-                icon: const Icon(Icons.playlist_add_rounded),
-                onPressed: _addToPlaylist,
-                iconSize: 28,
-              ),
-              IconButton(
-                icon: const Icon(Icons.queue_music_rounded),
-                onPressed: _addToQueue,
-                iconSize: 28,
-              ),
-            ],
-          ),
-          
-          // Right side: Play and Shuffle
-          Row(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.shuffle_rounded),
-                onPressed: songs.isEmpty ? null : _shuffleAll,
-                iconSize: 28,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-              const SizedBox(width: 8),
-              // Big Play Button
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-                child: IconButton(
-                  icon: const Icon(Icons.play_arrow_rounded),
-                  color: Colors.black,
-                  iconSize: 36,
-                  onPressed: songs.isEmpty ? null : _playAll,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
     );
   }
 
@@ -710,9 +580,8 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      builder: (context) => _AlbumPlaylistPicker(
+      builder: (context) => AlbumPlaylistPickerSheet(
         albumSongs: _albumDetail!.songs,
-        albumId: widget.album.id,
         albumTitle: widget.album.title,
       ),
     );
@@ -789,254 +658,5 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
         );
       }
     }
-  }
-
-  // ============================================================================
-  // HELPERS
-  // ============================================================================
-
-  /// Format duration in seconds to human-readable format
-  String _formatDuration(int seconds) {
-    final hours = seconds ~/ 3600;
-    final minutes = (seconds % 3600) ~/ 60;
-
-    if (hours > 0) {
-      return '$hours hr $minutes min';
-    } else {
-      return '$minutes min';
-    }
-  }
-}
-
-/// Bottom sheet for adding album songs to a playlist
-class _AlbumPlaylistPicker extends StatefulWidget {
-  final List<SongModel> albumSongs;
-  final String albumId;
-  final String albumTitle;
-
-  const _AlbumPlaylistPicker({
-    required this.albumSongs,
-    required this.albumId,
-    required this.albumTitle,
-  });
-
-  @override
-  State<_AlbumPlaylistPicker> createState() => _AlbumPlaylistPickerState();
-}
-
-class _AlbumPlaylistPickerState extends State<_AlbumPlaylistPicker> {
-  final PlaylistService _playlistService = PlaylistService();
-  bool _isAdding = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _playlistService.loadPlaylists();
-    _playlistService.addListener(_onPlaylistsChanged);
-  }
-
-  @override
-  void dispose() {
-    _playlistService.removeListener(_onPlaylistsChanged);
-    super.dispose();
-  }
-
-  void _onPlaylistsChanged() {
-    setState(() {});
-  }
-
-  Future<void> _createNewPlaylist() async {
-    final playlist = await CreatePlaylistScreen.show(context);
-    if (playlist != null && mounted) {
-      await _addAlbumToPlaylist(playlist);
-    }
-  }
-
-  Future<void> _addAlbumToPlaylist(PlaylistModel playlist) async {
-    setState(() => _isAdding = true);
-
-    int addedCount = 0;
-    for (final song in widget.albumSongs) {
-      if (!playlist.songIds.contains(song.id)) {
-        await _playlistService.addSongToPlaylist(
-          playlistId: playlist.id,
-          songId: song.id,
-          albumId: song.albumId,
-          title: song.title,
-          artist: song.artist,
-          duration: song.duration,
-        );
-        addedCount++;
-      }
-    }
-
-    if (mounted) {
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-              'Added $addedCount ${addedCount == 1 ? 'song' : 'songs'} to "${playlist.name}"'),
-          backgroundColor: Colors.green,
-        ),
-      );
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final playlists = _playlistService.playlists;
-
-    return DraggableScrollableSheet(
-      initialChildSize: 0.5,
-      minChildSize: 0.3,
-      maxChildSize: 0.9,
-      expand: false,
-      builder: (context, scrollController) => Column(
-        children: [
-          // Drag handle
-          Container(
-            margin: const EdgeInsets.symmetric(vertical: 8),
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: Colors.grey[300],
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-
-          // Title
-          const Padding(
-            padding: EdgeInsets.all(16.0),
-            child: Text(
-              'Add Album to Playlist',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-
-          // Album info
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: Text(
-              '${widget.albumSongs.length} songs from "${widget.albumTitle}"',
-              style: TextStyle(color: Colors.grey[600]),
-            ),
-          ),
-
-          const SizedBox(height: 8),
-
-          // Create new playlist option
-          ListTile(
-            leading: Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: Colors.grey[200],
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: const Icon(Icons.add, color: Colors.grey),
-            ),
-            title: const Text('Create New Playlist'),
-            onTap: _isAdding ? null : _createNewPlaylist,
-          ),
-
-          const Divider(),
-
-          // Playlists list
-          Expanded(
-            child: _isAdding
-                ? const Center(child: CircularProgressIndicator())
-                : playlists.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.queue_music,
-                                size: 48, color: Colors.grey[400]),
-                            const SizedBox(height: 8),
-                            Text(
-                              'No playlists yet',
-                              style: TextStyle(color: Colors.grey[600]),
-                            ),
-                          ],
-                        ),
-                      )
-                    : ListView.builder(
-                        controller: scrollController,
-                        padding: EdgeInsets.only(
-                          bottom: getMiniPlayerAwareBottomPadding(context),
-                        ),
-                        itemCount: playlists.length,
-                        itemBuilder: (context, index) {
-                          final playlist = playlists[index];
-                          final songsAlreadyInPlaylist = widget.albumSongs
-                              .where(
-                                  (song) => playlist.songIds.contains(song.id))
-                              .length;
-                          final allSongsInPlaylist = songsAlreadyInPlaylist ==
-                              widget.albumSongs.length;
-
-                          return ListTile(
-                            leading: _buildPlaylistIcon(playlist),
-                            title: Text(playlist.name),
-                            subtitle: Text(
-                              allSongsInPlaylist
-                                  ? 'All songs already in playlist'
-                                  : songsAlreadyInPlaylist > 0
-                                      ? '$songsAlreadyInPlaylist/${widget.albumSongs.length} songs already added'
-                                      : '${playlist.songCount} song${playlist.songCount != 1 ? 's' : ''}',
-                            ),
-                            trailing: allSongsInPlaylist
-                                ? const Icon(Icons.check, color: Colors.green)
-                                : const Icon(Icons.add),
-                            onTap: () => _addAlbumToPlaylist(playlist),
-                          );
-                        },
-                      ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPlaylistIcon(PlaylistModel playlist) {
-    // Special styling for Liked Songs
-    if (playlist.id == PlaylistService.likedSongsId) {
-      return Container(
-        width: 48,
-        height: 48,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Colors.pink[400]!, Colors.red[700]!],
-          ),
-          borderRadius: BorderRadius.circular(4),
-        ),
-        child: const Icon(Icons.favorite, color: Colors.white, size: 24),
-      );
-    }
-
-    // Regular playlist
-    final colorIndex = playlist.name.hashCode % 5;
-    final colors = [
-      Colors.purple[400]!,
-      Colors.blue[400]!,
-      Colors.green[400]!,
-      Colors.orange[400]!,
-      Colors.pink[400]!,
-    ];
-
-    return Container(
-      width: 48,
-      height: 48,
-      decoration: BoxDecoration(
-        color: colors[colorIndex],
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: const Icon(Icons.queue_music, color: Colors.white, size: 24),
-    );
   }
 }
