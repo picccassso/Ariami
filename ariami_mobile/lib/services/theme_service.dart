@@ -34,6 +34,10 @@ class ThemeService extends ChangeNotifier {
   static const String _presetColorKey = 'theme_preset_color';
   static const String _customColorKey = 'theme_custom_color';
   static const String _staticCoverArtColorKey = 'theme_static_cover_art_color';
+  static const String _staticSongIdKey = 'static_song_id';
+  static const String _staticSongTitleKey = 'static_song_title';
+  static const String _staticSongArtistKey = 'static_song_artist';
+  static const String _staticSongAlbumIdKey = 'static_song_album_id';
 
   final ColorExtractionService _colorService = ColorExtractionService();
   final PlaybackManager _playbackManager = PlaybackManager();
@@ -43,6 +47,11 @@ class ThemeService extends ChangeNotifier {
   Color _presetColor = const Color(0xFFFFFFFF); // Default pure white
   Color _customColor = const Color(0xFFFFFFFF);
   Color _staticCoverArtColor = const Color(0xFFFFFFFF);
+
+  String? _staticSongId;
+  String? _staticSongTitle;
+  String? _staticSongArtist;
+  String? _staticSongAlbumId;
 
   ThemeMode get themeMode {
     switch (_themeSource) {
@@ -65,6 +74,10 @@ class ThemeService extends ChangeNotifier {
   Color get presetColor => _presetColor;
   Color get customColor => _customColor;
   Color get staticCoverArtColor => _staticCoverArtColor;
+  String? get staticSongId => _staticSongId;
+  String? get staticSongTitle => _staticSongTitle;
+  String? get staticSongArtist => _staticSongArtist;
+  String? get staticSongAlbumId => _staticSongAlbumId;
 
   bool get _isNeutralSource {
     switch (_themeSource) {
@@ -139,6 +152,11 @@ class ThemeService extends ChangeNotifier {
 
     final staticValue = sharedPrefs.getInt(_staticCoverArtColorKey);
     if (staticValue != null) _staticCoverArtColor = Color(staticValue);
+
+    _staticSongId = sharedPrefs.getString(_staticSongIdKey);
+    _staticSongTitle = sharedPrefs.getString(_staticSongTitleKey);
+    _staticSongArtist = sharedPrefs.getString(_staticSongArtistKey);
+    _staticSongAlbumId = sharedPrefs.getString(_staticSongAlbumIdKey);
 
     // First try the new unified appearance source model.
     final sourceIndex = sharedPrefs.getInt(_appearanceSourceKey);
@@ -251,6 +269,33 @@ class ThemeService extends ChangeNotifier {
     if (_staticCoverArtColor == color) return;
     _staticCoverArtColor = color;
     await sharedPrefs.setInt(_staticCoverArtColorKey, color.toARGB32());
+    if (_themeSource == ThemeSource.staticCoverArt) {
+      notifyListeners();
+    }
+  }
+
+  Future<void> setStaticSong(
+    String id,
+    String title,
+    String artist,
+    String? albumId,
+    Color color,
+  ) async {
+    _staticSongId = id;
+    _staticSongTitle = title;
+    _staticSongArtist = artist;
+    _staticSongAlbumId = albumId;
+    _staticCoverArtColor = color;
+    await Future.wait([
+      sharedPrefs.setString(_staticSongIdKey, id),
+      sharedPrefs.setString(_staticSongTitleKey, title),
+      sharedPrefs.setString(_staticSongArtistKey, artist),
+      if (albumId != null)
+        sharedPrefs.setString(_staticSongAlbumIdKey, albumId)
+      else
+        sharedPrefs.remove(_staticSongAlbumIdKey),
+      sharedPrefs.setInt(_staticCoverArtColorKey, color.toARGB32()),
+    ]);
     if (_themeSource == ThemeSource.staticCoverArt) {
       notifyListeners();
     }

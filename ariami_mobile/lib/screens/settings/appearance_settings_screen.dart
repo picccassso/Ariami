@@ -3,7 +3,9 @@ import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import '../../../services/theme_service.dart';
 import '../../../services/playback_manager.dart';
 import '../../../services/color_extraction_service.dart';
+import '../../../services/api/connection_service.dart';
 import '../../../widgets/common/mini_player_aware_bottom_sheet.dart';
+import '../../../widgets/common/cached_artwork.dart';
 import '../../../widgets/settings/settings_section.dart';
 import 'song_selection_screen.dart';
 
@@ -46,6 +48,68 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
     if (mounted) {
       setState(() {});
     }
+  }
+
+  Widget _buildStaticSongPreview() {
+    final connectionService = ConnectionService();
+    final albumId = _themeService.staticSongAlbumId;
+    final songId = _themeService.staticSongId!;
+
+    final String cacheId;
+    final String? artworkUrl;
+    if (albumId != null) {
+      cacheId = albumId;
+      artworkUrl = connectionService.apiClient != null
+          ? '${connectionService.apiClient!.baseUrl}/artwork/$albumId'
+          : null;
+    } else {
+      cacheId = 'song_$songId';
+      artworkUrl = connectionService.apiClient != null
+          ? '${connectionService.apiClient!.baseUrl}/song-artwork/$songId'
+          : null;
+    }
+
+    return Row(
+      children: [
+        CachedArtwork(
+          albumId: cacheId,
+          artworkUrl: artworkUrl,
+          width: 56,
+          height: 56,
+          borderRadius: BorderRadius.circular(6),
+          fallbackIcon: Icons.music_note,
+          fallbackIconSize: 28,
+          sizeHint: ArtworkSizeHint.thumbnail,
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _themeService.staticSongTitle!,
+                style: Theme.of(context)
+                    .textTheme
+                    .bodyMedium
+                    ?.copyWith(fontWeight: FontWeight.w600),
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 2),
+              Text(
+                _themeService.staticSongArtist!,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .onSurface
+                          .withValues(alpha: 0.6),
+                    ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 
   void _showColorPicker() {
@@ -277,8 +341,13 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                                           await ColorExtractionService()
                                               .getDominantColorForSong(
                                                   song.id, song.albumId);
-                                      _themeService
-                                          .setStaticCoverArtColor(color);
+                                      await _themeService.setStaticSong(
+                                        song.id,
+                                        song.title,
+                                        song.artist,
+                                        song.albumId,
+                                        color,
+                                      );
                                     }
                                   : null,
                               child: const Text('Use Current Song'),
@@ -298,7 +367,13 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                                   final color = await ColorExtractionService()
                                       .getDominantColorForSong(selectedSong.id,
                                           selectedSong.albumId);
-                                  _themeService.setStaticCoverArtColor(color);
+                                  await _themeService.setStaticSong(
+                                    selectedSong.id,
+                                    selectedSong.title,
+                                    selectedSong.artist,
+                                    selectedSong.albumId,
+                                    color,
+                                  );
                                 }
                               },
                               child: const Text('Use Different Song'),
@@ -306,6 +381,12 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                           ],
                         ),
                       ),
+                    ),
+                  if (_themeService.staticSongTitle != null)
+                    Padding(
+                      padding: const EdgeInsets.only(
+                          left: 16.0, right: 16.0, top: 12.0),
+                      child: _buildStaticSongPreview(),
                     ),
                 ],
               ),
