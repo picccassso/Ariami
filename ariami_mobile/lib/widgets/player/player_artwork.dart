@@ -8,17 +8,37 @@ import '../../services/api/connection_service.dart';
 import '../../services/cast/chrome_cast_service.dart';
 import '../common/cached_artwork.dart';
 
+class PlayerArtworkController {
+  _PlayerArtworkState? _state;
+
+  void _attach(_PlayerArtworkState state) {
+    _state = state;
+  }
+
+  void _detach(_PlayerArtworkState state) {
+    if (_state == state) {
+      _state = null;
+    }
+  }
+
+  Future<bool> animateToIndex(int index) async {
+    return _state?.animateToIndex(index) ?? false;
+  }
+}
+
 /// Large album artwork with swipe gestures for track skipping and cast volume.
 class PlayerArtwork extends StatefulWidget {
   final PlaybackQueue queue;
   final int currentIndex;
   final ValueChanged<int> onPageChanged;
+  final PlayerArtworkController? controller;
 
   const PlayerArtwork({
     super.key,
     required this.queue,
     required this.currentIndex,
     required this.onPageChanged,
+    this.controller,
   });
 
   @override
@@ -35,7 +55,7 @@ class _PlayerArtworkState extends State<PlayerArtwork> {
   bool _showCastHint = false;
   bool _showVolumeHud = false;
   double _volumeHudValue = 0.0;
-  
+
   late int _visualIndex;
 
   @override
@@ -49,11 +69,17 @@ class _PlayerArtworkState extends State<PlayerArtwork> {
     _castService.initialize();
     _wasConnected = _castService.isConnected;
     _castService.addListener(_handleCastStateChanged);
+    widget.controller?._attach(this);
   }
 
   @override
   void didUpdateWidget(covariant PlayerArtwork oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller?._detach(this);
+      widget.controller?._attach(this);
+    }
+
     if (widget.queue != oldWidget.queue) {
       if (_pageController.hasClients) {
         _pageController.jumpToPage(widget.currentIndex);
@@ -61,7 +87,8 @@ class _PlayerArtworkState extends State<PlayerArtwork> {
       _visualIndex = widget.currentIndex;
     } else if (widget.currentIndex != oldWidget.currentIndex) {
       if (widget.currentIndex != _visualIndex) {
-        if (_pageController.hasClients && _pageController.page?.round() != widget.currentIndex) {
+        if (_pageController.hasClients &&
+            _pageController.page?.round() != widget.currentIndex) {
           _pageController.animateToPage(
             widget.currentIndex,
             duration: const Duration(milliseconds: 300),
@@ -75,11 +102,33 @@ class _PlayerArtworkState extends State<PlayerArtwork> {
 
   @override
   void dispose() {
+    widget.controller?._detach(this);
     _pageController.dispose();
     _hintTimer?.cancel();
     _hudTimer?.cancel();
     _castService.removeListener(_handleCastStateChanged);
     super.dispose();
+  }
+
+  Future<bool> animateToIndex(int index) async {
+    if (!mounted || !_pageController.hasClients) {
+      return false;
+    }
+    if (index < 0 || index >= widget.queue.length) {
+      return false;
+    }
+
+    final currentPage = _pageController.page?.round() ?? _visualIndex;
+    if (currentPage == index) {
+      return false;
+    }
+
+    await _pageController.animateToPage(
+      index,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+    );
+    return true;
   }
 
   @override

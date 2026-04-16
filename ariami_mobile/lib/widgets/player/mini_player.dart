@@ -47,6 +47,8 @@ class MiniPlayer extends StatefulWidget {
 class _MiniPlayerState extends State<MiniPlayer> {
   final ColorExtractionService _colorService = ColorExtractionService();
   final ChromeCastService _castService = ChromeCastService();
+  bool _isSkipTransitioning = false;
+  double _skipOffsetX = 0.0;
 
   @override
   void initState() {
@@ -90,7 +92,8 @@ class _MiniPlayerState extends State<MiniPlayer> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   const SizedBox(height: 12),
-                  Text('Cast To Device', style: Theme.of(context).textTheme.titleMedium),
+                  Text('Cast To Device',
+                      style: Theme.of(context).textTheme.titleMedium),
                   const SizedBox(height: 8),
                   if (devices.isEmpty)
                     const Padding(
@@ -103,7 +106,9 @@ class _MiniPlayerState extends State<MiniPlayer> {
                             child: CircularProgressIndicator(strokeWidth: 2.5),
                           ),
                           SizedBox(width: 12),
-                          Expanded(child: Text('Searching for Chromecast devices...')),
+                          Expanded(
+                              child:
+                                  Text('Searching for Chromecast devices...')),
                         ],
                       ),
                     )
@@ -160,7 +165,8 @@ class _MiniPlayerState extends State<MiniPlayer> {
             children: [
               ListTile(
                 leading: const Icon(LucideIcons.cast),
-                title: Text(_castService.connectedDeviceName ?? 'Chromecast connected'),
+                title: Text(
+                    _castService.connectedDeviceName ?? 'Chromecast connected'),
                 subtitle: const Text('Audio is being cast from Ariami'),
               ),
               ListTile(
@@ -187,13 +193,54 @@ class _MiniPlayerState extends State<MiniPlayer> {
     if (velocity < -threshold) {
       // Swipe left -> Next
       if (widget.hasNext) {
-        widget.onSkipNext();
+        _animateSkipTransition(toNext: true);
       }
     } else if (velocity > threshold) {
       // Swipe right -> Previous
       if (widget.hasPrevious) {
-        widget.onSkipPrevious();
+        _animateSkipTransition(toNext: false);
       }
+    }
+  }
+
+  Future<void> _animateSkipTransition({required bool toNext}) async {
+    if (_isSkipTransitioning) {
+      return;
+    }
+
+    setState(() {
+      _isSkipTransitioning = true;
+      _skipOffsetX = toNext ? -0.08 : 0.08;
+    });
+
+    if (toNext) {
+      widget.onSkipNext();
+    } else {
+      widget.onSkipPrevious();
+    }
+
+    // Fallback reset in case playback update is delayed.
+    await Future.delayed(const Duration(milliseconds: 340));
+    if (!mounted || !_isSkipTransitioning) {
+      return;
+    }
+
+    setState(() {
+      _skipOffsetX = 0.0;
+      _isSkipTransitioning = false;
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant MiniPlayer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (oldWidget.currentSong?.id != widget.currentSong?.id &&
+        _isSkipTransitioning) {
+      setState(() {
+        _skipOffsetX = 0.0;
+        _isSkipTransitioning = false;
+      });
     }
   }
 
@@ -204,7 +251,7 @@ class _MiniPlayerState extends State<MiniPlayer> {
     }
 
     final colors = _colorService.currentColors;
-    
+
     // Flush style
     return Theme(
       data: AppTheme.buildTheme(
@@ -213,144 +260,169 @@ class _MiniPlayerState extends State<MiniPlayer> {
       ),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 500),
-      curve: Curves.easeInOut,
-      height: 64, // Slightly shorter for flush look
-      decoration: BoxDecoration(
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(8),
-          topRight: Radius.circular(8),
-        ),
-        color: Theme.of(context).colorScheme.surfaceContainerHighest, // Fallback
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            colors.primary.withOpacity(0.9),
-            colors.secondary.withOpacity(0.95), // Less transparent for visibility
+        curve: Curves.easeInOut,
+        height: 64, // Slightly shorter for flush look
+        decoration: BoxDecoration(
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(8),
+            topRight: Radius.circular(8),
+          ),
+          color:
+              Theme.of(context).colorScheme.surfaceContainerHighest, // Fallback
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              colors.primary.withOpacity(0.9),
+              colors.secondary
+                  .withOpacity(0.95), // Less transparent for visibility
+            ],
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.3),
+              blurRadius: 16,
+              offset: const Offset(0, 8),
+            ),
           ],
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.3),
-            blurRadius: 16,
-            offset: const Offset(0, 8),
+        child: ClipRRect(
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(8),
+            topRight: Radius.circular(8),
           ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(8),
-          topRight: Radius.circular(8),
-        ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: widget.onTap,
-            child: Column(
-              children: [
-                // Content Row
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12.0),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: GestureDetector(
-                            behavior: HitTestBehavior.opaque,
-                            onHorizontalDragEnd: _onHorizontalSwipeEnd,
-                            child: Row(
-                              children: [
-                                // Album artwork with rotation or shadow? Keep simple for mini.
-                                _buildAlbumArt(context),
-                  
-                                const SizedBox(width: 12),
-                  
-                                // Song info
-                                Expanded(
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: widget.onTap,
+              child: Column(
+                children: [
+                  // Content Row
+                  Expanded(
+                    child: AnimatedSlide(
+                      offset: Offset(_skipOffsetX, 0),
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeInOut,
+                      child: AnimatedOpacity(
+                        opacity: _isSkipTransitioning ? 0.94 : 1.0,
+                        duration: const Duration(milliseconds: 180),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: GestureDetector(
+                                  behavior: HitTestBehavior.opaque,
+                                  onHorizontalDragEnd: _onHorizontalSwipeEnd,
+                                  child: Row(
                                     children: [
-                                      Text(
-                                        widget.currentSong!.title,
-                                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                              fontWeight: FontWeight.bold,
-                                              color: Colors.white, // Always white on gradient
+                                      // Album artwork with rotation or shadow? Keep simple for mini.
+                                      _buildAlbumArt(context),
+
+                                      const SizedBox(width: 12),
+
+                                      // Song info
+                                      Expanded(
+                                        child: Column(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              widget.currentSong!.title,
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .titleSmall
+                                                  ?.copyWith(
+                                                    fontWeight: FontWeight.bold,
+                                                    color: Colors
+                                                        .white, // Always white on gradient
+                                                  ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
                                             ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      Text(
-                                        widget.currentSong!.artist,
-                                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                              color: Colors.white.withOpacity(0.8),
+                                            Text(
+                                              widget.currentSong!.artist,
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .bodySmall
+                                                  ?.copyWith(
+                                                    color: Colors.white
+                                                        .withOpacity(0.8),
+                                                  ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
                                             ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
+                                          ],
+                                        ),
                                       ),
                                     ],
                                   ),
                                 ),
-                              ],
-                            ),
+                              ),
+
+                              // Controls
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  // Cast button (only on supported platforms)
+                                  if (_castService.isSupportedPlatform)
+                                    IconButton(
+                                      icon: Icon(
+                                        _castService.isConnected
+                                            ? Icons.cast_connected_rounded
+                                            : LucideIcons.cast,
+                                        color: _castService.isConnected
+                                            ? Colors.white
+                                            : Colors.white54,
+                                      ),
+                                      iconSize: 22,
+                                      onPressed: (_castService.isConnecting ||
+                                              widget.playbackManager
+                                                  .isCastTransitionInProgress)
+                                          ? null
+                                          : _onCastPressed,
+                                      tooltip: _castService.isConnected
+                                          ? 'Disconnect Chromecast'
+                                          : 'Connect Chromecast',
+                                    ),
+                                  // Play/Pause
+                                  IconButton(
+                                    icon: Icon(widget.isPlaying
+                                        ? Icons.pause_rounded
+                                        : Icons.play_arrow_rounded),
+                                    color: Colors.white,
+                                    onPressed: widget.onPlayPause,
+                                    iconSize: 28,
+                                  ),
+                                ],
+                              ),
+                            ],
                           ),
                         ),
-          
-                        // Controls
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            // Cast button (only on supported platforms)
-                            if (_castService.isSupportedPlatform)
-                              IconButton(
-                                icon: Icon(
-                                  _castService.isConnected
-                                      ? Icons.cast_connected_rounded
-                                      : LucideIcons.cast,
-                                  color: _castService.isConnected
-                                      ? Colors.white
-                                      : Colors.white54,
-                                ),
-                                iconSize: 22,
-                                onPressed: (_castService.isConnecting ||
-                                        widget.playbackManager.isCastTransitionInProgress)
-                                    ? null
-                                    : _onCastPressed,
-                                tooltip: _castService.isConnected
-                                    ? 'Disconnect Chromecast'
-                                    : 'Connect Chromecast',
-                              ),
-                            // Play/Pause
-                            IconButton(
-                              icon: Icon(widget.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded),
-                              color: Colors.white,
-                              onPressed: widget.onPlayPause,
-                              iconSize: 28,
-                            ),
-                          ],
-                        ),
-                      ],
+                      ),
                     ),
                   ),
-                ),
-                
-                // Progress Indicator at bottom edge
-                LinearProgressIndicator(
-                  value: widget.duration.inMilliseconds > 0
-                      ? widget.position.inMilliseconds / widget.duration.inMilliseconds
-                      : 0.0,
-                  minHeight: 2.5,
-                  backgroundColor: Colors.white.withOpacity(0.25),
-                  valueColor: const AlwaysStoppedAnimation<Color>(
-                    Colors.white, // Clean white progress
+
+                  // Progress Indicator at bottom edge
+                  LinearProgressIndicator(
+                    value: widget.duration.inMilliseconds > 0
+                        ? widget.position.inMilliseconds /
+                            widget.duration.inMilliseconds
+                        : 0.0,
+                    minHeight: 2.5,
+                    backgroundColor: Colors.white.withOpacity(0.25),
+                    valueColor: const AlwaysStoppedAnimation<Color>(
+                      Colors.white, // Clean white progress
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
       ),
-    ),
     );
   }
 
@@ -410,4 +482,3 @@ class _MiniPlayerState extends State<MiniPlayer> {
     );
   }
 }
-

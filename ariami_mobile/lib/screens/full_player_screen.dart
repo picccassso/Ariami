@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -26,6 +28,7 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
   final PlaybackManager _playbackManager = PlaybackManager();
   final PlaylistService _playlistService = PlaylistService();
   final ColorExtractionService _colorService = ColorExtractionService();
+  final PlayerArtworkController _artworkController = PlayerArtworkController();
 
   @override
   void initState() {
@@ -84,6 +87,37 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _skipNextWithArtworkAnimation() async {
+    if (_playbackManager.hasNext) {
+      final targetIndex = _playbackManager.queue.currentIndex + 1;
+      final didAnimate = await _artworkController.animateToIndex(targetIndex);
+      if (!didAnimate && mounted) {
+        await _playbackManager.skipToQueueItem(targetIndex);
+      }
+      return;
+    }
+
+    await _playbackManager.skipNext();
+  }
+
+  Future<void> _skipPreviousWithArtworkAnimation() async {
+    if (_playbackManager.position.inSeconds > 3) {
+      await _playbackManager.seek(Duration.zero);
+      return;
+    }
+
+    if (_playbackManager.hasPrevious) {
+      final targetIndex = _playbackManager.queue.currentIndex - 1;
+      final didAnimate = await _artworkController.animateToIndex(targetIndex);
+      if (!didAnimate && mounted) {
+        await _playbackManager.skipToQueueItem(targetIndex);
+      }
+      return;
+    }
+
+    await _playbackManager.skipPrevious();
   }
 
   @override
@@ -188,6 +222,7 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
             Expanded(
               flex: 4,
               child: PlayerArtwork(
+                controller: _artworkController,
                 queue: _playbackManager.queue,
                 currentIndex: _playbackManager.queue.currentIndex,
                 onPageChanged: (index) {
@@ -272,7 +307,7 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
             icon: const Icon(LucideIcons.skipBack),
             iconSize: 48,
             onPressed: _playbackManager.hasPrevious
-                ? _playbackManager.skipPrevious
+                ? () => unawaited(_skipPreviousWithArtworkAnimation())
                 : null,
             tooltip: 'Previous',
           ),
@@ -328,7 +363,7 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
                     (_playbackManager.repeatMode ==
                             playback_repeat.RepeatMode.all &&
                         _playbackManager.queue.isNotEmpty))
-                ? _playbackManager.skipNext
+                ? () => unawaited(_skipNextWithArtworkAnimation())
                 : null,
             tooltip: 'Next',
           ),
