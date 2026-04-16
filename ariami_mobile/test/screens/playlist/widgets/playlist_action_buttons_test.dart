@@ -17,10 +17,10 @@ void main() {
         ),
       );
 
-      expect(find.text('Play'), findsOneWidget);
-      expect(find.text('Shuffle'), findsOneWidget);
-      expect(find.text('Reorder'), findsOneWidget);
-      expect(find.text('Add Songs'), findsOneWidget);
+      expect(find.byIcon(Icons.play_arrow_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.shuffle_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.reorder_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.add_rounded), findsOneWidget);
     });
 
     testWidgets('should call onPlay when Play button is tapped',
@@ -40,7 +40,7 @@ void main() {
         ),
       );
 
-      await tester.tap(find.text('Play'));
+      await tester.tap(find.byIcon(Icons.play_arrow_rounded));
       await tester.pump();
 
       expect(playCalled, true);
@@ -63,7 +63,7 @@ void main() {
         ),
       );
 
-      await tester.tap(find.text('Shuffle'));
+      await tester.tap(find.byIcon(Icons.shuffle_rounded));
       await tester.pump();
 
       expect(shuffleCalled, true);
@@ -86,7 +86,7 @@ void main() {
         ),
       );
 
-      await tester.tap(find.text('Reorder'));
+      await tester.tap(find.byIcon(Icons.reorder_rounded));
       await tester.pump();
 
       expect(toggleCalled, true);
@@ -105,8 +105,8 @@ void main() {
         ),
       );
 
-      expect(find.text('Done'), findsOneWidget);
-      expect(find.text('Reorder'), findsNothing);
+      expect(find.byIcon(Icons.check_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.reorder_rounded), findsNothing);
     });
 
     testWidgets('should disable Play and Shuffle when no songs',
@@ -128,10 +128,21 @@ void main() {
         ),
       );
 
-      // Try tapping Play and Shuffle - should not trigger callbacks
-      await tester.tap(find.text('Play'));
-      await tester.tap(find.text('Shuffle'));
-      await tester.pump();
+      final playButton = tester.widget<IconButton>(
+        find.ancestor(
+          of: find.byIcon(Icons.play_arrow_rounded),
+          matching: find.byType(IconButton),
+        ),
+      );
+      final shuffleButton = tester.widget<IconButton>(
+        find.ancestor(
+          of: find.byIcon(Icons.shuffle_rounded),
+          matching: find.byType(IconButton),
+        ),
+      );
+
+      expect(playButton.onPressed, isNull);
+      expect(shuffleButton.onPressed, isNull);
 
       // Callbacks should not be called since buttons are disabled
       expect(playCalled, false);
@@ -154,9 +165,14 @@ void main() {
         ),
       );
 
-      // Try tapping Reorder - should not trigger callback
-      await tester.tap(find.text('Reorder'));
-      await tester.pump();
+      final reorderButton = tester.widget<IconButton>(
+        find.ancestor(
+          of: find.byIcon(Icons.reorder_rounded),
+          matching: find.byType(IconButton),
+        ),
+      );
+
+      expect(reorderButton.onPressed, isNull);
 
       // Callback should not be called since button is disabled
       expect(reorderCalled, false);
