@@ -15,7 +15,7 @@ jobs:
     runs-on: macos-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           submodules: recursive
 
@@ -70,7 +70,7 @@ jobs:
 
       - name: Upload Artifact (for manual runs)
         if: github.event_name == 'workflow_dispatch'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: Ariami-Desktop-${{ steps.version.outputs.version }}-macos
           path: ariami_desktop/Ariami-Desktop-${{ steps.version.outputs.version }}-macos.dmg
@@ -79,7 +79,7 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           submodules: recursive
 
@@ -124,7 +124,7 @@ jobs:
 
       - name: Upload Artifact (for manual runs)
         if: github.event_name == 'workflow_dispatch'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: Ariami-Desktop-${{ steps.version.outputs.version }}-windows
           path: ariami_desktop/Ariami-Desktop-${{ steps.version.outputs.version }}-windows.zip
@@ -133,7 +133,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           submodules: recursive
 
@@ -233,7 +233,7 @@ jobs:
 
       - name: Upload Artifact (for manual runs)
         if: github.event_name == 'workflow_dispatch'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: Ariami-Desktop-${{ steps.version.outputs.version }}-linux
           path: ariami_desktop/Ariami-Desktop-${{ steps.version.outputs.version }}-linux.AppImage
