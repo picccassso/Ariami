@@ -63,8 +63,11 @@ extension _DownloadManagerInitializationImpl on DownloadManager {
     _initialized = true;
     print('DownloadManager initialized');
 
+    // Remove stale local files that no longer have queue metadata.
+    unawaited(_cleanupStaleDownloadFiles());
+
     // Run one-time artwork backfill for existing downloads (non-blocking)
-    _backfillArtworkForExistingDownloads();
+    unawaited(_backfillArtworkForExistingDownloads());
   }
 
   void _setMaxConcurrentDownloadsImpl(int maxConcurrent) {

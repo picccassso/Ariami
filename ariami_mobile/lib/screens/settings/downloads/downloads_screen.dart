@@ -200,12 +200,11 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
-          if (dm.queue.isNotEmpty)
-            IconButton(
-              icon: const Icon(Icons.delete_outline),
-              onPressed: _clearAllDownloads,
-              tooltip: 'Clear all downloads',
-            ),
+          IconButton(
+            icon: const Icon(Icons.delete_outline),
+            onPressed: _clearAllDownloads,
+            tooltip: 'Clear all downloads',
+          ),
         ],
       ),
       body: FutureBuilder<void>(
@@ -228,7 +227,8 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
               final queue = snapshot.data ?? [];
               _controller.syncVisibleQueueState(queue);
               final state = _controller.state;
-              final bool hasActiveDownloads = state.activeTasks.isNotEmpty || state.pendingTasks.isNotEmpty;
+              final bool hasActiveDownloads =
+                  state.activeTasks.isNotEmpty || state.pendingTasks.isNotEmpty;
 
               return ListView(
                 padding: EdgeInsets.only(

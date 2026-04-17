@@ -150,6 +150,13 @@ void main() {
       },
     );
 
+    final songsDir = Directory(p.join(docsDir.path, 'downloads', 'songs'));
+    await songsDir.create(recursive: true);
+    await File(p.join(songsDir.path, 'song-complete.mp3'))
+        .writeAsBytes(List<int>.filled(32, 1));
+    await File(p.join(songsDir.path, 'stale-song.mp3'))
+        .writeAsBytes(List<int>.filled(16, 2));
+
     manager = DownloadManager();
     await manager.initialize();
   });
@@ -172,6 +179,8 @@ void main() {
 
   group('DownloadManager refactor regression', () {
     test('initialization keeps queue semantics and derived stats', () async {
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+
       final queue = manager.queue;
       expect(queue.length, 4);
       expect(
@@ -218,6 +227,17 @@ void main() {
         manager.getTotalDownloadedSizeMB(),
         closeTo(1000 / (1024 * 1024), 0.0000001),
       );
+
+      expect(
+        File(p.join(docsDir.path, 'downloads', 'songs', 'song-complete.mp3'))
+            .existsSync(),
+        isTrue,
+      );
+      expect(
+        File(p.join(docsDir.path, 'downloads', 'songs', 'stale-song.mp3'))
+            .existsSync(),
+        isFalse,
+      );
     });
 
     test('resume, prune, and clear operations preserve behavior', () async {
@@ -250,11 +270,35 @@ void main() {
         <String>{'song-complete', 'song-manual-paused'},
       );
 
+      final songsDir = Directory(p.join(docsDir.path, 'downloads', 'songs'));
+      await songsDir.create(recursive: true);
+      await File(p.join(songsDir.path, 'song-manual-paused.mp3'))
+          .writeAsBytes(List<int>.filled(64, 3));
+      await File(p.join(songsDir.path, 'stray-before-clear.mp3'))
+          .writeAsBytes(List<int>.filled(64, 4));
+
       await manager.clearAllDownloads();
       await Future<void>.delayed(Duration.zero);
       expect(manager.queue, isEmpty);
       expect(manager.getQueueStats().totalTasks, 0);
       expect(manager.getCompletedDownloadCount(), 0);
+      expect(
+        File(p.join(docsDir.path, 'downloads', 'songs', 'song-complete.mp3'))
+            .existsSync(),
+        isFalse,
+      );
+      expect(
+        File(p.join(
+                docsDir.path, 'downloads', 'songs', 'song-manual-paused.mp3'))
+            .existsSync(),
+        isFalse,
+      );
+      expect(
+        File(p.join(
+                docsDir.path, 'downloads', 'songs', 'stray-before-clear.mp3'))
+            .existsSync(),
+        isFalse,
+      );
     });
   });
 }

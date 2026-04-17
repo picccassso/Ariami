@@ -98,7 +98,142 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
 
   /// Get file path for a downloaded song
   String _getSongFilePath(String songId) {
-    return '$_downloadPath/songs/$songId.mp3';
+    final downloadPath = _downloadPath;
+    if (downloadPath == null || downloadPath.isEmpty) {
+      return 'downloads/songs/$songId.mp3';
+    }
+    return '$downloadPath/songs/$songId.mp3';
+  }
+
+  Future<bool> _deleteSongFileIfUnreferenced(String songId) async {
+    final normalizedSongId = songId.trim();
+    if (normalizedSongId.isEmpty) {
+      return false;
+    }
+    if (_queue.queue.any((task) => task.songId == normalizedSongId)) {
+      return false;
+    }
+
+    final songFile = File(_getSongFilePath(normalizedSongId));
+    if (!await songFile.exists()) {
+      return false;
+    }
+
+    for (var attempt = 1; attempt <= 3; attempt++) {
+      try {
+        await songFile.delete();
+        return true;
+      } catch (e) {
+        if (attempt == 3) {
+          print(
+              '[DownloadManager] Failed to delete local file for song $normalizedSongId: $e');
+          return false;
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 120));
+      }
+    }
+    return false;
+  }
+
+  Future<int> _clearAllDownloadFilesFromDisk() async {
+    final downloadPath = _downloadPath;
+    if (downloadPath == null || downloadPath.isEmpty) {
+      return 0;
+    }
+
+    final downloadsDir = Directory(downloadPath);
+    if (!await downloadsDir.exists()) {
+      return 0;
+    }
+
+    var fileCount = 0;
+    await for (final entity in downloadsDir.list(
+      recursive: true,
+      followLinks: false,
+    )) {
+      if (entity is File) {
+        fileCount++;
+      }
+    }
+
+    try {
+      await downloadsDir.delete(recursive: true);
+    } catch (e) {
+      print('[DownloadManager] Failed to clear downloads directory: $e');
+      if (await downloadsDir.exists()) {
+        await for (final entity in downloadsDir.list(
+          recursive: true,
+          followLinks: false,
+        )) {
+          try {
+            await entity.delete(recursive: true);
+          } catch (_) {}
+        }
+      }
+    }
+
+    await Directory(downloadPath).create(recursive: true);
+    await Directory('$downloadPath/songs').create(recursive: true);
+    return fileCount;
+  }
+
+  Future<int> _cleanupStaleDownloadFiles() async {
+    final downloadPath = _downloadPath;
+    if (downloadPath == null || downloadPath.isEmpty) {
+      return 0;
+    }
+
+    final songsDir = Directory('$downloadPath/songs');
+    if (!await songsDir.exists()) {
+      return 0;
+    }
+
+    final knownSongIds = _queue.queue.map((task) => task.songId.trim()).toSet();
+    var removedCount = 0;
+
+    await for (final entity in songsDir.list(followLinks: false)) {
+      if (entity is Directory) {
+        try {
+          await entity.delete(recursive: true);
+          removedCount++;
+        } catch (e) {
+          print(
+              '[DownloadManager] Failed to remove stale download directory ${entity.path}: $e');
+        }
+        continue;
+      }
+      if (entity is! File) {
+        continue;
+      }
+
+      final fileName = entity.path.split(Platform.pathSeparator).last;
+      final songId = _songIdFromDownloadFileName(fileName);
+      final isKnownSongFile = songId != null && knownSongIds.contains(songId);
+      if (isKnownSongFile) {
+        continue;
+      }
+
+      try {
+        await entity.delete();
+        removedCount++;
+      } catch (e) {
+        print(
+            '[DownloadManager] Failed to remove stale download file ${entity.path}: $e');
+      }
+    }
+
+    if (removedCount > 0) {
+      print(
+          '[DownloadManager] Removed $removedCount stale local download file(s)');
+    }
+    return removedCount;
+  }
+
+  String? _songIdFromDownloadFileName(String fileName) {
+    if (fileName.length <= 4 || !fileName.toLowerCase().endsWith('.mp3')) {
+      return null;
+    }
+    return fileName.substring(0, fileName.length - 4).trim();
   }
 
   /// Format bytes to human readable format
@@ -188,29 +323,43 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
     }
     _activeDownloads.clear();
     _activeProgress.clear(); // Cleanup all progress tracking
+    _activeDownloadCount = 0;
+
+    final deletedFileCount = await _clearAllDownloadFilesFromDisk();
 
     // Clear queue and database
     _queue.clear();
     await _database.clearAllDownloads();
+    _persistedTaskSignatures.clear();
 
-    print('All downloads cleared');
+    print(
+        'All downloads cleared ($deletedFileCount local file${deletedFileCount == 1 ? '' : 's'} removed)');
   }
 
   Future<void> _deleteAlbumDownloadsImpl(String? albumId) async {
     await _ensureInitialized();
 
     // Find all tasks matching the albumId
-    final tasksToDelete = _queue.queue
-        .where((task) =>
-            task.albumId == albumId && task.status == DownloadStatus.completed)
-        .toList();
+    final tasksToDelete =
+        _getScopedQueue().where((task) => task.albumId == albumId).toList();
+    if (tasksToDelete.isEmpty) {
+      print('No downloads found for album: ${albumId ?? "Singles"}');
+      return;
+    }
 
     // Cancel/delete each task
+    final songIds = tasksToDelete.map((task) => task.songId).toSet();
     for (final task in tasksToDelete) {
       cancelDownload(task.id);
     }
+    var deletedFileCount = 0;
+    for (final songId in songIds) {
+      if (await _deleteSongFileIfUnreferenced(songId)) {
+        deletedFileCount++;
+      }
+    }
 
     print(
-        'Deleted ${tasksToDelete.length} downloads for album: ${albumId ?? "Singles"}');
+        'Deleted ${tasksToDelete.length} downloads for album: ${albumId ?? "Singles"} ($deletedFileCount local file${deletedFileCount == 1 ? '' : 's'} removed)');
   }
 }

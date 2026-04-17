@@ -303,6 +303,9 @@ extension _DownloadManagerOperationsImpl on DownloadManager {
   }
 
   void _cancelDownloadImpl(String taskId) {
+    final targetTask = _getScopedTask(taskId);
+    if (targetTask == null) return;
+
     final serverId = _getCurrentServerId();
     final userId = _getCurrentUserId();
 
@@ -318,6 +321,7 @@ extension _DownloadManagerOperationsImpl on DownloadManager {
       if (userId != null) return task.userId == userId;
       return task.userId == null;
     });
+    unawaited(_deleteSongFileIfUnreferenced(targetTask.songId));
 
     print('Download cancelled: $taskId');
   }
