@@ -13,6 +13,8 @@ class WebSocketHandler {
   final WebSocketService _webSocketService;
   final Future<void> Function() _onReconnect;
   final Future<void> Function() _onDisconnect;
+  final Future<void> Function(int? closeCode, String? closeReason)?
+      _onSessionInvalidated;
   final Future<void> Function(int latestToken) _onSyncTokenAdvanced;
   final Future<String> Function() _deviceIdProvider;
   final Future<String> Function() _deviceNameProvider;
@@ -23,6 +25,8 @@ class WebSocketHandler {
     required WebSocketService webSocketService,
     required Future<void> Function() onReconnect,
     required Future<void> Function() onDisconnect,
+    Future<void> Function(int? closeCode, String? closeReason)?
+        onSessionInvalidated,
     required Future<void> Function(int latestToken) onSyncTokenAdvanced,
     required Future<String> Function() deviceIdProvider,
     required Future<String> Function() deviceNameProvider,
@@ -30,6 +34,7 @@ class WebSocketHandler {
   })  : _webSocketService = webSocketService,
         _onReconnect = onReconnect,
         _onDisconnect = onDisconnect,
+        _onSessionInvalidated = onSessionInvalidated,
         _onSyncTokenAdvanced = onSyncTokenAdvanced,
         _deviceIdProvider = deviceIdProvider,
         _deviceNameProvider = deviceNameProvider,
@@ -45,6 +50,7 @@ class WebSocketHandler {
   Future<void> connect(dynamic serverInfo) async {
     _webSocketService.onReconnected = _handleReconnect;
     _webSocketService.onDisconnected = _handleDisconnect;
+    _webSocketService.onSessionInvalidated = _handleSessionInvalidated;
     _webSocketService.onMessage = _handleMessage;
     await _webSocketService.connect(serverInfo);
     await sendIdentify();
@@ -81,6 +87,18 @@ class WebSocketHandler {
 
   /// Handle WebSocket disconnect event
   Future<void> _handleDisconnect() async {
+    await _onDisconnect();
+  }
+
+  Future<void> _handleSessionInvalidated(
+    int? closeCode,
+    String? closeReason,
+  ) async {
+    final onSessionInvalidated = _onSessionInvalidated;
+    if (onSessionInvalidated != null) {
+      await onSessionInvalidated(closeCode, closeReason);
+      return;
+    }
     await _onDisconnect();
   }
 

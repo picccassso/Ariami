@@ -534,7 +534,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           title: const Text('Delete User'),
           content: Text(
             'Delete "${row.username}" from this server?\n\n'
-            'If they are currently logged in, they will be disconnected immediately.',
+            'If they are currently logged in (including on mobile), '
+            'their session will be logged out immediately.',
           ),
           actions: [
             TextButton(

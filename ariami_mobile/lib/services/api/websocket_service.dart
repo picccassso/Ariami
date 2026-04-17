@@ -25,6 +25,11 @@ class WebSocketService {
   /// Used to notify ConnectionService immediately
   void Function()? onDisconnected;
 
+  /// Callback for server-driven auth/session invalidation.
+  /// This is triggered on close codes that indicate forced logout.
+  Future<void> Function(int? closeCode, String? closeReason)?
+      onSessionInvalidated;
+
   /// Callback for each parsed incoming message
   void Function(WsMessage message)? onMessage;
 
@@ -124,6 +129,7 @@ class WebSocketService {
   void _handleError(dynamic error) {
     print('WebSocket error: $error');
     _isConnected = false;
+    _stopPingTimer();
 
     // Only skip reconnect if in MANUAL offline mode
     // Auto offline should still attempt reconnection
@@ -134,8 +140,21 @@ class WebSocketService {
 
   /// Handle WebSocket disconnect
   void _handleDisconnect() {
-    print('WebSocket disconnected');
+    final closeCode = _channel?.closeCode;
+    final closeReason = _channel?.closeReason;
+    print('WebSocket disconnected (code: $closeCode, reason: $closeReason)');
     _isConnected = false;
+    _stopPingTimer();
+
+    // Server closed socket due auth/session invalidation. Trigger immediate
+    // logout flow instead of background reconnect attempts.
+    if (_isSessionInvalidated(closeCode)) {
+      _stopReconnectTimer();
+      if (onSessionInvalidated != null) {
+        unawaited(onSessionInvalidated!(closeCode, closeReason));
+      }
+      return;
+    }
 
     // Notify ConnectionService immediately (which will enable offline mode)
     if (onDisconnected != null) {
@@ -242,6 +261,10 @@ class WebSocketService {
   void _stopReconnectTimer() {
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
+  }
+
+  bool _isSessionInvalidated(int? closeCode) {
+    return closeCode == 4001 || closeCode == 4002;
   }
 
   // ============================================================================

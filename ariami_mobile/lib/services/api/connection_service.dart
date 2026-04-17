@@ -106,6 +106,7 @@ class ConnectionService {
       webSocketService: _webSocketService,
       onReconnect: _handleWebSocketReconnect,
       onDisconnect: _handleWebSocketDisconnect,
+      onSessionInvalidated: _handleWebSocketSessionInvalidated,
       onSyncTokenAdvanced: _onSyncTokenAdvanced,
       deviceIdProvider: _deviceInfoManager.getDeviceId,
       deviceNameProvider: _deviceInfoManager.getDeviceName,
@@ -584,6 +585,15 @@ class ConnectionService {
       await OfflinePlaybackService().notifyConnectionLost();
       _stateManager.setConnected(false);
     }
+  }
+
+  Future<void> _handleWebSocketSessionInvalidated(
+    int? closeCode,
+    String? closeReason,
+  ) async {
+    // closeCode/closeReason are currently informational; force standard
+    // session-expired handling to clear auth and route user to login.
+    await handleSessionExpired();
   }
 
   Future<void> _handleConnectionLoss() async {
