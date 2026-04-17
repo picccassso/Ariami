@@ -52,14 +52,9 @@ class CacheManager {
   // In-memory cache of artwork paths for instant synchronous lookups
   final Map<String, String> _artworkPathCache = {};
 
-  // In-memory tracking of cache size to avoid repeated DB queries
-  int _cachedTotalSize = 0;
-  bool _cacheSizeInitialized = false;
-
-  // Debounce timer for storage limit enforcement
-  // Instead of checking after every download, batch checks every 2 seconds
-  Timer? _enforceLimitTimer;
-  bool _enforceLimitPending = false;
+  // In-memory tracking of song cache size for strict song-only limit
+  int _cachedSongSize = 0;
+  bool _songCacheSizeInitialized = false;
 
   // Stream controller for cache updates
   final StreamController<CacheUpdateEvent> _cacheUpdateController =
@@ -248,9 +243,8 @@ class CacheManager {
         lastAccessed: DateTime.now(),
       );
 
-      // Save entry and schedule debounced limit check
+      // Save entry (artwork is not constrained by the song cache limit)
       await _database.upsertCacheEntry(entry);
-      _scheduleEnforceStorageLimit(size);
 
       _cacheUpdateController.add(
         const CacheUpdateEvent(type: CacheType.artwork),
@@ -338,7 +332,6 @@ class CacheManager {
       );
 
       await _database.upsertCacheEntry(entry);
-      _scheduleEnforceStorageLimit(size);
 
       _cacheUpdateController.add(
         const CacheUpdateEvent(type: CacheType.artwork),
@@ -455,6 +448,8 @@ class CacheManager {
       return false;
     }
 
+    await _ensureSongCacheCapacityForIncoming(incomingBytes: 0);
+
     _pendingSongs.add(songId);
 
     // Start background download (don't await)
@@ -485,6 +480,14 @@ class CacheManager {
       // Get file size
       final file = File(filePath);
       final size = await file.length();
+      final canStore =
+          await _ensureSongCacheCapacityForIncoming(incomingBytes: size);
+      if (!canStore) {
+        await file.delete();
+        print(
+            '[CacheManager] Skipping song cache for $songId: file too large for current limit');
+        return;
+      }
 
       // Create cache entry
       final entry = CacheEntry(
@@ -495,9 +498,10 @@ class CacheManager {
         lastAccessed: DateTime.now(),
       );
 
-      // Save entry and schedule debounced limit check
+      // Save entry and update song-size tracking
       await _database.upsertCacheEntry(entry);
-      _scheduleEnforceStorageLimit(size);
+      _cachedSongSize += size;
+      _songCacheSizeInitialized = true;
 
       _cacheUpdateController.add(
         const CacheUpdateEvent(type: CacheType.song),
@@ -550,78 +554,76 @@ class CacheManager {
   // LRU EVICTION
   // ============================================================================
 
-  /// Schedule a debounced storage limit check
-  /// Instead of checking after every download (500 DB queries!), batch them
-  void _scheduleEnforceStorageLimit(int addedBytes) {
-    // Track added bytes in memory
-    _cachedTotalSize += addedBytes;
-
-    // If already pending, don't schedule another
-    if (_enforceLimitPending) return;
-
-    _enforceLimitPending = true;
-
-    // Debounce: wait 2 seconds of inactivity before actually checking
-    _enforceLimitTimer?.cancel();
-    _enforceLimitTimer = Timer(const Duration(seconds: 2), () async {
-      _enforceLimitPending = false;
-      try {
-        await _enforceStorageLimitActual();
-      } catch (e) {
-        // Timer can fire during shutdown/test teardown after DB lifecycle
-        // changes. Skip silently so delayed maintenance never crashes flows.
-        print('[CacheManager] Deferred storage limit check skipped: $e');
-      }
-    });
+  Future<void> _initializeSongCacheSizeIfNeeded() async {
+    if (_songCacheSizeInitialized) return;
+    _cachedSongSize = await _database.getCacheSizeByType(CacheType.song);
+    _songCacheSizeInitialized = true;
   }
 
-  /// Actually enforce storage limit using LRU eviction
-  /// Only called after debounce timer fires
-  Future<void> _enforceStorageLimitActual() async {
-    final limitBytes = _database.getCacheLimitBytes();
+  Future<bool> _ensureSongCacheCapacityForIncoming({
+    required int incomingBytes,
+  }) async {
+    await _initializeSongCacheSizeIfNeeded();
 
-    // Initialize in-memory size tracking if needed
-    if (!_cacheSizeInitialized) {
-      _cachedTotalSize = await _database.getTotalCacheSize();
-      _cacheSizeInitialized = true;
+    final limitBytes = _database.getCacheLimitBytes();
+    if (incomingBytes > limitBytes) {
+      return false;
+    }
+    if (_cachedSongSize + incomingBytes <= limitBytes) {
+      return true;
     }
 
-    if (_cachedTotalSize <= limitBytes) return;
-
     print(
-        '[CacheManager] Cache limit exceeded: ${_formatBytes(_cachedTotalSize)} / ${_formatBytes(limitBytes)}');
-    print('[CacheManager] Starting LRU eviction...');
+        '[CacheManager] Song cache limit exceeded: ${_formatBytes(_cachedSongSize + incomingBytes)} / ${_formatBytes(limitBytes)}');
+    print('[CacheManager] Starting song-cache LRU eviction...');
 
-    // Get entries sorted by last accessed (oldest first)
-    final entries = await _database.getEntriesForEviction();
+    final entries = await _database.getEntriesByType(CacheType.song);
+    var evictedCount = 0;
 
     for (final entry in entries) {
-      if (_cachedTotalSize <= limitBytes) break;
+      if (_cachedSongSize + incomingBytes <= limitBytes) break;
 
-      // Don't evict entries accessed in the last hour
-      final hourAgo = DateTime.now().subtract(const Duration(hours: 1));
-      if (entry.lastAccessed.isAfter(hourAgo)) {
-        continue;
-      }
-
-      // Delete file
+      var canRemoveEntry = false;
       try {
         final file = File(entry.path);
         if (await file.exists()) {
           await file.delete();
-          print('[CacheManager] Evicted: ${entry.id} (${entry.type.name})');
+          print('[CacheManager] Evicted song cache: ${entry.id}');
+          canRemoveEntry = true;
+        } else {
+          canRemoveEntry = true;
         }
       } catch (e) {
-        print('[CacheManager] Failed to delete file: ${entry.path}');
+        print('[CacheManager] Failed to delete song cache file: ${entry.path}');
+      }
+      if (!canRemoveEntry) {
+        continue;
       }
 
-      // Remove entry
-      await _database.removeCacheEntry(entry.id, entry.type);
-      _cachedTotalSize -= entry.size;
+      await _database.removeCacheEntry(entry.id, CacheType.song);
+      _cachedSongSize -= entry.size;
+      if (_cachedSongSize < 0) {
+        _cachedSongSize = 0;
+      }
+      evictedCount++;
     }
 
-    print(
-        '[CacheManager] Eviction complete. New size: ${_formatBytes(_cachedTotalSize)}');
+    if (evictedCount > 0) {
+      _cacheUpdateController.add(const CacheUpdateEvent(type: CacheType.song));
+    }
+
+    final fits = _cachedSongSize + incomingBytes <= limitBytes;
+    if (!fits) {
+      print(
+          '[CacheManager] Unable to free enough song cache space (needed ${_formatBytes(incomingBytes)})');
+    }
+    return fits;
+  }
+
+  /// Actually enforce storage limit using LRU eviction
+  /// Applies only to song cache entries; artwork is unmanaged by this limit.
+  Future<void> _enforceStorageLimitActual() async {
+    await _ensureSongCacheCapacityForIncoming(incomingBytes: 0);
   }
 
   // ============================================================================
@@ -643,6 +645,8 @@ class CacheManager {
 
     // Clear memory cache
     _artworkPathCache.clear();
+    _cachedSongSize = 0;
+    _songCacheSizeInitialized = true;
 
     _cacheUpdateController.add(const CacheUpdateEvent(cleared: true));
     print('[CacheManager] All cache cleared');
@@ -670,6 +674,8 @@ class CacheManager {
 
     await _clearDirectory(_songCachePath!);
     await _database.clearEntriesByType(CacheType.song);
+    _cachedSongSize = 0;
+    _songCacheSizeInitialized = true;
 
     _cacheUpdateController.add(
       const CacheUpdateEvent(type: CacheType.song),
@@ -719,6 +725,12 @@ class CacheManager {
 
     for (final entry in orphaned) {
       await _database.removeCacheEntry(entry.id, entry.type);
+      if (_songCacheSizeInitialized && entry.type == CacheType.song) {
+        _cachedSongSize -= entry.size;
+        if (_cachedSongSize < 0) {
+          _cachedSongSize = 0;
+        }
+      }
     }
 
     if (orphaned.isNotEmpty) {
@@ -804,7 +816,6 @@ class CacheManager {
       }
 
       if (reindexed > 0) {
-        _cacheSizeInitialized = false;
         print(
             '[CacheManager] Reindexed $reindexed artwork metadata entries from disk');
       }
@@ -899,7 +910,6 @@ class CacheManager {
 
   /// Dispose resources
   void dispose() {
-    _enforceLimitTimer?.cancel();
     try {
       _dio.close(force: true);
     } catch (_) {
@@ -913,10 +923,6 @@ class CacheManager {
   /// This closes open database/network resources and clears in-memory queues so
   /// widget tests can exit cleanly without lingering async handles.
   Future<void> resetForTests() async {
-    _enforceLimitTimer?.cancel();
-    _enforceLimitTimer = null;
-    _enforceLimitPending = false;
-
     for (final waiter in _artworkDownloadQueue) {
       if (!waiter.isCompleted) {
         waiter.complete();
@@ -928,8 +934,8 @@ class CacheManager {
     _inFlightArtworkRequests.clear();
     _pendingSongs.clear();
     _artworkPathCache.clear();
-    _cachedTotalSize = 0;
-    _cacheSizeInitialized = false;
+    _cachedSongSize = 0;
+    _songCacheSizeInitialized = false;
 
     try {
       _dio.close(force: true);

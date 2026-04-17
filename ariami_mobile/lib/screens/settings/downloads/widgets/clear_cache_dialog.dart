@@ -4,9 +4,9 @@ Future<bool?> showClearCacheDialog(BuildContext context) {
   return showDialog<bool>(
     context: context,
     builder: (context) => AlertDialog(
-      title: const Text('Clear Cache'),
+      title: const Text('Clear Song Cache'),
       content: const Text(
-        'This will remove all cached songs and artwork. Explicitly downloaded songs will not be affected.',
+        'This will remove cached songs used for streaming. Artwork and explicitly downloaded songs will not be affected.',
       ),
       actions: [
         TextButton(

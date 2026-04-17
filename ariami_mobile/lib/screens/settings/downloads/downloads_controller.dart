@@ -70,7 +70,8 @@ class DownloadsController extends ChangeNotifier {
           _countInterruptedDownloads(_downloadManager.queue),
     );
 
-    _cacheSubscription = _cacheManager.cacheUpdateStream.listen((_) {
+    _cacheSubscription = _cacheManager.cacheUpdateStream.listen((event) {
+      if (!event.affectsSongCache) return;
       _scheduleCacheStatsRefresh();
     });
 
@@ -366,7 +367,8 @@ class DownloadsController extends ChangeNotifier {
   }
 
   Future<void> _loadCacheStats() async {
-    final sizeMB = await _cacheManager.getTotalCacheSizeMB();
+    final songSizeBytes = await _cacheManager.getSongCacheSize();
+    final sizeMB = songSizeBytes / (1024 * 1024);
     final songCount = await _cacheManager.getSongCacheCount();
     final limit = _cacheManager.getCacheLimit();
 
@@ -476,7 +478,7 @@ class DownloadsController extends ChangeNotifier {
   }
 
   Future<void> clearCache() async {
-    await _cacheManager.clearAllCache();
+    await _cacheManager.clearSongCache();
     await _loadCacheStats();
   }
 
