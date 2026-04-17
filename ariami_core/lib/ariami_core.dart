@@ -13,6 +13,7 @@ export 'models/quality_preset.dart';
 export 'models/scan_result.dart';
 export 'models/song_metadata.dart';
 export 'models/sync_models.dart';
+export 'models/user_activity_row.dart';
 export 'models/websocket_models.dart';
 
 // Library Services

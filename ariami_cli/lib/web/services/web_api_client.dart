@@ -76,6 +76,39 @@ class ConnectedClientRow {
   }
 }
 
+class UserActivityRow {
+  const UserActivityRow({
+    required this.userId,
+    required this.username,
+    required this.isDownloading,
+    required this.isTranscoding,
+    required this.activeDownloads,
+    required this.queuedDownloads,
+    required this.inFlightDownloadTranscodes,
+  });
+
+  final String userId;
+  final String username;
+  final bool isDownloading;
+  final bool isTranscoding;
+  final int activeDownloads;
+  final int queuedDownloads;
+  final int inFlightDownloadTranscodes;
+
+  factory UserActivityRow.fromJson(Map<String, dynamic> json) {
+    return UserActivityRow(
+      userId: json['userId'] as String? ?? '',
+      username: json['username'] as String? ?? 'Unknown User',
+      isDownloading: json['isDownloading'] as bool? ?? false,
+      isTranscoding: json['isTranscoding'] as bool? ?? false,
+      activeDownloads: json['activeDownloads'] as int? ?? 0,
+      queuedDownloads: json['queuedDownloads'] as int? ?? 0,
+      inFlightDownloadTranscodes:
+          json['inFlightDownloadTranscodes'] as int? ?? 0,
+    );
+  }
+}
+
 class WebApiClient {
   WebApiClient({
     http.Client? httpClient,
@@ -167,6 +200,26 @@ class WebApiClient {
     if (!response.isSuccess) {
       throw WebApiException(response);
     }
+  }
+
+  Future<List<UserActivityRow>> getUserActivity() async {
+    final response = await get(
+      '/api/admin/user-activity',
+      includeDeviceIdentity: true,
+    );
+    if (!response.isSuccess) {
+      throw WebApiException(response);
+    }
+
+    final rows = response.jsonBody?['users'];
+    if (rows is! List) {
+      return const <UserActivityRow>[];
+    }
+
+    return rows
+        .whereType<Map<String, dynamic>>()
+        .map(UserActivityRow.fromJson)
+        .toList();
   }
 
   Future<WebApiResponse> _send({

@@ -56,6 +56,7 @@ extension AriamiHttpServerRouterMethods on AriamiHttpServer {
     router.get('/api/me', _handleGetMe);
     router.post('/api/stream-ticket', _handleStreamTicket);
     router.get('/api/admin/connected-clients', _handleAdminConnectedClients);
+    router.get('/api/admin/user-activity', _handleAdminUserActivity);
     router.post('/api/admin/kick-client', _handleAdminKickClient);
     router.post('/api/admin/change-password', _handleAdminChangePassword);
     router.post('/api/admin/delete-user', _handleAdminDeleteUser);

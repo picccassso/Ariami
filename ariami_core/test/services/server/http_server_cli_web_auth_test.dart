@@ -3,7 +3,9 @@ import 'dart:io';
 
 import 'package:ariami_core/models/auth_models.dart';
 import 'package:ariami_core/models/feature_flags.dart';
+import 'package:ariami_core/models/quality_preset.dart';
 import 'package:ariami_core/services/server/http_server.dart';
+import 'package:ariami_core/services/transcoding/transcoding_service.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -438,6 +440,193 @@ void main() {
       expect(rows.any((row) => row['deviceId'] == 'mobile-device'), isTrue);
     });
 
+    test('admin user-activity returns empty users when no activity', () async {
+      final port = await _findFreePort();
+      await server.start(
+        advertisedIp: '127.0.0.1',
+        bindAddress: '127.0.0.1',
+        port: port,
+      );
+
+      final registerAdmin = await _sendJsonRequest(
+        method: 'POST',
+        url: Uri.parse('http://127.0.0.1:$port/api/auth/register'),
+        jsonBody: <String, dynamic>{
+          'username': 'admin-user',
+          'password': 'admin-pass',
+        },
+      );
+      expect(registerAdmin.statusCode, 200);
+
+      final loginAdmin = await _sendJsonRequest(
+        method: 'POST',
+        url: Uri.parse('http://127.0.0.1:$port/api/auth/login'),
+        jsonBody: <String, dynamic>{
+          'username': 'admin-user',
+          'password': 'admin-pass',
+          'deviceId': 'admin-device',
+          'deviceName': 'Admin Device',
+        },
+      );
+      expect(loginAdmin.statusCode, 200);
+      final adminToken = loginAdmin.jsonBody['sessionToken'] as String;
+
+      final activityResponse = await _sendJsonRequest(
+        method: 'GET',
+        url: Uri.parse('http://127.0.0.1:$port/api/admin/user-activity'),
+        headers: <String, String>{'Authorization': 'Bearer $adminToken'},
+      );
+      expect(activityResponse.statusCode, 200);
+
+      final users =
+          (activityResponse.jsonBody['users'] as List<dynamic>? ?? <dynamic>[])
+              .cast<Map<String, dynamic>>();
+      expect(users, isEmpty);
+      expect(
+        () =>
+            DateTime.parse(activityResponse.jsonBody['generatedAt'] as String),
+        returnsNormally,
+      );
+    });
+
+    test(
+        'admin user-activity reports active/queued downloads and in-flight transcodes',
+        () async {
+      final musicDir = await Directory(p.join(testDir.path, 'music_activity'))
+          .create(recursive: true);
+      await _writeAudioStub(p.join(musicDir.path, 'Artist - Activity.mp3'));
+      await server.libraryManager.scanMusicFolder(musicDir.path);
+      final repository = server.libraryManager.createCatalogRepository();
+      expect(repository, isNotNull);
+      final songPage = repository!.listSongsPage(limit: 1);
+      expect(songPage.items, isNotEmpty);
+      final songId = songPage.items.first.id;
+
+      server.setDownloadLimits(
+        maxConcurrent: 1,
+        maxQueue: 4,
+        maxConcurrentPerUser: 1,
+        maxQueuePerUser: 4,
+      );
+      server.setTranscodingService(
+        _SlowDownloadTranscodingService(
+          delay: const Duration(milliseconds: 900),
+        ),
+      );
+
+      final port = await _findFreePort();
+      await server.start(
+        advertisedIp: '127.0.0.1',
+        bindAddress: '127.0.0.1',
+        port: port,
+      );
+
+      final registerAdmin = await _sendJsonRequest(
+        method: 'POST',
+        url: Uri.parse('http://127.0.0.1:$port/api/auth/register'),
+        jsonBody: <String, dynamic>{
+          'username': 'admin-user',
+          'password': 'admin-pass',
+        },
+      );
+      expect(registerAdmin.statusCode, 200);
+
+      final loginAdmin = await _sendJsonRequest(
+        method: 'POST',
+        url: Uri.parse('http://127.0.0.1:$port/api/auth/login'),
+        jsonBody: <String, dynamic>{
+          'username': 'admin-user',
+          'password': 'admin-pass',
+          'deviceId': 'admin-device',
+          'deviceName': 'Admin Device',
+        },
+      );
+      expect(loginAdmin.statusCode, 200);
+      final adminToken = loginAdmin.jsonBody['sessionToken'] as String;
+
+      final registerTarget = await _sendJsonRequest(
+        method: 'POST',
+        url: Uri.parse('http://127.0.0.1:$port/api/auth/register'),
+        jsonBody: <String, dynamic>{
+          'username': 'target-user',
+          'password': 'target-pass',
+        },
+      );
+      expect(registerTarget.statusCode, 200);
+
+      final loginTarget = await _sendJsonRequest(
+        method: 'POST',
+        url: Uri.parse('http://127.0.0.1:$port/api/auth/login'),
+        jsonBody: <String, dynamic>{
+          'username': 'target-user',
+          'password': 'target-pass',
+          'deviceId': 'target-device',
+          'deviceName': 'Target Device',
+        },
+      );
+      expect(loginTarget.statusCode, 200);
+      final targetToken = loginTarget.jsonBody['sessionToken'] as String;
+      final targetUserId = loginTarget.jsonBody['userId'] as String;
+
+      final ticketResponse = await _sendJsonRequest(
+        method: 'POST',
+        url: Uri.parse('http://127.0.0.1:$port/api/stream-ticket'),
+        headers: <String, String>{'Authorization': 'Bearer $targetToken'},
+        jsonBody: <String, dynamic>{
+          'songId': songId,
+          'quality': 'medium',
+        },
+      );
+      expect(ticketResponse.statusCode, 200);
+      final streamToken = ticketResponse.jsonBody['streamToken'] as String;
+
+      final downloadUri = Uri.parse(
+        'http://127.0.0.1:$port/api/download/$songId'
+        '?quality=medium&streamToken=$streamToken',
+      );
+
+      final client = HttpClient();
+      final firstResponseFuture = () async {
+        final request = await client.getUrl(downloadUri);
+        return request.close();
+      }();
+
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+
+      final secondResponseFuture = () async {
+        final request = await client.getUrl(downloadUri);
+        return request.close();
+      }();
+
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+
+      final activityResponse = await _sendJsonRequest(
+        method: 'GET',
+        url: Uri.parse('http://127.0.0.1:$port/api/admin/user-activity'),
+        headers: <String, String>{'Authorization': 'Bearer $adminToken'},
+      );
+      expect(activityResponse.statusCode, 200);
+
+      final users =
+          (activityResponse.jsonBody['users'] as List<dynamic>? ?? <dynamic>[])
+              .cast<Map<String, dynamic>>();
+      final targetRow =
+          users.firstWhere((user) => user['userId'] == targetUserId);
+
+      expect(targetRow['username'], equals('target-user'));
+      expect(targetRow['isDownloading'], isTrue);
+      expect(targetRow['activeDownloads'], equals(1));
+      expect(targetRow['queuedDownloads'], greaterThanOrEqualTo(1));
+      expect(targetRow['isTranscoding'], isTrue);
+      expect(targetRow['inFlightDownloadTranscodes'], greaterThanOrEqualTo(1));
+
+      final firstResponse = await firstResponseFuture;
+      await firstResponse.drain<void>();
+      final secondResponse = await secondResponseFuture;
+      await secondResponse.drain<void>();
+      client.close(force: true);
+    });
+
     test('admin kick-client disconnects target and revokes sessions', () async {
       final port = await _findFreePort();
       await server.start(
@@ -867,6 +1056,17 @@ void main() {
         AuthErrorCodes.forbiddenAdmin,
       );
 
+      final userActivity = await _sendJsonRequest(
+        method: 'GET',
+        url: Uri.parse('http://127.0.0.1:$port/api/admin/user-activity'),
+        headers: <String, String>{'Authorization': 'Bearer $nonAdminToken'},
+      );
+      expect(userActivity.statusCode, 403);
+      expect(
+        (userActivity.jsonBody['error'] as Map<String, dynamic>)['code'],
+        AuthErrorCodes.forbiddenAdmin,
+      );
+
       final kickClient = await _sendJsonRequest(
         method: 'POST',
         url: Uri.parse('http://127.0.0.1:$port/api/admin/kick-client'),
@@ -1191,6 +1391,33 @@ class _JsonResponse {
 
   final int statusCode;
   final Map<String, dynamic> jsonBody;
+}
+
+Future<void> _writeAudioStub(String filePath) async {
+  final file = File(filePath);
+  await file.parent.create(recursive: true);
+  await file.writeAsBytes(List<int>.filled(1024 * 1024, 0), flush: true);
+}
+
+class _SlowDownloadTranscodingService extends TranscodingService {
+  _SlowDownloadTranscodingService({
+    required this.delay,
+  }) : super(cacheDirectory: Directory.systemTemp.path);
+
+  final Duration delay;
+
+  @override
+  Future<bool> isSonicAvailable() async => true;
+
+  @override
+  Future<DownloadTranscodeResult?> getDownloadTranscode(
+    String sourcePath,
+    String songId,
+    QualityPreset quality,
+  ) async {
+    await Future<void>.delayed(delay);
+    return null;
+  }
 }
 
 Future<int> _findFreePort() async {

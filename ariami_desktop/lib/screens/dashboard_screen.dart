@@ -19,6 +19,7 @@ import '../widgets/change_password_dialog.dart';
 import '../widgets/connected_users_table.dart';
 import '../widgets/info_card.dart';
 import '../widgets/server_users_table.dart';
+import '../widgets/user_activity_table.dart';
 import 'owner_setup_screen.dart';
 import 'scanning_screen.dart';
 
@@ -50,11 +51,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
   bool _isChangingPassword = false;
   String? _connectedRowsError;
   String? _serverUsersError;
+  String? _userActivityError;
   List<ConnectedClientRow> _connectedClientRows = const <ConnectedClientRow>[];
   List<ServerUserRow> _serverUserRows = const <ServerUserRow>[];
+  List<UserActivityRow> _userActivityRows = const <UserActivityRow>[];
+  bool _isLoadingUserActivity = false;
   final Set<String> _kickingDeviceIds = <String>{};
   final Set<String> _deletingUserIds = <String>{};
   Timer? _connectedRowsRefreshTimer;
+  Timer? _userActivityRefreshTimer;
   Timer? _adminHeartbeatTimer;
 
   @override
@@ -77,6 +82,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       onSessionInvalidated: () async {
         await _refreshConnectedClientRows(showLoading: false);
         await _refreshServerUsers(showLoading: false);
+        await _refreshUserActivity(showLoading: false);
         await _updateServerStatus();
       },
     );
@@ -89,6 +95,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
       unawaited(_refreshConnectedClientRows(showLoading: false));
       unawaited(_refreshServerUsers(showLoading: false));
     });
+    _userActivityRefreshTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      unawaited(_refreshUserActivity(showLoading: false));
+    });
     _adminHeartbeatTimer = Timer.periodic(const Duration(seconds: 20), (_) {
       unawaited(_adminApi.sendAdminHeartbeat());
     });
@@ -100,6 +109,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         .removeScanCompleteListener(_onLibraryScanComplete);
     _httpServer.connectionManager.removeListener(_onClientConnectionChanged);
     _connectedRowsRefreshTimer?.cancel();
+    _userActivityRefreshTimer?.cancel();
     _adminHeartbeatTimer?.cancel();
     super.dispose();
   }
@@ -118,6 +128,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
     unawaited(_refreshConnectedClientRows(showLoading: false));
     unawaited(_refreshServerUsers(showLoading: false));
+    unawaited(_refreshUserActivity(showLoading: false));
   }
 
   Future<void> _loadData() async {
@@ -143,6 +154,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     await _refreshOwnerState();
     await _refreshConnectedClientRows(showLoading: true);
     await _refreshServerUsers(showLoading: true);
+    await _refreshUserActivity(showLoading: true);
 
     setState(() {
       _isLoading = false;
@@ -190,6 +202,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       await _refreshOwnerState();
       await _refreshConnectedClientRows(showLoading: false);
       await _refreshServerUsers(showLoading: false);
+      await _refreshUserActivity(showLoading: false);
 
       if (_musicFolderPath != null &&
           _musicFolderPath!.isNotEmpty &&
@@ -241,6 +254,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     await _refreshOwnerState();
     await _updateServerStatus();
     await _refreshServerUsers(showLoading: true);
+    await _refreshUserActivity(showLoading: true);
   }
 
   Future<List<_StoredDashboardUser>> _loadStoredUsers() async {
@@ -348,6 +362,42 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
+  Future<void> _refreshUserActivity({required bool showLoading}) async {
+    if (showLoading && mounted) {
+      setState(() {
+        _isLoadingUserActivity = true;
+      });
+    }
+
+    if (!_httpServer.isRunning) {
+      if (!mounted) return;
+      setState(() {
+        _userActivityRows = const <UserActivityRow>[];
+        _userActivityError = null;
+        _isLoadingUserActivity = false;
+      });
+      return;
+    }
+
+    try {
+      final rows = _httpServer.getActiveUserActivityRows();
+      if (!mounted) return;
+      setState(() {
+        _userActivityRows = rows;
+        _userActivityError = null;
+        _isLoadingUserActivity = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _userActivityRows = const <UserActivityRow>[];
+        _userActivityError =
+            'Failed to load active download/transcode activity.';
+        _isLoadingUserActivity = false;
+      });
+    }
+  }
+
   Future<void> _refreshConnectedClientRows({required bool showLoading}) async {
     if (showLoading && mounted) {
       setState(() {
@@ -446,6 +496,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }
       await _refreshConnectedClientRows(showLoading: false);
       await _refreshServerUsers(showLoading: false);
+      await _refreshUserActivity(showLoading: false);
       await _updateServerStatus();
     } finally {
       if (mounted) {
@@ -515,6 +566,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }
       await _refreshConnectedClientRows(showLoading: false);
       await _refreshServerUsers(showLoading: false);
+      await _refreshUserActivity(showLoading: false);
       await _updateServerStatus();
     } finally {
       if (mounted) {
@@ -617,6 +669,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       await _refreshOwnerState();
       await _refreshConnectedClientRows(showLoading: false);
       await _refreshServerUsers(showLoading: false);
+      await _refreshUserActivity(showLoading: false);
       await _updateServerStatus();
     } finally {
       if (mounted) {
@@ -738,6 +791,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         }
         await _refreshConnectedClientRows(showLoading: false);
         await _refreshServerUsers(showLoading: false);
+        await _refreshUserActivity(showLoading: false);
         await _refreshOwnerState();
       } catch (e) {
         if (mounted) {
@@ -755,6 +809,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     await _refreshOwnerState();
     await _refreshConnectedClientRows(showLoading: false);
     await _refreshServerUsers(showLoading: false);
+    await _refreshUserActivity(showLoading: false);
   }
 
   @override
@@ -1002,6 +1057,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         ),
                         onDeleteUser: _deleteUser,
                         onSetUpOwner: _openOwnerSetup,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                  const Text(
+                    'User Activity',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Card(
+                    elevation: 0,
+                    margin: EdgeInsets.zero,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: UserActivityTable(
+                        isLoading: _isLoadingUserActivity,
+                        errorMessage: _userActivityError,
+                        rows: _userActivityRows,
                       ),
                     ),
                   ),

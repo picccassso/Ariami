@@ -242,12 +242,17 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
       if (quality.requiresTranscoding && _transcodingService != null) {
         // Use dedicated download pipeline (temp file, not cached)
         // This prevents cache churn during bulk downloads
-        downloadTranscodeResult =
-            await _transcodingService!.getDownloadTranscode(
-          filePath,
-          path, // songId
-          quality,
-        );
+        _incrementInFlightDownloadTranscode(userKey);
+        try {
+          downloadTranscodeResult =
+              await _transcodingService!.getDownloadTranscode(
+            filePath,
+            path, // songId
+            quality,
+          );
+        } finally {
+          _decrementInFlightDownloadTranscode(userKey);
+        }
 
         if (downloadTranscodeResult != null) {
           fileToDownload = downloadTranscodeResult.tempFile;

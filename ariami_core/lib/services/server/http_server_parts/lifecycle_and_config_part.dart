@@ -207,6 +207,7 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
     }
     _webSocketClients.clear();
     _metricsService.stop();
+    _inFlightDownloadTranscodesByUser.clear();
 
     print('Ariami Server stopped');
   }
@@ -324,4 +325,81 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
 
   /// Check if in legacy mode (no users registered)
   bool get legacyMode => _legacyMode;
+
+  void _incrementInFlightDownloadTranscode(String userId) {
+    _inFlightDownloadTranscodesByUser[userId] =
+        (_inFlightDownloadTranscodesByUser[userId] ?? 0) + 1;
+  }
+
+  void _decrementInFlightDownloadTranscode(String userId) {
+    final next = (_inFlightDownloadTranscodesByUser[userId] ?? 0) - 1;
+    if (next <= 0) {
+      _inFlightDownloadTranscodesByUser.remove(userId);
+      return;
+    }
+    _inFlightDownloadTranscodesByUser[userId] = next;
+  }
+
+  List<UserActivityRow> getActiveUserActivityRows() {
+    final loadByUser = _downloadLimiter.userLoadByUser;
+    final allUserIds = <String>{
+      ...loadByUser.keys,
+      ..._inFlightDownloadTranscodesByUser.keys,
+    };
+
+    final rows = <UserActivityRow>[];
+    for (final userId in allUserIds) {
+      final load = loadByUser[userId];
+      final activeDownloads = load?.active ?? 0;
+      final queuedDownloads = load?.queued ?? 0;
+      final inFlightTranscodes = _inFlightDownloadTranscodesByUser[userId] ?? 0;
+
+      final isDownloading = activeDownloads > 0 || queuedDownloads > 0;
+      final isTranscoding = inFlightTranscodes > 0;
+
+      if (!isDownloading && !isTranscoding) {
+        continue;
+      }
+
+      rows.add(
+        UserActivityRow(
+          userId: userId,
+          username: _resolveActivityUsername(userId),
+          isDownloading: isDownloading,
+          isTranscoding: isTranscoding,
+          activeDownloads: activeDownloads,
+          queuedDownloads: queuedDownloads,
+          inFlightDownloadTranscodes: inFlightTranscodes,
+        ),
+      );
+    }
+
+    rows.sort((a, b) {
+      final leftTotal =
+          a.activeDownloads + a.queuedDownloads + a.inFlightDownloadTranscodes;
+      final rightTotal =
+          b.activeDownloads + b.queuedDownloads + b.inFlightDownloadTranscodes;
+      final totalCompare = rightTotal.compareTo(leftTotal);
+      if (totalCompare != 0) return totalCompare;
+
+      final usernameCompare =
+          a.username.toLowerCase().compareTo(b.username.toLowerCase());
+      if (usernameCompare != 0) return usernameCompare;
+
+      return a.userId.compareTo(b.userId);
+    });
+
+    return rows;
+  }
+
+  String _resolveActivityUsername(String userId) {
+    if (userId == 'legacy') {
+      return 'Legacy / Unauthenticated';
+    }
+    final username = _authService.getUserById(userId)?.username;
+    if (username != null && username.trim().isNotEmpty) {
+      return username.trim();
+    }
+    return 'Unknown User';
+  }
 }

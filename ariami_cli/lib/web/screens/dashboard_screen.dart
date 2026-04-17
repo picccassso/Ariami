@@ -13,6 +13,7 @@ import '../widgets/dashboard/library_stats_section.dart';
 import '../widgets/dashboard/quick_actions_section.dart';
 import '../widgets/dashboard/server_info_card.dart';
 import '../widgets/dashboard/server_status_card.dart';
+import '../widgets/dashboard/user_activity_section.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -48,12 +49,16 @@ class _DashboardScreenState extends State<DashboardScreen>
   String? _lastScanTime;
   bool _isLoading = true;
   bool _isLoadingConnectedClients = false;
+  bool _isLoadingUserActivity = true;
   bool _isChangingPassword = false;
   String? _connectedClientsError;
+  String? _userActivityError;
   List<ConnectedClientRow> _connectedClientRows = const <ConnectedClientRow>[];
+  List<UserActivityRow> _userActivityRows = const <UserActivityRow>[];
   final Set<String> _kickingDeviceIds = <String>{};
 
   Timer? _refreshTimer;
+  Timer? _userActivityRefreshTimer;
   late AnimationController _pulseController;
 
   @override
@@ -70,6 +75,9 @@ class _DashboardScreenState extends State<DashboardScreen>
     _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       _loadServerStats();
     });
+    _userActivityRefreshTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      unawaited(_loadUserActivity(showLoading: false));
+    });
 
     _connectWebSocket();
   }
@@ -77,6 +85,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   @override
   void dispose() {
     _refreshTimer?.cancel();
+    _userActivityRefreshTimer?.cancel();
     _wsSubscription?.cancel();
     _wsService.dispose();
     _pulseController.dispose();
@@ -115,6 +124,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         }
 
         await _loadConnectedClients(showLoading: false);
+        await _loadUserActivity(showLoading: false);
       }
     } catch (e) {
       debugPrint('Error loading server stats: $e');
@@ -166,6 +176,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       });
     }
     unawaited(_loadConnectedClients(showLoading: false));
+    unawaited(_loadUserActivity(showLoading: false));
   }
 
   Future<void> _redirectToLogin() async {
@@ -277,6 +288,45 @@ class _DashboardScreenState extends State<DashboardScreen>
         _connectedClientRows = const <ConnectedClientRow>[];
         _connectedClientsError = 'Failed to load connected users and devices.';
         _isLoadingConnectedClients = false;
+      });
+    }
+  }
+
+  Future<void> _loadUserActivity({bool showLoading = true}) async {
+    if (showLoading && mounted) {
+      setState(() {
+        _isLoadingUserActivity = true;
+      });
+    }
+
+    try {
+      final rows = await _apiClient.getUserActivity();
+      if (!mounted) return;
+      setState(() {
+        _userActivityRows = rows;
+        _userActivityError = null;
+        _isLoadingUserActivity = false;
+      });
+    } on WebApiException catch (e) {
+      if (e.isAuthError) {
+        await _redirectToLogin();
+        return;
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _userActivityRows = const <UserActivityRow>[];
+        _userActivityError = e.isForbidden
+            ? 'Admin privileges required to view user activity.'
+            : e.message;
+        _isLoadingUserActivity = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _userActivityRows = const <UserActivityRow>[];
+        _userActivityError = 'Failed to load active user activity.';
+        _isLoadingUserActivity = false;
       });
     }
   }
@@ -475,6 +525,12 @@ class _DashboardScreenState extends State<DashboardScreen>
                             connectedUsers: _connectedUsers,
                             activeSessions: _activeSessions,
                             lastScanTimeFormatted: _formatLastScanTime(),
+                          ),
+                          const SizedBox(height: 48),
+                          UserActivitySection(
+                            rows: _userActivityRows,
+                            isLoading: _isLoadingUserActivity,
+                            error: _userActivityError,
                           ),
                           const SizedBox(height: 48),
                           ConnectedClientsSection(

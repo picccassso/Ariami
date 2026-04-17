@@ -231,6 +231,20 @@ extension AriamiHttpServerAuthAndAdminHandlersMethods on AriamiHttpServer {
     );
   }
 
+  Response _handleAdminUserActivity(Request request) {
+    final authResponse = _authorizeAdminRequest(request);
+    if (authResponse != null) return authResponse;
+
+    final rows = getActiveUserActivityRows();
+    return Response.ok(
+      jsonEncode({
+        'users': rows.map((row) => row.toJson()).toList(growable: false),
+        'generatedAt': DateTime.now().toUtc().toIso8601String(),
+      }),
+      headers: {'Content-Type': 'application/json; charset=utf-8'},
+    );
+  }
+
   String _resolveConnectedClientType(ConnectedClient client) {
     if (_isDashboardControlClient(
       deviceId: client.deviceId,

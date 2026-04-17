@@ -24,6 +24,7 @@ import 'package:ariami_core/services/auth/user_store.dart'
     show UserExistsException;
 import 'package:ariami_core/models/auth_models.dart';
 import 'package:ariami_core/models/download_job_models.dart';
+import 'package:ariami_core/models/user_activity_row.dart';
 import 'package:ariami_core/services/server/stream_tracker.dart';
 import 'package:ariami_core/services/server/download_job_service.dart';
 import 'package:ariami_core/services/server/metrics_service.dart';
@@ -81,6 +82,7 @@ class AriamiHttpServer {
   int _maxConcurrentDownloadsPerUser = _defaultMaxConcurrentDownloadsPerUser;
   int _maxDownloadQueuePerUser = _defaultMaxDownloadQueuePerUser;
   late _WeightedFairDownloadLimiter _downloadLimiter;
+  final Map<String, int> _inFlightDownloadTranscodesByUser = <String, int>{};
 
   // Artwork request quotas (only enforced for server-managed artwork resizing).
   static const int _defaultMaxConcurrentArtworkPerUser = 2;

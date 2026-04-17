@@ -84,6 +84,19 @@ class _WeightedFairDownloadLimiter {
     return snapshot;
   }
 
+  Map<String, _DownloadLimiterUserSnapshot> get userLoadByUser {
+    final snapshot = <String, _DownloadLimiterUserSnapshot>{};
+    _states.forEach((userId, state) {
+      if (state.active > 0 || state.queued > 0) {
+        snapshot[userId] = _DownloadLimiterUserSnapshot(
+          active: state.active,
+          queued: state.queued,
+        );
+      }
+    });
+    return snapshot;
+  }
+
   Future<_FairAcquireResult> acquire(String userId) async {
     final state =
         _states.putIfAbsent(userId, () => _PerUserDownloadQueueState());
@@ -206,4 +219,14 @@ class _PerUserDownloadQueueState {
   int queued = 0;
   bool inRotation = false;
   final Queue<Completer<void>> waiters = Queue<Completer<void>>();
+}
+
+class _DownloadLimiterUserSnapshot {
+  const _DownloadLimiterUserSnapshot({
+    required this.active,
+    required this.queued,
+  });
+
+  final int active;
+  final int queued;
 }
