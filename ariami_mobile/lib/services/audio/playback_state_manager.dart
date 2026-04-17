@@ -22,6 +22,14 @@ class PlaybackStateManager {
   static const String _keyStateVersion = 'playback_state_version';
   static const int _currentVersion = 1;
 
+  String _scopedKey(String key, String? userId) {
+    final normalized = userId?.trim();
+    if (normalized == null || normalized.isEmpty) {
+      return key;
+    }
+    return '${key}_$normalized';
+  }
+
   /// Save current playback state
   Future<void> saveState(PlaybackState state) async {
     final prefs = await SharedPreferences.getInstance();
@@ -84,38 +92,47 @@ class PlaybackStateManager {
     required RepeatMode repeatMode,
     required Duration position,
     List<Song>? originalQueue,
+    String? userId,
   }) async {
     try {
       final prefs = await SharedPreferences.getInstance();
+      final stateVersionKey = _scopedKey(_keyStateVersion, userId);
+      final queueKey = _scopedKey(_keyQueue, userId);
+      final shuffleKey = _scopedKey(_keyShuffle, userId);
+      final repeatKey = _scopedKey(_keyRepeat, userId);
+      final positionKey = _scopedKey(_keyPosition, userId);
+      final originalQueueKey = _scopedKey(_keyOriginalQueue, userId);
 
       // Save version
-      await prefs.setInt(_keyStateVersion, _currentVersion);
+      await prefs.setInt(stateVersionKey, _currentVersion);
 
       // Save queue as JSON
       if (queue.isNotEmpty) {
         final queueJson = jsonEncode(queue.toJson());
-        await prefs.setString(_keyQueue, queueJson);
+        await prefs.setString(queueKey, queueJson);
       } else {
-        await prefs.remove(_keyQueue);
+        await prefs.remove(queueKey);
       }
 
       // Save shuffle state
-      await prefs.setBool(_keyShuffle, isShuffleEnabled);
+      await prefs.setBool(shuffleKey, isShuffleEnabled);
 
       // Save repeat mode
-      await prefs.setString(_keyRepeat, repeatMode.toStorageString());
+      await prefs.setString(repeatKey, repeatMode.toStorageString());
 
       // Save position
-      await prefs.setInt(_keyPosition, position.inMilliseconds);
+      await prefs.setInt(positionKey, position.inMilliseconds);
 
       // Save original queue if shuffled
-      if (originalQueue != null && originalQueue.isNotEmpty && isShuffleEnabled) {
+      if (originalQueue != null &&
+          originalQueue.isNotEmpty &&
+          isShuffleEnabled) {
         final originalQueueJson = jsonEncode(
           originalQueue.map((song) => song.toJson()).toList(),
         );
-        await prefs.setString(_keyOriginalQueue, originalQueueJson);
+        await prefs.setString(originalQueueKey, originalQueueJson);
       } else {
-        await prefs.remove(_keyOriginalQueue);
+        await prefs.remove(originalQueueKey);
       }
     } catch (e) {
       print('[PlaybackStateManager] Error saving complete state: $e');
@@ -123,19 +140,27 @@ class PlaybackStateManager {
   }
 
   /// Load complete playback state
-  Future<CompletePlaybackState?> loadCompletePlaybackState() async {
+  Future<CompletePlaybackState?> loadCompletePlaybackState({
+    String? userId,
+  }) async {
     try {
       final prefs = await SharedPreferences.getInstance();
+      final stateVersionKey = _scopedKey(_keyStateVersion, userId);
+      final queueKey = _scopedKey(_keyQueue, userId);
+      final shuffleKey = _scopedKey(_keyShuffle, userId);
+      final repeatKey = _scopedKey(_keyRepeat, userId);
+      final positionKey = _scopedKey(_keyPosition, userId);
+      final originalQueueKey = _scopedKey(_keyOriginalQueue, userId);
 
       // Check version (for future migrations)
-      final version = prefs.getInt(_keyStateVersion);
+      final version = prefs.getInt(stateVersionKey);
       if (version == null) {
         // No saved state
         return null;
       }
 
       // Load queue
-      final queueJsonString = prefs.getString(_keyQueue);
+      final queueJsonString = prefs.getString(queueKey);
       if (queueJsonString == null) {
         // No queue saved
         return null;
@@ -150,19 +175,19 @@ class PlaybackStateManager {
       }
 
       // Load shuffle state
-      final isShuffleEnabled = prefs.getBool(_keyShuffle) ?? false;
+      final isShuffleEnabled = prefs.getBool(shuffleKey) ?? false;
 
       // Load repeat mode
-      final repeatModeString = prefs.getString(_keyRepeat) ?? 'none';
+      final repeatModeString = prefs.getString(repeatKey) ?? 'none';
       final repeatMode = RepeatMode.fromStorageString(repeatModeString);
 
       // Load position
-      final positionMs = prefs.getInt(_keyPosition) ?? 0;
+      final positionMs = prefs.getInt(positionKey) ?? 0;
       final position = Duration(milliseconds: positionMs);
 
       // Load original queue if it exists
       List<Song>? originalQueue;
-      final originalQueueJsonString = prefs.getString(_keyOriginalQueue);
+      final originalQueueJsonString = prefs.getString(originalQueueKey);
       if (originalQueueJsonString != null) {
         final originalQueueJson =
             jsonDecode(originalQueueJsonString) as List<dynamic>;
@@ -181,20 +206,68 @@ class PlaybackStateManager {
     } catch (e) {
       print('[PlaybackStateManager] Error loading complete state: $e');
       // Clear corrupted state
-      await clearCompletePlaybackState();
+      await clearCompletePlaybackState(userId: userId);
       return null;
     }
   }
 
   /// Clear all complete playback state
-  Future<void> clearCompletePlaybackState() async {
+  Future<void> clearCompletePlaybackState({String? userId}) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_keyStateVersion);
-    await prefs.remove(_keyQueue);
-    await prefs.remove(_keyShuffle);
-    await prefs.remove(_keyRepeat);
-    await prefs.remove(_keyPosition);
-    await prefs.remove(_keyOriginalQueue);
+    await prefs.remove(_scopedKey(_keyStateVersion, userId));
+    await prefs.remove(_scopedKey(_keyQueue, userId));
+    await prefs.remove(_scopedKey(_keyShuffle, userId));
+    await prefs.remove(_scopedKey(_keyRepeat, userId));
+    await prefs.remove(_scopedKey(_keyPosition, userId));
+    await prefs.remove(_scopedKey(_keyOriginalQueue, userId));
+  }
+
+  /// One-time migration path from legacy global playback state to a user scope.
+  Future<void> migrateLegacyCompletePlaybackStateToUser(String userId) async {
+    final normalized = userId.trim();
+    if (normalized.isEmpty) {
+      return;
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    final scopedVersionKey = _scopedKey(_keyStateVersion, normalized);
+    if (prefs.containsKey(scopedVersionKey)) {
+      return;
+    }
+
+    final legacyVersion = prefs.getInt(_keyStateVersion);
+    final legacyQueue = prefs.getString(_keyQueue);
+    if (legacyVersion == null || legacyQueue == null || legacyQueue.isEmpty) {
+      return;
+    }
+
+    await prefs.setInt(scopedVersionKey, legacyVersion);
+    await prefs.setString(_scopedKey(_keyQueue, normalized), legacyQueue);
+
+    final legacyShuffle = prefs.getBool(_keyShuffle);
+    if (legacyShuffle != null) {
+      await prefs.setBool(_scopedKey(_keyShuffle, normalized), legacyShuffle);
+    }
+
+    final legacyRepeat = prefs.getString(_keyRepeat);
+    if (legacyRepeat != null) {
+      await prefs.setString(_scopedKey(_keyRepeat, normalized), legacyRepeat);
+    }
+
+    final legacyPosition = prefs.getInt(_keyPosition);
+    if (legacyPosition != null) {
+      await prefs.setInt(_scopedKey(_keyPosition, normalized), legacyPosition);
+    }
+
+    final legacyOriginalQueue = prefs.getString(_keyOriginalQueue);
+    if (legacyOriginalQueue != null) {
+      await prefs.setString(
+        _scopedKey(_keyOriginalQueue, normalized),
+        legacyOriginalQueue,
+      );
+    }
+
+    await clearCompletePlaybackState();
   }
 }
 

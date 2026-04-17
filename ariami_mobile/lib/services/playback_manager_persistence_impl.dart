@@ -18,6 +18,7 @@ extension _PlaybackManagerPersistenceImpl on PlaybackManager {
       repeatMode: _repeatMode,
       position: position,
       originalQueue: originalQueue,
+      userId: _connectionService.userId,
     );
   }
 
@@ -28,7 +29,9 @@ extension _PlaybackManagerPersistenceImpl on PlaybackManager {
   Future<void> _restoreStateImpl() async {
     final restoreGeneration = _restoreGeneration;
     try {
-      final savedState = await _stateManager.loadCompletePlaybackState();
+      final savedState = await _stateManager.loadCompletePlaybackState(
+        userId: _connectionService.userId,
+      );
       if (savedState == null) return;
 
       final restoredSongs = await _rehydrateSongs(savedState.queue.songs);

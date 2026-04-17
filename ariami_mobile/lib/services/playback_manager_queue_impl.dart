@@ -370,7 +370,9 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
     await _statsService.onSongStopped();
     await _audioPlayer.stop();
     _queue.clear();
-    await _stateManager.clearCompletePlaybackState(); // Clear saved state
+    await _stateManager.clearCompletePlaybackState(
+      userId: _connectionService.userId,
+    ); // Clear saved state
     _notifyStateChanged();
   }
 

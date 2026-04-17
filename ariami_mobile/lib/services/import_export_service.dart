@@ -7,6 +7,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/api_models.dart';
 import '../models/song_stats.dart';
 import '../database/stats_database.dart';
+import 'api/connection_service.dart';
+import 'library/library_pin_storage.dart';
 import 'playlist_service.dart';
 import 'stats/streaming_stats_service.dart';
 
@@ -53,13 +55,12 @@ class ImportExportService {
 
   final PlaylistService _playlistService = PlaylistService();
   final StreamingStatsService _statsService = StreamingStatsService();
+  final ConnectionService _connectionService = ConnectionService();
   late StatsDatabase _statsDatabase;
   bool _initialized = false;
 
   /// Data version for future compatibility (v2 adds pinnedItems)
   static const int _dataVersion = 2;
-
-  static const String _pinnedItemsKey = 'library_pinned_items';
 
   /// Keys for SharedPreferences
   static const String _lastExportKey = 'import_export_last_export';
@@ -106,14 +107,10 @@ class ImportExportService {
 
       // Get pinned items
       final prefs = await SharedPreferences.getInstance();
-      final pinnedJson = prefs.getString(_pinnedItemsKey);
-      List<String> pinnedItems = [];
-      if (pinnedJson != null && pinnedJson.isNotEmpty) {
-        try {
-          pinnedItems =
-              (jsonDecode(pinnedJson) as List<dynamic>).cast<String>();
-        } catch (_) {}
-      }
+      final pinnedItems = (await LibraryPinStorage.loadForUser(
+        _connectionService.userId,
+      ))
+          .toList();
 
       // Get app version
       final packageInfo = await PackageInfo.fromPlatform();
@@ -129,7 +126,8 @@ class ImportExportService {
 
       // Generate filename with timestamp
       final now = DateTime.now();
-      final timestamp = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}-${now.minute.toString().padLeft(2, '0')}-${now.second.toString().padLeft(2, '0')}';
+      final timestamp =
+          '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}-${now.minute.toString().padLeft(2, '0')}-${now.second.toString().padLeft(2, '0')}';
       final filename = 'ariami_backup_$timestamp.json';
 
       // Convert to JSON string
@@ -233,10 +231,9 @@ class ImportExportService {
           .toList();
 
       // Parse pinned items (v2+, empty for v1 backups)
-      final importedPinnedItems = (data['pinnedItems'] as List<dynamic>?)
-              ?.cast<String>()
-              .toSet() ??
-          <String>{};
+      final importedPinnedItems =
+          (data['pinnedItems'] as List<dynamic>?)?.cast<String>().toSet() ??
+              <String>{};
 
       // Import based on mode
       int playlistsImported = 0;
@@ -255,8 +252,10 @@ class ImportExportService {
         statsImported = stats.length;
 
         // Replace pinned items
-        await prefs.setString(
-            _pinnedItemsKey, jsonEncode(importedPinnedItems.toList()));
+        await LibraryPinStorage.saveForUser(
+          _connectionService.userId,
+          importedPinnedItems,
+        );
       } else {
         playlistsImported = await _playlistService.importPlaylists(playlists);
 
@@ -267,17 +266,11 @@ class ImportExportService {
 
         // Merge pinned items (union with existing)
         if (importedPinnedItems.isNotEmpty) {
-          final existingJson = prefs.getString(_pinnedItemsKey);
-          Set<String> existing = {};
-          if (existingJson != null && existingJson.isNotEmpty) {
-            try {
-              existing =
-                  (jsonDecode(existingJson) as List<dynamic>).cast<String>().toSet();
-            } catch (_) {}
-          }
+          final existing =
+              await LibraryPinStorage.loadForUser(_connectionService.userId);
           final merged = existing.union(importedPinnedItems);
-          await prefs.setString(
-              _pinnedItemsKey, jsonEncode(merged.toList()));
+          await LibraryPinStorage.saveForUser(
+              _connectionService.userId, merged);
         }
       }
 

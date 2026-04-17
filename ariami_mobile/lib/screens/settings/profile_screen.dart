@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../../services/api/connection_service.dart';
 import '../../services/offline/offline_playback_service.dart';
 import '../../services/stats/streaming_stats_service.dart';
+import '../../services/theme_service.dart';
 import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
 import '../../widgets/settings/settings_section.dart';
 import '../../widgets/settings/settings_tile.dart';
@@ -200,6 +201,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     try {
       await _connectionService.logout();
+      await ThemeService().setThemeSource(ThemeSource.systemNeutral);
       if (!mounted) return;
 
       if (serverInfo != null) {

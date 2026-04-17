@@ -11,6 +11,7 @@ import '../../../services/api/connection_service.dart';
 import '../../../services/cache/cache_manager.dart';
 import '../../../services/download/download_manager.dart';
 import '../../../services/library/library_read_facade.dart';
+import '../../../services/library/library_pin_storage.dart';
 import '../../../services/offline/offline_manual_reconnect.dart';
 import '../../../services/offline/offline_playback_service.dart';
 import '../../../services/playback_manager.dart';
@@ -35,7 +36,6 @@ class LibraryController extends ChangeNotifier {
   static const String _songsSectionKey = 'library_section_songs';
   static const String _mixedModeKey = 'library_mixed_mode';
   static const String _lastAccessedKey = 'library_last_accessed';
-  static const String _pinnedItemsKey = 'library_pinned_items';
 
   // Duration retry constants
   static const int _maxDurationRetries = 3;
@@ -245,23 +245,16 @@ class LibraryController extends ChangeNotifier {
   // ============================================================================
 
   Future<void> _loadPinnedItems() async {
-    final prefs = await SharedPreferences.getInstance();
-    final jsonString = prefs.getString(_pinnedItemsKey);
-    if (jsonString == null || jsonString.isEmpty) return;
-
-    try {
-      final decoded = jsonDecode(jsonString) as List<dynamic>;
-      _updateState(
-          _state.copyWith(pinnedItemIds: decoded.cast<String>().toSet()));
-    } catch (_) {
-      // Ignore corrupt data
-    }
+    final pinnedItemIds =
+        await LibraryPinStorage.loadForUser(_connectionService.userId);
+    _updateState(_state.copyWith(pinnedItemIds: pinnedItemIds));
   }
 
   Future<void> _savePinnedItems() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(
-        _pinnedItemsKey, jsonEncode(_state.pinnedItemIds.toList()));
+    await LibraryPinStorage.saveForUser(
+      _connectionService.userId,
+      _state.pinnedItemIds,
+    );
   }
 
   Future<void> togglePinAlbum(String albumId) async {

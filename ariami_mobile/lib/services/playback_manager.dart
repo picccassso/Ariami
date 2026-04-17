@@ -101,6 +101,12 @@ class PlaybackManager extends ChangeNotifier {
       return;
     }
     _isInitialized = true;
+    _queue = PlaybackQueue();
+    _isShuffleEnabled = false;
+    _repeatMode = RepeatMode.none;
+    _shuffleService.reset();
+    _restoredPosition = null;
+    _pendingUiPosition = null;
 
     _castService.initialize();
     _castService.addListener(_onCastStateChanged);

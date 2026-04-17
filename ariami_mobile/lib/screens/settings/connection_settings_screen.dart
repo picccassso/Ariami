@@ -4,6 +4,7 @@ import '../../models/api_models.dart';
 import '../../models/server_info.dart';
 import '../../services/api/connection_service.dart';
 import '../../services/offline/offline_playback_service.dart';
+import '../../services/theme_service.dart';
 import '../../widgets/settings/connection_status_card.dart';
 import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
 import '../../widgets/settings/settings_section.dart';
@@ -213,6 +214,7 @@ class _ConnectionSettingsScreenState extends State<ConnectionSettingsScreen> {
 
     try {
       await _connectionService.logout();
+      await ThemeService().setThemeSource(ThemeSource.systemNeutral);
       if (!mounted) return;
 
       if (serverInfo != null) {
@@ -333,7 +335,8 @@ class _ConnectionSettingsScreenState extends State<ConnectionSettingsScreen> {
                 children: [
                   if (_isOfflineModeEnabled) ...[
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 12),
                       child: Row(
                         children: [
                           const Icon(Icons.wifi_off_rounded,

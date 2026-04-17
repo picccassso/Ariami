@@ -5,7 +5,9 @@ import '../../models/auth_models.dart';
 import '../../models/server_info.dart';
 import '../../models/websocket_models.dart';
 import '../download/download_manager.dart';
+import '../audio/playback_state_manager.dart';
 import '../library/library_read_facade.dart';
+import '../library/library_pin_storage.dart';
 import '../library/library_repository.dart';
 import '../offline/offline_playback_service.dart';
 import '../sync/library_sync_engine.dart';
@@ -358,6 +360,7 @@ class ConnectionService {
   Future<void> logout() async {
     final apiClient = _lifecycleManager.apiClient;
     final sessionToken = _authManager.sessionToken;
+    final userId = _authManager.userId;
 
     if (apiClient != null && sessionToken != null) {
       try {
@@ -365,6 +368,12 @@ class ConnectionService {
       } catch (e) {
         // Ignore logout errors
       }
+    }
+
+    if (userId != null && userId.trim().isNotEmpty) {
+      await LibraryPinStorage.migrateLegacyPinsToUser(userId);
+      await PlaybackStateManager()
+          .migrateLegacyCompletePlaybackStateToUser(userId);
     }
 
     await _authManager.clearAuthInfo();
