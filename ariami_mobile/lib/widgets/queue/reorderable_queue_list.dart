@@ -168,8 +168,8 @@ class QueueItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     final opacity = isAvailable ? 1.0 : 0.4;
-    final surfaceColor = const Color(0xFF141414);
 
     return Dismissible(
       key: ValueKey(song.id),
@@ -180,12 +180,12 @@ class QueueItem extends StatelessWidget {
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 24),
         decoration: BoxDecoration(
-          color: const Color(0xFF252525), // Neutral dark grey for removal
+          color: colorScheme.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(12),
         ),
-        child: const Icon(
+        child: Icon(
           LucideIcons.trash2,
-          color: Colors.white70,
+          color: colorScheme.onSurfaceVariant,
           size: 28,
         ),
       ),
@@ -196,10 +196,10 @@ class QueueItem extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           child: Container(
             decoration: BoxDecoration(
-              color: isCurrentlyPlaying ? surfaceColor : Colors.transparent,
+              color: isCurrentlyPlaying ? colorScheme.surfaceContainerHighest : Colors.transparent,
               borderRadius: BorderRadius.circular(20),
               border: isCurrentlyPlaying
-                  ? Border.all(color: const Color(0xFF222222), width: 1)
+                  ? Border.all(color: colorScheme.outlineVariant, width: 1)
                   : null,
             ),
             child: ListTile(
@@ -210,7 +210,7 @@ class QueueItem extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: isCurrentlyPlaying ? FontWeight.w800 : FontWeight.w600,
-                  color: Colors.white,
+                  color: colorScheme.onSurface,
                   letterSpacing: 0.2,
                 ),
                 maxLines: 1,
@@ -224,7 +224,7 @@ class QueueItem extends StatelessWidget {
                   fontSize: 10,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.5,
-                  color: isCurrentlyPlaying ? Colors.grey[400] : Colors.grey[600],
+                  color: isCurrentlyPlaying ? colorScheme.onSurfaceVariant : colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
                 ),
               ),
               trailing: Row(
@@ -235,7 +235,7 @@ class QueueItem extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
-                      color: Colors.grey[600],
+                      color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -349,16 +349,18 @@ class QueueItem extends StatelessWidget {
   }
 
   Widget _buildPlaceholder(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Container(
       width: 48,
       height: 48,
       decoration: BoxDecoration(
-        color: const Color(0xFF252525),
+        color: colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Icon(
         LucideIcons.music,
-        color: Colors.grey[600],
+        color: colorScheme.onSurfaceVariant,
         size: 24,
       ),
     );

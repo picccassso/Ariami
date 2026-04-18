@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../models/playback_queue.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../models/song.dart';
+import '../services/color_extraction_service.dart';
+import '../utils/constants.dart';
 import '../widgets/queue/reorderable_queue_list.dart';
 
 /// Screen displaying the playback queue
@@ -30,109 +32,116 @@ class _QueueScreenState extends State<QueueScreen> {
   Widget build(BuildContext context) {
     final totalDuration = _calculateTotalDuration(widget.queue.songs);
     final queueLength = widget.queue.length;
-    const backgroundColor = Color(0xFF050505);
-    const textColor = Colors.white;
+    final colors = ColorExtractionService().currentColors;
 
-    return Scaffold(
-      backgroundColor: backgroundColor,
-      appBar: AppBar(
-        title: Text(
-          'QUEUE ($queueLength SONG${queueLength != 1 ? 'S' : ''})',
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 1.5,
-            color: textColor,
-          ),
-        ),
-        centerTitle: true,
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: IconButton(
-          icon: const Icon(LucideIcons.chevronLeft, size: 20, color: textColor),
-          onPressed: () => Navigator.pop(context),
-        ),
-        actions: [
-          if (widget.queue.isNotEmpty && widget.onClear != null)
-            IconButton(
-              icon: const Icon(LucideIcons.trash2, color: textColor),
-              onPressed: () => _showClearDialog(context),
-              tooltip: 'Clear queue',
-            ),
-        ],
+    return Theme(
+      data: AppTheme.buildTheme(
+        brightness: Brightness.dark,
+        seedColor: colors.primary,
       ),
-      body: Column(
-        children: [
-          // Queue info header
-          if (widget.queue.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF141414),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: const Color(0xFF222222),
-                    width: 1,
-                  ),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Total duration: ${_formatDuration(totalDuration)}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey[500],
-                      ),
-                    ),
-                    if (widget.queue.currentSong != null)
-                      Row(
-                        children: [
-                          const Icon(
-                            LucideIcons.playCircle,
-                            size: 16,
-                            color: Colors.white,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            'NOW PLAYING',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w800,
-                              color: Colors.white,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                        ],
-                      ),
-                  ],
+      child: Builder(
+        builder: (themedContext) {
+          final theme = Theme.of(themedContext);
+          final colorScheme = theme.colorScheme;
+
+          return Scaffold(
+            backgroundColor: colorScheme.surface,
+            appBar: AppBar(
+              title: Text(
+                'QUEUE ($queueLength SONG${queueLength != 1 ? 'S' : ''})',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.5,
+                  color: colorScheme.onSurface,
                 ),
               ),
+              centerTitle: true,
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              scrolledUnderElevation: 0,
+              leading: IconButton(
+                icon: Icon(LucideIcons.chevronLeft, size: 20, color: colorScheme.onSurface),
+                onPressed: () => Navigator.pop(context),
+              ),
+              actions: [
+                if (widget.queue.isNotEmpty && widget.onClear != null)
+                  IconButton(
+                    icon: Icon(LucideIcons.trash2, color: colorScheme.onSurface),
+                    onPressed: () => _showClearDialog(themedContext),
+                    tooltip: 'Clear queue',
+                  ),
+              ],
             ),
-
-          // Queue list
-          Expanded(
-            child: ReorderableQueueList(
-              songs: widget.queue.songs,
-              currentIndex: widget.queue.currentIndex,
-              onReorder: (oldIndex, newIndex) {
-                // Adjust newIndex for Flutter's reorderable list behavior
-                if (oldIndex < newIndex) {
-                  newIndex -= 1;
-                }
-                widget.onReorder?.call(oldIndex, newIndex);
-                // Rebuild the queue screen to reflect changes
-                setState(() {});
-              },
-              onTap: widget.onTap,
-              onRemove: widget.onRemove,
+            body: Column(
+              children: [
+                if (widget.queue.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                      decoration: BoxDecoration(
+                        color: colorScheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: colorScheme.outlineVariant,
+                          width: 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Total duration: ${_formatDuration(totalDuration)}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                          if (widget.queue.currentSong != null)
+                            Row(
+                              children: [
+                                Icon(
+                                  LucideIcons.playCircle,
+                                  size: 16,
+                                  color: colorScheme.onSurface,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'NOW PLAYING',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                    color: colorScheme.onSurface,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                              ],
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                Expanded(
+                  child: ReorderableQueueList(
+                    songs: widget.queue.songs,
+                    currentIndex: widget.queue.currentIndex,
+                    onReorder: (oldIndex, newIndex) {
+                      if (oldIndex < newIndex) {
+                        newIndex -= 1;
+                      }
+                      widget.onReorder?.call(oldIndex, newIndex);
+                      setState(() {});
+                    },
+                    onTap: widget.onTap,
+                    onRemove: widget.onRemove,
+                  ),
+                ),
+              ],
             ),
-          ),
-        ],
+          );
+        },
       ),
     );
   }
@@ -157,22 +166,24 @@ class _QueueScreenState extends State<QueueScreen> {
   }
 
   void _showClearDialog(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF111111),
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: colorScheme.surface,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(24),
-          side: const BorderSide(color: Color(0xFF222222), width: 1),
+          side: BorderSide(color: colorScheme.outlineVariant, width: 1),
         ),
-        title: const Text(
+        title: Text(
           'CLEAR QUEUE?',
           style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w800,
             letterSpacing: 1.2,
-            color: Colors.white,
+            color: colorScheme.onSurface,
           ),
         ),
         content: Text(
@@ -180,18 +191,18 @@ class _QueueScreenState extends State<QueueScreen> {
           style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w500,
-            color: Colors.grey[400],
+            color: colorScheme.onSurfaceVariant,
           ),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () => Navigator.of(dialogContext).pop(),
             child: Text(
               'CANCEL',
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w800,
-                color: Colors.grey[500],
+                color: colorScheme.onSurfaceVariant,
                 letterSpacing: 1.0,
               ),
             ),
@@ -200,22 +211,23 @@ class _QueueScreenState extends State<QueueScreen> {
             padding: const EdgeInsets.only(left: 8.0),
             child: ElevatedButton(
               onPressed: () {
-                Navigator.of(context).pop();
+                Navigator.of(dialogContext).pop();
                 widget.onClear?.call();
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white,
-                foregroundColor: Colors.black,
+                backgroundColor: colorScheme.onSurface,
+                foregroundColor: colorScheme.surface,
                 elevation: 0,
                 shape: const StadiumBorder(),
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
               ),
-              child: const Text(
+              child: Text(
                 'CLEAR',
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 1.0,
+                  color: colorScheme.surface,
                 ),
               ),
             ),
