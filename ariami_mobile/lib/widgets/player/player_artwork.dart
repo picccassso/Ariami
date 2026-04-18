@@ -8,6 +8,10 @@ import '../../services/api/connection_service.dart';
 import '../../services/cast/chrome_cast_service.dart';
 import '../common/cached_artwork.dart';
 
+/// Page-turn duration for cover art (swipe, prev/next, auto-advance).
+/// Keep in sync with post-index `Future.delayed` in `PlaybackManager` skip paths.
+const Duration _kArtworkPageTurnDuration = Duration(milliseconds: 450);
+
 class PlayerArtworkController {
   _PlayerArtworkState? _state;
 
@@ -58,6 +62,9 @@ class _PlayerArtworkState extends State<PlayerArtwork> {
 
   late int _visualIndex;
 
+  /// Bumps when a post-frame sync is scheduled so older callbacks no-op.
+  int _playbackPageSyncGeneration = 0;
+
   @override
   void initState() {
     super.initState();
@@ -86,22 +93,42 @@ class _PlayerArtworkState extends State<PlayerArtwork> {
       }
       _visualIndex = widget.currentIndex;
     } else if (widget.currentIndex != oldWidget.currentIndex) {
-      if (widget.currentIndex != _visualIndex) {
-        if (_pageController.hasClients &&
-            _pageController.page?.round() != widget.currentIndex) {
-          _pageController.animateToPage(
-            widget.currentIndex,
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeInOut,
-          );
-        }
-      }
       _visualIndex = widget.currentIndex;
+      _scheduleSyncPageToPlaybackIndex();
     }
+  }
+
+  /// After layout, align [PageView] with [widget.currentIndex] (e.g. natural
+  /// track end). Deferred so [PageController.page] / clients are reliable.
+  void _scheduleSyncPageToPlaybackIndex() {
+    _playbackPageSyncGeneration++;
+    final gen = _playbackPageSyncGeneration;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || gen != _playbackPageSyncGeneration) {
+        return;
+      }
+      if (!_pageController.hasClients) {
+        return;
+      }
+      final target = widget.currentIndex;
+      if (target < 0 || target >= widget.queue.length) {
+        return;
+      }
+      final currentPage = _pageController.page?.round() ?? _visualIndex;
+      if (currentPage == target) {
+        return;
+      }
+      _pageController.animateToPage(
+        target,
+        duration: _kArtworkPageTurnDuration,
+        curve: Curves.easeInOut,
+      );
+    });
   }
 
   @override
   void dispose() {
+    _playbackPageSyncGeneration++;
     widget.controller?._detach(this);
     _pageController.dispose();
     _hintTimer?.cancel();
@@ -125,7 +152,7 @@ class _PlayerArtworkState extends State<PlayerArtwork> {
 
     await _pageController.animateToPage(
       index,
-      duration: const Duration(milliseconds: 300),
+      duration: _kArtworkPageTurnDuration,
       curve: Curves.easeInOut,
     );
     return true;

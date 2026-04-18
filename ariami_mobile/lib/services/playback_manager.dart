@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_chrome_cast/flutter_chrome_cast.dart';
+import 'package:just_audio/just_audio.dart';
 import '../models/song.dart';
 import '../models/playback_queue.dart';
 import '../models/quality_settings.dart';
@@ -132,7 +133,7 @@ class PlaybackManager extends ChangeNotifier {
       notifyListeners();
 
       // Auto-advance when song completes
-      if (state.processingState.toString() == 'ProcessingState.completed') {
+      if (state.processingState == ProcessingState.completed) {
         unawaited(() async {
           try {
             await _onSongCompleted();

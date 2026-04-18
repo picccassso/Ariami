@@ -170,7 +170,7 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
             _pendingUiPosition = null;
 
             _notifyStateChanged();
-            await Future.delayed(const Duration(milliseconds: 300));
+            await Future.delayed(const Duration(milliseconds: 450));
             if (_queue.currentIndex != nextIndex) return;
 
             await _playCurrentSong();
@@ -206,7 +206,7 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
       _pendingUiPosition = null;
 
       _notifyStateChanged();
-      await Future.delayed(const Duration(milliseconds: 300));
+      await Future.delayed(const Duration(milliseconds: 450));
       if (_queue.currentIndex != nextIndex) return;
 
       await _playCurrentSong();
@@ -243,7 +243,7 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
       _pendingUiPosition = null;
 
       _notifyStateChanged();
-      await Future.delayed(const Duration(milliseconds: 300));
+      await Future.delayed(const Duration(milliseconds: 450));
       if (_queue.currentIndex != previousIndex) return;
 
       await _playCurrentSong();
