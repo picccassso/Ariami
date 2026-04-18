@@ -5,6 +5,7 @@ import '../../screens/playlist/add_to_playlist_screen.dart';
 import '../../services/api/connection_service.dart';
 import '../../services/playback_manager.dart';
 import '../common/cached_artwork.dart';
+import '../common/mini_player_aware_bottom_sheet.dart';
 
 /// Search result item for songs
 class SearchResultSongItem extends StatelessWidget {
@@ -66,7 +67,12 @@ class SearchResultSongItem extends StatelessWidget {
                         song.artist,
                         style: TextStyle(
                           fontSize: 14,
-                          color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.7) ?? Colors.grey[600],
+                          color: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.color
+                                  ?.withValues(alpha: 0.7) ??
+                              Colors.grey[600],
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -79,12 +85,29 @@ class SearchResultSongItem extends StatelessWidget {
                   _formatDuration(song.duration),
                   style: TextStyle(
                     fontSize: 13,
-                    color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.5),
+                    color: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.color
+                        ?.withValues(alpha: 0.5),
                   ),
                 ),
                 if (isAvailable) ...[
                   const SizedBox(width: 8),
-                  _buildOverflowMenu(context),
+                  IconButton(
+                    icon: Icon(
+                      Icons.more_vert_rounded,
+                      size: 20,
+                      color: Theme.of(context)
+                          .colorScheme
+                          .onSurface
+                          .withValues(alpha: 0.5),
+                    ),
+                    onPressed: () => _showSongMenu(context),
+                    padding: EdgeInsets.zero,
+                    constraints:
+                        const BoxConstraints(minWidth: 40, minHeight: 40),
+                  ),
                 ] else
                    const SizedBox(width: 48),
               ],
@@ -95,56 +118,77 @@ class SearchResultSongItem extends StatelessWidget {
     );
   }
 
-  /// Build overflow menu button
-  Widget _buildOverflowMenu(BuildContext context) {
-    return PopupMenuButton<String>(
-      icon: Icon(
-        Icons.more_vert,
-        size: 20,
-        color: Colors.grey[600],
-      ),
-      onSelected: (value) => _handleMenuAction(context, value),
-      itemBuilder: (BuildContext context) => [
-        const PopupMenuItem<String>(
-          value: 'play_next',
-          child: Row(
-            children: [
-              Icon(Icons.skip_next, size: 20),
-              SizedBox(width: 12),
-              Text('Play Next'),
-            ],
+  /// Show song overflow menu
+  void _showSongMenu(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (BuildContext context) {
+        final maxMenuHeight = MediaQuery.sizeOf(context).height * 0.9;
+
+        return ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: maxMenuHeight),
+          child: SafeArea(
+            minimum: EdgeInsets.only(
+              bottom: getMiniPlayerAwareBottomPadding(context),
+            ),
+            child: SingleChildScrollView(
+              child: SizedBox(
+                width: double.infinity,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ListTile(
+                      leading: const Icon(Icons.play_arrow),
+                      title: const Text('Play'),
+                      onTap: () {
+                        Navigator.pop(context);
+                        onTap();
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.skip_next),
+                      title: const Text('Play Next'),
+                      onTap: () {
+                        Navigator.pop(context);
+                        _handlePlayNext();
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.queue_music),
+                      title: const Text('Add to Queue'),
+                      onTap: () {
+                        Navigator.pop(context);
+                        _handleAddToQueue();
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.playlist_add),
+                      title: const Text('Add to Playlist'),
+                      onTap: () {
+                        Navigator.pop(context);
+                        AddToPlaylistScreen.showForSong(
+                          context,
+                          song.id,
+                          albumId: song.albumId,
+                          title: song.title,
+                          artist: song.artist,
+                          duration: song.duration,
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
-        ),
-        const PopupMenuItem<String>(
-          value: 'add_queue',
-          child: Row(
-            children: [
-              Icon(Icons.queue_music, size: 20),
-              SizedBox(width: 12),
-              Text('Add to Queue'),
-            ],
-          ),
-        ),
-        const PopupMenuItem<String>(
-          value: 'add_playlist',
-          child: Row(
-            children: [
-              Icon(Icons.playlist_add, size: 20),
-              SizedBox(width: 12),
-              Text('Add to Playlist'),
-            ],
-          ),
-        ),
-      ],
+        );
+      },
     );
   }
 
-  /// Handle menu action selection
-  void _handleMenuAction(BuildContext context, String action) {
-    final playbackManager = PlaybackManager();
-
-    // Convert SongModel to Song object
-    final convertedSong = Song(
+  Song _toSong() {
+    return Song(
       id: song.id,
       title: song.title,
       artist: song.artist,
@@ -156,27 +200,16 @@ class SearchResultSongItem extends StatelessWidget {
       modifiedTime: DateTime.now(),
       trackNumber: song.trackNumber,
     );
+  }
 
-    switch (action) {
-      case 'play_next':
-        playbackManager.playNext(convertedSong);
-        break;
-      case 'add_queue':
-        playbackManager.addToQueue(convertedSong);
-        break;
-      case 'add_playlist':
-        AddToPlaylistScreen.showForSong(
-          context,
-          song.id,
-          albumId: song.albumId,
-          title: song.title,
-          artist: song.artist,
-          duration: song.duration,
-        );
-        return;
-      default:
-        return;
-    }
+  void _handlePlayNext() {
+    final playbackManager = PlaybackManager();
+    playbackManager.playNext(_toSong());
+  }
+
+  void _handleAddToQueue() {
+    final playbackManager = PlaybackManager();
+    playbackManager.addToQueue(_toSong());
   }
 
   /// Build leading widget with artwork and download/cache indicator
