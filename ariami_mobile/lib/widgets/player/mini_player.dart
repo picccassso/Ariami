@@ -8,6 +8,7 @@ import '../../services/color_extraction_service.dart';
 import '../../utils/constants.dart';
 import '../../services/playback_manager.dart';
 import '../common/cached_artwork.dart';
+import '../common/mini_player_aware_bottom_sheet.dart';
 
 /// Mini player widget that appears at the bottom during playback
 class MiniPlayer extends StatefulWidget {
@@ -82,60 +83,76 @@ class _MiniPlayerState extends State<MiniPlayer> {
 
     await showModalBottomSheet<void>(
       context: context,
+      isScrollControlled: true,
       builder: (sheetContext) {
-        return SafeArea(
-          child: AnimatedBuilder(
-            animation: _castService,
-            builder: (context, _) {
-              final devices = _castService.devices;
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const SizedBox(height: 12),
-                  Text('Cast To Device',
-                      style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: 8),
-                  if (devices.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.fromLTRB(20, 20, 20, 28),
-                      child: Row(
-                        children: [
-                          SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2.5),
+        final maxSheetHeight = MediaQuery.sizeOf(sheetContext).height * 0.9;
+        return ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: maxSheetHeight),
+          child: SafeArea(
+            minimum: EdgeInsets.only(
+              bottom: getMiniPlayerAwareBottomPadding(sheetContext),
+            ),
+            child: AnimatedBuilder(
+              animation: _castService,
+              builder: (context, _) {
+                final devices = _castService.devices;
+                return SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const SizedBox(height: 12),
+                      Text(
+                        'Cast To Device',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 8),
+                      if (devices.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.fromLTRB(20, 20, 20, 28),
+                          child: Row(
+                            children: [
+                              SizedBox(
+                                width: 20,
+                                height: 20,
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2.5),
+                              ),
+                              SizedBox(width: 12),
+                              Expanded(
+                                child:
+                                    Text('Searching for Chromecast devices...'),
+                              ),
+                            ],
                           ),
-                          SizedBox(width: 12),
-                          Expanded(
-                              child:
-                                  Text('Searching for Chromecast devices...')),
-                        ],
-                      ),
-                    )
-                  else
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(maxHeight: 320),
-                      child: ListView.separated(
-                        shrinkWrap: true,
-                        itemCount: devices.length,
-                        separatorBuilder: (_, __) => const Divider(height: 1),
-                        itemBuilder: (context, index) {
-                          final device = devices[index];
-                          return ListTile(
-                            leading: const Icon(LucideIcons.speaker),
-                            title: Text(device.friendlyName),
-                            onTap: () async {
-                              Navigator.of(sheetContext).pop();
-                              await _connectAndSync(device);
+                        )
+                      else
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(maxHeight: 320),
+                          child: ListView.separated(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: devices.length,
+                            separatorBuilder: (_, __) =>
+                                const Divider(height: 1),
+                            itemBuilder: (context, index) {
+                              final device = devices[index];
+                              return ListTile(
+                                leading: const Icon(LucideIcons.speaker),
+                                title: Text(device.friendlyName),
+                                onTap: () async {
+                                  Navigator.of(sheetContext).pop();
+                                  await _connectAndSync(device);
+                                },
+                              );
                             },
-                          );
-                        },
-                      ),
-                    ),
-                  const SizedBox(height: 8),
-                ],
-              );
-            },
+                          ),
+                        ),
+                      const SizedBox(height: 8),
+                    ],
+                  ),
+                );
+              },
+            ),
           ),
         );
       },
@@ -158,26 +175,38 @@ class _MiniPlayerState extends State<MiniPlayer> {
   Future<void> _showConnectedActions() async {
     await showModalBottomSheet<void>(
       context: context,
+      isScrollControlled: true,
       builder: (sheetContext) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(LucideIcons.cast),
-                title: Text(
-                    _castService.connectedDeviceName ?? 'Chromecast connected'),
-                subtitle: const Text('Audio is being cast from Ariami'),
+        final maxSheetHeight = MediaQuery.sizeOf(sheetContext).height * 0.9;
+        return ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: maxSheetHeight),
+          child: SafeArea(
+            minimum: EdgeInsets.only(
+              bottom: getMiniPlayerAwareBottomPadding(sheetContext),
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ListTile(
+                    leading: const Icon(LucideIcons.cast),
+                    title: Text(
+                      _castService.connectedDeviceName ??
+                          'Chromecast connected',
+                    ),
+                    subtitle: const Text('Audio is being cast from Ariami'),
+                  ),
+                  ListTile(
+                    leading: const Icon(LucideIcons.cast),
+                    title: const Text('Disconnect'),
+                    onTap: () async {
+                      Navigator.of(sheetContext).pop();
+                      await widget.playbackManager.stopCastingAndResumeLocal();
+                    },
+                  ),
+                ],
               ),
-              ListTile(
-                leading: const Icon(LucideIcons.cast),
-                title: const Text('Disconnect'),
-                onTap: () async {
-                  Navigator.of(sheetContext).pop();
-                  await widget.playbackManager.stopCastingAndResumeLocal();
-                },
-              ),
-            ],
+            ),
           ),
         );
       },

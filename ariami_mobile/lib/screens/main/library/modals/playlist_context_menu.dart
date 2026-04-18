@@ -25,96 +25,107 @@ class PlaylistContextMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      minimum: EdgeInsets.only(
-        bottom: getMiniPlayerAwareBottomPadding(context),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Header with playlist info
-          Container(
-            padding: const EdgeInsets.all(16),
-            child: Row(
+    final maxMenuHeight = MediaQuery.sizeOf(context).height * 0.9;
+
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxHeight: maxMenuHeight),
+      child: SafeArea(
+        minimum: EdgeInsets.only(
+          bottom: getMiniPlayerAwareBottomPadding(context),
+        ),
+        child: SingleChildScrollView(
+          child: SizedBox(
+            width: double.infinity,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
+                // Header with playlist info
                 Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: Colors.purple[400],
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: const Icon(Icons.queue_music, color: Colors.white),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
                     children: [
-                      Text(
-                        playlist.name,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: Colors.purple[400],
+                          borderRadius: BorderRadius.circular(4),
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                        child:
+                            const Icon(Icons.queue_music, color: Colors.white),
                       ),
-                      Text(
-                        '${playlist.songCount} song${playlist.songCount != 1 ? 's' : ''}',
-                        style: TextStyle(
-                          color: Colors.grey[600],
-                          fontSize: 14,
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              playlist.name,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Text(
+                              '${playlist.songCount} song${playlist.songCount != 1 ? 's' : ''}',
+                              style: TextStyle(
+                                color: Colors.grey[600],
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
                 ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.play_arrow),
+                  title: const Text('Play Playlist'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    onPlay();
+                  },
+                ),
+                ListTile(
+                  leading:
+                      Icon(isPinned ? Icons.push_pin : Icons.push_pin_outlined),
+                  title: Text(isPinned ? 'Unpin' : 'Pin to Top'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    onTogglePin();
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.queue_music),
+                  title: const Text('Add to Queue'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    onAddToQueue();
+                  },
+                ),
+                if (isFullyDownloaded)
+                  const ListTile(
+                    leading: Icon(Icons.check, color: Colors.white),
+                    title: Text('Downloaded'),
+                    enabled: false,
+                  )
+                else
+                  ListTile(
+                    leading: const Icon(Icons.download),
+                    title: const Text('Download Playlist'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      onDownload();
+                    },
+                  ),
               ],
             ),
           ),
-          const Divider(height: 1),
-          ListTile(
-            leading: const Icon(Icons.play_arrow),
-            title: const Text('Play Playlist'),
-            onTap: () {
-              Navigator.pop(context);
-              onPlay();
-            },
-          ),
-          ListTile(
-            leading: Icon(
-                isPinned ? Icons.push_pin : Icons.push_pin_outlined),
-            title: Text(isPinned ? 'Unpin' : 'Pin to Top'),
-            onTap: () {
-              Navigator.pop(context);
-              onTogglePin();
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.queue_music),
-            title: const Text('Add to Queue'),
-            onTap: () {
-              Navigator.pop(context);
-              onAddToQueue();
-            },
-          ),
-          if (isFullyDownloaded)
-            const ListTile(
-              leading: Icon(Icons.check, color: Colors.white),
-              title: Text('Downloaded'),
-              enabled: false,
-            )
-          else
-            ListTile(
-              leading: const Icon(Icons.download),
-              title: const Text('Download Playlist'),
-              onTap: () {
-                Navigator.pop(context);
-                onDownload();
-              },
-            ),
-        ],
+        ),
       ),
     );
   }
@@ -133,6 +144,7 @@ Future<void> showPlaylistContextMenu({
 }) {
   return showModalBottomSheet(
     context: context,
+    isScrollControlled: true,
     builder: (BuildContext context) {
       return PlaylistContextMenu(
         playlist: playlist,

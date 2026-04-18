@@ -51,9 +51,9 @@ class SongListItem extends StatelessWidget {
               children: [
                 // Artwork
                 _buildLeading(context),
-                
+
                 const SizedBox(width: 16),
-                
+
                 // Title and Artist
                 Expanded(
                   child: Column(
@@ -62,11 +62,14 @@ class SongListItem extends StatelessWidget {
                     children: [
                       Text(
                         song.title,
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: isAvailable ? Theme.of(context).colorScheme.onSurface : Colors.grey,
-                        ),
+                        style:
+                            Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: isAvailable
+                                      ? Theme.of(context).colorScheme.onSurface
+                                      : Colors.grey,
+                                ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -74,16 +77,19 @@ class SongListItem extends StatelessWidget {
                       Text(
                         song.artist,
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          fontSize: 14,
-                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
-                        ),
+                              fontSize: 14,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurface
+                                  .withOpacity(0.6),
+                            ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),
                 ),
-                
+
                 // Duration & Menu
                 Row(
                   mainAxisSize: MainAxisSize.min,
@@ -91,19 +97,26 @@ class SongListItem extends StatelessWidget {
                     Text(
                       _formatDuration(song.duration),
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
-                      ),
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurface
+                                .withOpacity(0.4),
+                          ),
                     ),
                     const SizedBox(width: 4),
                     IconButton(
                       icon: Icon(
                         Icons.more_vert_rounded,
-                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                        color: Theme.of(context)
+                            .colorScheme
+                            .onSurface
+                            .withOpacity(0.5),
                         size: 20,
                       ),
                       onPressed: () => _showSongMenu(context),
                       padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                      constraints:
+                          const BoxConstraints(minWidth: 40, minHeight: 40),
                     ),
                   ],
                 ),
@@ -145,7 +158,9 @@ class SongListItem extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: Colors.green, // Functional green for downloads
                   shape: BoxShape.circle,
-                  border: Border.all(color: Theme.of(context).scaffoldBackgroundColor, width: 2),
+                  border: Border.all(
+                      color: Theme.of(context).scaffoldBackgroundColor,
+                      width: 2),
                 ),
                 child: const Icon(
                   Icons.check,
@@ -163,7 +178,9 @@ class SongListItem extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: Colors.grey[600],
                   shape: BoxShape.circle,
-                  border: Border.all(color: Theme.of(context).scaffoldBackgroundColor, width: 2),
+                  border: Border.all(
+                      color: Theme.of(context).scaffoldBackgroundColor,
+                      width: 2),
                 ),
                 child: const Icon(
                   Icons.cloud_done,
@@ -241,64 +258,75 @@ class SongListItem extends StatelessWidget {
   void _showSongMenu(BuildContext context) {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       builder: (BuildContext context) {
-        return SafeArea(
-          minimum: EdgeInsets.only(
-            bottom: getMiniPlayerAwareBottomPadding(context),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.play_arrow),
-                title: const Text('Play'),
-                onTap: onTap != null
-                    ? () {
+        final maxMenuHeight = MediaQuery.sizeOf(context).height * 0.9;
+
+        return ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: maxMenuHeight),
+          child: SafeArea(
+            minimum: EdgeInsets.only(
+              bottom: getMiniPlayerAwareBottomPadding(context),
+            ),
+            child: SingleChildScrollView(
+              child: SizedBox(
+                width: double.infinity,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ListTile(
+                      leading: const Icon(Icons.play_arrow),
+                      title: const Text('Play'),
+                      onTap: onTap != null
+                          ? () {
+                              Navigator.pop(context);
+                              onTap?.call();
+                            }
+                          : null,
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.skip_next),
+                      title: const Text('Play Next'),
+                      onTap: () {
                         Navigator.pop(context);
-                        onTap?.call();
-                      }
-                    : null,
+                        _handlePlayNext(context);
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.queue_music),
+                      title: const Text('Add to Queue'),
+                      onTap: () {
+                        Navigator.pop(context);
+                        _handleAddToQueue(context);
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.playlist_add),
+                      title: const Text('Add to Playlist'),
+                      onTap: () {
+                        Navigator.pop(context);
+                        AddToPlaylistScreen.showForSong(
+                          context,
+                          song.id,
+                          albumId: song.albumId,
+                          title: song.title,
+                          artist: song.artist,
+                          duration: song.duration,
+                        );
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.download),
+                      title: const Text('Download'),
+                      onTap: () {
+                        Navigator.pop(context);
+                        _handleDownload(context);
+                      },
+                    ),
+                  ],
+                ),
               ),
-              ListTile(
-                leading: const Icon(Icons.skip_next),
-                title: const Text('Play Next'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _handlePlayNext(context);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.queue_music),
-                title: const Text('Add to Queue'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _handleAddToQueue(context);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.playlist_add),
-                title: const Text('Add to Playlist'),
-                onTap: () {
-                  Navigator.pop(context);
-                  AddToPlaylistScreen.showForSong(
-                    context,
-                    song.id,
-                    albumId: song.albumId,
-                    title: song.title,
-                    artist: song.artist,
-                    duration: song.duration,
-                  );
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.download),
-                title: const Text('Download'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _handleDownload(context);
-                },
-              ),
-            ],
+            ),
           ),
         );
       },
