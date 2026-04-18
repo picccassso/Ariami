@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../models/download_task.dart';
+import '../../../models/quality_settings.dart';
 import '../../../services/api/connection_service.dart';
 import '../../../widgets/common/mini_player_aware_bottom_sheet.dart';
 import 'downloads_controller.dart';
@@ -242,10 +243,13 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                   ),
                   DownloadModeCard(
                     isDark: isDark,
+                    downloadQuality: state.downloadQuality,
                     downloadOriginal: state.downloadOriginal,
-                    onChanged: (value) async {
-                      await _controller.setDownloadOriginal(value);
-                    },
+                    onChanged: state.downloadQuality == StreamingQuality.high
+                        ? (value) async {
+                            await _controller.setDownloadOriginal(value);
+                          }
+                        : null,
                   ),
                   DownloadsRecoveryPreferencesCard(
                     isDark: isDark,

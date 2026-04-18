@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  Widget _wrap(Widget child) {
+  Widget wrap(Widget child) {
     return MaterialApp(
       home: Scaffold(body: child),
     );
@@ -13,7 +13,7 @@ void main() {
   testWidgets('shows empty activity message when there are no rows',
       (tester) async {
     await tester.pumpWidget(
-      _wrap(
+      wrap(
         const UserActivityTable(
           isLoading: false,
           errorMessage: null,
@@ -27,7 +27,7 @@ void main() {
 
   testWidgets('shows loading indicator when loading', (tester) async {
     await tester.pumpWidget(
-      _wrap(
+      wrap(
         const UserActivityTable(
           isLoading: true,
           errorMessage: null,
@@ -41,7 +41,7 @@ void main() {
 
   testWidgets('renders active user activity rows', (tester) async {
     await tester.pumpWidget(
-      _wrap(
+      wrap(
         const UserActivityTable(
           isLoading: false,
           errorMessage: null,

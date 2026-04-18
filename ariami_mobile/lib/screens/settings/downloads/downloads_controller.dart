@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../../../models/download_task.dart';
+import '../../../models/quality_settings.dart';
 import '../../../models/websocket_models.dart';
 import '../../../services/api/connection_service.dart';
 import '../../../services/cache/cache_manager.dart'
@@ -51,6 +52,7 @@ class DownloadsController extends ChangeNotifier {
   Timer? _countRefreshTimer;
   StreamSubscription<DownloadProgress>? _progressSubscription;
   StreamSubscription<List<DownloadTask>>? _queueSubscription;
+  StreamSubscription<QualitySettings>? _qualitySettingsSubscription;
   StreamSubscription<WsMessage>? _webSocketSubscription;
 
   bool _disposed = false;
@@ -61,14 +63,33 @@ class DownloadsController extends ChangeNotifier {
     await _downloadManager.initialize();
     await _cacheManager.initialize();
     await _qualityService.initialize();
+    final qualitySettings = _qualityService.settings;
     await _loadCacheStats();
     _state = _state.copyWith(
-      downloadOriginal: _qualityService.getDownloadOriginal(),
+      downloadQuality: qualitySettings.downloadQuality,
+      downloadOriginal: qualitySettings.downloadOriginal,
       autoResumeInterruptedOnLaunch:
           _downloadManager.getAutoResumeInterruptedOnLaunch(),
       interruptedDownloadCount:
           _countInterruptedDownloads(_downloadManager.queue),
     );
+
+    _qualitySettingsSubscription = _qualityService.settingsStream.listen((
+      qualitySettings,
+    ) {
+      if (_disposed) return;
+      final nextDownloadOriginal = qualitySettings.downloadOriginal;
+      if (_state.downloadOriginal == nextDownloadOriginal &&
+          _state.downloadQuality == qualitySettings.downloadQuality) {
+        return;
+      }
+
+      _state = _state.copyWith(
+        downloadQuality: qualitySettings.downloadQuality,
+        downloadOriginal: nextDownloadOriginal,
+      );
+      notifyListeners();
+    });
 
     _cacheSubscription = _cacheManager.cacheUpdateStream.listen((event) {
       if (!event.affectsSongCache) return;
@@ -483,9 +504,16 @@ class DownloadsController extends ChangeNotifier {
   }
 
   Future<void> setDownloadOriginal(bool value) async {
+    if (value && _state.downloadQuality != StreamingQuality.high) {
+      return;
+    }
     await _qualityService.setDownloadOriginal(value);
     if (!_disposed) {
-      _state = _state.copyWith(downloadOriginal: value);
+      final qualitySettings = _qualityService.settings;
+      _state = _state.copyWith(
+        downloadQuality: qualitySettings.downloadQuality,
+        downloadOriginal: qualitySettings.downloadOriginal,
+      );
       notifyListeners();
     }
   }
@@ -532,6 +560,7 @@ class DownloadsController extends ChangeNotifier {
     _cacheSubscription?.cancel();
     _progressSubscription?.cancel();
     _queueSubscription?.cancel();
+    _qualitySettingsSubscription?.cancel();
     _webSocketSubscription?.cancel();
     _cacheStatsRefreshTimer?.cancel();
     _countRefreshTimer?.cancel();

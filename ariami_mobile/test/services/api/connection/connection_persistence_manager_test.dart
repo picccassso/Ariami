@@ -184,7 +184,7 @@ ServerInfo _createTestServerInfo({String ip = '192.168.1.100'}) {
     server: ip,
     port: 8080,
     name: 'Test Server',
-    version: '4.1.0',
+    version: '4.2.0',
     lanServer: '10.0.0.50',
     tailscaleServer: '100.64.0.1',
     authRequired: true,

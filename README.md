@@ -9,8 +9,8 @@ Ariami is a self-hosted music library server with native desktop and mobile play
 
 ## Quick Start
 
-1. **Download the desktop server** from [releases](https://github.com/picccassso/Ariami/releases). Pick the ZIP for your OS (for example `Ariami-Desktop-v4.1.0-macos.zip`, `Ariami-Desktop-v4.1.0-windows.zip`, or `Ariami-Desktop-v4.1.0-linux.zip` — filenames follow that pattern for each version).
-2. **Download the Android app** from the same [releases](https://github.com/picccassso/Ariami/releases) page (`ariami_apk_release_v4.1.0.apk` for v4.1.0). For iOS, you will have to build it and run it yourself.
+1. **Download the desktop server** from [releases](https://github.com/picccassso/Ariami/releases). Pick the ZIP for your OS (for example `Ariami-Desktop-v4.2.0-macos.zip`, `Ariami-Desktop-v4.2.0-windows.zip`, or `Ariami-Desktop-v4.2.0-linux.zip` — filenames follow that pattern for each version).
+2. **Download the Android app** from the same [releases](https://github.com/picccassso/Ariami/releases) page (`ariami_apk_release_v4.2.0.apk` for v4.2.0). For iOS, you will have to build it and run it yourself.
 3. **Install Tailscale** on the computer running the server and on your phone: [tailscale.com/download](https://tailscale.com/download)
 4. **Run the server** and choose your music folder.
 5. **Scan the QR code** shown by the server with the mobile app to connect.
@@ -23,9 +23,9 @@ curl -fsSL https://tailscale.com/install.sh | sh
 sudo tailscale up
 
 # Download and extract Ariami
-curl -L https://github.com/picccassso/Ariami/releases/download/v4.1.0/ariami-cli-raspberry-pi-arm64-v4.1.0.zip -o ariami-cli.zip
+curl -L https://github.com/picccassso/Ariami/releases/download/v4.2.0/ariami-cli-raspberry-pi-arm64-v4.2.0.zip -o ariami-cli.zip
 unzip ariami-cli.zip
-cd ariami-cli-raspberry-pi-arm64-v4.1.0
+cd ariami-cli-raspberry-pi-arm64-v4.2.0
 
 # Run the server
 chmod +x ariami_cli
@@ -107,44 +107,51 @@ It is cross-platform so you can run this on your Mac/Windows/Linux machine, and 
 <details>
 <summary>Mobile App</summary>
 
-### Library View
+### Appearance View
 <p align="center">
-  <img src="app%20photos/Ariami%20Mobile/library_view_1_grid.png" alt="Library View Grid 1" width="30%">
-  <img src="app%20photos/Ariami%20Mobile/library_view_2_grid.png" alt="Library View Grid 2" width="30%">
-  <img src="app%20photos/Ariami%20Mobile/library_view_mixed.png" alt="Library View Mixed" width="30%">
-</p>
-<p align="center">
-  <img src="app%20photos/Ariami%20Mobile/library_view_pinned.png" alt="Library View Pinned" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/appearence_view_1.png" alt="Appearance 1" width="22%">
+  <img src="app%20photos/Ariami%20Mobile/appearence_view_2.png" alt="Appearance 2" width="22%">
+  <img src="app%20photos/Ariami%20Mobile/appearence_view_3.png" alt="Appearance 3" width="22%">
+  <img src="app%20photos/Ariami%20Mobile/appearence_view_4.png" alt="Appearance 4" width="22%">
 </p>
 
-### Playlist View
+### Chromecast View
 <p align="center">
-  <img src="app%20photos/Ariami%20Mobile/playlist_view_1.png" alt="Playlist View 1" width="30%">
-  <img src="app%20photos/Ariami%20Mobile/playlist_view_2.png" alt="Playlist View 2" width="30%">
-  <img src="app%20photos/Ariami%20Mobile/playlist_view_3.png" alt="Playlist View 3" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/chromecast_view_1.png" alt="Chromecast 1" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/chromecast_view_2.png" alt="Chromecast 2" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/chromecast_view_3.png" alt="Chromecast 3" width="30%">
 </p>
+
+### Connection Stats View
 <p align="center">
-  <img src="app%20photos/Ariami%20Mobile/playlist_view_4.png" alt="Playlist View 4" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/connection_stats_view.png" alt="Connection Stats" width="30%">
+</p>
+
+### Downloads View
+<p align="center">
+  <img src="app%20photos/Ariami%20Mobile/downloads_view_1.png" alt="Downloads 1" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/downloads_view_2.png" alt="Downloads 2" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/downloads_view_3.png" alt="Downloads 3" width="30%">
+</p>
+
+### Import/Export View
+<p align="center">
+  <img src="app%20photos/Ariami%20Mobile/import_export_view_1.png" alt="Import Export View" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/import_playlist_1.png" alt="Import Playlist 1" width="30%">
+</p>
+
+### Library View
+<p align="center">
+  <img src="app%20photos/Ariami%20Mobile/library_view_1.png" alt="Library View" width="22%">
+  <img src="app%20photos/Ariami%20Mobile/library_view_grid_1.png" alt="Library View Grid" width="22%">
+  <img src="app%20photos/Ariami%20Mobile/library_view_list_1.png" alt="Library View List" width="22%">
+  <img src="app%20photos/Ariami%20Mobile/library_view_mixed_1.png" alt="Library View Mixed" width="22%">
 </p>
 
 ### Main Player View
 <p align="center">
   <img src="app%20photos/Ariami%20Mobile/main_player_1.png" alt="Main Player 1" width="30%">
   <img src="app%20photos/Ariami%20Mobile/main_player_2.png" alt="Main Player 2" width="30%">
-  <img src="app%20photos/Ariami%20Mobile/main_player_3.png" alt="Main Player 3" width="30%">
-</p>
-
-### Queue View
-<p align="center">
-  <img src="app%20photos/Ariami%20Mobile/queue_view_1.png" alt="Queue View 1" width="30%">
-  <img src="app%20photos/Ariami%20Mobile/queue_view_2.png" alt="Queue View 2" width="30%">
-  <img src="app%20photos/Ariami%20Mobile/queue_view_3.png" alt="Queue View 3" width="30%">
-</p>
-
-### Search View
-<p align="center">
-  <img src="app%20photos/Ariami%20Mobile/search_view_1.png" alt="Search View 1" width="30%">
-  <img src="app%20photos/Ariami%20Mobile/search_view_2.png" alt="Search View 2" width="30%">
 </p>
 
 ### Offline View
@@ -154,10 +161,37 @@ It is cross-platform so you can run this on your Mac/Windows/Linux machine, and 
   <img src="app%20photos/Ariami%20Mobile/offline_view_3.png" alt="Offline View 3" width="30%">
 </p>
 
+### Playlist View
+<p align="center">
+  <img src="app%20photos/Ariami%20Mobile/playlist_view_1.png" alt="Playlist View 1" width="18%">
+  <img src="app%20photos/Ariami%20Mobile/playlist_view_2.png" alt="Playlist View 2" width="18%">
+  <img src="app%20photos/Ariami%20Mobile/playlist_view_3.png" alt="Playlist View 3" width="18%">
+  <img src="app%20photos/Ariami%20Mobile/playlist_view_4.png" alt="Playlist View 4" width="18%">
+  <img src="app%20photos/Ariami%20Mobile/playlist_view_5.png" alt="Playlist View 5" width="18%">
+</p>
+
+### Profile Hub
+<p align="center">
+  <img src="app%20photos/Ariami%20Mobile/profile_hub_1.png" alt="Profile Hub 1" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/profile_hub_2.png" alt="Profile Hub 2" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/profile_hub_3.png" alt="Profile Hub 3" width="30%">
+</p>
+
+### Queue View
+<p align="center">
+  <img src="app%20photos/Ariami%20Mobile/queue_view_1.png" alt="Queue View 1" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/queue_view_2.png" alt="Queue View 2" width="30%">
+</p>
+
+### Search View
+<p align="center">
+  <img src="app%20photos/Ariami%20Mobile/search_view_1.png" alt="Search View 1" width="30%">
+</p>
+
 ### Settings View
 <p align="center">
-  <img src="app%20photos/Ariami%20Mobile/settings_view_1.png" alt="Settings 1" width="30%">
-  <img src="app%20photos/Ariami%20Mobile/setting_view_4.png" alt="Settings 4" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/setting_view_1.png" alt="Settings 1" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/setting_view_2.png" alt="Settings 2" width="30%">
 </p>
 
 ### Streaming Quality View
@@ -168,38 +202,9 @@ It is cross-platform so you can run this on your Mac/Windows/Linux machine, and 
 
 ### Streaming Stats View
 <p align="center">
-  <img src="app%20photos/Ariami%20Mobile/streaming_stats_view_1.png" alt="Streaming Stats 1" width="30%">
-  <img src="app%20photos/Ariami%20Mobile/streaming_stats_view_2.png" alt="Streaming Stats 2" width="30%">
-</p>
-
-### Downloads View
-<p align="center">
-  <img src="app%20photos/Ariami%20Mobile/downloads_view_1.png" alt="Downloads 1" width="30%">
-  <img src="app%20photos/Ariami%20Mobile/downloads_view_2.png" alt="Downloads 2" width="30%">
-  <img src="app%20photos/Ariami%20Mobile/downloads_view_3.png" alt="Downloads 3" width="30%">
-</p>
-<p align="center">
-  <img src="app%20photos/Ariami%20Mobile/downloads_view_4.png" alt="Downloads 4" width="30%">
-</p>
-
-### Connection Stats View
-<p align="center">
-  <img src="app%20photos/Ariami%20Mobile/connection_stats_view_LAN.png" alt="Connection Stats LAN" width="30%">
-  <img src="app%20photos/Ariami%20Mobile/connection_stats_view_TAILSCALE.jpg" alt="Connection Stats Tailscale" width="30%">
-</p>
-
-### Chromecast View
-<p align="center">
-  <img src="app%20photos/Ariami%20Mobile/chromecast_view_1.png" alt="Chromecast 1" width="30%">
-  <img src="app%20photos/Ariami%20Mobile/chromecast_view_2.png" alt="Chromecast 2" width="30%">
-  <img src="app%20photos/Ariami%20Mobile/chromecast_view_3.png" alt="Chromecast 3" width="30%">
-</p>
-
-### Import/Export View
-<p align="center">
-  <img src="app%20photos/Ariami%20Mobile/import_export_view_1.png" alt="Import Export View" width="30%">
-  <img src="app%20photos/Ariami%20Mobile/import_playlist_1.png" alt="Import Playlist 1" width="30%">
-  <img src="app%20photos/Ariami%20Mobile/import_playlist_2.png" alt="Import Playlist 2" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/streaming_stats_1.png" alt="Streaming Stats 1" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/streaming_stats_2.png" alt="Streaming Stats 2" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/streaming_stats_3.png" alt="Streaming Stats 3" width="30%">
 </p>
 
 </details>
@@ -213,6 +218,7 @@ It is cross-platform so you can run this on your Mac/Windows/Linux machine, and 
 </p>
 <p align="center">
   <img src="app%20photos/Ariami%20Desktop/main_3.png" alt="Desktop Main 3" width="45%">
+  <img src="app%20photos/Ariami%20Desktop/main_4.png" alt="Desktop Main 4" width="45%">
 </p>
 
 </details>

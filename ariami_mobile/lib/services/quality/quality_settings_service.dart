@@ -30,25 +30,34 @@ class QualitySettingsService {
 
   /// Initialize the service and load saved settings
   Future<void> initialize() async {
-    await _loadSettings();
+    final normalizedLegacySettings = await _loadSettings();
+    if (normalizedLegacySettings) {
+      await _saveSettings();
+    }
     await _networkMonitor.initialize();
     print('[QualitySettingsService] Initialized with settings: $_settings');
   }
 
   /// Load settings from persistent storage
-  Future<void> _loadSettings() async {
+  Future<bool> _loadSettings() async {
+    var normalizedLegacySettings = false;
     try {
       final prefs = await SharedPreferences.getInstance();
       final jsonString = prefs.getString(_prefsKey);
 
+      _settings = const QualitySettings();
       if (jsonString != null) {
         final json = jsonDecode(jsonString) as Map<String, dynamic>;
-        _settings = QualitySettings.fromJson(json);
+        final loadedSettings = QualitySettings.fromJson(json);
+        _settings = _normalizeSettings(loadedSettings);
+        normalizedLegacySettings = loadedSettings != _settings;
       }
     } catch (e) {
       print('[QualitySettingsService] Error loading settings: $e');
       // Keep default settings on error
+      _settings = const QualitySettings();
     }
+    return normalizedLegacySettings;
   }
 
   /// Save settings to persistent storage
@@ -64,9 +73,10 @@ class QualitySettingsService {
 
   /// Update quality settings
   Future<void> updateSettings(QualitySettings newSettings) async {
-    if (_settings == newSettings) return;
+    final normalizedSettings = _normalizeSettings(newSettings);
+    if (_settings == normalizedSettings) return;
 
-    _settings = newSettings;
+    _settings = normalizedSettings;
     await _saveSettings();
     _settingsController.add(_settings);
     print('[QualitySettingsService] Settings updated: $_settings');
@@ -89,12 +99,17 @@ class QualitySettingsService {
 
   /// Update download mode (original vs transcoded)
   Future<void> setDownloadOriginal(bool downloadOriginal) async {
-    await updateSettings(_settings.copyWith(downloadOriginal: downloadOriginal));
+    final effectiveDownloadOriginal =
+        _settings.downloadQuality == StreamingQuality.high && downloadOriginal;
+    await updateSettings(
+      _settings.copyWith(downloadOriginal: effectiveDownloadOriginal),
+    );
   }
 
   /// Update preference for local playback when online
   Future<void> setPreferLocalWhenOnline(bool preferLocal) async {
-    await updateSettings(_settings.copyWith(preferLocalWhenOnline: preferLocal));
+    await updateSettings(
+        _settings.copyWith(preferLocalWhenOnline: preferLocal));
   }
 
   /// Whether to prefer local playback when online
@@ -165,7 +180,8 @@ class QualitySettingsService {
   }
 
   /// Stream of current network type changes
-  Stream<NetworkType> get networkTypeStream => _networkMonitor.networkTypeStream;
+  Stream<NetworkType> get networkTypeStream =>
+      _networkMonitor.networkTypeStream;
 
   /// Current network type
   NetworkType get currentNetworkType => _networkMonitor.currentNetworkType;
@@ -174,5 +190,13 @@ class QualitySettingsService {
   void dispose() {
     _settingsController.close();
     _networkMonitor.dispose();
+  }
+
+  QualitySettings _normalizeSettings(QualitySettings settings) {
+    if (settings.downloadQuality != StreamingQuality.high &&
+        settings.downloadOriginal) {
+      return settings.copyWith(downloadOriginal: false);
+    }
+    return settings;
   }
 }

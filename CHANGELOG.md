@@ -8,6 +8,55 @@ Thank you for those that actually support and use this project at all! :D
 
 ---
 
+## 4.2.0
+
+- Fetch Sonic binary via git submodule in CI Pi release workflow
+- Handle interrupted downloads with recovery controls on reconnect
+- Prompt user before resuming interrupted downloads after reconnect
+- Fixed reconnect on app resume and deduplicated restore attempts
+- Bundle Sonic in Pi CLI releases and tuned download concurrency limits for Raspberry Pi 5
+- Redesigned all settings screens to a modern flat layout with updated typography and a profile header
+- Used square corners for library list view tiles for consistency with the grid view
+- Stopped the library refresh loop when bootstrap sync is not yet ready
+- Added an actionable Profile hub with View Profile navigation
+- Implemented a dynamic global theming system with light/dark mode, preset colors, custom colors, and cover art theming
+- Applied global theming to the Settings screen and all sub-widgets
+- Added horizontal swipe to skip tracks on the mini player
+- Prevented redundant artwork network requests by checking local cached files first
+- Replaced back button with a Lucide icon
+- Implemented static cover art theming option
+- Removed the menu button from the main player view
+- Reworked the appearance system and polished player and settings UX
+- Infer track numbers from common numeric filename prefixes when metadata tags are missing
+- Auto-heal mobile album sync mismatches by triggering a fresh bootstrap when local track counts are stale
+- Used folder structure as the source of truth for downloaded music classification and fixed playlist/album grouping regressions
+- Applied dynamic theming to the Streaming Quality settings screen
+- Added an indicator showing which song is driving the current dynamic theme
+- Grayed out download icons for songs that are already being downloaded
+- Improved animations in the main player and mini player
+- Refactored download_manager.dart with added test coverage
+- Split PlaybackManager into focused part files without behavior changes
+- Split album detail screen into reusable album widgets
+- Refactored library_sync_database.dart
+- Added user management to the dashboard with a safe account deletion flow
+- Upgraded GitHub Actions workflows to v6 runtimes and removed unused CI jobs
+- Added user deletion to the Registered Users panel with mobile session invalidation
+- Fixed library deletion not actually removing the library from disk
+- Enforced a strict song-only cache size limit and decoupled artwork storage from the cache cap
+- Reset theme on logout and isolated playback state and pinned items per user
+- Added a per-user download and transcode activity board to the desktop and CLI dashboards
+- Added local profile image support
+- Fixed animation regressions in the main player
+- Fixed seek bar position resetting when resuming playback after scrubbing
+- Applied dynamic theming to the queue player screen
+- Prevented bottom sheet action buttons from being clipped by the mini player and navigation bar
+- Removed the download button from search results
+- Deduplicated song results that appeared across playlist and source variants
+- Hardened player and playlist swipe gestures to prevent accidental track skips
+- Replaced the search overflow popup with a bottom sheet and removed the Download action
+- Showed Downloaded badge on already-downloaded songs in the options menu
+- Disabled "Fast Downloads (Original)" when download quality is set to Medium or Low to avoid conflicting settings
+
 ## 4.1.0
 
 - Integrated FFI-based transcoder for improved performance and reliability

@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  Widget _wrap(Widget child) {
+  Widget wrap(Widget child) {
     return MaterialApp(
       home: Scaffold(body: child),
     );
@@ -12,7 +12,7 @@ void main() {
 
   testWidgets('shows empty message when no activity rows', (tester) async {
     await tester.pumpWidget(
-      _wrap(
+      wrap(
         const UserActivitySection(
           rows: <UserActivityRow>[],
           isLoading: false,
@@ -26,7 +26,7 @@ void main() {
 
   testWidgets('renders activity row values', (tester) async {
     await tester.pumpWidget(
-      _wrap(
+      wrap(
         const UserActivitySection(
           rows: <UserActivityRow>[
             UserActivityRow(

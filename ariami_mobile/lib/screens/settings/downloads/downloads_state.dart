@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../../../models/download_task.dart';
+import '../../../models/quality_settings.dart';
 import '../../../services/download/download_manager.dart';
 
 /// Immutable state for the downloads screen UI.
@@ -20,6 +21,7 @@ class DownloadsState {
     this.isDownloadingAllSongs = false,
     this.isDownloadingAllAlbums = false,
     this.isDownloadingAllPlaylists = false,
+    this.downloadQuality = StreamingQuality.high,
     this.downloadOriginal = false,
     this.autoResumeInterruptedOnLaunch = false,
     this.interruptedDownloadCount = 0,
@@ -48,6 +50,7 @@ class DownloadsState {
   final bool isDownloadingAllSongs;
   final bool isDownloadingAllAlbums;
   final bool isDownloadingAllPlaylists;
+  final StreamingQuality downloadQuality;
   final bool downloadOriginal;
   final bool autoResumeInterruptedOnLaunch;
   final int interruptedDownloadCount;
@@ -76,6 +79,7 @@ class DownloadsState {
     bool? isDownloadingAllSongs,
     bool? isDownloadingAllAlbums,
     bool? isDownloadingAllPlaylists,
+    StreamingQuality? downloadQuality,
     bool? downloadOriginal,
     bool? autoResumeInterruptedOnLaunch,
     int? interruptedDownloadCount,
@@ -107,6 +111,7 @@ class DownloadsState {
           isDownloadingAllAlbums ?? this.isDownloadingAllAlbums,
       isDownloadingAllPlaylists:
           isDownloadingAllPlaylists ?? this.isDownloadingAllPlaylists,
+      downloadQuality: downloadQuality ?? this.downloadQuality,
       downloadOriginal: downloadOriginal ?? this.downloadOriginal,
       autoResumeInterruptedOnLaunch:
           autoResumeInterruptedOnLaunch ?? this.autoResumeInterruptedOnLaunch,
