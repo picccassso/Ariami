@@ -117,9 +117,9 @@ It is cross-platform so you can run this on your Mac/Windows/Linux machine, and 
 
 ### Chromecast View
 <p align="center">
-  <img src="app%20photos/Ariami%20Mobile/chromecast_view_1.png" alt="Chromecast 1" width="30%">
-  <img src="app%20photos/Ariami%20Mobile/chromecast_view_2.png" alt="Chromecast 2" width="30%">
-  <img src="app%20photos/Ariami%20Mobile/chromecast_view_3.png" alt="Chromecast 3" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/chromecast_view_1_new.png" alt="Chromecast 1" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/chromecast_view_2_new.png" alt="Chromecast 2" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/chromecast_view_3_new.png" alt="Chromecast 3" width="30%">
 </p>
 
 ### Connection Stats View
@@ -129,44 +129,44 @@ It is cross-platform so you can run this on your Mac/Windows/Linux machine, and 
 
 ### Downloads View
 <p align="center">
-  <img src="app%20photos/Ariami%20Mobile/downloads_view_1.png" alt="Downloads 1" width="30%">
-  <img src="app%20photos/Ariami%20Mobile/downloads_view_2.png" alt="Downloads 2" width="30%">
-  <img src="app%20photos/Ariami%20Mobile/downloads_view_3.png" alt="Downloads 3" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/downloads_view_1_new.png" alt="Downloads 1" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/downloads_view_2_new.png" alt="Downloads 2" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/downloads_view_3_new.png" alt="Downloads 3" width="30%">
 </p>
 
 ### Import/Export View
 <p align="center">
-  <img src="app%20photos/Ariami%20Mobile/import_export_view_1.png" alt="Import Export View" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/import_export_view_1_new.png" alt="Import Export View" width="30%">
   <img src="app%20photos/Ariami%20Mobile/import_playlist_1.png" alt="Import Playlist 1" width="30%">
 </p>
 
 ### Library View
 <p align="center">
-  <img src="app%20photos/Ariami%20Mobile/library_view_1.png" alt="Library View" width="22%">
-  <img src="app%20photos/Ariami%20Mobile/library_view_grid_1.png" alt="Library View Grid" width="22%">
-  <img src="app%20photos/Ariami%20Mobile/library_view_list_1.png" alt="Library View List" width="22%">
-  <img src="app%20photos/Ariami%20Mobile/library_view_mixed_1.png" alt="Library View Mixed" width="22%">
+  <img src="app%20photos/Ariami%20Mobile/library_view_1_new.png" alt="Library View" width="22%">
+  <img src="app%20photos/Ariami%20Mobile/library_view_grid_1_new.png" alt="Library View Grid" width="22%">
+  <img src="app%20photos/Ariami%20Mobile/library_view_list_1_new.png" alt="Library View List" width="22%">
+  <img src="app%20photos/Ariami%20Mobile/library_view_mixed_1_new.png" alt="Library View Mixed" width="22%">
 </p>
 
 ### Main Player View
 <p align="center">
-  <img src="app%20photos/Ariami%20Mobile/main_player_1.png" alt="Main Player 1" width="30%">
-  <img src="app%20photos/Ariami%20Mobile/main_player_2.png" alt="Main Player 2" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/main_player_1_new.png" alt="Main Player 1" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/main_player_2_new.png" alt="Main Player 2" width="30%">
 </p>
 
 ### Offline View
 <p align="center">
-  <img src="app%20photos/Ariami%20Mobile/offline_view_1.png" alt="Offline View 1" width="30%">
-  <img src="app%20photos/Ariami%20Mobile/offline_view_2.png" alt="Offline View 2" width="30%">
-  <img src="app%20photos/Ariami%20Mobile/offline_view_3.png" alt="Offline View 3" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/offline_view_1_new.png" alt="Offline View 1" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/offline_view_2_new.png" alt="Offline View 2" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/offline_view_3_new.png" alt="Offline View 3" width="30%">
 </p>
 
 ### Playlist View
 <p align="center">
-  <img src="app%20photos/Ariami%20Mobile/playlist_view_1.png" alt="Playlist View 1" width="18%">
-  <img src="app%20photos/Ariami%20Mobile/playlist_view_2.png" alt="Playlist View 2" width="18%">
-  <img src="app%20photos/Ariami%20Mobile/playlist_view_3.png" alt="Playlist View 3" width="18%">
-  <img src="app%20photos/Ariami%20Mobile/playlist_view_4.png" alt="Playlist View 4" width="18%">
+  <img src="app%20photos/Ariami%20Mobile/playlist_view_1_new.png" alt="Playlist View 1" width="18%">
+  <img src="app%20photos/Ariami%20Mobile/playlist_view_2_new.png" alt="Playlist View 2" width="18%">
+  <img src="app%20photos/Ariami%20Mobile/playlist_view_3_new.png" alt="Playlist View 3" width="18%">
+  <img src="app%20photos/Ariami%20Mobile/playlist_view_4_new.png" alt="Playlist View 4" width="18%">
   <img src="app%20photos/Ariami%20Mobile/playlist_view_5.png" alt="Playlist View 5" width="18%">
 </p>
 
@@ -179,32 +179,32 @@ It is cross-platform so you can run this on your Mac/Windows/Linux machine, and 
 
 ### Queue View
 <p align="center">
-  <img src="app%20photos/Ariami%20Mobile/queue_view_1.png" alt="Queue View 1" width="30%">
-  <img src="app%20photos/Ariami%20Mobile/queue_view_2.png" alt="Queue View 2" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/queue_view_1_new.png" alt="Queue View 1" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/queue_view_2_new.png" alt="Queue View 2" width="30%">
 </p>
 
 ### Search View
 <p align="center">
-  <img src="app%20photos/Ariami%20Mobile/search_view_1.png" alt="Search View 1" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/search_view_1_new.png" alt="Search View 1" width="30%">
 </p>
 
 ### Settings View
 <p align="center">
-  <img src="app%20photos/Ariami%20Mobile/setting_view_1.png" alt="Settings 1" width="30%">
-  <img src="app%20photos/Ariami%20Mobile/setting_view_2.png" alt="Settings 2" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/setting_view_1_new.png" alt="Settings 1" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/setting_view_2_new.png" alt="Settings 2" width="30%">
 </p>
 
 ### Streaming Quality View
 <p align="center">
-  <img src="app%20photos/Ariami%20Mobile/streaming_quality_view_1.png" alt="Streaming Quality 1" width="30%">
-  <img src="app%20photos/Ariami%20Mobile/streaming_quality_view_2.png" alt="Streaming Quality 2" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/streaming_quality_view_1_new.png" alt="Streaming Quality 1" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/streaming_quality_view_2_new.png" alt="Streaming Quality 2" width="30%">
 </p>
 
 ### Streaming Stats View
 <p align="center">
-  <img src="app%20photos/Ariami%20Mobile/streaming_stats_1.png" alt="Streaming Stats 1" width="30%">
-  <img src="app%20photos/Ariami%20Mobile/streaming_stats_2.png" alt="Streaming Stats 2" width="30%">
-  <img src="app%20photos/Ariami%20Mobile/streaming_stats_3.png" alt="Streaming Stats 3" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/streaming_stats_1_new.png" alt="Streaming Stats 1" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/streaming_stats_2_new.png" alt="Streaming Stats 2" width="30%">
+  <img src="app%20photos/Ariami%20Mobile/streaming_stats_3_new.png" alt="Streaming Stats 3" width="30%">
 </p>
 
 </details>
