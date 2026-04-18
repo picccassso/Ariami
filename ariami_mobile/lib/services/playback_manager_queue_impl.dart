@@ -276,13 +276,27 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
 
   Future<void> _seekImpl(Duration position) async {
     try {
+      // User is manually seeking - update restored position so pressing play
+      // will start from the scrubbed position (not the old saved position)
+      _restoredPosition = position;
+      _pendingUiPosition = position;
+      _notifyStateChanged(); // Notify immediately so UI updates before async seek
+
       if (_castService.isConnected) {
         await _castService.seek(position, playAfterSeek: isPlaying);
+        // Clear restored position after successful cast seek
+        _restoredPosition = null;
+        _pendingUiPosition = null;
         _notifyStateChanged();
         return;
       }
 
       await _audioPlayer.seek(position);
+      // If the song is loaded and seek succeeded, clear the restored position
+      if (_audioPlayer.duration != null) {
+        _restoredPosition = null;
+        _pendingUiPosition = null;
+      }
       _notifyStateChanged();
     } catch (e) {
       print('[PlaybackManager] Error seeking: $e');
