@@ -16,7 +16,9 @@ Headless music server for Ariami. Runs on servers and Raspberry Pi.
 cd ariami_cli
 flutter pub get
 flutter build web -t lib/web/main.dart
-dart compile exe bin/ariami_cli.dart -o ariami_cli
+dart build cli -o build/cli-release
+cp build/cli-release/bundle/bin/ariami_cli ./ariami_cli
+chmod +x ./ariami_cli
 ```
 
 For Raspberry Pi release artifacts (including bundled Sonic transcoding

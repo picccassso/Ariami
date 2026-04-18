@@ -67,7 +67,9 @@ flutter build macos     # or linux/windows
 ```bash
 cd ariami_cli
 flutter build web -t lib/web/main.dart
-dart compile exe bin/ariami_cli.dart -o ariami_cli
+dart build cli -o build/cli-release
+cp build/cli-release/bundle/bin/ariami_cli ./ariami_cli
+chmod +x ./ariami_cli
 ```
 
 ## Troubleshooting
@@ -100,7 +102,7 @@ flutter doctor
 **Prerequisites:**
 - Raspberry Pi OS (64-bit recommended)
 - Dart SDK installed
-- Compiled CLI binary (`dart compile exe bin/ariami_cli.dart -o ariami_cli`)
+- Compiled CLI binary (`dart build cli -o build/cli-release` then `cp build/cli-release/bundle/bin/ariami_cli ./ariami_cli`)
 
 ### Performance Test Checklist
 

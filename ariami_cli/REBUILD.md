@@ -85,7 +85,9 @@ cd ariami_cli
 flutter build web -t lib/web/main.dart
 
 # Compile CLI to native executable
-dart compile exe bin/ariami_cli.dart -o ariami_cli
+dart build cli -o build/cli-release
+cp build/cli-release/bundle/bin/ariami_cli ./ariami_cli
+chmod +x ./ariami_cli
 
 # Run it
 ./ariami_cli start
@@ -94,7 +96,8 @@ dart compile exe bin/ariami_cli.dart -o ariami_cli
 To install globally:
 
 ```bash
-dart compile exe bin/ariami_cli.dart -o /usr/local/bin/ariami_cli
+dart build cli -o build/cli-release
+cp build/cli-release/bundle/bin/ariami_cli /usr/local/bin/ariami_cli
 chmod +x /usr/local/bin/ariami_cli
 
 # Then run from anywhere
