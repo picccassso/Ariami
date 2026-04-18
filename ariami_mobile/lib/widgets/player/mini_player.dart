@@ -46,10 +46,14 @@ class MiniPlayer extends StatefulWidget {
 }
 
 class _MiniPlayerState extends State<MiniPlayer> {
+  static const double _kHorizontalSwipeEdgeGuard = 24.0;
+  static const double _kSkipSwipeMinDistance = 60.0;
   final ColorExtractionService _colorService = ColorExtractionService();
   final ChromeCastService _castService = ChromeCastService();
   bool _isSkipTransitioning = false;
   double _skipOffsetX = 0.0;
+  bool _horizontalSwipeArmed = false;
+  double _horizontalSwipeDelta = 0.0;
 
   @override
   void initState() {
@@ -213,23 +217,51 @@ class _MiniPlayerState extends State<MiniPlayer> {
     );
   }
 
+  void _onHorizontalSwipeStart(DragStartDetails details) {
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final startX = details.globalPosition.dx;
+    _horizontalSwipeArmed = startX >= _kHorizontalSwipeEdgeGuard &&
+        startX <= screenWidth - _kHorizontalSwipeEdgeGuard;
+    _horizontalSwipeDelta = 0.0;
+  }
+
+  void _onHorizontalSwipeUpdate(DragUpdateDetails details) {
+    if (!_horizontalSwipeArmed) {
+      return;
+    }
+    _horizontalSwipeDelta += details.delta.dx;
+  }
+
+  void _onHorizontalSwipeCancel() {
+    _horizontalSwipeArmed = false;
+    _horizontalSwipeDelta = 0.0;
+  }
+
   void _onHorizontalSwipeEnd(DragEndDetails details) {
-    final velocity = details.primaryVelocity;
-    if (velocity == null) return;
+    if (!_horizontalSwipeArmed) {
+      _onHorizontalSwipeCancel();
+      return;
+    }
 
-    const threshold = 300.0;
+    final distance = _horizontalSwipeDelta.abs();
+    if (distance < _kSkipSwipeMinDistance) {
+      _onHorizontalSwipeCancel();
+      return;
+    }
 
-    if (velocity < -threshold) {
+    if (_horizontalSwipeDelta < 0) {
       // Swipe left -> Next
       if (widget.hasNext) {
         _animateSkipTransition(toNext: true);
       }
-    } else if (velocity > threshold) {
+    } else if (_horizontalSwipeDelta > 0) {
       // Swipe right -> Previous
       if (widget.hasPrevious) {
         _animateSkipTransition(toNext: false);
       }
     }
+
+    _onHorizontalSwipeCancel();
   }
 
   Future<void> _animateSkipTransition({required bool toNext}) async {
@@ -342,7 +374,13 @@ class _MiniPlayerState extends State<MiniPlayer> {
                               Expanded(
                                 child: GestureDetector(
                                   behavior: HitTestBehavior.opaque,
+                                  onHorizontalDragStart:
+                                      _onHorizontalSwipeStart,
+                                  onHorizontalDragUpdate:
+                                      _onHorizontalSwipeUpdate,
                                   onHorizontalDragEnd: _onHorizontalSwipeEnd,
+                                  onHorizontalDragCancel:
+                                      _onHorizontalSwipeCancel,
                                   child: Row(
                                     children: [
                                       // Album artwork with rotation or shadow? Keep simple for mini.

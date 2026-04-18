@@ -14,6 +14,25 @@ const Duration _kArtworkPageTurnDuration = Duration(milliseconds: 450);
 /// Slower page-turn duration for auto-advance (natural track end).
 /// Keep in sync with post-index `Future.delayed` in `PlaybackManager` skip paths.
 const Duration _kArtworkAutoAdvanceDuration = Duration(milliseconds: 700);
+const double _kArtworkHorizontalEdgeGuard = 28.0;
+
+class _IntentionalPageScrollPhysics extends PageScrollPhysics {
+  const _IntentionalPageScrollPhysics({super.parent});
+
+  @override
+  double get dragStartDistanceMotionThreshold => 18.0;
+
+  @override
+  double get minFlingDistance => 28.0;
+
+  @override
+  double get minFlingVelocity => 1000.0;
+
+  @override
+  _IntentionalPageScrollPhysics applyTo(ScrollPhysics? ancestor) {
+    return _IntentionalPageScrollPhysics(parent: buildParent(ancestor));
+  }
+}
 
 class PlayerArtworkController {
   _PlayerArtworkState? _state;
@@ -62,6 +81,7 @@ class _PlayerArtworkState extends State<PlayerArtwork> {
   bool _showCastHint = false;
   bool _showVolumeHud = false;
   double _volumeHudValue = 0.0;
+  bool _allowHorizontalPaging = true;
 
   late int _visualIndex;
 
@@ -163,37 +183,68 @@ class _PlayerArtworkState extends State<PlayerArtwork> {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onVerticalDragStart:
-          _castService.isConnected ? _handleVolumeDragStart : null,
-      onVerticalDragUpdate:
-          _castService.isConnected ? _handleVolumeDragUpdate : null,
-      onVerticalDragEnd: _castService.isConnected ? _handleVolumeDragEnd : null,
-      child: NotificationListener<ScrollNotification>(
-        onNotification: (notification) {
-          if (notification is ScrollEndNotification) {
-            if (_visualIndex != widget.currentIndex) {
-              widget.onPageChanged(_visualIndex);
+    return Listener(
+      onPointerDown: _handleHorizontalSwipePointerDown,
+      onPointerUp: (_) => _resetHorizontalPagingGuard(),
+      onPointerCancel: (_) => _resetHorizontalPagingGuard(),
+      child: GestureDetector(
+        onVerticalDragStart:
+            _castService.isConnected ? _handleVolumeDragStart : null,
+        onVerticalDragUpdate:
+            _castService.isConnected ? _handleVolumeDragUpdate : null,
+        onVerticalDragEnd:
+            _castService.isConnected ? _handleVolumeDragEnd : null,
+        child: NotificationListener<ScrollNotification>(
+          onNotification: (notification) {
+            if (notification is ScrollEndNotification) {
+              if (_visualIndex != widget.currentIndex) {
+                widget.onPageChanged(_visualIndex);
+              }
             }
-          }
-          return false;
-        },
-        child: PageView.builder(
-          controller: _pageController,
-          onPageChanged: (index) {
-            _visualIndex = index;
+            return false;
           },
-          itemCount: widget.queue.length,
-          itemBuilder: (context, index) {
-            final song = widget.queue.songs[index];
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12.0),
-              child: _buildArtworkContainer(context, song, index),
-            );
-          },
+          child: PageView.builder(
+            controller: _pageController,
+            physics: _allowHorizontalPaging
+                ? const _IntentionalPageScrollPhysics()
+                : const NeverScrollableScrollPhysics(),
+            onPageChanged: (index) {
+              _visualIndex = index;
+            },
+            itemCount: widget.queue.length,
+            itemBuilder: (context, index) {
+              final song = widget.queue.songs[index];
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                child: _buildArtworkContainer(context, song, index),
+              );
+            },
+          ),
         ),
       ),
     );
+  }
+
+  void _handleHorizontalSwipePointerDown(PointerDownEvent event) {
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final isInsideSafeZone =
+        event.position.dx >= _kArtworkHorizontalEdgeGuard &&
+            event.position.dx <= screenWidth - _kArtworkHorizontalEdgeGuard;
+
+    if (_allowHorizontalPaging != isInsideSafeZone) {
+      setState(() {
+        _allowHorizontalPaging = isInsideSafeZone;
+      });
+    }
+  }
+
+  void _resetHorizontalPagingGuard() {
+    if (_allowHorizontalPaging) {
+      return;
+    }
+    setState(() {
+      _allowHorizontalPaging = true;
+    });
   }
 
   Widget _buildArtworkContainer(BuildContext context, Song song, int index) {
