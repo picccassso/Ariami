@@ -114,8 +114,10 @@ class _SearchScreenState extends State<SearchScreen> {
 
       final library =
           await _connectionService.libraryReadFacade.getLibraryBundle();
-      final albums = library.albums;
-      final allSongs = List<SongModel>.from(library.songs);
+      final rawSongs = List<SongModel>.from(library.songs);
+      final rawAlbums = List<AlbumModel>.from(library.albums);
+      final allSongs = _searchService.deduplicateSongs(rawSongs);
+      final albums = _searchService.deduplicateAlbums(rawAlbums);
 
       if (albums.isEmpty &&
           allSongs.isEmpty &&
@@ -132,7 +134,12 @@ class _SearchScreenState extends State<SearchScreen> {
         _allAlbums = albums;
         _isLoading = false;
       });
-      _logSongIdCollisions('online_bundle', allSongs);
+      _logSongIdCollisions('online_bundle', rawSongs);
+      _logSongDeduplication(
+        'online_bundle',
+        before: rawSongs.length,
+        after: allSongs.length,
+      );
     } catch (e) {
       setState(() {
         _isLoading = false;
@@ -185,12 +192,20 @@ class _SearchScreenState extends State<SearchScreen> {
       );
     }).toList();
 
+    final deduplicatedSongs = _searchService.deduplicateSongs(songs);
+    final deduplicatedAlbums = _searchService.deduplicateAlbums(albums);
+
     setState(() {
-      _allSongs = songs;
-      _allAlbums = albums;
+      _allSongs = deduplicatedSongs;
+      _allAlbums = deduplicatedAlbums;
       _isLoading = false;
     });
     _logSongIdCollisions('offline_downloads', songs);
+    _logSongDeduplication(
+      'offline_downloads',
+      before: songs.length,
+      after: deduplicatedSongs.length,
+    );
   }
 
   void _logSongIdCollisions(String source, List<SongModel> songs) {
@@ -209,6 +224,27 @@ class _SearchScreenState extends State<SearchScreen> {
         'source': source,
         'duplicateSummaries':
             dups.map((e) => {'id': e.key, 'count': e.value}).toList(),
+      },
+    );
+    // #endregion
+  }
+
+  void _logSongDeduplication(
+    String source, {
+    required int before,
+    required int after,
+  }) {
+    if (before <= after) return;
+    // #region agent log
+    agentDebugLog(
+      location: 'search_screen.dart:_logSongDeduplication',
+      message: 'search source deduplicated',
+      hypothesisId: 'H4',
+      data: {
+        'source': source,
+        'before': before,
+        'after': after,
+        'removed': before - after,
       },
     );
     // #endregion
