@@ -316,12 +316,17 @@ class SongListItem extends StatelessWidget {
                       },
                     ),
                     ListTile(
-                      leading: const Icon(Icons.download),
-                      title: const Text('Download'),
-                      onTap: () {
-                        Navigator.pop(context);
-                        _handleDownload(context);
-                      },
+                      leading: Icon(
+                        isDownloaded ? Icons.download_done : Icons.download,
+                        color: isDownloaded ? Colors.green : null,
+                      ),
+                      title: Text(isDownloaded ? 'Downloaded' : 'Download'),
+                      onTap: isDownloaded
+                          ? null
+                          : () {
+                              Navigator.pop(context);
+                              _handleDownload(context);
+                            },
                     ),
                   ],
                 ),
@@ -377,6 +382,13 @@ class SongListItem extends StatelessWidget {
 
   /// Handle download action
   void _handleDownload(BuildContext context) {
+    if (isDownloaded) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Song already downloaded')),
+      );
+      return;
+    }
+
     final connectionService = ConnectionService();
     final downloadManager = DownloadManager();
 
