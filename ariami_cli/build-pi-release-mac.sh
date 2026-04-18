@@ -66,7 +66,7 @@ docker run --rm \
   -w /workspace/ariami_cli \
   --platform linux/arm64 \
   ghcr.io/cirruslabs/flutter:stable \
-  sh -c "flutter pub get && dart compile exe bin/ariami_cli.dart -o ariami_cli"
+  sh -c "flutter pub get && dart build cli -o /tmp/ariami-pi-cli && cp /tmp/ariami-pi-cli/bundle/bin/ariami_cli ./ariami_cli && chmod +x ./ariami_cli"
 
 echo "✓ ARM64 binary compiled successfully"
 
