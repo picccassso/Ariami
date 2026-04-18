@@ -8,9 +8,12 @@ import '../../services/api/connection_service.dart';
 import '../../services/cast/chrome_cast_service.dart';
 import '../common/cached_artwork.dart';
 
-/// Page-turn duration for cover art (swipe, prev/next, auto-advance).
-/// Keep in sync with post-index `Future.delayed` in `PlaybackManager` skip paths.
+/// Page-turn duration for cover art (swipe, prev/next).
 const Duration _kArtworkPageTurnDuration = Duration(milliseconds: 450);
+
+/// Slower page-turn duration for auto-advance (natural track end).
+/// Keep in sync with post-index `Future.delayed` in `PlaybackManager` skip paths.
+const Duration _kArtworkAutoAdvanceDuration = Duration(milliseconds: 700);
 
 class PlayerArtworkController {
   _PlayerArtworkState? _state;
@@ -120,7 +123,7 @@ class _PlayerArtworkState extends State<PlayerArtwork> {
       }
       _pageController.animateToPage(
         target,
-        duration: _kArtworkPageTurnDuration,
+        duration: _kArtworkAutoAdvanceDuration,
         curve: Curves.easeInOut,
       );
     });
