@@ -5,6 +5,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import '../../services/api/connection_service.dart';
 import '../../services/offline/offline_manual_reconnect.dart';
 import '../../services/offline/offline_playback_service.dart';
+import '../../services/profile_image_service.dart';
 import '../../services/stats/streaming_stats_service.dart';
 import '../../widgets/settings/settings_section.dart';
 import '../../widgets/settings/settings_tile.dart';
@@ -20,6 +21,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _version = 'Loading...';
   final OfflinePlaybackService _offlineService = OfflinePlaybackService();
   final ConnectionService _connectionService = ConnectionService();
+  final ProfileImageService _profileImageService = ProfileImageService();
   final StreamingStatsService _statsService = StreamingStatsService();
   bool _isOfflineModeEnabled = false;
   bool _isReconnecting = false;
@@ -30,6 +32,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     super.initState();
     _loadVersion();
     _initOfflineService();
+    unawaited(_profileImageService.initialize());
   }
 
   @override
@@ -156,6 +159,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final colorScheme = Theme.of(context).colorScheme;
     final username = _connectionService.username ?? 'Guest';
     final initial = username.isNotEmpty ? username[0].toUpperCase() : '?';
+    final imageProvider = _profileImageService.imageProvider;
 
     return Material(
       color: Colors.transparent,
@@ -169,15 +173,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
             children: [
               CircleAvatar(
                 radius: 36,
+                backgroundImage: imageProvider,
                 backgroundColor: colorScheme.surfaceContainerHighest,
-                child: Text(
-                  initial,
-                  style: TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                    color: colorScheme.onSurface,
-                  ),
-                ),
+                child: imageProvider == null
+                    ? Text(
+                        initial,
+                        style: TextStyle(
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                          color: colorScheme.onSurface,
+                        ),
+                      )
+                    : null,
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -232,7 +239,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
-      body: ListView(
+      body: ListenableBuilder(
+        listenable: _profileImageService,
+        builder: (context, _) {
+          return ListView(
         padding: EdgeInsets.only(
           bottom: getMiniPlayerAwareBottomPadding(context),
         ),
@@ -353,6 +363,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           const SizedBox(height: 32),
         ],
+      );
+        },
       ),
     );
   }

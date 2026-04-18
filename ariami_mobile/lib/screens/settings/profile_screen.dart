@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../services/api/connection_service.dart';
 import '../../services/offline/offline_playback_service.dart';
+import '../../services/profile_image_service.dart';
 import '../../services/stats/streaming_stats_service.dart';
 import '../../services/theme_service.dart';
 import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
@@ -20,6 +21,7 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   final ConnectionService _connectionService = ConnectionService();
   final OfflinePlaybackService _offlineService = OfflinePlaybackService();
+  final ProfileImageService _profileImageService = ProfileImageService();
   final StreamingStatsService _statsService = StreamingStatsService();
 
   StreamSubscription<OfflineMode>? _offlineSubscription;
@@ -39,6 +41,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _username = _connectionService.username;
     _userId = _connectionService.userId;
 
+    unawaited(_profileImageService.initialize());
     unawaited(_initializeOfflineMode());
     unawaited(_loadProfileSnapshot());
 
@@ -201,6 +204,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     try {
       await _connectionService.logout();
+      await _profileImageService.clear();
       await ThemeService().setThemeSource(ThemeSource.systemNeutral);
       if (!mounted) return;
 
@@ -235,7 +239,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildHeader({required bool isDark, required String username}) {
+    final colorScheme = Theme.of(context).colorScheme;
     final initial = username.isNotEmpty ? username[0].toUpperCase() : '?';
+    final imageProvider = _profileImageService.imageProvider;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
@@ -243,15 +249,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
         children: [
           CircleAvatar(
             radius: 36,
-            backgroundColor: isDark ? Colors.grey[800] : Colors.grey[300],
-            child: Text(
-              initial,
-              style: TextStyle(
-                fontSize: 32,
-                fontWeight: FontWeight.bold,
-                color: isDark ? Colors.white : Colors.black,
-              ),
-            ),
+            backgroundImage: imageProvider,
+            backgroundColor: colorScheme.surfaceContainerHighest,
+            child: imageProvider == null
+                ? Text(
+                    initial,
+                    style: TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.onSurface,
+                    ),
+                  )
+                : null,
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -263,7 +272,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   style: TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
-                    color: isDark ? Colors.white : Colors.black,
+                    color: colorScheme.onSurface,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -274,7 +283,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
-                    color: isDark ? Colors.grey[400] : Colors.grey[600],
+                    color: colorScheme.onSurface.withValues(alpha: 0.7),
                   ),
                 ),
               ],
@@ -283,6 +292,154 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildProfileImageSection() {
+    final colorScheme = Theme.of(context).colorScheme;
+    final hasImage = _profileImageService.hasImage;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          children: [
+            // Icon
+            Container(
+              padding: const EdgeInsets.all(8),
+              child: Icon(
+                Icons.account_circle_rounded,
+                color: colorScheme.onSurface,
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 16),
+            // Text content
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Profile Photo',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: colorScheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    hasImage
+                        ? 'Tap to change or remove'
+                        : 'Add a custom profile photo',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w400,
+                      color: colorScheme.onSurface.withValues(alpha: 0.7),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Action buttons
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  onPressed: _handlePickImage,
+                  icon: Icon(
+                    hasImage ? Icons.edit_rounded : Icons.add_photo_alternate_rounded,
+                    color: colorScheme.primary,
+                  ),
+                  tooltip: hasImage ? 'Change photo' : 'Add photo',
+                ),
+                if (hasImage)
+                  IconButton(
+                    onPressed: _handleRemoveImage,
+                    icon: Icon(
+                      Icons.delete_outline_rounded,
+                      color: colorScheme.error,
+                    ),
+                    tooltip: 'Remove photo',
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handlePickImage() async {
+    final success = await _profileImageService.pickImage();
+    if (success && mounted) {
+      setState(() {});
+    }
+  }
+
+  Future<void> _handleRemoveImage() async {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    final shouldRemove = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(
+          'REMOVE PHOTO',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1.5,
+            color: colorScheme.onSurface,
+          ),
+        ),
+        content: Text(
+          'Are you sure you want to remove your profile photo?',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: colorScheme.onSurface.withValues(alpha: 0.75),
+          ),
+        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(
+              'CANCEL',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.0,
+                color: colorScheme.onSurface.withValues(alpha: 0.7),
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(
+              'REMOVE',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.0,
+                color: colorScheme.error,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldRemove == true) {
+      await _profileImageService.removeImage();
+      if (mounted) {
+        setState(() {});
+      }
+    }
   }
 
   Widget _buildProfileSnapshotSection() {
@@ -452,28 +609,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ],
       ),
-      body: ListView(
-        padding: EdgeInsets.only(
-          bottom: getMiniPlayerAwareBottomPadding(context),
-        ),
-        children: [
-          _buildHeader(isDark: isDark, username: username),
-          if (_profileError != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-              child: Text(
-                _profileError!,
-                style: TextStyle(
-                  fontSize: 13,
-                  color: isDark ? Colors.orange[300] : const Color(0xFFB26A00),
-                ),
-              ),
+      body: ListenableBuilder(
+        listenable: _profileImageService,
+        builder: (context, _) {
+          return ListView(
+            padding: EdgeInsets.only(
+              bottom: getMiniPlayerAwareBottomPadding(context),
             ),
-          _buildProfileSnapshotSection(),
-          _buildListeningSnapshotSection(),
-          _buildQuickActionsSection(),
-          const SizedBox(height: 24),
-        ],
+            children: [
+              _buildHeader(isDark: isDark, username: username),
+              if (_profileError != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                  child: Text(
+                    _profileError!,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: isDark ? Colors.orange[300] : const Color(0xFFB26A00),
+                    ),
+                  ),
+                ),
+              _buildProfileImageSection(),
+              _buildProfileSnapshotSection(),
+              _buildListeningSnapshotSection(),
+              _buildQuickActionsSection(),
+              const SizedBox(height: 24),
+            ],
+          );
+        },
       ),
     );
   }
