@@ -4,7 +4,6 @@ import '../../models/song.dart';
 import '../../screens/playlist/add_to_playlist_screen.dart';
 import '../../services/api/connection_service.dart';
 import '../../services/playback_manager.dart';
-import '../../services/download/download_manager.dart';
 import '../common/cached_artwork.dart';
 
 /// Search result item for songs
@@ -136,16 +135,6 @@ class SearchResultSongItem extends StatelessWidget {
             ],
           ),
         ),
-        const PopupMenuItem<String>(
-          value: 'download',
-          child: Row(
-            children: [
-              Icon(Icons.download, size: 20),
-              SizedBox(width: 12),
-              Text('Download'),
-            ],
-          ),
-        ),
       ],
     );
   }
@@ -185,39 +174,9 @@ class SearchResultSongItem extends StatelessWidget {
           duration: song.duration,
         );
         return;
-      case 'download':
-        _handleDownload(context);
-        return;
       default:
         return;
     }
-  }
-
-  /// Handle download action
-  void _handleDownload(BuildContext context) {
-    final connectionService = ConnectionService();
-    final downloadManager = DownloadManager();
-
-    // Check if connected to server
-    if (connectionService.apiClient == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Not connected to server')),
-      );
-      return;
-    }
-
-    downloadManager.downloadSong(
-      songId: song.id,
-      title: song.title,
-      artist: song.artist,
-      albumId: song.albumId,
-      albumName: albumName,
-      albumArtist: albumArtist,
-      albumArt: '',
-      duration: song.duration,
-      trackNumber: song.trackNumber,
-      totalBytes: 0,
-    );
   }
 
   /// Build leading widget with artwork and download/cache indicator
