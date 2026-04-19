@@ -11,6 +11,7 @@ import '../../services/playback_manager.dart';
 import '../../services/offline/offline_playback_service.dart';
 import '../../services/download/download_manager.dart';
 import 'add_to_playlist_screen.dart';
+import '../main/library/library_controller.dart';
 import 'utils/playlist_helpers.dart';
 import 'widgets/widgets.dart';
 
@@ -34,6 +35,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   final OfflinePlaybackService _offlineService = OfflinePlaybackService();
   final DownloadManager _downloadManager = DownloadManager();
   final LibraryRepository _libraryRepository = LibraryRepository();
+  final LibraryController _libraryController = LibraryController();
 
   PlaylistModel? _playlist;
   List<SongModel> _songs = [];
@@ -479,6 +481,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
 
     final songs =
         songsToPlay.map((s) => songModelToSong(s, _albumInfoMap)).toList();
+    unawaited(_libraryController.markPlaylistPlayed(widget.playlistId));
     await _playbackManager.playSongs(songs, startIndex: 0);
   }
 
@@ -505,6 +508,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
 
     final songs =
         songsToPlay.map((s) => songModelToSong(s, _albumInfoMap)).toList();
+    unawaited(_libraryController.markPlaylistPlayed(widget.playlistId));
     await _playbackManager.playShuffled(songs);
   }
 
@@ -525,6 +529,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
 
     final songs =
         songsToPlay.map((s) => songModelToSong(s, _albumInfoMap)).toList();
+    unawaited(_libraryController.markPlaylistPlayed(widget.playlistId));
     await _playbackManager.playSongs(songs, startIndex: startIndex);
   }
 

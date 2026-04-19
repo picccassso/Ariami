@@ -32,7 +32,6 @@ class _LibraryScreenState extends State<LibraryScreen> {
   @override
   void dispose() {
     _controller.removeListener(_onControllerChanged);
-    _controller.dispose();
     super.dispose();
   }
 
@@ -45,12 +44,10 @@ class _LibraryScreenState extends State<LibraryScreen> {
   // Action Handlers
 
   void _openPlaylist(PlaylistModel playlist) {
-    unawaited(_controller.markPlaylistAccessed(playlist.id));
     Navigator.of(context).pushNamed('/playlist', arguments: playlist.id);
   }
 
   void _openAlbum(AlbumModel album) {
-    unawaited(_controller.markAlbumAccessed(album.id));
     Navigator.of(context).pushNamed('/album', arguments: album);
   }
 

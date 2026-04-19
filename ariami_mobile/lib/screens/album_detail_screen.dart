@@ -11,6 +11,7 @@ import '../services/playback_manager.dart';
 import '../services/offline/offline_playback_service.dart';
 import '../services/download/download_manager.dart';
 import '../services/cache/cache_manager.dart';
+import '../screens/main/library/library_controller.dart';
 import '../widgets/album/album_action_buttons.dart';
 import '../widgets/album/album_header.dart';
 import '../widgets/album/album_info_section.dart';
@@ -36,6 +37,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
   final OfflinePlaybackService _offlineService = OfflinePlaybackService();
   final DownloadManager _downloadManager = DownloadManager();
   final CacheManager _cacheManager = CacheManager();
+  final LibraryController _libraryController = LibraryController();
 
   AlbumDetailResponse? _albumDetail;
   bool _isLoading = true;
@@ -468,6 +470,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
         .toList();
 
     try {
+      unawaited(_libraryController.markAlbumPlayed(widget.album.id));
       await _playbackManager.playSongs(allSongs);
     } catch (e) {
       print('[AlbumDetailScreen] Error playing all: $e');
@@ -526,6 +529,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
         .toList();
 
     try {
+      unawaited(_libraryController.markAlbumPlayed(widget.album.id));
       await _playbackManager.playShuffled(allSongs);
     } catch (e) {
       print('[AlbumDetailScreen] Error shuffling: $e');
@@ -642,6 +646,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
 
     try {
       // Play songs starting from clicked track
+      unawaited(_libraryController.markAlbumPlayed(widget.album.id));
       await _playbackManager.playSongs(allSongs, startIndex: startIndex);
       print('[AlbumDetailScreen] ✅ Playback started successfully!');
     } catch (e, stackTrace) {

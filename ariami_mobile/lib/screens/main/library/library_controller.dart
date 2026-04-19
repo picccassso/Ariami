@@ -22,20 +22,24 @@ import 'library_state.dart';
 /// Controller for the LibraryScreen.
 /// Manages all business logic and state for the library.
 class LibraryController extends ChangeNotifier {
+  // Singleton pattern
+  static final LibraryController _instance = LibraryController._internal();
+  factory LibraryController() => _instance;
+
   // Services
-  final ConnectionService _connectionService;
-  final PlaybackManager _playbackManager;
-  final PlaylistService _playlistService;
-  final OfflinePlaybackService _offlineService;
-  final DownloadManager _downloadManager;
-  final CacheManager _cacheManager;
+  late final ConnectionService _connectionService;
+  late final PlaybackManager _playbackManager;
+  late final PlaylistService _playlistService;
+  late final OfflinePlaybackService _offlineService;
+  late final DownloadManager _downloadManager;
+  late final CacheManager _cacheManager;
 
   // Preference keys
   static const String _viewPreferenceKey = 'library_view_grid';
   static const String _albumsSectionKey = 'library_section_albums';
   static const String _songsSectionKey = 'library_section_songs';
   static const String _mixedModeKey = 'library_mixed_mode';
-  static const String _lastAccessedKey = 'library_last_accessed';
+  static const String _lastPlayedKey = 'library_last_played';
 
   // Duration retry constants
   static const int _maxDurationRetries = 3;
@@ -65,24 +69,23 @@ class LibraryController extends ChangeNotifier {
   StreamSubscription<List<DownloadTask>>? _downloadSubscription;
   StreamSubscription<WsMessage>? _webSocketSubscription;
 
-  LibraryController({
-    ConnectionService? connectionService,
-    PlaybackManager? playbackManager,
-    PlaylistService? playlistService,
-    OfflinePlaybackService? offlineService,
-    DownloadManager? downloadManager,
-    CacheManager? cacheManager,
-  })  : _connectionService = connectionService ?? ConnectionService(),
-        _playbackManager = playbackManager ?? PlaybackManager(),
-        _playlistService = playlistService ?? PlaylistService(),
-        _offlineService = offlineService ?? OfflinePlaybackService(),
-        _downloadManager = downloadManager ?? DownloadManager(),
-        _cacheManager = cacheManager ?? CacheManager();
+  bool _isInitialized = false;
+
+  LibraryController._internal() {
+    _connectionService = ConnectionService();
+    _playbackManager = PlaybackManager();
+    _playlistService = PlaylistService();
+    _offlineService = OfflinePlaybackService();
+    _downloadManager = DownloadManager();
+    _cacheManager = CacheManager();
+  }
 
   /// Initialize the controller and load initial data
   Future<void> initialize() async {
+    if (_isInitialized) return;
+    _isInitialized = true;
     await _loadUiPreferences();
-    await _loadAccessHistory();
+    await _loadPlayedHistory();
     await _loadPinnedItems();
     await _loadLibrary();
     await _playlistService.loadPlaylists();
@@ -126,15 +129,8 @@ class LibraryController extends ChangeNotifier {
 
   @override
   void dispose() {
-    _playlistService.removeListener(_onPlaylistsChanged);
-    _offlineSubscription?.cancel();
-    _connectionSubscription?.cancel();
-    _cacheSubscription?.cancel();
-    _downloadSubscription?.cancel();
-    _webSocketSubscription?.cancel();
-    _durationRetryTimer?.cancel();
-    _downloadStateRefreshTimer?.cancel();
-    _cacheRefreshTimer?.cancel();
+    // Singleton - listeners and subscriptions live for app lifetime
+    // Still call super to satisfy @mustCallSuper
     super.dispose();
   }
 
@@ -191,53 +187,53 @@ class LibraryController extends ChangeNotifier {
     await prefs.setBool(_mixedModeKey, newValue);
   }
 
-  Future<void> markAlbumAccessed(String albumId) =>
-      _markItemAccessed('album:$albumId');
+  Future<void> markAlbumPlayed(String albumId) =>
+      _markItemPlayed('album:$albumId');
 
-  Future<void> markPlaylistAccessed(String playlistId) =>
-      _markItemAccessed('playlist:$playlistId');
+  Future<void> markPlaylistPlayed(String playlistId) =>
+      _markItemPlayed('playlist:$playlistId');
 
   void toggleShowDownloadedOnly() {
     _updateState(
         _state.copyWith(showDownloadedOnly: !_state.showDownloadedOnly));
   }
 
-  Future<void> _loadAccessHistory() async {
+  Future<void> _loadPlayedHistory() async {
     final prefs = await SharedPreferences.getInstance();
-    final jsonString = prefs.getString(_lastAccessedKey);
+    final jsonString = prefs.getString(_lastPlayedKey);
     if (jsonString == null || jsonString.isEmpty) {
       return;
     }
 
     try {
       final decoded = jsonDecode(jsonString) as Map<String, dynamic>;
-      final accessHistory = <String, DateTime>{};
+      final playedHistory = <String, DateTime>{};
 
       decoded.forEach((key, value) {
         final epochMs = value is int ? value : int.tryParse(value.toString());
         if (epochMs != null) {
-          accessHistory[key] = DateTime.fromMillisecondsSinceEpoch(epochMs);
+          playedHistory[key] = DateTime.fromMillisecondsSinceEpoch(epochMs);
         }
       });
 
-      _updateState(_state.copyWith(itemLastAccessedAt: accessHistory));
+      _updateState(_state.copyWith(itemLastPlayedAt: playedHistory));
     } catch (_) {
-      // Ignore corrupt local access history and keep running.
+      // Ignore corrupt local played history and keep running.
     }
   }
 
-  Future<void> _markItemAccessed(String key) async {
+  Future<void> _markItemPlayed(String key) async {
     final now = DateTime.now();
-    final updatedAccessHistory =
-        Map<String, DateTime>.from(_state.itemLastAccessedAt)..[key] = now;
+    final updatedPlayedHistory =
+        Map<String, DateTime>.from(_state.itemLastPlayedAt)..[key] = now;
 
-    _updateState(_state.copyWith(itemLastAccessedAt: updatedAccessHistory));
+    _updateState(_state.copyWith(itemLastPlayedAt: updatedPlayedHistory));
 
     final prefs = await SharedPreferences.getInstance();
-    final encoded = updatedAccessHistory.map(
+    final encoded = updatedPlayedHistory.map(
       (entryKey, value) => MapEntry(entryKey, value.millisecondsSinceEpoch),
     );
-    await prefs.setString(_lastAccessedKey, jsonEncode(encoded));
+    await prefs.setString(_lastPlayedKey, jsonEncode(encoded));
   }
 
   // ============================================================================

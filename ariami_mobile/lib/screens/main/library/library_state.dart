@@ -31,7 +31,7 @@ class LibraryState {
   final Set<String> albumsWithDownloads;
   final Set<String> fullyDownloadedAlbumIds;
   final Set<String> playlistsWithDownloads;
-  final Map<String, DateTime> itemLastAccessedAt;
+  final Map<String, DateTime> itemLastPlayedAt;
 
   /// Pinned library items (keys like "album:$id" or "playlist:$id")
   final Set<String> pinnedItemIds;
@@ -53,7 +53,7 @@ class LibraryState {
     this.albumsWithDownloads = const {},
     this.fullyDownloadedAlbumIds = const {},
     this.playlistsWithDownloads = const {},
-    this.itemLastAccessedAt = const {},
+    this.itemLastPlayedAt = const {},
     this.pinnedItemIds = const {},
   });
 
@@ -75,7 +75,7 @@ class LibraryState {
     Set<String>? albumsWithDownloads,
     Set<String>? fullyDownloadedAlbumIds,
     Set<String>? playlistsWithDownloads,
-    Map<String, DateTime>? itemLastAccessedAt,
+    Map<String, DateTime>? itemLastPlayedAt,
     Set<String>? pinnedItemIds,
     bool clearError = false,
   }) {
@@ -98,7 +98,7 @@ class LibraryState {
           fullyDownloadedAlbumIds ?? this.fullyDownloadedAlbumIds,
       playlistsWithDownloads:
           playlistsWithDownloads ?? this.playlistsWithDownloads,
-      itemLastAccessedAt: itemLastAccessedAt ?? this.itemLastAccessedAt,
+      itemLastPlayedAt: itemLastPlayedAt ?? this.itemLastPlayedAt,
       pinnedItemIds: pinnedItemIds ?? this.pinnedItemIds,
     );
   }
@@ -141,11 +141,11 @@ class LibraryState {
   bool hasPlaylistDownloads(String playlistId) =>
       playlistsWithDownloads.contains(playlistId);
 
-  DateTime? lastAccessedForAlbum(String albumId) =>
-      itemLastAccessedAt['album:$albumId'];
+  DateTime? lastPlayedForAlbum(String albumId) =>
+      itemLastPlayedAt['album:$albumId'];
 
-  DateTime? lastAccessedForPlaylist(String playlistId) =>
-      itemLastAccessedAt['playlist:$playlistId'];
+  DateTime? lastPlayedForPlaylist(String playlistId) =>
+      itemLastPlayedAt['playlist:$playlistId'];
 
   bool isAlbumPinned(String albumId) =>
       pinnedItemIds.contains('album:$albumId');
@@ -173,7 +173,7 @@ class LibraryState {
         setEquals(other.albumsWithDownloads, albumsWithDownloads) &&
         setEquals(other.fullyDownloadedAlbumIds, fullyDownloadedAlbumIds) &&
         setEquals(other.playlistsWithDownloads, playlistsWithDownloads) &&
-        mapEquals(other.itemLastAccessedAt, itemLastAccessedAt) &&
+        mapEquals(other.itemLastPlayedAt, itemLastPlayedAt) &&
         setEquals(other.pinnedItemIds, pinnedItemIds);
   }
 
@@ -195,7 +195,7 @@ class LibraryState {
         Object.hashAll(albumsWithDownloads),
         Object.hashAll(fullyDownloadedAlbumIds),
         Object.hashAll(playlistsWithDownloads),
-        Object.hashAllUnordered(itemLastAccessedAt.entries),
+        Object.hashAllUnordered(itemLastPlayedAt.entries),
         Object.hashAll(pinnedItemIds),
       );
 
@@ -210,7 +210,7 @@ class LibraryState {
         'downloadedSongIds: ${downloadedSongIds.length}, '
         'cachedSongIds: ${cachedSongIds.length}, '
         'pinnedItemIds: ${pinnedItemIds.length}, '
-        'itemLastAccessedAt: ${itemLastAccessedAt.length})';
+        'itemLastPlayedAt: ${itemLastPlayedAt.length})';
   }
 }
 

@@ -73,7 +73,7 @@ class _MixedSectionState extends State<MixedSection> {
     for (final playlist in widget.playlistService.playlists) {
       items.add(_MixedItem.playlist(
         playlist: playlist,
-        sortAt: widget.state.lastAccessedForPlaylist(playlist.id) ??
+        sortAt: widget.state.lastPlayedForPlaylist(playlist.id) ??
             playlist.modifiedAt,
         isPinned: widget.state.isPlaylistPinned(playlist.id),
       ));
@@ -82,7 +82,7 @@ class _MixedSectionState extends State<MixedSection> {
     for (final album in widget.state.albumsToShow) {
       items.add(_MixedItem.album(
         album: album,
-        sortAt: widget.state.lastAccessedForAlbum(album.id) ??
+        sortAt: widget.state.lastPlayedForAlbum(album.id) ??
             album.modifiedAt ??
             album.createdAt ??
             DateTime(1970),
