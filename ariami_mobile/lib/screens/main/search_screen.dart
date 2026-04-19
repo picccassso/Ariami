@@ -331,6 +331,12 @@ class _SearchScreenState extends State<SearchScreen> {
     await _loadRecentSongs();
   }
 
+  /// Remove a specific song from recent songs
+  Future<void> _removeRecentSong(String songId) async {
+    await _searchService.removeRecentSong(songId);
+    await _loadRecentSongs();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -616,6 +622,8 @@ class _SearchScreenState extends State<SearchScreen> {
                 isCached: false,
                 isAvailable:
                     !_isOffline || _downloadedSongIds.contains(song.id),
+                onRemove: () => _removeRecentSong(song.id),
+                showRemoveFromRecent: true,
               );
             },
           ),

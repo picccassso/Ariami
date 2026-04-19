@@ -7,8 +7,8 @@ import '../../services/playback_manager.dart';
 import '../common/cached_artwork.dart';
 import '../common/mini_player_aware_bottom_sheet.dart';
 
-/// Search result item for songs
-class SearchResultSongItem extends StatelessWidget {
+/// Search result item for songs with optional swipe-to-delete and remove from recent
+class SearchResultSongItem extends StatefulWidget {
   final SongModel song;
   final VoidCallback onTap;
   final String? searchQuery;
@@ -17,6 +17,8 @@ class SearchResultSongItem extends StatelessWidget {
   final bool isDownloaded;
   final bool isCached;
   final bool isAvailable;
+  final VoidCallback? onRemove;
+  final bool showRemoveFromRecent;
 
   const SearchResultSongItem({
     super.key,
@@ -28,19 +30,51 @@ class SearchResultSongItem extends StatelessWidget {
     this.isDownloaded = false,
     this.isCached = false,
     this.isAvailable = true,
+    this.onRemove,
+    this.showRemoveFromRecent = false,
   });
+
+  @override
+  State<SearchResultSongItem> createState() => _SearchResultSongItemState();
+}
+
+class _SearchResultSongItemState extends State<SearchResultSongItem> {
+  static const double _kSwipeEdgeGuard = 24.0;
+  static const double _kRemoveDismissThreshold = 0.6;
+  bool _dismissSwipeArmed = true;
+
+  void _armDismissSwipe(PointerDownEvent event, double itemWidth) {
+    final startX = event.localPosition.dx;
+    final isInsideSafeZone =
+        startX >= _kSwipeEdgeGuard && startX <= itemWidth - _kSwipeEdgeGuard;
+
+    if (_dismissSwipeArmed != isInsideSafeZone) {
+      setState(() {
+        _dismissSwipeArmed = isInsideSafeZone;
+      });
+    }
+  }
+
+  void _resetDismissSwipe() {
+    if (_dismissSwipeArmed) {
+      return;
+    }
+    setState(() {
+      _dismissSwipeArmed = true;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     // Apply opacity when song is not available (offline and not downloaded)
-    final opacity = isAvailable ? 1.0 : 0.5;
+    final opacity = widget.isAvailable ? 1.0 : 0.5;
 
-    return Opacity(
+    final content = Opacity(
       opacity: opacity,
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: isAvailable ? onTap : null,
+          onTap: widget.isAvailable ? widget.onTap : null,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
             child: Row(
@@ -53,18 +87,18 @@ class SearchResultSongItem extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        song.title,
+                        widget.song.title,
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w500,
-                          color: isAvailable ? Theme.of(context).textTheme.bodyLarge?.color : Colors.grey,
+                          color: widget.isAvailable ? Theme.of(context).textTheme.bodyLarge?.color : Colors.grey,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        song.artist,
+                        widget.song.artist,
                         style: TextStyle(
                           fontSize: 14,
                           color: Theme.of(context)
@@ -82,7 +116,7 @@ class SearchResultSongItem extends StatelessWidget {
                 ),
                 const SizedBox(width: 16),
                 Text(
-                  _formatDuration(song.duration),
+                  _formatDuration(widget.song.duration),
                   style: TextStyle(
                     fontSize: 13,
                     color: Theme.of(context)
@@ -92,7 +126,7 @@ class SearchResultSongItem extends StatelessWidget {
                         ?.withValues(alpha: 0.5),
                   ),
                 ),
-                if (isAvailable) ...[
+                if (widget.isAvailable) ...[
                   const SizedBox(width: 8),
                   IconButton(
                     icon: Icon(
@@ -116,6 +150,44 @@ class SearchResultSongItem extends StatelessWidget {
         ),
       ),
     );
+
+    // Wrap with Dismissible if onRemove callback is provided
+    if (widget.onRemove != null) {
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final itemWidth = constraints.maxWidth;
+
+          return Listener(
+            onPointerDown: (event) => _armDismissSwipe(event, itemWidth),
+            onPointerUp: (_) => _resetDismissSwipe(),
+            onPointerCancel: (_) => _resetDismissSwipe(),
+            child: Dismissible(
+              key: ValueKey('dismiss_${widget.song.id}'),
+              direction: _dismissSwipeArmed
+                  ? DismissDirection.endToStart
+                  : DismissDirection.none,
+              dismissThresholds: const <DismissDirection, double>{
+                DismissDirection.endToStart: _kRemoveDismissThreshold,
+              },
+              background: Container(
+                color: Colors.red,
+                alignment: Alignment.centerRight,
+                padding: const EdgeInsets.only(right: 16),
+                child: const Icon(Icons.delete, color: Colors.white),
+              ),
+              confirmDismiss: (direction) async {
+                return _dismissSwipeArmed &&
+                    direction == DismissDirection.endToStart;
+              },
+              onDismissed: (_) => widget.onRemove?.call(),
+              child: content,
+            ),
+          );
+        },
+      );
+    }
+
+    return content;
   }
 
   /// Show song overflow menu
@@ -143,7 +215,7 @@ class SearchResultSongItem extends StatelessWidget {
                       title: const Text('Play'),
                       onTap: () {
                         Navigator.pop(context);
-                        onTap();
+                        widget.onTap();
                       },
                     ),
                     ListTile(
@@ -169,14 +241,23 @@ class SearchResultSongItem extends StatelessWidget {
                         Navigator.pop(context);
                         AddToPlaylistScreen.showForSong(
                           context,
-                          song.id,
-                          albumId: song.albumId,
-                          title: song.title,
-                          artist: song.artist,
-                          duration: song.duration,
+                          widget.song.id,
+                          albumId: widget.song.albumId,
+                          title: widget.song.title,
+                          artist: widget.song.artist,
+                          duration: widget.song.duration,
                         );
                       },
                     ),
+                    if (widget.showRemoveFromRecent && widget.onRemove != null)
+                      ListTile(
+                        leading: const Icon(Icons.delete_outline, color: Colors.red),
+                        title: const Text('Remove from Recent', style: TextStyle(color: Colors.red)),
+                        onTap: () {
+                          Navigator.pop(context);
+                          widget.onRemove!();
+                        },
+                      ),
                   ],
                 ),
               ),
@@ -189,16 +270,16 @@ class SearchResultSongItem extends StatelessWidget {
 
   Song _toSong() {
     return Song(
-      id: song.id,
-      title: song.title,
-      artist: song.artist,
+      id: widget.song.id,
+      title: widget.song.title,
+      artist: widget.song.artist,
       album: null,
-      albumId: song.albumId,
-      duration: Duration(seconds: song.duration),
-      filePath: song.id,
+      albumId: widget.song.albumId,
+      duration: Duration(seconds: widget.song.duration),
+      filePath: widget.song.id,
       fileSize: 0,
       modifiedTime: DateTime.now(),
-      trackNumber: song.trackNumber,
+      trackNumber: widget.song.trackNumber,
     );
   }
 
@@ -220,7 +301,7 @@ class SearchResultSongItem extends StatelessWidget {
       child: Stack(
         children: [
           _buildAlbumArt(context),
-          if (isDownloaded)
+          if (widget.isDownloaded)
             Positioned(
               bottom: 0,
               right: 0,
@@ -237,7 +318,7 @@ class SearchResultSongItem extends StatelessWidget {
                 ),
               ),
             )
-          else if (isCached)
+          else if (widget.isCached)
             Positioned(
               bottom: 0,
               right: 0,
@@ -267,18 +348,18 @@ class SearchResultSongItem extends StatelessWidget {
     String? artworkUrl;
     String cacheId;
 
-    if (song.albumId != null) {
+    if (widget.song.albumId != null) {
       // Song belongs to an album - use album artwork endpoint
       artworkUrl = connectionService.apiClient != null
-          ? '${connectionService.apiClient!.baseUrl}/artwork/${song.albumId}'
+          ? '${connectionService.apiClient!.baseUrl}/artwork/${widget.song.albumId}'
           : null;
-      cacheId = song.albumId!;
+      cacheId = widget.song.albumId!;
     } else {
       // Standalone song - use song artwork endpoint
       artworkUrl = connectionService.apiClient != null
-          ? '${connectionService.apiClient!.baseUrl}/song-artwork/${song.id}'
+          ? '${connectionService.apiClient!.baseUrl}/song-artwork/${widget.song.id}'
           : null;
-      cacheId = 'song_${song.id}';
+      cacheId = 'song_${widget.song.id}';
     }
 
     return CachedArtwork(
