@@ -76,22 +76,68 @@ class _AddToPlaylistScreenState extends State<AddToPlaylistScreen> {
   final Map<String, String> _songStates = {};
   final Map<String, Timer> _transitionTimers = {};
 
+  // Search state
+  final TextEditingController _searchController = TextEditingController();
+  List<SongModel> _filteredSongs = [];
+  String _searchQuery = '';
+
   @override
   void initState() {
     super.initState();
     _playlistService.loadPlaylists();
     _playlistService.addListener(_onPlaylistsChanged);
+    _filteredSongs = widget.availableSongs ?? [];
+    _searchController.addListener(_onSearchChanged);
   }
 
   @override
   void dispose() {
+    _searchController.removeListener(_onSearchChanged);
+    _searchController.dispose();
     _playlistService.removeListener(_onPlaylistsChanged);
-    // Cancel all active timers
     for (var timer in _transitionTimers.values) {
       timer.cancel();
     }
     _transitionTimers.clear();
     super.dispose();
+  }
+
+  void _onSearchChanged() {
+    final query = _searchController.text.trim().toLowerCase();
+    if (query.isEmpty) {
+      setState(() {
+        _filteredSongs = widget.availableSongs ?? [];
+        _searchQuery = '';
+      });
+      return;
+    }
+
+    final songs = widget.availableSongs ?? [];
+    final exactMatches = <SongModel>[];
+    final prefixMatches = <SongModel>[];
+    final substringMatches = <SongModel>[];
+
+    for (final song in songs) {
+      final titleLower = song.title.toLowerCase();
+      final artistLower = song.artist.toLowerCase();
+
+      if (titleLower == query || artistLower == query) {
+        exactMatches.add(song);
+      } else if (titleLower.startsWith(query) || artistLower.startsWith(query)) {
+        prefixMatches.add(song);
+      } else if (titleLower.contains(query) || artistLower.contains(query)) {
+        substringMatches.add(song);
+      }
+    }
+
+    setState(() {
+      _filteredSongs = [...exactMatches, ...prefixMatches, ...substringMatches];
+      _searchQuery = query;
+    });
+  }
+
+  void _clearSearch() {
+    _searchController.clear();
   }
 
   void _onPlaylistsChanged() {
@@ -100,14 +146,61 @@ class _AddToPlaylistScreenState extends State<AddToPlaylistScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Mode 2: Adding songs to a specific playlist
+    final theme = Theme.of(context);
+    final hasNoSongs = widget.availableSongs == null || widget.availableSongs!.isEmpty;
+
     return Scaffold(
       appBar: AppBar(
         title: Text('Add to ${widget.playlistName ?? 'Playlist'}'),
       ),
-      body: widget.availableSongs == null || widget.availableSongs!.isEmpty
+      body: hasNoSongs
           ? _buildNoSongsAvailable()
-          : _buildSongsList(),
+          : Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                  child: Container(
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                      borderRadius: BorderRadius.circular(22),
+                      border: Border.all(
+                        color: theme.colorScheme.outline.withValues(alpha: 0.1),
+                      ),
+                    ),
+                    child: Center(
+                      child: TextField(
+                        controller: _searchController,
+                        autofocus: false,
+                        textAlignVertical: TextAlignVertical.center,
+                        style: TextStyle(color: theme.colorScheme.onSurface),
+                        decoration: InputDecoration(
+                          hintText: 'Search songs...',
+                          hintStyle: TextStyle(
+                            color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+                          ),
+                          prefixIcon: Icon(
+                            Icons.search_rounded,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                          suffixIcon: _searchController.text.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.clear_rounded),
+                                  onPressed: _clearSearch,
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                )
+                              : null,
+                          border: InputBorder.none,
+                          isCollapsed: true,
+                          contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Expanded(child: _buildSongsList()),
+              ],
+            ),
     );
   }
 
@@ -133,13 +226,29 @@ class _AddToPlaylistScreenState extends State<AddToPlaylistScreen> {
   }
 
   Widget _buildSongsList() {
+    if (_filteredSongs.isEmpty && _searchQuery.isNotEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.search_off, size: 48, color: Colors.grey[400]),
+            const SizedBox(height: 16),
+            Text(
+              'No songs match "$_searchQuery"',
+              style: TextStyle(color: Colors.grey[600]),
+            ),
+          ],
+        ),
+      );
+    }
+
     return ListView.builder(
       padding: EdgeInsets.only(
-                    bottom: getMiniPlayerAwareBottomPadding(context),
+        bottom: getMiniPlayerAwareBottomPadding(context),
       ),
-      itemCount: widget.availableSongs!.length,
+      itemCount: _filteredSongs.length,
       itemBuilder: (context, index) {
-        final song = widget.availableSongs![index];
+        final song = _filteredSongs[index];
         final songState = _songStates[song.id];
         final isAdded = _addedSongIds.contains(song.id);
 
