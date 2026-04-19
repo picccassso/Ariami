@@ -331,9 +331,62 @@ class _SearchScreenState extends State<SearchScreen> {
     await _loadRecentSongs();
   }
 
-  /// Remove a specific song from recent songs
-  Future<void> _removeRecentSong(String songId) async {
-    await _searchService.removeRecentSong(songId);
+  /// Remove a specific song from recent songs with undo support
+  Future<void> _removeRecentSong(SongModel song, int originalIndex) async {
+    await _searchService.removeRecentSong(song.id);
+    await _loadRecentSongs();
+
+    // Show confirmation with undo option above bottom chrome (mini player + nav)
+    if (mounted) {
+      final theme = Theme.of(context);
+      final colorScheme = theme.colorScheme;
+      final isMiniPlayerVisible = _playbackManager.currentSong != null;
+      final bottomOffset = getMiniPlayerAwareSnackBarBottomMargin(
+        context,
+        isMiniPlayerVisible: isMiniPlayerVisible,
+        spacing: 0,
+      );
+      final messenger = ScaffoldMessenger.of(context);
+
+      messenger.hideCurrentSnackBar();
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            '"${song.title}" removed',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: colorScheme.onSurface,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          action: SnackBarAction(
+            label: 'Undo',
+            onPressed: () => _undoRemoveRecentSong(song, originalIndex),
+            textColor: colorScheme.primary,
+          ),
+          backgroundColor:
+              colorScheme.surfaceContainerHigh.withValues(alpha: 0.97),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(
+              color: colorScheme.outlineVariant.withValues(alpha: 0.45),
+            ),
+          ),
+          margin: EdgeInsets.only(
+            bottom: bottomOffset,
+            left: 16,
+            right: 16,
+          ),
+          elevation: 0,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    }
+  }
+
+  /// Undo the removal of a recent song - restores to original position
+  Future<void> _undoRemoveRecentSong(SongModel song, int originalIndex) async {
+    await _searchService.insertRecentSongAt(song, originalIndex);
     await _loadRecentSongs();
   }
 
@@ -622,7 +675,7 @@ class _SearchScreenState extends State<SearchScreen> {
                 isCached: false,
                 isAvailable:
                     !_isOffline || _downloadedSongIds.contains(song.id),
-                onRemove: () => _removeRecentSong(song.id),
+                onRemove: () => _removeRecentSong(song, index),
                 showRemoveFromRecent: true,
               );
             },

@@ -315,6 +315,34 @@ class SearchService {
         recentSongs.map((s) => jsonEncode(s.toJson())).toList();
     await prefs.setStringList(_recentSongsKey, updatedJsonList);
   }
+
+  /// Insert a song at a specific index in recent songs
+  Future<void> insertRecentSongAt(SongModel song, int index) async {
+    final prefs = await SharedPreferences.getInstance();
+    final jsonList = prefs.getStringList(_recentSongsKey) ?? [];
+
+    final recentSongs = jsonList.map((jsonStr) {
+      final json = jsonDecode(jsonStr) as Map<String, dynamic>;
+      return SongModel.fromJson(json);
+    }).toList();
+
+    // Remove if already exists
+    recentSongs.removeWhere((s) => s.id == song.id);
+
+    // Insert at the specified index (clamped to valid range)
+    final insertIndex = index.clamp(0, recentSongs.length).toInt();
+    recentSongs.insert(insertIndex, song);
+
+    // Keep only last 30
+    if (recentSongs.length > _maxRecentSongs) {
+      recentSongs.removeRange(_maxRecentSongs, recentSongs.length);
+    }
+
+    // Convert back to JSON strings
+    final updatedJsonList =
+        recentSongs.map((s) => jsonEncode(s.toJson())).toList();
+    await prefs.setStringList(_recentSongsKey, updatedJsonList);
+  }
 }
 
 /// Search results container

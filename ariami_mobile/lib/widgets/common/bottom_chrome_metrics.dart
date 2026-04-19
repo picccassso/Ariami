@@ -3,8 +3,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 
-/// Height of the mini player including its internal vertical margins.
-const double kMiniPlayerHeight = 88.0;
+/// Render height of the mini player widget.
+const double kMiniPlayerHeight = 64.0;
 
 /// Maximum visible height of the global download progress bar.
 const double kDownloadBarHeight = 4.0;
@@ -94,4 +94,37 @@ double getBottomChromeHeight(
   );
   // #endregion
   return total;
+}
+
+/// Bottom margin for floating SnackBars in shells that already account for
+/// bottom navigation (e.g., the app's main scaffold messenger host).
+///
+/// This reserves only the mini-player overlay height plus a small visual gap,
+/// preventing double-counting of bottom navigation height.
+double getMiniPlayerAwareSnackBarBottomMargin(
+  BuildContext context, {
+  required bool isMiniPlayerVisible,
+  double spacing = 12.0,
+}) {
+  final keyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
+  final miniPlayerHeight = isMiniPlayerVisible ? kMiniPlayerHeight : 0.0;
+  final margin = keyboardVisible ? spacing : miniPlayerHeight + spacing;
+
+  // #region agent log
+  debugLogBottomLayout(
+    hypothesisId: 'H6',
+    location:
+        'bottom_chrome_metrics.dart:getMiniPlayerAwareSnackBarBottomMargin',
+    message: 'SnackBar bottom margin computed',
+    data: {
+      'keyboardVisible': keyboardVisible,
+      'isMiniPlayerVisible': isMiniPlayerVisible,
+      'miniPlayerHeight': miniPlayerHeight,
+      'spacing': spacing,
+      'margin': margin,
+    },
+  );
+  // #endregion
+
+  return margin;
 }
