@@ -126,7 +126,7 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
           await _castService.pause();
         } else {
           if (currentSong == null) return;
-          _statsService.onSongStarted(currentSong!);
+          _statsService.onSongStarted(currentSong!, isResume: true);
           await _castService.play();
         }
         _notifyStateChanged();
@@ -143,10 +143,10 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
 
         // If no song is loaded yet OR we have a restored position to seek to, load/reload the song
         if (duration == null || _restoredPosition != null) {
-          await _playCurrentSong();
+          await _playCurrentSong(isResume: true);
         } else {
           // Resuming - restart stats tracking
-          _statsService.onSongStarted(currentSong!);
+          _statsService.onSongStarted(currentSong!, isResume: true);
           await _audioPlayer.resume();
         }
       }
@@ -156,7 +156,7 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
     }
   }
 
-  Future<void> _skipNextImpl() async {
+  Future<void> _skipNextImpl({bool completedNaturally = false}) async {
     try {
       if (!_queue.hasNext) {
         // Check repeat mode
@@ -164,7 +164,7 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
           // Find first available song from beginning when wrapping
           final nextIndex = await _findNextAvailableSongIndexFrom(0);
           if (nextIndex != null) {
-            await _statsService.onSongStopped();
+            await _statsService.onSongStopped(completedNaturally: completedNaturally);
             _queue.jumpToIndex(nextIndex);
             _restoredPosition = null;
             _pendingUiPosition = null;
@@ -178,7 +178,8 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
             await _saveState();
           }
         } else if (_repeatMode == RepeatMode.one) {
-          // Replay current song
+          // Replay current song - finalize current session first
+          await _statsService.onSongStopped(completedNaturally: completedNaturally);
           await seek(Duration.zero);
           _statsService.onSongStarted(currentSong!);
           if (_castService.isConnected) {
@@ -198,7 +199,7 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
       }
 
       // Stop tracking current song
-      await _statsService.onSongStopped();
+      await _statsService.onSongStopped(completedNaturally: completedNaturally);
 
       _queue.jumpToIndex(nextIndex);
       // Clear restored position so new song starts from beginning
@@ -479,20 +480,19 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
 
     if (_repeatMode == RepeatMode.one) {
       // Replay the same song - finalize current first
-      await _statsService.onSongStopped();
+      await _statsService.onSongStopped(completedNaturally: true);
       await _playCurrentSong();
     } else if (_queue.hasNext) {
-      // Move to next song - skipNext() will handle finalization
-      // Don't call onSongStopped() here to avoid double-call
-      await skipNext();
+      // Move to next song - let skipNext handle finalization with completedNaturally
+      await _skipNextImpl(completedNaturally: true);
     } else if (_repeatMode == RepeatMode.all && _queue.songs.isNotEmpty) {
       // Restart from beginning - finalize current first
-      await _statsService.onSongStopped();
+      await _statsService.onSongStopped(completedNaturally: true);
       _queue.jumpToIndex(0);
       await _playCurrentSong();
     } else {
       // Queue finished, stop - finalize current first
-      await _statsService.onSongStopped();
+      await _statsService.onSongStopped(completedNaturally: true);
       _audioPlayer.stop();
       _notifyStateChanged();
     }

@@ -4,6 +4,7 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
   Future<void> _playCurrentSongImpl({
     bool autoPlay = true,
     bool restartStatsTracking = true,
+    bool isResume = false,
   }) async {
     print('[PlaybackManager] _playCurrentSong() called');
 
@@ -28,7 +29,7 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
           _restoredPosition = null;
           _pendingUiPosition = null;
           if (restartStatsTracking) {
-            _statsService.onSongStarted(song);
+            _statsService.onSongStarted(song, isResume: isResume);
           }
           ColorExtractionService().extractColorsForSong(song);
           _notifyStateChanged();
@@ -200,7 +201,7 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
       if (restartStatsTracking) {
         print(
             '[PlaybackManager] About to call onSongStarted for: ${song.title}');
-        _statsService.onSongStarted(song);
+        _statsService.onSongStarted(song, isResume: isResume);
         print('[PlaybackManager] onSongStarted called successfully');
       }
 

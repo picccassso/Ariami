@@ -74,6 +74,7 @@ class PlaybackManager extends ChangeNotifier {
   bool _isCastTransitionInProgress = false;
   CastMediaPlayerState? _lastObservedCastPlayerState;
   bool _isHandlingCastCompletion = false;
+  Timer? _castStatsForwardTimer;
 
   // Getters
   Song? get currentSong => _queue.currentSong;
@@ -117,6 +118,7 @@ class PlaybackManager extends ChangeNotifier {
       if (_pendingUiPosition != null && pos >= _pendingUiPosition!) {
         _pendingUiPosition = null;
       }
+      _statsService.updatePosition(pos);
       notifyListeners();
     });
 
@@ -184,9 +186,21 @@ class PlaybackManager extends ChangeNotifier {
 
     if (!_castService.isConnected) {
       _lastObservedCastPlayerState = null;
+      _castStatsForwardTimer?.cancel();
+      _castStatsForwardTimer = null;
       notifyListeners();
       return;
     }
+
+    // Forward cast position updates to stats service
+    _castStatsForwardTimer ??= Timer.periodic(
+      const Duration(seconds: 1),
+      (_) {
+        if (_castService.isConnected) {
+          _statsService.updatePosition(_castService.remotePosition);
+        }
+      },
+    );
 
     if (completedRemotely && !_isHandlingCastCompletion) {
       _isHandlingCastCompletion = true;
@@ -227,7 +241,7 @@ class PlaybackManager extends ChangeNotifier {
   Future<void> togglePlayPause() => _togglePlayPauseImpl();
 
   /// Skip to next song
-  Future<void> skipNext() => _skipNextImpl();
+  Future<void> skipNext() => _skipNextImpl(completedNaturally: false);
 
   /// Skip to previous song
   Future<void> skipPrevious() => _skipPreviousImpl();
@@ -262,10 +276,12 @@ class PlaybackManager extends ChangeNotifier {
   Future<void> _playCurrentSong({
     bool autoPlay = true,
     bool restartStatsTracking = true,
+    bool isResume = false,
   }) =>
       _playCurrentSongImpl(
         autoPlay: autoPlay,
         restartStatsTracking: restartStatsTracking,
+        isResume: isResume,
       );
 
   Future<void> _restoreLocalPlaybackSnapshot(_PlaybackHandoffState snapshot) =>
@@ -345,6 +361,7 @@ class PlaybackManager extends ChangeNotifier {
   void dispose() {
     _isInitialized = false;
     _castService.removeListener(_onCastStateChanged);
+    _castStatsForwardTimer?.cancel();
     _saveTimer?.cancel();
     _positionSubscription?.cancel();
     _durationSubscription?.cancel();
