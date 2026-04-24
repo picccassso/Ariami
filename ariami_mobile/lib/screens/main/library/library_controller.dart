@@ -616,6 +616,14 @@ class LibraryController extends ChangeNotifier {
       _scheduleDurationRetry();
     }
 
+    // Remap stale song IDs first (e.g. after server library rescanned),
+    // then rehydrate metadata so titles/album IDs stay current.
+    final remappedPlaylists =
+        await _playlistService.remapPlaylistSongIds(library.songs);
+    if (remappedPlaylists > 0) {
+      // Playlists had stale IDs remapped
+    }
+
     final updatedPlaylists =
         await _playlistService.rehydrateSongMetadataFromLibrary(library.songs);
     if (updatedPlaylists > 0) {

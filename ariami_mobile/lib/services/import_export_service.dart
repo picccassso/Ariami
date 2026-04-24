@@ -9,7 +9,9 @@ import '../models/song_stats.dart';
 import '../database/stats_database.dart';
 import 'api/connection_service.dart';
 import 'library/library_pin_storage.dart';
+import 'library/library_repository.dart';
 import 'playlist_service.dart';
+import 'song_id_remapping_service.dart';
 import 'stats/streaming_stats_service.dart';
 
 /// Mode for importing data
@@ -235,21 +237,48 @@ class ImportExportService {
           (data['pinnedItems'] as List<dynamic>?)?.cast<String>().toSet() ??
               <String>{};
 
+      // -----------------------------------------------------------------------
+      // Remap stale song IDs using current library data
+      // -----------------------------------------------------------------------
+      List<SongModel> librarySongs = [];
+      try {
+        final libraryRepo = LibraryRepository();
+        librarySongs = await libraryRepo.getSongs();
+      } catch (e) {
+        print('[ImportExportService] Could not load local library for remapping: $e');
+        try {
+          if (_connectionService.apiClient != null) {
+            librarySongs =
+                await _connectionService.libraryReadFacade.getSongs();
+          }
+        } catch (e2) {
+          print('[ImportExportService] Could not fetch library from server for remapping: $e2');
+        }
+      }
+
+      final remappingService = SongIdRemappingService();
+      final remappedPlaylists =
+          remappingService.remapPlaylists(playlists, librarySongs);
+      final remappedStats =
+          remappingService.remapStats(stats, librarySongs);
+
+      // -----------------------------------------------------------------------
       // Import based on mode
+      // -----------------------------------------------------------------------
       int playlistsImported = 0;
       int statsImported = 0;
 
       final prefs = await SharedPreferences.getInstance();
 
       if (mode == ImportMode.replace) {
-        await _playlistService.replaceAllPlaylists(playlists);
-        playlistsImported = playlists.length;
+        await _playlistService.replaceAllPlaylists(remappedPlaylists);
+        playlistsImported = remappedPlaylists.length;
 
         await _statsDatabase.resetAllStats();
-        if (stats.isNotEmpty) {
-          await _statsDatabase.saveAllStats(stats);
+        if (remappedStats.isNotEmpty) {
+          await _statsDatabase.saveAllStats(remappedStats);
         }
-        statsImported = stats.length;
+        statsImported = remappedStats.length;
 
         // Replace pinned items
         await LibraryPinStorage.saveForUser(
@@ -257,12 +286,13 @@ class ImportExportService {
           importedPinnedItems,
         );
       } else {
-        playlistsImported = await _playlistService.importPlaylists(playlists);
+        playlistsImported =
+            await _playlistService.importPlaylists(remappedPlaylists);
 
-        if (stats.isNotEmpty) {
-          await _statsDatabase.saveAllStats(stats);
+        if (remappedStats.isNotEmpty) {
+          await _statsDatabase.saveAllStats(remappedStats);
         }
-        statsImported = stats.length;
+        statsImported = remappedStats.length;
 
         // Merge pinned items (union with existing)
         if (importedPinnedItems.isNotEmpty) {

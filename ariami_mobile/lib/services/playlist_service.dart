@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import '../models/api_models.dart';
 import 'library/library_repository.dart';
+import 'song_id_remapping_service.dart';
 
 /// Service for managing playlists locally
 /// Handles CRUD operations and persistence via SharedPreferences
@@ -785,6 +786,35 @@ class PlaylistService extends ChangeNotifier {
     List<SongModel> librarySongs,
   ) async {
     return _rehydrateSongMetadataFromLibrary(librarySongs);
+  }
+
+  /// Remap stale song IDs in all playlists using current library data.
+  /// This is useful when the server library has been rescanned (e.g. after
+  /// moving the music folder), which changes MD5-based song IDs.
+  /// Returns the number of playlists that were modified.
+  Future<int> remapPlaylistSongIds(List<SongModel> librarySongs) async {
+    if (!_isLoaded) await loadPlaylists();
+    if (_playlists.isEmpty || librarySongs.isEmpty) return 0;
+
+    final remappingService = SongIdRemappingService();
+    final remapped = remappingService.remapPlaylists(_playlists, librarySongs);
+
+    var changedCount = 0;
+    for (var i = 0; i < _playlists.length; i++) {
+      if (!identical(_playlists[i], remapped[i])) {
+        changedCount++;
+      }
+    }
+
+    if (changedCount > 0) {
+      _playlists = remapped;
+      await _savePlaylists();
+      notifyListeners();
+      print(
+          '[PlaylistService] Remapped stale song IDs in $changedCount playlists');
+    }
+
+    return changedCount;
   }
 
   Future<int> _rehydrateSongMetadataFromLibrary(
