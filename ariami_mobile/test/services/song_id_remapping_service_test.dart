@@ -179,5 +179,104 @@ void main() {
 
       expect(result.first.songId, 'old_missing');
     });
+
+    test(
+        'remapStats merges a stale entry into a fresh entry when both '
+        'resolve to the same library song', () {
+      // Reproduces the artist-stats double-counting bug: a backup entry from
+      // an older library path coexists with a fresh play recorded under the
+      // current path. Both must collapse onto the current id with their
+      // play counts summed and date range widened.
+      final firstPlayedOld = DateTime(2024, 1, 1);
+      final lastPlayedOld = DateTime(2024, 6, 1);
+      final firstPlayedNew = DateTime(2024, 8, 1);
+      final lastPlayedNew = DateTime(2024, 12, 1);
+      final stats = [
+        SongStats(
+          songId: 'old_id_1',
+          playCount: 5,
+          totalTime: const Duration(minutes: 10),
+          firstPlayed: firstPlayedOld,
+          lastPlayed: lastPlayedOld,
+          songTitle: 'Song One',
+          songArtist: 'Artist A',
+        ),
+        SongStats(
+          songId: 'new_id_1',
+          playCount: 3,
+          totalTime: const Duration(minutes: 6),
+          firstPlayed: firstPlayedNew,
+          lastPlayed: lastPlayedNew,
+          songTitle: 'Song One',
+          songArtist: 'Artist A',
+        ),
+      ];
+
+      final result = service.remapStats(stats, librarySongs);
+
+      expect(result, hasLength(1));
+      final merged = result.first;
+      expect(merged.songId, 'new_id_1');
+      expect(merged.playCount, 8);
+      expect(merged.totalTime, const Duration(minutes: 16));
+      expect(merged.firstPlayed, firstPlayedOld);
+      expect(merged.lastPlayed, lastPlayedNew);
+    });
+
+    test('remapStats merges multiple stale entries onto one library song', () {
+      // Two backup entries from different prior library moves both match
+      // the same library song. saveAllStats with REPLACE would silently
+      // drop one, so we have to fold them together first.
+      final stats = [
+        SongStats(
+          songId: 'old_path_a',
+          playCount: 4,
+          totalTime: const Duration(minutes: 8),
+          songTitle: 'Song One',
+          songArtist: 'Artist A',
+        ),
+        SongStats(
+          songId: 'old_path_b',
+          playCount: 2,
+          totalTime: const Duration(minutes: 4),
+          songTitle: 'Song One',
+          songArtist: 'Artist A',
+        ),
+      ];
+
+      final result = service.remapStats(stats, librarySongs);
+
+      expect(result, hasLength(1));
+      expect(result.first.songId, 'new_id_1');
+      expect(result.first.playCount, 6);
+      expect(result.first.totalTime, const Duration(minutes: 12));
+    });
+
+    test('remapStats leaves distinct songs alone when no duplicates exist',
+        () {
+      final stats = [
+        SongStats(
+          songId: 'old_id_1',
+          playCount: 5,
+          totalTime: const Duration(minutes: 10),
+          songTitle: 'Song One',
+          songArtist: 'Artist A',
+        ),
+        SongStats(
+          songId: 'old_id_2',
+          playCount: 3,
+          totalTime: const Duration(minutes: 6),
+          songTitle: 'Song Two',
+          songArtist: 'Artist B',
+        ),
+      ];
+
+      final result = service.remapStats(stats, librarySongs);
+
+      expect(result, hasLength(2));
+      final byId = {for (final s in result) s.songId: s};
+      expect(byId['new_id_1']!.playCount, 5);
+      expect(byId['new_id_2']!.playCount, 3);
+    });
   });
 }

@@ -307,6 +307,16 @@ class ImportExportService {
       // Refresh stats service cache
       await _statsService.reloadFromDatabase();
 
+      // Stats from a backup made under a different library path arrive with
+      // stale songIds. Above we already remapped the imported rows; this
+      // additional pass cleans up stale rows that pre-dated the import (e.g.
+      // when the user is importing into a library they never synced after a
+      // path move) and merges any rows that now share an id, so artist and
+      // album aggregations don't double-count plays for the same song.
+      if (librarySongs.isNotEmpty) {
+        await _statsService.remapStaleStatIdsFromLibrary(librarySongs);
+      }
+
       // Save import timestamp
       _lastImportTime = DateTime.now();
       await prefs.setString(_lastImportKey, _lastImportTime!.toIso8601String());

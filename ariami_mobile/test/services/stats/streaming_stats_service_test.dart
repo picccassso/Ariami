@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:ariami_mobile/models/api_models.dart';
 import 'package:ariami_mobile/models/song.dart';
 import 'package:ariami_mobile/services/stats/streaming_stats_service.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -326,6 +327,120 @@ void main() {
       expect(afterReload, isNotNull);
       expect(afterReload!.playCount, 1);
       expect(afterReload.totalTime.inSeconds, 35);
+    });
+
+    // ------------------------------------------------------------------------
+    // Stale id remapping after library moves
+    // ------------------------------------------------------------------------
+    test(
+        'remapStaleStatIdsFromLibrary collapses stale + fresh entries for the '
+        'same song so artist aggregations are not double-counted', () async {
+      // Simulate: user played a song under an old library path (5 plays),
+      // moved the library so the song now has a new id, then played the
+      // same song twice more under the new id. Without the remap, the
+      // tracks tab shows two rows for the song (each with its own count)
+      // and the artists tab sums them, double-counting.
+      final oldSong = Song(
+        id: 'stale_id',
+        title: 'Same Song',
+        artist: 'Same Artist',
+        duration: const Duration(minutes: 3),
+        filePath: '/old/path/song.mp3',
+        fileSize: 1000,
+        modifiedTime: DateTime(2024, 1, 1),
+      );
+      service.onSongStarted(oldSong);
+      for (int i = 0; i <= 35; i++) {
+        service.updatePosition(Duration(seconds: i));
+      }
+      await service.onSongStopped();
+      // Repeat for a second play.
+      service.onSongStarted(oldSong, isResume: false);
+      for (int i = 0; i <= 35; i++) {
+        service.updatePosition(Duration(seconds: i));
+      }
+      await service.onSongStopped();
+      expect(service.getSongStats('stale_id')!.playCount, 2);
+
+      // Simulate the new library path producing a different id for the
+      // same song. The user plays it once under the new id.
+      final newSong = Song(
+        id: 'fresh_id',
+        title: 'Same Song',
+        artist: 'Same Artist',
+        duration: const Duration(minutes: 3),
+        filePath: '/new/path/song.mp3',
+        fileSize: 1000,
+        modifiedTime: DateTime(2024, 6, 1),
+      );
+      service.onSongStarted(newSong);
+      for (int i = 0; i <= 35; i++) {
+        service.updatePosition(Duration(seconds: i));
+      }
+      await service.onSongStopped();
+      expect(service.getSongStats('fresh_id')!.playCount, 1);
+
+      // Pre-condition: the artists view sees both rows and the artist's
+      // count is inflated to 3 across 2 unique songs.
+      expect(service.getTopArtists().single.playCount, 3);
+      expect(service.getTopArtists().single.uniqueSongsCount, 2);
+
+      // Library sync: only `fresh_id` is in the current library.
+      final libraryAfterMove = [
+        SongModel(
+          id: 'fresh_id',
+          title: 'Same Song',
+          artist: 'Same Artist',
+          albumId: null,
+          duration: 180,
+        ),
+      ];
+      final dropped = await service
+          .remapStaleStatIdsFromLibrary(libraryAfterMove);
+      expect(dropped, 1, reason: 'one stale row should fold into the fresh one');
+
+      // Stale row is gone; the merged row carries all three plays.
+      expect(service.getSongStats('stale_id'), isNull);
+      final merged = service.getSongStats('fresh_id')!;
+      expect(merged.playCount, 3);
+
+      // Artists view now reflects one unique song with the correct total.
+      expect(service.getTopArtists().single.playCount, 3);
+      expect(service.getTopArtists().single.uniqueSongsCount, 1);
+
+      // And the change survived the round-trip to disk.
+      service.resetForTests();
+      await service.reloadFromDatabase();
+      expect(service.getSongStats('stale_id'), isNull);
+      expect(service.getSongStats('fresh_id')!.playCount, 3);
+    });
+
+    test(
+        'remapStaleStatIdsFromLibrary is a no-op when every stat already '
+        'matches the current library', () async {
+      final song = _testSong(
+        id: 'still_valid',
+        title: 'Song',
+        duration: const Duration(minutes: 3),
+      );
+      service.onSongStarted(song);
+      for (int i = 0; i <= 35; i++) {
+        service.updatePosition(Duration(seconds: i));
+      }
+      await service.onSongStopped();
+
+      final library = [
+        SongModel(
+          id: 'still_valid',
+          title: 'Song',
+          artist: 'Test Artist',
+          albumId: null,
+          duration: 180,
+        ),
+      ];
+      final dropped = await service.remapStaleStatIdsFromLibrary(library);
+      expect(dropped, 0);
+      expect(service.getSongStats('still_valid')!.playCount, 1);
     });
 
     test('debounced writes batch multiple updates', () async {

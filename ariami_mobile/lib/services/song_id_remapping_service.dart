@@ -107,6 +107,16 @@ class SongIdRemappingService {
   /// Remap stale song IDs in stats using current library data.
   /// Stats do not store per-song duration, so matching falls back to
   /// title + artist only.
+  ///
+  /// When multiple input stats resolve to the same songId after remapping
+  /// (for example, a stale entry from a prior library move co-existing with
+  /// a fresh entry for the same song, or two stale entries collapsing onto
+  /// one library song), they are merged: play counts and total time are
+  /// summed, the earliest [SongStats.firstPlayed] and latest
+  /// [SongStats.lastPlayed] are kept. This is essential because aggregations
+  /// like top-artists/top-albums sum every per-song row and would otherwise
+  /// double-count plays whenever the database has duplicate rows for the
+  /// same physical song under different ids.
   List<SongStats> remapStats(
     List<SongStats> stats,
     List<SongModel> librarySongs,
@@ -116,7 +126,7 @@ class SongIdRemappingService {
     final index = _SongLookupIndex(librarySongs);
     final librarySongsById = {for (final s in librarySongs) s.id: s};
 
-    return stats.map((stat) {
+    final remapped = stats.map((stat) {
       // If the ID is still valid, keep it.
       if (librarySongsById.containsKey(stat.songId)) {
         return stat;
@@ -140,6 +150,61 @@ class SongIdRemappingService {
 
       return stat;
     }).toList();
+
+    return _mergeDuplicateStatsBySongId(remapped);
+  }
+
+  /// Merge entries that share a songId. Returns the original list reference
+  /// when no duplicates are present, so callers can detect a no-op.
+  List<SongStats> _mergeDuplicateStatsBySongId(List<SongStats> stats) {
+    if (stats.length <= 1) return stats;
+
+    final seen = <String>{};
+    var hasDuplicate = false;
+    for (final stat in stats) {
+      if (!seen.add(stat.songId)) {
+        hasDuplicate = true;
+        break;
+      }
+    }
+    if (!hasDuplicate) return stats;
+
+    final mergedById = <String, SongStats>{};
+    for (final stat in stats) {
+      final existing = mergedById[stat.songId];
+      mergedById[stat.songId] =
+          existing == null ? stat : _mergeStats(existing, stat);
+    }
+    return mergedById.values.toList();
+  }
+
+  static SongStats _mergeStats(SongStats a, SongStats b) {
+    return SongStats(
+      songId: a.songId,
+      playCount: a.playCount + b.playCount,
+      totalTime: Duration(
+        seconds: a.totalTime.inSeconds + b.totalTime.inSeconds,
+      ),
+      firstPlayed: _earlierDate(a.firstPlayed, b.firstPlayed),
+      lastPlayed: _laterDate(a.lastPlayed, b.lastPlayed),
+      songTitle: a.songTitle ?? b.songTitle,
+      songArtist: a.songArtist ?? b.songArtist,
+      albumId: a.albumId ?? b.albumId,
+      album: a.album ?? b.album,
+      albumArtist: a.albumArtist ?? b.albumArtist,
+    );
+  }
+
+  static DateTime? _earlierDate(DateTime? a, DateTime? b) {
+    if (a == null) return b;
+    if (b == null) return a;
+    return a.isBefore(b) ? a : b;
+  }
+
+  static DateTime? _laterDate(DateTime? a, DateTime? b) {
+    if (a == null) return b;
+    if (b == null) return a;
+    return a.isAfter(b) ? a : b;
   }
 }
 

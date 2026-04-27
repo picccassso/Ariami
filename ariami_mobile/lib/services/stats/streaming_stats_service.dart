@@ -3,11 +3,13 @@ import 'dart:ui' show AppExitResponse, ViewFocusEvent;
 
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
+import '../../models/api_models.dart';
 import '../../models/song.dart';
 import '../../models/song_stats.dart';
 import '../../models/artist_stats.dart';
 import '../../models/album_stats.dart';
 import '../../database/stats_database.dart';
+import '../song_id_remapping_service.dart';
 
 /// Service for tracking streaming statistics across the app with SQLite persistence.
 ///
@@ -31,6 +33,7 @@ class StreamingStatsService extends ChangeNotifier implements WidgetsBindingObse
 
   // Dependencies
   late StatsDatabase _database;
+  bool _isInitialized = false;
 
   // In-memory cache for instant UI updates
   final Map<String, SongStats> _statsCache = {};
@@ -104,6 +107,7 @@ class StreamingStatsService extends ChangeNotifier implements WidgetsBindingObse
     _emitTopSongs();
     _emitTopArtists();
     _emitTopAlbums();
+    _isInitialized = true;
     print(
         '[StreamingStatsService] Initialized with ${_statsCache.length} cached songs');
   }
@@ -655,6 +659,71 @@ class StreamingStatsService extends ChangeNotifier implements WidgetsBindingObse
     await _database.resetAllStats();
     _emitTopSongs();
     notifyListeners();
+  }
+
+  /// Remap stale song IDs in the persisted stats using current library data.
+  ///
+  /// SongStats are keyed by songId, which is MD5(filePath) on the server. When
+  /// the music library is moved to a different folder, every songId changes,
+  /// leaving the stats database with rows that no longer correspond to any
+  /// song in the library. Those stale rows still display in the per-track view
+  /// (each shows its own correct count), but artist/album aggregations sum
+  /// every row keyed by artist/album name, double-counting plays for songs
+  /// that ended up with multiple ids across library moves or imports.
+  ///
+  /// This method:
+  ///   1. Walks the in-memory stats cache and asks
+  ///      [SongIdRemappingService.remapStats] to match stale songIds to the
+  ///      current library by title + artist.
+  ///   2. Merges any stats that collapse onto the same songId — including the
+  ///      common case where a stale entry from a prior path co-exists with a
+  ///      fresh entry recorded under the new path.
+  ///   3. Persists the remapped/merged set, replacing the previous DB
+  ///      contents so stale rows are removed rather than left behind.
+  ///
+  /// Returns the number of stat rows that were dropped (remapped onto an
+  /// existing entry); 0 means no changes were needed.
+  Future<int> remapStaleStatIdsFromLibrary(List<SongModel> librarySongs) async {
+    if (!_isInitialized) return 0;
+    if (librarySongs.isEmpty) return 0;
+
+    final originalStats = _statsCache.values.toList();
+    if (originalStats.isEmpty) return 0;
+
+    // Flush any pending in-flight writes before we rewrite the table.
+    await _flushPendingStats();
+
+    final remapped = SongIdRemappingService().remapStats(
+      originalStats,
+      librarySongs,
+    );
+
+    // remapStats returns the original list reference when nothing changed.
+    if (identical(remapped, originalStats)) {
+      return 0;
+    }
+
+    final droppedCount = originalStats.length - remapped.length;
+
+    _statsCache
+      ..clear()
+      ..addEntries(remapped.map((s) => MapEntry(s.songId, s)));
+    _dirtyStats.clear();
+
+    await _database.resetAllStats();
+    if (remapped.isNotEmpty) {
+      await _database.saveAllStats(remapped);
+    }
+
+    _emitTopSongs();
+    notifyListeners();
+
+    print(
+        '[StreamingStatsService] Remapped stale stat IDs: '
+        '${originalStats.length} rows -> ${remapped.length} rows '
+        '($droppedCount merged)');
+
+    return droppedCount;
   }
 
   /// Reload stats from database into memory cache (after import)

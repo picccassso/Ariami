@@ -16,6 +16,7 @@ import '../../../services/offline/offline_manual_reconnect.dart';
 import '../../../services/offline/offline_playback_service.dart';
 import '../../../services/playback_manager.dart';
 import '../../../services/playlist_service.dart';
+import '../../../services/stats/streaming_stats_service.dart';
 import '../../../utils/artwork_url.dart';
 import 'library_state.dart';
 
@@ -33,6 +34,7 @@ class LibraryController extends ChangeNotifier {
   late final OfflinePlaybackService _offlineService;
   late final DownloadManager _downloadManager;
   late final CacheManager _cacheManager;
+  late final StreamingStatsService _statsService;
 
   // Preference keys
   static const String _viewPreferenceKey = 'library_view_grid';
@@ -78,6 +80,7 @@ class LibraryController extends ChangeNotifier {
     _offlineService = OfflinePlaybackService();
     _downloadManager = DownloadManager();
     _cacheManager = CacheManager();
+    _statsService = StreamingStatsService();
   }
 
   /// Initialize the controller and load initial data
@@ -623,6 +626,12 @@ class LibraryController extends ChangeNotifier {
     if (remappedPlaylists > 0) {
       // Playlists had stale IDs remapped
     }
+
+    // Mirror the playlist remap for listening stats: stale rows are matched
+    // back to current library songIds and merged into any existing entry,
+    // preventing artist/album aggregations from double-counting plays under
+    // multiple ids for the same physical song.
+    await _statsService.remapStaleStatIdsFromLibrary(library.songs);
 
     final updatedPlaylists =
         await _playlistService.rehydrateSongMetadataFromLibrary(library.songs);
