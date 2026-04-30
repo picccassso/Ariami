@@ -440,6 +440,110 @@ void main() {
       expect(rows.any((row) => row['deviceId'] == 'mobile-device'), isTrue);
     });
 
+    test(
+        'stats mobileClients excludes dashboard presence; counts real devices',
+        () async {
+      server.setFeatureFlags(
+        const AriamiFeatureFlags(enableApiScopedAuthForCliWeb: true),
+      );
+      final port = await _findFreePort();
+      await server.start(
+        advertisedIp: '127.0.0.1',
+        bindAddress: '127.0.0.1',
+        port: port,
+      );
+
+      final registerResponse = await _sendJsonRequest(
+        method: 'POST',
+        url: Uri.parse('http://127.0.0.1:$port/api/auth/register'),
+        jsonBody: <String, dynamic>{
+          'username': 'stats-dash-user',
+          'password': 'stats-dash-pass',
+        },
+      );
+      expect(registerResponse.statusCode, 200);
+
+      final dashLogin = await _sendJsonRequest(
+        method: 'POST',
+        url: Uri.parse('http://127.0.0.1:$port/api/auth/login'),
+        jsonBody: <String, dynamic>{
+          'username': 'stats-dash-user',
+          'password': 'stats-dash-pass',
+          'deviceId': 'cli-web-dashboard-stats',
+          'deviceName': 'Ariami CLI Web Dashboard',
+        },
+      );
+      expect(dashLogin.statusCode, 200);
+      final dashToken = dashLogin.jsonBody['sessionToken'] as String;
+
+      Future<Map<String, dynamic>> fetchStats() async {
+        final r = await _sendJsonRequest(
+          method: 'GET',
+          url: Uri.parse('http://127.0.0.1:$port/api/stats'),
+          headers: <String, String>{
+            'Authorization': 'Bearer $dashToken',
+          },
+        );
+        expect(r.statusCode, 200);
+        return r.jsonBody;
+      }
+
+      var s = await fetchStats();
+      expect(s['mobileClients'], 0);
+      expect(s['connectedClients'], 1);
+
+      final dashConnect = await _sendJsonRequest(
+        method: 'POST',
+        url: Uri.parse('http://127.0.0.1:$port/api/connect'),
+        headers: <String, String>{'Authorization': 'Bearer $dashToken'},
+        jsonBody: <String, dynamic>{
+          'deviceId': 'cli-web-dashboard-stats',
+          'deviceName': 'Ariami CLI Web Dashboard',
+          'appVersion': '4.3.0',
+          'platform': 'web',
+        },
+      );
+      expect(dashConnect.statusCode, 200);
+
+      s = await fetchStats();
+      expect(s['mobileClients'], 0);
+      expect(s['connectedClients'], 1);
+
+      final mobLogin = await _sendJsonRequest(
+        method: 'POST',
+        url: Uri.parse('http://127.0.0.1:$port/api/auth/login'),
+        jsonBody: <String, dynamic>{
+          'username': 'stats-dash-user',
+          'password': 'stats-dash-pass',
+          'deviceId': 'phone-stats',
+          'deviceName': 'Stats Test Phone',
+        },
+      );
+      expect(mobLogin.statusCode, 200);
+      final mobToken = mobLogin.jsonBody['sessionToken'] as String;
+
+      s = await fetchStats();
+      expect(s['mobileClients'], 1);
+      expect(s['connectedClients'], 2);
+
+      final mobConnect = await _sendJsonRequest(
+        method: 'POST',
+        url: Uri.parse('http://127.0.0.1:$port/api/connect'),
+        headers: <String, String>{'Authorization': 'Bearer $mobToken'},
+        jsonBody: <String, dynamic>{
+          'deviceId': 'phone-stats',
+          'deviceName': 'Stats Test Phone',
+          'appVersion': '4.3.0',
+          'platform': 'ios',
+        },
+      );
+      expect(mobConnect.statusCode, 200);
+
+      s = await fetchStats();
+      expect(s['mobileClients'], 1);
+      expect(s['connectedClients'], 2);
+    });
+
     test('admin user-activity returns empty users when no activity', () async {
       final port = await _findFreePort();
       await server.start(

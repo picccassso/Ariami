@@ -88,10 +88,16 @@ extension AriamiHttpServerAuthAndAdminHandlersMethods on AriamiHttpServer {
           await _authService.login(username, password, deviceId, deviceName);
 
       // Register client connection
+      final presenceClientType =
+          AuthService.isDashboardControlDevice(
+                  deviceId: deviceId, deviceName: deviceName)
+              ? 'dashboard'
+              : null;
       _connectionManager.registerClient(
         deviceId,
         deviceName,
         userId: response.userId,
+        clientType: presenceClientType,
       );
 
       // Broadcast client connection

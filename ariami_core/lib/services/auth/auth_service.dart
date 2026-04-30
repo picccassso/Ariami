@@ -265,13 +265,17 @@ class AuthService {
   }
 
   bool _isDashboardControlSession(Session session) {
-    return _isDashboardControlDevice(
+    return isDashboardControlDevice(
       deviceId: session.deviceId,
       deviceName: session.deviceName,
     );
   }
 
-  bool _isDashboardControlDevice({
+  /// True when this device is the CLI web or desktop dashboard control surface.
+  ///
+  /// Used by the HTTP server to tag presence rows so they are not counted as
+  /// mobile clients in `/api/stats` (`mobileClients`).
+  static bool isDashboardControlDevice({
     required String deviceId,
     required String deviceName,
   }) {
@@ -281,6 +285,16 @@ class AuthService {
 
     return deviceName == _desktopDashboardAdminDeviceName ||
         deviceName == _cliWebDashboardDeviceName;
+  }
+
+  bool _isDashboardControlDevice({
+    required String deviceId,
+    required String deviceName,
+  }) {
+    return isDashboardControlDevice(
+      deviceId: deviceId,
+      deviceName: deviceName,
+    );
   }
 
   /// Revoke all sessions for a user and return the revoked sessions.

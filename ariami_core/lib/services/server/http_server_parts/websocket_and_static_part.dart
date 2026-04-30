@@ -1,6 +1,24 @@
 part of '../http_server.dart';
 
 extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
+  /// Maps WebSocket identify + device metadata to a presence [clientType]
+  /// so CLI/desktop dashboards are not counted as mobile in `/api/stats`.
+  String? _effectivePresenceClientType({
+    required String deviceId,
+    String? deviceName,
+    String? wsClientType,
+  }) {
+    if (wsClientType == 'dashboard') {
+      return 'dashboard';
+    }
+    final name = deviceName ?? 'Unknown Device';
+    if (AuthService.isDashboardControlDevice(
+        deviceId: deviceId, deviceName: name)) {
+      return 'dashboard';
+    }
+    return wsClientType;
+  }
+
   /// Handle WebSocket connection
   void _handleWebSocket(WebSocketChannel webSocket, String? subprotocol) {
     print('WebSocket client connected (${_webSocketClients.length + 1} total)');
@@ -68,23 +86,20 @@ extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
               return;
             }
 
-            // Session valid - register client
+            // Session valid - register or refresh client (upgrade clientType)
             if (deviceId.isNotEmpty) {
               _webSocketDeviceIds[webSocket] = deviceId;
-              if (!_connectionManager.isClientConnected(deviceId)) {
-                _connectionManager.registerClient(
-                  deviceId,
-                  deviceName ?? 'Unknown Device',
-                  userId: session.userId,
-                  clientType: clientType,
-                );
-              } else {
-                _connectionManager.updateHeartbeat(
-                  deviceId,
-                  userId: session.userId,
-                  deviceName: deviceName,
-                );
-              }
+              final effectiveType = _effectivePresenceClientType(
+                deviceId: deviceId,
+                deviceName: deviceName,
+                wsClientType: clientType,
+              );
+              _connectionManager.registerOrRefreshClient(
+                deviceId,
+                deviceName ?? 'Unknown Device',
+                userId: session.userId,
+                clientType: effectiveType,
+              );
             }
           });
           return;
@@ -93,18 +108,16 @@ extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
         // Legacy mode - no auth required
         if (deviceId.isNotEmpty) {
           _webSocketDeviceIds[webSocket] = deviceId;
-          if (!_connectionManager.isClientConnected(deviceId)) {
-            _connectionManager.registerClient(
-              deviceId,
-              deviceName ?? 'Unknown Device',
-              clientType: clientType,
-            );
-          } else {
-            _connectionManager.updateHeartbeat(
-              deviceId,
-              deviceName: deviceName,
-            );
-          }
+          final effectiveType = _effectivePresenceClientType(
+            deviceId: deviceId,
+            deviceName: deviceName,
+            wsClientType: clientType,
+          );
+          _connectionManager.registerOrRefreshClient(
+            deviceId,
+            deviceName ?? 'Unknown Device',
+            clientType: effectiveType,
+          );
         }
         return;
       }

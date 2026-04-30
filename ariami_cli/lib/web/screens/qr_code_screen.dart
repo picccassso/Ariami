@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:ariami_core/models/auth_models.dart';
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../services/web_api_client.dart';
@@ -66,7 +67,14 @@ class _QRCodeScreenState extends State<QRCodeScreen>
       final response = await _apiClient.get('/api/stats');
 
       if (response.isAuthError) {
-        await _redirectToLogin();
+        // Do not wipe a valid saved session on a single transient
+        // `AUTH_REQUIRED` (e.g. prefs/token race). Only force re-login when
+        // there is no token or the server reports an expired session.
+        final hasToken = await _authService.hasSessionToken();
+        final code = response.errorCode;
+        if (!hasToken || code == AuthErrorCodes.sessionExpired) {
+          await _redirectToLogin();
+        }
         return;
       }
 

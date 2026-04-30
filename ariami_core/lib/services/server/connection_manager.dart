@@ -45,6 +45,9 @@ class ConnectionManager {
     String deviceId, {
     String? userId,
     String? deviceName,
+    /// When non-null, replaces [ConnectedClient.clientType] (e.g. upgrade to
+    /// `dashboard` after WebSocket identify).
+    String? replaceClientType,
   }) {
     final client = _clients[deviceId];
     if (client == null) {
@@ -57,6 +60,7 @@ class ConnectionManager {
       deviceName: (deviceName != null && deviceName.isNotEmpty)
           ? deviceName
           : client.deviceName,
+      clientType: replaceClientType ?? client.clientType,
     );
     return true;
   }
@@ -73,6 +77,7 @@ class ConnectionManager {
       deviceId,
       userId: userId,
       deviceName: deviceName,
+      replaceClientType: clientType,
     );
     if (!didRefresh) {
       registerClient(deviceId, deviceName, userId: userId, clientType: clientType);
@@ -80,11 +85,17 @@ class ConnectionManager {
   }
 
   /// Update client heartbeat timestamp
-  void updateHeartbeat(String deviceId, {String? userId, String? deviceName}) {
+  void updateHeartbeat(
+    String deviceId, {
+    String? userId,
+    String? deviceName,
+    String? replaceClientType,
+  }) {
     refreshHeartbeatIfRegistered(
       deviceId,
       userId: userId,
       deviceName: deviceName,
+      replaceClientType: replaceClientType,
     );
   }
 

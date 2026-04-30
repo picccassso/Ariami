@@ -438,4 +438,37 @@ void main() {
       );
     });
   });
+
+  group('AuthService.isDashboardControlDevice', () {
+    test('recognizes CLI web and desktop dashboard control surfaces', () {
+      expect(
+        AuthService.isDashboardControlDevice(
+          deviceId: 'any-id',
+          deviceName: 'Ariami CLI Web Dashboard',
+        ),
+        isTrue,
+      );
+      expect(
+        AuthService.isDashboardControlDevice(
+          deviceId: 'any-id',
+          deviceName: 'Ariami Desktop Dashboard',
+        ),
+        isTrue,
+      );
+      expect(
+        AuthService.isDashboardControlDevice(
+          deviceId: 'desktop_dashboard_admin',
+          deviceName: 'Other',
+        ),
+        isTrue,
+      );
+      expect(
+        AuthService.isDashboardControlDevice(
+          deviceId: 'mobile-1',
+          deviceName: 'Alex iPhone',
+        ),
+        isFalse,
+      );
+    });
+  });
 }

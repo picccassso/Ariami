@@ -36,10 +36,16 @@ extension AriamiHttpServerConnectionHandlersMethods on AriamiHttpServer {
       final session = request.context['session'] as Session?;
       final userId = session?.userId;
 
+      final presenceClientType =
+          AuthService.isDashboardControlDevice(
+                  deviceId: deviceId, deviceName: deviceName)
+              ? 'dashboard'
+              : null;
       _connectionManager.registerOrRefreshClient(
         deviceId,
         deviceName,
         userId: userId,
+        clientType: presenceClientType,
       );
 
       // Broadcast client connection to all WebSocket clients
