@@ -247,9 +247,21 @@ extension _DownloadManagerOperationsImpl on DownloadManager {
   Future<int> _resumeInterruptedDownloadsImpl() async {
     await _ensureInitialized();
 
+    return _resumeInterruptedDownloadsWhere(isInterruptedDownloadTask);
+  }
+
+  Future<int> _resumeLifecycleInterruptedDownloadsImpl() async {
+    await _ensureInitialized();
+
+    return _resumeInterruptedDownloadsWhere((task) =>
+        task.status == DownloadStatus.paused &&
+        task.errorMessage == lifecycleDownloadPauseMessage);
+  }
+
+  int _resumeInterruptedDownloadsWhere(bool Function(DownloadTask) predicate) {
     var resumedCount = 0;
     for (final task in _getScopedQueue()) {
-      if (!isInterruptedDownloadTask(task)) continue;
+      if (!predicate(task)) continue;
       task.status = DownloadStatus.pending;
       task.errorMessage = null;
       _queue.updateTask(task);
@@ -288,11 +300,36 @@ extension _DownloadManagerOperationsImpl on DownloadManager {
     await _flushQueuePersistence();
   }
 
+  Future<void> _pauseDownloadsForLifecycleInterruptionImpl() async {
+    if (!_initialized) return;
+    _pauseScopedDownloadsForInterruption(
+      reasonMessage: lifecycleDownloadPauseMessage,
+    );
+    await _flushQueuePersistence();
+  }
+
   Future<void> _retryDownloadImpl(String taskId) async {
     await _ensureInitialized();
 
     final task = _getScopedTask(taskId);
     if (task == null || task.status != DownloadStatus.failed) return;
+
+    final shouldDiscardPartial =
+        (task.errorMessage ?? '').contains('mismatch') ||
+            (task.errorMessage ?? '').contains('Range not satisfiable');
+    if (shouldDiscardPartial) {
+      await _deletePartialSongFileIfUnreferenced(task.songId, force: true);
+      task.bytesDownloaded = 0;
+      task.progress = 0;
+    } else {
+      final partialBytes = await _getPartialSongFileSize(task.songId);
+      if (partialBytes != null && partialBytes > 0) {
+        task.bytesDownloaded = partialBytes;
+        if (task.totalBytes > 0) {
+          task.progress = partialBytes / task.totalBytes;
+        }
+      }
+    }
 
     task.status = DownloadStatus.pending;
     task.retryCount = 0;
@@ -322,6 +359,7 @@ extension _DownloadManagerOperationsImpl on DownloadManager {
       return task.userId == null;
     });
     unawaited(_deleteSongFileIfUnreferenced(targetTask.songId));
+    unawaited(_deletePartialSongFileIfUnreferenced(targetTask.songId));
 
     print('Download cancelled: $taskId');
   }

@@ -128,6 +128,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   bool _startupRecoveryPromptShown = false;
   int _startupInterruptedDownloadCount = 0;
   bool _startupAutoResumeInterruptedOnLaunch = false;
+  bool _downloadsPausedForLifecycle = false;
 
   @override
   void initState() {
@@ -187,8 +188,19 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       return;
     }
 
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused) {
+      _downloadsPausedForLifecycle = true;
+      unawaited(_downloadManager.pauseDownloadsForLifecycleInterruption());
+      return;
+    }
+
     if (state == AppLifecycleState.resumed) {
       _triggerResumeReconnectIfNeeded();
+      if (_downloadsPausedForLifecycle) {
+        _downloadsPausedForLifecycle = false;
+        unawaited(_downloadManager.resumeLifecycleInterruptedDownloads());
+      }
     }
   }
 
@@ -477,23 +489,23 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                 )
               : _initialScreen,
           routes: {
-        '/setup/tailscale': (context) => const TailscaleCheckScreen(),
-        '/setup/scanner': (context) => const QRScannerScreen(),
-        '/setup/permissions': (context) => const PermissionsScreen(),
-        '/main': (context) => const MainNavigationScreen(),
-        '/reconnect': (context) => const ReconnectScreen(),
-        '/auth/login': (context) {
-          final serverInfo =
-              ModalRoute.of(context)!.settings.arguments as ServerInfo;
-          return LoginScreen(serverInfo: serverInfo);
-        },
-        '/auth/register': (context) {
-          final serverInfo =
-              ModalRoute.of(context)!.settings.arguments as ServerInfo;
-          return RegisterScreen(serverInfo: serverInfo);
-        },
-      },
-    );
+            '/setup/tailscale': (context) => const TailscaleCheckScreen(),
+            '/setup/scanner': (context) => const QRScannerScreen(),
+            '/setup/permissions': (context) => const PermissionsScreen(),
+            '/main': (context) => const MainNavigationScreen(),
+            '/reconnect': (context) => const ReconnectScreen(),
+            '/auth/login': (context) {
+              final serverInfo =
+                  ModalRoute.of(context)!.settings.arguments as ServerInfo;
+              return LoginScreen(serverInfo: serverInfo);
+            },
+            '/auth/register': (context) {
+              final serverInfo =
+                  ModalRoute.of(context)!.settings.arguments as ServerInfo;
+              return RegisterScreen(serverInfo: serverInfo);
+            },
+          },
+        );
       },
     );
   }

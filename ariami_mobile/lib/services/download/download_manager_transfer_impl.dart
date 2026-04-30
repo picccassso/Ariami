@@ -55,42 +55,111 @@ extension _DownloadManagerTransferImpl on DownloadManager {
       _activeDownloads[task.id] = cancelToken;
 
       final filePath = _getSongFilePath(task.songId);
+      final partialPath = _getPartialSongFilePath(task.songId);
 
       // Ensure the songs directory exists
       final songDir = File(filePath).parent;
       await songDir.create(recursive: true);
 
       final downloadUrl = await _resolveDownloadUrl(task);
+      final partialFile = File(partialPath);
+      final finalFile = File(filePath);
+      var resumeOffset =
+          await partialFile.exists() ? await partialFile.length() : 0;
+      final requestedRange = resumeOffset > 0;
 
-      // Download the file using the resolved download URL
-      await _dio.download(
+      final headers = <String, String>{};
+      if (requestedRange) {
+        headers[HttpHeaders.rangeHeader] = 'bytes=$resumeOffset-';
+      }
+
+      final response = await _dio.get<ResponseBody>(
         downloadUrl,
-        filePath,
         cancelToken: cancelToken,
-        onReceiveProgress: (received, total) {
-          // Update task progress fields (for later use when status changes)
-          task.bytesDownloaded = received;
-          if (total > 0) {
-            task.totalBytes = total;
+        options: Options(
+          responseType: ResponseType.stream,
+          headers: headers,
+          validateStatus: (status) =>
+              status != null && status >= 200 && status < 500,
+        ),
+      );
+
+      if (response.statusCode == 416) {
+        await _deletePartialSongFileIfUnreferenced(task.songId, force: true);
+        throw Exception('Range not satisfiable');
+      }
+      if (response.statusCode != 200 && response.statusCode != 206) {
+        throw DioException(
+          requestOptions: response.requestOptions,
+          response: Response<dynamic>(
+            requestOptions: response.requestOptions,
+            statusCode: response.statusCode,
+            headers: response.headers,
+          ),
+          type: DioExceptionType.badResponse,
+          message: 'Unexpected download status: ${response.statusCode}',
+        );
+      }
+
+      // Server ignored range resume; reset stale partial and write full body.
+      if (requestedRange && response.statusCode == 200 && resumeOffset > 0) {
+        await partialFile.delete();
+        resumeOffset = 0;
+      }
+
+      final writeMode = resumeOffset > 0 ? FileMode.append : FileMode.write;
+      final sink = partialFile.openWrite(mode: writeMode);
+      final contentRange =
+          response.headers.value(HttpHeaders.contentRangeHeader);
+      final contentLengthHeader =
+          response.headers.value(HttpHeaders.contentLengthHeader);
+      final responseLength = int.tryParse(contentLengthHeader ?? '');
+      final expectedTotalFromRange =
+          _parseTotalBytesFromContentRange(contentRange);
+
+      final expectedTotalBytes = expectedTotalFromRange ??
+          (responseLength != null ? responseLength + resumeOffset : null);
+
+      var receivedThisResponse = 0;
+      try {
+        await for (final chunk in response.data!.stream) {
+          sink.add(chunk);
+          receivedThisResponse += chunk.length;
+
+          final downloaded = resumeOffset + receivedThisResponse;
+          task.bytesDownloaded = downloaded;
+          if (expectedTotalBytes != null && expectedTotalBytes > 0) {
+            task.totalBytes = expectedTotalBytes;
+            task.progress = downloaded / expectedTotalBytes;
+          } else {
+            task.progress = 0.0;
           }
-          task.progress = total > 0 ? received / total : 0.0;
 
-          // Store progress locally - do NOT update queue (avoids excessive rebuilds)
           _activeProgress[task.id] = task.progress;
-
-          // Emit progress event for UI (lightweight, doesn't trigger queue rebuild)
           _progressController.add(DownloadProgress(
             taskId: task.id,
             progress: task.progress,
-            bytesDownloaded: received,
-            totalBytes: total,
+            bytesDownloaded: downloaded,
+            totalBytes: task.totalBytes,
           ));
-        },
-      );
+        }
+      } finally {
+        await sink.close();
+      }
 
-      // Get actual file size from the downloaded file
-      final downloadedFile = File(filePath);
-      final fileSize = await downloadedFile.length();
+      final fileSize = await partialFile.length();
+      final expectedFinalBytes = expectedTotalBytes ??
+          (task.totalBytes > 0 ? task.totalBytes : fileSize);
+      if (expectedFinalBytes > 0 && fileSize != expectedFinalBytes) {
+        throw Exception(
+          'Downloaded file size mismatch: expected $expectedFinalBytes got $fileSize',
+        );
+      }
+
+      if (await finalFile.exists()) {
+        await finalFile.delete();
+      }
+      await partialFile.rename(filePath);
 
       print('Download completed: ${task.title} (${_formatFileSize(fileSize)})');
 
@@ -98,6 +167,8 @@ extension _DownloadManagerTransferImpl on DownloadManager {
       task.status = DownloadStatus.completed;
       task.progress = 1.0;
       task.bytesDownloaded = fileSize;
+      task.totalBytes = fileSize;
+      task.errorMessage = null;
       _queue.updateTask(task); // Update queue on status change
 
       _progressController.add(DownloadProgress(
@@ -122,6 +193,11 @@ extension _DownloadManagerTransferImpl on DownloadManager {
       _activeDownloadCount--;
       _handleDownloadError(task, e);
     } catch (e) {
+      final partialPath = _getPartialSongFilePath(task.songId);
+      final partialFile = File(partialPath);
+      if (await partialFile.exists()) {
+        task.bytesDownloaded = await partialFile.length();
+      }
       _activeDownloadCount--;
       _handleDownloadError(task, Exception('Unknown error: $e'));
     }
@@ -273,5 +349,16 @@ extension _DownloadManagerTransferImpl on DownloadManager {
     }
 
     return error.response == null;
+  }
+
+  int? _parseTotalBytesFromContentRange(String? contentRange) {
+    if (contentRange == null || contentRange.isEmpty) {
+      return null;
+    }
+    final slash = contentRange.lastIndexOf('/');
+    if (slash <= 0 || slash >= contentRange.length - 1) {
+      return null;
+    }
+    return int.tryParse(contentRange.substring(slash + 1));
   }
 }

@@ -516,6 +516,131 @@ void main() {
     );
 
     test(
+      'download endpoint supports full and ranged responses with expected headers',
+      () async {
+        await server.initializeAuth(
+          usersFilePath: p.join(testDir.path, 'users_download_range.json'),
+          sessionsFilePath:
+              p.join(testDir.path, 'sessions_download_range.json'),
+          forceReinitialize: true,
+        );
+
+        final musicDir =
+            await Directory(p.join(testDir.path, 'music_download_range'))
+                .create();
+        await _writeAudioStub(
+          p.join(musicDir.path, 'Download Range Artist - Range Song.mp3'),
+        );
+        await server.libraryManager.scanMusicFolder(musicDir.path);
+
+        final apiJson = server.libraryManager.toApiJson('http://127.0.0.1');
+        final songs = apiJson['songs'] as List<dynamic>;
+        expect(songs, hasLength(1));
+        final songId = (songs.single as Map<String, dynamic>)['id'] as String;
+
+        final port = await _findFreePort();
+        await server.start(
+          advertisedIp: '127.0.0.1',
+          bindAddress: '127.0.0.1',
+          port: port,
+        );
+
+        final registerResponse = await _sendJsonRequest(
+          method: 'POST',
+          url: Uri.parse('http://127.0.0.1:$port/api/auth/register'),
+          jsonBody: <String, dynamic>{
+            'username': 'download-range-user',
+            'password': 'download-range-pass',
+          },
+        );
+        expect(registerResponse.statusCode, 200);
+
+        final loginResponse = await _sendJsonRequest(
+          method: 'POST',
+          url: Uri.parse('http://127.0.0.1:$port/api/auth/login'),
+          jsonBody: <String, dynamic>{
+            'username': 'download-range-user',
+            'password': 'download-range-pass',
+            'deviceId': 'download-range-device',
+            'deviceName': 'Download Range Device',
+          },
+        );
+        expect(loginResponse.statusCode, 200);
+        final sessionToken = loginResponse.jsonBody['sessionToken'] as String?;
+        expect(sessionToken, isNotNull);
+
+        final ticketResponse = await _sendJsonRequest(
+          method: 'POST',
+          url: Uri.parse('http://127.0.0.1:$port/api/stream-ticket'),
+          headers: <String, String>{'Authorization': 'Bearer $sessionToken'},
+          jsonBody: <String, dynamic>{'songId': songId},
+        );
+        expect(ticketResponse.statusCode, 200);
+        final streamToken = ticketResponse.jsonBody['streamToken'] as String?;
+        expect(streamToken, isNotNull);
+
+        final fullResponse = await _sendBinaryRequest(
+          method: 'GET',
+          url: Uri.parse(
+            'http://127.0.0.1:$port/api/download/$songId?streamToken=$streamToken',
+          ),
+        );
+        expect(fullResponse.statusCode, 200);
+        expect(fullResponse.bodyBytes.length, 1024);
+        expect(fullResponse.headers[HttpHeaders.acceptRangesHeader], 'bytes');
+        expect(
+          fullResponse.headers['content-disposition'],
+          contains('attachment;'),
+        );
+
+        final rangeResponse = await _sendBinaryRequest(
+          method: 'GET',
+          url: Uri.parse(
+            'http://127.0.0.1:$port/api/download/$songId?streamToken=$streamToken',
+          ),
+          headers: <String, String>{HttpHeaders.rangeHeader: 'bytes=10-19'},
+        );
+        expect(rangeResponse.statusCode, 206);
+        expect(rangeResponse.bodyBytes.length, 10);
+        expect(
+          rangeResponse.headers[HttpHeaders.contentRangeHeader],
+          'bytes 10-19/1024',
+        );
+        expect(
+          rangeResponse.headers[HttpHeaders.contentLengthHeader],
+          '10',
+        );
+
+        final invalidRangeResponse = await _sendBinaryRequest(
+          method: 'GET',
+          url: Uri.parse(
+            'http://127.0.0.1:$port/api/download/$songId?streamToken=$streamToken',
+          ),
+          headers: <String, String>{HttpHeaders.rangeHeader: 'bytes=2048-4096'},
+        );
+        expect(invalidRangeResponse.statusCode, 416);
+        expect(
+          invalidRangeResponse.headers[HttpHeaders.contentRangeHeader],
+          'bytes */1024',
+        );
+
+        // Existing stream range behavior must remain intact.
+        final streamRangeResponse = await _sendBinaryRequest(
+          method: 'GET',
+          url: Uri.parse(
+            'http://127.0.0.1:$port/api/stream/$songId?streamToken=$streamToken',
+          ),
+          headers: <String, String>{HttpHeaders.rangeHeader: 'bytes=0-3'},
+        );
+        expect(streamRangeResponse.statusCode, 206);
+        expect(
+          streamRangeResponse.headers[HttpHeaders.contentRangeHeader],
+          'bytes 0-3/1024',
+        );
+      },
+    );
+
+    test(
       'P4-2: scan completion broadcasts both library_updated and sync_token_advanced',
       () async {
         await server.initializeAuth(

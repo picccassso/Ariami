@@ -105,6 +105,16 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
     return '$downloadPath/songs/$songId.mp3';
   }
 
+  String _getPartialSongFilePath(String songId) {
+    return '${_getSongFilePath(songId)}.partial';
+  }
+
+  Future<int?> _getPartialSongFileSize(String songId) async {
+    final partial = File(_getPartialSongFilePath(songId));
+    if (!await partial.exists()) return null;
+    return partial.length();
+  }
+
   Future<bool> _deleteSongFileIfUnreferenced(String songId) async {
     final normalizedSongId = songId.trim();
     if (normalizedSongId.isEmpty) {
@@ -127,6 +137,39 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
         if (attempt == 3) {
           print(
               '[DownloadManager] Failed to delete local file for song $normalizedSongId: $e');
+          return false;
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 120));
+      }
+    }
+    return false;
+  }
+
+  Future<bool> _deletePartialSongFileIfUnreferenced(
+    String songId, {
+    bool force = false,
+  }) async {
+    final normalizedSongId = songId.trim();
+    if (normalizedSongId.isEmpty) {
+      return false;
+    }
+    if (!force && _queue.queue.any((task) => task.songId == normalizedSongId)) {
+      return false;
+    }
+
+    final partialFile = File(_getPartialSongFilePath(normalizedSongId));
+    if (!await partialFile.exists()) {
+      return false;
+    }
+
+    for (var attempt = 1; attempt <= 3; attempt++) {
+      try {
+        await partialFile.delete();
+        return true;
+      } catch (e) {
+        if (attempt == 3) {
+          print(
+              '[DownloadManager] Failed to delete partial file for song $normalizedSongId: $e');
           return false;
         }
         await Future<void>.delayed(const Duration(milliseconds: 120));
@@ -208,8 +251,11 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
 
       final fileName = entity.path.split(Platform.pathSeparator).last;
       final songId = _songIdFromDownloadFileName(fileName);
-      final isKnownSongFile = songId != null && knownSongIds.contains(songId);
-      if (isKnownSongFile) {
+      if (songId != null && knownSongIds.contains(songId)) {
+        continue;
+      }
+      final partialSongId = _songIdFromPartialDownloadFileName(fileName);
+      if (partialSongId != null && knownSongIds.contains(partialSongId)) {
         continue;
       }
 
@@ -234,6 +280,15 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
       return null;
     }
     return fileName.substring(0, fileName.length - 4).trim();
+  }
+
+  String? _songIdFromPartialDownloadFileName(String fileName) {
+    const suffix = '.mp3.partial';
+    if (fileName.length <= suffix.length ||
+        !fileName.toLowerCase().endsWith(suffix)) {
+      return null;
+    }
+    return fileName.substring(0, fileName.length - suffix.length).trim();
   }
 
   /// Format bytes to human readable format

@@ -154,8 +154,12 @@ void main() {
     await songsDir.create(recursive: true);
     await File(p.join(songsDir.path, 'song-complete.mp3'))
         .writeAsBytes(List<int>.filled(32, 1));
+    await File(p.join(songsDir.path, 'song-pending.mp3.partial'))
+        .writeAsBytes(List<int>.filled(24, 7));
     await File(p.join(songsDir.path, 'stale-song.mp3'))
         .writeAsBytes(List<int>.filled(16, 2));
+    await File(p.join(songsDir.path, 'stale-song.mp3.partial'))
+        .writeAsBytes(List<int>.filled(16, 3));
 
     manager = DownloadManager();
     await manager.initialize();
@@ -202,6 +206,7 @@ void main() {
       expect(pendingTask.errorMessage, appClosedDownloadPauseMessage);
       expect(downloadingTask.errorMessage, appClosedDownloadPauseMessage);
       expect(manuallyPausedTask.errorMessage, 'User paused this download');
+      expect(pendingTask.bytesDownloaded, 24);
 
       final stats = manager.getQueueStats();
       expect(stats.totalTasks, 4);
@@ -210,7 +215,7 @@ void main() {
       expect(stats.failed, 0);
       expect(stats.paused, 3);
       expect(stats.totalBytes, 2100);
-      expect(stats.downloadedBytes, 1120);
+      expect(stats.downloadedBytes, 1144);
 
       expect(await manager.isSongDownloaded('song-complete'), isTrue);
       expect(manager.getCompletedDownloadCount(), 1);
@@ -235,6 +240,18 @@ void main() {
       );
       expect(
         File(p.join(docsDir.path, 'downloads', 'songs', 'stale-song.mp3'))
+            .existsSync(),
+        isFalse,
+      );
+      expect(
+        File(p.join(
+                docsDir.path, 'downloads', 'songs', 'song-pending.mp3.partial'))
+            .existsSync(),
+        isTrue,
+      );
+      expect(
+        File(p.join(
+                docsDir.path, 'downloads', 'songs', 'stale-song.mp3.partial'))
             .existsSync(),
         isFalse,
       );

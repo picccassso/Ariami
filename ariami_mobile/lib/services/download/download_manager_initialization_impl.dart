@@ -7,10 +7,23 @@ extension _DownloadManagerInitializationImpl on DownloadManager {
     // Setup database
     _database = await DownloadDatabase.create();
 
+    // Get download directory before queue recovery so partial-file lookups use
+    // the real application path.
+    final appDir = await getApplicationDocumentsDirectory();
+    _downloadPath = '${appDir.path}/downloads';
+    await Directory(_downloadPath!).create(recursive: true);
+
     // Load queue from storage into the already-initialized _queue
     final savedQueue = await _database.loadDownloadQueue();
     if (savedQueue.isNotEmpty) {
       for (final task in savedQueue) {
+        final partialBytes = await _getPartialSongFileSize(task.songId);
+        if (partialBytes != null && partialBytes > 0) {
+          task.bytesDownloaded = partialBytes;
+          if (task.totalBytes > 0) {
+            task.progress = partialBytes / task.totalBytes;
+          }
+        }
         if (task.status == DownloadStatus.downloading ||
             task.status == DownloadStatus.pending) {
           task.status = DownloadStatus.paused;
@@ -28,11 +41,6 @@ extension _DownloadManagerInitializationImpl on DownloadManager {
 
     // Load quality settings (for download quality/original)
     await _qualityService.initialize();
-
-    // Get download directory
-    final appDir = await getApplicationDocumentsDirectory();
-    _downloadPath = '${appDir.path}/downloads';
-    await Directory(_downloadPath!).create(recursive: true);
 
     // Listen to queue changes and persist
     _queue.queueStream.listen((tasks) {

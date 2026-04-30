@@ -7,6 +7,10 @@ const String interruptedDownloadPauseMessage =
 /// Error marker used when downloads are auto-paused when the app is closed.
 const String appClosedDownloadPauseMessage = 'Paused because app was closed';
 
+/// Error marker used when downloads are auto-paused by app backgrounding.
+const String lifecycleDownloadPauseMessage =
+    'Paused because app was interrupted';
+
 /// Returns true when a task was auto-paused due to interruption handling.
 bool isInterruptedDownloadTask(DownloadTask task) {
   if (task.status != DownloadStatus.paused) {
@@ -14,5 +18,6 @@ bool isInterruptedDownloadTask(DownloadTask task) {
   }
   final reason = task.errorMessage;
   return reason == interruptedDownloadPauseMessage ||
-      reason == appClosedDownloadPauseMessage;
+      reason == appClosedDownloadPauseMessage ||
+      reason == lifecycleDownloadPauseMessage;
 }

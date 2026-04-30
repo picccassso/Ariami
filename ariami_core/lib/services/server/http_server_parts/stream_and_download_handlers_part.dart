@@ -287,9 +287,34 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
         }
       }
 
+      final rangeHeader = request.headers[HttpHeaders.rangeHeader];
+      final range =
+          rangeHeader != null ? RangeHeader.parse(rangeHeader, fileSize) : null;
+      final start = range?.start ?? 0;
+      final end = range?.end ?? (fileSize - 1);
+      final contentLength = end - start + 1;
+
+      if (start < 0 || end >= fileSize || start > end) {
+        if (downloadTranscodeResult != null) {
+          await downloadTranscodeResult.cleanup();
+          print('[HttpServer] Cleaned up temp transcode file');
+        }
+        _releaseDownloadSlot(userKey);
+        releaseOnError = false;
+        return Response(
+          416,
+          headers: {
+            HttpHeaders.contentRangeHeader: 'bytes */$fileSize',
+            HttpHeaders.acceptRangesHeader: 'bytes',
+            'Content-Disposition': _encodeContentDisposition(downloadFileName),
+          },
+        );
+      }
+
       // Open file with explicit handle management to prevent file handle leaks
       final RandomAccessFile raf =
           await fileToDownload.open(mode: FileMode.read);
+      await raf.setPosition(start);
 
       // Capture the result for cleanup in the stream's finally block
       final tempResult = downloadTranscodeResult;
@@ -297,11 +322,14 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
       // Create stream that properly closes the file handle and cleans up temp files when done
       Stream<List<int>> createFileStream() async* {
         const int chunkSize = 64 * 1024; // 64 KB chunks
+        var remaining = contentLength;
         try {
-          while (true) {
-            final chunk = await raf.read(chunkSize);
+          while (remaining > 0) {
+            final toRead = remaining < chunkSize ? remaining : chunkSize;
+            final chunk = await raf.read(toRead);
             if (chunk.isEmpty) break;
             yield chunk;
+            remaining -= chunk.length;
           }
         } finally {
           await raf.close();
@@ -316,15 +344,29 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
 
       // Return the file as a download with appropriate headers
       releaseOnError = false;
+      final responseHeaders = <String, String>{
+        'Content-Type': mimeType,
+        'Content-Length': contentLength.toString(),
+        'Content-Disposition': _encodeContentDisposition(downloadFileName),
+        'Accept-Ranges': 'bytes',
+        'Cache-Control':
+            'public, max-age=3600', // Cache for 1 hour during download
+      };
+      if (range != null) {
+        responseHeaders[HttpHeaders.contentRangeHeader] =
+            'bytes $start-$end/$fileSize';
+      }
+
+      if (range != null) {
+        return Response(
+          206,
+          body: createFileStream(),
+          headers: responseHeaders,
+        );
+      }
       return Response.ok(
         createFileStream(),
-        headers: {
-          'Content-Type': mimeType,
-          'Content-Length': fileSize.toString(),
-          'Content-Disposition': _encodeContentDisposition(downloadFileName),
-          'Cache-Control':
-              'public, max-age=3600', // Cache for 1 hour during download
-        },
+        headers: responseHeaders,
       );
     } catch (e) {
       if (releaseOnError) {

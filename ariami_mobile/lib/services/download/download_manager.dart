@@ -158,6 +158,10 @@ class DownloadManager {
   /// Resume all interrupted (auto-paused) downloads in the current scope.
   Future<int> resumeInterruptedDownloads() => _resumeInterruptedDownloadsImpl();
 
+  /// Resume downloads paused by a foreground lifecycle interruption.
+  Future<int> resumeLifecycleInterruptedDownloads() =>
+      _resumeLifecycleInterruptedDownloadsImpl();
+
   /// Cancel all interrupted (auto-paused) downloads in the current scope.
   Future<int> cancelInterruptedDownloads() => _cancelInterruptedDownloadsImpl();
 
@@ -167,6 +171,10 @@ class DownloadManager {
   /// Pause active/pending downloads and flush queue state when app closes.
   Future<void> pauseDownloadsForAppClosure() =>
       _pauseDownloadsForAppClosureImpl();
+
+  /// Pause active/pending downloads for a temporary app lifecycle interruption.
+  Future<void> pauseDownloadsForLifecycleInterruption() =>
+      _pauseDownloadsForLifecycleInterruptionImpl();
 
   /// Retry a failed download
   Future<void> retryDownload(String taskId) => _retryDownloadImpl(taskId);
