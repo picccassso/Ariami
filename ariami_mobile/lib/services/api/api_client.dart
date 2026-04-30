@@ -252,6 +252,14 @@ class ApiClient {
     return StreamTicketResponse.fromJson(response);
   }
 
+  /// Request a long-lived download ticket for authenticated offline downloads.
+  Future<DownloadTicketResponse> getDownloadTicket(String songId,
+      {String? quality}) async {
+    final request = DownloadTicketRequest(songId: songId, quality: quality);
+    final response = await _post('/download-ticket', request.toJson());
+    return DownloadTicketResponse.fromJson(response);
+  }
+
   /// Get stream URL for a song (original quality)
   /// For legacy (non-auth) mode only
   String getStreamUrl(String songId) {
@@ -323,6 +331,22 @@ class ApiClient {
       {StreamingQuality? quality}) {
     final params = <String, String>{
       'streamToken': streamToken,
+    };
+
+    if (quality != null && quality != StreamingQuality.high) {
+      params['quality'] = quality.toApiParam();
+    }
+
+    final uri =
+        Uri.parse('$baseUrl/download/$songId').replace(queryParameters: params);
+    return uri.toString();
+  }
+
+  /// Get download URL with long-lived download token for authenticated downloads.
+  String getDownloadUrlWithDownloadToken(String songId, String downloadToken,
+      {StreamingQuality? quality}) {
+    final params = <String, String>{
+      'downloadToken': downloadToken,
     };
 
     if (quality != null && quality != StreamingQuality.high) {

@@ -157,3 +157,43 @@ class StreamTicketResponse {
     );
   }
 }
+
+// ============================================================================
+// DOWNLOAD TICKET MODELS
+// ============================================================================
+
+/// Request for a download ticket (long-lived token for offline downloads).
+class DownloadTicketRequest {
+  final String songId;
+  final String? quality;
+
+  DownloadTicketRequest({
+    required this.songId,
+    this.quality,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'songId': songId,
+      if (quality != null) 'quality': quality,
+    };
+  }
+}
+
+/// Response with download ticket.
+class DownloadTicketResponse {
+  final String downloadToken;
+  final String expiresAt;
+
+  DownloadTicketResponse({
+    required this.downloadToken,
+    required this.expiresAt,
+  });
+
+  factory DownloadTicketResponse.fromJson(Map<String, dynamic> json) {
+    return DownloadTicketResponse(
+      downloadToken: json['downloadToken'] as String,
+      expiresAt: json['expiresAt'] as String,
+    );
+  }
+}

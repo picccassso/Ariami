@@ -15,6 +15,7 @@ import '../quality/quality_settings_service.dart';
 import 'download_queue.dart';
 import 'local_artwork_extractor.dart';
 import 'download_helpers.dart';
+import 'native_download_service.dart';
 
 part 'download_manager_initialization_impl.dart';
 part 'download_manager_operations_impl.dart';
@@ -55,6 +56,7 @@ class DownloadManager {
   String? _lastKnownServerId;
   String? _lastKnownUserId;
   final QualitySettingsService _qualityService = QualitySettingsService();
+  final NativeDownloadService _nativeDownloadService = NativeDownloadService();
 
   /// Stream of download progress updates
   Stream<DownloadProgress> get progressStream => _progressController.stream;

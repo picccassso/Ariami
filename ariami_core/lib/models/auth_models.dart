@@ -219,6 +219,61 @@ class StreamTicketResponse {
 }
 
 // ============================================================================
+// DOWNLOAD TICKET MODELS
+// ============================================================================
+
+/// Request for a download ticket (long-lived token for offline downloads).
+/// Session token is passed via Authorization header, not in the body.
+class DownloadTicketRequest {
+  final String songId;
+  final String? quality; // Optional: high, medium, low
+
+  DownloadTicketRequest({
+    required this.songId,
+    this.quality,
+  });
+
+  factory DownloadTicketRequest.fromJson(Map<String, dynamic> json) {
+    return DownloadTicketRequest(
+      songId: json['songId'] as String,
+      quality: json['quality'] as String?,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'songId': songId,
+      if (quality != null) 'quality': quality,
+    };
+  }
+}
+
+/// Response with download ticket.
+class DownloadTicketResponse {
+  final String downloadToken;
+  final String expiresAt;
+
+  DownloadTicketResponse({
+    required this.downloadToken,
+    required this.expiresAt,
+  });
+
+  factory DownloadTicketResponse.fromJson(Map<String, dynamic> json) {
+    return DownloadTicketResponse(
+      downloadToken: json['downloadToken'] as String,
+      expiresAt: json['expiresAt'] as String,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'downloadToken': downloadToken,
+      'expiresAt': expiresAt,
+    };
+  }
+}
+
+// ============================================================================
 // USER AND SESSION STORAGE MODELS
 // ============================================================================
 

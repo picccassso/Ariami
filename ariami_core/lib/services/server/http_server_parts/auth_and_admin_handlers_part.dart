@@ -88,11 +88,10 @@ extension AriamiHttpServerAuthAndAdminHandlersMethods on AriamiHttpServer {
           await _authService.login(username, password, deviceId, deviceName);
 
       // Register client connection
-      final presenceClientType =
-          AuthService.isDashboardControlDevice(
-                  deviceId: deviceId, deviceName: deviceName)
-              ? 'dashboard'
-              : null;
+      final presenceClientType = AuthService.isDashboardControlDevice(
+              deviceId: deviceId, deviceName: deviceName)
+          ? 'dashboard'
+          : null;
       _connectionManager.registerClient(
         deviceId,
         deviceName,
@@ -650,6 +649,86 @@ extension AriamiHttpServerAuthAndAdminHandlersMethods on AriamiHttpServer {
           'error': {
             'code': 'INTERNAL_ERROR',
             'message': 'Failed to issue stream ticket',
+          },
+        }),
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
+      );
+    }
+  }
+
+  /// Handle download ticket request (for authenticated offline downloads).
+  Future<Response> _handleDownloadTicket(Request request) async {
+    // Session is attached by auth middleware.
+    final session = request.context['session'] as Session?;
+    if (session == null) {
+      return Response.unauthorized(
+        jsonEncode({
+          'error': {
+            'code': AuthErrorCodes.authRequired,
+            'message': 'Not authenticated',
+          },
+        }),
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
+      );
+    }
+
+    try {
+      final body = await request.readAsString();
+      final data = jsonDecode(body) as Map<String, dynamic>;
+      final ticketRequest = DownloadTicketRequest.fromJson(data);
+      final songId = ticketRequest.songId.trim();
+
+      if (songId.isEmpty) {
+        return Response.badRequest(
+          body: jsonEncode({
+            'error': {
+              'code': 'INVALID_REQUEST',
+              'message': 'songId is required',
+            },
+          }),
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
+        );
+      }
+
+      final filePath = _libraryManager.getSongFilePath(songId);
+      if (filePath == null) {
+        return _jsonNotFound({
+          'error': 'Song not found',
+          'message': 'Song ID not found in library: $songId',
+        });
+      }
+
+      final quality = ticketRequest.quality?.trim().toLowerCase();
+      final ticket = _streamTracker.issueDownloadTicket(
+        userId: session.userId,
+        sessionToken: session.sessionToken,
+        songId: songId,
+        quality: quality == null || quality.isEmpty ? null : quality,
+      );
+
+      return Response.ok(
+        jsonEncode(DownloadTicketResponse(
+          downloadToken: ticket.token,
+          expiresAt: ticket.expiresAt.toIso8601String(),
+        ).toJson()),
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
+      );
+    } on TypeError {
+      return Response.badRequest(
+        body: jsonEncode({
+          'error': {
+            'code': 'INVALID_REQUEST',
+            'message': 'Invalid request body',
+          },
+        }),
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
+      );
+    } catch (e) {
+      return Response.internalServerError(
+        body: jsonEncode({
+          'error': {
+            'code': 'INTERNAL_ERROR',
+            'message': 'Failed to issue download ticket',
           },
         }),
         headers: {'Content-Type': 'application/json; charset=utf-8'},

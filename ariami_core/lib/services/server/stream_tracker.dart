@@ -12,6 +12,9 @@ class StreamTracker {
   /// In-memory map: streamToken -> StreamTicket (O(1) lookup)
   final Map<String, StreamTicket> _tickets = {};
 
+  /// In-memory map: downloadToken -> DownloadTicket (O(1) lookup).
+  final Map<String, DownloadTicket> _downloadTickets = {};
+
   /// Track active streams: streamToken -> true (when actively streaming)
   final Set<String> _activeStreams = {};
 
@@ -49,8 +52,7 @@ class StreamTracker {
     String? quality,
   }) {
     // Generate secure random token (32 bytes = 64 hex chars)
-    final tokenBytes = List<int>.generate(32, (_) => _random.nextInt(256));
-    final token = tokenBytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+    final token = _generateToken();
 
     // Calculate TTL: max(trackDuration + 10min, 20min), capped at 2hrs
     final durationMinutes = (durationSeconds / 60).ceil();
@@ -74,6 +76,29 @@ class StreamTracker {
     return ticket;
   }
 
+  /// Issue a long-lived download ticket for one song and quality.
+  DownloadTicket issueDownloadTicket({
+    required String userId,
+    required String sessionToken,
+    required String songId,
+    String? quality,
+    Duration ttl = const Duration(hours: 24),
+  }) {
+    final now = DateTime.now();
+    final ticket = DownloadTicket(
+      token: _generateToken(),
+      userId: userId,
+      sessionToken: sessionToken,
+      songId: songId,
+      quality: quality,
+      issuedAt: now,
+      expiresAt: now.add(ttl),
+    );
+
+    _downloadTickets[ticket.token] = ticket;
+    return ticket;
+  }
+
   /// Validate a stream token.
   /// Returns the StreamTicket if valid and not expired, null otherwise.
   StreamTicket? validateToken(String streamToken) {
@@ -84,6 +109,20 @@ class StreamTracker {
     if (DateTime.now().isAfter(ticket.expiresAt)) {
       _tickets.remove(streamToken);
       _activeStreams.remove(streamToken);
+      return null;
+    }
+
+    return ticket;
+  }
+
+  /// Validate a download token.
+  /// Returns the DownloadTicket if valid and not expired, null otherwise.
+  DownloadTicket? validateDownloadToken(String downloadToken) {
+    final ticket = _downloadTickets[downloadToken];
+    if (ticket == null) return null;
+
+    if (DateTime.now().isAfter(ticket.expiresAt)) {
+      _downloadTickets.remove(downloadToken);
       return null;
     }
 
@@ -113,6 +152,15 @@ class StreamTracker {
     for (final token in tokensToRemove) {
       _tickets.remove(token);
       _activeStreams.remove(token);
+    }
+    final downloadTokensToRemove = <String>[];
+    for (final entry in _downloadTickets.entries) {
+      if (entry.value.sessionToken == sessionToken) {
+        downloadTokensToRemove.add(entry.key);
+      }
+    }
+    for (final token in downloadTokensToRemove) {
+      _downloadTickets.remove(token);
     }
   }
 
@@ -151,7 +199,24 @@ class StreamTracker {
     }
 
     if (expiredTokens.isNotEmpty) {
-      print('[StreamTracker] Cleaned up ${expiredTokens.length} expired tickets');
+      print(
+          '[StreamTracker] Cleaned up ${expiredTokens.length} expired tickets');
+    }
+
+    final expiredDownloadTokens = <String>[];
+    for (final entry in _downloadTickets.entries) {
+      if (now.isAfter(entry.value.expiresAt)) {
+        expiredDownloadTokens.add(entry.key);
+      }
+    }
+    for (final token in expiredDownloadTokens) {
+      _downloadTickets.remove(token);
+    }
+
+    if (expiredDownloadTokens.isNotEmpty) {
+      print(
+        '[StreamTracker] Cleaned up ${expiredDownloadTokens.length} expired download tickets',
+      );
     }
   }
 
@@ -168,8 +233,14 @@ class StreamTracker {
     _cleanupTimer?.cancel();
     _cleanupTimer = null;
     _tickets.clear();
+    _downloadTickets.clear();
     _activeStreams.clear();
     _initialized = false;
+  }
+
+  String _generateToken() {
+    final tokenBytes = List<int>.generate(32, (_) => _random.nextInt(256));
+    return tokenBytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
   }
 }
 
@@ -201,4 +272,27 @@ class StreamTicket {
     final remaining = expiresAt.difference(DateTime.now());
     return remaining.isNegative ? Duration.zero : remaining;
   }
+}
+
+/// Represents a long-lived ticket for offline download transfer.
+class DownloadTicket {
+  final String token;
+  final String userId;
+  final String sessionToken;
+  final String songId;
+  final String? quality;
+  final DateTime issuedAt;
+  final DateTime expiresAt;
+
+  DownloadTicket({
+    required this.token,
+    required this.userId,
+    required this.sessionToken,
+    required this.songId,
+    this.quality,
+    required this.issuedAt,
+    required this.expiresAt,
+  });
+
+  bool get isExpired => DateTime.now().isAfter(expiresAt);
 }

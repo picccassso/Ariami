@@ -579,10 +579,22 @@ void main() {
         final streamToken = ticketResponse.jsonBody['streamToken'] as String?;
         expect(streamToken, isNotNull);
 
+        final downloadTicketResponse = await _sendJsonRequest(
+          method: 'POST',
+          url: Uri.parse('http://127.0.0.1:$port/api/download-ticket'),
+          headers: <String, String>{'Authorization': 'Bearer $sessionToken'},
+          jsonBody: <String, dynamic>{'songId': songId},
+        );
+        expect(downloadTicketResponse.statusCode, 200);
+        final downloadToken =
+            downloadTicketResponse.jsonBody['downloadToken'] as String?;
+        expect(downloadToken, isNotNull);
+        expect(downloadTicketResponse.jsonBody['expiresAt'], isNotNull);
+
         final fullResponse = await _sendBinaryRequest(
           method: 'GET',
           url: Uri.parse(
-            'http://127.0.0.1:$port/api/download/$songId?streamToken=$streamToken',
+            'http://127.0.0.1:$port/api/download/$songId?downloadToken=$downloadToken',
           ),
         );
         expect(fullResponse.statusCode, 200);
@@ -596,7 +608,7 @@ void main() {
         final rangeResponse = await _sendBinaryRequest(
           method: 'GET',
           url: Uri.parse(
-            'http://127.0.0.1:$port/api/download/$songId?streamToken=$streamToken',
+            'http://127.0.0.1:$port/api/download/$songId?downloadToken=$downloadToken',
           ),
           headers: <String, String>{HttpHeaders.rangeHeader: 'bytes=10-19'},
         );
@@ -614,7 +626,7 @@ void main() {
         final invalidRangeResponse = await _sendBinaryRequest(
           method: 'GET',
           url: Uri.parse(
-            'http://127.0.0.1:$port/api/download/$songId?streamToken=$streamToken',
+            'http://127.0.0.1:$port/api/download/$songId?downloadToken=$downloadToken',
           ),
           headers: <String, String>{HttpHeaders.rangeHeader: 'bytes=2048-4096'},
         );

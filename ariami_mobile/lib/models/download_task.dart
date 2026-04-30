@@ -4,7 +4,14 @@ library;
 import '../utils/encoding_utils.dart';
 import 'quality_settings.dart';
 
-enum DownloadStatus { pending, downloading, paused, completed, failed, cancelled }
+enum DownloadStatus {
+  pending,
+  downloading,
+  paused,
+  completed,
+  failed,
+  cancelled
+}
 
 class DownloadTask {
   final String id;
@@ -14,7 +21,8 @@ class DownloadTask {
   final String artist;
   final String? albumId;
   final String? albumName;
-  final String? albumArtist; // The album's artist (not song artist which may include featured artists)
+  final String?
+      albumArtist; // The album's artist (not song artist which may include featured artists)
   final String albumArt;
   final String downloadUrl;
   final StreamingQuality downloadQuality;
@@ -29,6 +37,8 @@ class DownloadTask {
   int totalBytes; // Mutable - updated from HTTP response during download
   String? errorMessage;
   int retryCount;
+  String? nativeBackend;
+  String? nativeTaskId;
 
   static const int maxRetries = 3;
 
@@ -54,6 +64,8 @@ class DownloadTask {
     required this.totalBytes,
     this.errorMessage,
     this.retryCount = 0,
+    this.nativeBackend,
+    this.nativeTaskId,
   });
 
   /// Convert to JSON for storage
@@ -80,6 +92,8 @@ class DownloadTask {
       'totalBytes': totalBytes,
       'errorMessage': errorMessage,
       'retryCount': retryCount,
+      'nativeBackend': nativeBackend,
+      'nativeTaskId': nativeTaskId,
     };
   }
 
@@ -96,8 +110,10 @@ class DownloadTask {
       songId: json['songId'] as String,
       serverId: json['serverId'] as String?,
       userId: json['userId'] as String?,
-      title: EncodingUtils.fixEncoding(json['title'] as String) ?? json['title'] as String,
-      artist: EncodingUtils.fixEncoding(json['artist'] as String) ?? json['artist'] as String,
+      title: EncodingUtils.fixEncoding(json['title'] as String) ??
+          json['title'] as String,
+      artist: EncodingUtils.fixEncoding(json['artist'] as String) ??
+          json['artist'] as String,
       albumId: json['albumId'] as String?,
       albumName: EncodingUtils.fixEncoding(json['albumName'] as String?),
       albumArtist: EncodingUtils.fixEncoding(json['albumArtist'] as String?),
@@ -113,6 +129,8 @@ class DownloadTask {
       totalBytes: json['totalBytes'] as int,
       errorMessage: json['errorMessage'] as String?,
       retryCount: json['retryCount'] as int? ?? 0,
+      nativeBackend: json['nativeBackend'] as String?,
+      nativeTaskId: json['nativeTaskId'] as String?,
     );
   }
 

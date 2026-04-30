@@ -13,7 +13,7 @@ class DownloadDatabase {
       'download_auto_resume_interrupted_on_launch';
   static const String _sqliteMigrationKey = 'download_queue_sqlite_migrated_v1';
   static const String _databaseName = 'downloads.db';
-  static const int _databaseVersion = 1;
+  static const int _databaseVersion = 2;
   static const String _tasksTable = 'download_tasks';
 
   final SharedPreferences _prefs;
@@ -41,6 +41,7 @@ class DownloadDatabase {
       path,
       version: _databaseVersion,
       onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
     );
 
     await _migrateFromSharedPreferencesIfNeeded(db);
@@ -71,7 +72,9 @@ class DownloadDatabase {
         bytes_downloaded INTEGER NOT NULL DEFAULT 0,
         total_bytes INTEGER NOT NULL DEFAULT 0,
         error_message TEXT,
-        retry_count INTEGER NOT NULL DEFAULT 0
+        retry_count INTEGER NOT NULL DEFAULT 0,
+        native_backend TEXT,
+        native_task_id TEXT
       )
     ''');
 
@@ -81,6 +84,15 @@ class DownloadDatabase {
     await db.execute(
       'CREATE INDEX idx_download_tasks_server_user ON $_tasksTable(server_id, user_id)',
     );
+  }
+
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await db
+          .execute('ALTER TABLE $_tasksTable ADD COLUMN native_backend TEXT');
+      await db
+          .execute('ALTER TABLE $_tasksTable ADD COLUMN native_task_id TEXT');
+    }
   }
 
   Future<void> _migrateFromSharedPreferencesIfNeeded(Database db) async {
@@ -145,6 +157,8 @@ class DownloadDatabase {
       'total_bytes': task.totalBytes,
       'error_message': task.errorMessage,
       'retry_count': task.retryCount,
+      'native_backend': task.nativeBackend,
+      'native_task_id': task.nativeTaskId,
     };
   }
 
@@ -171,6 +185,8 @@ class DownloadDatabase {
       'totalBytes': row['total_bytes'] as int? ?? 0,
       'errorMessage': row['error_message'] as String?,
       'retryCount': row['retry_count'] as int? ?? 0,
+      'nativeBackend': row['native_backend'] as String?,
+      'nativeTaskId': row['native_task_id'] as String?,
     });
   }
 

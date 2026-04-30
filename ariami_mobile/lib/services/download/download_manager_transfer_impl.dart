@@ -62,6 +62,14 @@ extension _DownloadManagerTransferImpl on DownloadManager {
       await songDir.create(recursive: true);
 
       final downloadUrl = await _resolveDownloadUrl(task);
+      if (await _downloadTaskWithNativeService(
+        task: task,
+        downloadUrl: downloadUrl,
+        filePath: filePath,
+      )) {
+        return;
+      }
+
       final partialFile = File(partialPath);
       final finalFile = File(filePath);
       var resumeOffset =
@@ -203,6 +211,106 @@ extension _DownloadManagerTransferImpl on DownloadManager {
     }
   }
 
+  Future<bool> _downloadTaskWithNativeService({
+    required DownloadTask task,
+    required String downloadUrl,
+    required String filePath,
+  }) async {
+    if (task.nativeTaskId == null) {
+      final startResult = await _nativeDownloadService.startDownload(
+        taskId: task.id,
+        url: downloadUrl,
+        destinationPath: filePath,
+        title: task.title,
+        totalBytes: task.totalBytes,
+      );
+      if (startResult == null) {
+        return false;
+      }
+
+      task.nativeBackend = startResult.backend;
+      task.nativeTaskId = startResult.nativeTaskId;
+      _queue.updateTask(task);
+    }
+
+    await _pollNativeDownload(task, filePath);
+    return true;
+  }
+
+  Future<void> _pollNativeDownload(DownloadTask task, String filePath) async {
+    final nativeTaskId = task.nativeTaskId;
+    if (nativeTaskId == null) {
+      throw StateError('Native download missing native task id');
+    }
+
+    while (task.status == DownloadStatus.downloading) {
+      final snapshot = await _nativeDownloadService.queryDownload(
+        taskId: task.id,
+        nativeTaskId: nativeTaskId,
+      );
+
+      final downloaded = snapshot.bytesDownloaded;
+      final totalBytes = snapshot.totalBytes > 0
+          ? snapshot.totalBytes
+          : (task.totalBytes > 0 ? task.totalBytes : downloaded);
+      if (downloaded > 0) {
+        task.bytesDownloaded = downloaded;
+      }
+      if (totalBytes > 0) {
+        task.totalBytes = totalBytes;
+        task.progress = downloaded / totalBytes;
+      }
+
+      _activeProgress[task.id] = task.progress;
+      _progressController.add(DownloadProgress(
+        taskId: task.id,
+        progress: task.progress,
+        bytesDownloaded: task.bytesDownloaded,
+        totalBytes: task.totalBytes,
+      ));
+
+      if (snapshot.state == NativeDownloadState.completed) {
+        final fileSize = await File(filePath).length();
+        task.status = DownloadStatus.completed;
+        task.progress = 1.0;
+        task.bytesDownloaded = fileSize;
+        task.totalBytes = fileSize;
+        task.errorMessage = null;
+        task.nativeBackend = null;
+        task.nativeTaskId = null;
+        _queue.updateTask(task);
+
+        _progressController.add(DownloadProgress(
+          taskId: task.id,
+          progress: 1.0,
+          bytesDownloaded: fileSize,
+          totalBytes: fileSize,
+        ));
+        break;
+      }
+
+      if (snapshot.state == NativeDownloadState.failed ||
+          snapshot.state == NativeDownloadState.cancelled ||
+          snapshot.state == NativeDownloadState.unavailable) {
+        task.nativeBackend = null;
+        task.nativeTaskId = null;
+        throw Exception(snapshot.errorMessage ?? 'Native download failed');
+      }
+
+      await Future.delayed(const Duration(seconds: 1));
+    }
+
+    _activeDownloads.remove(task.id);
+    _activeProgress.remove(task.id);
+    _activeDownloadCount--;
+    await Future.delayed(const Duration(milliseconds: 50));
+    _fillDownloadSlots();
+
+    if (task.status == DownloadStatus.completed) {
+      unawaited(_cacheArtworkForDownload(task));
+    }
+  }
+
   /// Handle download error with retry logic
   Future<void> _handleDownloadError(DownloadTask task, dynamic error) async {
     print('Download error: ${task.id} - $error');
@@ -262,6 +370,7 @@ extension _DownloadManagerTransferImpl on DownloadManager {
     for (final task in _queue.queue) {
       if (!_isTaskInCurrentScope(task)) continue;
       if (task.status == DownloadStatus.downloading) {
+        if (task.nativeTaskId != null) continue;
         taskIdsToCancel.add(task.id);
         tasksToPause.add(task);
         continue;

@@ -24,6 +24,11 @@ extension _DownloadManagerInitializationImpl on DownloadManager {
             task.progress = partialBytes / task.totalBytes;
           }
         }
+        if (task.nativeTaskId != null &&
+            task.status == DownloadStatus.downloading) {
+          unawaited(_reconcileNativeDownloadOnLaunch(task));
+          continue;
+        }
         if (task.status == DownloadStatus.downloading ||
             task.status == DownloadStatus.pending) {
           task.status = DownloadStatus.paused;
@@ -243,7 +248,57 @@ extension _DownloadManagerInitializationImpl on DownloadManager {
       task.totalBytes.toString(),
       task.errorMessage ?? '',
       task.retryCount.toString(),
+      task.nativeBackend ?? '',
+      task.nativeTaskId ?? '',
     ].join('|');
+  }
+
+  Future<void> _reconcileNativeDownloadOnLaunch(DownloadTask task) async {
+    final nativeTaskId = task.nativeTaskId;
+    if (nativeTaskId == null) return;
+
+    final snapshot = await _nativeDownloadService.queryDownload(
+      taskId: task.id,
+      nativeTaskId: nativeTaskId,
+    );
+
+    if (snapshot.state == NativeDownloadState.completed) {
+      final filePath = _getSongFilePath(task.songId);
+      final file = File(filePath);
+      if (await file.exists()) {
+        final fileSize = await file.length();
+        task.status = DownloadStatus.completed;
+        task.progress = 1.0;
+        task.bytesDownloaded = fileSize;
+        task.totalBytes = fileSize;
+        task.errorMessage = null;
+        task.nativeBackend = null;
+        task.nativeTaskId = null;
+        _queue.updateTask(task);
+      }
+      return;
+    }
+
+    if (snapshot.state == NativeDownloadState.enqueued ||
+        snapshot.state == NativeDownloadState.running ||
+        snapshot.state == NativeDownloadState.paused) {
+      task.status = DownloadStatus.downloading;
+      task.bytesDownloaded = snapshot.bytesDownloaded;
+      if (snapshot.totalBytes > 0) {
+        task.totalBytes = snapshot.totalBytes;
+        task.progress = snapshot.bytesDownloaded / snapshot.totalBytes;
+      }
+      _queue.updateTask(task);
+      _activeDownloadCount++;
+      unawaited(_pollNativeDownload(task, _getSongFilePath(task.songId)));
+      return;
+    }
+
+    task.status = DownloadStatus.paused;
+    task.errorMessage = appClosedDownloadPauseMessage;
+    task.nativeBackend = null;
+    task.nativeTaskId = null;
+    _queue.updateTask(task);
   }
 
   QueueStats _buildQueueStats(List<DownloadTask> tasks) {

@@ -159,32 +159,63 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
       return _songIdRequiredResponse();
     }
 
-    // Validate stream token if auth is required
-    String? userId;
-    if (_authRequired && !_legacyMode) {
-      final streamToken = request.url.queryParameters['streamToken'];
-      if (streamToken == null || streamToken.isEmpty) {
-        return _streamTokenForbiddenResponse('Stream token required');
-      }
-
-      final ticket = _streamTracker.validateToken(streamToken);
-      if (ticket == null) {
-        return _streamTokenForbiddenResponse('Stream token expired or invalid');
-      }
-
-      // Verify the token is for the requested song
-      if (ticket.songId != path) {
-        return _streamTokenForbiddenResponse(
-          'Stream token does not match requested song',
-        );
-      }
-
-      userId = ticket.userId;
-    }
-
     // Parse quality parameter
     final qualityParam = request.url.queryParameters['quality'];
     final quality = QualityPreset.fromString(qualityParam);
+
+    // Validate stream/download token if auth is required
+    String? userId;
+    if (_authRequired && !_legacyMode) {
+      final streamToken = request.url.queryParameters['streamToken'];
+      final downloadToken = request.url.queryParameters['downloadToken'];
+      if ((streamToken == null || streamToken.isEmpty) &&
+          (downloadToken == null || downloadToken.isEmpty)) {
+        return _streamTokenForbiddenResponse(
+          'Stream or download token required',
+        );
+      }
+
+      if (downloadToken != null && downloadToken.isNotEmpty) {
+        final ticket = _streamTracker.validateDownloadToken(downloadToken);
+        if (ticket == null) {
+          return _streamTokenForbiddenResponse(
+            'Download token expired or invalid',
+          );
+        }
+
+        if (ticket.songId != path) {
+          return _streamTokenForbiddenResponse(
+            'Download token does not match requested song',
+          );
+        }
+
+        final requestedQuality = quality.name.toLowerCase();
+        final ticketQuality = ticket.quality ?? 'high';
+        if (ticketQuality != requestedQuality) {
+          return _streamTokenForbiddenResponse(
+            'Download token does not match requested quality',
+          );
+        }
+
+        userId = ticket.userId;
+      } else {
+        final ticket = _streamTracker.validateToken(streamToken!);
+        if (ticket == null) {
+          return _streamTokenForbiddenResponse(
+            'Stream token expired or invalid',
+          );
+        }
+
+        // Verify the token is for the requested song
+        if (ticket.songId != path) {
+          return _streamTokenForbiddenResponse(
+            'Stream token does not match requested song',
+          );
+        }
+
+        userId = ticket.userId;
+      }
+    }
 
     // Look up file path from library by song ID
     final filePath = _libraryManager.getSongFilePath(path);

@@ -225,6 +225,15 @@ extension _DownloadManagerOperationsImpl on DownloadManager {
     _activeDownloads[taskId]?.cancel();
     _activeDownloads.remove(taskId);
     _activeProgress.remove(taskId); // Cleanup progress tracking
+    final nativeTaskId = task.nativeTaskId;
+    if (nativeTaskId != null) {
+      unawaited(_nativeDownloadService.cancelDownload(
+        taskId: task.id,
+        nativeTaskId: nativeTaskId,
+      ));
+      task.nativeBackend = null;
+      task.nativeTaskId = null;
+    }
 
     task.status = DownloadStatus.paused;
     task.errorMessage = null;
@@ -350,6 +359,13 @@ extension _DownloadManagerOperationsImpl on DownloadManager {
     _activeDownloads[taskId]?.cancel();
     _activeDownloads.remove(taskId);
     _activeProgress.remove(taskId); // Cleanup progress tracking
+    final nativeTaskId = targetTask.nativeTaskId;
+    if (nativeTaskId != null) {
+      unawaited(_nativeDownloadService.cancelDownload(
+        taskId: targetTask.id,
+        nativeTaskId: nativeTaskId,
+      ));
+    }
 
     // Remove from queue (scoped to current server when available)
     _queue.dequeueWhere((task) {
@@ -442,16 +458,16 @@ extension _DownloadManagerOperationsImpl on DownloadManager {
               task.downloadQuality != StreamingQuality.high)
           ? task.downloadQuality.toApiParam()
           : null;
-      final ticketResponse = await apiClient.getStreamTicket(
+      final ticketResponse = await apiClient.getDownloadTicket(
         task.songId,
         quality: tokenQuality,
       );
 
       final urlQuality =
           task.downloadOriginal ? StreamingQuality.high : task.downloadQuality;
-      return apiClient.getDownloadUrlWithToken(
+      return apiClient.getDownloadUrlWithDownloadToken(
         task.songId,
-        ticketResponse.streamToken,
+        ticketResponse.downloadToken,
         quality: urlQuality,
       );
     }

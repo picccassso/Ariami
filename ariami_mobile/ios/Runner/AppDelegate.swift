@@ -9,7 +9,21 @@ import UIKit
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
     GeneratedPluginRegistrant.register(with: self)
+    if let controller = window?.rootViewController as? FlutterViewController {
+      NativeDownloadBridge.shared.register(messenger: controller.binaryMessenger)
+    }
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+
+  override func application(
+    _ application: UIApplication,
+    handleEventsForBackgroundURLSession identifier: String,
+    completionHandler: @escaping () -> Void
+  ) {
+    NativeDownloadBridge.shared.handleEventsForBackgroundURLSession(
+      identifier: identifier,
+      completionHandler: completionHandler
+    )
   }
 
   override func applicationWillTerminate(_ application: UIApplication) {

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:ariami_mobile/models/api_models.dart';
+import 'package:ariami_mobile/models/quality_settings.dart';
 import 'package:ariami_mobile/models/server_info.dart';
 import 'package:ariami_mobile/services/api/api_client.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -92,6 +93,37 @@ void main() {
       expect(cancelRequest.method, equals('POST'));
       expect(cancelRequest.path, equals('/api/v2/download-jobs/dj_123/cancel'));
     });
+
+    test('supports long-lived download ticket endpoint and URL builder',
+        () async {
+      final ticket = await client.getDownloadTicket(
+        'song-a',
+        quality: 'medium',
+      );
+
+      expect(ticket.downloadToken, equals('download-token-123'));
+      expect(ticket.expiresAt, equals('2026-02-08T00:00:00Z'));
+      expect(capturedRequests, hasLength(1));
+      expect(capturedRequests.single.method, equals('POST'));
+      expect(capturedRequests.single.path, equals('/api/download-ticket'));
+      expect(
+        capturedRequests.single.authorizationHeader,
+        equals('Bearer test-session'),
+      );
+      expect(capturedRequests.single.body['songId'], equals('song-a'));
+      expect(capturedRequests.single.body['quality'], equals('medium'));
+
+      final downloadUrl = client.getDownloadUrlWithDownloadToken(
+        'song-a',
+        ticket.downloadToken,
+        quality: StreamingQuality.medium,
+      );
+      final uri = Uri.parse(downloadUrl);
+      expect(uri.path, equals('/api/download/song-a'));
+      expect(
+          uri.queryParameters['downloadToken'], equals(ticket.downloadToken));
+      expect(uri.queryParameters['quality'], equals('medium'));
+    });
   });
 }
 
@@ -119,6 +151,17 @@ void _startMockApiServer(
 
       final path = request.uri.path;
       final method = request.method;
+
+      if (path == '/api/download-ticket' && method == 'POST') {
+        await _writeJson(
+          request.response,
+          <String, dynamic>{
+            'downloadToken': 'download-token-123',
+            'expiresAt': '2026-02-08T00:00:00Z',
+          },
+        );
+        return;
+      }
 
       if (path == '/api/v2/download-jobs' && method == 'POST') {
         await _writeJson(
