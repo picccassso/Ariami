@@ -4,7 +4,7 @@ set -euo pipefail
 # Ariami CLI - Raspberry Pi Release Builder for Mac
 # Builds ARM64 release using Docker (no Raspberry Pi needed)
 
-VERSION="4.2.0"
+VERSION="4.3.0"
 RELEASE_NAME="ariami-cli-raspberry-pi-arm64-v${VERSION}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"

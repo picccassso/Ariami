@@ -9,8 +9,8 @@ Ariami is a self-hosted music library server with native desktop and mobile play
 
 ## Quick Start
 
-1. **Download the desktop server** from [releases](https://github.com/picccassso/Ariami/releases). Pick the ZIP for your OS (for example `Ariami-Desktop-v4.2.0-macos.zip`, `Ariami-Desktop-v4.2.0-windows.zip`, or `Ariami-Desktop-v4.2.0-linux.zip` — filenames follow that pattern for each version).
-2. **Download the Android app** from the same [releases](https://github.com/picccassso/Ariami/releases) page (`ariami_apk_release_v4.2.0.apk` for v4.2.0). For iOS, you will have to build it and run it yourself.
+1. **Download the desktop server** from [releases](https://github.com/picccassso/Ariami/releases). Pick the ZIP for your OS (for example `Ariami-Desktop-v4.3.0-macos.zip`, `Ariami-Desktop-v4.3.0-windows.zip`, or `Ariami-Desktop-v4.3.0-linux.zip` — filenames follow that pattern for each version).
+2. **Download the Android app** from the same [releases](https://github.com/picccassso/Ariami/releases) page (`ariami_apk_release_v4.3.0.apk` for v4.3.0). For iOS, you will have to build it and run it yourself.
 3. **Install Tailscale** on the computer running the server and on your phone: [tailscale.com/download](https://tailscale.com/download)
 4. **Run the server** and choose your music folder.
 5. **Scan the QR code** shown by the server with the mobile app to connect.
@@ -23,9 +23,9 @@ curl -fsSL https://tailscale.com/install.sh | sh
 sudo tailscale up
 
 # Download and extract Ariami
-curl -L https://github.com/picccassso/Ariami/releases/download/v4.2.0/ariami-cli-raspberry-pi-arm64-v4.2.0.zip -o ariami-cli.zip
+curl -L https://github.com/picccassso/Ariami/releases/download/v4.3.0/ariami-cli-raspberry-pi-arm64-v4.3.0.zip -o ariami-cli.zip
 unzip ariami-cli.zip
-cd ariami-cli-raspberry-pi-arm64-v4.2.0
+cd ariami-cli-raspberry-pi-arm64-v4.3.0
 
 # Run the server
 chmod +x ariami_cli

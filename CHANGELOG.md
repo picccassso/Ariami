@@ -1,10 +1,19 @@
 # Changelog
 
-This is a massive update, I have done a lot of work to make Ariami better and more usable, some edge cases are not 100% covered still, however, I am more than proud of where I have come with it thus far, and I hope you enjoy using it too.
-
 Down below is a summary of all the changes made under each update!
 
 Thank you for those that actually support and use this project at all! :D
+
+---
+
+## 4.3.0
+
+- Fixed artist stats double-counting after library moves and imports
+- Remap stale song IDs during import and library sync, with auto-healing of playlists and stats after every sync
+- Overhauled listening statistics tracking — switched from wall-clock timers to position-based tracking, with debounced DB writes, app-lifecycle flushing, and seek-gating
+- Changed library mixed view sorting from last-opened to last-played
+- Added search bar when adding songs to playlists
+- Added undo snackbar for remove-from-recent and corrected bottom-chrome spacing
 
 ---
 

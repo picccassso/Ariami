@@ -55,7 +55,7 @@ extension AriamiHttpServerConnectionHandlersMethods on AriamiHttpServer {
       return _jsonOk({
         'status': 'connected',
         'sessionId': sessionId,
-        'serverVersion': '4.2.0',
+        'serverVersion': '4.3.0',
         'features': ['library', 'streaming', 'websocket'],
         'deviceId': deviceId,
       });

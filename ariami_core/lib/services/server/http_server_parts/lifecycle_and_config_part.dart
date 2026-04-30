@@ -220,7 +220,7 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
       'tailscaleServer': _tailscaleIp,
       'port': _port,
       'name': Platform.localHostname,
-      'version': '4.2.0',
+      'version': '4.3.0',
       'authRequired': _authRequired,
       'legacyMode': _legacyMode,
       'downloadLimits': {

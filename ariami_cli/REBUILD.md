@@ -142,7 +142,7 @@ The script will:
 5. Build `libsonic_transcoder.so` for ARM64 in Docker
 6. Create release directory structure
 7. Copy all necessary files (binary, web UI, Sonic library, SETUP.txt)
-8. Package everything into `ariami-cli-raspberry-pi-arm64-v4.2.0.zip`
+8. Package everything into `ariami-cli-raspberry-pi-arm64-v4.3.0.zip`
 9. Verify the binary and Sonic library architectures
 
 ### Why This Works on M2/M3 Macs
@@ -163,7 +163,7 @@ Same as Pi build - a ready-to-distribute zip file containing:
 
 To change the version number, edit `build-pi-release-mac.sh`:
 ```bash
-VERSION="4.2.0"  # Change this line
+VERSION="4.3.0"  # Change this line
 ```
 
 ### Troubleshooting
