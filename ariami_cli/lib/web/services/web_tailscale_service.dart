@@ -56,4 +56,32 @@ class WebTailscaleService {
     final status = await checkTailscaleStatus();
     return status['ip'] as String?;
   }
+
+  /// Reads [lanServer], [tailscaleServer], and primary [server] from public
+  /// [GET /api/server-info] so setup screens can show LAN alongside Tailscale.
+  Future<Map<String, String?>> fetchServerEndpoints() async {
+    try {
+      final response =
+          await _apiClient.get('/api/server-info', includeAuth: false);
+      if (!response.isSuccess || response.jsonBody == null) {
+        return const {
+          'lanServer': null,
+          'tailscaleServer': null,
+          'server': null,
+        };
+      }
+      final j = response.jsonBody!;
+      return {
+        'lanServer': j['lanServer'] as String?,
+        'tailscaleServer': j['tailscaleServer'] as String?,
+        'server': j['server'] as String?,
+      };
+    } catch (_) {
+      return const {
+        'lanServer': null,
+        'tailscaleServer': null,
+        'server': null,
+      };
+    }
+  }
 }

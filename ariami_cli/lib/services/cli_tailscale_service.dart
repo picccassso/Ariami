@@ -2,9 +2,11 @@ import 'dart:io';
 
 /// Service for managing Tailscale detection and IP address resolution on CLI (cross-platform)
 class CliTailscaleService {
-  /// Get the best IP address for mobile connections
+  /// Single advertised IP (Tailscale > LAN > localhost).
   ///
-  /// Priority: Tailscale IP > LAN IP > localhost
+  /// For HTTP server startup and QR payloads, prefer [getTailscaleIp] plus [getLanIp]
+  /// and pass both into [AriamiHttpServer.start] so `/api/server-info` exposes LAN and
+  /// Tailscale for the mobile app.
   Future<String> getBestAdvertisedIp() async {
     // Try Tailscale first
     final tailscaleIp = await getTailscaleIp();

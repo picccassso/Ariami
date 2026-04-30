@@ -116,13 +116,18 @@ class ServerRunner {
         maxQueuePerUser: limits.maxQueuePerUser,
       );
 
-      // Detect best IP for advertising to mobile clients (Tailscale > LAN > localhost)
-      final advertisedIp = await _tailscaleService.getBestAdvertisedIp();
+      // Advertise both LAN and Tailscale so mobile can prefer LAN when reachable
+      // (same contract as ariami_desktop).
+      final tailscaleIp = await _tailscaleService.getTailscaleIp();
+      final lanIp = await _tailscaleService.getLanIp();
+      final advertisedIp = tailscaleIp ?? lanIp ?? 'localhost';
 
       // Start HTTP server - bind to 0.0.0.0 to accept connections from any interface
       print('Starting HTTP server on 0.0.0.0:$port...');
       await _httpServer.start(
         advertisedIp: advertisedIp,
+        tailscaleIp: tailscaleIp,
+        lanIp: lanIp,
         bindAddress: '0.0.0.0',
         port: port,
       );

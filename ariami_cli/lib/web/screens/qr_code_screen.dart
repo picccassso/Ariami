@@ -6,6 +6,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../services/web_api_client.dart';
 import '../services/web_auth_service.dart';
 import '../utils/constants.dart';
+import '../widgets/endpoint_display.dart';
 
 class QRCodeScreen extends StatefulWidget {
   const QRCodeScreen({super.key});
@@ -20,7 +21,9 @@ class _QRCodeScreenState extends State<QRCodeScreen>
   late final WebApiClient _apiClient = WebApiClient(
     tokenProvider: _authService.getSessionToken,
   );
-  String _serverIp = 'Loading...';
+  String? _primaryServer;
+  String? _lanServer;
+  String? _tailscaleServer;
   int _serverPort = 8080;
   String _serverName = 'Loading...';
   bool _authRequired = false;
@@ -103,7 +106,9 @@ class _QRCodeScreenState extends State<QRCodeScreen>
 
         if (mounted) {
           setState(() {
-            _serverIp = serverInfo['server'] as String? ?? 'Unknown';
+            _primaryServer = serverInfo['server'] as String? ?? 'Unknown';
+            _lanServer = serverInfo['lanServer'] as String?;
+            _tailscaleServer = serverInfo['tailscaleServer'] as String?;
             _serverPort = serverInfo['port'] as int? ?? 8080;
             _serverName = serverInfo['name'] as String? ?? 'Ariami Server';
             _authRequired = serverInfo['authRequired'] as bool? ?? false;
@@ -224,8 +229,7 @@ class _QRCodeScreenState extends State<QRCodeScreen>
                                           const SizedBox(height: 24),
                                           _buildInfoRow('NAME', _serverName),
                                           const SizedBox(height: 16),
-                                          _buildInfoRow(
-                                              'IP ADDRESS', _serverIp),
+                                          ..._buildEndpointSection(),
                                           const SizedBox(height: 16),
                                           _buildInfoRow('PORT', '$_serverPort'),
                                           const SizedBox(height: 16),
@@ -354,6 +358,53 @@ class _QRCodeScreenState extends State<QRCodeScreen>
         ),
       ),
     );
+  }
+
+  List<Widget> _buildEndpointSection() {
+    final lan = _lanServer;
+    final ts = _tailscaleServer;
+    final primary = _primaryServer;
+
+    if (lan != null || ts != null) {
+      return [
+        const Text(
+          'AVAILABLE ENDPOINTS',
+          style: TextStyle(
+            color: AppTheme.textSecondary,
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.0,
+          ),
+        ),
+        const SizedBox(height: 12),
+        if (lan != null) ...[
+          EndpointDisplay(
+            label: 'Local Network',
+            value: lan,
+            badgeLabel: 'LAN',
+            dense: true,
+          ),
+          if (ts != null) const SizedBox(height: 16),
+        ],
+        if (ts != null)
+          EndpointDisplay(
+            label: 'Tailscale',
+            value: ts,
+            badgeLabel: 'REMOTE',
+            dense: true,
+          ),
+      ];
+    }
+
+    if (primary != null && primary.isNotEmpty) {
+      return [
+        _buildInfoRow('ADDRESS', primary),
+      ];
+    }
+
+    return [
+      _buildInfoRow('ADDRESS', 'Unknown'),
+    ];
   }
 
   Widget _buildErrorState() {

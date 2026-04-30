@@ -57,6 +57,9 @@ class _DashboardScreenState extends State<DashboardScreen>
   List<UserActivityRow> _userActivityRows = const <UserActivityRow>[];
   final Set<String> _kickingDeviceIds = <String>{};
 
+  String? _dashboardLanServer;
+  String? _dashboardTailscaleServer;
+
   Timer? _refreshTimer;
   Timer? _userActivityRefreshTimer;
   late AnimationController _pulseController;
@@ -108,6 +111,20 @@ class _DashboardScreenState extends State<DashboardScreen>
       if (response.statusCode == 200) {
         final data = response.jsonBody ?? <String, dynamic>{};
 
+        String? lan;
+        String? ts;
+        try {
+          final infoResp =
+              await _apiClient.get('/api/server-info', includeAuth: false);
+          if (infoResp.statusCode == 200 && infoResp.jsonBody != null) {
+            final j = infoResp.jsonBody!;
+            lan = j['lanServer'] as String?;
+            ts = j['tailscaleServer'] as String?;
+          }
+        } catch (_) {
+          // Ignore; card falls back to descriptive text only.
+        }
+
         if (mounted) {
           setState(() {
             _songCount = data['songCount'] as int? ?? 0;
@@ -119,6 +136,8 @@ class _DashboardScreenState extends State<DashboardScreen>
             _isScanning = data['isScanning'] as bool? ?? false;
             _lastScanTime = data['lastScanTime'] as String?;
             _serverRunning = data['serverRunning'] as bool? ?? true;
+            _dashboardLanServer = lan;
+            _dashboardTailscaleServer = ts;
             _isLoading = false;
           });
         }
@@ -554,7 +573,10 @@ class _DashboardScreenState extends State<DashboardScreen>
                             onViewQRCode: _viewQRCode,
                           ),
                           const SizedBox(height: 56),
-                          const ServerInfoCard(),
+                          ServerInfoCard(
+                            lanServer: _dashboardLanServer,
+                            tailscaleServer: _dashboardTailscaleServer,
+                          ),
                           const SizedBox(height: 48),
                         ],
                       ),

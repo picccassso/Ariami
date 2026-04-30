@@ -1,12 +1,24 @@
 import 'package:flutter/material.dart';
 
 import '../../utils/constants.dart';
+import '../endpoint_display.dart';
 
 class ServerInfoCard extends StatelessWidget {
-  const ServerInfoCard({super.key});
+  const ServerInfoCard({
+    super.key,
+    this.lanServer,
+    this.tailscaleServer,
+  });
+
+  final String? lanServer;
+  final String? tailscaleServer;
 
   @override
   Widget build(BuildContext context) {
+    final hasEndpoints =
+        (lanServer != null && lanServer!.isNotEmpty) ||
+            (tailscaleServer != null && tailscaleServer!.isNotEmpty);
+
     return Container(
       decoration: BoxDecoration(
         color: AppTheme.surfaceBlack,
@@ -29,6 +41,36 @@ class ServerInfoCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 20),
+          if (hasEndpoints) ...[
+            const Text(
+              'AVAILABLE ENDPOINTS',
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                color: AppTheme.textSecondary,
+                letterSpacing: 1.2,
+              ),
+            ),
+            const SizedBox(height: 12),
+            if (lanServer != null && lanServer!.isNotEmpty) ...[
+              EndpointDisplay(
+                label: 'Local Network',
+                value: lanServer!,
+                badgeLabel: 'LAN',
+              ),
+              if (tailscaleServer != null && tailscaleServer!.isNotEmpty)
+                const SizedBox(height: 16),
+            ],
+            if (tailscaleServer != null && tailscaleServer!.isNotEmpty)
+              EndpointDisplay(
+                label: 'Tailscale',
+                value: tailscaleServer!,
+                badgeLabel: 'REMOTE',
+              ),
+            const SizedBox(height: 20),
+            const Divider(color: Colors.white10),
+            const SizedBox(height: 20),
+          ],
           const Text(
             'The Ariami server is broadcasting securely. Mobile clients can connect via your local network or Tailscale address.',
             style: TextStyle(

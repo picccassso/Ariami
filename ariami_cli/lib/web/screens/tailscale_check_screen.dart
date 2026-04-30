@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/web_tailscale_service.dart';
 import '../utils/constants.dart';
+import '../widgets/endpoint_display.dart';
 
 class TailscaleCheckScreen extends StatefulWidget {
   const TailscaleCheckScreen({super.key});
@@ -16,6 +17,7 @@ class _TailscaleCheckScreenState extends State<TailscaleCheckScreen> with Single
   bool _isInstalled = false;
   bool _isRunning = false;
   String? _tailscaleIp;
+  String? _lanServer;
 
   late AnimationController _pulseController;
 
@@ -40,6 +42,7 @@ class _TailscaleCheckScreenState extends State<TailscaleCheckScreen> with Single
 
     try {
       final status = await _tailscaleService.checkTailscaleStatus();
+      final endpoints = await _tailscaleService.fetchServerEndpoints();
 
       if (mounted) {
         setState(() {
@@ -47,6 +50,7 @@ class _TailscaleCheckScreenState extends State<TailscaleCheckScreen> with Single
           _isInstalled = status['isInstalled'] as bool? ?? false;
           _isRunning = status['isRunning'] as bool? ?? false;
           _tailscaleIp = status['ip'] as String?;
+          _lanServer = endpoints['lanServer'];
         });
       }
     } catch (e) {
@@ -56,6 +60,7 @@ class _TailscaleCheckScreenState extends State<TailscaleCheckScreen> with Single
           _isInstalled = false;
           _isRunning = false;
           _tailscaleIp = null;
+          _lanServer = null;
         });
       }
     }
@@ -140,32 +145,35 @@ class _TailscaleCheckScreenState extends State<TailscaleCheckScreen> with Single
 
                       if (_isChecking)
                         const CircularProgressIndicator(color: Colors.white)
-                      else if (_tailscaleIp != null)
-                        Container(
-                          width: 400,
-                          decoration: AppTheme.glassDecoration,
-                          padding: const EdgeInsets.all(24.0),
+                      else if (_lanServer != null || _tailscaleIp != null)
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 440),
                           child: Column(
                             children: [
-                              const Text(
-                                'SECURE MESH IP',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w800,
-                                  color: AppTheme.textSecondary,
-                                  letterSpacing: 1.5,
+                              if (_lanServer != null)
+                                Container(
+                                  width: double.infinity,
+                                  decoration: AppTheme.glassDecoration,
+                                  padding: const EdgeInsets.all(24.0),
+                                  child: EndpointDisplay(
+                                    label: 'Local Network',
+                                    value: _lanServer!,
+                                    badgeLabel: 'LAN',
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: 12),
-                              Text(
-                                _tailscaleIp!,
-                                style: const TextStyle(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.w900,
-                                  color: Colors.white,
-                                  letterSpacing: 1.0,
+                              if (_lanServer != null && _tailscaleIp != null)
+                                const SizedBox(height: 16),
+                              if (_tailscaleIp != null)
+                                Container(
+                                  width: double.infinity,
+                                  decoration: AppTheme.glassDecoration,
+                                  padding: const EdgeInsets.all(24.0),
+                                  child: EndpointDisplay(
+                                    label: 'Tailscale',
+                                    value: _tailscaleIp!,
+                                    badgeLabel: 'REMOTE',
+                                  ),
                                 ),
-                              ),
                             ],
                           ),
                         )
