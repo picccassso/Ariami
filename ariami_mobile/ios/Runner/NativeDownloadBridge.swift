@@ -9,6 +9,8 @@ final class NativeDownloadBridge: NSObject, URLSessionDownloadDelegate {
   private let defaults = UserDefaults.standard
   private var channel: FlutterMethodChannel?
   private var backgroundCompletionHandler: (() -> Void)?
+  private var lastProgressBytesByTaskId: [String: Int64] = [:]
+  private var lastProgressDateByTaskId: [String: Date] = [:]
   private lazy var session: URLSession = {
     let configuration = URLSessionConfiguration.background(withIdentifier: sessionIdentifier)
     configuration.sessionSendsLaunchEvents = true
@@ -139,11 +141,20 @@ final class NativeDownloadBridge: NSObject, URLSessionDownloadDelegate {
     totalBytesExpectedToWrite: Int64
   ) {
     guard let taskId = downloadTask.taskDescription else { return }
+    let lastBytes = lastProgressBytesByTaskId[taskId] ?? 0
+    let lastDate = lastProgressDateByTaskId[taskId] ?? .distantPast
+    let elapsed = Date().timeIntervalSince(lastDate)
+    if totalBytesWritten - lastBytes < progressUpdateBytes && elapsed < progressUpdateInterval {
+      return
+    }
+
     defaults.set("running", forKey: stateKey(taskId))
     defaults.set(totalBytesWritten, forKey: bytesKey(taskId))
     if totalBytesExpectedToWrite > 0 {
       defaults.set(totalBytesExpectedToWrite, forKey: totalKey(taskId))
     }
+    lastProgressBytesByTaskId[taskId] = totalBytesWritten
+    lastProgressDateByTaskId[taskId] = Date()
   }
 
   func urlSession(
@@ -172,9 +183,13 @@ final class NativeDownloadBridge: NSObject, URLSessionDownloadDelegate {
       defaults.set(size, forKey: totalKey(taskId))
       defaults.set("completed", forKey: stateKey(taskId))
       defaults.removeObject(forKey: errorKey(taskId))
+      lastProgressBytesByTaskId.removeValue(forKey: taskId)
+      lastProgressDateByTaskId.removeValue(forKey: taskId)
     } catch {
       defaults.set("failed", forKey: stateKey(taskId))
       defaults.set(error.localizedDescription, forKey: errorKey(taskId))
+      lastProgressBytesByTaskId.removeValue(forKey: taskId)
+      lastProgressDateByTaskId.removeValue(forKey: taskId)
     }
   }
 
@@ -187,9 +202,13 @@ final class NativeDownloadBridge: NSObject, URLSessionDownloadDelegate {
     if let error = error as NSError? {
       if error.code == NSURLErrorCancelled {
         defaults.set("cancelled", forKey: stateKey(taskId))
+        lastProgressBytesByTaskId.removeValue(forKey: taskId)
+        lastProgressDateByTaskId.removeValue(forKey: taskId)
       } else if defaults.string(forKey: stateKey(taskId)) != "completed" {
         defaults.set("failed", forKey: stateKey(taskId))
         defaults.set(error.localizedDescription, forKey: errorKey(taskId))
+        lastProgressBytesByTaskId.removeValue(forKey: taskId)
+        lastProgressDateByTaskId.removeValue(forKey: taskId)
       }
     }
   }
@@ -207,4 +226,7 @@ final class NativeDownloadBridge: NSObject, URLSessionDownloadDelegate {
   private func bytesKey(_ taskId: String) -> String { "nativeDownload.bytes.\(taskId)" }
   private func totalKey(_ taskId: String) -> String { "nativeDownload.total.\(taskId)" }
   private func errorKey(_ taskId: String) -> String { "nativeDownload.error.\(taskId)" }
+
+  private let progressUpdateBytes: Int64 = 512 * 1024
+  private let progressUpdateInterval: TimeInterval = 1.0
 }

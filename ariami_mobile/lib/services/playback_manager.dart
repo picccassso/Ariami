@@ -75,6 +75,7 @@ class PlaybackManager extends ChangeNotifier {
   CastMediaPlayerState? _lastObservedCastPlayerState;
   bool _isHandlingCastCompletion = false;
   Timer? _castStatsForwardTimer;
+  String? _lastWarmupKey;
 
   // Getters
   Song? get currentSong => _queue.currentSong;
@@ -296,6 +297,9 @@ class PlaybackManager extends ChangeNotifier {
 
   /// Internal: Cache a song in the background for future offline playback
   void _cacheSongInBackground(Song song) => _cacheSongInBackgroundImpl(song);
+
+  void _warmNextStreamInBackground(StreamingQuality quality) =>
+      _warmNextStreamInBackgroundImpl(quality);
 
   /// Internal: Get stream URL with retry-once logic for expired stream tokens
   ///

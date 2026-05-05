@@ -70,7 +70,9 @@ class AriamiDownloadWorker(
 
             connection.inputStream.use { input ->
                 FileOutputStream(partialFile, resumeOffset > 0L).use { output ->
-                    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                    val buffer = ByteArray(128 * 1024)
+                    var lastProgressBytes = resumeOffset
+                    var lastProgressAtMillis = System.currentTimeMillis()
                     while (true) {
                         if (isStopped) {
                             return Result.failure(progressData(downloaded, expectedTotalBytes ?: 0L))
@@ -81,8 +83,15 @@ class AriamiDownloadWorker(
                         output.write(buffer, 0, read)
                         downloaded += read.toLong()
                         val total = expectedTotalBytes ?: downloaded
-                        setProgress(progressData(downloaded, total))
-                        setForeground(createForegroundInfo(title, downloaded, total))
+                        val now = System.currentTimeMillis()
+                        if (downloaded - lastProgressBytes >= PROGRESS_UPDATE_BYTES ||
+                            now - lastProgressAtMillis >= PROGRESS_UPDATE_INTERVAL_MS
+                        ) {
+                            setProgress(progressData(downloaded, total))
+                            setForeground(createForegroundInfo(title, downloaded, total))
+                            lastProgressBytes = downloaded
+                            lastProgressAtMillis = now
+                        }
                     }
                 }
             }
@@ -211,5 +220,7 @@ class AriamiDownloadWorker(
 
         private const val CHANNEL_ID = "ariami_downloads"
         private const val NOTIFICATION_ID_BASE = 24000
+        private const val PROGRESS_UPDATE_BYTES = 512L * 1024L
+        private const val PROGRESS_UPDATE_INTERVAL_MS = 1_000L
     }
 }

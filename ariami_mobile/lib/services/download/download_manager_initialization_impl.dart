@@ -93,6 +93,15 @@ extension _DownloadManagerInitializationImpl on DownloadManager {
     }
   }
 
+  void _setAppInForegroundImpl(bool isForeground) {
+    if (_isAppInForeground == isForeground) return;
+    _isAppInForeground = isForeground;
+    print('DownloadManager: App foreground state set to $isForeground');
+    if (isForeground && _initialized) {
+      _fillDownloadSlots();
+    }
+  }
+
   /// Ensure initialization
   Future<void> _ensureInitialized() async {
     if (!_initialized) {

@@ -103,6 +103,8 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
 
   void _addToQueueImpl(Song song) {
     _queue.addSong(song);
+    _lastWarmupKey = null;
+    _warmNextStreamInBackground(_qualityService.getCurrentStreamingQuality());
     _notifyStateChanged();
   }
 
@@ -110,11 +112,15 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
     for (final song in songs) {
       _queue.addSong(song);
     }
+    _lastWarmupKey = null;
+    _warmNextStreamInBackground(_qualityService.getCurrentStreamingQuality());
     _notifyStateChanged();
   }
 
   void _playNextImpl(Song song) {
     _queue.insertSong(_queue.currentIndex + 1, song);
+    _lastWarmupKey = null;
+    _warmNextStreamInBackground(_qualityService.getCurrentStreamingQuality());
     _notifyStateChanged();
   }
 
@@ -164,7 +170,8 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
           // Find first available song from beginning when wrapping
           final nextIndex = await _findNextAvailableSongIndexFrom(0);
           if (nextIndex != null) {
-            await _statsService.onSongStopped(completedNaturally: completedNaturally);
+            await _statsService.onSongStopped(
+                completedNaturally: completedNaturally);
             _queue.jumpToIndex(nextIndex);
             _restoredPosition = null;
             _pendingUiPosition = null;
@@ -179,7 +186,8 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
           }
         } else if (_repeatMode == RepeatMode.one) {
           // Replay current song - finalize current session first
-          await _statsService.onSongStopped(completedNaturally: completedNaturally);
+          await _statsService.onSongStopped(
+              completedNaturally: completedNaturally);
           await seek(Duration.zero);
           _statsService.onSongStarted(currentSong!);
           if (_castService.isConnected) {

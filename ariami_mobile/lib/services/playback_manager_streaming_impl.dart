@@ -146,6 +146,7 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
 
           // Trigger background caching of the song for offline use
           _cacheSongInBackground(song);
+          _warmNextStreamInBackground(streamingQuality);
           break;
 
         case PlaybackSource.unavailable:
@@ -317,5 +318,32 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
     final uri = Uri.tryParse(url);
     if (uri == null) return null;
     return uri.queryParameters['streamToken'];
+  }
+
+  void _warmNextStreamInBackgroundImpl(StreamingQuality quality) {
+    final nextSong = _queue.nextSong;
+    final apiClient = _connectionService.apiClient;
+    if (nextSong == null ||
+        apiClient == null ||
+        !_connectionService.isAuthenticated) {
+      return;
+    }
+
+    final qualityParam =
+        quality != StreamingQuality.high ? quality.toApiParam() : null;
+    final key = '${nextSong.id}:${qualityParam ?? 'high'}';
+    if (_lastWarmupKey == key) return;
+    _lastWarmupKey = key;
+
+    unawaited(() async {
+      try {
+        final source = await _offlineService.getPlaybackSource(nextSong.id);
+        if (source != PlaybackSource.stream) return;
+        await apiClient.warmStreams([nextSong.id], quality: qualityParam);
+        print('[PlaybackManager] Warmed next stream: ${nextSong.title}');
+      } catch (e) {
+        print('[PlaybackManager] Failed to warm next stream: $e');
+      }
+    }());
   }
 }

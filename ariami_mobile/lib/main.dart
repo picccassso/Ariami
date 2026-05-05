@@ -184,18 +184,21 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     // Swiping the app away transitions to detached on supported platforms.
     if (state == AppLifecycleState.detached) {
+      _downloadManager.setAppInForeground(false);
       unawaited(_downloadManager.pauseDownloadsForAppClosure());
       return;
     }
 
     if (state == AppLifecycleState.inactive ||
         state == AppLifecycleState.paused) {
+      _downloadManager.setAppInForeground(false);
       _downloadsPausedForLifecycle = true;
       unawaited(_downloadManager.pauseDownloadsForLifecycleInterruption());
       return;
     }
 
     if (state == AppLifecycleState.resumed) {
+      _downloadManager.setAppInForeground(true);
       _triggerResumeReconnectIfNeeded();
       if (_downloadsPausedForLifecycle) {
         _downloadsPausedForLifecycle = false;

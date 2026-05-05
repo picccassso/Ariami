@@ -252,6 +252,15 @@ class ApiClient {
     return StreamTicketResponse.fromJson(response);
   }
 
+  /// Hint the server to prepare likely upcoming streams in its transcode cache.
+  Future<void> warmStreams(List<String> songIds, {String? quality}) async {
+    if (songIds.isEmpty) return;
+    await _post('/stream-warmup', {
+      'songIds': songIds.take(3).toList(),
+      if (quality != null) 'quality': quality,
+    });
+  }
+
   /// Request a long-lived download ticket for authenticated offline downloads.
   Future<DownloadTicketResponse> getDownloadTicket(String songId,
       {String? quality}) async {

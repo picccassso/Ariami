@@ -47,6 +47,8 @@ extension _DownloadManagerTransferImpl on DownloadManager {
 
   /// Download a specific task
   Future<void> _downloadTask(DownloadTask task) async {
+    final totalStopwatch = Stopwatch()..start();
+    var backend = 'dart_dio';
     try {
       // Note: task.status is already set to downloading by _fillDownloadSlots()
 
@@ -62,12 +64,16 @@ extension _DownloadManagerTransferImpl on DownloadManager {
       await songDir.create(recursive: true);
 
       final downloadUrl = await _resolveDownloadUrl(task);
-      if (await _downloadTaskWithNativeService(
-        task: task,
-        downloadUrl: downloadUrl,
-        filePath: filePath,
-      )) {
-        return;
+      if (_shouldUseNativeDownload(task)) {
+        backend = 'native_${task.nativeBackend ?? 'android_workmanager'}';
+        if (await _downloadTaskWithNativeService(
+          task: task,
+          downloadUrl: downloadUrl,
+          filePath: filePath,
+          stopwatch: totalStopwatch,
+        )) {
+          return;
+        }
       }
 
       final partialFile = File(partialPath);
@@ -170,6 +176,12 @@ extension _DownloadManagerTransferImpl on DownloadManager {
       await partialFile.rename(filePath);
 
       print('Download completed: ${task.title} (${_formatFileSize(fileSize)})');
+      _logDownloadThroughput(
+        backend: backend,
+        task: task,
+        bytes: fileSize,
+        elapsed: totalStopwatch.elapsed,
+      );
 
       // Mark as completed with actual file size
       task.status = DownloadStatus.completed;
@@ -215,6 +227,7 @@ extension _DownloadManagerTransferImpl on DownloadManager {
     required DownloadTask task,
     required String downloadUrl,
     required String filePath,
+    required Stopwatch stopwatch,
   }) async {
     if (task.nativeTaskId == null) {
       final startResult = await _nativeDownloadService.startDownload(
@@ -230,14 +243,20 @@ extension _DownloadManagerTransferImpl on DownloadManager {
 
       task.nativeBackend = startResult.backend;
       task.nativeTaskId = startResult.nativeTaskId;
+      print(
+          '[DownloadManager] Using native download backend ${startResult.backend} for ${task.title}');
       _queue.updateTask(task);
     }
 
-    await _pollNativeDownload(task, filePath);
+    await _pollNativeDownload(task, filePath, stopwatch: stopwatch);
     return true;
   }
 
-  Future<void> _pollNativeDownload(DownloadTask task, String filePath) async {
+  Future<void> _pollNativeDownload(
+    DownloadTask task,
+    String filePath, {
+    Stopwatch? stopwatch,
+  }) async {
     final nativeTaskId = task.nativeTaskId;
     if (nativeTaskId == null) {
       throw StateError('Native download missing native task id');
@@ -271,6 +290,8 @@ extension _DownloadManagerTransferImpl on DownloadManager {
 
       if (snapshot.state == NativeDownloadState.completed) {
         final fileSize = await File(filePath).length();
+        final elapsed = stopwatch?.elapsed;
+        final nativeBackend = task.nativeBackend ?? 'android_workmanager';
         task.status = DownloadStatus.completed;
         task.progress = 1.0;
         task.bytesDownloaded = fileSize;
@@ -286,6 +307,14 @@ extension _DownloadManagerTransferImpl on DownloadManager {
           bytesDownloaded: fileSize,
           totalBytes: fileSize,
         ));
+        if (elapsed != null) {
+          _logDownloadThroughput(
+            backend: 'native_$nativeBackend',
+            task: task,
+            bytes: fileSize,
+            elapsed: elapsed,
+          );
+        }
         break;
       }
 
@@ -411,6 +440,39 @@ extension _DownloadManagerTransferImpl on DownloadManager {
   bool _canProcessDownloads() {
     final connection = ConnectionService();
     return connection.isConnected && connection.apiClient != null;
+  }
+
+  bool _shouldUseNativeDownload(DownloadTask task) {
+    if (task.nativeTaskId != null) {
+      return true;
+    }
+
+    if (Platform.isAndroid) {
+      return !_isAppInForeground;
+    }
+
+    return true;
+  }
+
+  void _logDownloadThroughput({
+    required String backend,
+    required DownloadTask task,
+    required int bytes,
+    required Duration elapsed,
+  }) {
+    final seconds = elapsed.inMilliseconds / 1000.0;
+    if (seconds <= 0) return;
+
+    final mb = bytes / (1024 * 1024);
+    final mbps = mb / seconds;
+    print(
+      '[DownloadManager] Download throughput: '
+      'backend=$backend '
+      'songId=${task.songId} '
+      'bytes=$bytes '
+      'duration=${seconds.toStringAsFixed(2)}s '
+      'speed=${mbps.toStringAsFixed(2)}MB/s',
+    );
   }
 
   bool _isTaskInCurrentScope(DownloadTask task) {

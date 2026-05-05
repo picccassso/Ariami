@@ -55,6 +55,7 @@ class DownloadManager {
   String? _downloadPath;
   String? _lastKnownServerId;
   String? _lastKnownUserId;
+  bool _isAppInForeground = true;
   final QualitySettingsService _qualityService = QualitySettingsService();
   final NativeDownloadService _nativeDownloadService = NativeDownloadService();
 
@@ -80,6 +81,10 @@ class DownloadManager {
   /// Update the maximum number of concurrent downloads (per device)
   void setMaxConcurrentDownloads(int maxConcurrent) =>
       _setMaxConcurrentDownloadsImpl(maxConcurrent);
+
+  /// Update app foreground state so Android can choose the fastest safe backend.
+  void setAppInForeground(bool isForeground) =>
+      _setAppInForegroundImpl(isForeground);
 
   // ============================================================================
   // DOWNLOAD OPERATIONS
