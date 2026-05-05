@@ -90,6 +90,7 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
     if (filePath == null) {
       return _songNotFoundResponse(path);
     }
+    final sourceBitrateKbps = _libraryManager.getKnownSongBitrate(path);
 
     final File originalFile = File(filePath);
 
@@ -118,6 +119,7 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
         path, // songId
         quality,
         requestType: TranscodeRequestType.streaming,
+        sourceBitrateKbps: sourceBitrateKbps,
       );
 
       if (transcodedFile != null) {

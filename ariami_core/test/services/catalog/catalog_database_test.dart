@@ -116,6 +116,19 @@ INSERT INTO albums (
       database.close();
     });
 
+    test('initialize applies microSD-friendly runtime pragmas', () {
+      final database = CatalogDatabase(databasePath: databasePath);
+      database.initialize();
+      addTearDown(database.close);
+
+      final db = database.database;
+      expect(db.select('PRAGMA journal_mode;').first['journal_mode'], 'wal');
+      expect(db.select('PRAGMA synchronous;').first['synchronous'], 1);
+      expect(db.select('PRAGMA temp_store;').first['temp_store'], 2);
+      expect(db.select('PRAGMA busy_timeout;').first['timeout'], 5000);
+      expect(db.select('PRAGMA cache_size;').first['cache_size'], -8192);
+    });
+
     test('initialize fails for forward-incompatible schema versions', () {
       final rawDb = sqlite.sqlite3.open(databasePath);
       rawDb.userVersion = CatalogMigrations.currentVersion + 1;

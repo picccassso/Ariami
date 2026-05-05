@@ -656,6 +656,86 @@ extension AriamiHttpServerAuthAndAdminHandlersMethods on AriamiHttpServer {
     }
   }
 
+  Future<Response> _handleStreamWarmup(Request request) async {
+    final session = request.context['session'] as Session?;
+    if (session == null) {
+      return Response.unauthorized(
+        jsonEncode({
+          'error': {
+            'code': AuthErrorCodes.authRequired,
+            'message': 'Not authenticated',
+          },
+        }),
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
+      );
+    }
+
+    try {
+      final body = await request.readAsString();
+      final data = jsonDecode(body) as Map<String, dynamic>;
+      final rawSongIds = data['songIds'] as List<dynamic>?;
+      final quality = QualityPreset.fromString(data['quality'] as String?);
+
+      if (rawSongIds == null || rawSongIds.isEmpty) {
+        return _jsonBadRequest({
+          'error': {
+            'code': 'INVALID_REQUEST',
+            'message': 'songIds is required',
+          },
+        });
+      }
+
+      final songIds = rawSongIds
+          .whereType<String>()
+          .map((songId) => songId.trim())
+          .where((songId) => songId.isNotEmpty)
+          .take(3)
+          .toList();
+
+      var queued = 0;
+      var skipped = 0;
+      var missing = 0;
+
+      for (final songId in songIds) {
+        final filePath = _libraryManager.getSongFilePath(songId);
+        if (filePath == null) {
+          missing++;
+          continue;
+        }
+
+        if (!quality.requiresTranscoding || _transcodingService == null) {
+          skipped++;
+          continue;
+        }
+
+        final didQueue = await _transcodingService!.warmTranscodedFile(
+          filePath,
+          songId,
+          quality,
+          sourceBitrateKbps: _libraryManager.getKnownSongBitrate(songId),
+        );
+        if (didQueue) {
+          queued++;
+        } else {
+          skipped++;
+        }
+      }
+
+      return _jsonOk({
+        'queued': queued,
+        'skipped': skipped,
+        'missing': missing,
+      });
+    } catch (_) {
+      return _jsonInternalServerError({
+        'error': {
+          'code': 'INTERNAL_ERROR',
+          'message': 'Failed to warm streams',
+        },
+      });
+    }
+  }
+
   /// Handle download ticket request (for authenticated offline downloads).
   Future<Response> _handleDownloadTicket(Request request) async {
     // Session is attached by auth middleware.

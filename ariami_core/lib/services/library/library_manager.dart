@@ -96,6 +96,11 @@ class LibraryManager {
   Future<void> _folderChangePipeline = Future<void>.value();
   String? _watchedFolderPath;
 
+  /// O(1) lookup indexes for stream/ticket hot paths.
+  final Map<String, SongMetadata> _songById = {};
+  final Map<String, String> _songPathById = {};
+  final Map<String, String?> _songAlbumIdById = {};
+
   /// Cache for lazily extracted album artwork (LRU, max 50 albums ~25MB)
   final LruCache<String, List<int>?> _artworkCache = LruCache(50);
 
@@ -125,6 +130,12 @@ class LibraryManager {
 
   /// Get the current library structure
   LibraryStructure? get library => _library;
+
+  /// Replaces the in-memory library in tests and rebuilds derived indexes.
+  void setLibraryForTesting(LibraryStructure? library) {
+    _library = library;
+    _rebuildSongIndexes();
+  }
 
   /// Register a callback to be notified when scan completes
   void addScanCompleteListener(void Function() callback) {
@@ -174,6 +185,31 @@ class LibraryManager {
 
   /// Latest token written to `library_changes`.
   int get latestToken => _latestCatalogToken;
+
+  void _rebuildSongIndexes() {
+    _songById.clear();
+    _songPathById.clear();
+    _songAlbumIdById.clear();
+
+    final library = _library;
+    if (library == null) return;
+
+    for (final album in library.albums.values) {
+      for (final song in album.songs) {
+        final songId = _generateSongId(song.filePath);
+        _songById[songId] = song;
+        _songPathById[songId] = song.filePath;
+        _songAlbumIdById[songId] = album.id;
+      }
+    }
+
+    for (final song in library.standaloneSongs) {
+      final songId = _generateSongId(song.filePath);
+      _songById[songId] = song;
+      _songPathById[songId] = song.filePath;
+      _songAlbumIdById[songId] = null;
+    }
+  }
 
   /// Creates a catalog repository instance when catalog DB is initialized.
   /// Returns null if catalog persistence is not available yet.
@@ -266,6 +302,9 @@ class LibraryManager {
   ///
   /// Returns a cached or already-indexed duration when available, otherwise null.
   int? getKnownSongDuration(String songId) => _getKnownSongDurationImpl(songId);
+
+  /// Get known song bitrate by song ID without triggering extraction.
+  int? getKnownSongBitrate(String songId) => _getKnownSongBitrateImpl(songId);
 
   /// Get song artwork by song ID (lazy extraction with caching)
   /// Used for standalone songs that don't belong to an album

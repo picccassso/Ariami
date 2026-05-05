@@ -61,6 +61,7 @@ extension _LibraryManagerScanningPart on LibraryManager {
         sourceChanges: changes,
       );
       _library = updatedLibrary;
+      _rebuildSongIndexes();
       _lastScanTime = DateTime.now();
       _durationsReady = true;
       _durationWarmupRunning = false;
@@ -118,6 +119,7 @@ extension _LibraryManagerScanningPart on LibraryManager {
 
       if (result.library != null) {
         _library = result.library;
+        _rebuildSongIndexes();
         _lastScanTime = DateTime.now();
         _resetDurationsForRescan();
 
@@ -160,6 +162,7 @@ extension _LibraryManagerScanningPart on LibraryManager {
   void _clearImpl() {
     _stopWatchingFolder();
     _library = null;
+    _rebuildSongIndexes();
     _lastScanTime = null;
     _artworkCache.clear();
     _durationCache.clear();

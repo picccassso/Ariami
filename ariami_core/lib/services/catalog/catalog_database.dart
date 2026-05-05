@@ -41,12 +41,21 @@ class CatalogDatabase {
 
     final db = sqlite3.open(databasePath);
     try {
+      _applyRuntimePragmas(db);
       CatalogMigrations.migrate(db);
       _database = db;
     } catch (_) {
       db.dispose();
       rethrow;
     }
+  }
+
+  static void _applyRuntimePragmas(Database db) {
+    db.execute('PRAGMA journal_mode=WAL;');
+    db.execute('PRAGMA synchronous=NORMAL;');
+    db.execute('PRAGMA temp_store=MEMORY;');
+    db.execute('PRAGMA busy_timeout=5000;');
+    db.execute('PRAGMA cache_size=-8192;');
   }
 
   void close() {

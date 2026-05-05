@@ -49,6 +49,7 @@ extension _LibraryManagerDurationPart on LibraryManager {
             (song.duration == null || song.duration == 0)) {
           final updated = song.copyWith(duration: cached);
           album.songs[i] = updated;
+          _songById[songId] = updated;
           await _persistDuration(updated, cached);
           updatedSongIds.add(songId);
           continue;
@@ -65,6 +66,7 @@ extension _LibraryManagerDurationPart on LibraryManager {
         if (duration != null && duration > 0) {
           final updated = song.copyWith(duration: duration);
           album.songs[i] = updated;
+          _songById[songId] = updated;
           await _persistDuration(updated, duration);
           updatedSongIds.add(songId);
         }
@@ -87,6 +89,7 @@ extension _LibraryManagerDurationPart on LibraryManager {
           (song.duration == null || song.duration == 0)) {
         final updated = song.copyWith(duration: cached);
         _library!.standaloneSongs[i] = updated;
+        _songById[songId] = updated;
         await _persistDuration(updated, cached);
         updatedSongIds.add(songId);
         continue;
@@ -102,6 +105,7 @@ extension _LibraryManagerDurationPart on LibraryManager {
       if (duration != null && duration > 0) {
         final updated = song.copyWith(duration: duration);
         _library!.standaloneSongs[i] = updated;
+        _songById[songId] = updated;
         await _persistDuration(updated, duration);
         updatedSongIds.add(songId);
       }
@@ -150,39 +154,18 @@ extension _LibraryManagerDurationPart on LibraryManager {
   }
 
   String? _getSongFilePathImpl(String songId) {
-    if (_library == null) return null;
-
-    // Search in all albums
-    for (final album in _library!.albums.values) {
-      for (final song in album.songs) {
-        if (_generateSongId(song.filePath) == songId) {
-          return song.filePath;
-        }
-      }
+    if (_library != null && _songPathById.isEmpty) {
+      _rebuildSongIndexes();
     }
-
-    // Search in standalone songs
-    for (final song in _library!.standaloneSongs) {
-      if (_generateSongId(song.filePath) == songId) {
-        return song.filePath;
-      }
-    }
-
-    return null;
+    return _songPathById[songId] ?? _getCatalogSongById(songId)?.filePath;
   }
 
   String? _getSongAlbumIdImpl(String songId) {
     if (_library == null) return null;
-
-    for (final album in _library!.albums.values) {
-      for (final song in album.songs) {
-        if (_generateSongId(song.filePath) == songId) {
-          return album.id;
-        }
-      }
+    if (_songById.isEmpty) {
+      _rebuildSongIndexes();
     }
-
-    return null;
+    return _songAlbumIdById[songId];
   }
 
   Future<List<int>?> _getAlbumArtworkImpl(String albumId) async {
@@ -243,27 +226,36 @@ extension _LibraryManagerDurationPart on LibraryManager {
       return existingMetadata.duration;
     }
 
+    final catalogDuration = _getCatalogSongById(songId)?.durationSeconds;
+    if (catalogDuration != null && catalogDuration > 0) {
+      _durationCache[songId] = catalogDuration;
+      return catalogDuration;
+    }
+
     return null;
+  }
+
+  int? _getKnownSongBitrateImpl(String songId) {
+    final bitrate = _findSongMetadataById(songId)?.bitrate;
+    if (bitrate != null && bitrate > 0) return bitrate;
+    final catalogBitrate = _getCatalogSongById(songId)?.bitrateKbps;
+    return catalogBitrate != null && catalogBitrate > 0 ? catalogBitrate : null;
+  }
+
+  CatalogSongRecord? _getCatalogSongById(String songId) {
+    try {
+      return createCatalogRepository()?.getSongById(songId);
+    } catch (_) {
+      return null;
+    }
   }
 
   SongMetadata? _findSongMetadataById(String songId) {
     if (_library == null) return null;
-
-    for (final album in _library!.albums.values) {
-      for (final song in album.songs) {
-        if (_generateSongId(song.filePath) == songId) {
-          return song;
-        }
-      }
+    if (_songById.isEmpty) {
+      _rebuildSongIndexes();
     }
-
-    for (final song in _library!.standaloneSongs) {
-      if (_generateSongId(song.filePath) == songId) {
-        return song;
-      }
-    }
-
-    return null;
+    return _songById[songId];
   }
 
   SongMetadata? _updateSongDurationById(String songId, int duration) {
@@ -275,6 +267,9 @@ extension _LibraryManagerDurationPart on LibraryManager {
         if (_generateSongId(song.filePath) == songId) {
           final updated = song.copyWith(duration: duration);
           album.songs[i] = updated;
+          _songById[songId] = updated;
+          _songPathById[songId] = updated.filePath;
+          _songAlbumIdById[songId] = album.id;
           return updated;
         }
       }
@@ -285,6 +280,9 @@ extension _LibraryManagerDurationPart on LibraryManager {
       if (_generateSongId(song.filePath) == songId) {
         final updated = song.copyWith(duration: duration);
         _library!.standaloneSongs[i] = updated;
+        _songById[songId] = updated;
+        _songPathById[songId] = updated.filePath;
+        _songAlbumIdById[songId] = null;
         return updated;
       }
     }

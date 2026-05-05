@@ -2,7 +2,7 @@ import 'package:sqlite3/sqlite3.dart';
 
 /// Forward-only schema migrations for the catalog database.
 class CatalogMigrations {
-  static const int currentVersion = 3;
+  static const int currentVersion = 4;
 
   static void migrate(Database database) {
     final existingVersion = database.userVersion;
@@ -31,6 +31,10 @@ class CatalogMigrations {
       if (existingVersion < 3) {
         _applyVersion3(database);
         database.userVersion = 3;
+      }
+      if (existingVersion < 4) {
+        _applyVersion4(database);
+        database.userVersion = 4;
       }
 
       database.execute('COMMIT;');
@@ -66,6 +70,7 @@ CREATE TABLE IF NOT EXISTS songs (
   track_number INTEGER NULL,
   file_size_bytes INTEGER NULL,
   modified_epoch_ms INTEGER NULL,
+  bitrate_kbps INTEGER NULL,
   artwork_key TEXT NULL,
   updated_token INTEGER NOT NULL,
   is_deleted INTEGER NOT NULL DEFAULT 0
@@ -208,6 +213,20 @@ ORDER BY playlist_id ASC, position ASC, song_id ASC;
     database.execute('''
 ALTER TABLE playlists
 ADD COLUMN duration_seconds INTEGER NOT NULL DEFAULT 0;
+''');
+  }
+
+  static void _applyVersion4(Database database) {
+    final existingColumns = database
+        .select('PRAGMA table_info(songs);')
+        .map((row) => row['name'] as String)
+        .toSet();
+    if (existingColumns.contains('bitrate_kbps')) {
+      return;
+    }
+    database.execute('''
+ALTER TABLE songs
+ADD COLUMN bitrate_kbps INTEGER NULL;
 ''');
   }
 }

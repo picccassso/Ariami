@@ -35,6 +35,7 @@ class CatalogSongRecord {
     this.trackNumber,
     this.fileSizeBytes,
     this.modifiedEpochMs,
+    this.bitrateKbps,
     this.artworkKey,
     required this.updatedToken,
     this.isDeleted = false,
@@ -49,6 +50,7 @@ class CatalogSongRecord {
   final int? trackNumber;
   final int? fileSizeBytes;
   final int? modifiedEpochMs;
+  final int? bitrateKbps;
   final String? artworkKey;
   final int updatedToken;
   final bool isDeleted;
@@ -194,10 +196,11 @@ INSERT INTO songs (
   track_number,
   file_size_bytes,
   modified_epoch_ms,
+  bitrate_kbps,
   artwork_key,
   updated_token,
   is_deleted
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET
   file_path = excluded.file_path,
   title = excluded.title,
@@ -207,6 +210,7 @@ ON CONFLICT(id) DO UPDATE SET
   track_number = excluded.track_number,
   file_size_bytes = excluded.file_size_bytes,
   modified_epoch_ms = excluded.modified_epoch_ms,
+  bitrate_kbps = excluded.bitrate_kbps,
   artwork_key = excluded.artwork_key,
   updated_token = excluded.updated_token,
   is_deleted = excluded.is_deleted;
@@ -221,6 +225,7 @@ ON CONFLICT(id) DO UPDATE SET
         song.trackNumber,
         song.fileSizeBytes,
         song.modifiedEpochMs,
+        song.bitrateKbps,
         song.artworkKey,
         song.updatedToken,
         song.isDeleted ? 1 : 0,
@@ -414,6 +419,7 @@ SELECT
   track_number,
   file_size_bytes,
   modified_epoch_ms,
+  bitrate_kbps,
   artwork_key,
   updated_token,
   is_deleted
@@ -436,6 +442,7 @@ SELECT
   track_number,
   file_size_bytes,
   modified_epoch_ms,
+  bitrate_kbps,
   artwork_key,
   updated_token,
   is_deleted
@@ -460,6 +467,33 @@ LIMIT ?;
       hasMore: hasMore,
       limit: limit,
     );
+  }
+
+  CatalogSongRecord? getSongById(String songId) {
+    final rows = _database.select(
+      '''
+SELECT
+  id,
+  file_path,
+  title,
+  artist,
+  album_id,
+  duration_seconds,
+  track_number,
+  file_size_bytes,
+  modified_epoch_ms,
+  bitrate_kbps,
+  artwork_key,
+  updated_token,
+  is_deleted
+FROM songs
+WHERE id = ? AND is_deleted = 0
+LIMIT 1;
+''',
+      <Object?>[songId],
+    );
+    if (rows.isEmpty) return null;
+    return _mapSongRecord(rows.first);
   }
 
   CatalogPage<CatalogPlaylistRecord> listPlaylistsPage({
@@ -630,6 +664,7 @@ FROM library_changes;
       trackNumber: row['track_number'] as int?,
       fileSizeBytes: row['file_size_bytes'] as int?,
       modifiedEpochMs: row['modified_epoch_ms'] as int?,
+      bitrateKbps: row['bitrate_kbps'] as int?,
       artworkKey: row['artwork_key'] as String?,
       updatedToken: row['updated_token'] as int,
       isDeleted: (row['is_deleted'] as int) == 1,

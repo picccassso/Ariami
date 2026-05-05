@@ -52,6 +52,7 @@ class MetadataExtractor {
       int? discNumber;
       String? genre;
       int? duration;
+      int? bitrate;
       List<int>? albumArt;
 
       for (final tag in tags) {
@@ -92,6 +93,8 @@ class MetadataExtractor {
         // Skip duration and album art extraction during scan - done lazily on demand
       }
 
+      bitrate = await _extractBitrate(filePath);
+
       // Fallback: infer track number from filename prefix when tag is missing.
       // Example: "01 - Song Title.mp3" => 1
       trackNumber ??= _inferTrackNumberFromFilename(filePath);
@@ -108,7 +111,7 @@ class MetadataExtractor {
         discNumber: discNumber,
         genre: genre,
         duration: duration,
-        bitrate: null, // dart_tags doesn't provide bitrate easily
+        bitrate: bitrate,
         comment: null,
         albumArt: albumArt,
         fileSize: fileSize,
@@ -133,6 +136,39 @@ class MetadataExtractor {
           modifiedTime: fileStat.modified,
         ),
       );
+    }
+  }
+
+  Future<int?> _extractBitrate(String filePath) async {
+    final extension = p.extension(filePath).toLowerCase();
+    if (extension == '.mp3') {
+      return _mp3DurationParser.getBitrate(filePath);
+    }
+
+    try {
+      final result = await _processRunner('ffprobe', [
+        '-v',
+        'quiet',
+        '-select_streams',
+        'a:0',
+        '-show_entries',
+        'stream=bit_rate',
+        '-of',
+        'json',
+        filePath,
+      ]).timeout(const Duration(seconds: 5));
+      if (result.exitCode != 0) return null;
+
+      final decoded =
+          jsonDecode(result.stdout as String) as Map<String, dynamic>;
+      final streams = decoded['streams'] as List<dynamic>?;
+      if (streams == null || streams.isEmpty) return null;
+      final stream = streams.first as Map<String, dynamic>;
+      final bitRateBps = int.tryParse(stream['bit_rate']?.toString() ?? '');
+      if (bitRateBps == null || bitRateBps <= 0) return null;
+      return (bitRateBps / 1000).round();
+    } catch (_) {
+      return null;
     }
   }
 
@@ -369,7 +405,8 @@ class MetadataExtractor {
   /// "01 - Title", "1. Title", "07_Title", "12 Title".
   int? _inferTrackNumberFromFilename(String filePath) {
     final fileName = p.basenameWithoutExtension(filePath).trim();
-    final match = RegExp(r'^(\d{1,3})(?:\s*[-._)]\s*|\s+)').firstMatch(fileName);
+    final match =
+        RegExp(r'^(\d{1,3})(?:\s*[-._)]\s*|\s+)').firstMatch(fileName);
     if (match == null) return null;
 
     final parsed = int.tryParse(match.group(1)!);

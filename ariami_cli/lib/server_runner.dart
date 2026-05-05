@@ -99,15 +99,29 @@ class ServerRunner {
         sessionsFilePath: CliStateService.getSessionsFilePath(),
       );
 
-      // Configure download limits (platform + storage aware)
+      // Configure download limits and cache policy (platform + storage aware)
       final musicPathForLimits = await _stateService.getMusicFolderPath();
-      final storageType = isPi
+      final musicStorageType = isPi
           ? await _detectStorageType(musicPathForLimits)
-          : _StorageType.unknown;
+          : StorageType.unknown;
+      final stateStorageType = isPi
+          ? await _detectStorageType(CliStateService.getConfigDir())
+          : StorageType.unknown;
+      final storageProfile = selectStorageProfile(
+        isPi: isPi,
+        musicStorageType: musicStorageType,
+        stateStorageType: stateStorageType,
+        override: Platform.environment['ARIAMI_STORAGE_PROFILE'],
+      );
       final limits = _selectDownloadLimits(
         isPi: isPi,
         isPi5: isPi5,
-        storageType: storageType,
+        storageType: musicStorageType,
+      );
+      final cachePolicy = selectCachePolicy(
+        isPi: isPi,
+        isPi5: isPi5,
+        storageProfile: storageProfile,
       );
       _httpServer.setDownloadLimits(
         maxConcurrent: limits.maxConcurrent,
@@ -115,6 +129,8 @@ class ServerRunner {
         maxConcurrentPerUser: limits.maxConcurrentPerUser,
         maxQueuePerUser: limits.maxQueuePerUser,
       );
+      print('Storage profile: ${storageProfile.name} '
+          '(music=${musicStorageType.name}, state=${stateStorageType.name})');
 
       // Advertise both LAN and Tailscale so mobile can prefer LAN when reachable
       // (same contract as ariami_desktop).
@@ -149,21 +165,21 @@ class ServerRunner {
         maxConcurrency = 1;
         maxDownloadConcurrency =
             isPi5 ? 4 : 1; // Pi 5 supports higher download concurrency
-        maxCacheSizeMB = 1024; // 1GB for Pi (limited storage)
+        maxCacheSizeMB = cachePolicy.transcodeCacheSizeMB;
         print(
             'Platform: Raspberry Pi${isPi5 ? ' 5' : ''} detected - using conservative transcoding settings');
       } else if (Platform.isMacOS || Platform.isWindows) {
         // Desktop: more resources available
         maxConcurrency = 2;
         maxDownloadConcurrency = 4;
-        maxCacheSizeMB = 4096; // 4GB for desktop
+        maxCacheSizeMB = cachePolicy.transcodeCacheSizeMB;
         print(
             'Platform: Desktop (${Platform.operatingSystem}) - using standard transcoding settings');
       } else {
         // Linux desktop or other: moderate settings
         maxConcurrency = 2;
         maxDownloadConcurrency = 3;
-        maxCacheSizeMB = 2048; // 2GB
+        maxCacheSizeMB = cachePolicy.transcodeCacheSizeMB;
         print('Platform: Linux - using moderate transcoding settings');
       }
 
@@ -174,21 +190,30 @@ class ServerRunner {
         maxDownloadConcurrency: maxDownloadConcurrency,
         transcodeTimeout:
             Duration(minutes: isPi ? 10 : 5), // Longer timeout for Pi
+        indexPersistInterval: cachePolicy.transcodeIndexPersistInterval,
       );
       _httpServer.setTranscodingService(transcodingService);
       print('Transcoding cache: $transcodingCachePath');
       print(
           'Transcoding limits: maxConcurrency=$maxConcurrency, maxDownloadConcurrency=$maxDownloadConcurrency');
+      print('Transcoding cache policy: maxCacheSizeMB=$maxCacheSizeMB, '
+          'indexPersistInterval=${cachePolicy.transcodeIndexPersistInterval.inSeconds}s');
 
       // Initialize artwork service for thumbnail generation
       final artworkCachePath =
           p.join(CliStateService.getConfigDir(), 'artwork_cache');
       final artworkService = ArtworkService(
         cacheDirectory: artworkCachePath,
-        maxCacheSizeMB: 256, // 256MB cache limit for thumbnails
+        maxCacheSizeMB: cachePolicy.artworkCacheSizeMB,
+        touchOnCacheHit: cachePolicy.touchArtworkOnCacheHit,
+        touchThrottle: cachePolicy.artworkTouchThrottle,
       );
       _httpServer.setArtworkService(artworkService);
       print('Artwork cache: $artworkCachePath');
+      print(
+          'Artwork cache policy: maxCacheSizeMB=${cachePolicy.artworkCacheSizeMB}, '
+          'touchOnCacheHit=${cachePolicy.touchArtworkOnCacheHit}, '
+          'touchThrottle=${cachePolicy.artworkTouchThrottle.inSeconds}s');
 
       // Check Sonic availability for audio transcoding.
       final sonicAvailable = await transcodingService.isSonicAvailable();
@@ -537,14 +562,14 @@ class ServerRunner {
   // DOWNLOAD LIMITS (PLATFORM + STORAGE AWARE)
   // ============================================================================
 
-  Future<_StorageType> _detectStorageType(String? musicPath) async {
-    if (!Platform.isLinux || musicPath == null || musicPath.isEmpty) {
-      return _StorageType.unknown;
+  Future<StorageType> _detectStorageType(String? targetPath) async {
+    if (!Platform.isLinux || targetPath == null || targetPath.isEmpty) {
+      return StorageType.unknown;
     }
 
     final mountsFile = File('/proc/mounts');
     if (!await mountsFile.exists()) {
-      return _StorageType.unknown;
+      return StorageType.unknown;
     }
 
     try {
@@ -558,7 +583,7 @@ class ServerRunner {
         final device = parts[0];
         final mountPoint = parts[1];
 
-        if (musicPath.startsWith(mountPoint)) {
+        if (targetPath.startsWith(mountPoint)) {
           if (bestMountPoint == null ||
               mountPoint.length > bestMountPoint.length) {
             bestMountPoint = mountPoint;
@@ -568,27 +593,27 @@ class ServerRunner {
       }
 
       if (bestDevice == null) {
-        return _StorageType.unknown;
+        return StorageType.unknown;
       }
 
       final device = bestDevice.toLowerCase();
       if (device.contains('mmcblk')) {
-        return _StorageType.microSd;
+        return StorageType.microSd;
       }
       if (device.contains('nvme') || device.contains('/dev/sd')) {
-        return _StorageType.ssd;
+        return StorageType.fastExternal;
       }
     } catch (_) {
       // Ignore mount parsing errors
     }
 
-    return _StorageType.unknown;
+    return StorageType.unknown;
   }
 
   _DownloadLimits _selectDownloadLimits({
     required bool isPi,
     required bool isPi5,
-    required _StorageType storageType,
+    required StorageType storageType,
   }) {
     if (!isPi && Platform.isMacOS) {
       return const _DownloadLimits(
@@ -608,7 +633,7 @@ class ServerRunner {
       );
     }
 
-    if (storageType == _StorageType.ssd) {
+    if (storageType == StorageType.fastExternal) {
       return const _DownloadLimits(
         maxConcurrent: 6,
         maxQueue: 80,
@@ -695,7 +720,110 @@ class ServerRunner {
   }
 }
 
-enum _StorageType { microSd, ssd, unknown }
+enum StorageType { microSd, fastExternal, unknown }
+
+enum StorageProfile { microSd, externalFast, unknown }
+
+StorageProfile selectStorageProfile({
+  required bool isPi,
+  required StorageType musicStorageType,
+  required StorageType stateStorageType,
+  String? override,
+}) {
+  final normalized = override?.trim().toLowerCase();
+  if (normalized != null && normalized.isNotEmpty) {
+    switch (normalized) {
+      case 'microsd':
+      case 'micro_sd':
+      case 'micro-sd':
+      case 'sd':
+        return StorageProfile.microSd;
+      case 'externalfast':
+      case 'external_fast':
+      case 'external-fast':
+      case 'ssd':
+      case 'fast':
+        return StorageProfile.externalFast;
+      case 'unknown':
+      case 'auto':
+        break;
+      default:
+        print(
+            'Unknown ARIAMI_STORAGE_PROFILE="$override"; using auto detection.');
+    }
+  }
+
+  if (!isPi) return StorageProfile.unknown;
+  if (stateStorageType == StorageType.microSd ||
+      musicStorageType == StorageType.microSd) {
+    return StorageProfile.microSd;
+  }
+  if (stateStorageType == StorageType.fastExternal &&
+      musicStorageType == StorageType.fastExternal) {
+    return StorageProfile.externalFast;
+  }
+  return StorageProfile.unknown;
+}
+
+CachePolicy selectCachePolicy({
+  required bool isPi,
+  required bool isPi5,
+  required StorageProfile storageProfile,
+}) {
+  if (!isPi && (Platform.isMacOS || Platform.isWindows)) {
+    return const CachePolicy(
+      transcodeCacheSizeMB: 4096,
+      artworkCacheSizeMB: 256,
+      transcodeIndexPersistInterval: Duration(seconds: 30),
+      touchArtworkOnCacheHit: true,
+      artworkTouchThrottle: Duration.zero,
+    );
+  }
+
+  if (!isPi) {
+    return const CachePolicy(
+      transcodeCacheSizeMB: 2048,
+      artworkCacheSizeMB: 256,
+      transcodeIndexPersistInterval: Duration(seconds: 30),
+      touchArtworkOnCacheHit: true,
+      artworkTouchThrottle: Duration.zero,
+    );
+  }
+
+  if (storageProfile == StorageProfile.externalFast) {
+    return CachePolicy(
+      transcodeCacheSizeMB: isPi5 ? 2048 : 1024,
+      artworkCacheSizeMB: 256,
+      transcodeIndexPersistInterval: const Duration(seconds: 30),
+      touchArtworkOnCacheHit: true,
+      artworkTouchThrottle: Duration.zero,
+    );
+  }
+
+  return const CachePolicy(
+    transcodeCacheSizeMB: 384,
+    artworkCacheSizeMB: 96,
+    transcodeIndexPersistInterval: Duration(minutes: 5),
+    touchArtworkOnCacheHit: false,
+    artworkTouchThrottle: Duration(minutes: 30),
+  );
+}
+
+class CachePolicy {
+  final int transcodeCacheSizeMB;
+  final int artworkCacheSizeMB;
+  final Duration transcodeIndexPersistInterval;
+  final bool touchArtworkOnCacheHit;
+  final Duration artworkTouchThrottle;
+
+  const CachePolicy({
+    required this.transcodeCacheSizeMB,
+    required this.artworkCacheSizeMB,
+    required this.transcodeIndexPersistInterval,
+    required this.touchArtworkOnCacheHit,
+    required this.artworkTouchThrottle,
+  });
+}
 
 class _DownloadLimits {
   final int maxConcurrent;

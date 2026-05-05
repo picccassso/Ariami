@@ -15,6 +15,12 @@ class ArtworkService {
   /// Maximum cache size in bytes (default 256MB)
   final int maxCacheSizeBytes;
 
+  /// Whether cache hits should update file mtimes for LRU tracking.
+  final bool touchOnCacheHit;
+
+  /// Minimum age before a cache hit updates mtime again.
+  final Duration touchThrottle;
+
   /// Whether FFmpeg is available on this system
   bool? _ffmpegAvailable;
 
@@ -28,6 +34,8 @@ class ArtworkService {
   ArtworkService({
     required this.cacheDirectory,
     int maxCacheSizeMB = 256,
+    this.touchOnCacheHit = true,
+    this.touchThrottle = Duration.zero,
   }) : maxCacheSizeBytes = maxCacheSizeMB * 1024 * 1024;
 
   /// Check if FFmpeg is available on the system.
@@ -40,7 +48,8 @@ class ArtworkService {
       if (_ffmpegAvailable!) {
         print('[ArtworkService] FFmpeg is available');
       } else {
-        print('[ArtworkService] FFmpeg not found (exit code ${result.exitCode})');
+        print(
+            '[ArtworkService] FFmpeg not found (exit code ${result.exitCode})');
       }
     } catch (e) {
       print('[ArtworkService] FFmpeg not available - $e');
@@ -74,12 +83,6 @@ class ArtworkService {
       return originalBytes;
     }
 
-    // Check FFmpeg availability
-    if (!await isFFmpegAvailable()) {
-      print('[ArtworkService] Cannot resize - FFmpeg not available, returning original');
-      return originalBytes;
-    }
-
     // Check cache first
     final cachedFile = _getCachedFile(albumId, size);
     if (await cachedFile.exists()) {
@@ -91,6 +94,13 @@ class ArtworkService {
         print('[ArtworkService] Error reading cached file: $e');
         // Fall through to regenerate
       }
+    }
+
+    // Check FFmpeg availability
+    if (!await isFFmpegAvailable()) {
+      print(
+          '[ArtworkService] Cannot resize - FFmpeg not available, returning original');
+      return originalBytes;
     }
 
     // Check if already processing
@@ -106,7 +116,8 @@ class ArtworkService {
     _processingLocks[lockKey] = completer;
 
     try {
-      print('[ArtworkService] Processing $albumId to ${size.name} (${size.maxDimension}x${size.maxDimension})');
+      print(
+          '[ArtworkService] Processing $albumId to ${size.name} (${size.maxDimension}x${size.maxDimension})');
       final result = await _processArtwork(albumId, originalBytes, size);
 
       if (result != null) {
@@ -163,7 +174,14 @@ class ArtworkService {
 
   /// Update file access time for LRU tracking.
   Future<void> _touchFile(File file) async {
+    if (!touchOnCacheHit) return;
+
     try {
+      if (touchThrottle > Duration.zero) {
+        final stat = await file.stat();
+        final age = DateTime.now().difference(stat.modified);
+        if (age < touchThrottle) return;
+      }
       await file.setLastModified(DateTime.now());
     } catch (e) {
       // Ignore errors - not critical
@@ -186,7 +204,8 @@ class ArtworkService {
     // Write original to temp file
     final tempDir = Directory.systemTemp;
     final tempInput = File('${tempDir.path}/ariami_artwork_input_$albumId');
-    final tempOutput = File('${tempDir.path}/ariami_artwork_output_$albumId.jpg');
+    final tempOutput =
+        File('${tempDir.path}/ariami_artwork_output_$albumId.jpg');
 
     try {
       // Write input
@@ -197,7 +216,8 @@ class ArtworkService {
       final args = [
         '-y', // Overwrite output
         '-i', tempInput.path, // Input file
-        '-vf', 'scale=$maxDim:$maxDim:force_original_aspect_ratio=decrease', // Scale preserving aspect ratio
+        '-vf',
+        'scale=$maxDim:$maxDim:force_original_aspect_ratio=decrease', // Scale preserving aspect ratio
         '-q:v', '3', // JPEG quality (2-5 is good, lower = better quality)
         tempOutput.path, // Output file
       ];

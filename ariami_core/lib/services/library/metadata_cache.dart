@@ -101,7 +101,8 @@ class MetadataCache {
       // Check schema version
       final version = json['version'] as int?;
       if (version != schemaVersion) {
-        print('[MetadataCache] Cache version mismatch (got $version, expected $schemaVersion) - invalidating');
+        print(
+            '[MetadataCache] Cache version mismatch (got $version, expected $schemaVersion) - invalidating');
         await clear();
         return false;
       }
@@ -136,7 +137,7 @@ class MetadataCache {
 
   /// Save cache to disk
   Future<bool> save() async {
-    if (!_isDirty && _entries.isNotEmpty) {
+    if (!_isDirty) {
       print('[MetadataCache] Cache not dirty, skipping save');
       return true;
     }
@@ -149,6 +150,7 @@ class MetadataCache {
       };
 
       final file = File(cachePath);
+      final tempFile = File('$cachePath.tmp');
 
       // Ensure parent directory exists
       final parent = file.parent;
@@ -156,7 +158,8 @@ class MetadataCache {
         await parent.create(recursive: true);
       }
 
-      await file.writeAsString(jsonEncode(json));
+      await tempFile.writeAsString(jsonEncode(json));
+      await tempFile.rename(file.path);
       _isDirty = false;
       print('[MetadataCache] Saved ${_entries.length} entries to cache');
       return true;
@@ -244,7 +247,8 @@ class MetadataCache {
   }
 
   /// Store metadata with known mtime and size (for batch operations)
-  void putWithStats(String filePath, SongMetadata metadata, int mtime, int size) {
+  void putWithStats(
+      String filePath, SongMetadata metadata, int mtime, int size) {
     _entries[filePath] = CachedMetadataEntry(
       mtime: mtime,
       size: size,
@@ -317,7 +321,8 @@ class MetadataCache {
 
     if (toRemove.isNotEmpty) {
       _isDirty = true;
-      print('[MetadataCache] Pruned ${toRemove.length} deleted files from cache');
+      print(
+          '[MetadataCache] Pruned ${toRemove.length} deleted files from cache');
     }
 
     return toRemove.length;
@@ -350,7 +355,8 @@ class MetadataCache {
         'mtime': entry.value.mtime,
         'size': entry.value.size,
         'metadata': entry.value.metadata.toJson(),
-        if (entry.value.partialHash != null) 'partialHash': entry.value.partialHash,
+        if (entry.value.partialHash != null)
+          'partialHash': entry.value.partialHash,
       };
     }
     return data;
@@ -363,7 +369,8 @@ class MetadataCache {
       _entries[entry.key] = CachedMetadataEntry(
         mtime: entry.value['mtime'] as int,
         size: entry.value['size'] as int,
-        metadata: SongMetadata.fromJson(entry.value['metadata'] as Map<String, dynamic>),
+        metadata: SongMetadata.fromJson(
+            entry.value['metadata'] as Map<String, dynamic>),
         partialHash: entry.value['partialHash'] as String?,
       );
     }
@@ -376,14 +383,14 @@ class MetadataCache {
     if (_entries.length <= maxEntries) return;
 
     // Remove oldest entries (first entries in map)
-    final keysToRemove = _entries.keys
-        .take(_entries.length - maxEntries)
-        .toList();
+    final keysToRemove =
+        _entries.keys.take(_entries.length - maxEntries).toList();
 
     for (final key in keysToRemove) {
       _entries.remove(key);
     }
 
-    print('[MetadataCache] Enforced limit: removed ${keysToRemove.length} oldest entries');
+    print(
+        '[MetadataCache] Enforced limit: removed ${keysToRemove.length} oldest entries');
   }
 }

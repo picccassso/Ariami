@@ -2,7 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 /// Pure Dart MP3 duration parser
-/// 
+///
 /// Parses MP3 file headers to calculate duration without external dependencies.
 /// Supports both CBR (Constant Bit Rate) and VBR (Variable Bit Rate) files.
 class Mp3DurationParser {
@@ -21,15 +21,117 @@ class Mp3DurationParser {
   static const List<List<List<int>>> _bitrates = [
     // MPEG 2 & 2.5
     [
-      [0, 32, 48, 56, 64, 80, 96, 112, 128, 144, 160, 176, 192, 224, 256, 0], // Layer I
-      [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160, 0], // Layer II
-      [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160, 0], // Layer III
+      [
+        0,
+        32,
+        48,
+        56,
+        64,
+        80,
+        96,
+        112,
+        128,
+        144,
+        160,
+        176,
+        192,
+        224,
+        256,
+        0
+      ], // Layer I
+      [
+        0,
+        8,
+        16,
+        24,
+        32,
+        40,
+        48,
+        56,
+        64,
+        80,
+        96,
+        112,
+        128,
+        144,
+        160,
+        0
+      ], // Layer II
+      [
+        0,
+        8,
+        16,
+        24,
+        32,
+        40,
+        48,
+        56,
+        64,
+        80,
+        96,
+        112,
+        128,
+        144,
+        160,
+        0
+      ], // Layer III
     ],
     // MPEG 1
     [
-      [0, 32, 64, 96, 128, 160, 192, 224, 256, 288, 320, 352, 384, 416, 448, 0], // Layer I
-      [0, 32, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 384, 0], // Layer II
-      [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 0], // Layer III
+      [
+        0,
+        32,
+        64,
+        96,
+        128,
+        160,
+        192,
+        224,
+        256,
+        288,
+        320,
+        352,
+        384,
+        416,
+        448,
+        0
+      ], // Layer I
+      [
+        0,
+        32,
+        48,
+        56,
+        64,
+        80,
+        96,
+        112,
+        128,
+        160,
+        192,
+        224,
+        256,
+        320,
+        384,
+        0
+      ], // Layer II
+      [
+        0,
+        32,
+        40,
+        48,
+        56,
+        64,
+        80,
+        96,
+        112,
+        128,
+        160,
+        192,
+        224,
+        256,
+        320,
+        0
+      ], // Layer III
     ],
   ];
 
@@ -89,7 +191,8 @@ class Mp3DurationParser {
 
       if (vbrInfo != null && vbrInfo.totalFrames > 0) {
         // VBR: Calculate from total frames
-        final samplesPerFrame = _getSamplesPerFrame(frameHeader.version, frameHeader.layer);
+        final samplesPerFrame =
+            _getSamplesPerFrame(frameHeader.version, frameHeader.layer);
         final totalSamples = vbrInfo.totalFrames * samplesPerFrame;
         final durationSeconds = totalSamples / frameHeader.sampleRate;
         return durationSeconds.round(); // Return seconds
@@ -97,9 +200,11 @@ class Mp3DurationParser {
 
       // CBR: Calculate from audio data size and bitrate
       // Account for ID3v1 tag at end (128 bytes)
-      final audioBytesForCalc = audioDataSize - 128; // Subtract possible ID3v1 tag
+      final audioBytesForCalc =
+          audioDataSize - 128; // Subtract possible ID3v1 tag
       if (frameHeader.bitrate > 0 && audioBytesForCalc > 0) {
-        final durationSeconds = (audioBytesForCalc * 8) / (frameHeader.bitrate * 1000);
+        final durationSeconds =
+            (audioBytesForCalc * 8) / (frameHeader.bitrate * 1000);
         return durationSeconds.round(); // Return seconds
       }
 
@@ -109,6 +214,34 @@ class Mp3DurationParser {
       return null;
     } finally {
       // Always close file handle
+      await raf?.close();
+    }
+  }
+
+  /// Parse an MP3 file and return the first valid frame bitrate in kbps.
+  Future<int?> getBitrate(String filePath) async {
+    RandomAccessFile? raf;
+    try {
+      final file = File(filePath);
+      if (!await file.exists()) return null;
+
+      final fileSize = await file.length();
+      if (fileSize < 10) return null;
+
+      raf = await file.open(mode: FileMode.read);
+      final headerBytes = await raf.read(10);
+      final audioDataOffset = _skipId3v2Header(headerBytes);
+      final audioDataSize = fileSize - audioDataOffset;
+      if (audioDataSize < 10) return null;
+
+      await raf.setPosition(audioDataOffset);
+      final readSize = audioDataSize < 65536 ? audioDataSize : 65536;
+      final bytes = await raf.read(readSize.toInt());
+      final frameHeader = _findFirstFrameHeader(bytes, 0);
+      return frameHeader?.bitrate;
+    } catch (_) {
+      return null;
+    } finally {
       await raf?.close();
     }
   }
@@ -208,7 +341,7 @@ class Mp3DurationParser {
     // XING/Info header is located after the frame header
     // Position depends on MPEG version and channel mode
     final headerOffset = frameHeader.offset + 4; // Skip frame header
-    
+
     // Side info size varies by version
     // MPEG1: 32 bytes (stereo) or 17 bytes (mono)
     // MPEG2/2.5: 17 bytes (stereo) or 9 bytes (mono)
@@ -216,21 +349,23 @@ class Mp3DurationParser {
     final possibleOffsets = [
       headerOffset + 32, // MPEG1 stereo
       headerOffset + 17, // MPEG1 mono / MPEG2 stereo
-      headerOffset + 9,  // MPEG2 mono
+      headerOffset + 9, // MPEG2 mono
     ];
 
     for (final offset in possibleOffsets) {
       if (offset + 12 > bytes.length) continue;
 
       // Check for "Xing" or "Info" header
-      if (_matchesTag(bytes, offset, 'Xing') || _matchesTag(bytes, offset, 'Info')) {
+      if (_matchesTag(bytes, offset, 'Xing') ||
+          _matchesTag(bytes, offset, 'Info')) {
         return _parseXingHeader(bytes, offset);
       }
     }
 
     // Check for VBRI header (always at fixed position: 32 bytes after frame header)
     final vbriOffset = headerOffset + 32;
-    if (vbriOffset + 26 <= bytes.length && _matchesTag(bytes, vbriOffset, 'VBRI')) {
+    if (vbriOffset + 26 <= bytes.length &&
+        _matchesTag(bytes, vbriOffset, 'VBRI')) {
       return _parseVbriHeader(bytes, vbriOffset);
     }
 
@@ -330,4 +465,3 @@ class _VbrInfo {
 
   _VbrInfo({required this.totalFrames, this.totalBytes});
 }
-

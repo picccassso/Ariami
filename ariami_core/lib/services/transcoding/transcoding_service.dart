@@ -80,6 +80,11 @@ class TranscodingService {
   /// Queue of pending download transcode tasks
   final Queue<_TranscodeTask> _downloadQueue = Queue();
 
+  /// Queue of low-priority cache warmup tasks.
+  final Queue<_TranscodeTask> _warmupQueue = Queue();
+  final Set<String> _queuedWarmups = {};
+  int _runningWarmupCount = 0;
+
   /// Cache index: key -> entry
   final Map<String, _CacheIndexEntry> _cacheIndex = {};
 
@@ -166,6 +171,7 @@ class TranscodingService {
     String songId,
     QualityPreset quality, {
     TranscodeRequestType requestType = TranscodeRequestType.streaming,
+    int? sourceBitrateKbps,
   }) async {
     // Keep requestType for API compatibility; downloads should use getDownloadTranscode().
     if (requestType == TranscodeRequestType.download) {
@@ -210,12 +216,22 @@ class TranscodingService {
       }
     }
 
-    // Fast-path: check if source bitrate is already low enough
-    final props = await _getAudioProperties(sourcePath);
-    if (props != null && props.shouldSkipTranscode(quality)) {
-      print('TranscodingService: Skipping transcode - source bitrate '
-          '(${props.bitrate! ~/ 1000} kbps) <= target (${quality.bitrate} kbps)');
-      return null; // Signal to serve original file
+    final targetBitrate = quality.bitrate;
+    final knownBitrate = sourceBitrateKbps;
+    if (knownBitrate != null && knownBitrate > 0 && targetBitrate != null) {
+      if (knownBitrate <= targetBitrate) {
+        print('TranscodingService: Skipping transcode - known source bitrate '
+            '($knownBitrate kbps) <= target ($targetBitrate kbps)');
+        return null;
+      }
+    } else {
+      // Fast-path: check if source bitrate is already low enough.
+      final props = await _getAudioProperties(sourcePath);
+      if (props != null && props.shouldSkipTranscode(quality)) {
+        print('TranscodingService: Skipping transcode - source bitrate '
+            '(${props.bitrate! ~/ 1000} kbps) <= target (${quality.bitrate} kbps)');
+        return null; // Signal to serve original file
+      }
     }
 
     // Check if already transcoding this specific file
@@ -239,6 +255,7 @@ class TranscodingService {
         songId: songId,
         quality: quality,
         completer: Completer<File?>(),
+        sourceBitrateKbps: sourceBitrateKbps,
       );
       taskQueue.add(task);
       return await task.completer.future;
@@ -282,6 +299,7 @@ class TranscodingService {
       _runningStreamingCount--;
       _processNextStreamingQueue();
       _processNextDownloadQueue();
+      _processNextWarmupQueue();
     }
   }
 
@@ -298,6 +316,7 @@ class TranscodingService {
       task.songId,
       task.quality,
       requestType: TranscodeRequestType.streaming,
+      sourceBitrateKbps: task.sourceBitrateKbps,
     ).then((file) => task.completer.complete(file)).catchError((e) {
       print('TranscodingService: Queued streaming task error - $e');
       task.completer.complete(null);
@@ -334,6 +353,74 @@ class TranscodingService {
       _runningDownloadCount--;
       _processNextDownloadQueue();
     }
+  }
+
+  /// Queue a low-priority cache warmup for likely upcoming playback.
+  ///
+  /// Warmups never block the caller and do not run while active streaming
+  /// transcodes are using the Pi's limited CPU budget.
+  Future<bool> warmTranscodedFile(
+    String sourcePath,
+    String songId,
+    QualityPreset quality, {
+    int? sourceBitrateKbps,
+  }) async {
+    if (!quality.requiresTranscoding) return false;
+    if (!await isSonicAvailable()) return false;
+
+    final lockKey = '${songId}_${quality.name}';
+    await _ensureIndexLoaded();
+
+    final cachedFile = _getCachedFile(songId, quality);
+    if (await cachedFile.exists()) {
+      _recordAccess(lockKey);
+      return false;
+    }
+    if (_transcodingLocks.containsKey(lockKey) ||
+        _queuedWarmups.contains(lockKey)) {
+      return false;
+    }
+    if (_shouldSkipDueToFailure(lockKey)) return false;
+
+    final task = _TranscodeTask(
+      sourcePath: sourcePath,
+      songId: songId,
+      quality: quality,
+      completer: Completer<File?>(),
+      sourceBitrateKbps: sourceBitrateKbps,
+    );
+    _queuedWarmups.add(lockKey);
+    _warmupQueue.add(task);
+    _processNextWarmupQueue();
+    return true;
+  }
+
+  void _processNextWarmupQueue() {
+    if (_warmupQueue.isEmpty ||
+        _runningWarmupCount >= 1 ||
+        _runningStreamingCount > 0 ||
+        _streamingQueue.isNotEmpty) {
+      return;
+    }
+
+    final task = _warmupQueue.removeFirst();
+    final lockKey = '${task.songId}_${task.quality.name}';
+    _queuedWarmups.remove(lockKey);
+    _runningWarmupCount++;
+
+    getTranscodedFile(
+      task.sourcePath,
+      task.songId,
+      task.quality,
+      requestType: TranscodeRequestType.streaming,
+      sourceBitrateKbps: task.sourceBitrateKbps,
+    ).then(task.completer.complete).catchError((e) {
+      print('TranscodingService: Warmup task error - $e');
+      task.completer.complete(null);
+    }).whenComplete(() {
+      _runningWarmupCount--;
+      _processNextWarmupQueue();
+    });
   }
 
   /// Transcode a file for download without adding to the shared cache.
@@ -407,6 +494,7 @@ class TranscodingService {
     } finally {
       _runningDownloadCount--;
       _processNextDownloadQueue();
+      _processNextWarmupQueue();
     }
   }
 

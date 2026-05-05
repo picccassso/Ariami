@@ -8,12 +8,14 @@ class _TranscodeTask {
   final String songId;
   final QualityPreset quality;
   final Completer<File?> completer;
+  final int? sourceBitrateKbps;
 
   _TranscodeTask({
     required this.sourcePath,
     required this.songId,
     required this.quality,
     required this.completer,
+    this.sourceBitrateKbps,
   });
 }
 

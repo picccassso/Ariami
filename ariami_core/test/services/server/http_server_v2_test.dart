@@ -515,6 +515,84 @@ void main() {
       },
     );
 
+    test('stream warmup queues authenticated lower-quality hints', () async {
+      await server.initializeAuth(
+        usersFilePath: p.join(testDir.path, 'users_warmup.json'),
+        sessionsFilePath: p.join(testDir.path, 'sessions_warmup.json'),
+        forceReinitialize: true,
+      );
+
+      final musicDir =
+          await Directory(p.join(testDir.path, 'music_warmup')).create();
+      await _writeAudioStub(p.join(musicDir.path, 'Warm Artist - Track.mp3'));
+      await server.libraryManager.scanMusicFolder(musicDir.path);
+
+      final apiJson = server.libraryManager.toApiJson('http://127.0.0.1');
+      final songs = apiJson['songs'] as List<dynamic>;
+      final songId = (songs.single as Map<String, dynamic>)['id'] as String;
+
+      final transcodingService = _FakeTranscodingService(
+        cacheDirectory: p.join(testDir.path, 'warmup_transcoder'),
+        transcodedFile: File(p.join(testDir.path, 'warmup.aac')),
+      );
+      server.setTranscodingService(transcodingService);
+
+      final port = await _findFreePort();
+      await server.start(
+        advertisedIp: '127.0.0.1',
+        bindAddress: '127.0.0.1',
+        port: port,
+      );
+
+      final registerResponse = await _sendJsonRequest(
+        method: 'POST',
+        url: Uri.parse('http://127.0.0.1:$port/api/auth/register'),
+        jsonBody: <String, dynamic>{
+          'username': 'warmup-user',
+          'password': 'warmup-pass',
+        },
+      );
+      expect(registerResponse.statusCode, 200);
+
+      final loginResponse = await _sendJsonRequest(
+        method: 'POST',
+        url: Uri.parse('http://127.0.0.1:$port/api/auth/login'),
+        jsonBody: <String, dynamic>{
+          'username': 'warmup-user',
+          'password': 'warmup-pass',
+          'deviceId': 'warmup-device',
+          'deviceName': 'Warmup Device',
+        },
+      );
+      final sessionToken = loginResponse.jsonBody['sessionToken'] as String;
+
+      final unauthorized = await _sendJsonRequest(
+        method: 'POST',
+        url: Uri.parse('http://127.0.0.1:$port/api/stream-warmup'),
+        jsonBody: <String, dynamic>{
+          'songIds': <String>[songId],
+          'quality': 'medium',
+        },
+      );
+      expect(unauthorized.statusCode, 401);
+
+      final warmup = await _sendJsonRequest(
+        method: 'POST',
+        url: Uri.parse('http://127.0.0.1:$port/api/stream-warmup'),
+        headers: <String, String>{'Authorization': 'Bearer $sessionToken'},
+        jsonBody: <String, dynamic>{
+          'songIds': <String>[songId],
+          'quality': 'medium',
+        },
+      );
+
+      expect(warmup.statusCode, 200);
+      expect(warmup.jsonBody['queued'], 1);
+      expect(transcodingService.warmTranscodedFileCalls, 1);
+      expect(transcodingService.lastWarmupSongId, songId);
+      expect(transcodingService.lastWarmupQuality, QualityPreset.medium);
+    });
+
     test(
       'download endpoint supports full and ranged responses with expected headers',
       () async {
@@ -1053,10 +1131,13 @@ class _FakeTranscodingService extends TranscodingService {
   final File transcodedFile;
 
   int getTranscodedFileCalls = 0;
+  int warmTranscodedFileCalls = 0;
   String? lastSourcePath;
   String? lastSongId;
   QualityPreset? lastQuality;
   TranscodeRequestType? lastRequestType;
+  String? lastWarmupSongId;
+  QualityPreset? lastWarmupQuality;
 
   @override
   Future<File?> getTranscodedFile(
@@ -1064,6 +1145,7 @@ class _FakeTranscodingService extends TranscodingService {
     String songId,
     QualityPreset quality, {
     TranscodeRequestType requestType = TranscodeRequestType.streaming,
+    int? sourceBitrateKbps,
   }) async {
     getTranscodedFileCalls++;
     lastSourcePath = sourcePath;
@@ -1071,5 +1153,18 @@ class _FakeTranscodingService extends TranscodingService {
     lastQuality = quality;
     lastRequestType = requestType;
     return transcodedFile;
+  }
+
+  @override
+  Future<bool> warmTranscodedFile(
+    String sourcePath,
+    String songId,
+    QualityPreset quality, {
+    int? sourceBitrateKbps,
+  }) async {
+    warmTranscodedFileCalls++;
+    lastWarmupSongId = songId;
+    lastWarmupQuality = quality;
+    return true;
   }
 }
