@@ -102,8 +102,9 @@ class DuplicateDetector {
     // Step 2: Only hash groups with 2+ files (potential duplicates)
     final groups = <DuplicateGroup>[];
     for (final candidates in sizeGroups.values) {
-      if (candidates.length < 2)
+      if (candidates.length < 2) {
         continue; // Skip unique sizes - no duplicates possible
+      }
 
       // Hash only this small group
       final hashGroups =
