@@ -14,6 +14,7 @@ import '../widgets/player/player_info.dart';
 import '../widgets/player/player_seek_bar.dart';
 import '../widgets/player/player_secondary_controls.dart';
 import '../widgets/player/player_cast_button.dart';
+import '../widgets/common/mini_player_aware_bottom_sheet.dart';
 import 'playlist/add_to_playlist_screen.dart';
 import 'queue_screen.dart';
 
@@ -36,6 +37,7 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
   @override
   void initState() {
     super.initState();
+    MiniPlayerVisibility.pushFullPlayer();
     _playbackManager.addListener(_onPlaybackStateChanged);
     _playlistService.loadPlaylists();
     _playlistService.addListener(_onPlaylistsChanged);
@@ -51,6 +53,7 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
     _playbackManager.removeListener(_onPlaybackStateChanged);
     _playlistService.removeListener(_onPlaylistsChanged);
     _colorService.removeListener(_onColorsChanged);
+    MiniPlayerVisibility.popFullPlayer();
     super.dispose();
   }
 

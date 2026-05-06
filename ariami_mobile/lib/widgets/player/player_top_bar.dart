@@ -24,15 +24,12 @@ class PlayerTopBar extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
       child: Row(
         children: [
-          // Minimize button
           IconButton(
             icon: const Icon(LucideIcons.chevronLeft),
             onPressed: onMinimize,
             tooltip: 'Back',
             iconSize: 32,
           ),
-
-          // "Now Playing" text
           Expanded(
             child: Text(
               'Now Playing',
@@ -42,7 +39,6 @@ class PlayerTopBar extends StatelessWidget {
                   ),
             ),
           ),
-
           if (onPlayNext != null || onAddToQueue != null)
             IconButton(
               icon: const Icon(Icons.more_vert_rounded),
@@ -57,52 +53,29 @@ class PlayerTopBar extends StatelessWidget {
   }
 
   Future<void> _showOptionsSheet(BuildContext context) {
-    return showModalBottomSheet<void>(
+    return showAriamiSheet<void>(
       context: context,
-      isScrollControlled: true,
-      builder: (sheetContext) {
-        final maxSheetHeight = MediaQuery.sizeOf(sheetContext).height * 0.9;
-
-        return ConstrainedBox(
-          constraints: BoxConstraints(maxHeight: maxSheetHeight),
-          child: SafeArea(
-            minimum: EdgeInsets.only(
-              bottom: getMiniPlayerAwareBottomPadding(sheetContext),
-            ),
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const SizedBox(height: 12),
-                  Text(
-                    'Song Options',
-                    style: Theme.of(sheetContext).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 8),
-                  if (onPlayNext != null)
-                    ListTile(
-                      leading: const Icon(Icons.skip_next_rounded),
-                      title: const Text('Play next'),
-                      onTap: () {
-                        Navigator.pop(sheetContext);
-                        onPlayNext?.call();
-                      },
-                    ),
-                  ListTile(
-                    leading: const Icon(Icons.queue_music_rounded),
-                    title: const Text('Add to queue'),
-                    onTap: () {
-                      Navigator.pop(sheetContext);
-                      onAddToQueue?.call();
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                ],
-              ),
-            ),
+      header: const AriamiSheetHeader(title: 'Song Options'),
+      items: [
+        if (onPlayNext != null)
+          ListTile(
+            leading: const Icon(Icons.skip_next_rounded),
+            title: const Text('Play next'),
+            onTap: () {
+              Navigator.pop(context);
+              onPlayNext?.call();
+            },
           ),
-        );
-      },
+        if (onAddToQueue != null)
+          ListTile(
+            leading: const Icon(Icons.queue_music_rounded),
+            title: const Text('Add to queue'),
+            onTap: () {
+              Navigator.pop(context);
+              onAddToQueue?.call();
+            },
+          ),
+      ],
     );
   }
 }

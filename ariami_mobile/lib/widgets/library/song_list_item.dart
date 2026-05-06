@@ -265,85 +265,69 @@ class SongListItem extends StatelessWidget {
 
   /// Show song overflow menu
   void _showSongMenu(BuildContext context) {
-    showModalBottomSheet(
+    showAriamiSheet<void>(
       context: context,
-      isScrollControlled: true,
-      builder: (BuildContext context) {
-        final maxMenuHeight = MediaQuery.sizeOf(context).height * 0.9;
-
-        return ConstrainedBox(
-          constraints: BoxConstraints(maxHeight: maxMenuHeight),
-          child: SafeArea(
-            minimum: EdgeInsets.only(
-              bottom: getMiniPlayerAwareBottomPadding(context),
-            ),
-            child: SingleChildScrollView(
-              child: SizedBox(
-                width: double.infinity,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    ListTile(
-                      leading: const Icon(Icons.play_arrow),
-                      title: const Text('Play'),
-                      onTap: onTap != null
-                          ? () {
-                              Navigator.pop(context);
-                              onTap?.call();
-                            }
-                          : null,
-                    ),
-                    ListTile(
-                      leading: const Icon(Icons.skip_next),
-                      title: const Text('Play Next'),
-                      onTap: () {
-                        Navigator.pop(context);
-                        _handlePlayNext(context);
-                      },
-                    ),
-                    ListTile(
-                      leading: const Icon(Icons.queue_music),
-                      title: const Text('Add to Queue'),
-                      onTap: () {
-                        Navigator.pop(context);
-                        _handleAddToQueue(context);
-                      },
-                    ),
-                    ListTile(
-                      leading: const Icon(Icons.playlist_add),
-                      title: const Text('Add to Playlist'),
-                      onTap: () {
-                        Navigator.pop(context);
-                        AddToPlaylistScreen.showForSong(
-                          context,
-                          song.id,
-                          albumId: song.albumId,
-                          title: song.title,
-                          artist: song.artist,
-                          duration: song.duration,
-                        );
-                      },
-                    ),
-                    ListTile(
-                      leading: Icon(
-                        isDownloaded ? Icons.download_done : Icons.download,
-                        color: isDownloaded ? Colors.green : null,
-                      ),
-                      title: Text(isDownloaded ? 'Downloaded' : 'Download'),
-                      onTap: isDownloaded
-                          ? null
-                          : () {
-                              Navigator.pop(context);
-                              _handleDownload(context);
-                            },
-                    ),
-                  ],
-                ),
-              ),
-            ),
+      header: AriamiSheetHeader(
+        title: song.title,
+        subtitle: song.artist,
+        leading: const Icon(Icons.music_note_rounded, size: 28),
+      ),
+      items: [
+        ListTile(
+          leading: const Icon(Icons.play_arrow),
+          title: const Text('Play'),
+          onTap: onTap != null
+              ? () {
+                  Navigator.pop(context);
+                  onTap?.call();
+                }
+              : null,
+        ),
+        ListTile(
+          leading: const Icon(Icons.skip_next),
+          title: const Text('Play Next'),
+          onTap: () {
+            Navigator.pop(context);
+            _handlePlayNext(context);
+          },
+        ),
+        ListTile(
+          leading: const Icon(Icons.queue_music),
+          title: const Text('Add to Queue'),
+          onTap: () {
+            Navigator.pop(context);
+            _handleAddToQueue(context);
+          },
+        ),
+        ListTile(
+          leading: const Icon(Icons.playlist_add),
+          title: const Text('Add to Playlist'),
+          onTap: () {
+            Navigator.pop(context);
+            AddToPlaylistScreen.showForSong(
+              context,
+              song.id,
+              albumId: song.albumId,
+              title: song.title,
+              artist: song.artist,
+              duration: song.duration,
+            );
+          },
+        ),
+        ListTile(
+          leading: Icon(
+            isDownloaded ? Icons.download_done : Icons.download,
+            color: isDownloaded ? Colors.green : null,
           ),
-        );
-      },
+          title: Text(isDownloaded ? 'Downloaded' : 'Download'),
+          onTap: isDownloaded
+              ? null
+              : () {
+                  Navigator.pop(context);
+                  _handleDownload(context);
+                },
+        ),
+      ],
     );
   }
 

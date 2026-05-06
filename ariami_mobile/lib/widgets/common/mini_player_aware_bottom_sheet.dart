@@ -2,33 +2,56 @@ import 'package:flutter/material.dart';
 import '../../services/playback_manager.dart';
 import 'bottom_chrome_metrics.dart';
 
-/// A widget that wraps bottom sheet content with dynamic padding
-/// that accounts for the mini player when it's visible.
+/// Tracks whether the full player screen is currently covering the mini player.
 ///
-/// Use this instead of manually adding SafeArea with static padding
-/// to bottom sheets. It automatically detects whether music is playing
-/// and only adds extra padding when the mini player is visible.
-///
-/// Example:
-/// ```dart
-/// showModalBottomSheet(
-///   context: context,
-///   builder: (context) => MiniPlayerAwareBottomSheet(
-///     child: Column(
-///       mainAxisSize: MainAxisSize.min,
-///       children: [
-///         ListTile(title: Text('Option 1')),
-///         ListTile(title: Text('Option 2')),
-///       ],
-///     ),
-///   ),
-/// );
-/// ```
-class MiniPlayerAwareBottomSheet extends StatelessWidget {
-  /// The content of the bottom sheet
-  final Widget child;
+/// When the full player is on top, the mini player and bottom navigation bar
+/// are visually hidden behind it, so bottom sheets shown from inside the full
+/// player should not reserve space for that chrome.
+class MiniPlayerVisibility {
+  MiniPlayerVisibility._();
 
-  /// Whether to use SafeArea (default: true)
+  static int _fullPlayerStackDepth = 0;
+
+  static bool get isFullPlayerOnTop => _fullPlayerStackDepth > 0;
+
+  static void pushFullPlayer() {
+    _fullPlayerStackDepth++;
+  }
+
+  static void popFullPlayer() {
+    if (_fullPlayerStackDepth > 0) {
+      _fullPlayerStackDepth--;
+    }
+  }
+}
+
+/// Returns the appropriate bottom padding for content that needs to
+/// account for the mini player overlay.
+///
+/// Returns 0 when the full player screen is on top, since the mini player
+/// and bottom navigation bar are not visible to the user in that case.
+double getMiniPlayerAwareBottomPadding(BuildContext context) {
+  if (MiniPlayerVisibility.isFullPlayerOnTop) {
+    return 0.0;
+  }
+  final playbackManager = PlaybackManager();
+  final isMiniPlayerVisible = playbackManager.currentSong != null;
+  return getBottomChromeHeight(
+    context,
+    isMiniPlayerVisible: isMiniPlayerVisible,
+  );
+}
+
+/// Returns whether the mini player is currently visible to the user.
+bool isMiniPlayerVisible() {
+  if (MiniPlayerVisibility.isFullPlayerOnTop) return false;
+  return PlaybackManager().currentSong != null;
+}
+
+/// Wraps bottom sheet content with dynamic padding that accounts for the
+/// mini player when it's visible.
+class MiniPlayerAwareBottomSheet extends StatelessWidget {
+  final Widget child;
   final bool useSafeArea;
 
   const MiniPlayerAwareBottomSheet({
@@ -44,13 +67,7 @@ class MiniPlayerAwareBottomSheet extends StatelessWidget {
     return ListenableBuilder(
       listenable: playbackManager,
       builder: (context, _) {
-        final isMiniPlayerVisible = playbackManager.currentSong != null;
-
-        // Calculate bottom padding: mini player + download bar + nav bar (when visible)
-        final bottomPadding = isMiniPlayerVisible
-            ? getBottomChromeHeight(context, isMiniPlayerVisible: true)
-            : 0.0;
-
+        final bottomPadding = getMiniPlayerAwareBottomPadding(context);
         return Padding(
           padding: EdgeInsets.only(bottom: bottomPadding),
           child: child,
@@ -60,24 +77,8 @@ class MiniPlayerAwareBottomSheet extends StatelessWidget {
   }
 }
 
-/// Helper function to show a modal bottom sheet with mini player awareness.
-///
-/// This is a convenience wrapper around [showModalBottomSheet] that
-/// automatically wraps the content in [MiniPlayerAwareBottomSheet].
-///
-/// Example:
-/// ```dart
-/// showMiniPlayerAwareBottomSheet(
-///   context: context,
-///   builder: (context) => Column(
-///     mainAxisSize: MainAxisSize.min,
-///     children: [
-///       ListTile(title: Text('Option 1')),
-///       ListTile(title: Text('Option 2')),
-///     ],
-///   ),
-/// );
-/// ```
+/// Backwards-compatible wrapper around [showModalBottomSheet] that adds
+/// mini-player-aware padding. Prefer [showAriamiSheet] for new code.
 Future<T?> showMiniPlayerAwareBottomSheet<T>({
   required BuildContext context,
   required Widget Function(BuildContext) builder,
@@ -108,7 +109,7 @@ Future<T?> showMiniPlayerAwareBottomSheet<T>({
     isDismissible: isDismissible,
     enableDrag: enableDrag,
     showDragHandle: showDragHandle,
-    useSafeArea: false, // We handle safe area ourselves
+    useSafeArea: false,
     routeSettings: routeSettings,
     transitionAnimationController: transitionAnimationController,
     anchorPoint: anchorPoint,
@@ -119,33 +120,139 @@ Future<T?> showMiniPlayerAwareBottomSheet<T>({
   );
 }
 
-/// Returns the appropriate bottom padding for content that needs to
-/// account for the mini player overlay.
-///
-/// Use this when you need the padding value directly (e.g., for ListView padding)
-/// instead of wrapping content in [MiniPlayerAwareBottomSheet].
-///
-/// Example:
-/// ```dart
-/// ListView(
-///   padding: EdgeInsets.only(
-///     bottom: getMiniPlayerAwareBottomPadding(context),
-///   ),
-///   children: [...],
-/// )
-/// ```
-double getMiniPlayerAwareBottomPadding(BuildContext context) {
-  final playbackManager = PlaybackManager();
-  final isMiniPlayerVisible = playbackManager.currentSong != null;
-  return getBottomChromeHeight(
-    context,
-    isMiniPlayerVisible: isMiniPlayerVisible,
-  );
+/// Default radius for the rounded top corners of an Ariami sheet.
+const double kAriamiSheetCornerRadius = 24.0;
+
+/// Header widget for [showAriamiSheet] — supports a leading visual,
+/// a title, and an optional subtitle. Designed to feel like a polished
+/// Material 3 sheet header rather than a plain centered label.
+class AriamiSheetHeader extends StatelessWidget {
+  final String title;
+  final String? subtitle;
+  final Widget? leading;
+  final Widget? trailing;
+
+  const AriamiSheetHeader({
+    super.key,
+    required this.title,
+    this.subtitle,
+    this.leading,
+    this.trailing,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          if (leading != null) ...[
+            leading!,
+            const SizedBox(width: 14),
+          ],
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  title,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (subtitle != null && subtitle!.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle!,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ],
+            ),
+          ),
+          if (trailing != null) ...[
+            const SizedBox(width: 12),
+            trailing!,
+          ],
+        ],
+      ),
+    );
+  }
 }
 
-/// Returns whether the mini player is currently visible.
+/// Shows a polished, mini-player-aware modal bottom sheet with rounded top
+/// corners, a drag handle, and dynamic content sizing.
 ///
-/// Useful for conditional UI adjustments.
-bool isMiniPlayerVisible() {
-  return PlaybackManager().currentSong != null;
+/// The sheet:
+///  - sizes itself to its content (capped at 90% of viewport height)
+///  - shows a drag handle by default
+///  - reserves space below the mini player when one is visible
+///  - reserves no extra space when shown from above the full player
+///
+/// Pass [header] for a consistent title row, then [items] for the actions.
+/// For fully custom layouts, pass [child] instead.
+Future<T?> showAriamiSheet<T>({
+  required BuildContext context,
+  Widget? header,
+  List<Widget>? items,
+  Widget? child,
+  bool isDismissible = true,
+  bool enableDrag = true,
+  bool useRootNavigator = false,
+  Color? backgroundColor,
+}) {
+  assert(
+    (items != null) ^ (child != null),
+    'showAriamiSheet requires exactly one of `items` or `child`.',
+  );
+
+  return showModalBottomSheet<T>(
+    context: context,
+    isScrollControlled: true,
+    useRootNavigator: useRootNavigator,
+    isDismissible: isDismissible,
+    enableDrag: enableDrag,
+    showDragHandle: true,
+    useSafeArea: false,
+    backgroundColor: backgroundColor,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(
+        top: Radius.circular(kAriamiSheetCornerRadius),
+      ),
+    ),
+    clipBehavior: Clip.antiAlias,
+    builder: (sheetContext) {
+      final maxHeight = MediaQuery.sizeOf(sheetContext).height * 0.9;
+      return ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: maxHeight),
+        child: SafeArea(
+          top: false,
+          minimum: EdgeInsets.only(
+            bottom: getMiniPlayerAwareBottomPadding(sheetContext),
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (header != null) header,
+                if (items != null) ...items,
+                if (child != null) child,
+                const SizedBox(height: 8),
+              ],
+            ),
+          ),
+        ),
+      );
+    },
+  );
 }

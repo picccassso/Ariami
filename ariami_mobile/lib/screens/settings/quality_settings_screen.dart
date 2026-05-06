@@ -402,89 +402,76 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
     required Function(StreamingQuality) onChanged,
   }) {
     final colorScheme = Theme.of(context).colorScheme;
-    showMiniPlayerAwareBottomSheet(
+    showAriamiSheet<void>(
       context: context,
       backgroundColor: colorScheme.surface,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (context) {
-        return SingleChildScrollView(
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Text(
-                    '${title.toUpperCase()} QUALITY',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.5,
-                      color: colorScheme.onSurface,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                ...StreamingQuality.values.map((quality) {
-                  final isSelected = quality == currentQuality;
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: isSelected ? colorScheme.primary : Colors.transparent,
-                        borderRadius: BorderRadius.circular(15),
-                      ),
-                      child: ListTile(
-                        leading: Icon(
-                          _getQualityIcon(quality),
-                          color: isSelected ? colorScheme.onPrimary : colorScheme.onSurfaceVariant,
-                          size: 20,
-                        ),
-                        title: Text(
-                          quality.displayName,
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            color: isSelected ? colorScheme.onPrimary : colorScheme.onSurface,
-                          ),
-                        ),
-                        subtitle: Text(
-                          quality.description,
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
-                            color: isSelected ? colorScheme.onPrimary.withOpacity(0.7) : colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                        trailing: isSelected
-                            ? Icon(
-                                Icons.check_circle_rounded,
-                                color: colorScheme.onPrimary,
-                                size: 20,
-                              )
-                            : null,
-                        onTap: () {
-                          Navigator.pop(context);
-                          onChanged(quality);
-                        },
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(15),
-                        ),
-                      ),
-                    ),
-                  );
-                }),
-                const SizedBox(height: 24),
-              ],
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 4, 24, 16),
+            child: Text(
+              '${title.toUpperCase()} QUALITY',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.5,
+                color: colorScheme.onSurface,
+              ),
             ),
           ),
-        );
-      },
+          ...StreamingQuality.values.map((quality) {
+            final isSelected = quality == currentQuality;
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: isSelected ? colorScheme.primary : Colors.transparent,
+                  borderRadius: BorderRadius.circular(15),
+                ),
+                child: ListTile(
+                  leading: Icon(
+                    _getQualityIcon(quality),
+                    color: isSelected ? colorScheme.onPrimary : colorScheme.onSurfaceVariant,
+                    size: 20,
+                  ),
+                  title: Text(
+                    quality.displayName,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: isSelected ? colorScheme.onPrimary : colorScheme.onSurface,
+                    ),
+                  ),
+                  subtitle: Text(
+                    quality.description,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      color: isSelected ? colorScheme.onPrimary.withOpacity(0.7) : colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  trailing: isSelected
+                      ? Icon(
+                          Icons.check_circle_rounded,
+                          color: colorScheme.onPrimary,
+                          size: 20,
+                        )
+                      : null,
+                  onTap: () {
+                    Navigator.pop(context);
+                    onChanged(quality);
+                  },
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                ),
+              ),
+            );
+          }),
+        ],
+      ),
     );
   }
 

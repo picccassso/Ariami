@@ -186,81 +186,64 @@ class _SearchResultSongItemState extends State<SearchResultSongItem> {
 
   /// Show song overflow menu
   void _showSongMenu(BuildContext context) {
-    showModalBottomSheet(
+    showAriamiSheet<void>(
       context: context,
-      isScrollControlled: true,
-      builder: (BuildContext context) {
-        final maxMenuHeight = MediaQuery.sizeOf(context).height * 0.9;
-
-        return ConstrainedBox(
-          constraints: BoxConstraints(maxHeight: maxMenuHeight),
-          child: SafeArea(
-            minimum: EdgeInsets.only(
-              bottom: getMiniPlayerAwareBottomPadding(context),
-            ),
-            child: SingleChildScrollView(
-              child: SizedBox(
-                width: double.infinity,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    ListTile(
-                      leading: const Icon(Icons.play_arrow),
-                      title: const Text('Play'),
-                      onTap: () {
-                        Navigator.pop(context);
-                        widget.onTap();
-                      },
-                    ),
-                    ListTile(
-                      leading: const Icon(Icons.skip_next),
-                      title: const Text('Play Next'),
-                      onTap: () {
-                        Navigator.pop(context);
-                        _handlePlayNext();
-                      },
-                    ),
-                    ListTile(
-                      leading: const Icon(Icons.queue_music),
-                      title: const Text('Add to Queue'),
-                      onTap: () {
-                        Navigator.pop(context);
-                        _handleAddToQueue();
-                      },
-                    ),
-                    ListTile(
-                      leading: const Icon(Icons.playlist_add),
-                      title: const Text('Add to Playlist'),
-                      onTap: () {
-                        Navigator.pop(context);
-                        AddToPlaylistScreen.showForSong(
-                          context,
-                          widget.song.id,
-                          albumId: widget.song.albumId,
-                          title: widget.song.title,
-                          artist: widget.song.artist,
-                          duration: widget.song.duration,
-                        );
-                      },
-                    ),
-                    if (widget.showRemoveFromRecent && widget.onRemove != null)
-                      ListTile(
-                        leading:
-                            const Icon(Icons.delete_outline, color: Colors.red),
-                        title: const Text('Remove from Recent',
-                            style: TextStyle(color: Colors.red)),
-                        onTap: () {
-                          Navigator.pop(context);
-                          widget.onRemove!();
-                        },
-                      ),
-                  ],
-                ),
-              ),
-            ),
+      header: AriamiSheetHeader(
+        title: widget.song.title,
+        subtitle: widget.song.artist,
+        leading: const Icon(Icons.music_note_rounded, size: 28),
+      ),
+      items: [
+        ListTile(
+          leading: const Icon(Icons.play_arrow),
+          title: const Text('Play'),
+          onTap: () {
+            Navigator.pop(context);
+            widget.onTap();
+          },
+        ),
+        ListTile(
+          leading: const Icon(Icons.skip_next),
+          title: const Text('Play Next'),
+          onTap: () {
+            Navigator.pop(context);
+            _handlePlayNext();
+          },
+        ),
+        ListTile(
+          leading: const Icon(Icons.queue_music),
+          title: const Text('Add to Queue'),
+          onTap: () {
+            Navigator.pop(context);
+            _handleAddToQueue();
+          },
+        ),
+        ListTile(
+          leading: const Icon(Icons.playlist_add),
+          title: const Text('Add to Playlist'),
+          onTap: () {
+            Navigator.pop(context);
+            AddToPlaylistScreen.showForSong(
+              context,
+              widget.song.id,
+              albumId: widget.song.albumId,
+              title: widget.song.title,
+              artist: widget.song.artist,
+              duration: widget.song.duration,
+            );
+          },
+        ),
+        if (widget.showRemoveFromRecent && widget.onRemove != null)
+          ListTile(
+            leading: const Icon(Icons.delete_outline, color: Colors.red),
+            title: const Text('Remove from Recent',
+                style: TextStyle(color: Colors.red)),
+            onTap: () {
+              Navigator.pop(context);
+              widget.onRemove!();
+            },
           ),
-        );
-      },
+      ],
     );
   }
 

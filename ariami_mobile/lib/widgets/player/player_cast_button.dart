@@ -60,7 +60,6 @@ class _PlayerCastButtonState extends State<PlayerCastButton> {
       await _showConnectedActions();
       return;
     }
-
     await _showDevicePicker();
   }
 
@@ -68,82 +67,52 @@ class _PlayerCastButtonState extends State<PlayerCastButton> {
     await _castService.startDiscovery();
     if (!mounted) return;
 
-    await showModalBottomSheet<void>(
+    await showAriamiSheet<void>(
       context: context,
-      isScrollControlled: true,
-      builder: (sheetContext) {
-        final maxSheetHeight = MediaQuery.sizeOf(sheetContext).height * 0.9;
-        return ConstrainedBox(
-          constraints: BoxConstraints(maxHeight: maxSheetHeight),
-          child: SafeArea(
-            minimum: EdgeInsets.only(
-              bottom: getMiniPlayerAwareBottomPadding(sheetContext),
-            ),
-            child: AnimatedBuilder(
-              animation: _castService,
-              builder: (context, _) {
-                final devices = _castService.devices;
+      header: const AriamiSheetHeader(
+        title: 'Cast To Device',
+        subtitle: 'Pick a Chromecast on your network',
+      ),
+      child: AnimatedBuilder(
+        animation: _castService,
+        builder: (context, _) {
+          final devices = _castService.devices;
 
-                return SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const SizedBox(height: 12),
-                      Text(
-                        'Cast To Device',
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: 8),
-                      if (devices.isEmpty)
-                        const Padding(
-                          padding: EdgeInsets.fromLTRB(20, 20, 20, 28),
-                          child: Row(
-                            children: [
-                              SizedBox(
-                                width: 20,
-                                height: 20,
-                                child:
-                                    CircularProgressIndicator(strokeWidth: 2.5),
-                              ),
-                              SizedBox(width: 12),
-                              Expanded(
-                                child:
-                                    Text('Searching for Chromecast devices...'),
-                              ),
-                            ],
-                          ),
-                        )
-                      else
-                        ConstrainedBox(
-                          constraints: const BoxConstraints(maxHeight: 320),
-                          child: ListView.separated(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            itemCount: devices.length,
-                            separatorBuilder: (_, __) =>
-                                const Divider(height: 1),
-                            itemBuilder: (context, index) {
-                              final device = devices[index];
-                              return ListTile(
-                                leading: const Icon(LucideIcons.speaker),
-                                title: Text(device.friendlyName),
-                                onTap: () async {
-                                  Navigator.of(sheetContext).pop();
-                                  await _connectAndSync(device);
-                                },
-                              );
-                            },
-                          ),
-                        ),
-                      const SizedBox(height: 8),
-                    ],
+          if (devices.isEmpty) {
+            return const Padding(
+              padding: EdgeInsets.fromLTRB(20, 12, 20, 24),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2.5),
                   ),
-                );
-              },
-            ),
-          ),
-        );
-      },
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Text('Searching for Chromecast devices...'),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final device in devices)
+                ListTile(
+                  leading: const Icon(LucideIcons.speaker),
+                  title: Text(device.friendlyName),
+                  onTap: () async {
+                    Navigator.of(context).pop();
+                    await _connectAndSync(device);
+                  },
+                ),
+            ],
+          );
+        },
+      ),
     );
 
     await _castService.stopDiscovery();
@@ -161,43 +130,27 @@ class _PlayerCastButtonState extends State<PlayerCastButton> {
   }
 
   Future<void> _showConnectedActions() async {
-    await showModalBottomSheet<void>(
+    final deviceName = _castService.connectedDeviceName ?? 'Chromecast';
+    await showAriamiSheet<void>(
       context: context,
-      isScrollControlled: true,
-      builder: (sheetContext) {
-        final maxSheetHeight = MediaQuery.sizeOf(sheetContext).height * 0.9;
-        return ConstrainedBox(
-          constraints: BoxConstraints(maxHeight: maxSheetHeight),
-          child: SafeArea(
-            minimum: EdgeInsets.only(
-              bottom: getMiniPlayerAwareBottomPadding(sheetContext),
-            ),
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  ListTile(
-                    leading: const Icon(LucideIcons.cast),
-                    title: Text(
-                      _castService.connectedDeviceName ??
-                          'Chromecast connected',
-                    ),
-                    subtitle: const Text('Audio is being cast from Ariami'),
-                  ),
-                  ListTile(
-                    leading: const Icon(LucideIcons.cast),
-                    title: const Text('Disconnect'),
-                    onTap: () async {
-                      Navigator.of(sheetContext).pop();
-                      await widget.playbackManager.stopCastingAndResumeLocal();
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
+      header: AriamiSheetHeader(
+        title: deviceName,
+        subtitle: 'Audio is being cast from Ariami',
+        leading: Icon(
+          Icons.cast_connected_rounded,
+          color: Theme.of(context).colorScheme.primary,
+        ),
+      ),
+      items: [
+        ListTile(
+          leading: const Icon(Icons.cast),
+          title: const Text('Disconnect'),
+          onTap: () async {
+            Navigator.of(context).pop();
+            await widget.playbackManager.stopCastingAndResumeLocal();
+          },
+        ),
+      ],
     );
   }
 }
