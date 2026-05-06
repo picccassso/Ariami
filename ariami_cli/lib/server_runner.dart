@@ -161,13 +161,13 @@ class ServerRunner {
       final int maxCacheSizeMB;
 
       if (isPi) {
-        // Raspberry Pi: very conservative to avoid overheating
-        maxConcurrency = 1;
-        maxDownloadConcurrency =
-            isPi5 ? 4 : 1; // Pi 5 supports higher download concurrency
+        // Raspberry Pi: two concurrent transcode jobs to use two cores; Pi 5 keeps
+        // a higher download-transcode cap than Pi 3/4.
+        maxConcurrency = 2;
+        maxDownloadConcurrency = isPi5 ? 4 : 2;
         maxCacheSizeMB = cachePolicy.transcodeCacheSizeMB;
         print(
-            'Platform: Raspberry Pi${isPi5 ? ' 5' : ''} detected - using conservative transcoding settings');
+            'Platform: Raspberry Pi${isPi5 ? ' 5' : ''} detected - using Pi transcoding settings (streaming+download slots)');
       } else if (Platform.isMacOS || Platform.isWindows) {
         // Desktop: more resources available
         maxConcurrency = 2;
@@ -651,11 +651,12 @@ class ServerRunner {
       );
     }
 
-    // Default for Pi + microSD or unknown storage
+    // Default for Pi 3/4 + microSD or unknown storage — allow four concurrent
+    // original/high-quality downloads per user (mostly I/O, not transcode).
     return const _DownloadLimits(
       maxConcurrent: 4,
       maxQueue: 50,
-      maxConcurrentPerUser: 2,
+      maxConcurrentPerUser: 4,
       maxQueuePerUser: 20,
     );
   }

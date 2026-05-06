@@ -110,8 +110,8 @@ class TranscodingService {
   ///
   /// [cacheDirectory] - Base directory for storing transcoded files.
   /// [maxCacheSizeMB] - Maximum cache size in megabytes (default 2048 = 2GB).
-  /// [maxConcurrency] - Maximum concurrent streaming transcodes (default 1 for Pi).
-  /// [maxDownloadConcurrency] - Maximum concurrent download transcodes (default = maxConcurrency).
+  /// [maxConcurrency] - Maximum concurrent streaming transcodes (CLI sets 2 on Pi).
+  /// [maxDownloadConcurrency] - Maximum concurrent download transcodes (CLI sets 2 on Pi 3/4, 4 on Pi 5).
   /// [transcodeTimeout] - Timeout per transcode (default 5 minutes).
   /// [failureBackoffDuration] - How long to skip after failure (default 5 minutes).
   /// [indexPersistInterval] - Interval for persisting cache index (default 30 seconds).

@@ -115,3 +115,97 @@ These optimisations should also carry over to Pi 4 and Pi 5. The lookup,
 catalog, warmup, bitrate, and microSD improvements help all Pis, while newer
 hardware should have a much easier time with the remaining bottleneck:
 transcoding.
+
+---
+
+## Update: May 2026 — follow-up tuning and another real-world pass
+
+This is a second round of “how it actually feels” testing after further server
+work and CLI tuning on the Pi 3: notably **two concurrent transcode slots**
+(streaming and download transcodes can run in parallel up to that cap) and
+**four concurrent original-quality downloads per user** (up from two), on top
+of the earlier lookup, catalog, warmup, and cache behaviour fixes.
+
+Same disclaimer as above: not a lab benchmark, mixed WiFi and mobile data, and
+reception quality varies. The Pi had been pleasant to use before; this pass was
+mostly “does it still hold up, and what do the numbers look like now?”
+
+### Streaming (WiFi and mobile)
+
+Playback when streaming felt **very responsive**. On WiFi, skipping to the next
+song felt effectively **immediate**. On **mobile data** (poor reception spot),
+starts were still only about **1–2 seconds** in practice, with **low CPU usage
+spread across cores** in `htop` — nothing like the old “whole machine thinking”
+feeling before the performance work.
+
+### Original-quality downloads (bulk, while using the app)
+
+Bulk download at **original quality** stayed smooth while **streaming**,
+jumping between **playlists**, and **seeking** in tracks — nothing fell over.
+
+Roughly **268 songs inside three minutes** while doing that multitasking. CPU
+in `htop` used **all cores** but **no core went much past ~20%**, and load was
+spread rather than one core doing everything. Downloads feel “a little slow”
+compared to a big desktop, but the aggregate throughput on a Pi 3 was still
+surprisingly strong.
+
+### Low/medium download while streaming (WiFi)
+
+With **low or medium quality downloading** and **streaming at the same time**
+over WiFi, **two cores sat at 100%** most of the time (consistent with **two**
+transcode workers). Another core sometimes picked up work but was not fully
+pegged. **Streaming kept working fine** despite that.
+
+Roughly **22 transcoded songs in two minutes** in that scenario — good going for
+an old Pi 3.
+
+### Original quality over mobile data (time to start playback)
+
+Cold-ish starts, bad mobile spot:
+
+- First song: **3 seconds**
+- Second song: **10 seconds**
+- Third song: **3 seconds**
+- Fourth song: **6 seconds**
+- Fifth song: **3 seconds**
+
+Still mostly “network plus luck,” but broadly in line with “original is easy on
+the Pi.”
+
+### Medium/low uncached over mobile data (new playlist each time)
+
+Each run opened a **new playlist** so these stayed **cold** transcode starts on
+**mobile data**:
+
+- First song: **14 seconds**
+- Second song: **15 seconds**
+- Third song: **12 seconds**
+- Fourth song: **36 seconds** (notably a **~4 minute** track — longer encode +
+  more bytes over a weak link)
+
+Compared to the earlier ~21–26 s cold samples in this doc, this pass sometimes
+looked **a bit better**, but the long track shows how much variance you still
+get from **file length** and **RF conditions**.
+
+### Medium/low warm queue (WiFi, after the first cold stretch)
+
+Once the queue was **moving** and the first heavy cold start was out of the way
+(the first song in this block was still on the order of **~14 seconds**), times
+on **WiFi** for the next tracks were:
+
+- First warmed song: **4 seconds**
+- Second: **2 seconds**
+- Third: **2 seconds**
+- Fourth: **2 seconds**
+- Fifth: **2 seconds**
+
+So: cold medium/low is still “Pi 3 + transcode + maybe bad radio”; a **warm
+queue on a decent link** is where it starts to feel **almost instant**.
+
+### Takeaway from this pass
+
+The Pi 3 remains transcode-bound for medium/low **cold** paths, but **playback
+and skipping** can feel **damn impressive** for the hardware, and **mixed
+download + stream + UI use** stayed solid. Two cores at full tilt under parallel
+transcode is expected; the win is that **the rest of the experience did not
+collapse** around it.
