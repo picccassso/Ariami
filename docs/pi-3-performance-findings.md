@@ -149,6 +149,10 @@ spread rather than one core doing everything. Downloads feel “a little slow”
 compared to a big desktop, but the aggregate throughput on a Pi 3 was still
 surprisingly strong.
 
+Later, a **full original-quality download of the whole library** (same ~530 song
+test library as in the setup above) **finished in 5 minutes 52 seconds** — job
+completed end-to-end on the Pi.
+
 ### Low/medium download while streaming (WiFi)
 
 With **low or medium quality downloading** and **streaming at the same time**
