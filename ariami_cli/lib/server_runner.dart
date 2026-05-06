@@ -161,17 +161,17 @@ class ServerRunner {
       final int maxCacheSizeMB;
 
       if (isPi) {
-        // Raspberry Pi: two concurrent transcode jobs to use two cores; Pi 5 keeps
-        // a higher download-transcode cap than Pi 3/4.
-        maxConcurrency = 2;
-        maxDownloadConcurrency = isPi5 ? 4 : 2;
+        // Raspberry Pi: Pi 5 can sustain more transcode work; older Pi models
+        // keep a lower cap to preserve playback responsiveness.
+        maxConcurrency = isPi5 ? 4 : 3;
+        maxDownloadConcurrency = isPi5 ? 4 : 3;
         maxCacheSizeMB = cachePolicy.transcodeCacheSizeMB;
         print(
             'Platform: Raspberry Pi${isPi5 ? ' 5' : ''} detected - using Pi transcoding settings (streaming+download slots)');
       } else if (Platform.isMacOS || Platform.isWindows) {
         // Desktop: more resources available
         maxConcurrency = 2;
-        maxDownloadConcurrency = 4;
+        maxDownloadConcurrency = 8;
         maxCacheSizeMB = cachePolicy.transcodeCacheSizeMB;
         print(
             'Platform: Desktop (${Platform.operatingSystem}) - using standard transcoding settings');
