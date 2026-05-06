@@ -88,6 +88,7 @@ extension _TranscodingServiceProcess on TranscodingService {
         sourcePath,
         outputPath,
         preset,
+        timeout: transcodeTimeout,
       );
 
       if (pathResult.status == _SonicFfiAdapter.statusOk) {
