@@ -7,6 +7,7 @@ import '../../services/playback_manager.dart';
 import '../../services/download/download_manager.dart';
 import '../../services/api/connection_service.dart';
 import '../common/cached_artwork.dart';
+import '../common/swipe_to_queue.dart';
 
 /// Song list item widget
 /// Displays song title, artist, and duration with premium styling
@@ -37,90 +38,98 @@ class SongListItem extends StatelessWidget {
     // Apply opacity when song is not available
     final opacity = isAvailable ? 1.0 : 0.5;
 
-    return Opacity(
-      opacity: opacity,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: isAvailable ? onTap : null,
-          onLongPress: onLongPress,
-          borderRadius: BorderRadius.circular(0),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
-              children: [
-                // Artwork
-                _buildLeading(context),
+    return SwipeToQueue(
+      itemKey: ValueKey('library_queue_${song.id}'),
+      addToQueueEnabled: isAvailable,
+      onAddToQueue: () => _handleAddToQueue(context),
+      child: Opacity(
+        opacity: opacity,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: isAvailable ? onTap : null,
+            onLongPress: onLongPress,
+            borderRadius: BorderRadius.circular(0),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                children: [
+                  // Artwork
+                  _buildLeading(context),
 
-                const SizedBox(width: 16),
+                  const SizedBox(width: 16),
 
-                // Title and Artist
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  // Title and Artist
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          song.title,
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleMedium
+                              ?.copyWith(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: isAvailable
+                                    ? Theme.of(context).colorScheme.onSurface
+                                    : Colors.grey,
+                              ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          song.artist,
+                          style:
+                              Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    fontSize: 14,
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurface
+                                        .withOpacity(0.6),
+                                  ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Duration & Menu
+                  Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        song.title,
-                        style:
-                            Theme.of(context).textTheme.titleMedium?.copyWith(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                  color: isAvailable
-                                      ? Theme.of(context).colorScheme.onSurface
-                                      : Colors.grey,
-                                ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        song.artist,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              fontSize: 14,
+                        _formatDuration(song.duration),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
                               color: Theme.of(context)
                                   .colorScheme
                                   .onSurface
-                                  .withOpacity(0.6),
+                                  .withOpacity(0.4),
                             ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(width: 4),
+                      IconButton(
+                        icon: Icon(
+                          Icons.more_vert_rounded,
+                          color: Theme.of(context)
+                              .colorScheme
+                              .onSurface
+                              .withOpacity(0.5),
+                          size: 20,
+                        ),
+                        onPressed: () => _showSongMenu(context),
+                        padding: EdgeInsets.zero,
+                        constraints:
+                            const BoxConstraints(minWidth: 40, minHeight: 40),
                       ),
                     ],
                   ),
-                ),
-
-                // Duration & Menu
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      _formatDuration(song.duration),
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onSurface
-                                .withOpacity(0.4),
-                          ),
-                    ),
-                    const SizedBox(width: 4),
-                    IconButton(
-                      icon: Icon(
-                        Icons.more_vert_rounded,
-                        color: Theme.of(context)
-                            .colorScheme
-                            .onSurface
-                            .withOpacity(0.5),
-                        size: 20,
-                      ),
-                      onPressed: () => _showSongMenu(context),
-                      padding: EdgeInsets.zero,
-                      constraints:
-                          const BoxConstraints(minWidth: 40, minHeight: 40),
-                    ),
-                  ],
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../../models/api_models.dart';
+import '../../../models/song.dart';
 import '../../../services/api/connection_service.dart';
+import '../../../services/playback_manager.dart';
+import '../../../widgets/common/swipe_to_queue.dart';
 import '../utils/playlist_helpers.dart';
 import 'album_art_with_badge.dart';
 
@@ -44,7 +47,6 @@ class SongListItem extends StatefulWidget {
 
 class _SongListItemState extends State<SongListItem> {
   static const double _kSwipeEdgeGuard = 24.0;
-  static const double _kRemoveDismissThreshold = 0.6;
   bool _dismissSwipeArmed = true;
 
   void _armDismissSwipe(PointerDownEvent event, double itemWidth) {
@@ -76,32 +78,18 @@ class _SongListItemState extends State<SongListItem> {
       builder: (context, constraints) {
         final itemWidth = constraints.maxWidth;
 
-        return Opacity(
-          opacity: opacity,
-          child: Listener(
-            onPointerDown: (event) => _armDismissSwipe(event, itemWidth),
-            onPointerUp: (_) => _resetDismissSwipe(),
-            onPointerCancel: (_) => _resetDismissSwipe(),
-            child: Dismissible(
-              key: ValueKey('dismiss_${widget.song.id}'),
-              direction: widget.onRemove != null && _dismissSwipeArmed
-                  ? DismissDirection.endToStart
-                  : DismissDirection.none,
-              dismissThresholds: const <DismissDirection, double>{
-                DismissDirection.endToStart: _kRemoveDismissThreshold,
-              },
-              background: Container(
-                color: Colors.red,
-                alignment: Alignment.centerRight,
-                padding: const EdgeInsets.only(right: 16),
-                child: const Icon(Icons.delete, color: Colors.white),
-              ),
-              confirmDismiss: (direction) async {
-                return widget.onRemove != null &&
-                    _dismissSwipeArmed &&
-                    direction == DismissDirection.endToStart;
-              },
-              onDismissed: (_) => widget.onRemove?.call(),
+        return Listener(
+          onPointerDown: (event) => _armDismissSwipe(event, itemWidth),
+          onPointerUp: (_) => _resetDismissSwipe(),
+          onPointerCancel: (_) => _resetDismissSwipe(),
+          child: SwipeToQueue(
+            itemKey:
+                ValueKey('playlist_queue_${widget.song.id}_${widget.index}'),
+            addToQueueEnabled: widget.isAvailable,
+            onAddToQueue: _addSongToQueue,
+            onRemove: _dismissSwipeArmed ? widget.onRemove : null,
+            child: Opacity(
+              opacity: opacity,
               child: ListTile(
                 leading: AlbumArtWithBadge(
                   song: widget.song,
@@ -132,6 +120,23 @@ class _SongListItemState extends State<SongListItem> {
           ),
         );
       },
+    );
+  }
+
+  void _addSongToQueue() {
+    PlaybackManager().addToQueue(
+      Song(
+        id: widget.song.id,
+        title: widget.song.title,
+        artist: widget.song.artist,
+        album: null,
+        albumId: widget.song.albumId,
+        duration: Duration(seconds: widget.song.duration),
+        filePath: widget.song.id,
+        fileSize: 0,
+        modifiedTime: DateTime.now(),
+        trackNumber: widget.song.trackNumber,
+      ),
     );
   }
 }

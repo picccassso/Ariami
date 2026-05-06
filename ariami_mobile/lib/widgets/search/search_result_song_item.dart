@@ -6,6 +6,7 @@ import '../../services/api/connection_service.dart';
 import '../../services/playback_manager.dart';
 import '../common/cached_artwork.dart';
 import '../common/mini_player_aware_bottom_sheet.dart';
+import '../common/swipe_to_queue.dart';
 
 /// Search result item for songs with optional swipe-to-delete and remove from recent
 class SearchResultSongItem extends StatefulWidget {
@@ -40,7 +41,6 @@ class SearchResultSongItem extends StatefulWidget {
 
 class _SearchResultSongItemState extends State<SearchResultSongItem> {
   static const double _kSwipeEdgeGuard = 24.0;
-  static const double _kRemoveDismissThreshold = 0.6;
   bool _dismissSwipeArmed = true;
 
   void _armDismissSwipe(PointerDownEvent event, double itemWidth) {
@@ -76,7 +76,8 @@ class _SearchResultSongItemState extends State<SearchResultSongItem> {
         child: InkWell(
           onTap: widget.isAvailable ? widget.onTap : null,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
             child: Row(
               children: [
                 _buildLeading(context),
@@ -91,7 +92,9 @@ class _SearchResultSongItemState extends State<SearchResultSongItem> {
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w500,
-                          color: widget.isAvailable ? Theme.of(context).textTheme.bodyLarge?.color : Colors.grey,
+                          color: widget.isAvailable
+                              ? Theme.of(context).textTheme.bodyLarge?.color
+                              : Colors.grey,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -143,7 +146,7 @@ class _SearchResultSongItemState extends State<SearchResultSongItem> {
                         const BoxConstraints(minWidth: 40, minHeight: 40),
                   ),
                 ] else
-                   const SizedBox(width: 48),
+                  const SizedBox(width: 48),
               ],
             ),
           ),
@@ -161,25 +164,11 @@ class _SearchResultSongItemState extends State<SearchResultSongItem> {
             onPointerDown: (event) => _armDismissSwipe(event, itemWidth),
             onPointerUp: (_) => _resetDismissSwipe(),
             onPointerCancel: (_) => _resetDismissSwipe(),
-            child: Dismissible(
-              key: ValueKey('dismiss_${widget.song.id}'),
-              direction: _dismissSwipeArmed
-                  ? DismissDirection.endToStart
-                  : DismissDirection.none,
-              dismissThresholds: const <DismissDirection, double>{
-                DismissDirection.endToStart: _kRemoveDismissThreshold,
-              },
-              background: Container(
-                color: Colors.red,
-                alignment: Alignment.centerRight,
-                padding: const EdgeInsets.only(right: 16),
-                child: const Icon(Icons.delete, color: Colors.white),
-              ),
-              confirmDismiss: (direction) async {
-                return _dismissSwipeArmed &&
-                    direction == DismissDirection.endToStart;
-              },
-              onDismissed: (_) => widget.onRemove?.call(),
+            child: SwipeToQueue(
+              itemKey: ValueKey('search_queue_${widget.song.id}'),
+              addToQueueEnabled: widget.isAvailable,
+              onAddToQueue: _handleAddToQueue,
+              onRemove: _dismissSwipeArmed ? widget.onRemove : null,
               child: content,
             ),
           );
@@ -187,7 +176,12 @@ class _SearchResultSongItemState extends State<SearchResultSongItem> {
       );
     }
 
-    return content;
+    return SwipeToQueue(
+      itemKey: ValueKey('search_queue_${widget.song.id}'),
+      addToQueueEnabled: widget.isAvailable,
+      onAddToQueue: _handleAddToQueue,
+      child: content,
+    );
   }
 
   /// Show song overflow menu
@@ -251,8 +245,10 @@ class _SearchResultSongItemState extends State<SearchResultSongItem> {
                     ),
                     if (widget.showRemoveFromRecent && widget.onRemove != null)
                       ListTile(
-                        leading: const Icon(Icons.delete_outline, color: Colors.red),
-                        title: const Text('Remove from Recent', style: TextStyle(color: Colors.red)),
+                        leading:
+                            const Icon(Icons.delete_outline, color: Colors.red),
+                        title: const Text('Remove from Recent',
+                            style: TextStyle(color: Colors.red)),
                         onTap: () {
                           Navigator.pop(context);
                           widget.onRemove!();

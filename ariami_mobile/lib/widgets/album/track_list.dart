@@ -6,6 +6,7 @@ import '../../services/api/connection_service.dart';
 import '../../services/playback_manager.dart';
 import '../../services/download/download_manager.dart';
 import '../common/cached_artwork.dart';
+import '../common/swipe_to_queue.dart';
 
 /// Track list item for album detail view
 /// Shows album artwork, title, duration, and overflow menu
@@ -35,62 +36,84 @@ class TrackListItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final opacity = isAvailable ? 1.0 : 0.4;
 
-    return Opacity(
-      opacity: opacity,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: isAvailable ? onTap : null,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-            child: Row(
-              children: [
-                _buildLeading(context),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min, // shrink wrap
-                    children: [
-                      Text(
-                        track.title,
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: isCurrentTrack ? FontWeight.w600 : FontWeight.w500,
-                          color: isCurrentTrack
-                              ? Theme.of(context).primaryColor
-                              : (isAvailable ? Theme.of(context).textTheme.bodyLarge?.color : Colors.grey),
+    return SwipeToQueue(
+      itemKey: ValueKey('album_queue_${track.id}'),
+      addToQueueEnabled: isAvailable,
+      onAddToQueue: _addTrackToQueue,
+      child: Opacity(
+        opacity: opacity,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: isAvailable ? onTap : null,
+            child: Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              child: Row(
+                children: [
+                  _buildLeading(context),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min, // shrink wrap
+                      children: [
+                        Text(
+                          track.title,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: isCurrentTrack
+                                ? FontWeight.w600
+                                : FontWeight.w500,
+                            color: isCurrentTrack
+                                ? Theme.of(context).primaryColor
+                                : (isAvailable
+                                    ? Theme.of(context)
+                                        .textTheme
+                                        .bodyLarge
+                                        ?.color
+                                    : Colors.grey),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        track.artist,
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.7) ?? Colors.grey[600],
+                        const SizedBox(height: 4),
+                        Text(
+                          track.artist,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Theme.of(context)
+                                    .textTheme
+                                    .bodyMedium
+                                    ?.color
+                                    ?.withOpacity(0.7) ??
+                                Colors.grey[600],
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(width: 16),
-                Text(
-                  _formatDuration(track.duration),
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.5),
+                  const SizedBox(width: 16),
+                  Text(
+                    _formatDuration(track.duration),
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.color
+                          ?.withOpacity(0.5),
+                    ),
                   ),
-                ),
-                if (isAvailable) ...[
-                  const SizedBox(width: 8),
-                  _buildOverflowMenu(context),
-                ] else
-                  const SizedBox(width: 48), // Placeholder
-              ],
+                  if (isAvailable) ...[
+                    const SizedBox(width: 8),
+                    _buildOverflowMenu(context),
+                  ] else
+                    const SizedBox(width: 48), // Placeholder
+                ],
+              ),
             ),
           ),
         ),
@@ -237,19 +260,7 @@ class TrackListItem extends StatelessWidget {
   void _handleMenuAction(BuildContext context, String action) {
     final playbackManager = PlaybackManager();
 
-    // Convert SongModel to Song object
-    final song = Song(
-      id: track.id,
-      title: track.title,
-      artist: track.artist,
-      album: null,
-      albumId: track.albumId,
-      duration: Duration(seconds: track.duration),
-      filePath: track.id,
-      fileSize: 0,
-      modifiedTime: DateTime.now(),
-      trackNumber: track.trackNumber,
-    );
+    final song = _toSong();
 
     switch (action) {
       case 'play_next':
@@ -274,6 +285,25 @@ class TrackListItem extends StatelessWidget {
       default:
         return;
     }
+  }
+
+  void _addTrackToQueue() {
+    PlaybackManager().addToQueue(_toSong());
+  }
+
+  Song _toSong() {
+    return Song(
+      id: track.id,
+      title: track.title,
+      artist: track.artist,
+      album: null,
+      albumId: track.albumId,
+      duration: Duration(seconds: track.duration),
+      filePath: track.id,
+      fileSize: 0,
+      modifiedTime: DateTime.now(),
+      trackNumber: track.trackNumber,
+    );
   }
 
   /// Handle download action
