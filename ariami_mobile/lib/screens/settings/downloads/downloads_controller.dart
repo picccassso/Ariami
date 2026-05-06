@@ -16,6 +16,14 @@ import 'downloads_state.dart';
 import 'utils/download_helpers.dart';
 
 /// Business logic and subscriptions for [DownloadsScreen].
+///
+/// Two output channels:
+/// 1. `notifyListeners()` — fires only on **structural** changes (status
+///    transitions, queue add/remove, settings, cache stats). The screen
+///    rebuilds the section list on this signal.
+/// 2. Per-task / per-album / overall [ValueListenable]s — fire on **byte
+///    progress** at a throttled cadence (~200ms). Individual rows subscribe
+///    so only the changing row repaints; the section list does not rebuild.
 class DownloadsController extends ChangeNotifier {
   DownloadsController({
     ConnectionService? connectionService,
@@ -45,7 +53,6 @@ class DownloadsController extends ChangeNotifier {
   bool _hasLibraryReferenceData = false;
 
   String _lastQueueViewSignature = '';
-  DateTime _lastProgressUpdate = DateTime.now();
 
   StreamSubscription<CacheUpdateEvent>? _cacheSubscription;
   Timer? _cacheStatsRefreshTimer;
@@ -54,6 +61,37 @@ class DownloadsController extends ChangeNotifier {
   StreamSubscription<List<DownloadTask>>? _queueSubscription;
   StreamSubscription<QualitySettings>? _qualitySettingsSubscription;
   StreamSubscription<WsMessage>? _webSocketSubscription;
+
+  // ---- Per-task / per-album / overall progress notifiers ----------------
+  static const Duration _flushInterval = Duration(milliseconds: 200);
+
+  final Map<String, ValueNotifier<DownloadProgress>> _taskProgressNotifiers =
+      {};
+  final Map<String, ValueNotifier<AlbumProgressSnapshot>>
+      _albumProgressNotifiers = {};
+  final ValueNotifier<OverallProgressSummary> _overallProgressNotifier =
+      ValueNotifier(OverallProgressSummary.empty);
+
+  /// Latest seen progress event per task. Used to seed lazily-created task
+  /// notifiers and to recompute album/overall snapshots without scanning the
+  /// raw queue.
+  final Map<String, DownloadProgress> _latestProgress = {};
+
+  /// Maps task id to its currently-rendered album key, so a progress event
+  /// can identify which album snapshot to dirty without scanning all groups.
+  final Map<String, String> _taskIdToAlbumKey = {};
+
+  /// Pending dirty sets between flushes.
+  final Set<String> _dirtyTaskIds = {};
+  final Set<String> _dirtyAlbumKeys = {};
+  bool _overallDirty = false;
+  Timer? _flushTimer;
+
+  // ---- Session totals ---------------------------------------------------
+  /// Tasks observed in pending/downloading/paused state since the screen
+  /// opened. Used to anchor "X / Y songs" in the summary card so old library
+  /// downloads don't inflate the denominator.
+  final Set<String> _sessionTaskIds = {};
 
   bool _disposed = false;
 
@@ -96,19 +134,8 @@ class DownloadsController extends ChangeNotifier {
       _scheduleCacheStatsRefresh();
     });
 
-    _progressSubscription = _downloadManager.progressStream.listen((progress) {
-      final next = Map<String, DownloadProgress>.from(_state.currentProgress)
-        ..[progress.taskId] = progress;
-      _state = _state.copyWith(currentProgress: next);
-
-      final now = DateTime.now();
-      if (now.difference(_lastProgressUpdate).inMilliseconds >= 100) {
-        _lastProgressUpdate = now;
-        if (!_disposed) {
-          notifyListeners();
-        }
-      }
-    });
+    _progressSubscription =
+        _downloadManager.progressStream.listen(_onProgressEvent);
 
     _queueSubscription = _downloadManager.queueStream.listen((queue) {
       final interruptedCount = _countInterruptedDownloads(queue);
@@ -135,6 +162,143 @@ class DownloadsController extends ChangeNotifier {
 
     await _refreshLibraryReferenceData();
     _recomputeDownloadAllCounts();
+  }
+
+  // ---- Public listenables -----------------------------------------------
+
+  ValueListenable<OverallProgressSummary> get overallProgress =>
+      _overallProgressNotifier;
+
+  /// Returns a notifier for an individual song's live progress. Creates one
+  /// on first request and seeds it from the task's current state. Notifiers
+  /// are kept for the controller's lifetime.
+  ValueListenable<DownloadProgress> taskProgressFor(DownloadTask task) {
+    final existing = _taskProgressNotifiers[task.id];
+    if (existing != null) {
+      return existing;
+    }
+    final seed = _latestProgress[task.id] ??
+        DownloadProgress(
+          taskId: task.id,
+          progress: task.progress,
+          bytesDownloaded: task.bytesDownloaded,
+          totalBytes: task.totalBytes,
+        );
+    final notifier = ValueNotifier<DownloadProgress>(seed);
+    _taskProgressNotifiers[task.id] = notifier;
+    return notifier;
+  }
+
+  /// Returns a notifier for an album's aggregate progress. Created lazily
+  /// for any album that exists in the current in-progress section.
+  ValueListenable<AlbumProgressSnapshot> albumProgressFor(String key) {
+    return _albumProgressNotifiers.putIfAbsent(
+      key,
+      () => ValueNotifier(_computeAlbumSnapshotForKey(key)),
+    );
+  }
+
+  // ---- Progress flush pipeline ------------------------------------------
+
+  void _onProgressEvent(DownloadProgress event) {
+    _latestProgress[event.taskId] = event;
+    _dirtyTaskIds.add(event.taskId);
+    final albumKey = _taskIdToAlbumKey[event.taskId];
+    if (albumKey != null) {
+      _dirtyAlbumKeys.add(albumKey);
+    }
+    _overallDirty = true;
+    _scheduleFlush();
+  }
+
+  void _scheduleFlush() {
+    if (_flushTimer?.isActive ?? false) return;
+    _flushTimer = Timer(_flushInterval, _flushProgress);
+  }
+
+  void _flushProgress() {
+    _flushTimer = null;
+    if (_disposed) return;
+
+    for (final taskId in _dirtyTaskIds) {
+      final notifier = _taskProgressNotifiers[taskId];
+      final progress = _latestProgress[taskId];
+      if (notifier != null && progress != null) {
+        notifier.value = progress;
+      }
+    }
+    _dirtyTaskIds.clear();
+
+    for (final key in _dirtyAlbumKeys) {
+      final snapshot = _computeAlbumSnapshotForKey(key);
+      final notifier = _albumProgressNotifiers[key];
+      if (notifier != null) {
+        notifier.value = snapshot;
+      }
+    }
+    _dirtyAlbumKeys.clear();
+
+    if (_overallDirty) {
+      _recomputeOverallProgress();
+      _overallDirty = false;
+    }
+  }
+
+  AlbumProgressSnapshot _computeAlbumSnapshotForKey(String key) {
+    AlbumGroup? album;
+    for (final candidate in _state.inProgressAlbums) {
+      if (candidate.key == key) {
+        album = candidate;
+        break;
+      }
+    }
+    if (album == null) return AlbumProgressSnapshot.empty;
+    var bytesDone = 0;
+    var bytesTotal = 0;
+    for (final song in album.songs) {
+      final progress = _latestProgress[song.id];
+      bytesDone += progress?.bytesDownloaded ?? song.bytesDownloaded;
+      bytesTotal += progress?.totalBytes ?? song.totalBytes;
+    }
+    return AlbumProgressSnapshot(bytesDone: bytesDone, bytesTotal: bytesTotal);
+  }
+
+  void _recomputeOverallProgress() {
+    var bytesDone = 0;
+    var bytesTotal = 0;
+    var inProgressSongs = 0;
+
+    for (final album in _state.inProgressAlbums) {
+      for (final song in album.songs) {
+        final progress = _latestProgress[song.id];
+        bytesDone += progress?.bytesDownloaded ?? song.bytesDownloaded;
+        bytesTotal += progress?.totalBytes ?? song.totalBytes;
+        inProgressSongs++;
+      }
+    }
+
+    final completedInSession = _completedInSessionCount();
+    final totalSongs = inProgressSongs + completedInSession;
+
+    _overallProgressNotifier.value = OverallProgressSummary(
+      totalSongs: totalSongs,
+      completedSongs: completedInSession,
+      inProgressSongs: inProgressSongs,
+      bytesDone: bytesDone,
+      bytesTotal: bytesTotal,
+    );
+  }
+
+  int _completedInSessionCount() {
+    if (_sessionTaskIds.isEmpty) return 0;
+    var count = 0;
+    for (final task in _downloadManager.queue) {
+      if (task.status == DownloadStatus.completed &&
+          _sessionTaskIds.contains(task.id)) {
+        count++;
+      }
+    }
+    return count;
   }
 
   void _scheduleCacheStatsRefresh() {
@@ -402,27 +566,29 @@ class DownloadsController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Called from [StreamBuilder] when the queue updates. Does not call
-  /// [notifyListeners] — the stream already triggers a rebuild.
+  /// Called from [StreamBuilder] when the queue updates. Builds the grouped
+  /// structures for the In Progress and Failed sections. Does not call
+  /// [notifyListeners] — the stream already triggers a rebuild. Also flushes
+  /// pending byte progress immediately so a status transition (e.g.
+  /// downloading → completed) doesn't have to wait for the throttle window.
   void syncVisibleQueueState(List<DownloadTask> queue) {
     final signature = _buildQueueViewSignature(queue);
     if (signature == _lastQueueViewSignature) {
       return;
     }
 
-    final activeTasks = <DownloadTask>[];
-    final pendingTasks = <DownloadTask>[];
     final completedTasks = <DownloadTask>[];
     final failedTasks = <DownloadTask>[];
+    final inProgressTasks = <DownloadTask>[];
 
-    for (final task in queue) {
+    for (var i = 0; i < queue.length; i++) {
+      final task = queue[i];
       switch (task.status) {
         case DownloadStatus.downloading:
         case DownloadStatus.paused:
-          activeTasks.add(task);
-          break;
         case DownloadStatus.pending:
-          pendingTasks.add(task);
+          inProgressTasks.add(task);
+          _sessionTaskIds.add(task.id);
           break;
         case DownloadStatus.completed:
           completedTasks.add(task);
@@ -434,6 +600,24 @@ class DownloadsController extends ChangeNotifier {
           break;
       }
     }
+
+    final inProgressAlbums = _buildAlbumGroups(
+      inProgressTasks,
+      queue,
+      sortByActivity: true,
+    );
+    final failedAlbums = _buildAlbumGroups(
+      failedTasks,
+      queue,
+      sortByActivity: false,
+    );
+
+    _taskIdToAlbumKey
+      ..clear()
+      ..addEntries([
+        for (final album in inProgressAlbums)
+          for (final song in album.songs) MapEntry(song.id, album.key),
+      ]);
 
     final groupedCompleted = groupByAlbum(completedTasks);
     final sortedCompletedAlbumKeys = groupedCompleted.keys.toList()
@@ -448,14 +632,112 @@ class DownloadsController extends ChangeNotifier {
 
     _lastQueueViewSignature = signature;
     _state = _state.copyWith(
-      activeTasks: activeTasks,
-      pendingTasks: pendingTasks,
+      inProgressAlbums: inProgressAlbums,
+      failedAlbums: failedAlbums,
       completedTasks: completedTasks,
-      failedTasks: failedTasks,
       interruptedDownloadCount: _countInterruptedDownloads(queue),
       groupedCompletedTasks: groupedCompleted,
       sortedCompletedAlbumKeys: sortedCompletedAlbumKeys,
+      hasAnyInProgress: inProgressAlbums.isNotEmpty,
+      hasAnyFailed: failedAlbums.isNotEmpty,
     );
+
+    _reconcileAlbumNotifiers(inProgressAlbums);
+    _overallDirty = true;
+    _flushProgress();
+  }
+
+  List<AlbumGroup> _buildAlbumGroups(
+    List<DownloadTask> tasks,
+    List<DownloadTask> orderingSource, {
+    required bool sortByActivity,
+  }) {
+    if (tasks.isEmpty) return const <AlbumGroup>[];
+
+    final orderHint = <String, int>{};
+    for (var i = 0; i < orderingSource.length; i++) {
+      final task = orderingSource[i];
+      final key = task.albumId ?? '__singles__';
+      orderHint.putIfAbsent(key, () => i);
+    }
+
+    final byKey = <String, List<DownloadTask>>{};
+    for (final task in tasks) {
+      final key = task.albumId ?? '__singles__';
+      byKey.putIfAbsent(key, () => []).add(task);
+    }
+
+    final groups = <AlbumGroup>[];
+    byKey.forEach((key, songs) {
+      songs.sort(
+        (a, b) => (a.trackNumber ?? 0).compareTo(b.trackNumber ?? 0),
+      );
+      final first = songs.first;
+      var downloading = 0;
+      var paused = 0;
+      var queued = 0;
+      var failed = 0;
+      for (final song in songs) {
+        switch (song.status) {
+          case DownloadStatus.downloading:
+            downloading++;
+            break;
+          case DownloadStatus.paused:
+            paused++;
+            break;
+          case DownloadStatus.pending:
+            queued++;
+            break;
+          case DownloadStatus.failed:
+            failed++;
+            break;
+          case DownloadStatus.completed:
+          case DownloadStatus.cancelled:
+            break;
+        }
+      }
+      groups.add(AlbumGroup(
+        albumId: first.albumId,
+        albumName: first.albumName ?? 'Singles',
+        albumArtist: first.albumArtist ?? first.artist,
+        albumArt: first.albumArt,
+        songs: songs,
+        downloadingCount: downloading,
+        pausedCount: paused,
+        queuedCount: queued,
+        failedCount: failed,
+        orderHint: orderHint[key] ?? 0,
+      ));
+    });
+
+    groups.sort((a, b) {
+      if (sortByActivity) {
+        final aActive = a.downloadingCount > 0 ? 0 : 1;
+        final bActive = b.downloadingCount > 0 ? 0 : 1;
+        if (aActive != bActive) return aActive - bActive;
+      }
+      return a.orderHint.compareTo(b.orderHint);
+    });
+
+    return groups;
+  }
+
+  /// Drops album notifiers for albums that have left the in-progress set, and
+  /// recomputes snapshots for albums that are still present (their song
+  /// composition may have changed).
+  void _reconcileAlbumNotifiers(List<AlbumGroup> currentAlbums) {
+    final liveKeys = currentAlbums.map((a) => a.key).toSet();
+    _albumProgressNotifiers.removeWhere((key, notifier) {
+      if (liveKeys.contains(key)) return false;
+      notifier.dispose();
+      return true;
+    });
+    for (final album in currentAlbums) {
+      final notifier = _albumProgressNotifiers[album.key];
+      if (notifier != null) {
+        notifier.value = _computeAlbumSnapshotForKey(album.key);
+      }
+    }
   }
 
   String _buildQueueViewSignature(List<DownloadTask> queue) {
@@ -492,6 +774,25 @@ class DownloadsController extends ChangeNotifier {
 
   void retryDownload(String taskId) {
     _downloadManager.retryDownload(taskId);
+  }
+
+  /// Retry every retryable failed task in the given album (`albumId == null`
+  /// means singles). Used by the FailedAlbumCard "Retry all" action.
+  void retryAlbum(String? albumId) {
+    final key = albumId ?? '__singles__';
+    AlbumGroup? album;
+    for (final candidate in _state.failedAlbums) {
+      if (candidate.key == key) {
+        album = candidate;
+        break;
+      }
+    }
+    if (album == null) return;
+    for (final song in album.songs) {
+      if (song.status == DownloadStatus.failed && song.canRetry()) {
+        _downloadManager.retryDownload(song.id);
+      }
+    }
   }
 
   Future<void> clearAllDownloads() async {
@@ -557,6 +858,7 @@ class DownloadsController extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _flushTimer?.cancel();
     _cacheSubscription?.cancel();
     _progressSubscription?.cancel();
     _queueSubscription?.cancel();
@@ -564,6 +866,16 @@ class DownloadsController extends ChangeNotifier {
     _webSocketSubscription?.cancel();
     _cacheStatsRefreshTimer?.cancel();
     _countRefreshTimer?.cancel();
+    for (final notifier in _taskProgressNotifiers.values) {
+      notifier.dispose();
+    }
+    _taskProgressNotifiers.clear();
+    for (final notifier in _albumProgressNotifiers.values) {
+      notifier.dispose();
+    }
+    _albumProgressNotifiers.clear();
+    _overallProgressNotifier.dispose();
     super.dispose();
   }
 }
+

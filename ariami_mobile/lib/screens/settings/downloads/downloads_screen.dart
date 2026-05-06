@@ -192,9 +192,8 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
     final state = _controller.state;
     final bool hasAnythingToDelete = state.downloadedSongCount > 0 ||
         state.completedTasks.isNotEmpty ||
-        state.activeTasks.isNotEmpty ||
-        state.pendingTasks.isNotEmpty ||
-        state.failedTasks.isNotEmpty;
+        state.hasAnyInProgress ||
+        state.hasAnyFailed;
 
     return Scaffold(
       appBar: AppBar(
@@ -240,129 +239,214 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
               final queue = snapshot.data ?? [];
               _controller.syncVisibleQueueState(queue);
               final state = _controller.state;
-              final bool hasActiveDownloads =
-                  state.activeTasks.isNotEmpty || state.pendingTasks.isNotEmpty;
+              final bool hasActiveDownloads = state.hasAnyInProgress;
 
-              return ListView(
-                padding: EdgeInsets.only(
-                  bottom: getMiniPlayerAwareBottomPadding(context),
-                ),
-                children: [
-                  StatisticsCard(
-                    isDark: isDark,
-                    sizeMB: dm.getTotalDownloadedSizeMB(),
-                    stats: dm.getQueueStats(),
+              return CustomScrollView(
+                slivers: [
+                  SliverList(
+                    delegate: SliverChildListDelegate([
+                      DownloadsSummaryCard(
+                        isDark: isDark,
+                        summary: _controller.overallProgress,
+                      ),
+                      StatisticsCard(
+                        isDark: isDark,
+                        sizeMB: dm.getTotalDownloadedSizeMB(),
+                        stats: dm.getQueueStats(),
+                      ),
+                      DownloadModeCard(
+                        isDark: isDark,
+                        downloadQuality: state.downloadQuality,
+                        downloadOriginal: state.downloadOriginal,
+                        onChanged:
+                            state.downloadQuality == StreamingQuality.high
+                                ? (value) async {
+                                    await _controller
+                                        .setDownloadOriginal(value);
+                                  }
+                                : null,
+                      ),
+                      DownloadsRecoveryPreferencesCard(
+                        isDark: isDark,
+                        autoResumeOnLaunch:
+                            state.autoResumeInterruptedOnLaunch,
+                        onChanged: (enabled) {
+                          unawaited(
+                            _controller
+                                .setAutoResumeInterruptedOnLaunch(enabled),
+                          );
+                        },
+                      ),
+                      if (state.interruptedDownloadCount > 0)
+                        DownloadsInterruptionRecoveryCard(
+                          isDark: isDark,
+                          interruptedDownloadCount:
+                              state.interruptedDownloadCount,
+                          onResumeAll: () =>
+                              unawaited(_resumeInterruptedDownloads()),
+                          onCancelAll: () =>
+                              unawaited(_cancelInterruptedDownloads()),
+                        ),
+                      DownloadAllCard(
+                        isDark: isDark,
+                        downloadedSongCount: state.downloadedSongCount,
+                        totalSongCount: state.totalSongCount,
+                        downloadedAlbumCount: state.downloadedAlbumCount,
+                        totalAlbumCount: state.totalAlbumCount,
+                        downloadedPlaylistSongCount:
+                            state.downloadedPlaylistSongCount,
+                        totalPlaylistSongCount: state.totalPlaylistSongCount,
+                        isLoadingCounts: state.isLoadingCounts,
+                        isDownloadingAllSongs: state.isDownloadingAllSongs,
+                        isDownloadingAllAlbums:
+                            state.isDownloadingAllAlbums,
+                        isDownloadingAllPlaylists:
+                            state.isDownloadingAllPlaylists,
+                        isDisabled: hasActiveDownloads,
+                        onDownloadAllSongs: () =>
+                            unawaited(_controller.downloadAllSongs()),
+                        onDownloadAllAlbums: () =>
+                            unawaited(_controller.downloadAllAlbums()),
+                        onDownloadAllPlaylists: () =>
+                            unawaited(_controller.downloadAllPlaylists()),
+                      ),
+                      CacheSectionCard(
+                        isDark: isDark,
+                        cacheSizeMB: state.cacheSizeMB,
+                        cachedSongCount: state.cachedSongCount,
+                        cacheLimitMB: state.cacheLimitMB,
+                        onLimitChanged: (value) {
+                          _controller
+                              .setCacheLimitDuringDrag(value.round());
+                        },
+                        onLimitChangeEnd: (value) {
+                          unawaited(
+                              _controller.commitCacheLimit(value.round()));
+                        },
+                        onClearCache: () => unawaited(_clearCache()),
+                      ),
+                      const SizedBox(height: 8),
+                    ]),
                   ),
-                  DownloadModeCard(
-                    isDark: isDark,
-                    downloadQuality: state.downloadQuality,
-                    downloadOriginal: state.downloadOriginal,
-                    onChanged: state.downloadQuality == StreamingQuality.high
-                        ? (value) async {
-                            await _controller.setDownloadOriginal(value);
-                          }
-                        : null,
-                  ),
-                  DownloadsRecoveryPreferencesCard(
-                    isDark: isDark,
-                    autoResumeOnLaunch: state.autoResumeInterruptedOnLaunch,
-                    onChanged: (enabled) {
-                      unawaited(
-                        _controller.setAutoResumeInterruptedOnLaunch(enabled),
-                      );
-                    },
-                  ),
-                  if (state.interruptedDownloadCount > 0)
-                    DownloadsInterruptionRecoveryCard(
-                      isDark: isDark,
-                      interruptedDownloadCount: state.interruptedDownloadCount,
-                      onResumeAll: () =>
-                          unawaited(_resumeInterruptedDownloads()),
-                      onCancelAll: () =>
-                          unawaited(_cancelInterruptedDownloads()),
+                  if (state.hasAnyInProgress)
+                    _buildSectionHeader('IN PROGRESS', isDark),
+                  if (state.hasAnyInProgress)
+                    SliverList.builder(
+                      itemCount: state.inProgressAlbums.length,
+                      itemBuilder: (context, index) {
+                        final album = state.inProgressAlbums[index];
+                        return InProgressAlbumCard(
+                          key: ValueKey('in_progress_${album.key}'),
+                          album: album,
+                          isDark: isDark,
+                          isLast: index == state.inProgressAlbums.length - 1,
+                          isExpanded:
+                              state.expandedAlbums.contains(album.key),
+                          onToggleExpand: () =>
+                              _controller.toggleAlbumExpanded(album.key),
+                          albumProgress:
+                              _controller.albumProgressFor(album.key),
+                          taskProgressBuilder: _controller.taskProgressFor,
+                          onPause: _controller.pauseDownload,
+                          onResume: _controller.resumeDownload,
+                          onCancel: _controller.cancelDownload,
+                        );
+                      },
                     ),
-                  DownloadAllCard(
-                    isDark: isDark,
-                    downloadedSongCount: state.downloadedSongCount,
-                    totalSongCount: state.totalSongCount,
-                    downloadedAlbumCount: state.downloadedAlbumCount,
-                    totalAlbumCount: state.totalAlbumCount,
-                    downloadedPlaylistSongCount:
-                        state.downloadedPlaylistSongCount,
-                    totalPlaylistSongCount: state.totalPlaylistSongCount,
-                    isLoadingCounts: state.isLoadingCounts,
-                    isDownloadingAllSongs: state.isDownloadingAllSongs,
-                    isDownloadingAllAlbums: state.isDownloadingAllAlbums,
-                    isDownloadingAllPlaylists: state.isDownloadingAllPlaylists,
-                    isDisabled: hasActiveDownloads,
-                    onDownloadAllSongs: () =>
-                        unawaited(_controller.downloadAllSongs()),
-                    onDownloadAllAlbums: () =>
-                        unawaited(_controller.downloadAllAlbums()),
-                    onDownloadAllPlaylists: () =>
-                        unawaited(_controller.downloadAllPlaylists()),
+                  if (state.completedTasks.isNotEmpty)
+                    _buildSectionHeader('DOWNLOADED', isDark),
+                  if (state.completedTasks.isNotEmpty)
+                    SliverList.builder(
+                      itemCount: state.sortedCompletedAlbumKeys.length,
+                      itemBuilder: (context, index) {
+                        final albumId =
+                            state.sortedCompletedAlbumKeys[index];
+                        final songs = state.groupedCompletedTasks[albumId]!;
+                        final isLast =
+                            index == state.sortedCompletedAlbumKeys.length - 1;
+                        if (albumId == null) {
+                          return SinglesCard(
+                            songs: songs,
+                            isDark: isDark,
+                            isLast: isLast,
+                            isExpanded: state.expandedAlbums
+                                .contains(SinglesCard.singlesKey),
+                            onToggleExpand: () => _controller
+                                .toggleAlbumExpanded(SinglesCard.singlesKey),
+                            onDeleteSingles: () => _confirmDeleteAlbum(
+                                null, 'Singles', songs.length),
+                            onRemoveSong: _controller.cancelDownload,
+                          );
+                        }
+                        return AlbumCard(
+                          albumId: albumId,
+                          songs: songs,
+                          isDark: isDark,
+                          isLast: isLast,
+                          isExpanded:
+                              state.expandedAlbums.contains(albumId),
+                          onToggleExpand: () =>
+                              _controller.toggleAlbumExpanded(albumId),
+                          onDeleteAlbum: () {
+                            final name =
+                                songs.first.albumName ?? 'Unknown Album';
+                            _confirmDeleteAlbum(
+                                albumId, name, songs.length);
+                          },
+                          onRemoveSong: _controller.cancelDownload,
+                        );
+                      },
+                    ),
+                  if (state.hasAnyFailed)
+                    _buildSectionHeader('FAILED', isDark),
+                  if (state.hasAnyFailed)
+                    SliverList.builder(
+                      itemCount: state.failedAlbums.length,
+                      itemBuilder: (context, index) {
+                        final album = state.failedAlbums[index];
+                        return FailedAlbumCard(
+                          key: ValueKey('failed_${album.key}'),
+                          album: album,
+                          isDark: isDark,
+                          isLast: index == state.failedAlbums.length - 1,
+                          isExpanded:
+                              state.expandedAlbums.contains(album.key),
+                          onToggleExpand: () =>
+                              _controller.toggleAlbumExpanded(album.key),
+                          onRetryAll: () =>
+                              _controller.retryAlbum(album.albumId),
+                          onRetrySong: _controller.retryDownload,
+                          onDismissSong: _controller.cancelDownload,
+                        );
+                      },
+                    ),
+                  SliverToBoxAdapter(
+                    child: SizedBox(
+                      height: getMiniPlayerAwareBottomPadding(context) + 16,
+                    ),
                   ),
-                  CacheSectionCard(
-                    isDark: isDark,
-                    cacheSizeMB: state.cacheSizeMB,
-                    cachedSongCount: state.cachedSongCount,
-                    cacheLimitMB: state.cacheLimitMB,
-                    onLimitChanged: (value) {
-                      _controller.setCacheLimitDuringDrag(value.round());
-                    },
-                    onLimitChangeEnd: (value) {
-                      unawaited(_controller.commitCacheLimit(value.round()));
-                    },
-                    onClearCache: () => unawaited(_clearCache()),
-                  ),
-                  const SizedBox(height: 24),
-                  DownloadQueueSection(
-                    title: 'Active Downloads',
-                    tasks: state.activeTasks,
-                    isDark: isDark,
-                    progressByTaskId: state.currentProgress,
-                    onPause: _controller.pauseDownload,
-                    onResume: _controller.resumeDownload,
-                    onCancel: _controller.cancelDownload,
-                    onRetry: _controller.retryDownload,
-                  ),
-                  DownloadQueueSection(
-                    title: 'Pending',
-                    tasks: state.pendingTasks,
-                    isDark: isDark,
-                    progressByTaskId: state.currentProgress,
-                    onPause: _controller.pauseDownload,
-                    onResume: _controller.resumeDownload,
-                    onCancel: _controller.cancelDownload,
-                    onRetry: _controller.retryDownload,
-                  ),
-                  DownloadedSection(
-                    completedTasks: state.completedTasks,
-                    sortedAlbumKeys: state.sortedCompletedAlbumKeys,
-                    groupedByAlbum: state.groupedCompletedTasks,
-                    expandedAlbums: state.expandedAlbums,
-                    isDark: isDark,
-                    onToggleAlbum: _controller.toggleAlbumExpanded,
-                    onDeleteAlbumGroup: (albumId, name, count) =>
-                        _confirmDeleteAlbum(albumId, name, count),
-                    onRemoveSong: _controller.cancelDownload,
-                  ),
-                  DownloadQueueSection(
-                    title: 'Failed',
-                    tasks: state.failedTasks,
-                    isDark: isDark,
-                    progressByTaskId: state.currentProgress,
-                    onPause: _controller.pauseDownload,
-                    onResume: _controller.resumeDownload,
-                    onCancel: _controller.cancelDownload,
-                    onRetry: _controller.retryDownload,
-                  ),
-                  const SizedBox(height: 16),
                 ],
               );
             },
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(String text, bool isDark) {
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
+        child: Text(
+          text,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w900,
+            color: isDark ? Colors.white : Colors.black,
+            letterSpacing: 1.5,
+          ),
+        ),
       ),
     );
   }
