@@ -71,7 +71,8 @@ class _ReorderableQueueListState extends State<ReorderableQueueList> {
     for (final song in widget.songs) {
       if (isOffline) {
         // When offline, check if song is downloaded or cached
-        final isAvailable = await _offlineService.isSongAvailableOffline(song.id);
+        final isAvailable =
+            await _offlineService.isSongAvailableOffline(song.id);
         newAvailability[song.id] = isAvailable;
       } else {
         // When online, all songs are available
@@ -131,16 +132,19 @@ class _ReorderableQueueListState extends State<ReorderableQueueList> {
         );
         // Default to available if not yet checked (avoids flicker)
         final isAvailable = _availabilityMap[song.id] ?? true;
+        final rowKey = ValueKey('${song.id}-$realIndex');
 
         return QueueItem(
-          key: ValueKey(song.id),
+          key: rowKey,
+          rowKey: rowKey,
           song: song,
           index: displayIndex,
           isCurrentlyPlaying: isCurrentlyPlaying,
           isAvailable: isAvailable,
           onTap: widget.onTap != null ? () => widget.onTap!(realIndex) : null,
-          onRemove:
-              widget.onRemove != null ? () => widget.onRemove!(realIndex) : null,
+          onRemove: widget.onRemove != null
+              ? () => widget.onRemove!(realIndex)
+              : null,
         );
       },
     );
@@ -149,6 +153,7 @@ class _ReorderableQueueListState extends State<ReorderableQueueList> {
 
 /// Individual queue item widget
 class QueueItem extends StatelessWidget {
+  final Key rowKey;
   final Song song;
   final int index;
   final bool isCurrentlyPlaying;
@@ -158,6 +163,7 @@ class QueueItem extends StatelessWidget {
 
   const QueueItem({
     super.key,
+    required this.rowKey,
     required this.song,
     required this.index,
     required this.isCurrentlyPlaying,
@@ -172,7 +178,7 @@ class QueueItem extends StatelessWidget {
     final opacity = isAvailable ? 1.0 : 0.4;
 
     return Dismissible(
-      key: ValueKey(song.id),
+      key: rowKey,
       direction: onRemove != null
           ? DismissDirection.endToStart
           : DismissDirection.none,
@@ -196,20 +202,24 @@ class QueueItem extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           child: Container(
             decoration: BoxDecoration(
-              color: isCurrentlyPlaying ? colorScheme.surfaceContainerHighest : Colors.transparent,
+              color: isCurrentlyPlaying
+                  ? colorScheme.surfaceContainerHighest
+                  : Colors.transparent,
               borderRadius: BorderRadius.circular(20),
               border: isCurrentlyPlaying
                   ? Border.all(color: colorScheme.outlineVariant, width: 1)
                   : null,
             ),
             child: ListTile(
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
               leading: _buildLeading(context),
               title: Text(
                 song.title,
                 style: TextStyle(
                   fontSize: 14,
-                  fontWeight: isCurrentlyPlaying ? FontWeight.w800 : FontWeight.w600,
+                  fontWeight:
+                      isCurrentlyPlaying ? FontWeight.w800 : FontWeight.w600,
                   color: colorScheme.onSurface,
                   letterSpacing: 0.2,
                 ),
@@ -224,7 +234,9 @@ class QueueItem extends StatelessWidget {
                   fontSize: 10,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.5,
-                  color: isCurrentlyPlaying ? colorScheme.onSurfaceVariant : colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                  color: isCurrentlyPlaying
+                      ? colorScheme.onSurfaceVariant
+                      : colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
                 ),
               ),
               trailing: Row(
@@ -235,7 +247,8 @@ class QueueItem extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
-                      color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                      color:
+                          colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
                     ),
                   ),
                   const SizedBox(width: 12),

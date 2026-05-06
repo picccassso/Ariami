@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
-/// Secondary controls row (Queue, Add to Playlist)
+/// Secondary controls row (Cast, Queue, Add to Playlist)
 class PlayerSecondaryControls extends StatelessWidget {
+  final Widget? castButton;
   final VoidCallback? onOpenQueue;
   final VoidCallback? onAddToPlaylist;
 
   const PlayerSecondaryControls({
     super.key,
+    this.castButton,
     this.onOpenQueue,
     this.onAddToPlaylist,
   });
@@ -17,24 +19,26 @@ class PlayerSecondaryControls extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // Add to playlist button
-          IconButton(
-            icon: const Icon(LucideIcons.listPlus),
-            onPressed: onAddToPlaylist ?? () {},
-            tooltip: 'Add to playlist',
-            iconSize: 24,
-          ),
-
-          const SizedBox(width: 8),
-
-          // Queue button
-          IconButton(
-            icon: const Icon(LucideIcons.listMusic),
-            onPressed: onOpenQueue,
-            tooltip: 'View queue',
-            iconSize: 24,
+          castButton ?? const SizedBox(width: 48, height: 48),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                icon: const Icon(LucideIcons.listPlus),
+                onPressed: onAddToPlaylist ?? () {},
+                tooltip: 'Add to playlist',
+                iconSize: 24,
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                icon: const Icon(LucideIcons.listMusic),
+                onPressed: onOpenQueue,
+                tooltip: 'View queue',
+                iconSize: 24,
+              ),
+            ],
           ),
         ],
       ),

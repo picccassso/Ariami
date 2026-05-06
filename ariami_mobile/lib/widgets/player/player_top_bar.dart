@@ -1,17 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
-/// Top bar for full player screen with minimize button and overflow menu
+import '../common/mini_player_aware_bottom_sheet.dart';
+
+/// Top bar for full player screen with minimize button.
 class PlayerTopBar extends StatelessWidget {
   final VoidCallback onMinimize;
   final VoidCallback? onOpenQueue;
-  final Widget? castButton;
+  final VoidCallback? onAddToQueue;
 
   const PlayerTopBar({
     super.key,
     required this.onMinimize,
     this.onOpenQueue,
-    this.castButton,
+    this.onAddToQueue,
   });
 
   @override
@@ -39,11 +41,57 @@ class PlayerTopBar extends StatelessWidget {
             ),
           ),
 
-          if (castButton != null) castButton!,
+          if (onAddToQueue != null)
+            IconButton(
+              icon: const Icon(Icons.more_vert_rounded),
+              onPressed: () => _showOptionsSheet(context),
+              tooltip: 'More options',
+            )
+          else
+            const SizedBox(width: 48, height: 48),
         ],
       ),
     );
   }
 
+  Future<void> _showOptionsSheet(BuildContext context) {
+    return showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        final maxSheetHeight = MediaQuery.sizeOf(sheetContext).height * 0.9;
 
+        return ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: maxSheetHeight),
+          child: SafeArea(
+            minimum: EdgeInsets.only(
+              bottom: getMiniPlayerAwareBottomPadding(sheetContext),
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(height: 12),
+                  Text(
+                    'Song Options',
+                    style: Theme.of(sheetContext).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 8),
+                  ListTile(
+                    leading: const Icon(Icons.queue_music_rounded),
+                    title: const Text('Add to queue'),
+                    onTap: () {
+                      Navigator.pop(sheetContext);
+                      onAddToQueue?.call();
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
 }

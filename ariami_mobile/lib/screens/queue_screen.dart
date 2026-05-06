@@ -30,8 +30,13 @@ class QueueScreen extends StatefulWidget {
 class _QueueScreenState extends State<QueueScreen> {
   @override
   Widget build(BuildContext context) {
-    final totalDuration = _calculateTotalDuration(widget.queue.songs);
-    final queueLength = widget.queue.length;
+    final visibleSongs = widget.queue.songs.isEmpty
+        ? <Song>[]
+        : widget.queue.songs.sublist(
+            widget.queue.currentIndex.clamp(0, widget.queue.length - 1),
+          );
+    final totalDuration = _calculateTotalDuration(visibleSongs);
+    final queueLength = visibleSongs.length;
     final colors = ColorExtractionService().currentColors;
 
     return Theme(
@@ -61,13 +66,15 @@ class _QueueScreenState extends State<QueueScreen> {
               elevation: 0,
               scrolledUnderElevation: 0,
               leading: IconButton(
-                icon: Icon(LucideIcons.chevronLeft, size: 20, color: colorScheme.onSurface),
+                icon: Icon(LucideIcons.chevronLeft,
+                    size: 20, color: colorScheme.onSurface),
                 onPressed: () => Navigator.pop(context),
               ),
               actions: [
                 if (widget.queue.isNotEmpty && widget.onClear != null)
                   IconButton(
-                    icon: Icon(LucideIcons.trash2, color: colorScheme.onSurface),
+                    icon:
+                        Icon(LucideIcons.trash2, color: colorScheme.onSurface),
                     onPressed: () => _showClearDialog(themedContext),
                     tooltip: 'Clear queue',
                   ),
@@ -77,9 +84,11 @@ class _QueueScreenState extends State<QueueScreen> {
               children: [
                 if (widget.queue.isNotEmpty)
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 16),
                       decoration: BoxDecoration(
                         color: colorScheme.surfaceContainerHighest,
                         borderRadius: BorderRadius.circular(20),
@@ -219,7 +228,8 @@ class _QueueScreenState extends State<QueueScreen> {
                 foregroundColor: colorScheme.surface,
                 elevation: 0,
                 shape: const StadiumBorder(),
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
               ),
               child: Text(
                 'CLEAR',

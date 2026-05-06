@@ -106,6 +106,7 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
     _lastWarmupKey = null;
     _warmNextStreamInBackground(_qualityService.getCurrentStreamingQuality());
     _notifyStateChanged();
+    unawaited(_saveState());
   }
 
   void _addAllToQueueImpl(List<Song> songs) {
@@ -115,6 +116,7 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
     _lastWarmupKey = null;
     _warmNextStreamInBackground(_qualityService.getCurrentStreamingQuality());
     _notifyStateChanged();
+    unawaited(_saveState());
   }
 
   void _playNextImpl(Song song) {
@@ -122,6 +124,7 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
     _lastWarmupKey = null;
     _warmNextStreamInBackground(_qualityService.getCurrentStreamingQuality());
     _notifyStateChanged();
+    unawaited(_saveState());
   }
 
   Future<void> _togglePlayPauseImpl() async {
@@ -353,15 +356,13 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
 
     final len = songs.length;
     final c = _queue.currentIndex.clamp(0, len - 1);
-    final displayed = <Song>[
-      ...songs.sublist(c),
-      ...songs.sublist(0, c),
-    ];
+    final displayed = songs.sublist(c);
+    final displayLength = displayed.length;
 
     if (oldDisplayIndex < 0 ||
-        oldDisplayIndex >= len ||
+        oldDisplayIndex >= displayLength ||
         newDisplayIndex < 0 ||
-        newDisplayIndex >= len) {
+        newDisplayIndex >= displayLength) {
       return;
     }
 
@@ -377,7 +378,7 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
       return;
     }
 
-    _queue.setQueue(displayed, currentIndex: 0);
+    _queue.setQueue([...songs.sublist(0, c), ...displayed], currentIndex: c);
     _notifyStateChanged();
     unawaited(_saveState());
   }

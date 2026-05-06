@@ -29,6 +29,8 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
   final PlaylistService _playlistService = PlaylistService();
   final ColorExtractionService _colorService = ColorExtractionService();
   final PlayerArtworkController _artworkController = PlayerArtworkController();
+  Timer? _queueConfirmationTimer;
+  bool _showQueueConfirmation = false;
 
   @override
   void initState() {
@@ -44,6 +46,7 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
 
   @override
   void dispose() {
+    _queueConfirmationTimer?.cancel();
     _playbackManager.removeListener(_onPlaybackStateChanged);
     _playlistService.removeListener(_onPlaylistsChanged);
     _colorService.removeListener(_onColorsChanged);
@@ -87,6 +90,36 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
         ),
       ),
     );
+  }
+
+  void _addCurrentSongToQueue() {
+    final song = _playbackManager.currentSong;
+    if (song == null) return;
+
+    _playbackManager.addToQueue(song);
+    _showAddedToQueueConfirmation();
+  }
+
+  void _showAddedToQueueConfirmation() {
+    _queueConfirmationTimer?.cancel();
+    setState(() {
+      _showQueueConfirmation = true;
+    });
+
+    _queueConfirmationTimer = Timer(const Duration(seconds: 3), () {
+      if (!mounted) return;
+      setState(() {
+        _showQueueConfirmation = false;
+      });
+    });
+  }
+
+  void _openQueueFromConfirmation() {
+    _queueConfirmationTimer?.cancel();
+    setState(() {
+      _showQueueConfirmation = false;
+    });
+    _openQueue();
   }
 
   Future<void> _skipNextWithArtworkAnimation() async {
@@ -172,7 +205,6 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
           PlayerTopBar(
             onMinimize: () => Navigator.pop(context),
             onOpenQueue: _openQueue,
-            castButton: PlayerCastButton(playbackManager: _playbackManager),
           ),
           Expanded(
             child: Center(
@@ -211,69 +243,135 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
         }
       },
       child: SafeArea(
-        child: Column(
+        child: Stack(
           children: [
-            PlayerTopBar(
-              onMinimize: () => Navigator.pop(context),
-              onOpenQueue: _openQueue,
-              castButton: PlayerCastButton(playbackManager: _playbackManager),
+            Column(
+              children: [
+                PlayerTopBar(
+                  onMinimize: () => Navigator.pop(context),
+                  onOpenQueue: _openQueue,
+                  onAddToQueue: _addCurrentSongToQueue,
+                ),
+                const SizedBox(height: 16),
+                Expanded(
+                  flex: 4,
+                  child: PlayerArtwork(
+                    controller: _artworkController,
+                    queue: _playbackManager.queue,
+                    currentIndex: _playbackManager.queue.currentIndex,
+                    onPageChanged: (index) {
+                      _playbackManager.skipToQueueItem(index);
+                    },
+                  ),
+                ),
+                const SizedBox(height: 24),
+                PlayerInfo(
+                  song: _playbackManager.currentSong!,
+                  isFavorite: _isFavorite,
+                  onToggleFavorite: () async {
+                    final song = _playbackManager.currentSong;
+                    if (song != null) {
+                      await _playlistService.toggleLikedSong(
+                        song.id,
+                        song.albumId,
+                        title: song.title,
+                        artist: song.artist,
+                        duration: song.duration.inSeconds,
+                      );
+                    }
+                  },
+                ),
+                const SizedBox(height: 24),
+                PlayerSeekBar(
+                  position: _playbackManager.position,
+                  duration: _playbackManager.duration ?? Duration.zero,
+                  onSeek: _playbackManager.seek,
+                ),
+                const SizedBox(height: 24),
+                _buildMainControls(themedContext),
+                const SizedBox(height: 16),
+                PlayerSecondaryControls(
+                  castButton:
+                      PlayerCastButton(playbackManager: _playbackManager),
+                  onOpenQueue: _openQueue,
+                  onAddToPlaylist: () {
+                    final song = _playbackManager.currentSong;
+                    if (song != null) {
+                      AddToPlaylistScreen.showForSong(
+                        context,
+                        song.id,
+                        albumId: song.albumId,
+                        title: song.title,
+                        artist: song.artist,
+                        duration: song.duration.inSeconds,
+                      );
+                    }
+                  },
+                ),
+                const SizedBox(height: 24),
+              ],
             ),
-            const SizedBox(height: 16),
-            Expanded(
-              flex: 4,
-              child: PlayerArtwork(
-                controller: _artworkController,
-                queue: _playbackManager.queue,
-                currentIndex: _playbackManager.queue.currentIndex,
-                onPageChanged: (index) {
-                  _playbackManager.skipToQueueItem(index);
-                },
+            _buildQueueConfirmation(themedContext),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQueueConfirmation(BuildContext themedContext) {
+    final colorScheme = Theme.of(themedContext).colorScheme;
+
+    return Positioned(
+      left: 20,
+      right: 20,
+      bottom: 16,
+      child: IgnorePointer(
+        ignoring: !_showQueueConfirmation,
+        child: AnimatedSlide(
+          offset: _showQueueConfirmation ? Offset.zero : const Offset(0, 1.2),
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+          child: AnimatedOpacity(
+            opacity: _showQueueConfirmation ? 1 : 0,
+            duration: const Duration(milliseconds: 180),
+            child: Material(
+              color: colorScheme.onSurface,
+              borderRadius: BorderRadius.circular(6),
+              elevation: 8,
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Added to queue',
+                        style: Theme.of(themedContext)
+                            .textTheme
+                            .bodyLarge
+                            ?.copyWith(
+                              color: colorScheme.surface,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 15,
+                            ),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: _openQueueFromConfirmation,
+                      style: TextButton.styleFrom(
+                        minimumSize: const Size(48, 32),
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        foregroundColor: colorScheme.primary,
+                        textStyle: Theme.of(themedContext).textTheme.titleSmall,
+                      ),
+                      child: const Text('Open'),
+                    ),
+                  ],
+                ),
               ),
             ),
-            const SizedBox(height: 24),
-            PlayerInfo(
-              song: _playbackManager.currentSong!,
-              isFavorite: _isFavorite,
-              onToggleFavorite: () async {
-                final song = _playbackManager.currentSong;
-                if (song != null) {
-                  await _playlistService.toggleLikedSong(
-                    song.id,
-                    song.albumId,
-                    title: song.title,
-                    artist: song.artist,
-                    duration: song.duration.inSeconds,
-                  );
-                }
-              },
-            ),
-            const SizedBox(height: 24),
-            PlayerSeekBar(
-              position: _playbackManager.position,
-              duration: _playbackManager.duration ?? Duration.zero,
-              onSeek: _playbackManager.seek,
-            ),
-            const SizedBox(height: 24),
-            _buildMainControls(themedContext),
-            const SizedBox(height: 16),
-            PlayerSecondaryControls(
-              onOpenQueue: _openQueue,
-              onAddToPlaylist: () {
-                final song = _playbackManager.currentSong;
-                if (song != null) {
-                  AddToPlaylistScreen.showForSong(
-                    context,
-                    song.id,
-                    albumId: song.albumId,
-                    title: song.title,
-                    artist: song.artist,
-                    duration: song.duration.inSeconds,
-                  );
-                }
-              },
-            ),
-            const SizedBox(height: 24),
-          ],
+          ),
         ),
       ),
     );
