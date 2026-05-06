@@ -189,6 +189,13 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final dm = _controller.downloadManager;
 
+    final state = _controller.state;
+    final bool hasAnythingToDelete = state.downloadedSongCount > 0 ||
+        state.completedTasks.isNotEmpty ||
+        state.activeTasks.isNotEmpty ||
+        state.pendingTasks.isNotEmpty ||
+        state.failedTasks.isNotEmpty;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Downloads'),
@@ -202,8 +209,13 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
         elevation: 0,
         actions: [
           IconButton(
-            icon: const Icon(Icons.delete_outline),
-            onPressed: _clearAllDownloads,
+            icon: Icon(
+              Icons.delete_outline,
+              color: hasAnythingToDelete
+                  ? null
+                  : Theme.of(context).disabledColor,
+            ),
+            onPressed: hasAnythingToDelete ? _clearAllDownloads : null,
             tooltip: 'Clear all downloads',
           ),
         ],
