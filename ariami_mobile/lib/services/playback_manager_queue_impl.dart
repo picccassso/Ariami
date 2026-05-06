@@ -20,6 +20,7 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
       // Create new queue with just this song
       print('[PlaybackManager] Creating new queue...');
       _queue = PlaybackQueue();
+      _oneShotQueuedSongs.clear();
       _queue.addSong(song);
       print('[PlaybackManager] Queue created with ${_queue.length} song(s)');
       print(
@@ -55,6 +56,7 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
 
       // Create new queue with all songs
       _queue = PlaybackQueue();
+      _oneShotQueuedSongs.clear();
       for (final song in songs) {
         _queue.addSong(song);
       }
@@ -87,6 +89,7 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
 
       // Create queue with shuffled songs
       _queue = PlaybackQueue();
+      _oneShotQueuedSongs.clear();
       for (final song in shuffled) {
         _queue.addSong(song);
       }
@@ -102,7 +105,9 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
   }
 
   void _addToQueueImpl(Song song) {
-    _queue.addSong(song);
+    final queuedSong = song.copyWith();
+    _queue.addSong(queuedSong);
+    _oneShotQueuedSongs.add(queuedSong);
     _lastWarmupKey = null;
     _warmNextStreamInBackground(_qualityService.getCurrentStreamingQuality());
     _notifyStateChanged();
@@ -111,7 +116,9 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
 
   void _addAllToQueueImpl(List<Song> songs) {
     for (final song in songs) {
-      _queue.addSong(song);
+      final queuedSong = song.copyWith();
+      _queue.addSong(queuedSong);
+      _oneShotQueuedSongs.add(queuedSong);
     }
     _lastWarmupKey = null;
     _warmNextStreamInBackground(_qualityService.getCurrentStreamingQuality());
@@ -120,7 +127,9 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
   }
 
   void _playNextImpl(Song song) {
-    _queue.insertSong(_queue.currentIndex + 1, song);
+    final queuedSong = song.copyWith();
+    _queue.insertSong(_queue.currentIndex + 1, queuedSong);
+    _oneShotQueuedSongs.add(queuedSong);
     _lastWarmupKey = null;
     _warmNextStreamInBackground(_qualityService.getCurrentStreamingQuality());
     _notifyStateChanged();
@@ -167,21 +176,26 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
 
   Future<void> _skipNextImpl({bool completedNaturally = false}) async {
     try {
+      final previousIndex = _queue.currentIndex;
+      final previousSong = _queue.currentSong;
+
       if (!_queue.hasNext) {
         // Check repeat mode
         if (_repeatMode == RepeatMode.all && _queue.songs.isNotEmpty) {
           // Find first available song from beginning when wrapping
           final nextIndex = await _findNextAvailableSongIndexFrom(0);
           if (nextIndex != null) {
+            final nextSong = _queue.songs[nextIndex];
             await _statsService.onSongStopped(
                 completedNaturally: completedNaturally);
             _queue.jumpToIndex(nextIndex);
+            _consumeOneShotQueueItem(previousIndex, previousSong);
             _restoredPosition = null;
             _pendingUiPosition = null;
 
             _notifyStateChanged();
             await Future.delayed(const Duration(milliseconds: 700));
-            if (_queue.currentIndex != nextIndex) return;
+            if (!identical(_queue.currentSong, nextSong)) return;
 
             await _playCurrentSong();
             _notifyStateChanged();
@@ -208,18 +222,23 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
         print('[PlaybackManager] No available next song found');
         return;
       }
+      final nextSong = _queue.songs[nextIndex];
 
       // Stop tracking current song
       await _statsService.onSongStopped(completedNaturally: completedNaturally);
 
       _queue.jumpToIndex(nextIndex);
+      _consumeOneShotQueueItem(previousIndex, previousSong);
       // Clear restored position so new song starts from beginning
       _restoredPosition = null;
       _pendingUiPosition = null;
 
       _notifyStateChanged();
       await Future.delayed(const Duration(milliseconds: 700));
-      if (_queue.currentIndex != nextIndex) return;
+      if (_queue.currentIndex < 0 || _queue.currentIndex >= _queue.length) {
+        return;
+      }
+      if (!identical(_queue.currentSong, nextSong)) return;
 
       await _playCurrentSong();
       _notifyStateChanged();
@@ -270,11 +289,14 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
     try {
       if (index < 0 || index >= _queue.length) return;
       if (index == _queue.currentIndex) return;
+      final previousIndex = _queue.currentIndex;
+      final previousSong = _queue.currentSong;
 
       // Stop tracking current song
       await _statsService.onSongStopped();
 
       _queue.jumpToIndex(index);
+      _consumeOneShotQueueItem(previousIndex, previousSong);
       // Clear restored position so new song starts from beginning
       _restoredPosition = null;
       _pendingUiPosition = null;
@@ -394,10 +416,28 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
     await _statsService.onSongStopped();
     await _audioPlayer.stop();
     _queue.clear();
+    _oneShotQueuedSongs.clear();
     await _stateManager.clearCompletePlaybackState(
       userId: _connectionService.userId,
     ); // Clear saved state
     _notifyStateChanged();
+  }
+
+  void _consumeOneShotQueueItem(int index, Song? song) {
+    if (song == null || !_oneShotQueuedSongs.contains(song)) {
+      return;
+    }
+
+    if (index < 0 || index >= _queue.length) {
+      return;
+    }
+
+    if (!identical(_queue.songs[index], song)) {
+      return;
+    }
+
+    _oneShotQueuedSongs.remove(song);
+    _queue.removeSong(index);
   }
 
   Future<int?> _findNextAvailableSongIndexImpl() async {
@@ -495,9 +535,13 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
       // Move to next song - let skipNext handle finalization with completedNaturally
       await _skipNextImpl(completedNaturally: true);
     } else if (_repeatMode == RepeatMode.all && _queue.songs.isNotEmpty) {
+      final previousIndex = _queue.currentIndex;
+      final previousSong = _queue.currentSong;
+
       // Restart from beginning - finalize current first
       await _statsService.onSongStopped(completedNaturally: true);
       _queue.jumpToIndex(0);
+      _consumeOneShotQueueItem(previousIndex, previousSong);
       await _playCurrentSong();
     } else {
       // Queue finished, stop - finalize current first

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_chrome_cast/flutter_chrome_cast.dart';
 import 'package:just_audio/just_audio.dart';
@@ -53,6 +54,7 @@ class PlaybackManager extends ChangeNotifier {
 
   // State
   PlaybackQueue _queue = PlaybackQueue();
+  final HashSet<Song> _oneShotQueuedSongs = HashSet<Song>.identity();
   bool _isShuffleEnabled = false;
   RepeatMode _repeatMode = RepeatMode.none;
 
@@ -105,6 +107,7 @@ class PlaybackManager extends ChangeNotifier {
     }
     _isInitialized = true;
     _queue = PlaybackQueue();
+    _oneShotQueuedSongs.clear();
     _isShuffleEnabled = false;
     _repeatMode = RepeatMode.none;
     _shuffleService.reset();

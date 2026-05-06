@@ -7,12 +7,14 @@ import '../common/mini_player_aware_bottom_sheet.dart';
 class PlayerTopBar extends StatelessWidget {
   final VoidCallback onMinimize;
   final VoidCallback? onOpenQueue;
+  final VoidCallback? onPlayNext;
   final VoidCallback? onAddToQueue;
 
   const PlayerTopBar({
     super.key,
     required this.onMinimize,
     this.onOpenQueue,
+    this.onPlayNext,
     this.onAddToQueue,
   });
 
@@ -41,7 +43,7 @@ class PlayerTopBar extends StatelessWidget {
             ),
           ),
 
-          if (onAddToQueue != null)
+          if (onPlayNext != null || onAddToQueue != null)
             IconButton(
               icon: const Icon(Icons.more_vert_rounded),
               onPressed: () => _showOptionsSheet(context),
@@ -77,6 +79,15 @@ class PlayerTopBar extends StatelessWidget {
                     style: Theme.of(sheetContext).textTheme.titleMedium,
                   ),
                   const SizedBox(height: 8),
+                  if (onPlayNext != null)
+                    ListTile(
+                      leading: const Icon(Icons.skip_next_rounded),
+                      title: const Text('Play next'),
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        onPlayNext?.call();
+                      },
+                    ),
                   ListTile(
                     leading: const Icon(Icons.queue_music_rounded),
                     title: const Text('Add to queue'),

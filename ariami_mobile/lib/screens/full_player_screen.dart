@@ -31,6 +31,7 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
   final PlayerArtworkController _artworkController = PlayerArtworkController();
   Timer? _queueConfirmationTimer;
   bool _showQueueConfirmation = false;
+  String _queueConfirmationMessage = 'Added to queue';
 
   @override
   void initState() {
@@ -97,12 +98,21 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
     if (song == null) return;
 
     _playbackManager.addToQueue(song);
-    _showAddedToQueueConfirmation();
+    _showQueueActionConfirmation('Added to queue');
   }
 
-  void _showAddedToQueueConfirmation() {
+  void _playCurrentSongNext() {
+    final song = _playbackManager.currentSong;
+    if (song == null) return;
+
+    _playbackManager.playNext(song);
+    _showQueueActionConfirmation('Playing next');
+  }
+
+  void _showQueueActionConfirmation(String message) {
     _queueConfirmationTimer?.cancel();
     setState(() {
+      _queueConfirmationMessage = message;
       _showQueueConfirmation = true;
     });
 
@@ -250,6 +260,7 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
                 PlayerTopBar(
                   onMinimize: () => Navigator.pop(context),
                   onOpenQueue: _openQueue,
+                  onPlayNext: _playCurrentSongNext,
                   onAddToQueue: _addCurrentSongToQueue,
                 ),
                 const SizedBox(height: 16),
@@ -345,7 +356,7 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
                   children: [
                     Expanded(
                       child: Text(
-                        'Added to queue',
+                        _queueConfirmationMessage,
                         style: Theme.of(themedContext)
                             .textTheme
                             .bodyLarge
