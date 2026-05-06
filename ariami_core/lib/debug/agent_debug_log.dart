@@ -27,8 +27,8 @@ void agentDebugLog({
   };
   final line = jsonEncode(payload);
   try {
-    File(_kAgentLogPath).writeAsStringSync('$line\n',
-        mode: FileMode.append, flush: true);
+    File(_kAgentLogPath)
+        .writeAsStringSync('$line\n', mode: FileMode.append, flush: true);
   } catch (_) {}
   unawaited(_agentPostLog(line));
 }

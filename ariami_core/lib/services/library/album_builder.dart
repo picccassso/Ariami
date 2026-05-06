@@ -57,7 +57,8 @@ class AlbumBuilder {
     // Extract album info from first song
     final firstSong = songs.first;
     final albumTitle = normalizeAlbumTitle(firstSong.album) ?? 'Unknown Album';
-    final albumArtist = firstSong.albumArtist ?? firstSong.artist ?? 'Unknown Artist';
+    final albumArtist =
+        firstSong.albumArtist ?? firstSong.artist ?? 'Unknown Artist';
 
     // Determine if it's a compilation
     final isCompilation = _isCompilation(songs, albumArtist);
@@ -88,7 +89,8 @@ class AlbumBuilder {
 
     // Check if album artist is "Various Artists"
     if (albumArtist.toLowerCase().contains('various')) {
-      print('[AlbumBuilder] "$albumTitle" -> Various Artists (albumArtist tag)');
+      print(
+          '[AlbumBuilder] "$albumTitle" -> Various Artists (albumArtist tag)');
       return true;
     }
 
@@ -104,7 +106,8 @@ class AlbumBuilder {
 
     // If all songs have the same album artist, it's not a compilation
     if (albumArtists.length == 1) {
-      print('[AlbumBuilder] "$albumTitle" -> $albumArtist (consistent albumArtist)');
+      print(
+          '[AlbumBuilder] "$albumTitle" -> $albumArtist (consistent albumArtist)');
       return false;
     }
 
@@ -118,12 +121,15 @@ class AlbumBuilder {
       }
     }
 
-    final isCompilation = artists.length >= 5; // Increased threshold from 3 to 5
+    final isCompilation =
+        artists.length >= 5; // Increased threshold from 3 to 5
     if (isCompilation) {
-      print('[AlbumBuilder] "$albumTitle" -> Various Artists (${artists.length} different track artists)');
+      print(
+          '[AlbumBuilder] "$albumTitle" -> Various Artists (${artists.length} different track artists)');
       print('[AlbumBuilder]   Artists: $artists');
     } else {
-      print('[AlbumBuilder] "$albumTitle" -> $albumArtist (${artists.length} track artists, not a compilation)');
+      print(
+          '[AlbumBuilder] "$albumTitle" -> $albumArtist (${artists.length} track artists, not a compilation)');
     }
 
     return isCompilation;
@@ -142,9 +148,7 @@ class AlbumBuilder {
     if (yearCounts.isEmpty) return null;
 
     // Return the year with the highest count
-    return yearCounts.entries
-        .reduce((a, b) => a.value > b.value ? a : b)
-        .key;
+    return yearCounts.entries.reduce((a, b) => a.value > b.value ? a : b).key;
   }
 
   /// Generates a unique ID for an album

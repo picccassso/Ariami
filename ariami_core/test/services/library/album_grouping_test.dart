@@ -36,7 +36,8 @@ void main() {
     });
 
     test('normalizes Eminem vs Eminem, Jessie Reyez to Eminem', () {
-      final solo = albumGroupingArtist(_song(path: '/1.mp3', album: 'K', artist: 'Eminem'));
+      final solo = albumGroupingArtist(
+          _song(path: '/1.mp3', album: 'K', artist: 'Eminem'));
       final duo = albumGroupingArtist(
         _song(path: '/2.mp3', album: 'K', artist: 'Eminem, Jessie Reyez'),
       );
@@ -46,7 +47,8 @@ void main() {
     });
 
     test('normalizes Russ vs Russ, Bibi Bourelly to Russ', () {
-      final a = albumGroupingArtist(_song(path: '/1.mp3', album: 'S', artist: 'Russ'));
+      final a = albumGroupingArtist(
+          _song(path: '/1.mp3', album: 'S', artist: 'Russ'));
       final b = albumGroupingArtist(
         _song(path: '/2.mp3', album: 'S', artist: 'Russ, Bibi Bourelly'),
       );
@@ -56,21 +58,25 @@ void main() {
 
     test('strips feat. / ft. / featuring suffix', () {
       expect(
-        albumGroupingArtist(_song(path: '/x.mp3', album: 'A', artist: 'Eminem feat. Jessie Reyez')),
+        albumGroupingArtist(_song(
+            path: '/x.mp3', album: 'A', artist: 'Eminem feat. Jessie Reyez')),
         'Eminem',
       );
       expect(
-        albumGroupingArtist(_song(path: '/y.mp3', album: 'A', artist: 'Russ ft. Guest')),
+        albumGroupingArtist(
+            _song(path: '/y.mp3', album: 'A', artist: 'Russ ft. Guest')),
         'Russ',
       );
       expect(
-        albumGroupingArtist(_song(path: '/z.mp3', album: 'A', artist: 'A featuring B')),
+        albumGroupingArtist(
+            _song(path: '/z.mp3', album: 'A', artist: 'A featuring B')),
         'A',
       );
     });
 
     test('returns null when track artist missing', () {
-      expect(albumGroupingArtist(_song(path: '/x.mp3', album: 'OnlyAlbum')), isNull);
+      expect(albumGroupingArtist(_song(path: '/x.mp3', album: 'OnlyAlbum')),
+          isNull);
     });
   });
 
@@ -109,7 +115,8 @@ void main() {
       final songs = [
         _song(path: '/m1.mp3', album: 'Kamikaze', artist: 'Eminem'),
         _song(path: '/m2.mp3', album: 'Kamikaze', artist: 'Eminem'),
-        _song(path: '/m3.mp3', album: 'Kamikaze', artist: 'Eminem, Jessie Reyez'),
+        _song(
+            path: '/m3.mp3', album: 'Kamikaze', artist: 'Eminem, Jessie Reyez'),
       ];
       final library = AlbumBuilder().buildLibrary(songs);
       expect(library.albums.length, 1);

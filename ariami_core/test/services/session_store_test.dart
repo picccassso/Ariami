@@ -43,7 +43,8 @@ void main() {
       );
 
       expect(session.sessionToken, isNotEmpty);
-      expect(session.sessionToken.length, equals(64)); // 32 bytes = 64 hex chars
+      expect(
+          session.sessionToken.length, equals(64)); // 32 bytes = 64 hex chars
       expect(session.userId, equals('user_123'));
       expect(session.deviceId, equals('device_abc'));
       expect(session.deviceName, equals('Test Device'));
@@ -52,14 +53,17 @@ void main() {
     });
 
     test('generates unique session tokens', () async {
-      final session1 = await sessionStore.createSession('user_1', 'device_1', 'Device 1');
-      final session2 = await sessionStore.createSession('user_2', 'device_2', 'Device 2');
+      final session1 =
+          await sessionStore.createSession('user_1', 'device_1', 'Device 1');
+      final session2 =
+          await sessionStore.createSession('user_2', 'device_2', 'Device 2');
 
       expect(session1.sessionToken, isNot(equals(session2.sessionToken)));
     });
 
     test('session expires in 30 days by default', () async {
-      final session = await sessionStore.createSession('user_123', 'device_abc', 'Test Device');
+      final session = await sessionStore.createSession(
+          'user_123', 'device_abc', 'Test Device');
 
       final createdAt = DateTime.parse(session.createdAt);
       final expiresAt = DateTime.parse(session.expiresAt);
@@ -178,7 +182,8 @@ void main() {
       // Create a file with mixed valid and expired sessions
       final now = DateTime.now().toUtc();
       final validExpiry = now.add(const Duration(days: 30)).toIso8601String();
-      final expiredExpiry = now.subtract(const Duration(days: 1)).toIso8601String();
+      final expiredExpiry =
+          now.subtract(const Duration(days: 1)).toIso8601String();
 
       final mixedJson = '''
 {
@@ -250,7 +255,8 @@ void main() {
 
       await sessionStore.refreshSession(originalSession.sessionToken);
 
-      final refreshedSession = sessionStore.getSession(originalSession.sessionToken);
+      final refreshedSession =
+          sessionStore.getSession(originalSession.sessionToken);
       expect(refreshedSession, isNotNull);
 
       final newExpiry = DateTime.parse(refreshedSession!.expiresAt);
@@ -260,9 +266,11 @@ void main() {
     test('preserves other session fields after refresh', () async {
       await sessionStore.refreshSession(originalSession.sessionToken);
 
-      final refreshedSession = sessionStore.getSession(originalSession.sessionToken);
+      final refreshedSession =
+          sessionStore.getSession(originalSession.sessionToken);
       expect(refreshedSession, isNotNull);
-      expect(refreshedSession!.sessionToken, equals(originalSession.sessionToken));
+      expect(
+          refreshedSession!.sessionToken, equals(originalSession.sessionToken));
       expect(refreshedSession.userId, equals(originalSession.userId));
       expect(refreshedSession.deviceId, equals(originalSession.deviceId));
       expect(refreshedSession.deviceName, equals(originalSession.deviceName));
@@ -296,7 +304,8 @@ void main() {
     });
 
     test('removes session by token', () async {
-      final session = await sessionStore.createSession('user_123', 'device_abc', 'Test Device');
+      final session = await sessionStore.createSession(
+          'user_123', 'device_abc', 'Test Device');
       expect(sessionStore.sessionCount, equals(1));
 
       await sessionStore.revokeSession(session.sessionToken);
@@ -341,7 +350,8 @@ void main() {
       await sessionStore.createSession('user_1', 'device_1c', 'Device 1C');
 
       // Create session for user_2
-      final user2Session = await sessionStore.createSession('user_2', 'device_2', 'Device 2');
+      final user2Session =
+          await sessionStore.createSession('user_2', 'device_2', 'Device 2');
 
       expect(sessionStore.sessionCount, equals(4));
 
@@ -416,7 +426,8 @@ void main() {
       final sessionStore = SessionStore();
       await sessionStore.initialize(sessionsFilePath);
 
-      final session = await sessionStore.createSession('user_123', 'device_abc', 'Test Device');
+      final session = await sessionStore.createSession(
+          'user_123', 'device_abc', 'Test Device');
       sessionStore.dispose();
 
       // Load in a new store instance

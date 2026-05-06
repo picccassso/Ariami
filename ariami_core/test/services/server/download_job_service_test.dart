@@ -127,6 +127,79 @@ void main() {
         equals(<String>['song-a', 'song-b']),
       );
     });
+
+    test('removes expired cancelled jobs before reads', () {
+      var now = DateTime.utc(2026, 1, 1, 12);
+      service = DownloadJobService(
+        catalogRepositoryProvider: () => repository,
+        cancelledJobRetention: const Duration(minutes: 5),
+        nowProvider: () => now,
+      );
+
+      final created = service.createJob(
+        userScopeId: 'user-1',
+        request: const DownloadJobCreateRequest(
+          songIds: <String>['song-a'],
+          quality: 'high',
+        ),
+      );
+      service.cancelJob(userScopeId: 'user-1', jobId: created.jobId);
+
+      now = now.add(const Duration(minutes: 6));
+
+      expect(
+        () => service.getJob(userScopeId: 'user-1', jobId: created.jobId),
+        throwsA(
+          isA<DownloadJobServiceException>()
+              .having((e) => e.statusCode, 'statusCode', 404),
+        ),
+      );
+    });
+
+    test('applies total job backstop during creation', () {
+      var now = DateTime.utc(2026, 1, 1, 12);
+      service = DownloadJobService(
+        catalogRepositoryProvider: () => repository,
+        maxTotalJobs: 2,
+        nowProvider: () => now,
+      );
+
+      final first = service.createJob(
+        userScopeId: 'user-1',
+        request: const DownloadJobCreateRequest(
+          songIds: <String>['song-a'],
+          quality: 'high',
+        ),
+      );
+      now = now.add(const Duration(seconds: 1));
+      final second = service.createJob(
+        userScopeId: 'user-1',
+        request: const DownloadJobCreateRequest(
+          songIds: <String>['song-b'],
+          quality: 'high',
+        ),
+      );
+      now = now.add(const Duration(seconds: 1));
+      service.createJob(
+        userScopeId: 'user-1',
+        request: const DownloadJobCreateRequest(
+          songIds: <String>['song-a'],
+          quality: 'high',
+        ),
+      );
+
+      expect(
+        () => service.getJob(userScopeId: 'user-1', jobId: first.jobId),
+        throwsA(
+          isA<DownloadJobServiceException>()
+              .having((e) => e.statusCode, 'statusCode', 404),
+        ),
+      );
+      expect(
+        service.getJob(userScopeId: 'user-1', jobId: second.jobId).status,
+        equals(DownloadJobStatus.ready),
+      );
+    });
   });
 }
 

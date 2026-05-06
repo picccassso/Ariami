@@ -27,6 +27,7 @@ class ChangeProcessor {
     final removedSongIds = <String>{};
     final modifiedSongIds = <String>{};
     final affectedAlbumIds = <String>{};
+    final extractedMetadata = <String, SongMetadata>{};
 
     // Build reverse index for O(1) lookups (filePath -> albumId)
     // This replaces O(A×S) linear search with O(1) hash map lookup
@@ -84,6 +85,7 @@ class ChangeProcessor {
         try {
           final metadata =
               await _metadataExtractor.extractMetadataWithDuration(path);
+          extractedMetadata[path] = metadata;
           final songId = _generateSongId(metadata.filePath);
           addedSongIds.add(songId);
 
@@ -105,6 +107,7 @@ class ChangeProcessor {
         try {
           final metadata =
               await _metadataExtractor.extractMetadataWithDuration(path);
+          extractedMetadata[path] = metadata;
           final songId = _generateSongId(metadata.filePath);
           modifiedSongIds.add(songId);
 
@@ -132,6 +135,7 @@ class ChangeProcessor {
       modifiedSongIds: modifiedSongIds,
       affectedAlbumIds: affectedAlbumIds,
       timestamp: DateTime.now(),
+      extractedMetadata: extractedMetadata,
     );
   }
 
@@ -197,12 +201,16 @@ class ChangeProcessor {
     // Re-extract metadata for changed files
     if (changedPaths.isNotEmpty) {
       for (final path in changedPaths) {
-        try {
-          final updatedMetadata =
-              await _metadataExtractor.extractMetadataWithDuration(path);
-          allSongs.add(updatedMetadata);
-        } catch (e) {
-          print('Error re-extracting metadata for "$path": $e');
+        if (update.extractedMetadata.containsKey(path)) {
+          allSongs.add(update.extractedMetadata[path]!);
+        } else {
+          try {
+            final updatedMetadata =
+                await _metadataExtractor.extractMetadataWithDuration(path);
+            allSongs.add(updatedMetadata);
+          } catch (e) {
+            print('Error re-extracting metadata for "$path": $e');
+          }
         }
       }
     }

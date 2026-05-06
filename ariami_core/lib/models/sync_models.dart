@@ -165,7 +165,8 @@ class V2ChangeEvent {
       op: _changeOperationFromJson(json['op'] as String),
       entityType: _entityTypeFromJson(json['entityType'] as String),
       entityId: json['entityId'] as String,
-      payload: (json['payload'] as Map<dynamic, dynamic>?)?.cast<String, dynamic>(),
+      payload:
+          (json['payload'] as Map<dynamic, dynamic>?)?.cast<String, dynamic>(),
       occurredAt: json['occurredAt'] as String,
     );
   }

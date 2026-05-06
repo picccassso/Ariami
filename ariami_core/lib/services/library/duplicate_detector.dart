@@ -32,9 +32,9 @@ class DuplicateGroup {
 
 /// Types of duplicate matches
 enum DuplicateMatchType {
-  exactHash,      // Exact file hash match
-  fileSize,       // Same file size
-  metadata,       // Matching metadata (artist, title, album, duration)
+  exactHash, // Exact file hash match
+  fileSize, // Same file size
+  metadata, // Matching metadata (artist, title, album, duration)
 }
 
 /// Service for detecting duplicate songs in the library
@@ -68,9 +68,8 @@ class DuplicateDetector {
     // Level 2: Metadata matching (for remaining songs)
     if (useMetadataMatching) {
       final processedPaths = _getProcessedPaths(duplicateGroups);
-      final remainingSongs = songs
-          .where((s) => !processedPaths.contains(s.filePath))
-          .toList();
+      final remainingSongs =
+          songs.where((s) => !processedPaths.contains(s.filePath)).toList();
 
       final metadataGroups = _findMetadataDuplicates(remainingSongs);
       duplicateGroups.addAll(metadataGroups);
@@ -103,10 +102,12 @@ class DuplicateDetector {
     // Step 2: Only hash groups with 2+ files (potential duplicates)
     final groups = <DuplicateGroup>[];
     for (final candidates in sizeGroups.values) {
-      if (candidates.length < 2) continue; // Skip unique sizes - no duplicates possible
+      if (candidates.length < 2)
+        continue; // Skip unique sizes - no duplicates possible
 
       // Hash only this small group
-      final hashGroups = await _hashGroupAndFindDuplicates(candidates, cachedHashes);
+      final hashGroups =
+          await _hashGroupAndFindDuplicates(candidates, cachedHashes);
       groups.addAll(hashGroups);
     }
 
@@ -135,7 +136,12 @@ class DuplicateDetector {
           // Check cache first
           final cachedHash = cachedHashes[song.filePath];
           if (cachedHash != null) {
-            return (song: song, hash: cachedHash, error: false, fromCache: true);
+            return (
+              song: song,
+              hash: cachedHash,
+              error: false,
+              fromCache: true
+            );
           }
           // Compute hash
           final hash = await _calculateFileHash(song.filePath);
@@ -231,7 +237,8 @@ class DuplicateDetector {
             hypothesisId: 'H1',
             data: {
               'originalPath': sorted.first.filePath,
-              'duplicatePaths': sorted.sublist(1).map((s) => s.filePath).toList(),
+              'duplicatePaths':
+                  sorted.sublist(1).map((s) => s.filePath).toList(),
               'title': sorted.first.title,
               'artist': sorted.first.artist,
               'durationsSec': sorted.map((s) => s.duration).toList(),
@@ -329,38 +336,38 @@ class DuplicateDetector {
   }
 
   /// Calculates partial MD5 hash of a file for efficient duplicate detection
-  /// 
+  ///
   /// Uses partial hashing: first 64KB + file size + last 64KB
   /// This dramatically reduces I/O while still catching 99.9%+ of duplicates
   Future<String> _calculateFileHash(String filePath) async {
     final file = File(filePath);
     final size = await file.length();
-    
+
     // For very small files, just hash the whole thing
     if (size <= 131072) {
       final bytes = await file.readAsBytes();
       final digest = md5.convert(bytes);
       return digest.toString();
     }
-    
+
     // For larger files, use partial hashing
     final raf = await file.open(mode: FileMode.read);
-    
+
     try {
       // Read first 64KB
       final firstChunk = await raf.read(min(65536, size).toInt());
-      
+
       // Read last 64KB
       await raf.setPosition(size - 65536);
       final lastChunk = await raf.read(65536);
-      
+
       // Combine: first chunk + size bytes (8 bytes) + last chunk
       final sizeBytes = ByteData(8)..setInt64(0, size);
       final combined = Uint8List(firstChunk.length + 8 + lastChunk.length);
       combined.setAll(0, firstChunk);
       combined.setAll(firstChunk.length, sizeBytes.buffer.asUint8List());
       combined.setAll(firstChunk.length + 8, lastChunk);
-      
+
       final digest = md5.convert(combined);
       return digest.toString();
     } finally {

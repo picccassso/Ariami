@@ -1,6 +1,8 @@
 /// Models for file system change detection
 library;
 
+import 'package:ariami_core/models/song_metadata.dart';
+
 /// Types of file system changes
 enum FileChangeType {
   added,
@@ -36,6 +38,7 @@ class LibraryUpdate {
   final Set<String> modifiedSongIds;
   final Set<String> affectedAlbumIds;
   final DateTime timestamp;
+  final Map<String, SongMetadata> extractedMetadata;
 
   const LibraryUpdate({
     required this.addedSongIds,
@@ -43,6 +46,7 @@ class LibraryUpdate {
     required this.modifiedSongIds,
     required this.affectedAlbumIds,
     required this.timestamp,
+    this.extractedMetadata = const {},
   });
 
   bool get isEmpty =>

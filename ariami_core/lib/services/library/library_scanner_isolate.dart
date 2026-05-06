@@ -334,15 +334,14 @@ class LibraryScannerIsolate {
       _sendProgress(sendPort, 'duplicates', uniqueSongs.length, songs.length,
           85.0, '${uniqueSongs.length} unique songs after filtering');
 
-        // Songs under [PLAYLIST] folders should not create albums.
-        // They still remain available for playback via standalone songs/playlist IDs.
-        final playlistFolderSongPaths = playlistFolders.values
-          .expand((paths) => paths)
-          .toSet();
-        final albumCandidateSongs = uniqueSongs
+      // Songs under [PLAYLIST] folders should not create albums.
+      // They still remain available for playback via standalone songs/playlist IDs.
+      final playlistFolderSongPaths =
+          playlistFolders.values.expand((paths) => paths).toSet();
+      final albumCandidateSongs = uniqueSongs
           .where((song) => !playlistFolderSongPaths.contains(song.filePath))
           .toList();
-        final forcedStandaloneSongs = uniqueSongs
+      final forcedStandaloneSongs = uniqueSongs
           .where((song) => playlistFolderSongPaths.contains(song.filePath))
           .toList();
 
@@ -351,7 +350,7 @@ class LibraryScannerIsolate {
           'Building album structure...');
 
       final albumBuilder = AlbumBuilder();
-        final baseLibrary = albumBuilder.buildLibrary(albumCandidateSongs);
+      final baseLibrary = albumBuilder.buildLibrary(albumCandidateSongs);
 
       // Step 5: Build folder playlists
       // First, build a map from duplicate file paths to their "original" paths

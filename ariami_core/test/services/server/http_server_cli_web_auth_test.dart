@@ -440,8 +440,7 @@ void main() {
       expect(rows.any((row) => row['deviceId'] == 'mobile-device'), isTrue);
     });
 
-    test(
-        'stats mobileClients excludes dashboard presence; counts real devices',
+    test('stats mobileClients excludes dashboard presence; counts real devices',
         () async {
       server.setFeatureFlags(
         const AriamiFeatureFlags(enableApiScopedAuthForCliWeb: true),

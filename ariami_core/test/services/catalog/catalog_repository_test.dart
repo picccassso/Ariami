@@ -141,6 +141,31 @@ void main() {
       expect(secondPage.nextCursor, isNull);
     });
 
+    test('pruneOldChangeEvents preserves requested snapshot boundary', () {
+      final now = DateTime.utc(2026, 1, 1).millisecondsSinceEpoch;
+      repository.appendChangeEvents(
+        List<CatalogChangeEventInput>.generate(
+          10,
+          (index) => CatalogChangeEventInput(
+            entityType: 'song',
+            entityId: 'song-$index',
+            op: 'upsert',
+            occurredEpochMs: now,
+          ),
+        ),
+      );
+
+      repository.pruneOldChangeEvents(
+        3,
+        preserveFromToken: 5,
+      );
+
+      expect(
+        repository.readChangesSince(0, 20).map((event) => event.token).toList(),
+        equals(<int>[5, 6, 7, 8, 9, 10]),
+      );
+    });
+
     test('listPlaylistsPage paginates in ascending id order', () {
       catalogDatabase.database.execute(
         '''

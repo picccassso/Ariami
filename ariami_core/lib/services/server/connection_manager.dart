@@ -45,6 +45,7 @@ class ConnectionManager {
     String deviceId, {
     String? userId,
     String? deviceName,
+
     /// When non-null, replaces [ConnectedClient.clientType] (e.g. upgrade to
     /// `dashboard` after WebSocket identify).
     String? replaceClientType,
@@ -80,7 +81,8 @@ class ConnectionManager {
       replaceClientType: clientType,
     );
     if (!didRefresh) {
-      registerClient(deviceId, deviceName, userId: userId, clientType: clientType);
+      registerClient(deviceId, deviceName,
+          userId: userId, clientType: clientType);
     }
   }
 

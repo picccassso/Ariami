@@ -496,6 +496,149 @@ LIMIT 1;
     return _mapSongRecord(rows.first);
   }
 
+  List<CatalogSongRecord> getSongsByIds(List<String> songIds) {
+    if (songIds.isEmpty) return <CatalogSongRecord>[];
+    final records = <CatalogSongRecord>[];
+    for (var i = 0; i < songIds.length; i += 100) {
+      final chunk = songIds.skip(i).take(100).toList();
+      final placeholders = List.filled(chunk.length, '?').join(', ');
+      final rows = _database.select(
+        '''
+SELECT
+  id,
+  file_path,
+  title,
+  artist,
+  album_id,
+  duration_seconds,
+  track_number,
+  file_size_bytes,
+  modified_epoch_ms,
+  bitrate_kbps,
+  artwork_key,
+  updated_token,
+  is_deleted
+FROM songs
+WHERE id IN ($placeholders) AND is_deleted = 0;
+''',
+        chunk,
+      );
+      records.addAll(rows.map(_mapSongRecord));
+    }
+    return records;
+  }
+
+  List<CatalogSongRecord> getSongsByAlbumIds(List<String> albumIds) {
+    if (albumIds.isEmpty) return <CatalogSongRecord>[];
+    final records = <CatalogSongRecord>[];
+    for (var i = 0; i < albumIds.length; i += 100) {
+      final chunk = albumIds.skip(i).take(100).toList();
+      final placeholders = List.filled(chunk.length, '?').join(', ');
+      final rows = _database.select(
+        '''
+SELECT
+  id,
+  file_path,
+  title,
+  artist,
+  album_id,
+  duration_seconds,
+  track_number,
+  file_size_bytes,
+  modified_epoch_ms,
+  bitrate_kbps,
+  artwork_key,
+  updated_token,
+  is_deleted
+FROM songs
+WHERE album_id IN ($placeholders) AND is_deleted = 0;
+''',
+        chunk,
+      );
+      records.addAll(rows.map(_mapSongRecord));
+    }
+    return records;
+  }
+
+  List<CatalogAlbumRecord> getAlbumsByIds(List<String> albumIds) {
+    if (albumIds.isEmpty) return <CatalogAlbumRecord>[];
+    final records = <CatalogAlbumRecord>[];
+    for (var i = 0; i < albumIds.length; i += 100) {
+      final chunk = albumIds.skip(i).take(100).toList();
+      final placeholders = List.filled(chunk.length, '?').join(', ');
+      final rows = _database.select(
+        '''
+SELECT
+  id,
+  title,
+  artist,
+  year,
+  cover_art_key,
+  song_count,
+  duration_seconds,
+  updated_token,
+  is_deleted
+FROM albums
+WHERE id IN ($placeholders) AND is_deleted = 0;
+''',
+        chunk,
+      );
+      records.addAll(rows.map(_mapAlbumRecord));
+    }
+    return records;
+  }
+
+  List<CatalogPlaylistRecord> getPlaylistsByIds(List<String> playlistIds) {
+    if (playlistIds.isEmpty) return <CatalogPlaylistRecord>[];
+    final records = <CatalogPlaylistRecord>[];
+    for (var i = 0; i < playlistIds.length; i += 100) {
+      final chunk = playlistIds.skip(i).take(100).toList();
+      final placeholders = List.filled(chunk.length, '?').join(', ');
+      final rows = _database.select(
+        '''
+SELECT
+  id,
+  name,
+  song_count,
+  duration_seconds,
+  updated_token,
+  is_deleted
+FROM playlists
+WHERE id IN ($placeholders) AND is_deleted = 0;
+''',
+        chunk,
+      );
+      records.addAll(rows.map(_mapPlaylistRecord));
+    }
+    return records;
+  }
+
+  List<CatalogPlaylistSongRecord> getPlaylistSongsByPlaylistIds(
+    List<String> playlistIds,
+  ) {
+    if (playlistIds.isEmpty) return <CatalogPlaylistSongRecord>[];
+    final records = <CatalogPlaylistSongRecord>[];
+    for (var i = 0; i < playlistIds.length; i += 100) {
+      final chunk = playlistIds.skip(i).take(100).toList();
+      final placeholders = List.filled(chunk.length, '?').join(', ');
+      final rows = _database.select(
+        '''
+SELECT
+  playlist_id,
+  song_id,
+  position,
+  updated_token
+FROM playlist_songs
+WHERE playlist_id IN ($placeholders)
+ORDER BY playlist_id ASC, position ASC, song_id ASC;
+''',
+        chunk,
+      );
+      records.addAll(rows.map(_mapPlaylistSongRecord));
+    }
+    return records;
+  }
+
   CatalogPage<CatalogPlaylistRecord> listPlaylistsPage({
     String? cursor,
     int limit = 100,
@@ -637,6 +780,31 @@ FROM library_changes;
 ''',
     );
     return rows.first['latest_token'] as int;
+  }
+
+  void pruneOldChangeEvents(
+    int retentionWindow, {
+    int? preserveFromToken,
+  }) {
+    if (retentionWindow <= 0) return;
+
+    final latestToken = getLatestToken();
+    var thresholdToken = latestToken - retentionWindow;
+    if (preserveFromToken != null && preserveFromToken > 0) {
+      thresholdToken = thresholdToken < preserveFromToken
+          ? thresholdToken
+          : preserveFromToken;
+    }
+
+    if (thresholdToken <= 0) return;
+
+    _database.execute(
+      '''
+DELETE FROM library_changes
+WHERE token < ?;
+''',
+      <Object?>[thresholdToken],
+    );
   }
 
   CatalogAlbumRecord _mapAlbumRecord(Row row) {

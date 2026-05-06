@@ -34,7 +34,8 @@ class FileScanner {
 
     // Single-pass traversal: collect files and count directories simultaneously
     try {
-      await for (final entity in rootDir.list(recursive: true, followLinks: false)) {
+      await for (final entity
+          in rootDir.list(recursive: true, followLinks: false)) {
         if (entity is Directory) {
           if (!_isHiddenOrSystem(entity.path)) {
             directoriesScanned++;
@@ -148,10 +149,12 @@ class FileScanner {
   ScanErrorType _categorizeError(dynamic error) {
     if (error is FileSystemException) {
       if (error.osError?.errorCode == 13 || // Permission denied on Unix
-          error.osError?.errorCode == 5) {   // Access denied on Windows
+          error.osError?.errorCode == 5) {
+        // Access denied on Windows
         return ScanErrorType.permissionDenied;
       }
-      if (error.osError?.errorCode == 2) {   // No such file or directory
+      if (error.osError?.errorCode == 2) {
+        // No such file or directory
         return ScanErrorType.pathNotFound;
       }
     }

@@ -144,6 +144,7 @@ ON CONFLICT(artwork_key, variant) DO UPDATE SET
 
     final occurredEpochMs = DateTime.now().millisecondsSinceEpoch;
     var tokenCursor = _readLatestToken();
+    final snapshotStartToken = tokenCursor + 1;
 
     _database.execute('BEGIN IMMEDIATE TRANSACTION;');
     try {
@@ -289,6 +290,13 @@ ON CONFLICT(artwork_key, variant) DO UPDATE SET
       _database.execute('ROLLBACK;');
       rethrow;
     }
+
+    // Prune only history before this snapshot. Even very large snapshots must
+    // remain complete so clients never receive a partial change set.
+    _repository.pruneOldChangeEvents(
+      100000,
+      preserveFromToken: snapshotStartToken,
+    );
 
     _latestToken = tokenCursor;
     return CatalogWriteResult(

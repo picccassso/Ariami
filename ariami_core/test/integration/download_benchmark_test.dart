@@ -102,115 +102,116 @@ Future<void> _runDownloadBenchmark({required int simulatedUsers}) async {
     );
   }
 
-    final envMusicFolder = Platform.environment['ARIAMI_MUSIC_FOLDER'];
-    final useRealMusicFolder = envMusicFolder != null && envMusicFolder.isNotEmpty;
-    final tempDir = useRealMusicFolder
-        ? null
-        : await Directory.systemTemp.createTemp('ariami_download_bench_');
-    final authDir = await Directory.systemTemp.createTemp('ariami_auth_');
-    addTearDown(() async {
-      await authDir.delete(recursive: true);
-      if (tempDir != null) {
-        await tempDir.delete(recursive: true);
-      }
-    });
+  final envMusicFolder = Platform.environment['ARIAMI_MUSIC_FOLDER'];
+  final useRealMusicFolder =
+      envMusicFolder != null && envMusicFolder.isNotEmpty;
+  final tempDir = useRealMusicFolder
+      ? null
+      : await Directory.systemTemp.createTemp('ariami_download_bench_');
+  final authDir = await Directory.systemTemp.createTemp('ariami_auth_');
+  addTearDown(() async {
+    await authDir.delete(recursive: true);
+    if (tempDir != null) {
+      await tempDir.delete(recursive: true);
+    }
+  });
 
-    final libraryManager = LibraryManager();
-    final musicFolderPath = useRealMusicFolder ? envMusicFolder : tempDir!.path;
-    if (useRealMusicFolder) {
-      final dir = Directory(musicFolderPath);
-      if (!await dir.exists()) {
-        throw StateError('Music folder not found: $musicFolderPath');
-      }
-    } else {
-      await _createDummyAudioFiles(
-        tempDir,
-        count: 20,
-        sizeBytes: 2 * 1024 * 1024,
-      );
+  final libraryManager = LibraryManager();
+  final musicFolderPath = useRealMusicFolder ? envMusicFolder : tempDir!.path;
+  if (useRealMusicFolder) {
+    final dir = Directory(musicFolderPath);
+    if (!await dir.exists()) {
+      throw StateError('Music folder not found: $musicFolderPath');
+    }
+  } else {
+    await _createDummyAudioFiles(
+      tempDir,
+      count: 20,
+      sizeBytes: 2 * 1024 * 1024,
+    );
+  }
+
+  await libraryManager.scanMusicFolder(musicFolderPath);
+
+  final server = AriamiHttpServer();
+  server.setMusicFolderPath(musicFolderPath);
+  server.setDownloadLimits(
+    maxConcurrent: 12,
+    maxQueue: 120,
+    maxConcurrentPerUser: 6,
+    maxQueuePerUser: 80,
+  );
+  await server.initializeAuth(
+    usersFilePath: p.join(authDir.path, 'users.json'),
+    sessionsFilePath: p.join(authDir.path, 'sessions.json'),
+    forceReinitialize: true,
+  );
+
+  final port = await _findFreePort();
+  await server.start(
+    advertisedIp: '127.0.0.1',
+    bindAddress: '127.0.0.1',
+    port: port,
+  );
+
+  final baseUri = Uri.parse('http://127.0.0.1:$port/api');
+  final client = HttpClient()..maxConnectionsPerHost = 16;
+
+  try {
+    final users = <_LoginInfo>[];
+    for (var i = 0; i < simulatedUsers; i++) {
+      users.add(await _registerAndLogin(
+        client,
+        baseUri,
+        username: 'user_$i',
+        password: 'pass_$i',
+        deviceId: 'device_$i',
+        deviceName: 'Device $i',
+      ));
     }
 
-    await libraryManager.scanMusicFolder(musicFolderPath);
+    final library = libraryManager.library;
+    if (library == null || library.totalSongs == 0) {
+      throw StateError('No songs found in music folder: $musicFolderPath');
+    }
+    final songIds = _collectSongIds(library);
 
-    final server = AriamiHttpServer();
-    server.setMusicFolderPath(musicFolderPath);
-    server.setDownloadLimits(
-      maxConcurrent: 12,
-      maxQueue: 120,
-      maxConcurrentPerUser: 6,
-      maxQueuePerUser: 80,
-    );
-    await server.initializeAuth(
-      usersFilePath: p.join(authDir.path, 'users.json'),
-      sessionsFilePath: p.join(authDir.path, 'sessions.json'),
-      forceReinitialize: true,
-    );
+    final requestsPerUser = int.tryParse(
+          Platform.environment['ARIAMI_DOWNLOAD_REQUESTS_PER_USER'] ?? '',
+        ) ??
+        40;
+    final concurrencyPerUser = int.tryParse(
+          Platform.environment['ARIAMI_DOWNLOAD_CONCURRENCY'] ?? '',
+        ) ??
+        6;
 
-    final port = await _findFreePort();
-    await server.start(
-      advertisedIp: '127.0.0.1',
-      bindAddress: '127.0.0.1',
-      port: port,
-    );
-
-    final baseUri = Uri.parse('http://127.0.0.1:$port/api');
-    final client = HttpClient()..maxConnectionsPerHost = 16;
-
-    try {
-      final users = <_LoginInfo>[];
-      for (var i = 0; i < simulatedUsers; i++) {
-        users.add(await _registerAndLogin(
+    final overallStopwatch = Stopwatch()..start();
+    final results = await Future.wait(
+      users.map((user) {
+        return _runUserDownloadBatch(
           client,
           baseUri,
-          username: 'user_$i',
-          password: 'pass_$i',
-          deviceId: 'device_$i',
-          deviceName: 'Device $i',
-        ));
-      }
+          sessionToken: user.sessionToken,
+          songIds: songIds,
+          requests: requestsPerUser,
+          concurrency: concurrencyPerUser,
+        );
+      }),
+    );
+    overallStopwatch.stop();
 
-      final library = libraryManager.library;
-      if (library == null || library.totalSongs == 0) {
-        throw StateError('No songs found in music folder: $musicFolderPath');
-      }
-      final songIds = _collectSongIds(library);
-
-      final requestsPerUser = int.tryParse(
-            Platform.environment['ARIAMI_DOWNLOAD_REQUESTS_PER_USER'] ?? '',
-          ) ??
-          40;
-      final concurrencyPerUser = int.tryParse(
-            Platform.environment['ARIAMI_DOWNLOAD_CONCURRENCY'] ?? '',
-          ) ??
-          6;
-
-      final overallStopwatch = Stopwatch()..start();
-      final results = await Future.wait(
-        users.map((user) {
-          return _runUserDownloadBatch(
-            client,
-            baseUri,
-            sessionToken: user.sessionToken,
-            songIds: songIds,
-            requests: requestsPerUser,
-            concurrency: concurrencyPerUser,
-          );
-        }),
-      );
-      overallStopwatch.stop();
-
-      final combined = _combineStats(results, overallStopwatch.elapsed);
-      _printStats('Combined ($simulatedUsers users)', combined);
-      for (var i = 0; i < results.length; i++) {
-        _printStats('User $i', results[i]);
-      }
-
-      expect(combined.total, requestsPerUser * simulatedUsers);
-      expect(combined.successes, greaterThan(0));
-    } finally {
-      client.close(force: true);
-      await server.stop();
+    final combined = _combineStats(results, overallStopwatch.elapsed);
+    _printStats('Combined ($simulatedUsers users)', combined);
+    for (var i = 0; i < results.length; i++) {
+      _printStats('User $i', results[i]);
     }
+
+    expect(combined.total, requestsPerUser * simulatedUsers);
+    expect(combined.successes, greaterThan(0));
+  } finally {
+    client.close(force: true);
+    await server.stop();
+  }
 }
 
 Future<List<File>> _createDummyAudioFiles(
@@ -341,7 +342,8 @@ Future<_DownloadResult> _downloadSong(
     );
     final streamToken = ticketResponse['streamToken'] as String;
 
-    final downloadUri = baseUri.resolve('/api/download/$songId')
+    final downloadUri = baseUri
+        .resolve('/api/download/$songId')
         .replace(queryParameters: {'streamToken': streamToken});
 
     final request = await client.getUrl(downloadUri);
@@ -378,7 +380,8 @@ Future<Map<String, dynamic>> _postJson(
   String? authToken,
 }) async {
   final request = await client.postUrl(uri);
-  request.headers.set(HttpHeaders.contentTypeHeader, 'application/json; charset=utf-8');
+  request.headers
+      .set(HttpHeaders.contentTypeHeader, 'application/json; charset=utf-8');
   if (authToken != null) {
     request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $authToken');
   }
@@ -387,7 +390,8 @@ Future<Map<String, dynamic>> _postJson(
   final response = await request.close();
   final body = await response.transform(utf8.decoder).join();
   if (response.statusCode < 200 || response.statusCode >= 300) {
-    throw HttpException('Request failed (${response.statusCode}): $body', uri: uri);
+    throw HttpException('Request failed (${response.statusCode}): $body',
+        uri: uri);
   }
 
   return jsonDecode(body) as Map<String, dynamic>;

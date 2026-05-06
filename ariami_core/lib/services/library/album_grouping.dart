@@ -14,7 +14,8 @@ final RegExp _trailingFeatPattern = RegExp(
   caseSensitive: false,
 );
 
-final RegExp _albumPrefixPattern = RegExp(r'^album\s*[-:–—]\s*', caseSensitive: false);
+final RegExp _albumPrefixPattern =
+    RegExp(r'^album\s*[-:–—]\s*', caseSensitive: false);
 
 /// Artist string used only for grouping (not for display).
 String? albumGroupingArtist(SongMetadata song) {
@@ -74,4 +75,3 @@ String? normalizeAlbumTitle(String? album) {
   if (normalized.isEmpty) return null;
   return normalized;
 }
-

@@ -102,10 +102,7 @@ class SongMetadata {
 
   /// Returns true if this metadata has complete information
   bool get isComplete {
-    return title != null &&
-        artist != null &&
-        album != null &&
-        duration != null;
+    return title != null && artist != null && album != null && duration != null;
   }
 
   /// Returns true if metadata was likely parsed from filename

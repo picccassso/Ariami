@@ -5,10 +5,15 @@ import 'package:shelf/shelf.dart';
 class StreamingService {
   /// Stream an audio file by file path
   /// Supports HTTP range requests for seeking
-  Future<Response> streamFile(File audioFile, Request request) async {
+  Future<Response> streamFile(
+    File audioFile,
+    Request request, {
+    void Function()? onDone,
+  }) async {
     try {
       // Check if file exists
       if (!await audioFile.exists()) {
+        onDone?.call();
         return Response.notFound('File not found');
       }
 
@@ -17,9 +22,8 @@ class StreamingService {
 
       // Parse range header if present
       final rangeHeader = request.headers['range'];
-      final range = rangeHeader != null
-          ? RangeHeader.parse(rangeHeader, fileSize)
-          : null;
+      final range =
+          rangeHeader != null ? RangeHeader.parse(rangeHeader, fileSize) : null;
 
       // Determine content range
       final int start = range?.start ?? 0;
@@ -28,6 +32,7 @@ class StreamingService {
 
       // Validate range
       if (start < 0 || end >= fileSize || start > end) {
+        onDone?.call();
         return Response(
           416, // Range Not Satisfiable
           body: 'Invalid range',
@@ -58,7 +63,7 @@ class StreamingService {
       await raf.setPosition(start);
 
       // Create stream that reads specified range
-      final stream = _createRangeStream(raf, start, end);
+      final stream = _createRangeStream(raf, start, end, onDone: onDone);
 
       // Return appropriate response
       if (range != null) {
@@ -77,6 +82,7 @@ class StreamingService {
       }
     } catch (e) {
       print('Error streaming file: $e');
+      onDone?.call();
       return Response.internalServerError(body: 'Error streaming file: $e');
     }
   }
@@ -85,8 +91,9 @@ class StreamingService {
   Stream<List<int>> _createRangeStream(
     RandomAccessFile raf,
     int start,
-    int end,
-  ) async* {
+    int end, {
+    void Function()? onDone,
+  }) async* {
     const int chunkSize = 64 * 1024; // 64 KB chunks
     int remaining = end - start + 1;
 
@@ -104,6 +111,7 @@ class StreamingService {
       }
     } finally {
       await raf.close();
+      onDone?.call();
     }
   }
 

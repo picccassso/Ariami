@@ -16,7 +16,8 @@ void main() {
   late Directory tempDir;
 
   setUpAll(() async {
-    tempDir = await Directory.systemTemp.createTemp('ariami_integration_tests_');
+    tempDir =
+        await Directory.systemTemp.createTemp('ariami_integration_tests_');
   });
 
   tearDownAll(() async {
@@ -307,7 +308,8 @@ void main() {
       expect(streamTracker.ticketCount, equals(1));
     });
 
-    test('streams are independent - ending one does not affect others', () async {
+    test('streams are independent - ending one does not affect others',
+        () async {
       // Setup: Two users streaming
       final user1 = await userStore.createUser('alice', 'hash1');
       final user2 = await userStore.createUser('bob', 'hash2');
@@ -426,8 +428,10 @@ void main() {
       // Server stats
       expect(userStore.userCount, equals(3)); // Total registered users
       expect(sessionStore.sessionCount, equals(3)); // Active sessions
-      expect(streamTracker.activeStreamerCount, equals(2)); // Users actively streaming
-      expect(streamTracker.activeStreamCount, equals(2)); // Total active streams
+      expect(streamTracker.activeStreamerCount,
+          equals(2)); // Users actively streaming
+      expect(
+          streamTracker.activeStreamCount, equals(2)); // Total active streams
 
       // User 3 is connected but not streaming
       expect(sessionStore.getSession(session3.sessionToken), isNotNull);
@@ -537,7 +541,8 @@ void main() {
 
       expect(streamTracker.ticketCount, equals(20));
       expect(streamTracker.activeStreamCount, equals(20));
-      expect(streamTracker.activeStreamerCount, equals(10)); // 10 distinct users
+      expect(
+          streamTracker.activeStreamerCount, equals(10)); // 10 distinct users
     });
 
     test('rapid ticket issuance does not cause collisions', () {

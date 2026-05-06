@@ -81,6 +81,12 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
       _streamTracker.startStream(streamToken);
     }
 
+    void endStreamTracker() {
+      if (streamToken != null) {
+        _streamTracker.endStream(streamToken);
+      }
+    }
+
     // Parse quality parameter
     final qualityParam = request.url.queryParameters['quality'];
     final quality = QualityPreset.fromString(qualityParam);
@@ -88,6 +94,7 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
     // Look up file path from library by song ID
     final filePath = _libraryManager.getSongFilePath(path);
     if (filePath == null) {
+      endStreamTracker();
       return _songNotFoundResponse(path);
     }
     final sourceBitrateKbps = _libraryManager.getKnownSongBitrate(path);
@@ -96,6 +103,7 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
 
     // Check if file exists
     if (!await originalFile.exists()) {
+      endStreamTracker();
       return _audioFileNotFoundResponse(path);
     }
 
@@ -103,6 +111,7 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
     if (_musicFolderPath != null) {
       final canonicalPath = originalFile.absolute.path;
       if (!canonicalPath.startsWith(_musicFolderPath!)) {
+        endStreamTracker();
         return _fileOutsideLibraryResponse();
       }
     }
@@ -130,11 +139,14 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
             '[HttpServer] Streaming transcoded file at ${quality.name} quality');
 
         // Stream the file and release in-use when done
-        try {
-          return await _streamingService.streamFile(fileToStream, request);
-        } finally {
-          _transcodingService!.releaseInUse(path, quality);
-        }
+        return await _streamingService.streamFile(
+          fileToStream,
+          request,
+          onDone: () {
+            _transcodingService!.releaseInUse(path, quality);
+            endStreamTracker();
+          },
+        );
       } else {
         // Transcoding failed or FFmpeg not available - fall back to original
         print(
@@ -146,7 +158,11 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
     }
 
     // Stream the file (original or non-transcoded)
-    return await _streamingService.streamFile(fileToStream, request);
+    return await _streamingService.streamFile(
+      fileToStream,
+      request,
+      onDone: endStreamTracker,
+    );
   }
 
   /// Handle download request (full file download)

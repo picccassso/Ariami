@@ -28,9 +28,15 @@ class DownloadJobService {
     required DownloadJobCatalogRepositoryProvider catalogRepositoryProvider,
     int maxActiveJobsPerUser = _defaultMaxActiveJobsPerUser,
     int maxQueuedItemsPerUser = _defaultMaxQueuedItemsPerUser,
+    int maxTotalJobs = _defaultMaxTotalJobs,
+    Duration cancelledJobRetention = _defaultCancelledJobRetention,
+    DateTime Function()? nowProvider,
   })  : _catalogRepositoryProvider = catalogRepositoryProvider,
         _maxActiveJobsPerUser = maxActiveJobsPerUser,
-        _maxQueuedItemsPerUser = maxQueuedItemsPerUser;
+        _maxQueuedItemsPerUser = maxQueuedItemsPerUser,
+        _maxTotalJobs = maxTotalJobs,
+        _cancelledJobRetention = cancelledJobRetention,
+        _nowProvider = nowProvider ?? (() => DateTime.now().toUtc());
 
   final DownloadJobCatalogRepositoryProvider _catalogRepositoryProvider;
   final Random _random = Random.secure();
@@ -41,6 +47,8 @@ class DownloadJobService {
   static const int _defaultMaxActiveJobsPerUser = 8;
   static const int _defaultMaxQueuedItemsPerUser = 10000;
   static const int _quotaRetryAfterSeconds = 5;
+  static const int _defaultMaxTotalJobs = 1000;
+  static const Duration _defaultCancelledJobRetention = Duration(hours: 1);
   static const Set<String> _supportedQualities = <String>{
     'high',
     'medium',
@@ -48,11 +56,16 @@ class DownloadJobService {
   };
   final int _maxActiveJobsPerUser;
   final int _maxQueuedItemsPerUser;
+  final int _maxTotalJobs;
+  final Duration _cancelledJobRetention;
+  final DateTime Function() _nowProvider;
 
   DownloadJobCreateResponse createJob({
     required String userScopeId,
     required DownloadJobCreateRequest request,
   }) {
+    _opportunisticCleanup();
+
     final repository = _catalogRepositoryProvider();
     if (repository == null) {
       throw const DownloadJobServiceException(
@@ -87,16 +100,23 @@ class DownloadJobService {
       );
     }
 
-    final snapshot = _buildCatalogSnapshot(repository);
+    final songRecords = repository.getSongsByIds(normalizedSongIds);
+    final songsById = {for (final s in songRecords) s.id: s};
+
+    final albumRecords = repository.getAlbumsByIds(normalizedAlbumIds);
+    final albumsById = {for (final a in albumRecords) a.id: a};
+
+    final playlistRecords = repository.getPlaylistsByIds(normalizedPlaylistIds);
+    final playlistsById = {for (final p in playlistRecords) p.id: p};
 
     final invalidSongIds = normalizedSongIds
-        .where((songId) => !snapshot.songsById.containsKey(songId))
+        .where((songId) => !songsById.containsKey(songId))
         .toList();
     final invalidAlbumIds = normalizedAlbumIds
-        .where((albumId) => !snapshot.albumsById.containsKey(albumId))
+        .where((albumId) => !albumsById.containsKey(albumId))
         .toList();
     final invalidPlaylistIds = normalizedPlaylistIds
-        .where((playlistId) => !snapshot.playlistsById.containsKey(playlistId))
+        .where((playlistId) => !playlistsById.containsKey(playlistId))
         .toList();
 
     if (invalidSongIds.isNotEmpty ||
@@ -118,21 +138,46 @@ class DownloadJobService {
     final resolvedSongIds = LinkedHashSet<String>();
     resolvedSongIds.addAll(normalizedSongIds);
 
+    final albumSongs = repository.getSongsByAlbumIds(normalizedAlbumIds);
+    final songsByAlbumId = <String, List<CatalogSongRecord>>{};
+    for (final song in albumSongs) {
+      if (song.albumId != null) {
+        songsByAlbumId.putIfAbsent(song.albumId!, () => []).add(song);
+      }
+    }
+    for (final songs in songsByAlbumId.values) {
+      songs.sort((a, b) {
+        final trackCompare =
+            (a.trackNumber ?? 1 << 30).compareTo(b.trackNumber ?? 1 << 30);
+        if (trackCompare != 0) return trackCompare;
+        return a.id.compareTo(b.id);
+      });
+    }
+
     for (final albumId in normalizedAlbumIds) {
-      final albumSongs = snapshot.songsByAlbumId[albumId];
-      if (albumSongs == null) continue;
-      for (final song in albumSongs) {
+      final songs = songsByAlbumId[albumId];
+      if (songs == null) continue;
+      for (final song in songs) {
         resolvedSongIds.add(song.id);
       }
     }
 
+    final playlistSongs =
+        repository.getPlaylistSongsByPlaylistIds(normalizedPlaylistIds);
+    final playlistSongIdsByPlaylistId = <String, List<String>>{};
+    for (final ps in playlistSongs) {
+      playlistSongIdsByPlaylistId
+          .putIfAbsent(ps.playlistId, () => [])
+          .add(ps.songId);
+    }
+
     for (final playlistId in normalizedPlaylistIds) {
-      final playlist = snapshot.playlistsById[playlistId];
-      if (playlist == null) continue;
-      for (final songId in playlist.songIds) {
-        if (snapshot.songsById.containsKey(songId)) {
-          resolvedSongIds.add(songId);
-        }
+      final pSongs = playlistSongIdsByPlaylistId[playlistId];
+      if (pSongs == null) continue;
+      for (final songId in pSongs) {
+        // We do not strict validate playlist songs existence here,
+        // we filter them later when fetching the final list
+        resolvedSongIds.add(songId);
       }
     }
 
@@ -149,15 +194,24 @@ class DownloadJobService {
       additionalQueuedItems: resolvedSongIds.length,
     );
 
-    final now = DateTime.now().toUtc();
+    final now = _nowProvider();
     final jobId = _generateJobId(now);
+
+    final allResolvedSongs = repository.getSongsByIds(resolvedSongIds.toList());
+    final allResolvedSongsById = {for (final s in allResolvedSongs) s.id: s};
+    final resolvedAlbumIdsToFetch =
+        allResolvedSongs.map((s) => s.albumId).whereType<String>().toSet();
+    final resolvedAlbums =
+        repository.getAlbumsByIds(resolvedAlbumIdsToFetch.toList());
+    final allResolvedAlbumsById = {for (final a in resolvedAlbums) a.id: a};
 
     final items = <_DownloadJobItemRecord>[];
     var itemOrder = 0;
     for (final songId in resolvedSongIds) {
-      final song = snapshot.songsById[songId]!;
+      final song = allResolvedSongsById[songId];
+      if (song == null) continue; // Skip invalid/deleted playlist songs
       final album =
-          song.albumId != null ? snapshot.albumsById[song.albumId!] : null;
+          song.albumId != null ? allResolvedAlbumsById[song.albumId!] : null;
       items.add(
         _DownloadJobItemRecord(
           itemOrder: itemOrder,
@@ -176,6 +230,15 @@ class DownloadJobService {
       itemOrder += 1;
     }
 
+    // Check again if empty after skipping missing playlist songs
+    if (items.isEmpty) {
+      throw const DownloadJobServiceException(
+        statusCode: 400,
+        code: DownloadJobErrorCodes.invalidRequest,
+        message: 'No valid songs resolved from requested IDs',
+      );
+    }
+
     final record = _DownloadJobRecord(
       jobId: jobId,
       userScopeId: userScopeId,
@@ -187,6 +250,7 @@ class DownloadJobService {
       updatedAt: now,
     );
     _jobs[jobId] = record;
+    _opportunisticCleanup();
 
     return DownloadJobCreateResponse(
       jobId: record.jobId,
@@ -203,6 +267,8 @@ class DownloadJobService {
     required String userScopeId,
     required String jobId,
   }) {
+    _opportunisticCleanup();
+
     final record = _requireScopedJob(userScopeId: userScopeId, jobId: jobId);
     return record.toStatusResponse();
   }
@@ -213,6 +279,8 @@ class DownloadJobService {
     int? cursor,
     int limit = defaultPageLimit,
   }) {
+    _opportunisticCleanup();
+
     if (limit <= 0 || limit > maxPageLimit) {
       throw const DownloadJobServiceException(
         statusCode: 400,
@@ -267,7 +335,7 @@ class DownloadJobService {
       );
     }
 
-    final now = DateTime.now().toUtc();
+    final now = _nowProvider();
     record.status = DownloadJobStatus.cancelled;
     record.updatedAt = now;
     for (final item in record.items) {
@@ -275,6 +343,8 @@ class DownloadJobService {
         item.status = DownloadJobItemStatus.cancelled;
       }
     }
+
+    _opportunisticCleanup();
 
     return DownloadJobCancelResponse(
       jobId: record.jobId,
@@ -315,92 +385,6 @@ class DownloadJobService {
       deduped.add(trimmed);
     }
     return deduped.toList();
-  }
-
-  _CatalogSnapshot _buildCatalogSnapshot(CatalogRepository repository) {
-    final songsById = <String, _CatalogSongView>{};
-    final songsByAlbumId = <String, List<_CatalogSongView>>{};
-    final albumsById = <String, _CatalogAlbumView>{};
-    final playlistsById = <String, _CatalogPlaylistView>{};
-
-    String? songCursor;
-    while (true) {
-      final page = repository.listSongsPage(cursor: songCursor, limit: 500);
-      for (final song in page.items) {
-        final view = _CatalogSongView(
-          id: song.id,
-          title: song.title,
-          artist: song.artist,
-          albumId: song.albumId,
-          durationSeconds: song.durationSeconds,
-          trackNumber: song.trackNumber,
-          fileSizeBytes: song.fileSizeBytes,
-        );
-        songsById[view.id] = view;
-        final albumId = view.albumId;
-        if (albumId != null) {
-          songsByAlbumId.putIfAbsent(albumId, () => <_CatalogSongView>[]).add(
-                view,
-              );
-        }
-      }
-      if (!page.hasMore || page.nextCursor == null) {
-        break;
-      }
-      songCursor = page.nextCursor;
-    }
-
-    for (final songs in songsByAlbumId.values) {
-      songs.sort((a, b) {
-        final trackCompare =
-            (a.trackNumber ?? 1 << 30).compareTo(b.trackNumber ?? 1 << 30);
-        if (trackCompare != 0) return trackCompare;
-        return a.id.compareTo(b.id);
-      });
-    }
-
-    String? albumCursor;
-    while (true) {
-      final page = repository.listAlbumsPage(cursor: albumCursor, limit: 500);
-      for (final album in page.items) {
-        albumsById[album.id] = _CatalogAlbumView(
-          id: album.id,
-          title: album.title,
-          artist: album.artist,
-        );
-      }
-      if (!page.hasMore || page.nextCursor == null) {
-        break;
-      }
-      albumCursor = page.nextCursor;
-    }
-
-    String? playlistCursor;
-    while (true) {
-      final page =
-          repository.listPlaylistsPage(cursor: playlistCursor, limit: 500);
-      for (final playlist in page.items) {
-        playlistsById[playlist.id] = _CatalogPlaylistView(
-          id: playlist.id,
-          name: playlist.name,
-          songIds: repository
-              .listPlaylistSongs(playlist.id)
-              .map((item) => item.songId)
-              .toList(),
-        );
-      }
-      if (!page.hasMore || page.nextCursor == null) {
-        break;
-      }
-      playlistCursor = page.nextCursor;
-    }
-
-    return _CatalogSnapshot(
-      songsById: songsById,
-      songsByAlbumId: songsByAlbumId,
-      albumsById: albumsById,
-      playlistsById: playlistsById,
-    );
   }
 
   void _enforcePerUserQuotas({
@@ -447,64 +431,36 @@ class DownloadJobService {
       );
     }
   }
-}
 
-class _CatalogSnapshot {
-  _CatalogSnapshot({
-    required this.songsById,
-    required this.songsByAlbumId,
-    required this.albumsById,
-    required this.playlistsById,
-  });
+  void _opportunisticCleanup() {
+    if (_jobs.isEmpty) return;
 
-  final Map<String, _CatalogSongView> songsById;
-  final Map<String, List<_CatalogSongView>> songsByAlbumId;
-  final Map<String, _CatalogAlbumView> albumsById;
-  final Map<String, _CatalogPlaylistView> playlistsById;
-}
+    final now = _nowProvider();
+    final expiredDate = now.subtract(_cancelledJobRetention);
 
-class _CatalogSongView {
-  _CatalogSongView({
-    required this.id,
-    required this.title,
-    required this.artist,
-    required this.albumId,
-    required this.durationSeconds,
-    required this.trackNumber,
-    required this.fileSizeBytes,
-  });
+    // First, remove old cancelled jobs
+    _jobs.removeWhere((id, job) =>
+        job.status == DownloadJobStatus.cancelled &&
+        job.updatedAt.isBefore(expiredDate));
 
-  final String id;
-  final String title;
-  final String artist;
-  final String? albumId;
-  final int durationSeconds;
-  final int? trackNumber;
-  final int? fileSizeBytes;
-}
+    // Backstop: If we still have too many jobs, remove the oldest ones
+    if (_jobs.length > _maxTotalJobs) {
+      final sortedJobs = _jobs.values.toList()
+        ..sort((a, b) {
+          // Prioritize removing cancelled jobs over ready ones
+          if (a.status != b.status) {
+            if (a.status == DownloadJobStatus.cancelled) return -1;
+            if (b.status == DownloadJobStatus.cancelled) return 1;
+          }
+          return a.createdAt.compareTo(b.createdAt);
+        });
 
-class _CatalogAlbumView {
-  _CatalogAlbumView({
-    required this.id,
-    required this.title,
-    required this.artist,
-  });
-
-  final String id;
-  final String title;
-  final String artist;
-}
-
-class _CatalogPlaylistView {
-  _CatalogPlaylistView({
-    required this.id,
-    required this.name,
-    required this.songIds,
-  });
-
-  final String id;
-  final String name;
-  final List<String> songIds;
+      final jobsToRemove = sortedJobs.take(_jobs.length - _maxTotalJobs);
+      for (final job in jobsToRemove) {
+        _jobs.remove(job.jobId);
+      }
+    }
+  }
 }
 
 class _DownloadJobRecord {
