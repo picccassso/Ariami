@@ -88,10 +88,10 @@ class DownloadsController extends ChangeNotifier {
   Timer? _flushTimer;
 
   // ---- Session totals ---------------------------------------------------
-  /// Tasks observed in pending/downloading/paused state since the screen
-  /// opened. Used to anchor "X / Y songs" in the summary card so old library
-  /// downloads don't inflate the denominator.
-  final Set<String> _sessionTaskIds = {};
+  /// Tasks observed in pending/downloading/paused state during this app
+  /// session. Sourced from [DownloadManager.sessionTaskIds] (singleton-scoped)
+  /// so the "X / Y" counter stays stable across screen navigations.
+  Set<String> get _sessionTaskIds => _downloadManager.sessionTaskIds;
 
   bool _disposed = false;
 

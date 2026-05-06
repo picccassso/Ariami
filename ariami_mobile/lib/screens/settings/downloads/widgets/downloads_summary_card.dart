@@ -88,7 +88,7 @@ class DownloadsSummaryCard extends StatelessWidget {
               ClipRRect(
                 borderRadius: BorderRadius.circular(10),
                 child: LinearProgressIndicator(
-                  value: value.bytesTotal > 0 ? value.progress : null,
+                  value: value.totalSongs > 0 ? value.progress : null,
                   minHeight: 6,
                   backgroundColor: isDark
                       ? const Color(0xFF1A1A1A)
@@ -107,8 +107,8 @@ class DownloadsSummaryCard extends StatelessWidget {
 
   String _headlineText(OverallProgressSummary value) {
     if (value.totalSongs > 0 && value.completedSongs <= value.totalSongs) {
-      return 'Downloading ${value.completedSongs} of ${value.totalSongs} songs';
+      return 'Downloading ${value.completedSongs} of ${value.totalSongs}';
     }
-    return 'Downloading ${value.inProgressSongs} song${value.inProgressSongs == 1 ? '' : 's'}';
+    return 'Downloading ${value.inProgressSongs}';
   }
 }

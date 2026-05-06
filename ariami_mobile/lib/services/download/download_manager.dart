@@ -68,6 +68,15 @@ class DownloadManager {
   /// Get current queue
   List<DownloadTask> get queue => _getScopedQueue();
 
+  /// Authoritative count of downloads currently occupying a concurrency slot.
+  int get activeDownloadCount => _activeDownloadCount;
+
+  /// Tasks observed in pending/downloading/paused state during this app
+  /// session. Used by the downloads screen to anchor "X / Y" totals so old
+  /// library downloads don't inflate the denominator and the count stays
+  /// stable when the screen is closed and reopened mid-batch.
+  final Set<String> sessionTaskIds = <String>{};
+
   /// Check if initialized
   bool get isInitialized => _initialized;
 

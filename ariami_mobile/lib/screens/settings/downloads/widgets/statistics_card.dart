@@ -8,11 +8,13 @@ class StatisticsCard extends StatelessWidget {
     required this.isDark,
     required this.sizeMB,
     required this.stats,
+    required this.activeCount,
   });
 
   final bool isDark;
   final double sizeMB;
   final QueueStats stats;
+  final int activeCount;
 
   @override
   Widget build(BuildContext context) {
@@ -33,7 +35,7 @@ class StatisticsCard extends StatelessWidget {
                     letterSpacing: 0.2,
                   ),
                 ),
-                if (stats.downloading > 0)
+                if (activeCount > 0)
                   Container(
                     padding:
                         const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -42,7 +44,7 @@ class StatisticsCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
-                      '${stats.downloading} active',
+                      '$activeCount active',
                       style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.w800,

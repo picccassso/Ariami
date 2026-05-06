@@ -253,6 +253,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                         isDark: isDark,
                         sizeMB: dm.getTotalDownloadedSizeMB(),
                         stats: dm.getQueueStats(),
+                        activeCount: dm.activeDownloadCount,
                       ),
                       DownloadModeCard(
                         isDark: isDark,

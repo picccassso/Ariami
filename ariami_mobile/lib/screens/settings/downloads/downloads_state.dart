@@ -43,7 +43,7 @@ class OverallProgressSummary {
   static const empty = OverallProgressSummary();
 
   bool get hasActivity => inProgressSongs > 0;
-  double get progress => bytesTotal > 0 ? bytesDone / bytesTotal : 0.0;
+  double get progress => totalSongs > 0 ? completedSongs / totalSongs : 0.0;
   int get percentage => (progress * 100).clamp(0, 100).toInt();
 }
 
