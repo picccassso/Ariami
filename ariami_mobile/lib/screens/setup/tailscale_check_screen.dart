@@ -254,68 +254,76 @@ class _TailscaleCheckScreenState extends State<TailscaleCheckScreen> {
       return const SizedBox.shrink();
     }
 
-    return Column(
-      children: [
-        // Install/Open Tailscale button
-        if (_status == TailscaleStatus.notDetected)
-          SizedBox(
-            width: double.infinity,
-            height: 56,
-            child: ElevatedButton.icon(
-              onPressed: _openTailscaleStore,
-              icon: const Icon(Icons.download),
-              label: Text(
-                Platform.isAndroid ? 'Open Play Store' : 'Open App Store',
-                style: const TextStyle(fontSize: 18),
-              ),
-              style: ElevatedButton.styleFrom(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
-          ),
+    final actions = <Widget>[];
 
-        // Check Again button
+    if (_status == TailscaleStatus.notDetected) {
+      actions.add(
         SizedBox(
           width: double.infinity,
           height: 56,
-          child: OutlinedButton.icon(
-            onPressed: _checkTailscale,
-            icon: const Icon(Icons.refresh),
-            label: const Text(
-              'Check Again',
-              style: TextStyle(fontSize: 18),
+          child: ElevatedButton.icon(
+            onPressed: _openTailscaleStore,
+            icon: const Icon(Icons.download),
+            label: Text(
+              Platform.isAndroid ? 'Open Play Store' : 'Open App Store',
+              style: const TextStyle(fontSize: 18),
             ),
-            style: OutlinedButton.styleFrom(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
-
-        SizedBox(
-          width: double.infinity,
-          height: 56,
-          child: ElevatedButton(
-            onPressed: () {
-              Navigator.pushNamed(context, '/setup/scanner');
-            },
             style: ElevatedButton.styleFrom(
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
-            child: Text(
-              _status == TailscaleStatus.connected
-                  ? 'Continue to Scanner'
-                  : 'Continue with Local Setup',
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+          ),
+        ),
+      );
+    }
+
+    actions.addAll([
+      SizedBox(
+        width: double.infinity,
+        height: 56,
+        child: OutlinedButton.icon(
+          onPressed: _checkTailscale,
+          icon: const Icon(Icons.refresh),
+          label: const Text(
+            'Check Again',
+            style: TextStyle(fontSize: 18),
+          ),
+          style: OutlinedButton.styleFrom(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
             ),
           ),
         ),
+      ),
+      SizedBox(
+        width: double.infinity,
+        height: 56,
+        child: ElevatedButton(
+          onPressed: () {
+            Navigator.pushNamed(context, '/setup/scanner');
+          },
+          style: ElevatedButton.styleFrom(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          child: Text(
+            _status == TailscaleStatus.connected
+                ? 'Continue to Scanner'
+                : 'Continue with Local Setup',
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+          ),
+        ),
+      ),
+    ]);
+
+    return Column(
+      children: [
+        for (final action in actions) ...[
+          action,
+          if (action != actions.last) const SizedBox(height: 16),
+        ],
       ],
     );
   }
