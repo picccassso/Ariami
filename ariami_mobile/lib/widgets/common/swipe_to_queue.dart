@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'queue_action_confirmation.dart';
 
 /// Adds Spotify-style right swipe to queue without dismissing the row.
-class SwipeToQueue extends StatelessWidget {
+class SwipeToQueue extends StatefulWidget {
   final Widget child;
   final VoidCallback onAddToQueue;
   final VoidCallback? onRemove;
@@ -20,16 +20,48 @@ class SwipeToQueue extends StatelessWidget {
   });
 
   @override
+  State<SwipeToQueue> createState() => _SwipeToQueueState();
+}
+
+class _SwipeToQueueState extends State<SwipeToQueue> {
+  bool _queueActionLocked = false;
+
+  Future<bool> _handleConfirmDismiss(
+    BuildContext context,
+    DismissDirection direction,
+  ) async {
+    if (direction == DismissDirection.startToEnd) {
+      if (widget.addToQueueEnabled && !_queueActionLocked) {
+        _queueActionLocked = true;
+        widget.onAddToQueue();
+        showQueueActionConfirmation(context);
+
+        Future<void>.delayed(const Duration(milliseconds: 700), () {
+          if (!mounted) return;
+          _queueActionLocked = false;
+        });
+      }
+      return false;
+    }
+
+    if (direction == DismissDirection.endToStart) {
+      return widget.onRemove != null;
+    }
+
+    return false;
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (!addToQueueEnabled && onRemove == null) {
-      return child;
+    if (!widget.addToQueueEnabled && widget.onRemove == null) {
+      return widget.child;
     }
 
     const queueActionColor = Color(0xFF1DB954);
 
     return Dismissible(
-      key: itemKey,
-      direction: switch ((addToQueueEnabled, onRemove != null)) {
+      key: widget.itemKey,
+      direction: switch ((widget.addToQueueEnabled, widget.onRemove != null)) {
         (true, true) => DismissDirection.horizontal,
         (true, false) => DismissDirection.startToEnd,
         (false, true) => DismissDirection.endToStart,
@@ -37,7 +69,7 @@ class SwipeToQueue extends StatelessWidget {
       },
       dismissThresholds: <DismissDirection, double>{
         DismissDirection.startToEnd: 0.24,
-        if (onRemove != null) DismissDirection.endToStart: 0.6,
+        if (widget.onRemove != null) DismissDirection.endToStart: 0.6,
       },
       background: Container(
         alignment: Alignment.centerLeft,
@@ -49,7 +81,7 @@ class SwipeToQueue extends StatelessWidget {
           size: 34,
         ),
       ),
-      secondaryBackground: onRemove == null
+      secondaryBackground: widget.onRemove == null
           ? null
           : Container(
               alignment: Alignment.centerRight,
@@ -57,23 +89,9 @@ class SwipeToQueue extends StatelessWidget {
               color: Colors.red,
               child: const Icon(Icons.delete, color: Colors.white),
             ),
-      confirmDismiss: (direction) async {
-        if (direction == DismissDirection.startToEnd) {
-          if (addToQueueEnabled) {
-            onAddToQueue();
-            showQueueActionConfirmation(context);
-          }
-          return false;
-        }
-
-        if (direction == DismissDirection.endToStart) {
-          return onRemove != null;
-        }
-
-        return false;
-      },
-      onDismissed: (_) => onRemove?.call(),
-      child: child,
+      confirmDismiss: (direction) => _handleConfirmDismiss(context, direction),
+      onDismissed: (_) => widget.onRemove?.call(),
+      child: widget.child,
     );
   }
 }
