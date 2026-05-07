@@ -7,6 +7,7 @@ import '../../../models/quality_settings.dart';
 import '../../../services/api/connection_service.dart';
 import '../../../widgets/common/mini_player_aware_bottom_sheet.dart';
 import 'downloads_controller.dart';
+import 'downloads_state.dart';
 import 'widgets/widgets.dart';
 
 class DownloadsScreen extends StatefulWidget {
@@ -210,9 +211,8 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
           IconButton(
             icon: Icon(
               Icons.delete_outline,
-              color: hasAnythingToDelete
-                  ? null
-                  : Theme.of(context).disabledColor,
+              color:
+                  hasAnythingToDelete ? null : Theme.of(context).disabledColor,
             ),
             onPressed: hasAnythingToDelete ? _clearAllDownloads : null,
             tooltip: 'Clear all downloads',
@@ -259,18 +259,16 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                         isDark: isDark,
                         downloadQuality: state.downloadQuality,
                         downloadOriginal: state.downloadOriginal,
-                        onChanged:
-                            state.downloadQuality == StreamingQuality.high
-                                ? (value) async {
-                                    await _controller
-                                        .setDownloadOriginal(value);
-                                  }
-                                : null,
+                        onChanged: state.downloadQuality ==
+                                StreamingQuality.high
+                            ? (value) async {
+                                await _controller.setDownloadOriginal(value);
+                              }
+                            : null,
                       ),
                       DownloadsRecoveryPreferencesCard(
                         isDark: isDark,
-                        autoResumeOnLaunch:
-                            state.autoResumeInterruptedOnLaunch,
+                        autoResumeOnLaunch: state.autoResumeInterruptedOnLaunch,
                         onChanged: (enabled) {
                           unawaited(
                             _controller
@@ -299,8 +297,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                         totalPlaylistSongCount: state.totalPlaylistSongCount,
                         isLoadingCounts: state.isLoadingCounts,
                         isDownloadingAllSongs: state.isDownloadingAllSongs,
-                        isDownloadingAllAlbums:
-                            state.isDownloadingAllAlbums,
+                        isDownloadingAllAlbums: state.isDownloadingAllAlbums,
                         isDownloadingAllPlaylists:
                             state.isDownloadingAllPlaylists,
                         isDisabled: hasActiveDownloads,
@@ -317,8 +314,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                         cachedSongCount: state.cachedSongCount,
                         cacheLimitMB: state.cacheLimitMB,
                         onLimitChanged: (value) {
-                          _controller
-                              .setCacheLimitDuringDrag(value.round());
+                          _controller.setCacheLimitDuringDrag(value.round());
                         },
                         onLimitChangeEnd: (value) {
                           unawaited(
@@ -341,8 +337,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                           album: album,
                           isDark: isDark,
                           isLast: index == state.inProgressAlbums.length - 1,
-                          isExpanded:
-                              state.expandedAlbums.contains(album.key),
+                          isExpanded: state.expandedAlbums.contains(album.key),
                           onToggleExpand: () =>
                               _controller.toggleAlbumExpanded(album.key),
                           albumProgress:
@@ -357,49 +352,8 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                   if (state.completedTasks.isNotEmpty)
                     _buildSectionHeader('DOWNLOADED', isDark),
                   if (state.completedTasks.isNotEmpty)
-                    SliverList.builder(
-                      itemCount: state.sortedCompletedAlbumKeys.length,
-                      itemBuilder: (context, index) {
-                        final albumId =
-                            state.sortedCompletedAlbumKeys[index];
-                        final songs = state.groupedCompletedTasks[albumId]!;
-                        final isLast =
-                            index == state.sortedCompletedAlbumKeys.length - 1;
-                        if (albumId == null) {
-                          return SinglesCard(
-                            songs: songs,
-                            isDark: isDark,
-                            isLast: isLast,
-                            isExpanded: state.expandedAlbums
-                                .contains(SinglesCard.singlesKey),
-                            onToggleExpand: () => _controller
-                                .toggleAlbumExpanded(SinglesCard.singlesKey),
-                            onDeleteSingles: () => _confirmDeleteAlbum(
-                                null, 'Singles', songs.length),
-                            onRemoveSong: _controller.cancelDownload,
-                          );
-                        }
-                        return AlbumCard(
-                          albumId: albumId,
-                          songs: songs,
-                          isDark: isDark,
-                          isLast: isLast,
-                          isExpanded:
-                              state.expandedAlbums.contains(albumId),
-                          onToggleExpand: () =>
-                              _controller.toggleAlbumExpanded(albumId),
-                          onDeleteAlbum: () {
-                            final name =
-                                songs.first.albumName ?? 'Unknown Album';
-                            _confirmDeleteAlbum(
-                                albumId, name, songs.length);
-                          },
-                          onRemoveSong: _controller.cancelDownload,
-                        );
-                      },
-                    ),
-                  if (state.hasAnyFailed)
-                    _buildSectionHeader('FAILED', isDark),
+                    ..._buildDownloadedSlivers(state, isDark),
+                  if (state.hasAnyFailed) _buildSectionHeader('FAILED', isDark),
                   if (state.hasAnyFailed)
                     SliverList.builder(
                       itemCount: state.failedAlbums.length,
@@ -410,8 +364,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                           album: album,
                           isDark: isDark,
                           isLast: index == state.failedAlbums.length - 1,
-                          isExpanded:
-                              state.expandedAlbums.contains(album.key),
+                          isExpanded: state.expandedAlbums.contains(album.key),
                           onToggleExpand: () =>
                               _controller.toggleAlbumExpanded(album.key),
                           onRetryAll: () =>
@@ -447,6 +400,94 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
             color: isDark ? Colors.white : Colors.black,
             letterSpacing: 1.5,
           ),
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _buildDownloadedSlivers(DownloadsState state, bool isDark) {
+    final slivers = <Widget>[];
+    for (var index = 0;
+        index < state.sortedCompletedAlbumKeys.length;
+        index++) {
+      final albumId = state.sortedCompletedAlbumKeys[index];
+      final songs = state.groupedCompletedTasks[albumId]!;
+      final isLast = index == state.sortedCompletedAlbumKeys.length - 1;
+
+      if (albumId == null) {
+        final isExpanded =
+            state.expandedAlbums.contains(SinglesCard.singlesKey);
+        slivers.add(
+          SliverToBoxAdapter(
+            child: SinglesCard(
+              songs: songs,
+              isDark: isDark,
+              isLast: isExpanded ? true : isLast,
+              isExpanded: isExpanded,
+              onToggleExpand: () =>
+                  _controller.toggleAlbumExpanded(SinglesCard.singlesKey),
+              onDeleteSingles: () =>
+                  _confirmDeleteAlbum(null, 'Singles', songs.length),
+            ),
+          ),
+        );
+
+        if (isExpanded) {
+          slivers.add(
+            SliverList.builder(
+              itemCount: songs.length,
+              itemBuilder: (context, songIndex) {
+                final song = songs[songIndex];
+                return Container(
+                  color: isDark
+                      ? Colors.black.withValues(alpha: 0.3)
+                      : Colors.grey[50],
+                  child: AlbumSongItem(
+                    task: song,
+                    isDark: isDark,
+                    isLast: songIndex == songs.length - 1,
+                    onRemove: () => _controller.cancelDownload(song.id),
+                  ),
+                );
+              },
+            ),
+          );
+          if (!isLast) {
+            slivers.add(_buildDownloadedDivider(isDark));
+          }
+        }
+        continue;
+      }
+
+      slivers.add(
+        SliverToBoxAdapter(
+          child: AlbumCard(
+            albumId: albumId,
+            songs: songs,
+            isDark: isDark,
+            isLast: isLast,
+            isExpanded: state.expandedAlbums.contains(albumId),
+            onToggleExpand: () => _controller.toggleAlbumExpanded(albumId),
+            onDeleteAlbum: () {
+              final name = songs.first.albumName ?? 'Unknown Album';
+              _confirmDeleteAlbum(albumId, name, songs.length);
+            },
+            onRemoveSong: _controller.cancelDownload,
+          ),
+        ),
+      );
+    }
+    return slivers;
+  }
+
+  Widget _buildDownloadedDivider(bool isDark) {
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Divider(
+          height: 1,
+          thickness: 0.5,
+          color: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFEEEEEE),
         ),
       ),
     );

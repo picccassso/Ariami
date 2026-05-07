@@ -4,7 +4,6 @@ import '../../../../models/download_task.dart';
 import '../../../../services/api/connection_service.dart';
 import '../../../../widgets/common/cached_artwork.dart';
 import '../utils/download_helpers.dart';
-import 'album_song_item.dart';
 
 class SinglesCard extends StatelessWidget {
   const SinglesCard({
@@ -15,7 +14,6 @@ class SinglesCard extends StatelessWidget {
     required this.isExpanded,
     required this.onToggleExpand,
     required this.onDeleteSingles,
-    required this.onRemoveSong,
   });
 
   final List<DownloadTask> songs;
@@ -24,7 +22,6 @@ class SinglesCard extends StatelessWidget {
   final bool isExpanded;
   final VoidCallback onToggleExpand;
   final VoidCallback onDeleteSingles;
-  final void Function(String taskId) onRemoveSong;
 
   static const singlesKey = 'singles';
 
@@ -128,7 +125,8 @@ class SinglesCard extends StatelessWidget {
                         child: IconButton(
                           icon: Icon(
                             Icons.delete_outline_rounded,
-                            color: const Color(0xFFFF4B4B).withOpacity(0.8),
+                            color:
+                                const Color(0xFFFF4B4B).withValues(alpha: 0.8),
                             size: 20,
                           ),
                           onPressed: onDeleteSingles,
@@ -153,24 +151,6 @@ class SinglesCard extends StatelessWidget {
                   ),
                 ),
               ),
-              if (isExpanded)
-                Container(
-                  color:
-                      isDark ? Colors.black.withOpacity(0.3) : Colors.grey[50],
-                  child: Column(
-                    children: songs.asMap().entries.map((entry) {
-                      final index = entry.key;
-                      final song = entry.value;
-                      final isLastSong = index == songs.length - 1;
-                      return AlbumSongItem(
-                        task: song,
-                        isDark: isDark,
-                        isLast: isLastSong,
-                        onRemove: () => onRemoveSong(song.id),
-                      );
-                    }).toList(),
-                  ),
-                ),
             ],
           ),
         ),
