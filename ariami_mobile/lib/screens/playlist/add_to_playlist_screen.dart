@@ -41,25 +41,27 @@ class AddToPlaylistScreen extends StatefulWidget {
     String? artist,
     int? duration,
   }) {
-    return showModalBottomSheet(
+    final hasMeta = (title != null && title.isNotEmpty) ||
+        (artist != null && artist.isNotEmpty);
+    final subtitle = hasMeta
+        ? [
+            if (title != null && title.isNotEmpty) '"$title"',
+            if (artist != null && artist.isNotEmpty) artist,
+          ].join(' • ')
+        : null;
+
+    return showAriamiSheet<void>(
       context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      header: AriamiSheetHeader(
+        title: 'Add to Playlist',
+        subtitle: subtitle,
       ),
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.5,
-        minChildSize: 0.3,
-        maxChildSize: 0.9,
-        expand: false,
-        builder: (context, scrollController) => _AddSongToPlaylistsSheet(
-          songId: songId,
-          albumId: albumId,
-          title: title,
-          artist: artist,
-          duration: duration,
-          scrollController: scrollController,
-        ),
+      child: _AddSongToPlaylistsSheet(
+        songId: songId,
+        albumId: albumId,
+        title: title,
+        artist: artist,
+        duration: duration,
       ),
     );
   }
@@ -396,14 +398,16 @@ class _AddToPlaylistScreenState extends State<AddToPlaylistScreen> {
   }
 }
 
-/// Bottom sheet widget for adding a song to one or more playlists
+/// Bottom sheet body for adding a song to one or more playlists.
+///
+/// Rendered as the `child` of [showAriamiSheet], which provides the rounded
+/// corners, drag handle, and mini-player-aware bottom padding.
 class _AddSongToPlaylistsSheet extends StatefulWidget {
   final String songId;
   final String? albumId;
   final String? title;
   final String? artist;
   final int? duration;
-  final ScrollController scrollController;
 
   const _AddSongToPlaylistsSheet({
     required this.songId,
@@ -411,7 +415,6 @@ class _AddSongToPlaylistsSheet extends StatefulWidget {
     this.title,
     this.artist,
     this.duration,
-    required this.scrollController,
   });
 
   @override
@@ -522,31 +525,9 @@ class _AddSongToPlaylistsSheetState extends State<_AddSongToPlaylistsSheet> {
     final playlists = _playlistService.playlists;
 
     return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Drag handle
-        Container(
-          margin: const EdgeInsets.symmetric(vertical: 8),
-          width: 40,
-          height: 4,
-          decoration: BoxDecoration(
-            color: Colors.grey[300],
-            borderRadius: BorderRadius.circular(2),
-          ),
-        ),
-
-        // Title
-        const Padding(
-          padding: EdgeInsets.all(16.0),
-          child: Text(
-            'Add to Playlist',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-
-        // Create new playlist option
         ListTile(
           leading: Container(
             width: 48,
@@ -560,70 +541,57 @@ class _AddSongToPlaylistsSheetState extends State<_AddSongToPlaylistsSheet> {
           title: const Text('Create New Playlist'),
           onTap: _createNewPlaylist,
         ),
-
-        const Divider(),
-
-        // Playlists list
-        Expanded(
-          child: playlists.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.queue_music, size: 48, color: Colors.grey[400]),
-                      const SizedBox(height: 8),
-                      Text(
-                        'No playlists yet',
-                        style: TextStyle(color: Colors.grey[600]),
-                      ),
-                    ],
-                  ),
-                )
-              : ListView.builder(
-                  controller: widget.scrollController,
-                  padding: EdgeInsets.only(
-                    bottom: getMiniPlayerAwareBottomPadding(context),
-                  ),
-                  itemCount: playlists.length,
-                  itemBuilder: (context, index) {
-                    final playlist = playlists[index];
-                    final isInPlaylist =
-                        playlist.songIds.contains(widget.songId);
-                    final playlistState = _playlistStates[playlist.id];
-
-                    Widget trailing;
-                    VoidCallback? onTap;
-
-                    if (playlistState == 'transitioning') {
-                      // Show green checkmark during transition
-                      trailing = const Icon(Icons.check, color: Colors.green);
-                      onTap = null;
-                    } else if (playlistState == 'added' || isInPlaylist) {
-                      // Show red minus button for removal
-                      trailing = IconButton(
-                        icon: const Icon(Icons.remove, color: Colors.red),
-                        onPressed: () => _removeFromPlaylist(playlist),
-                      );
-                      onTap = () => _removeFromPlaylist(playlist);
-                    } else {
-                      // Show plus icon to add
-                      trailing = const Icon(Icons.add);
-                      onTap = () => _addToPlaylist(playlist);
-                    }
-
-                    return ListTile(
-                      leading: _buildPlaylistIcon(playlist),
-                      title: Text(playlist.name),
-                      subtitle: Text(
-                        '${playlist.songCount} song${playlist.songCount != 1 ? 's' : ''}',
-                      ),
-                      trailing: trailing,
-                      onTap: onTap,
-                    );
-                  },
+        const Divider(height: 1),
+        if (playlists.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 32),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.queue_music, size: 48, color: Colors.grey[400]),
+                const SizedBox(height: 8),
+                Text(
+                  'No playlists yet',
+                  style: TextStyle(color: Colors.grey[600]),
                 ),
-        ),
+              ],
+            ),
+          )
+        else
+          for (final playlist in playlists) _buildPlaylistTile(playlist),
       ],
+    );
+  }
+
+  Widget _buildPlaylistTile(PlaylistModel playlist) {
+    final isInPlaylist = playlist.songIds.contains(widget.songId);
+    final playlistState = _playlistStates[playlist.id];
+
+    Widget trailing;
+    VoidCallback? onTap;
+
+    if (playlistState == 'transitioning') {
+      trailing = const Icon(Icons.check, color: Colors.green);
+      onTap = null;
+    } else if (playlistState == 'added' || isInPlaylist) {
+      trailing = IconButton(
+        icon: const Icon(Icons.remove, color: Colors.red),
+        onPressed: () => _removeFromPlaylist(playlist),
+      );
+      onTap = () => _removeFromPlaylist(playlist);
+    } else {
+      trailing = const Icon(Icons.add);
+      onTap = () => _addToPlaylist(playlist);
+    }
+
+    return ListTile(
+      leading: _buildPlaylistIcon(playlist),
+      title: Text(playlist.name),
+      subtitle: Text(
+        '${playlist.songCount} song${playlist.songCount != 1 ? 's' : ''}',
+      ),
+      trailing: trailing,
+      onTap: onTap,
     );
   }
 

@@ -8,6 +8,7 @@ import '../models/download_task.dart';
 import '../models/websocket_models.dart';
 import '../services/api/connection_service.dart';
 import '../services/playback_manager.dart';
+import '../services/playlist_service.dart';
 import '../services/offline/offline_playback_service.dart';
 import '../services/download/download_manager.dart';
 import '../services/cache/cache_manager.dart';
@@ -17,6 +18,7 @@ import '../widgets/album/album_header.dart';
 import '../widgets/album/album_info_section.dart';
 import '../widgets/album/album_playlist_picker_sheet.dart';
 import '../widgets/album/track_list.dart';
+import '../widgets/common/queue_action_confirmation.dart';
 
 /// Album detail screen with track listing and album actions
 class AlbumDetailScreen extends StatefulWidget {
@@ -577,17 +579,30 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
       return;
     }
 
-    // Show bottom sheet to select playlist
-    showModalBottomSheet(
+    final result = await showAlbumPlaylistPicker(
       context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (context) => AlbumPlaylistPickerSheet(
-        albumSongs: _albumDetail!.songs,
-        albumTitle: widget.album.title,
-      ),
+      album: widget.album,
+      songs: _albumDetail!.songs,
+      connectionService: _connectionService,
+    );
+
+    if (!mounted || result == null) return;
+    final addedIds = result.addedSongIds;
+    showQueueActionConfirmation(
+      context,
+      message: 'Added to playlist "${result.playlistName}"',
+      actionLabel: addedIds.isEmpty ? null : 'Undo',
+      onAction: addedIds.isEmpty
+          ? null
+          : () async {
+              final playlistService = PlaylistService();
+              for (final songId in addedIds) {
+                await playlistService.removeSongFromPlaylist(
+                  playlistId: result.playlistId,
+                  songId: songId,
+                );
+              }
+            },
     );
   }
 
