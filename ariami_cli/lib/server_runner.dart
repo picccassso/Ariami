@@ -12,7 +12,6 @@ import 'services/daemon_service.dart';
 class ServerRunner {
   final AriamiHttpServer _httpServer = AriamiHttpServer();
   final CliStateService _stateService = CliStateService();
-  final LibraryManager _libraryManager = LibraryManager();
   final CliTailscaleService _tailscaleService = CliTailscaleService();
   final DaemonService _daemonService = DaemonService();
 
@@ -45,10 +44,10 @@ class ServerRunner {
       // Configure metadata cache (also initializes catalog repository for v2 mode).
       final cachePath =
           p.join(CliStateService.getConfigDir(), 'metadata_cache.json');
-      _libraryManager.setCachePath(cachePath);
+      _httpServer.libraryManager.setCachePath(cachePath);
 
       if (featureFlags.enableV2Api &&
-          _libraryManager.createCatalogRepository() == null) {
+          _httpServer.libraryManager.createCatalogRepository() == null) {
         throw StateError(
           'Invalid startup configuration: enableV2Api=true requires catalog '
           'repository availability. Failed to initialize catalog at $cachePath.',
@@ -243,8 +242,8 @@ class ServerRunner {
 
           try {
             // Scan library in background and log completion
-            _libraryManager.scanMusicFolder(musicPath).then((_) {
-              final library = _libraryManager.library;
+            _httpServer.libraryManager.scanMusicFolder(musicPath).then((_) {
+              final library = _httpServer.libraryManager.library;
               print('');
               print('═══════════════════════════════════════════════════════');
               print('  ✓ Library scan completed!');
@@ -444,7 +443,7 @@ class ServerRunner {
       }
 
       // Start scanning in background
-      _libraryManager.scanMusicFolder(musicPath);
+      _httpServer.libraryManager.scanMusicFolder(musicPath);
       print('[ServerRunner] ✓ Library scan initiated');
 
       return true;
@@ -456,8 +455,8 @@ class ServerRunner {
 
   /// Setup callback: Get scan status
   Future<Map<String, dynamic>> _handleGetScanStatus() async {
-    final isScanning = _libraryManager.isScanning;
-    final library = _libraryManager.library;
+    final isScanning = _httpServer.libraryManager.isScanning;
+    final library = _httpServer.libraryManager.library;
 
     // Calculate progress based on scan state
     double progress = 0.0;
