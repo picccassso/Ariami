@@ -22,7 +22,8 @@ import '../song_id_remapping_service.dart';
 ///   buffering, loading, or seeks.
 /// - Database writes are debounced (5s) to reduce SQLite pressure.
 /// - Stats are flushed immediately when the app is backgrounded or killed.
-class StreamingStatsService extends ChangeNotifier implements WidgetsBindingObserver {
+class StreamingStatsService extends ChangeNotifier
+    implements WidgetsBindingObserver {
   // Singleton pattern
   static final StreamingStatsService _instance =
       StreamingStatsService._internal();
@@ -127,8 +128,7 @@ class StreamingStatsService extends ChangeNotifier implements WidgetsBindingObse
 
     // If a different song is currently playing (or the same song is being
     // restarted rather than resumed), finalize its session first.
-    if (_currentSong != null &&
-        (_currentSong!.id != song.id || !isResume)) {
+    if (_currentSong != null && (_currentSong!.id != song.id || !isResume)) {
       print(
           '[StreamingStatsService] Finalizing previous song: ${_currentSong!.title}');
       final previousSong = _currentSong!;
@@ -165,8 +165,7 @@ class StreamingStatsService extends ChangeNotifier implements WidgetsBindingObse
   /// the short-song rule (< 30s always counts as 1 play).
   Future<void> onSongStopped({bool completedNaturally = false}) async {
     if (_currentSong == null) {
-      print(
-          '[StreamingStatsService] onSongStopped called but no current song');
+      print('[StreamingStatsService] onSongStopped called but no current song');
       return;
     }
 
@@ -176,6 +175,7 @@ class StreamingStatsService extends ChangeNotifier implements WidgetsBindingObse
     final song = _currentSong!;
     final listenedTime = _sessionListenedTime;
     final playRecorded = _sessionPlayRecorded;
+    _sessionListenedTime = Duration.zero;
 
     await _finalizeSessionForSong(
       song,
@@ -184,6 +184,7 @@ class StreamingStatsService extends ChangeNotifier implements WidgetsBindingObse
       completedNaturally: completedNaturally,
     );
 
+    _sessionTimeAlreadyCached += listenedTime;
     _currentSong = null;
     _lastPosition = null;
   }
@@ -253,8 +254,6 @@ class StreamingStatsService extends ChangeNotifier implements WidgetsBindingObse
     // Persist any accumulated listening time.
     if (listenedTime > Duration.zero) {
       await _updateStreamingTimeForSong(song, listenedTime);
-      _sessionTimeAlreadyCached += listenedTime;
-      _sessionListenedTime = Duration.zero;
     }
 
     await _flushPendingStats();
@@ -383,19 +382,23 @@ class StreamingStatsService extends ChangeNotifier implements WidgetsBindingObse
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.detached ||
         state == AppLifecycleState.inactive) {
-      // If a song is currently playing, finalize its session immediately so
-      // data is not lost if the OS kills the app.
+      // If a song is currently playing, checkpoint its accumulated time
+      // immediately so data is not lost if the OS kills the app. Keep the
+      // session active: background playback can continue to emit position
+      // updates, and clearing the current song here would drop the rest of the
+      // listen until playback is explicitly restarted.
       if (_currentSong != null) {
         final song = _currentSong!;
         final listenedTime = _sessionListenedTime;
         final playRecorded = _sessionPlayRecorded;
+        _sessionListenedTime = Duration.zero;
+        _sessionTimeAlreadyCached += listenedTime;
         unawaited(_finalizeSessionForSong(
           song,
           listenedTime: listenedTime,
           playRecorded: playRecorded,
           completedNaturally: false,
         ));
-        _currentSong = null;
       }
       // Also flush any already-queued dirty stats.
       unawaited(_flushPendingStats());
@@ -718,8 +721,7 @@ class StreamingStatsService extends ChangeNotifier implements WidgetsBindingObse
     _emitTopSongs();
     notifyListeners();
 
-    print(
-        '[StreamingStatsService] Remapped stale stat IDs: '
+    print('[StreamingStatsService] Remapped stale stat IDs: '
         '${originalStats.length} rows -> ${remapped.length} rows '
         '($droppedCount merged)');
 

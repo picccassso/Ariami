@@ -1,7 +1,7 @@
-
 import 'package:ariami_mobile/models/api_models.dart';
 import 'package:ariami_mobile/models/song.dart';
 import 'package:ariami_mobile/services/stats/streaming_stats_service.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
@@ -140,6 +140,30 @@ void main() {
       expect(stats.totalTime.inSeconds, 35);
     });
 
+    test('keeps tracking after app lifecycle checkpoint', () async {
+      final song = _testSong(
+        id: 's4_lifecycle',
+        title: 'Lifecycle Song',
+        duration: const Duration(minutes: 6),
+      );
+
+      service.onSongStarted(song);
+      for (int i = 0; i <= 120; i++) {
+        service.updatePosition(Duration(seconds: i));
+      }
+
+      service.didChangeAppLifecycleState(AppLifecycleState.paused);
+
+      for (int i = 121; i <= 360; i++) {
+        service.updatePosition(Duration(seconds: i));
+      }
+      await service.onSongStopped(completedNaturally: true);
+
+      final stats = service.getSongStats('s4_lifecycle');
+      expect(stats!.playCount, 1);
+      expect(stats.totalTime.inSeconds, 360);
+    });
+
     // ------------------------------------------------------------------------
     // Short-song rule
     // ------------------------------------------------------------------------
@@ -198,9 +222,11 @@ void main() {
       service.onSongStarted(song);
       service.updatePosition(Duration.zero); // baseline
       service.updatePosition(const Duration(seconds: 1)); // +1s
-      service.updatePosition(const Duration(seconds: 5)); // +4s -> seek, ignored
+      service
+          .updatePosition(const Duration(seconds: 5)); // +4s -> seek, ignored
       service.updatePosition(const Duration(seconds: 6)); // +1s
-      service.updatePosition(const Duration(seconds: 31)); // +25s -> seek, ignored
+      service
+          .updatePosition(const Duration(seconds: 31)); // +25s -> seek, ignored
 
       await service.onSongStopped();
 
@@ -221,7 +247,8 @@ void main() {
       service.updatePosition(Duration.zero);
       service.updatePosition(const Duration(seconds: 1)); // +1s
       service.updatePosition(const Duration(seconds: 2)); // +1s
-      service.updatePosition(const Duration(seconds: 10)); // +8s -> seek, ignored
+      service
+          .updatePosition(const Duration(seconds: 10)); // +8s -> seek, ignored
       service.updatePosition(const Duration(seconds: 5)); // backward -> ignored
       service.updatePosition(const Duration(seconds: 6)); // +1s
 
@@ -394,9 +421,10 @@ void main() {
           duration: 180,
         ),
       ];
-      final dropped = await service
-          .remapStaleStatIdsFromLibrary(libraryAfterMove);
-      expect(dropped, 1, reason: 'one stale row should fold into the fresh one');
+      final dropped =
+          await service.remapStaleStatIdsFromLibrary(libraryAfterMove);
+      expect(dropped, 1,
+          reason: 'one stale row should fold into the fresh one');
 
       // Stale row is gone; the merged row carries all three plays.
       expect(service.getSongStats('stale_id'), isNull);
