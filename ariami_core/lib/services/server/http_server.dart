@@ -28,6 +28,7 @@ import 'package:ariami_core/models/user_activity_row.dart';
 import 'package:ariami_core/services/server/stream_tracker.dart';
 import 'package:ariami_core/services/server/download_job_service.dart';
 import 'package:ariami_core/services/server/metrics_service.dart';
+import 'package:ariami_core/services/server/network_endpoint_monitor.dart';
 import 'package:ariami_core/services/server/v2_handlers.dart';
 
 part 'http_server_limiters.dart';
@@ -117,6 +118,12 @@ class AriamiHttpServer {
 
   // Callback for getting Tailscale status (optional, for CLI use)
   Future<Map<String, dynamic>> Function()? _tailscaleStatusCallback;
+
+  // Network endpoint discovery and change notifications
+  Future<NetworkEndpoints> Function()? _endpointDiscoveryCallback;
+  NetworkEndpointMonitor? _endpointMonitor;
+  final StreamController<Map<String, dynamic>> _endpointsChangedController =
+      StreamController<Map<String, dynamic>>.broadcast();
 
   // Callbacks for setup operations (optional, for CLI use)
   Future<bool> Function(String path)? _setMusicFolderCallback;

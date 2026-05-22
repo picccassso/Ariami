@@ -90,10 +90,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _loadData();
     _httpServer.libraryManager.addScanCompleteListener(_onLibraryScanComplete);
     _httpServer.connectionManager.addListener(_onClientConnectionChanged);
+    _httpServer.onEndpointsChanged.listen((_) {
+      unawaited(_updateServerStatus());
+    });
     _connectedRowsRefreshTimer =
         Timer.periodic(const Duration(seconds: 15), (_) {
       unawaited(_refreshConnectedClientRows(showLoading: false));
       unawaited(_refreshServerUsers(showLoading: false));
+      if (!_httpServer.isRunning) {
+        unawaited(_autoStartServer());
+      }
+      unawaited(_updateServerStatus());
     });
     _userActivityRefreshTimer = Timer.periodic(const Duration(seconds: 5), (_) {
       unawaited(_refreshUserActivity(showLoading: false));
@@ -142,6 +149,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     await _serverInit.configureLibraryCacheAndFeatureFlags(_httpServer);
     await _serverInit.ensureTranscodingAndArtworkServices(_httpServer);
+    ServerInitializationService.configureNetworkDiscovery(
+      _httpServer,
+      _tailscaleService,
+    );
 
     final prefs = await SharedPreferences.getInstance();
     _musicFolderPath = prefs.getString('music_folder_path');
@@ -228,11 +239,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _updateServerStatus() async {
-    final ip = await _tailscaleService.getTailscaleIp();
+    final serverInfo = _httpServer.getServerInfo();
     final clientCount = _httpServer.connectionManager.clientCount;
 
+    if (!mounted) return;
     setState(() {
-      _tailscaleIP = ip;
+      _tailscaleIP = serverInfo['tailscaleServer'] as String?;
       _connectedClients = clientCount;
     });
   }

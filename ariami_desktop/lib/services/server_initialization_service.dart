@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import '../utils/feature_flags_loader.dart';
 import 'desktop_download_limits_service.dart';
 import 'desktop_state_service.dart';
+import 'desktop_tailscale_service.dart';
 
 /// Shared desktop server configuration: feature flags, library cache, transcoding/artwork.
 ///
@@ -101,6 +102,19 @@ class ServerInitializationService {
       maxConcurrentPerUser: downloadLimits.maxConcurrentPerUser,
       maxQueuePerUser: downloadLimits.maxQueuePerUser,
     );
+  }
+
+  /// Tailscale status API and periodic endpoint discovery for the HTTP server.
+  static void configureNetworkDiscovery(
+    AriamiHttpServer httpServer,
+    DesktopTailscaleService tailscaleService,
+  ) {
+    httpServer.setTailscaleStatusCallback(() => tailscaleService.getStatus());
+    httpServer.setEndpointDiscoveryCallback(() async {
+      final ts = await tailscaleService.getTailscaleIp();
+      final lan = await tailscaleService.getLanIp();
+      return NetworkEndpoints(tailscaleIp: ts, lanIp: lan);
+    });
   }
 
   String? _resolveBundledSonicLibraryPath() {

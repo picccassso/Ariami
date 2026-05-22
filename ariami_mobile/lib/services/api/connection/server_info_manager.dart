@@ -2,6 +2,17 @@ import '../../../models/server_info.dart';
 import '../api_client.dart';
 import '../endpoint_resolver.dart';
 
+/// Result of merging freshly fetched server endpoint metadata.
+class EndpointRefreshResult {
+  final ServerInfo serverInfo;
+  final bool endpointConfigChanged;
+
+  const EndpointRefreshResult({
+    required this.serverInfo,
+    required this.endpointConfigChanged,
+  });
+}
+
 /// Manages server configuration and metadata.
 ///
 /// Handles:
@@ -73,29 +84,50 @@ class ServerInfoManager {
   ) async {
     try {
       final fetched = await apiClient.getServerInfo();
-      final merged = serverInfo.copyWith(
-        server: serverInfo.server,
-        lanServer: fetched.lanServer ?? serverInfo.lanServer,
-        tailscaleServer: fetched.tailscaleServer ?? serverInfo.tailscaleServer,
-        port: fetched.port,
-        name: fetched.name,
-        version: fetched.version,
-        authRequired: fetched.authRequired,
-        legacyMode: fetched.legacyMode,
-        downloadLimits: fetched.downloadLimits,
-      );
-      // Only update if something changed
-      if (_hasServerInfoChanged(merged, serverInfo)) {
-        _serverInfo = merged;
-      }
-      return merged;
+      return applyEndpointRefresh(serverInfo, fetched).serverInfo;
     } catch (e) {
       // Return original server info on failure
       return serverInfo;
     }
   }
 
+  /// Merge endpoint metadata from a fetched [ServerInfo] snapshot.
+  ///
+  /// Returns whether LAN/Tailscale routing configuration changed.
+  EndpointRefreshResult applyEndpointRefresh(
+    ServerInfo current,
+    ServerInfo fetched,
+  ) {
+    final merged = current.copyWith(
+      server: current.server,
+      lanServer: fetched.lanServer ?? current.lanServer,
+      tailscaleServer: fetched.tailscaleServer ?? current.tailscaleServer,
+      port: fetched.port,
+      name: fetched.name,
+      version: fetched.version,
+      authRequired: fetched.authRequired,
+      legacyMode: fetched.legacyMode,
+      downloadLimits: fetched.downloadLimits,
+    );
+
+    final endpointConfigChanged = current.lanServer != merged.lanServer ||
+        current.tailscaleServer != merged.tailscaleServer;
+
+    if (_hasServerInfoChanged(merged, current)) {
+      _serverInfo = merged;
+    }
+
+    return EndpointRefreshResult(
+      serverInfo: merged,
+      endpointConfigChanged: endpointConfigChanged,
+    );
+  }
+
   /// Compare two ServerInfo objects for equality.
+  bool hasServerInfoChanged(ServerInfo a, ServerInfo b) {
+    return _hasServerInfoChanged(a, b);
+  }
+
   bool _hasServerInfoChanged(ServerInfo a, ServerInfo b) {
     return a.server != b.server ||
         a.lanServer != b.lanServer ||

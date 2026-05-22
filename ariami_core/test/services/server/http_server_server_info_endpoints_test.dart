@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:ariami_core/ariami_core.dart';
 import 'package:ariami_core/services/server/http_server.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
@@ -79,6 +80,94 @@ void main() {
       expect(json['server'], lan);
       expect(json['lanServer'], lan);
       expect(json['tailscaleServer'], isNull);
+    });
+
+    test('updateAdvertisedEndpoints updates /api/server-info', () async {
+      const lan = '192.168.1.50';
+      const tsIp = '100.64.10.20';
+      final port = await _findFreePort();
+
+      await server.start(
+        advertisedIp: lan,
+        tailscaleIp: null,
+        lanIp: lan,
+        bindAddress: '127.0.0.1',
+        port: port,
+      );
+
+      final changed = server.updateAdvertisedEndpoints(
+        tailscaleIp: tsIp,
+        lanIp: lan,
+      );
+      expect(changed, isTrue);
+
+      final (status, body) = await _httpGet(
+        Uri.parse('http://127.0.0.1:$port/api/server-info'),
+      );
+      expect(status, 200);
+
+      final json = jsonDecode(body) as Map<String, dynamic>;
+      expect(json['server'], tsIp);
+      expect(json['tailscaleServer'], tsIp);
+      expect(json['lanServer'], lan);
+    });
+
+    test('updateAdvertisedEndpoints emits onEndpointsChanged', () async {
+      const lan = '10.0.0.2';
+      final port = await _findFreePort();
+
+      await server.start(
+        advertisedIp: lan,
+        tailscaleIp: null,
+        lanIp: lan,
+        bindAddress: '127.0.0.1',
+        port: port,
+      );
+
+      final events = <Map<String, dynamic>>[];
+      final subscription = server.onEndpointsChanged.listen(events.add);
+
+      server.updateAdvertisedEndpoints(
+        tailscaleIp: '100.64.10.20',
+        lanIp: lan,
+      );
+
+      await Future<void>.delayed(Duration.zero);
+      expect(events, hasLength(1));
+      expect(events.first['tailscaleServer'], '100.64.10.20');
+
+      await subscription.cancel();
+    });
+
+    test('endpoint discovery callback updates stored endpoints', () async {
+      const lan = '192.168.1.50';
+      var tailscaleIp = '100.64.10.20';
+      final port = await _findFreePort();
+
+      server.setEndpointDiscoveryCallback(() async {
+        return NetworkEndpoints(
+          tailscaleIp: tailscaleIp,
+          lanIp: lan,
+        );
+      });
+
+      await server.start(
+        advertisedIp: lan,
+        tailscaleIp: null,
+        lanIp: lan,
+        bindAddress: '127.0.0.1',
+        port: port,
+      );
+
+      tailscaleIp = '100.64.10.99';
+      server.updateAdvertisedEndpoints(
+        tailscaleIp: tailscaleIp,
+        lanIp: lan,
+      );
+
+      final info = server.getServerInfo();
+      expect(info['tailscaleServer'], '100.64.10.99');
+      expect(info['server'], '100.64.10.99');
     });
   });
 }

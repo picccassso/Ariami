@@ -76,6 +76,12 @@ class ServerRunner {
       _httpServer
           .setTailscaleStatusCallback(() => _tailscaleService.getStatus());
 
+      _httpServer.setEndpointDiscoveryCallback(() async {
+        final ts = await _tailscaleService.getTailscaleIp();
+        final lan = await _tailscaleService.getLanIp();
+        return NetworkEndpoints(tailscaleIp: ts, lanIp: lan);
+      });
+
       // Configure setup callbacks
       _httpServer.setSetupCallbacks(
         setMusicFolder: _handleSetMusicFolder,

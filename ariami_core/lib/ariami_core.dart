@@ -30,6 +30,7 @@ export 'services/library/metadata_extractor.dart';
 // Server Services
 export 'services/server/connection_manager.dart';
 export 'services/server/http_server.dart';
+export 'services/server/network_endpoint_monitor.dart';
 export 'services/server/stream_tracker.dart';
 export 'services/server/streaming_service.dart';
 

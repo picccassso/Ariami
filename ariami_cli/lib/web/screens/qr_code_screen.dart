@@ -32,6 +32,7 @@ class _QRCodeScreenState extends State<QRCodeScreen>
   String? _errorMessage;
 
   Timer? _connectionPollTimer;
+  Timer? _serverInfoPollTimer;
   bool _isWaitingForConnection = false;
   late AnimationController _pulseController;
 
@@ -48,8 +49,16 @@ class _QRCodeScreenState extends State<QRCodeScreen>
   @override
   void dispose() {
     _connectionPollTimer?.cancel();
+    _serverInfoPollTimer?.cancel();
     _pulseController.dispose();
     super.dispose();
+  }
+
+  void _startServerInfoPolling() {
+    _serverInfoPollTimer?.cancel();
+    _serverInfoPollTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      unawaited(_loadServerInfo(refreshOnly: true));
+    });
   }
 
   /// Start polling for mobile app connections
@@ -97,7 +106,7 @@ class _QRCodeScreenState extends State<QRCodeScreen>
     }
   }
 
-  Future<void> _loadServerInfo() async {
+  Future<void> _loadServerInfo({bool refreshOnly = false}) async {
     try {
       final response = await _apiClient.get('/api/server-info');
 
@@ -115,10 +124,13 @@ class _QRCodeScreenState extends State<QRCodeScreen>
             _qrData = jsonEncode(serverInfo);
             _isLoading = false;
           });
-          _startConnectionPolling();
+          if (!refreshOnly) {
+            _startConnectionPolling();
+            _startServerInfoPolling();
+          }
         }
       } else {
-        if (mounted) {
+        if (mounted && !refreshOnly) {
           setState(() {
             _errorMessage = 'Failed to load server info';
             _isLoading = false;
@@ -127,7 +139,7 @@ class _QRCodeScreenState extends State<QRCodeScreen>
       }
     } catch (e) {
       debugPrint('Error loading server info: $e');
-      if (mounted) {
+      if (mounted && !refreshOnly) {
         setState(() {
           _errorMessage = 'Error: $e';
           _isLoading = false;

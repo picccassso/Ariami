@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:async';
 import 'dart:convert';
 import 'package:ariami_core/ariami_core.dart';
 import '../services/desktop_tailscale_service.dart';
@@ -28,10 +29,13 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
   bool _serverStarted = false;
   bool _hasOwnerAccount = false;
   bool _ownerSetupSkipped = false;
+  StreamSubscription<Map<String, dynamic>>? _endpointsSubscription;
 
   @override
   void initState() {
     super.initState();
+    _endpointsSubscription =
+        _httpServer.onEndpointsChanged.listen(_onEndpointsChanged);
     _initializeServer();
     // Listen for client connections to auto-navigate to dashboard
     _httpServer.connectionManager.addListener(_onClientConnected);
@@ -39,8 +43,17 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
 
   @override
   void dispose() {
+    _endpointsSubscription?.cancel();
     _httpServer.connectionManager.removeListener(_onClientConnected);
     super.dispose();
+  }
+
+  void _onEndpointsChanged(Map<String, dynamic> serverInfo) {
+    if (!mounted) return;
+    setState(() {
+      _tailscaleIP = serverInfo['tailscaleServer'] as String?;
+      _lanIP = serverInfo['lanServer'] as String?;
+    });
   }
 
   void _onClientConnected() async {
@@ -61,6 +74,10 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
 
     try {
       await _serverInit.configureLibraryCacheAndFeatureFlags(_httpServer);
+      ServerInitializationService.configureNetworkDiscovery(
+        _httpServer,
+        _tailscaleService,
+      );
 
       // Check if server is already running
       if (_httpServer.isRunning) {

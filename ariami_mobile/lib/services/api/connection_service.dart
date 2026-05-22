@@ -65,6 +65,8 @@ class ConnectionService {
       StreamController<WsMessage>.broadcast();
   late final LibrarySyncEngine _librarySyncEngine;
   late final LibraryReadFacade _libraryReadFacade;
+  Timer? _serverInfoRefreshTimer;
+  bool _isRefreshingServerInfo = false;
 
   // ============================================================================
   // CONSTRUCTOR
@@ -545,9 +547,67 @@ class ConnectionService {
 
     // Start endpoint monitoring
     _endpointSwitchHandler.configureMonitoring(serverInfo);
+    _startServerInfoRefreshTimer();
+  }
+
+  void _startServerInfoRefreshTimer() {
+    _serverInfoRefreshTimer?.cancel();
+    _serverInfoRefreshTimer = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) => unawaited(_refreshServerEndpointsFromServer()),
+    );
+  }
+
+  void _stopServerInfoRefreshTimer() {
+    _serverInfoRefreshTimer?.cancel();
+    _serverInfoRefreshTimer = null;
+  }
+
+  Future<void> _refreshServerEndpointsFromServer() async {
+    if (_isRefreshingServerInfo || !_stateManager.isConnected) {
+      return;
+    }
+
+    final apiClient = _lifecycleManager.apiClient;
+    final current = _stateManager.serverInfo;
+    if (apiClient == null || current == null) {
+      return;
+    }
+
+    _isRefreshingServerInfo = true;
+    try {
+      final fetched = await apiClient.getServerInfo();
+      final result =
+          _serverInfoManager.applyEndpointRefresh(current, fetched);
+
+      if (!result.endpointConfigChanged &&
+          !_serverInfoManager.hasServerInfoChanged(result.serverInfo, current)) {
+        return;
+      }
+
+      _stateManager.setServerInfo(result.serverInfo);
+      _applyDownloadLimits(result.serverInfo);
+
+      if (result.endpointConfigChanged) {
+        _endpointSwitchHandler.configureMonitoring(result.serverInfo);
+      }
+
+      final sessionId = _lifecycleManager.sessionId;
+      if (sessionId != null) {
+        await _persistenceManager.saveConnectionInfo(
+          result.serverInfo,
+          sessionId,
+        );
+      }
+    } catch (_) {
+      // Ignore transient refresh failures; existing connection stays active.
+    } finally {
+      _isRefreshingServerInfo = false;
+    }
   }
 
   Future<void> _onDisconnected() async {
+    _stopServerInfoRefreshTimer();
     _endpointSwitchHandler.stopMonitoring();
     _librarySyncEngine.stop();
     _heartbeatManager.stop();
@@ -586,6 +646,7 @@ class ConnectionService {
 
   Future<void> _handleWebSocketDisconnect() async {
     if (_stateManager.isConnected) {
+      _stopServerInfoRefreshTimer();
       _endpointSwitchHandler.stopMonitoring();
       _librarySyncEngine.stop();
       _lifecycleManager.clearActiveConnection();

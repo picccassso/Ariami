@@ -37,6 +37,72 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
     _tailscaleStatusCallback = callback;
   }
 
+  /// Set callback for periodic Tailscale/LAN endpoint discovery.
+  void setEndpointDiscoveryCallback(
+      Future<NetworkEndpoints> Function() callback) {
+    _endpointDiscoveryCallback = callback;
+    _ensureEndpointMonitor();
+  }
+
+  /// Stream of updated server-info payloads when advertised endpoints change.
+  Stream<Map<String, dynamic>> get onEndpointsChanged =>
+      _endpointsChangedController.stream;
+
+  /// Update advertised endpoints without restarting the HTTP listener.
+  ///
+  /// Returns true when stored endpoint values changed.
+  bool updateAdvertisedEndpoints({
+    String? tailscaleIp,
+    String? lanIp,
+  }) {
+    final previousTailscale = _tailscaleIp;
+    final previousLan = _lanIp;
+    final previousAdvertised = _advertisedIp;
+
+    _tailscaleIp = tailscaleIp;
+    _lanIp = lanIp;
+    _advertisedIp = tailscaleIp ?? lanIp ?? _advertisedIp;
+
+    if (previousTailscale == _tailscaleIp &&
+        previousLan == _lanIp &&
+        previousAdvertised == _advertisedIp) {
+      return false;
+    }
+
+    print(
+      '[HttpServer] Endpoints updated: tailscale=$_tailscaleIp lan=$_lanIp advertised=$_advertisedIp',
+    );
+    if (!_endpointsChangedController.isClosed) {
+      _endpointsChangedController.add(getServerInfo());
+    }
+    return true;
+  }
+
+  void _ensureEndpointMonitor() {
+    final callback = _endpointDiscoveryCallback;
+    if (callback == null) {
+      return;
+    }
+
+    _endpointMonitor ??= NetworkEndpointMonitor(
+      onChanged: (endpoints) {
+        updateAdvertisedEndpoints(
+          tailscaleIp: endpoints.tailscaleIp,
+          lanIp: endpoints.lanIp,
+        );
+      },
+    );
+    _endpointMonitor!.setDiscoveryCallback(callback);
+
+    if (_server != null) {
+      _endpointMonitor!.start();
+    }
+  }
+
+  void _stopEndpointMonitor() {
+    _endpointMonitor?.stop();
+  }
+
   /// Set setup operation callbacks (optional, for CLI use)
   void setSetupCallbacks({
     Future<bool> Function(String)? setMusicFolder,
@@ -152,6 +218,7 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
 
       // Start cleanup timer for stale connections
       _startCleanupTimer();
+      _ensureEndpointMonitor();
     } catch (e) {
       print('Failed to start server: $e');
       rethrow;
@@ -191,6 +258,7 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
 
   /// Stop the HTTP server
   Future<void> stop() async {
+    _stopEndpointMonitor();
     await _server?.close(force: true);
     _server = null;
 

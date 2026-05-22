@@ -184,4 +184,17 @@ class DesktopTailscaleService {
 
     return null;
   }
+
+  /// Get Tailscale status as a map (for API endpoint)
+  Future<Map<String, dynamic>> getStatus() async {
+    final isInstalled = await isTailscaleInstalled();
+    final isRunning = await isTailscaleRunning();
+    final ip = await getTailscaleIp();
+
+    return {
+      'isInstalled': isInstalled,
+      'isRunning': isRunning,
+      'ip': ip,
+    };
+  }
 }
