@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 
-/// Action buttons for playlist (Play, Shuffle, Reorder, Add)
+/// Action buttons for playlist (Download, Reorder, Add, Shuffle, Play).
 class PlaylistActionButtons extends StatelessWidget {
+  /// Whether all playlist songs are downloaded
+  final bool isPlaylistFullyDownloaded;
+
   /// Whether there are songs to play
   final bool hasSongs;
 
@@ -10,6 +13,9 @@ class PlaylistActionButtons extends StatelessWidget {
 
   /// Current reorder mode state
   final bool isReorderMode;
+
+  /// Callback when Download button is pressed (null when fully downloaded)
+  final VoidCallback? onDownloadPlaylist;
 
   /// Callback when Play button is pressed
   final VoidCallback? onPlay;
@@ -25,9 +31,11 @@ class PlaylistActionButtons extends StatelessWidget {
 
   const PlaylistActionButtons({
     super.key,
+    required this.isPlaylistFullyDownloaded,
     required this.hasSongs,
     required this.canReorder,
     required this.isReorderMode,
+    this.onDownloadPlaylist,
     this.onPlay,
     this.onShuffle,
     this.onToggleReorder,
@@ -41,9 +49,19 @@ class PlaylistActionButtons extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // Left side: Secondary actions
+          // Left side: Download and secondary actions
           Row(
             children: [
+              IconButton(
+                icon: Icon(
+                  isPlaylistFullyDownloaded
+                      ? Icons.download_done_rounded
+                      : Icons.download_for_offline_outlined,
+                  color: isPlaylistFullyDownloaded ? Colors.green : null,
+                ),
+                onPressed: onDownloadPlaylist,
+                iconSize: 28,
+              ),
               IconButton(
                 icon: Icon(
                   isReorderMode ? Icons.check_rounded : Icons.reorder_rounded,

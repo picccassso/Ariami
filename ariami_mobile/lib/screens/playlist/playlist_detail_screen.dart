@@ -467,6 +467,68 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
     }).toList();
   }
 
+  bool get _isPlaylistFullyDownloaded =>
+      _songs.isNotEmpty &&
+      _songs.every((s) => _downloadedSongIds.contains(s.id));
+
+  /// Download all songs in the playlist that are not already downloaded.
+  void _downloadPlaylist() {
+    if (_connectionService.apiClient == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Not connected to server')),
+      );
+      return;
+    }
+
+    final songsToDownload = _songs
+        .where((s) => !_downloadedSongIds.contains(s.id))
+        .toList();
+
+    if (songsToDownload.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('All songs already downloaded')),
+      );
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Starting download of ${songsToDownload.length} songs...'),
+      ),
+    );
+
+    final baseUrl = _connectionService.apiClient!.baseUrl;
+    final playlist = _playlist;
+
+    for (final song in songsToDownload) {
+      final albumId =
+          song.albumId ?? playlist?.songAlbumIds[song.id];
+      String? albumName;
+      String? albumArtist;
+
+      if (albumId != null) {
+        final albumInfo = _albumInfoMap[albumId];
+        if (albumInfo != null) {
+          albumName = albumInfo.name;
+          albumArtist = albumInfo.artist;
+        }
+      }
+
+      _downloadManager.downloadSong(
+        songId: song.id,
+        title: song.title,
+        artist: song.artist,
+        albumId: albumId,
+        albumName: albumName,
+        albumArtist: albumArtist,
+        albumArt: albumId != null ? '$baseUrl/artwork/$albumId' : '',
+        duration: song.duration,
+        trackNumber: song.trackNumber,
+        totalBytes: 0,
+      );
+    }
+  }
+
   /// Play all songs from playlist
   Future<void> _playAll() async {
     if (_songs.isEmpty) return;
@@ -707,9 +769,12 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
         // Action buttons
         SliverToBoxAdapter(
           child: PlaylistActionButtons(
+            isPlaylistFullyDownloaded: _isPlaylistFullyDownloaded,
             hasSongs: _songs.isNotEmpty,
             canReorder: _songs.length > 1,
             isReorderMode: _isReorderMode,
+            onDownloadPlaylist:
+                _isPlaylistFullyDownloaded ? null : _downloadPlaylist,
             onPlay: _playAll,
             onShuffle: _shuffleAll,
             onToggleReorder: () =>

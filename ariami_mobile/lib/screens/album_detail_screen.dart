@@ -231,28 +231,6 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
         SliverAppBar(
           expandedHeight: expandedArtHeight,
           pinned: true,
-          actions: [
-            IconButton(
-              icon: Icon(
-                _albumDetail != null &&
-                        _albumDetail!.songs
-                            .every((s) => _downloadedSongIds.contains(s.id))
-                    ? Icons.download_done_rounded
-                    : Icons.download_for_offline_rounded,
-                color: _albumDetail != null &&
-                        _albumDetail!.songs
-                            .every((s) => _downloadedSongIds.contains(s.id))
-                    ? Colors.green
-                    : Colors.white,
-              ),
-              onPressed: _albumDetail != null &&
-                      !_albumDetail!.songs
-                          .every((s) => _downloadedSongIds.contains(s.id))
-                  ? _downloadAlbum
-                  : null,
-              tooltip: 'Download Album',
-            ),
-          ],
           flexibleSpace: AlbumArtworkHeader(
             coverArt: _albumDetail?.coverArt ?? widget.album.coverArt,
             albumTitle: widget.album.title,

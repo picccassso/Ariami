@@ -4,23 +4,66 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('PlaylistActionButtons', () {
-    testWidgets('should render all buttons', (tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: PlaylistActionButtons(
-              hasSongs: true,
-              canReorder: true,
-              isReorderMode: false,
-            ),
+    Widget buildButtons({
+      bool isPlaylistFullyDownloaded = false,
+      bool hasSongs = true,
+      bool canReorder = true,
+      bool isReorderMode = false,
+      VoidCallback? onDownloadPlaylist,
+      VoidCallback? onPlay,
+      VoidCallback? onShuffle,
+      VoidCallback? onToggleReorder,
+      VoidCallback? onAddSongs,
+    }) {
+      return MaterialApp(
+        home: Scaffold(
+          body: PlaylistActionButtons(
+            isPlaylistFullyDownloaded: isPlaylistFullyDownloaded,
+            hasSongs: hasSongs,
+            canReorder: canReorder,
+            isReorderMode: isReorderMode,
+            onDownloadPlaylist: onDownloadPlaylist,
+            onPlay: onPlay,
+            onShuffle: onShuffle,
+            onToggleReorder: onToggleReorder,
+            onAddSongs: onAddSongs,
           ),
         ),
       );
+    }
 
+    testWidgets('should render all buttons', (tester) async {
+      await tester.pumpWidget(buildButtons());
+
+      expect(find.byIcon(Icons.download_for_offline_outlined), findsOneWidget);
       expect(find.byIcon(Icons.play_arrow_rounded), findsOneWidget);
       expect(find.byIcon(Icons.shuffle_rounded), findsOneWidget);
       expect(find.byIcon(Icons.reorder_rounded), findsOneWidget);
       expect(find.byIcon(Icons.add_rounded), findsOneWidget);
+    });
+
+    testWidgets('should call onDownloadPlaylist when Download is tapped',
+        (tester) async {
+      var downloadCalled = false;
+
+      await tester.pumpWidget(
+        buildButtons(onDownloadPlaylist: () => downloadCalled = true),
+      );
+
+      await tester.tap(find.byIcon(Icons.download_for_offline_outlined));
+      await tester.pump();
+
+      expect(downloadCalled, true);
+    });
+
+    testWidgets('should show download_done when fully downloaded',
+        (tester) async {
+      await tester.pumpWidget(
+        buildButtons(isPlaylistFullyDownloaded: true),
+      );
+
+      expect(find.byIcon(Icons.download_done_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.download_for_offline_outlined), findsNothing);
     });
 
     testWidgets('should call onPlay when Play button is tapped',
@@ -28,16 +71,7 @@ void main() {
       var playCalled = false;
 
       await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: PlaylistActionButtons(
-              hasSongs: true,
-              canReorder: true,
-              isReorderMode: false,
-              onPlay: () => playCalled = true,
-            ),
-          ),
-        ),
+        buildButtons(onPlay: () => playCalled = true),
       );
 
       await tester.tap(find.byIcon(Icons.play_arrow_rounded));
@@ -51,16 +85,7 @@ void main() {
       var shuffleCalled = false;
 
       await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: PlaylistActionButtons(
-              hasSongs: true,
-              canReorder: true,
-              isReorderMode: false,
-              onShuffle: () => shuffleCalled = true,
-            ),
-          ),
-        ),
+        buildButtons(onShuffle: () => shuffleCalled = true),
       );
 
       await tester.tap(find.byIcon(Icons.shuffle_rounded));
@@ -74,16 +99,7 @@ void main() {
       var toggleCalled = false;
 
       await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: PlaylistActionButtons(
-              hasSongs: true,
-              canReorder: true,
-              isReorderMode: false,
-              onToggleReorder: () => toggleCalled = true,
-            ),
-          ),
-        ),
+        buildButtons(onToggleReorder: () => toggleCalled = true),
       );
 
       await tester.tap(find.byIcon(Icons.reorder_rounded));
@@ -93,17 +109,7 @@ void main() {
     });
 
     testWidgets('should show Done when in reorder mode', (tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: PlaylistActionButtons(
-              hasSongs: true,
-              canReorder: true,
-              isReorderMode: true,
-            ),
-          ),
-        ),
-      );
+      await tester.pumpWidget(buildButtons(isReorderMode: true));
 
       expect(find.byIcon(Icons.check_rounded), findsOneWidget);
       expect(find.byIcon(Icons.reorder_rounded), findsNothing);
@@ -115,16 +121,11 @@ void main() {
       var shuffleCalled = false;
 
       await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: PlaylistActionButtons(
-              hasSongs: false,
-              canReorder: false,
-              isReorderMode: false,
-              onPlay: () => playCalled = true,
-              onShuffle: () => shuffleCalled = true,
-            ),
-          ),
+        buildButtons(
+          hasSongs: false,
+          canReorder: false,
+          onPlay: () => playCalled = true,
+          onShuffle: () => shuffleCalled = true,
         ),
       );
 
@@ -153,15 +154,9 @@ void main() {
       var reorderCalled = false;
 
       await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: PlaylistActionButtons(
-              hasSongs: true,
-              canReorder: false,
-              isReorderMode: false,
-              onToggleReorder: () => reorderCalled = true,
-            ),
-          ),
+        buildButtons(
+          canReorder: false,
+          onToggleReorder: () => reorderCalled = true,
         ),
       );
 
