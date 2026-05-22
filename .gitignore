@@ -74,6 +74,7 @@ app.*.map.json
 **/ios/**/.symlinks/
 **/ios/**/profile
 **/ios/**/xcuserdata
+**/ios/**/xcshareddata/swiftpm/Package.resolved
 **/ios/.generated/
 **/ios/Flutter/.last_build_id
 **/ios/Flutter/App.framework
