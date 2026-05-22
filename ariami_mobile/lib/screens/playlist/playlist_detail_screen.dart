@@ -10,6 +10,7 @@ import '../../services/playlist_service.dart';
 import '../../services/playback_manager.dart';
 import '../../services/offline/offline_playback_service.dart';
 import '../../services/download/download_manager.dart';
+import '../../utils/download_state_watcher.dart';
 import 'add_to_playlist_screen.dart';
 import '../main/library/library_controller.dart';
 import 'utils/playlist_helpers.dart';
@@ -46,6 +47,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   Set<String> _downloadedSongIds = {};
   StreamSubscription<WsMessage>? _webSocketSubscription;
   bool _pendingSyncRefresh = false;
+  late final DownloadStateWatcher _downloadStateWatcher;
 
   // Map of albumId to album info (name, artist) for stats tracking
   final Map<String, ({String name, String artist})> _albumInfoMap = {};
@@ -53,6 +55,10 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   @override
   void initState() {
     super.initState();
+    _downloadStateWatcher = DownloadStateWatcher(
+      onChanged: _applyDownloadedSongIds,
+    );
+    _downloadStateWatcher.start();
     _loadDownloadedSongs();
     _loadPlaylist();
     _playlistService.addListener(_onPlaylistsChanged);
@@ -63,6 +69,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
 
   @override
   void dispose() {
+    _downloadStateWatcher.dispose();
     _playlistService.removeListener(_onPlaylistsChanged);
     _webSocketSubscription?.cancel();
     super.dispose();
@@ -101,20 +108,22 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
     _pendingSyncRefresh = false;
   }
 
-  /// Load downloaded song IDs
-  void _loadDownloadedSongs() {
-    final queue = _downloadManager.queue;
-    final downloadedIds = <String>{};
-
-    for (final task in queue) {
-      if (task.status == DownloadStatus.completed) {
-        downloadedIds.add(task.songId);
-      }
+  void _applyDownloadedSongIds(Set<String> downloadedIds) {
+    if (!mounted) return;
+    if (_downloadedSongIds.length == downloadedIds.length &&
+        _downloadedSongIds.containsAll(downloadedIds)) {
+      return;
     }
-
     setState(() {
       _downloadedSongIds = downloadedIds;
     });
+  }
+
+  /// Load downloaded song IDs
+  void _loadDownloadedSongs() {
+    _applyDownloadedSongIds(
+      DownloadStateWatcher.completedSongIds(_downloadManager.queue),
+    );
   }
 
   /// Refresh playlist data without showing loading indicator

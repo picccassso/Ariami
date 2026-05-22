@@ -13,6 +13,7 @@ import '../services/offline/offline_playback_service.dart';
 import '../services/download/download_manager.dart';
 import '../services/cache/cache_manager.dart';
 import '../screens/main/library/library_controller.dart';
+import '../utils/download_state_watcher.dart';
 import '../widgets/album/album_action_buttons.dart';
 import '../widgets/album/album_header.dart';
 import '../widgets/album/album_info_section.dart';
@@ -47,10 +48,15 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
   Set<String> _downloadedSongIds = {};
   Set<String> _cachedSongIds = {};
   StreamSubscription<WsMessage>? _webSocketSubscription;
+  late final DownloadStateWatcher _downloadStateWatcher;
 
   @override
   void initState() {
     super.initState();
+    _downloadStateWatcher = DownloadStateWatcher(
+      onChanged: _applyDownloadedSongIds,
+    );
+    _downloadStateWatcher.start();
     _loadAlbumDetail();
     _loadDownloadedSongs();
     _loadCachedSongs();
@@ -61,24 +67,27 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
 
   @override
   void dispose() {
+    _downloadStateWatcher.dispose();
     _webSocketSubscription?.cancel();
     super.dispose();
   }
 
-  /// Load downloaded song IDs
-  void _loadDownloadedSongs() {
-    final queue = _downloadManager.queue;
-    final downloadedIds = <String>{};
-
-    for (final task in queue) {
-      if (task.status == DownloadStatus.completed) {
-        downloadedIds.add(task.songId);
-      }
+  void _applyDownloadedSongIds(Set<String> downloadedIds) {
+    if (!mounted) return;
+    if (_downloadedSongIds.length == downloadedIds.length &&
+        _downloadedSongIds.containsAll(downloadedIds)) {
+      return;
     }
-
     setState(() {
       _downloadedSongIds = downloadedIds;
     });
+  }
+
+  /// Load downloaded song IDs
+  void _loadDownloadedSongs() {
+    _applyDownloadedSongIds(
+      DownloadStateWatcher.completedSongIds(_downloadManager.queue),
+    );
   }
 
   /// Load cached song IDs for this album

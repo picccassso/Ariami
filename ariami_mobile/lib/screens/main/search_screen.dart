@@ -11,6 +11,7 @@ import '../../services/search_service.dart';
 import '../../services/playback_manager.dart';
 import '../../services/download/download_manager.dart';
 import '../../services/offline/offline_playback_service.dart';
+import '../../utils/download_state_watcher.dart';
 import '../../widgets/search/search_result_song_item.dart';
 import '../../widgets/search/search_result_album_item.dart';
 import '../../debug/agent_debug_log.dart';
@@ -44,10 +45,15 @@ class _SearchScreenState extends State<SearchScreen> {
   String? _errorMessage;
   StreamSubscription<OfflineMode>? _offlineSubscription;
   StreamSubscription<WsMessage>? _webSocketSubscription;
+  late final DownloadStateWatcher _downloadStateWatcher;
 
   @override
   void initState() {
     super.initState();
+    _downloadStateWatcher = DownloadStateWatcher(
+      onChanged: _onDownloadStateChanged,
+    );
+    _downloadStateWatcher.start();
     _isOffline = _offlineService.isOfflineModeEnabled;
     _loadLibrary();
     _loadRecentSongs();
@@ -73,12 +79,21 @@ class _SearchScreenState extends State<SearchScreen> {
 
   @override
   void dispose() {
+    _downloadStateWatcher.dispose();
     _searchController.removeListener(_onSearchChanged);
     _searchController.dispose();
     _debouncer.cancel();
     _offlineSubscription?.cancel();
     _webSocketSubscription?.cancel();
     super.dispose();
+  }
+
+  void _onDownloadStateChanged(Set<String> _) {
+    if (!mounted) return;
+    _loadDownloadedSongIds();
+    if (_isOffline || _offlineService.isOfflineModeEnabled) {
+      unawaited(_loadDownloadedSongs());
+    }
   }
 
   void _handleLibrarySyncMessage(WsMessage message) {
