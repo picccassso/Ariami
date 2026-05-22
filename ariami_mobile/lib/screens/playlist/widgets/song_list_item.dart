@@ -3,6 +3,7 @@ import '../../../models/api_models.dart';
 import '../../../models/song.dart';
 import '../../../services/api/connection_service.dart';
 import '../../../services/playback_manager.dart';
+import '../../../widgets/common/song_overflow_menu.dart';
 import '../../../widgets/common/swipe_to_queue.dart';
 import '../utils/playlist_helpers.dart';
 import 'album_art_with_badge.dart';
@@ -30,6 +31,10 @@ class SongListItem extends StatefulWidget {
   /// Callback when song is dismissed/removed
   final VoidCallback? onRemove;
 
+  /// Album metadata for per-track download
+  final String? albumName;
+  final String? albumArtist;
+
   const SongListItem({
     super.key,
     required this.song,
@@ -39,6 +44,8 @@ class SongListItem extends StatefulWidget {
     required this.connectionService,
     this.onTap,
     this.onRemove,
+    this.albumName,
+    this.albumArtist,
   });
 
   @override
@@ -110,9 +117,23 @@ class _SongListItemState extends State<SongListItem> {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(color: Colors.grey[600]),
                 ),
-                trailing: Text(
-                  formatDuration(widget.song.duration),
-                  style: TextStyle(color: Colors.grey[600]),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      formatDuration(widget.song.duration),
+                      style: TextStyle(color: Colors.grey[600]),
+                    ),
+                    if (widget.isAvailable) ...[
+                      const SizedBox(width: 8),
+                      SongOverflowMenu(
+                        song: widget.song,
+                        albumName: widget.albumName,
+                        albumArtist: widget.albumArtist,
+                      ),
+                    ] else
+                      const SizedBox(width: 48),
+                  ],
                 ),
                 onTap: widget.isAvailable ? widget.onTap : null,
               ),

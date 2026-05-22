@@ -826,6 +826,9 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                 final isDownloaded = _downloadedSongIds.contains(song.id);
                 final isOffline = _offlineService.isOffline;
                 final isAvailable = !isOffline || isDownloaded;
+                final albumId = song.albumId;
+                final albumInfo =
+                    albumId != null ? _albumInfoMap[albumId] : null;
 
                 return SongListItem(
                   song: song,
@@ -833,6 +836,8 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                   isAvailable: isAvailable,
                   isDownloaded: isDownloaded,
                   connectionService: _connectionService,
+                  albumName: albumInfo?.name,
+                  albumArtist: albumInfo?.artist,
                   onTap: () => _playTrack(song, index),
                   onRemove: () => _removeSong(song.id),
                 );

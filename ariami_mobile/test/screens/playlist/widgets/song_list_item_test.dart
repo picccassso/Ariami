@@ -38,6 +38,35 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
   }
 
+  group('SongListItem overflow menu', () {
+    testWidgets('shows more_vert when song is available', (tester) async {
+      await tester.pumpWidget(
+        buildSubject(onRemove: () {}),
+      );
+
+      expect(find.byIcon(Icons.more_vert), findsOneWidget);
+    });
+
+    testWidgets('hides more_vert when song is unavailable', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SongListItem(
+              song: buildSong(),
+              index: 0,
+              isAvailable: false,
+              isDownloaded: false,
+              connectionService: ConnectionService(),
+              onRemove: () {},
+            ),
+          ),
+        ),
+      );
+
+      expect(find.byIcon(Icons.more_vert), findsNothing);
+    });
+  });
+
   group('SongListItem swipe-to-delete', () {
     testWidgets('removes song on intentional center-origin swipe',
         (tester) async {

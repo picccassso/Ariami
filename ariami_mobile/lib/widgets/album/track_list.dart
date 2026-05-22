@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../models/api_models.dart';
 import '../../models/song.dart';
-import '../../screens/playlist/add_to_playlist_screen.dart';
 import '../../services/api/connection_service.dart';
 import '../../services/playback_manager.dart';
-import '../../services/download/download_manager.dart';
 import '../common/cached_artwork.dart';
+import '../common/song_overflow_menu.dart';
 import '../common/swipe_to_queue.dart';
 
 /// Track list item for album detail view
@@ -109,7 +108,11 @@ class TrackListItem extends StatelessWidget {
                   ),
                   if (isAvailable) ...[
                     const SizedBox(width: 8),
-                    _buildOverflowMenu(context),
+                    SongOverflowMenu(
+                      song: track,
+                      albumName: albumName,
+                      albumArtist: albumArtist,
+                    ),
                   ] else
                     const SizedBox(width: 48), // Placeholder
                 ],
@@ -202,134 +205,20 @@ class TrackListItem extends StatelessWidget {
     );
   }
 
-  /// Build overflow menu button
-  Widget _buildOverflowMenu(BuildContext context) {
-    return PopupMenuButton<String>(
-      icon: Icon(
-        Icons.more_vert,
-        size: 20,
-        color: Colors.grey[600],
-      ),
-      onSelected: (value) => _handleMenuAction(context, value),
-      itemBuilder: (BuildContext context) => [
-        const PopupMenuItem<String>(
-          value: 'play_next',
-          child: Row(
-            children: [
-              Icon(Icons.skip_next, size: 20),
-              SizedBox(width: 12),
-              Text('Play Next'),
-            ],
-          ),
-        ),
-        const PopupMenuItem<String>(
-          value: 'add_queue',
-          child: Row(
-            children: [
-              Icon(Icons.queue_music, size: 20),
-              SizedBox(width: 12),
-              Text('Add to Queue'),
-            ],
-          ),
-        ),
-        const PopupMenuItem<String>(
-          value: 'add_playlist',
-          child: Row(
-            children: [
-              Icon(Icons.playlist_add, size: 20),
-              SizedBox(width: 12),
-              Text('Add to Playlist'),
-            ],
-          ),
-        ),
-        const PopupMenuItem<String>(
-          value: 'download',
-          child: Row(
-            children: [
-              Icon(Icons.download, size: 20),
-              SizedBox(width: 12),
-              Text('Download'),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  /// Handle menu action selection
-  void _handleMenuAction(BuildContext context, String action) {
-    final playbackManager = PlaybackManager();
-
-    final song = _toSong();
-
-    switch (action) {
-      case 'play_next':
-        playbackManager.playNext(song);
-        break;
-      case 'add_queue':
-        playbackManager.addToQueue(song);
-        break;
-      case 'add_playlist':
-        AddToPlaylistScreen.showForSong(
-          context,
-          track.id,
-          albumId: track.albumId,
-          title: track.title,
-          artist: track.artist,
-          duration: track.duration,
-        );
-        return;
-      case 'download':
-        _handleDownload(context);
-        return;
-      default:
-        return;
-    }
-  }
-
   void _addTrackToQueue() {
-    PlaybackManager().addToQueue(_toSong());
-  }
-
-  Song _toSong() {
-    return Song(
-      id: track.id,
-      title: track.title,
-      artist: track.artist,
-      album: null,
-      albumId: track.albumId,
-      duration: Duration(seconds: track.duration),
-      filePath: track.id,
-      fileSize: 0,
-      modifiedTime: DateTime.now(),
-      trackNumber: track.trackNumber,
-    );
-  }
-
-  /// Handle download action
-  void _handleDownload(BuildContext context) {
-    final connectionService = ConnectionService();
-    final downloadManager = DownloadManager();
-
-    // Check if connected to server
-    if (connectionService.apiClient == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Not connected to server')),
-      );
-      return;
-    }
-
-    downloadManager.downloadSong(
-      songId: track.id,
-      title: track.title,
-      artist: track.artist,
-      albumId: track.albumId,
-      albumName: albumName,
-      albumArtist: albumArtist,
-      albumArt: '',
-      duration: track.duration,
-      trackNumber: track.trackNumber,
-      totalBytes: 0, // Will be determined during download
+    PlaybackManager().addToQueue(
+      Song(
+        id: track.id,
+        title: track.title,
+        artist: track.artist,
+        album: null,
+        albumId: track.albumId,
+        duration: Duration(seconds: track.duration),
+        filePath: track.id,
+        fileSize: 0,
+        modifiedTime: DateTime.now(),
+        trackNumber: track.trackNumber,
+      ),
     );
   }
 
