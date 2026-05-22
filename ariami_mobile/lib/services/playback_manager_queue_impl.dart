@@ -256,7 +256,30 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
         return;
       }
 
-      if (!_queue.hasPrevious) return;
+      if (!_queue.hasPrevious) {
+        if (_repeatMode == RepeatMode.all && _queue.songs.length > 1) {
+          final previousIndex = await _findPreviousAvailableSongIndex();
+          if (previousIndex == null) {
+            print('[PlaybackManager] No available previous song found');
+            return;
+          }
+
+          await _statsService.onSongStopped();
+
+          _queue.jumpToIndex(previousIndex);
+          _restoredPosition = null;
+          _pendingUiPosition = null;
+
+          _notifyStateChanged();
+          await Future.delayed(const Duration(milliseconds: 700));
+          if (_queue.currentIndex != previousIndex) return;
+
+          await _playCurrentSong();
+          _notifyStateChanged();
+          await _saveState();
+        }
+        return;
+      }
 
       // Find previous available song when offline
       final previousIndex = await _findPreviousAvailableSongIndex();
@@ -498,7 +521,13 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
 
     // If online, just return the previous index
     if (!_offlineService.isOffline) {
-      return currentIndex > 0 ? currentIndex - 1 : null;
+      if (currentIndex > 0) {
+        return currentIndex - 1;
+      }
+      if (_repeatMode == RepeatMode.all && songs.length > 1) {
+        return songs.length - 1;
+      }
+      return null;
     }
 
     // Search backward from current position

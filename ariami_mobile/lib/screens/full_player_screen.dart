@@ -145,6 +145,15 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
       return;
     }
 
+    if (_playbackManager.repeatMode == playback_repeat.RepeatMode.all &&
+        _playbackManager.queue.length > 1) {
+      final didAnimate = await _artworkController.animateToIndex(0);
+      if (!didAnimate && mounted) {
+        await _playbackManager.skipNext();
+      }
+      return;
+    }
+
     await _playbackManager.skipNext();
   }
 
@@ -159,6 +168,16 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
       final didAnimate = await _artworkController.animateToIndex(targetIndex);
       if (!didAnimate && mounted) {
         await _playbackManager.skipToQueueItem(targetIndex);
+      }
+      return;
+    }
+
+    if (_playbackManager.repeatMode == playback_repeat.RepeatMode.all &&
+        _playbackManager.queue.length > 1) {
+      final targetIndex = _playbackManager.queue.length - 1;
+      final didAnimate = await _artworkController.animateToIndex(targetIndex);
+      if (!didAnimate && mounted) {
+        await _playbackManager.skipPrevious();
       }
       return;
     }
@@ -273,6 +292,7 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
                     controller: _artworkController,
                     queue: _playbackManager.queue,
                     currentIndex: _playbackManager.queue.currentIndex,
+                    repeatMode: _playbackManager.repeatMode,
                     onPageChanged: (index) {
                       _playbackManager.skipToQueueItem(index);
                     },
@@ -418,7 +438,10 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
           IconButton(
             icon: const Icon(LucideIcons.skipBack),
             iconSize: 48,
-            onPressed: _playbackManager.hasPrevious
+            onPressed: (_playbackManager.hasPrevious ||
+                    (_playbackManager.repeatMode ==
+                            playback_repeat.RepeatMode.all &&
+                        _playbackManager.queue.length > 1))
                 ? () => unawaited(_skipPreviousWithArtworkAnimation())
                 : null,
             tooltip: 'Previous',
@@ -474,7 +497,7 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
             onPressed: (_playbackManager.hasNext ||
                     (_playbackManager.repeatMode ==
                             playback_repeat.RepeatMode.all &&
-                        _playbackManager.queue.isNotEmpty))
+                        _playbackManager.queue.length > 1))
                 ? () => unawaited(_skipNextWithArtworkAnimation())
                 : null,
             tooltip: 'Next',

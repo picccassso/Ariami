@@ -3,7 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../models/playback_queue.dart';
+import '../../models/repeat_mode.dart' as playback_repeat;
 import '../../models/song.dart';
+import 'player_artwork_indices.dart';
 import '../../services/api/connection_service.dart';
 import '../../services/cast/chrome_cast_service.dart';
 import '../common/cached_artwork.dart';
@@ -56,6 +58,7 @@ class PlayerArtworkController {
 class PlayerArtwork extends StatefulWidget {
   final PlaybackQueue queue;
   final int currentIndex;
+  final playback_repeat.RepeatMode repeatMode;
   final ValueChanged<int> onPageChanged;
   final PlayerArtworkController? controller;
 
@@ -63,6 +66,7 @@ class PlayerArtwork extends StatefulWidget {
     super.key,
     required this.queue,
     required this.currentIndex,
+    this.repeatMode = playback_repeat.RepeatMode.none,
     required this.onPageChanged,
     this.controller,
   });
@@ -84,18 +88,53 @@ class _PlayerArtworkState extends State<PlayerArtwork> {
   bool _allowHorizontalPaging = true;
 
   late int _visualIndex;
+  late bool _wrapEnabled;
 
   /// Bumps when a post-frame sync is scheduled so older callbacks no-op.
   int _playbackPageSyncGeneration = 0;
 
+  bool get _wrapEnabledForWidget => playerArtworkWrapEnabled(
+        repeatMode: widget.repeatMode,
+        queueLength: widget.queue.length,
+      );
+
+  int _queueIndexToPageIndex(int queueIndex) {
+    return playerArtworkQueueIndexToPageIndex(
+      queueIndex: queueIndex,
+      wrapEnabled: _wrapEnabled,
+      queueLength: widget.queue.length,
+    );
+  }
+
+  int _pageIndexToQueueIndex(int pageIndex) {
+    return playerArtworkPageIndexToQueueIndex(
+      pageIndex: pageIndex,
+      wrapEnabled: _wrapEnabled,
+      queueLength: widget.queue.length,
+    );
+  }
+
+  PageController _createPageController(int initialPage) {
+    return PageController(
+      initialPage: initialPage,
+      viewportFraction: 0.9,
+    );
+  }
+
+  void _replacePageController(int initialPage) {
+    final oldController = _pageController;
+    _pageController = _createPageController(initialPage);
+    _visualIndex = initialPage;
+    oldController.dispose();
+  }
+
   @override
   void initState() {
     super.initState();
-    _visualIndex = widget.currentIndex;
-    _pageController = PageController(
-      initialPage: widget.currentIndex,
-      viewportFraction: 0.9,
-    );
+    _wrapEnabled = _wrapEnabledForWidget;
+    final initialPage = _queueIndexToPageIndex(widget.currentIndex);
+    _visualIndex = initialPage;
+    _pageController = _createPageController(initialPage);
     _castService.initialize();
     _wasConnected = _castService.isConnected;
     _castService.addListener(_handleCastStateChanged);
@@ -110,13 +149,21 @@ class _PlayerArtworkState extends State<PlayerArtwork> {
       widget.controller?._attach(this);
     }
 
-    if (widget.queue != oldWidget.queue) {
-      if (_pageController.hasClients) {
-        _pageController.jumpToPage(widget.currentIndex);
-      }
-      _visualIndex = widget.currentIndex;
-    } else if (widget.currentIndex != oldWidget.currentIndex) {
-      _visualIndex = widget.currentIndex;
+    final wrapEnabled = _wrapEnabledForWidget;
+    final wrapModeChanged = wrapEnabled != _wrapEnabled;
+    final queueLengthChanged =
+        widget.queue.length != oldWidget.queue.length;
+    _wrapEnabled = wrapEnabled;
+
+    if (widget.queue != oldWidget.queue ||
+        wrapModeChanged ||
+        queueLengthChanged) {
+      final targetPage = _queueIndexToPageIndex(widget.currentIndex);
+      _replacePageController(targetPage);
+      return;
+    }
+
+    if (widget.currentIndex != oldWidget.currentIndex) {
       _scheduleSyncPageToPlaybackIndex();
     }
   }
@@ -133,16 +180,25 @@ class _PlayerArtworkState extends State<PlayerArtwork> {
       if (!_pageController.hasClients) {
         return;
       }
-      final target = widget.currentIndex;
-      if (target < 0 || target >= widget.queue.length) {
+      if (widget.queue.isEmpty) {
         return;
       }
+      final targetPage = _queueIndexToPageIndex(widget.currentIndex);
       final currentPage = _pageController.page?.round() ?? _visualIndex;
-      if (currentPage == target) {
+      if (currentPage == targetPage) {
+        return;
+      }
+      if (playerArtworkIsSentinelPageIndex(
+        pageIndex: currentPage,
+        wrapEnabled: _wrapEnabled,
+        queueLength: widget.queue.length,
+      )) {
+        _pageController.jumpToPage(targetPage);
+        _visualIndex = targetPage;
         return;
       }
       _pageController.animateToPage(
-        target,
+        targetPage,
         duration: _kArtworkAutoAdvanceDuration,
         curve: Curves.easeInOut,
       );
@@ -168,16 +224,27 @@ class _PlayerArtworkState extends State<PlayerArtwork> {
       return false;
     }
 
+    final fromQueueIndex = _pageIndexToQueueIndex(
+      _pageController.page?.round() ?? _visualIndex,
+    );
+    final targetPage = playerArtworkAnimateTargetPageIndex(
+      fromQueueIndex: fromQueueIndex,
+      toQueueIndex: index,
+      wrapEnabled: _wrapEnabled,
+      queueLength: widget.queue.length,
+    );
+
     final currentPage = _pageController.page?.round() ?? _visualIndex;
-    if (currentPage == index) {
+    if (currentPage == targetPage) {
       return false;
     }
 
     await _pageController.animateToPage(
-      index,
+      targetPage,
       duration: _kArtworkPageTurnDuration,
       curve: Curves.easeInOut,
     );
+    _visualIndex = targetPage;
     return true;
   }
 
@@ -197,8 +264,9 @@ class _PlayerArtworkState extends State<PlayerArtwork> {
         child: NotificationListener<ScrollNotification>(
           onNotification: (notification) {
             if (notification is ScrollEndNotification) {
-              if (_visualIndex != widget.currentIndex) {
-                widget.onPageChanged(_visualIndex);
+              final queueIndex = _pageIndexToQueueIndex(_visualIndex);
+              if (queueIndex != widget.currentIndex) {
+                widget.onPageChanged(queueIndex);
               }
             }
             return false;
@@ -211,12 +279,16 @@ class _PlayerArtworkState extends State<PlayerArtwork> {
             onPageChanged: (index) {
               _visualIndex = index;
             },
-            itemCount: widget.queue.length,
+            itemCount: playerArtworkPageCount(
+              wrapEnabled: _wrapEnabled,
+              queueLength: widget.queue.length,
+            ),
             itemBuilder: (context, index) {
-              final song = widget.queue.songs[index];
+              final queueIndex = _pageIndexToQueueIndex(index);
+              final song = widget.queue.songs[queueIndex];
               return Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12.0),
-                child: _buildArtworkContainer(context, song, index),
+                child: _buildArtworkContainer(context, song, queueIndex),
               );
             },
           ),
@@ -247,8 +319,12 @@ class _PlayerArtworkState extends State<PlayerArtwork> {
     });
   }
 
-  Widget _buildArtworkContainer(BuildContext context, Song song, int index) {
-    final isCurrent = index == widget.currentIndex;
+  Widget _buildArtworkContainer(
+    BuildContext context,
+    Song song,
+    int queueIndex,
+  ) {
+    final isCurrent = queueIndex == widget.currentIndex;
     Widget child = Container(
       constraints: const BoxConstraints(
         maxWidth: 350,
@@ -287,7 +363,9 @@ class _PlayerArtworkState extends State<PlayerArtwork> {
 
     return Center(
       child: Hero(
-        tag: isCurrent ? 'album_art_${song.id}' : 'album_art_${song.id}_$index',
+        tag: isCurrent
+            ? 'album_art_${song.id}'
+            : 'album_art_${song.id}_$queueIndex',
         child: child,
       ),
     );
