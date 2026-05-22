@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../common/mini_player_aware_bottom_sheet.dart';
 import '../../models/song.dart';
 import 'queue_display_order.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../services/api/connection_service.dart';
 import '../../services/offline/offline_playback_service.dart';
 import '../common/cached_artwork.dart';

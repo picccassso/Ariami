@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../models/quality_settings.dart';
 import '../../services/quality/quality_settings_service.dart';
 import '../../services/quality/network_monitor_service.dart';

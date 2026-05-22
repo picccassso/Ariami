@@ -85,7 +85,7 @@ dependencies:
   flutter_secure_storage: ^10.0.0
 
   # Modern icons
-  lucide_icons: ^0.257.0
+  lucide_icons_flutter: ^3.1.14
 
 dev_dependencies:
   flutter_test:

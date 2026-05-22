@@ -1,167 +1,21 @@
 PODS:
-  - audio_service (0.0.1):
-    - Flutter
-    - FlutterMacOS
-  - audio_session (0.0.1):
-    - Flutter
-  - audioplayers_darwin (0.0.1):
-    - Flutter
-    - FlutterMacOS
-  - connectivity_plus (0.0.1):
-    - Flutter
-  - DKImagePickerController/Core (4.3.9):
-    - DKImagePickerController/ImageDataManager
-    - DKImagePickerController/Resource
-  - DKImagePickerController/ImageDataManager (4.3.9)
-  - DKImagePickerController/PhotoGallery (4.3.9):
-    - DKImagePickerController/Core
-    - DKPhotoGallery
-  - DKImagePickerController/Resource (4.3.9)
-  - DKPhotoGallery (0.0.19):
-    - DKPhotoGallery/Core (= 0.0.19)
-    - DKPhotoGallery/Model (= 0.0.19)
-    - DKPhotoGallery/Preview (= 0.0.19)
-    - DKPhotoGallery/Resource (= 0.0.19)
-    - SDWebImage
-    - SwiftyGif
-  - DKPhotoGallery/Core (0.0.19):
-    - DKPhotoGallery/Model
-    - DKPhotoGallery/Preview
-    - SDWebImage
-    - SwiftyGif
-  - DKPhotoGallery/Model (0.0.19):
-    - SDWebImage
-    - SwiftyGif
-  - DKPhotoGallery/Preview (0.0.19):
-    - DKPhotoGallery/Model
-    - DKPhotoGallery/Resource
-    - SDWebImage
-    - SwiftyGif
-  - DKPhotoGallery/Resource (0.0.19):
-    - SDWebImage
-    - SwiftyGif
-  - file_picker (0.0.1):
-    - DKImagePickerController/PhotoGallery
-    - Flutter
   - Flutter (1.0.0)
-  - flutter_chrome_cast (1.4.1):
-    - Flutter
-    - google-cast-sdk (~> 4.8)
-    - Protobuf
-  - flutter_secure_storage_darwin (10.0.0):
-    - Flutter
-    - FlutterMacOS
-  - google-cast-sdk (4.8.4)
-  - just_audio (0.0.1):
-    - Flutter
-    - FlutterMacOS
-  - mobile_scanner (7.0.0):
-    - Flutter
-    - FlutterMacOS
-  - package_info_plus (0.4.5):
-    - Flutter
   - permission_handler_apple (9.3.0):
-    - Flutter
-  - Protobuf (5.34.1)
-  - SDWebImage (5.21.5):
-    - SDWebImage/Core (= 5.21.5)
-  - SDWebImage/Core (5.21.5)
-  - share_plus (0.0.1):
-    - Flutter
-  - shared_preferences_foundation (0.0.1):
-    - Flutter
-    - FlutterMacOS
-  - sqflite_darwin (0.0.4):
-    - Flutter
-    - FlutterMacOS
-  - SwiftyGif (5.4.5)
-  - url_launcher_ios (0.0.1):
     - Flutter
 
 DEPENDENCIES:
-  - audio_service (from `.symlinks/plugins/audio_service/darwin`)
-  - audio_session (from `.symlinks/plugins/audio_session/ios`)
-  - audioplayers_darwin (from `.symlinks/plugins/audioplayers_darwin/darwin`)
-  - connectivity_plus (from `.symlinks/plugins/connectivity_plus/ios`)
-  - file_picker (from `.symlinks/plugins/file_picker/ios`)
   - Flutter (from `Flutter`)
-  - flutter_chrome_cast (from `.symlinks/plugins/flutter_chrome_cast/ios`)
-  - flutter_secure_storage_darwin (from `.symlinks/plugins/flutter_secure_storage_darwin/darwin`)
-  - just_audio (from `.symlinks/plugins/just_audio/darwin`)
-  - mobile_scanner (from `.symlinks/plugins/mobile_scanner/darwin`)
-  - package_info_plus (from `.symlinks/plugins/package_info_plus/ios`)
   - permission_handler_apple (from `.symlinks/plugins/permission_handler_apple/ios`)
-  - share_plus (from `.symlinks/plugins/share_plus/ios`)
-  - shared_preferences_foundation (from `.symlinks/plugins/shared_preferences_foundation/darwin`)
-  - sqflite_darwin (from `.symlinks/plugins/sqflite_darwin/darwin`)
-  - url_launcher_ios (from `.symlinks/plugins/url_launcher_ios/ios`)
-
-SPEC REPOS:
-  trunk:
-    - DKImagePickerController
-    - DKPhotoGallery
-    - google-cast-sdk
-    - Protobuf
-    - SDWebImage
-    - SwiftyGif
 
 EXTERNAL SOURCES:
-  audio_service:
-    :path: ".symlinks/plugins/audio_service/darwin"
-  audio_session:
-    :path: ".symlinks/plugins/audio_session/ios"
-  audioplayers_darwin:
-    :path: ".symlinks/plugins/audioplayers_darwin/darwin"
-  connectivity_plus:
-    :path: ".symlinks/plugins/connectivity_plus/ios"
-  file_picker:
-    :path: ".symlinks/plugins/file_picker/ios"
   Flutter:
     :path: Flutter
-  flutter_chrome_cast:
-    :path: ".symlinks/plugins/flutter_chrome_cast/ios"
-  flutter_secure_storage_darwin:
-    :path: ".symlinks/plugins/flutter_secure_storage_darwin/darwin"
-  just_audio:
-    :path: ".symlinks/plugins/just_audio/darwin"
-  mobile_scanner:
-    :path: ".symlinks/plugins/mobile_scanner/darwin"
-  package_info_plus:
-    :path: ".symlinks/plugins/package_info_plus/ios"
   permission_handler_apple:
     :path: ".symlinks/plugins/permission_handler_apple/ios"
-  share_plus:
-    :path: ".symlinks/plugins/share_plus/ios"
-  shared_preferences_foundation:
-    :path: ".symlinks/plugins/shared_preferences_foundation/darwin"
-  sqflite_darwin:
-    :path: ".symlinks/plugins/sqflite_darwin/darwin"
-  url_launcher_ios:
-    :path: ".symlinks/plugins/url_launcher_ios/ios"
 
 SPEC CHECKSUMS:
-  audio_service: cab6c1a0eaf01b5a35b567e11fa67d3cc1956910
-  audio_session: 19e9480dbdd4e5f6c4543826b2e8b0e4ab6145fe
-  audioplayers_darwin: f15e209a3e856d1a7edcf98dc029f484fead2242
-  connectivity_plus: 2a701ffec2c0ae28a48cf7540e279787e77c447d
-  DKImagePickerController: 946cec48c7873164274ecc4624d19e3da4c1ef3c
-  DKPhotoGallery: b3834fecb755ee09a593d7c9e389d8b5d6deed60
-  file_picker: b159e0c068aef54932bb15dc9fd1571818edaf49
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
-  flutter_chrome_cast: 6c587fcbed3ad19ab8aba50c01af195be2290c7e
-  flutter_secure_storage_darwin: 557817588b80e60213cbecb573c45c76b788018d
-  google-cast-sdk: 32f65af50d164e3c475e79ad123db3cc26fbcd37
-  just_audio: a42c63806f16995daf5b219ae1d679deb76e6a79
-  mobile_scanner: 77265f3dc8d580810e91849d4a0811a90467ed5e
-  package_info_plus: c0502532a26c7662a62a356cebe2692ec5fe4ec4
   permission_handler_apple: 9878588469a2b0d0fc1e048d9f43605f92e6cec2
-  Protobuf: b51e2d95aace0c1ce911b7483315efb7c3ab037f
-  SDWebImage: e9c98383c7572d713c1a0d7dd2783b10599b9838
-  share_plus: 8b6f8b3447e494cca5317c8c3073de39b3600d1f
-  shared_preferences_foundation: 5086985c1d43c5ba4d5e69a4e8083a389e2909e6
-  sqflite_darwin: 5a7236e3b501866c1c9befc6771dfd73ffb8702d
-  SwiftyGif: 706c60cf65fa2bc5ee0313beece843c8eb8194d4
-  url_launcher_ios: bb13df5870e8c4234ca12609d04010a21be43dfa
 
 PODFILE CHECKSUM: ce2a4dd764e1c7aeed6a7cdc5e61d092b6dc6d32
 

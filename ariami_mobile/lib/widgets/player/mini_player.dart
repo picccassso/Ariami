@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_chrome_cast/flutter_chrome_cast.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../models/song.dart';
 import '../../services/api/connection_service.dart';
 import '../../services/cast/chrome_cast_service.dart';

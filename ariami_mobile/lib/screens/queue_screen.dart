@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/playback_queue.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../models/song.dart';
 import '../services/color_extraction_service.dart';
 import '../utils/constants.dart';
