@@ -38,6 +38,7 @@ class AppDelegate: FlutterAppDelegate {
           self?.allowAppNap()
           result(nil)
         case "terminateApp":
+          self?.allowAppNap()
           self?.isTerminating = true
           NSApp.terminate(nil)
           result(nil)
@@ -53,17 +54,8 @@ class AppDelegate: FlutterAppDelegate {
       return .terminateNow
     }
 
-    isTerminating = true
-
-    if let channel = dockChannel {
-      channel.invokeMethod("requestTerminate", arguments: nil)
-      DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-        NSApp.terminate(nil)
-      }
-      return .terminateCancel
-    }
-
-    return .terminateNow
+    dockChannel?.invokeMethod("requestTerminate", arguments: nil)
+    return .terminateCancel
   }
 
   /// Prevent macOS from putting the app into App Nap mode
@@ -96,7 +88,8 @@ class AppDelegate: FlutterAppDelegate {
   }
 
   override func applicationWillTerminate(_ notification: Notification) {
-    // Clean up background activity on quit
+    // Prevent window_manager from sending platform messages during teardown.
+    mainFlutterWindow?.delegate = nil
     allowAppNap()
   }
 

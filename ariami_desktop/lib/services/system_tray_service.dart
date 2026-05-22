@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:io';
+import 'package:ariami_core/services/server/http_server.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as path;
@@ -14,7 +16,10 @@ class SystemTrayService with TrayListener {
 
   bool _isInitialized = false;
   bool _isShuttingDown = false;
-  
+
+  /// Called before native terminate to detach window close interception.
+  VoidCallback? onPrepareForShutdown;
+
   // Method channel for macOS dock icon visibility
   static const _dockChannel = MethodChannel('ariami_desktop/dock');
 
@@ -28,7 +33,7 @@ class SystemTrayService with TrayListener {
       }
       // Set up the tray icon based on platform
       String iconPath = await _getTrayIconPath();
-      
+
       // Verify the icon file exists
       final iconFile = File(iconPath);
       if (!await iconFile.exists()) {
@@ -37,7 +42,7 @@ class SystemTrayService with TrayListener {
         _isInitialized = true;
         return;
       }
-      
+
       // On macOS, tray_manager may have issues with certain paths
       // Copy to temp directory as a workaround
       String finalIconPath = iconPath;
@@ -52,9 +57,9 @@ class SystemTrayService with TrayListener {
           print('[Tray] Failed to copy icon to temp, using original: $e');
         }
       }
-      
+
       await trayManager.setIcon(finalIconPath);
-      
+
       // Set up the context menu
       Menu menu = Menu(
         items: [
@@ -69,10 +74,10 @@ class SystemTrayService with TrayListener {
           ),
         ],
       );
-      
+
       await trayManager.setContextMenu(menu);
       trayManager.addListener(this);
-      
+
       _isInitialized = true;
     } catch (e) {
       print('Warning: Failed to initialize system tray: $e');
@@ -94,7 +99,7 @@ class SystemTrayService with TrayListener {
   Future<String> _getTrayIconPath() async {
     // Get the directory containing the executable
     final executableDir = path.dirname(Platform.resolvedExecutable);
-    
+
     if (Platform.isMacOS) {
       if (kDebugMode) {
         // In debug mode, executable is at:
@@ -108,7 +113,14 @@ class SystemTrayService with TrayListener {
       }
       // In release mode, the icon is bundled in flutter_assets
       // Use path.normalize to resolve the '..' and get a clean absolute path
-      final resourcesDir = path.normalize(path.join(executableDir, '..', 'Frameworks', 'App.framework', 'Resources', 'flutter_assets', 'assets'));
+      final resourcesDir = path.normalize(path.join(
+          executableDir,
+          '..',
+          'Frameworks',
+          'App.framework',
+          'Resources',
+          'flutter_assets',
+          'assets'));
       final iconPath = path.join(resourcesDir, 'Ariami_icon.png');
       // Return normalized path directly - avoid .absolute which can throw
       return path.normalize(iconPath);
@@ -123,7 +135,8 @@ class SystemTrayService with TrayListener {
         return path.join(projectDir, 'assets', 'app_icon.ico');
       }
       // In release mode, look for icon in flutter_assets
-      return path.join(executableDir, 'data', 'flutter_assets', 'assets', 'app_icon.ico');
+      return path.join(
+          executableDir, 'data', 'flutter_assets', 'assets', 'app_icon.ico');
     } else if (Platform.isLinux) {
       if (kDebugMode) {
         // In debug mode, executable is at: /project/build/linux/x64/debug/bundle/app
@@ -135,7 +148,8 @@ class SystemTrayService with TrayListener {
         return path.join(projectDir, 'assets', 'Ariami_icon.png');
       }
       // In release mode, look for icon in flutter_assets
-      return path.join(executableDir, 'data', 'flutter_assets', 'assets', 'Ariami_icon.png');
+      return path.join(
+          executableDir, 'data', 'flutter_assets', 'assets', 'Ariami_icon.png');
     }
     return '';
   }
@@ -174,16 +188,26 @@ class SystemTrayService with TrayListener {
   Future<void> quitApp() async {
     if (_isShuttingDown) return;
     _isShuttingDown = true;
+
+    final httpServer = AriamiHttpServer();
+    if (httpServer.isRunning) {
+      await httpServer.stop();
+    }
+
+    onPrepareForShutdown?.call();
     trayManager.removeListener(this);
-    await trayManager.destroy();
+    unawaited(trayManager.destroy().catchError((_) {}));
+    unawaited(windowManager.setPreventClose(false).catchError((_) {}));
 
     if (Platform.isMacOS) {
       try {
-        await _dockChannel.invokeMethod('terminateApp');
-        return;
+        await _dockChannel
+            .invokeMethod('terminateApp')
+            .timeout(const Duration(seconds: 2));
       } catch (e) {
-        print('[Tray] Failed to terminate app via AppDelegate: $e');
+        print('[Tray] terminateApp failed/timed out: $e');
       }
+      exit(0);
     }
 
     try {

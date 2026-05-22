@@ -103,14 +103,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
   }
 
+  void _cancelRefreshTimers() {
+    _connectedRowsRefreshTimer?.cancel();
+    _userActivityRefreshTimer?.cancel();
+    _adminHeartbeatTimer?.cancel();
+  }
+
   @override
   void dispose() {
     _httpServer.libraryManager
         .removeScanCompleteListener(_onLibraryScanComplete);
     _httpServer.connectionManager.removeListener(_onClientConnectionChanged);
-    _connectedRowsRefreshTimer?.cancel();
-    _userActivityRefreshTimer?.cancel();
-    _adminHeartbeatTimer?.cancel();
+    _cancelRefreshTimers();
     super.dispose();
   }
 

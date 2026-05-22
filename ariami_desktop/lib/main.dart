@@ -57,6 +57,9 @@ class _MyAppState extends State<MyApp> with WindowListener {
   void initState() {
     super.initState();
     windowManager.addListener(this);
+    _trayService.onPrepareForShutdown = () {
+      windowManager.removeListener(this);
+    };
     _initializeApp();
   }
 

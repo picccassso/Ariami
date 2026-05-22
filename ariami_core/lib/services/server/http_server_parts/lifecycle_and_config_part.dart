@@ -208,6 +208,7 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
     _webSocketClients.clear();
     _metricsService.stop();
     _inFlightDownloadTranscodesByUser.clear();
+    _streamTracker.dispose();
 
     print('Ariami Server stopped');
   }
