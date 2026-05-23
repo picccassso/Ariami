@@ -7,6 +7,7 @@ import '../../services/cast/chrome_cast_service.dart';
 import '../../services/color_extraction_service.dart';
 import '../../utils/constants.dart';
 import '../../services/playback_manager.dart';
+import '../common/adaptive_marquee_text.dart';
 import '../common/cached_artwork.dart';
 import '../common/mini_player_aware_bottom_sheet.dart';
 
@@ -334,14 +335,14 @@ class _MiniPlayerState extends State<MiniPlayer> {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              colors.primary.withOpacity(0.9),
+              colors.primary.withValues(alpha: 0.9),
               colors.secondary
-                  .withOpacity(0.95), // Less transparent for visibility
+                  .withValues(alpha: 0.95), // Less transparent for visibility
             ],
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.3),
+              color: Colors.black.withValues(alpha: 0.3),
               blurRadius: 16,
               offset: const Offset(0, 8),
             ),
@@ -396,30 +397,35 @@ class _MiniPlayerState extends State<MiniPlayer> {
                                           crossAxisAlignment:
                                               CrossAxisAlignment.start,
                                           children: [
-                                            Text(
-                                              widget.currentSong!.title,
+                                            AdaptiveMarqueeText(
+                                              key: ValueKey(
+                                                'title-${widget.currentSong!.id}-${widget.currentSong!.title}',
+                                              ),
+                                              text: widget.currentSong!.title,
                                               style: Theme.of(context)
                                                   .textTheme
                                                   .titleSmall
                                                   ?.copyWith(
                                                     fontWeight: FontWeight.bold,
-                                                    color: Colors
-                                                        .white, // Always white on gradient
+                                                    color: Colors.white,
                                                   ),
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
+                                              height: 20,
+                                              velocity: 20,
                                             ),
-                                            Text(
-                                              widget.currentSong!.artist,
+                                            AdaptiveMarqueeText(
+                                              key: ValueKey(
+                                                'artist-${widget.currentSong!.id}-${widget.currentSong!.artist}',
+                                              ),
+                                              text: widget.currentSong!.artist,
                                               style: Theme.of(context)
                                                   .textTheme
                                                   .bodySmall
                                                   ?.copyWith(
                                                     color: Colors.white
-                                                        .withOpacity(0.8),
+                                                        .withValues(alpha: 0.8),
                                                   ),
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
+                                              height: 16,
+                                              velocity: 20,
                                             ),
                                           ],
                                         ),
@@ -479,7 +485,7 @@ class _MiniPlayerState extends State<MiniPlayer> {
                             widget.duration.inMilliseconds
                         : 0.0,
                     minHeight: 2.5,
-                    backgroundColor: Colors.white.withOpacity(0.25),
+                    backgroundColor: Colors.white.withValues(alpha: 0.25),
                     valueColor: const AlwaysStoppedAnimation<Color>(
                       Colors.white, // Clean white progress
                     ),

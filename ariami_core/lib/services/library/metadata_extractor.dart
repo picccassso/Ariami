@@ -58,13 +58,30 @@ class MetadataExtractor {
       for (final tag in tags) {
         final tagMap = tag.tags;
 
-        title = title ?? _fixEncoding(_getTagValue(tagMap, ['title', 'TIT2']));
-        artist =
-            artist ?? _fixEncoding(_getTagValue(tagMap, ['artist', 'TPE1']));
-        album = album ?? _fixEncoding(_getTagValue(tagMap, ['album', 'TALB']));
-        albumArtist = albumArtist ??
-            _fixEncoding(_getTagValue(tagMap, ['albumartist', 'TPE2']));
-        genre = genre ?? _fixEncoding(_getTagValue(tagMap, ['genre', 'TCON']));
+        final parsedTitle = _fixEncoding(_getTagValue(tagMap, ['title', 'TIT2']));
+        if (parsedTitle != null && (title == null || parsedTitle.length > title.length)) {
+          title = parsedTitle;
+        }
+
+        final parsedArtist = _fixEncoding(_getTagValue(tagMap, ['artist', 'TPE1']));
+        if (parsedArtist != null && (artist == null || parsedArtist.length > artist.length)) {
+          artist = parsedArtist;
+        }
+
+        final parsedAlbum = _fixEncoding(_getTagValue(tagMap, ['album', 'TALB']));
+        if (parsedAlbum != null && (album == null || parsedAlbum.length > album.length)) {
+          album = parsedAlbum;
+        }
+
+        final parsedAlbumArtist = _fixEncoding(_getTagValue(tagMap, ['albumartist', 'TPE2']));
+        if (parsedAlbumArtist != null && (albumArtist == null || parsedAlbumArtist.length > albumArtist.length)) {
+          albumArtist = parsedAlbumArtist;
+        }
+
+        final parsedGenre = _fixEncoding(_getTagValue(tagMap, ['genre', 'TCON']));
+        if (parsedGenre != null && (genre == null || parsedGenre.length > genre.length)) {
+          genre = parsedGenre;
+        }
 
         // Extract year
         final yearStr = _getTagValue(tagMap, ['year', 'TYER', 'TDRC']);
