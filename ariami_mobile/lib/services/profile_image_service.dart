@@ -63,7 +63,7 @@ class ProfileImageService extends ChangeNotifier {
   /// Pick a new profile image using the file picker
   /// Returns true if an image was selected, false otherwise
   Future<bool> pickImage() async {
-    final result = await FilePicker.platform.pickFiles(
+    final result = await FilePicker.pickFiles(
       type: FileType.image,
       allowMultiple: false,
     );

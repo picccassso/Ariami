@@ -137,7 +137,7 @@ class ImportExportService {
       final bytes = utf8.encode(jsonString);
 
       // Use file picker to let user choose save location
-      final savedPath = await FilePicker.platform.saveFile(
+      final savedPath = await FilePicker.saveFile(
         dialogTitle: 'Save Ariami Backup',
         fileName: filename,
         type: FileType.custom,
@@ -177,7 +177,7 @@ class ImportExportService {
       await initialize();
 
       // Pick a JSON file
-      final result = await FilePicker.platform.pickFiles(
+      final result = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['json'],
       );

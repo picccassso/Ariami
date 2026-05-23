@@ -41,7 +41,7 @@ dependencies:
   dio: ^5.4.0
   shared_preferences: ^2.2.0
   audioplayers: ^6.6.0
-  file_picker: ^10.3.11
+  file_picker: ^12.0.0-beta.4
   path_provider: ^2.1.0
   url_launcher: ^6.3.0
   mobile_scanner: ^7.2.0
@@ -51,7 +51,7 @@ dependencies:
   # Audio playback
   just_audio: ^0.10.5
   audio_service: ^0.18.15
-  flutter_chrome_cast: ^1.4.4
+  flutter_chrome_cast: ^1.4.6
 
   # Display refresh rate
   flutter_displaymode: ^0.7.0
@@ -60,10 +60,10 @@ dependencies:
   uuid: ^4.0.0
 
   # App info
-  package_info_plus: ^9.0.0
+  package_info_plus: ^10.1.0
 
   # SQLite database
-  sqflite: ^2.4.1
+  sqflite: ^2.4.2+1
   path: ^1.9.0
 
   # Embedded artwork extraction (same as ariami_core)
@@ -76,13 +76,13 @@ dependencies:
   connectivity_plus: ^7.1.0
 
   # Share files
-  share_plus: ^12.0.2
+  share_plus: ^13.1.0
 
   # Marquee scrolling text
   marquee: ^2.2.3
 
   # Secure storage for auth tokens
-  flutter_secure_storage: ^10.0.0
+  flutter_secure_storage: ^10.3.0
 
   # Modern icons
   lucide_icons_flutter: ^3.1.14
@@ -96,11 +96,11 @@ dev_dependencies:
   # activated in the `analysis_options.yaml` file located at the root of your
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
-  flutter_lints: ^5.0.0
+  flutter_lints: ^6.0.0
 
   # Icon generation
   flutter_launcher_icons: ^0.14.4
-  sqflite_common_ffi: ^2.3.7+1
+  sqflite_common_ffi: ^2.4.0+3
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
