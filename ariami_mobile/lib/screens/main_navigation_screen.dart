@@ -183,23 +183,26 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
                 ),
               ),
             ),
-            child: BottomNavigationBar(
-              currentIndex: _currentIndex,
-              onTap: _onTabTapped,
-              items: const [
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.library_music),
-                  label: 'Library',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.search),
-                  label: 'Search',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.settings),
-                  label: 'Settings',
-                ),
-              ],
+            child: SafeArea(
+              top: false,
+              child: BottomNavigationBar(
+                currentIndex: _currentIndex,
+                onTap: _onTabTapped,
+                items: const [
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.library_music),
+                    label: 'Library',
+                  ),
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.search),
+                    label: 'Search',
+                  ),
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.settings),
+                    label: 'Settings',
+                  ),
+                ],
+              ),
             ),
           ),
         ),

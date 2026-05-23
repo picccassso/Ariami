@@ -47,7 +47,12 @@ void debugLogBottomLayout({
 /// When the IME (keyboard) is open, the bottom nav is obscured and the scaffold
 /// body is already laid out above the keyboard — reserve no height for the bar.
 double getBottomNavigationBarTotalHeight(BuildContext context) {
-  final viewPaddingBottom = MediaQuery.viewPaddingOf(context).bottom;
+  double viewPaddingBottom = 0.0;
+  try {
+    viewPaddingBottom = MediaQueryData.fromView(View.of(context)).viewPadding.bottom;
+  } catch (_) {
+    viewPaddingBottom = MediaQuery.viewPaddingOf(context).bottom;
+  }
   final viewInsetsBottom = MediaQuery.viewInsetsOf(context).bottom;
   final total = viewInsetsBottom > 0
       ? 0.0
