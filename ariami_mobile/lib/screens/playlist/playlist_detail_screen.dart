@@ -650,6 +650,49 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
     }
   }
 
+  /// Show modal bottom sheet with actions like Edit and Delete
+  void _showMoreActions() {
+    if (_playlist == null) return;
+
+    showAriamiSheet<void>(
+      context: context,
+      header: AriamiSheetHeader(
+        title: _playlist!.name,
+        subtitle: '${_songs.length} song${_songs.length != 1 ? 's' : ''}',
+        leading: Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: Colors.purple[400],
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: const Icon(Icons.queue_music, color: Colors.white),
+        ),
+      ),
+      items: [
+        ListTile(
+          leading: const Icon(Icons.edit_outlined),
+          title: const Text('Edit Playlist'),
+          onTap: () {
+            Navigator.pop(context);
+            _editPlaylist();
+          },
+        ),
+        ListTile(
+          leading: const Icon(Icons.delete_outline_rounded, color: Colors.red),
+          title: const Text(
+            'Delete Playlist',
+            style: TextStyle(color: Colors.red),
+          ),
+          onTap: () {
+            Navigator.pop(context);
+            _deletePlaylist();
+          },
+        ),
+      ],
+    );
+  }
+
   /// Remove a song from playlist
   Future<void> _removeSong(String songId) async {
     await _playlistService.removeSongFromPlaylist(
@@ -724,31 +767,6 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
         SliverAppBar(
           expandedHeight: expandedArtHeight,
           pinned: true,
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.edit),
-              onPressed: _editPlaylist,
-              tooltip: 'Edit Playlist',
-            ),
-            PopupMenuButton<String>(
-              onSelected: (value) {
-                if (value == 'delete') _deletePlaylist();
-              },
-              itemBuilder: (context) => [
-                const PopupMenuItem(
-                  value: 'delete',
-                  child: Row(
-                    children: [
-                      Icon(Icons.delete, color: Colors.red),
-                      SizedBox(width: 8),
-                      Text('Delete Playlist',
-                          style: TextStyle(color: Colors.red)),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ],
           flexibleSpace: FlexibleSpaceBar(
             background: PlaylistHeader(
               playlist: _playlist,
@@ -780,6 +798,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
             onToggleReorder: () =>
                 setState(() => _isReorderMode = !_isReorderMode),
             onAddSongs: _addSongs,
+            onMoreActions: _showMoreActions,
           ),
         ),
 

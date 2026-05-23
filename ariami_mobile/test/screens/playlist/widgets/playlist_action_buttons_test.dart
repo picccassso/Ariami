@@ -14,6 +14,7 @@ void main() {
       VoidCallback? onShuffle,
       VoidCallback? onToggleReorder,
       VoidCallback? onAddSongs,
+      VoidCallback? onMoreActions,
     }) {
       return MaterialApp(
         home: Scaffold(
@@ -27,6 +28,7 @@ void main() {
             onShuffle: onShuffle,
             onToggleReorder: onToggleReorder,
             onAddSongs: onAddSongs,
+            onMoreActions: onMoreActions,
           ),
         ),
       );
@@ -40,6 +42,7 @@ void main() {
       expect(find.byIcon(Icons.shuffle_rounded), findsOneWidget);
       expect(find.byIcon(Icons.reorder_rounded), findsOneWidget);
       expect(find.byIcon(Icons.add_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.more_vert_rounded), findsOneWidget);
     });
 
     testWidgets('should call onDownloadPlaylist when Download is tapped',
@@ -171,6 +174,20 @@ void main() {
 
       // Callback should not be called since button is disabled
       expect(reorderCalled, false);
+    });
+
+    testWidgets('should call onMoreActions when More Actions button is tapped',
+        (tester) async {
+      var moreCalled = false;
+
+      await tester.pumpWidget(
+        buildButtons(onMoreActions: () => moreCalled = true),
+      );
+
+      await tester.tap(find.byIcon(Icons.more_vert_rounded));
+      await tester.pump();
+
+      expect(moreCalled, true);
     });
   });
 }

@@ -29,6 +29,9 @@ class PlaylistActionButtons extends StatelessWidget {
   /// Callback when Add Songs button is pressed
   final VoidCallback? onAddSongs;
 
+  /// Callback when More Actions button is pressed
+  final VoidCallback? onMoreActions;
+
   const PlaylistActionButtons({
     super.key,
     required this.isPlaylistFullyDownloaded,
@@ -40,6 +43,7 @@ class PlaylistActionButtons extends StatelessWidget {
     this.onShuffle,
     this.onToggleReorder,
     this.onAddSongs,
+    this.onMoreActions,
   });
 
   @override
@@ -76,6 +80,12 @@ class PlaylistActionButtons extends StatelessWidget {
                 icon: const Icon(Icons.add_rounded),
                 onPressed: onAddSongs,
                 iconSize: 28,
+              ),
+              IconButton(
+                icon: const Icon(Icons.more_vert_rounded),
+                onPressed: onMoreActions,
+                iconSize: 28,
+                tooltip: 'More actions',
               ),
             ],
           ),
