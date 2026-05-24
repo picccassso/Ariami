@@ -592,22 +592,23 @@ class _LibraryScreenState extends State<LibraryScreen> {
           ),
           
           // Premium Floating Glassmorphic Batch Action Bar
-          if (_controller.isSelectionModeActive)
-            AnimatedBuilder(
-              animation: _controller,
-              builder: (context, child) {
-                final isVisible = _controller.totalSelectedCount > 0;
-                return AnimatedPositioned(
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeOutBack,
-                  left: 16,
-                  right: 16,
-                  bottom: isVisible
-                      ? getMiniPlayerAwareBottomPadding(context) + 16
-                      : -100, // Hide offscreen if nothing selected
-                  child: AnimatedOpacity(
-                    duration: const Duration(milliseconds: 200),
-                    opacity: isVisible ? 1.0 : 0.0,
+          AnimatedBuilder(
+            animation: _controller,
+            builder: (context, child) {
+              final isVisible = _controller.isSelectionModeActive && _controller.totalSelectedCount > 0;
+              return AnimatedPositioned(
+                duration: const Duration(milliseconds: 300),
+                curve: isVisible ? Curves.easeOutBack : Curves.easeInOut,
+                left: 16,
+                right: 16,
+                bottom: isVisible
+                    ? getMiniPlayerAwareBottomPadding(context) + 16
+                    : -150, // Hide offscreen smoothly
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 200),
+                  opacity: isVisible ? 1.0 : 0.0,
+                  child: IgnorePointer(
+                    ignoring: !isVisible,
                     child: Container(
                       decoration: BoxDecoration(
                         boxShadow: [
@@ -692,9 +693,10 @@ class _LibraryScreenState extends State<LibraryScreen> {
                       ),
                     ),
                   ),
-                );
-              },
-            ),
+                ),
+              );
+            },
+          ),
         ],
       ),
     );
