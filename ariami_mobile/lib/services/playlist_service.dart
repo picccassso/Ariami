@@ -734,6 +734,21 @@ class PlaylistService extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Clear all local and server-derived playlist state.
+  Future<void> clearAllPlaylistData() async {
+    _playlists.clear();
+    _serverPlaylists.clear();
+    _hiddenServerPlaylistIds.clear();
+    _importedFromServer.clear();
+    _recentlyImportedIds.clear();
+    _isLoaded = true;
+
+    await _savePlaylists();
+    await _saveHiddenServerPlaylists();
+    await _saveImportedFromServer();
+    notifyListeners();
+  }
+
   /// Import playlists (merge mode - skip existing IDs)
   /// Returns the number of playlists actually imported
   Future<int> importPlaylists(List<PlaylistModel> playlists) async {

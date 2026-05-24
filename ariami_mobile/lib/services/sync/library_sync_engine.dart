@@ -52,6 +52,7 @@ class LibrarySyncEngine {
   void start() {
     if (_running || _disposed) return;
     _running = true;
+    _clearBootstrapRetryBackoff();
     _pollTimer = Timer.periodic(pollInterval, (_) {
       unawaited(syncNow());
     });

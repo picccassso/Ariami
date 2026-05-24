@@ -78,6 +78,10 @@ class LibrarySyncDatabase {
     return _writes.clearBootstrapStagingData(executor: executor);
   }
 
+  Future<void> clearAllData({DatabaseExecutor? executor}) {
+    return _writes.clearAllData(executor: executor);
+  }
+
   Future<void> upsertAlbums(
     Iterable<LibraryAlbumRow> albums, {
     DatabaseExecutor? executor,

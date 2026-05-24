@@ -1,9 +1,14 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../database/library_sync_database.dart';
 import '../../models/api_models.dart';
 import '../../models/server_info.dart';
 import '../../services/api/connection_service.dart';
+import '../../services/cache/cache_manager.dart';
+import '../../services/download/download_manager.dart';
 import '../../services/offline/offline_playback_service.dart';
+import '../../services/offline/sync_service.dart';
+import '../../services/playlist_service.dart';
 import '../../services/theme_service.dart';
 import '../../widgets/settings/connection_status_card.dart';
 import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
@@ -106,7 +111,7 @@ class _ConnectionSettingsScreenState extends State<ConnectionSettingsScreen> {
           ),
         ),
         content: Text(
-          'Are you sure you want to disconnect? You will need to scan the QR code again to reconnect.',
+          'This will forget this server, sign you out, and remove downloaded music and cached server data from this phone. You will need to scan the QR code again to reconnect.',
           style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w500,
@@ -133,7 +138,7 @@ class _ConnectionSettingsScreenState extends State<ConnectionSettingsScreen> {
               _disconnect();
             },
             child: const Text(
-              'DISCONNECT',
+              'DISCONNECT & CLEAR DATA',
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w900,
@@ -239,12 +244,23 @@ class _ConnectionSettingsScreenState extends State<ConnectionSettingsScreen> {
 
   Future<void> _disconnect() async {
     try {
-      await _connectionService.disconnect();
+      await _connectionService.disconnectAndForgetServer();
+      await DownloadManager().clearAllDownloads();
+      await CacheManager().clearAllCache();
+      final libraryDatabase = await LibrarySyncDatabase.create();
+      await libraryDatabase.clearAllData();
+      await PlaylistService().clearAllPlaylistData();
+      await SyncService().clearPendingActions();
+      await ThemeService().setThemeSource(ThemeSource.darkNeutral);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Disconnected from server')),
+          const SnackBar(
+              content: Text('Server disconnected and local data cleared')),
         );
-        Navigator.of(context).pop();
+        Navigator.of(context, rootNavigator: true).pushNamedAndRemoveUntil(
+          '/',
+          (route) => false,
+        );
       }
     } catch (e) {
       if (mounted) {

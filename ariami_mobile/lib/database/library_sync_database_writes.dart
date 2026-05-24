@@ -21,6 +21,13 @@ class _LibrarySyncDatabaseWrites {
     await db.delete(LibrarySyncDatabase._bootstrapAlbumsTable);
   }
 
+  Future<void> clearAllData({DatabaseExecutor? executor}) async {
+    final db = executor ?? await _owner.database;
+    await clearLibraryData(executor: db);
+    await clearBootstrapStagingData(executor: db);
+    await db.delete(LibrarySyncDatabase._syncStateTable);
+  }
+
   Future<void> upsertAlbums(
     Iterable<LibraryAlbumRow> albums, {
     DatabaseExecutor? executor,

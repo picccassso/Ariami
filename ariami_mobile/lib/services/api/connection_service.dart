@@ -433,6 +433,32 @@ class ConnectionService {
     await _onDisconnected();
   }
 
+  /// Disconnect, forget the saved server, and clear auth for this device.
+  ///
+  /// Unlike [disconnect], this is a terminal unlink flow. It deliberately avoids
+  /// notifying offline mode that the connection was merely lost, otherwise the
+  /// app would move into auto-offline and keep trying to restore the server.
+  Future<void> disconnectAndForgetServer() async {
+    await _lifecycleManager.disconnect(isManual: true);
+
+    _stopServerInfoRefreshTimer();
+    _endpointSwitchHandler.stopMonitoring();
+    _librarySyncEngine.stop();
+    _heartbeatManager.stop();
+    _webSocketService.disconnect();
+
+    await _authManager.clearAuthInfo();
+    await _persistenceManager.clearConnectionInfo();
+    await _persistenceManager.clearDeviceId();
+    await OfflinePlaybackService().setManualOfflineMode(false);
+
+    _stateManager.setConnected(false);
+    _stateManager.setManuallyDisconnected(false);
+    _stateManager.setServerInfo(null);
+    _stateManager.clearRestoreFailure();
+    _serverInfoManager.setServerInfo(null);
+  }
+
   /// Try to restore previous connection
   Future<bool> tryRestoreConnection() async {
     final inFlight = _restoreConnectionInFlight;
@@ -577,11 +603,11 @@ class ConnectionService {
     _isRefreshingServerInfo = true;
     try {
       final fetched = await apiClient.getServerInfo();
-      final result =
-          _serverInfoManager.applyEndpointRefresh(current, fetched);
+      final result = _serverInfoManager.applyEndpointRefresh(current, fetched);
 
       if (!result.endpointConfigChanged &&
-          !_serverInfoManager.hasServerInfoChanged(result.serverInfo, current)) {
+          !_serverInfoManager.hasServerInfoChanged(
+              result.serverInfo, current)) {
         return;
       }
 
