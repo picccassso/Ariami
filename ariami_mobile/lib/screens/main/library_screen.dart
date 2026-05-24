@@ -1,10 +1,13 @@
 import 'dart:async';
+import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../models/api_models.dart';
 import '../../models/song.dart';
 import '../../services/offline/offline_manual_reconnect.dart';
 import '../../services/playback_manager.dart';
 import '../../services/quality/quality_settings_service.dart';
+import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
 import '../playlist/create_playlist_screen.dart';
 import 'library/library.dart';
 
@@ -91,6 +94,11 @@ class _LibraryScreenState extends State<LibraryScreen> {
       onAddToQueue: () => _addAlbumToQueue(album),
       onDownload: () => _downloadAlbum(album),
       onTogglePin: () => _controller.togglePinAlbum(album.id),
+      onSelectMultiple: () {
+        HapticFeedback.lightImpact();
+        _controller.enterSelectionMode();
+        _controller.toggleAlbumSelection(album.id);
+      },
     );
   }
 
@@ -107,6 +115,11 @@ class _LibraryScreenState extends State<LibraryScreen> {
       onAddToQueue: () => _addPlaylistToQueue(playlist),
       onDownload: () => _downloadPlaylist(playlist),
       onTogglePin: () => _controller.togglePinPlaylist(playlist.id),
+      onSelectMultiple: () {
+        HapticFeedback.lightImpact();
+        _controller.enterSelectionMode();
+        _controller.togglePlaylistSelection(playlist.id);
+      },
     );
   }
 
@@ -392,106 +405,297 @@ class _LibraryScreenState extends State<LibraryScreen> {
     final isOffline = _controller.offlineService.isOffline;
 
     return Scaffold(
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        title: Row(
-          children: [
-            const Text('Library'),
-            if (isOffline) ...[
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.05),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.1),
-                    width: 1,
-                  ),
-                ),
-                child: const Text(
-                  'OFFLINE',
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: Colors.white,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1.0,
-                  ),
-                ),
+      appBar: _controller.isSelectionModeActive
+          ? AppBar(
+              leading: IconButton(
+                icon: const Icon(Icons.close_rounded),
+                onPressed: _controller.exitSelectionMode,
+                tooltip: 'Cancel Selection',
               ),
-            ],
-          ],
-        ),
-        actions: [
-          // Filter toggle for downloaded songs
-          IconButton(
-            icon: Icon(
-              _controller.state.showDownloadedOnly
-                  ? Icons.check_circle_rounded
-                  : Icons.arrow_circle_down_rounded,
-              color: _controller.state.showDownloadedOnly
-                  ? Theme.of(context).colorScheme.primary
-                  : null,
+              title: Text(
+                '${_controller.totalSelectedCount} selected',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.select_all_rounded),
+                  onPressed: _controller.selectAllVisible,
+                  tooltip: 'Select All',
+                ),
+                IconButton(
+                  icon: const Icon(Icons.deselect_rounded),
+                  onPressed: _controller.clearSelection,
+                  tooltip: 'Deselect All',
+                ),
+              ],
+            )
+          : AppBar(
+              automaticallyImplyLeading: false,
+              title: Row(
+                children: [
+                  const Text('Library'),
+                  if (isOffline) ...[
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.1),
+                          width: 1,
+                        ),
+                      ),
+                      child: const Text(
+                        'OFFLINE',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: Colors.white,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 1.0,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              actions: [
+                if (!isOffline)
+                  IconButton(
+                    icon: const Icon(Icons.playlist_add_check_rounded),
+                    onPressed: _controller.enterSelectionMode,
+                    tooltip: 'Select Multiple',
+                  ),
+                // Filter toggle for downloaded songs
+                IconButton(
+                  icon: Icon(
+                    _controller.state.showDownloadedOnly
+                        ? Icons.check_circle_rounded
+                        : Icons.arrow_circle_down_rounded,
+                    color: _controller.state.showDownloadedOnly
+                        ? Theme.of(context).colorScheme.primary
+                        : null,
+                  ),
+                  onPressed: _controller.toggleShowDownloadedOnly,
+                  tooltip: _controller.state.showDownloadedOnly
+                      ? 'Show All Songs'
+                      : 'Show Downloaded Only',
+                ),
+                IconButton(
+                  icon: Icon(
+                    _controller.state.isGridView
+                        ? Icons.list_rounded
+                        : Icons.grid_view_rounded,
+                  ),
+                  onPressed: _controller.toggleViewMode,
+                  tooltip: _controller.state.isGridView
+                      ? 'Switch to List View'
+                      : 'Switch to Grid View',
+                ),
+                // Mixed mode toggle
+                IconButton(
+                  icon: Icon(
+                    _controller.state.isMixedMode
+                        ? Icons.view_agenda_rounded
+                        : Icons.all_inclusive_rounded,
+                  ),
+                  onPressed: _controller.toggleMixedMode,
+                  tooltip: _controller.state.isMixedMode
+                      ? 'Separate Playlists & Albums'
+                      : 'Mix Playlists & Albums',
+                ),
+                IconButton(
+                  icon: const Icon(Icons.sync_rounded),
+                  onPressed: _handleLibraryRefresh,
+                  tooltip: 'Refresh Library',
+                ),
+              ],
             ),
-            onPressed: _controller.toggleShowDownloadedOnly,
-            tooltip: _controller.state.showDownloadedOnly
-                ? 'Show All Songs'
-                : 'Show Downloaded Only',
+      body: Stack(
+        children: [
+          AnimatedBuilder(
+            animation: _controller,
+            builder: (context, child) {
+              return LibraryBody(
+                state: _controller.state,
+                isOffline: isOffline,
+                onRefresh: _handleLibraryRefresh,
+                onRetry: () => unawaited(_handleLibraryRefresh()),
+                onToggleAlbumsExpanded: _controller.toggleAlbumsExpanded,
+                onToggleSongsExpanded: _controller.toggleSongsExpanded,
+                playlistService: _controller.playlistService,
+                isGridView: _controller.state.isGridView,
+                onCreatePlaylist: _createNewPlaylist,
+                onShowServerPlaylists: _showServerPlaylistsSheet,
+                onPlaylistTap: _controller.isSelectionModeActive
+                    ? (playlist) {
+                        HapticFeedback.lightImpact();
+                        _controller.togglePlaylistSelection(playlist.id);
+                      }
+                    : _openPlaylist,
+                onPlaylistLongPress: _controller.isSelectionModeActive
+                    ? (playlist) {
+                        HapticFeedback.lightImpact();
+                        _controller.togglePlaylistSelection(playlist.id);
+                      }
+                    : _showPlaylistContextMenu,
+                onAlbumTap: _controller.isSelectionModeActive
+                    ? (album) {
+                        HapticFeedback.lightImpact();
+                        _controller.toggleAlbumSelection(album.id);
+                      }
+                    : _openAlbum,
+                onAlbumLongPress: _controller.isSelectionModeActive
+                    ? (album) {
+                        HapticFeedback.lightImpact();
+                        _controller.toggleAlbumSelection(album.id);
+                      }
+                    : _showAlbumContextMenu,
+                onSongTap: _controller.isSelectionModeActive
+                    ? (song) {
+                        HapticFeedback.lightImpact();
+                        _controller.toggleSongSelection(song.id);
+                      }
+                    : _playSong,
+                onSongLongPress: _controller.isSelectionModeActive
+                    ? (song) {
+                        HapticFeedback.lightImpact();
+                        _controller.toggleSongSelection(song.id);
+                      }
+                    : (song) {
+                        HapticFeedback.lightImpact();
+                        _controller.enterSelectionMode();
+                        _controller.toggleSongSelection(song.id);
+                      },
+                onOfflineSongTap: _controller.isSelectionModeActive
+                    ? (song) {
+                        HapticFeedback.lightImpact();
+                        _controller.toggleSongSelection(song.id);
+                      }
+                    : _playSongDirect,
+                onOfflineSongLongPress: _controller.isSelectionModeActive
+                    ? (song) {
+                        HapticFeedback.lightImpact();
+                        _controller.toggleSongSelection(song.id);
+                      }
+                    : (song) {
+                        HapticFeedback.lightImpact();
+                        _controller.enterSelectionMode();
+                        _controller.toggleSongSelection(song.id);
+                      },
+                isSelectionMode: _controller.isSelectionModeActive,
+                selectedPlaylistIds: _controller.selectedPlaylistIds,
+                selectedAlbumIds: _controller.selectedAlbumIds,
+                selectedSongIds: _controller.selectedSongIds,
+              );
+            },
           ),
-          IconButton(
-            icon: Icon(
-              _controller.state.isGridView
-                  ? Icons.list_rounded
-                  : Icons.grid_view_rounded,
+          
+          // Premium Floating Glassmorphic Batch Action Bar
+          if (_controller.isSelectionModeActive)
+            AnimatedBuilder(
+              animation: _controller,
+              builder: (context, child) {
+                final isVisible = _controller.totalSelectedCount > 0;
+                return AnimatedPositioned(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeOutBack,
+                  left: 16,
+                  right: 16,
+                  bottom: isVisible
+                      ? getMiniPlayerAwareBottomPadding(context) + 16
+                      : -100, // Hide offscreen if nothing selected
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 200),
+                    opacity: isVisible ? 1.0 : 0.0,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.4),
+                            blurRadius: 16,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(24),
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).colorScheme.surface.withOpacity(0.85),
+                              borderRadius: BorderRadius.circular(24),
+                              border: Border.all(
+                                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.12),
+                                width: 1,
+                              ),
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      'Batch Download',
+                                      style: TextStyle(
+                                        color: Theme.of(context).colorScheme.onSurface,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      '${_controller.totalSelectedCount} items selected',
+                                      style: TextStyle(
+                                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                ElevatedButton.icon(
+                                  onPressed: () async {
+                                    final count = await _controller.downloadSelectedItems();
+                                    if (context.mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text('Downloading $count songs in the background...'),
+                                          duration: const Duration(seconds: 3),
+                                        ),
+                                      );
+                                    }
+                                  },
+                                  icon: const Icon(Icons.download_rounded),
+                                  label: const Text(
+                                    'Download',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Theme.of(context).colorScheme.primary,
+                                    foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
             ),
-            onPressed: _controller.toggleViewMode,
-            tooltip: _controller.state.isGridView
-                ? 'Switch to List View'
-                : 'Switch to Grid View',
-          ),
-          // Mixed mode toggle
-          IconButton(
-            icon: Icon(
-              _controller.state.isMixedMode
-                  ? Icons.view_agenda_rounded
-                  : Icons.all_inclusive_rounded,
-            ),
-            onPressed: _controller.toggleMixedMode,
-            tooltip: _controller.state.isMixedMode
-                ? 'Separate Playlists & Albums'
-                : 'Mix Playlists & Albums',
-          ),
-          IconButton(
-            icon: const Icon(Icons.sync_rounded),
-            onPressed: _handleLibraryRefresh,
-            tooltip: 'Refresh Library',
-          ),
         ],
-      ),
-      body: AnimatedBuilder(
-        animation: _controller,
-        builder: (context, child) {
-          return LibraryBody(
-            state: _controller.state,
-            isOffline: isOffline,
-            onRefresh: _handleLibraryRefresh,
-            onRetry: () => unawaited(_handleLibraryRefresh()),
-            onToggleAlbumsExpanded: _controller.toggleAlbumsExpanded,
-            onToggleSongsExpanded: _controller.toggleSongsExpanded,
-            playlistService: _controller.playlistService,
-            isGridView: _controller.state.isGridView,
-            onCreatePlaylist: _createNewPlaylist,
-            onShowServerPlaylists: _showServerPlaylistsSheet,
-            onPlaylistTap: _openPlaylist,
-            onPlaylistLongPress: _showPlaylistContextMenu,
-            onAlbumTap: _openAlbum,
-            onAlbumLongPress: _showAlbumContextMenu,
-            onSongTap: _playSong,
-            onSongLongPress: (_) {},
-            onOfflineSongTap: _playSongDirect,
-            onOfflineSongLongPress: (_) {},
-          );
-        },
       ),
     );
   }

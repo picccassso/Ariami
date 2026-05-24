@@ -20,6 +20,8 @@ class SongListItem extends StatelessWidget {
   final bool isAvailable;
   final String? albumName;
   final String? albumArtist;
+  final bool isSelectionMode;
+  final bool isSelected;
 
   const SongListItem({
     super.key,
@@ -31,6 +33,8 @@ class SongListItem extends StatelessWidget {
     this.isAvailable = true,
     this.albumName,
     this.albumArtist,
+    this.isSelectionMode = false,
+    this.isSelected = false,
   });
 
   @override
@@ -40,7 +44,7 @@ class SongListItem extends StatelessWidget {
 
     return SwipeToQueue(
       itemKey: ValueKey('library_queue_${song.id}'),
-      addToQueueEnabled: isAvailable,
+      addToQueueEnabled: isAvailable && !isSelectionMode,
       onAddToQueue: () => _handleAddToQueue(context),
       child: Opacity(
         opacity: opacity,
@@ -48,87 +52,121 @@ class SongListItem extends StatelessWidget {
           color: Colors.transparent,
           child: InkWell(
             onTap: isAvailable ? onTap : null,
-            onLongPress: onLongPress,
+            onLongPress: isSelectionMode ? null : onLongPress,
             borderRadius: BorderRadius.circular(0),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Row(
-                children: [
-                  // Artwork
-                  _buildLeading(context),
+            child: Container(
+              color: isSelected ? Colors.white.withOpacity(0.05) : Colors.transparent,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Row(
+                  children: [
+                    // Selection Checkbox
+                    if (isSelectionMode) ...[
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        width: 24,
+                        height: 24,
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? Theme.of(context).colorScheme.primary
+                              : Colors.transparent,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: isSelected
+                                ? Theme.of(context).colorScheme.primary
+                                : Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
+                            width: 1.5,
+                          ),
+                        ),
+                        child: isSelected
+                            ? const Icon(
+                                Icons.check,
+                                size: 14,
+                                color: Colors.white,
+                              )
+                            : null,
+                      ),
+                      const SizedBox(width: 16),
+                    ],
 
-                  const SizedBox(width: 16),
+                    // Artwork
+                    _buildLeading(context),
 
-                  // Title and Artist
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    const SizedBox(width: 16),
+
+                    // Title and Artist
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            song.title,
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: isAvailable
+                                      ? Theme.of(context).colorScheme.onSurface
+                                      : Colors.grey,
+                                ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            song.artist,
+                            style:
+                                Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                      fontSize: 14,
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurface
+                                          .withOpacity(0.6),
+                                    ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Duration & Menu
+                    Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          song.title,
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleMedium
-                              ?.copyWith(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                                color: isAvailable
-                                    ? Theme.of(context).colorScheme.onSurface
-                                    : Colors.grey,
+                          _formatDuration(song.duration),
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurface
+                                    .withOpacity(0.4),
                               ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          song.artist,
-                          style:
-                              Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    fontSize: 14,
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onSurface
-                                        .withOpacity(0.6),
-                                  ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  // Duration & Menu
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        _formatDuration(song.duration),
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        if (!isSelectionMode) ...[
+                          const SizedBox(width: 4),
+                          IconButton(
+                            icon: Icon(
+                              Icons.more_vert_rounded,
                               color: Theme.of(context)
                                   .colorScheme
                                   .onSurface
-                                  .withOpacity(0.4),
+                                  .withOpacity(0.5),
+                              size: 20,
                             ),
-                      ),
-                      const SizedBox(width: 4),
-                      IconButton(
-                        icon: Icon(
-                          Icons.more_vert_rounded,
-                          color: Theme.of(context)
-                              .colorScheme
-                              .onSurface
-                              .withOpacity(0.5),
-                          size: 20,
-                        ),
-                        onPressed: () => _showSongMenu(context),
-                        padding: EdgeInsets.zero,
-                        constraints:
-                            const BoxConstraints(minWidth: 40, minHeight: 40),
-                      ),
-                    ],
-                  ),
-                ],
+                            onPressed: () => _showSongMenu(context),
+                            padding: EdgeInsets.zero,
+                            constraints:
+                                const BoxConstraints(minWidth: 40, minHeight: 40),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

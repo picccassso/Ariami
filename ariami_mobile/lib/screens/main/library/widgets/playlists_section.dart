@@ -15,6 +15,8 @@ class PlaylistsSection extends StatelessWidget {
   final VoidCallback onShowServerPlaylists;
   final Function(PlaylistModel) onPlaylistTap;
   final Function(PlaylistModel) onPlaylistLongPress;
+  final bool isSelectionMode;
+  final Set<String> selectedPlaylistIds;
 
   const PlaylistsSection({
     super.key,
@@ -25,6 +27,8 @@ class PlaylistsSection extends StatelessWidget {
     required this.onShowServerPlaylists,
     required this.onPlaylistTap,
     required this.onPlaylistLongPress,
+    this.isSelectionMode = false,
+    this.selectedPlaylistIds = const {},
   });
 
   @override
@@ -77,6 +81,61 @@ class PlaylistsSection extends StatelessWidget {
         playlistService.getPlaylist(PlaylistService.likedSongsId);
     final regularPlaylists = _sortedRegularPlaylists();
     final hasServerPlaylists = playlistService.hasVisibleServerPlaylists;
+
+    if (isSelectionMode) {
+      final hasLikedSongs = likedSongsPlaylist != null &&
+          likedSongsPlaylist.songIds.isNotEmpty;
+      final itemCount = (hasLikedSongs ? 1 : 0) + regularPlaylists.length;
+
+      return Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: _getGridColumnCount(context),
+            mainAxisSpacing: 16,
+            crossAxisSpacing: 16,
+            childAspectRatio: 0.75,
+          ),
+          itemCount: itemCount,
+          itemBuilder: (context, index) {
+            int currentIndex = 0;
+
+            if (hasLikedSongs && index == currentIndex) {
+              return PlaylistCard(
+                playlist: likedSongsPlaylist,
+                onTap: () => onPlaylistTap(likedSongsPlaylist),
+                onLongPress: () => onPlaylistLongPress(likedSongsPlaylist),
+                albumIds: _getPlaylistArtworkIds(likedSongsPlaylist),
+                isLikedSongs: true,
+                hasDownloadedSongs:
+                    state.hasPlaylistDownloads(likedSongsPlaylist.id),
+                isPinned: state.isPlaylistPinned(likedSongsPlaylist.id),
+                isSelectionMode: true,
+                isSelected: selectedPlaylistIds.contains(likedSongsPlaylist.id),
+              );
+            }
+            if (hasLikedSongs) currentIndex++;
+
+            final playlistIndex = index - currentIndex;
+            final playlist = regularPlaylists[playlistIndex];
+            return PlaylistCard(
+              playlist: playlist,
+              onTap: () => onPlaylistTap(playlist),
+              onLongPress: () => onPlaylistLongPress(playlist),
+              albumIds: _getPlaylistArtworkIds(playlist),
+              isImportedFromServer:
+                  playlistService.isRecentlyImported(playlist.id),
+              hasDownloadedSongs: state.hasPlaylistDownloads(playlist.id),
+              isPinned: state.isPlaylistPinned(playlist.id),
+              isSelectionMode: true,
+              isSelected: selectedPlaylistIds.contains(playlist.id),
+            );
+          },
+        ),
+      );
+    }
 
     if (regularPlaylists.isEmpty && likedSongsPlaylist == null) {
       return Padding(
@@ -178,6 +237,52 @@ class PlaylistsSection extends StatelessWidget {
         playlistService.getPlaylist(PlaylistService.likedSongsId);
     final regularPlaylists = _sortedRegularPlaylists();
     final hasServerPlaylists = playlistService.hasVisibleServerPlaylists;
+
+    if (isSelectionMode) {
+      final hasLikedSongs = likedSongsPlaylist != null &&
+          likedSongsPlaylist.songIds.isNotEmpty;
+      final itemCount = (hasLikedSongs ? 1 : 0) + regularPlaylists.length;
+
+      return ListView.separated(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: itemCount,
+        separatorBuilder: (context, index) => const SizedBox.shrink(),
+        itemBuilder: (context, index) {
+          int currentIndex = 0;
+
+          if (hasLikedSongs && index == currentIndex) {
+            return PlaylistListItem(
+              playlist: likedSongsPlaylist,
+              onTap: () => onPlaylistTap(likedSongsPlaylist),
+              onLongPress: () => onPlaylistLongPress(likedSongsPlaylist),
+              albumIds: _getPlaylistArtworkIds(likedSongsPlaylist),
+              isLikedSongs: true,
+              hasDownloadedSongs:
+                  state.hasPlaylistDownloads(likedSongsPlaylist.id),
+              isPinned: state.isPlaylistPinned(likedSongsPlaylist.id),
+              isSelectionMode: true,
+              isSelected: selectedPlaylistIds.contains(likedSongsPlaylist.id),
+            );
+          }
+          if (hasLikedSongs) currentIndex++;
+
+          final playlistIndex = index - currentIndex;
+          final playlist = regularPlaylists[playlistIndex];
+          return PlaylistListItem(
+            playlist: playlist,
+            onTap: () => onPlaylistTap(playlist),
+            onLongPress: () => onPlaylistLongPress(playlist),
+            albumIds: _getPlaylistArtworkIds(playlist),
+            isImportedFromServer: playlistService.isRecentlyImported(playlist.id),
+            hasDownloadedSongs: state.hasPlaylistDownloads(playlist.id),
+            isPinned: state.isPlaylistPinned(playlist.id),
+            isSelectionMode: true,
+            isSelected: selectedPlaylistIds.contains(playlist.id),
+          );
+        },
+      );
+    }
 
     if (regularPlaylists.isEmpty && likedSongsPlaylist == null) {
       return Padding(

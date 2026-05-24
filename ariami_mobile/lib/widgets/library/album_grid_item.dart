@@ -12,6 +12,8 @@ class AlbumGridItem extends StatelessWidget {
   final bool isAvailable;
   final bool hasDownloadedSongs;
   final bool isPinned;
+  final bool isSelectionMode;
+  final bool isSelected;
 
   const AlbumGridItem({
     super.key,
@@ -21,6 +23,8 @@ class AlbumGridItem extends StatelessWidget {
     this.isAvailable = true,
     this.hasDownloadedSongs = false,
     this.isPinned = false,
+    this.isSelectionMode = false,
+    this.isSelected = false,
   });
 
   @override
@@ -32,7 +36,7 @@ class AlbumGridItem extends StatelessWidget {
       opacity: opacity,
       child: GestureDetector(
         onTap: isAvailable ? onTap : null,
-        onLongPress: onLongPress,
+        onLongPress: isSelectionMode ? null : onLongPress,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
@@ -53,10 +57,17 @@ class AlbumGridItem extends StatelessWidget {
                     ),
                   ),
 
+                  if (isSelected)
+                    Positioned.fill(
+                      child: Container(
+                        color: Colors.black26,
+                      ),
+                    ),
+
                   // Interactive Overlay (highlight on press - implicit via InkWell usually, but manual here for custom look if needed)
                   // For now, simple standard interaction is fine, effectively handled by GestureDetector
 
-                  if (hasDownloadedSongs)
+                  if (hasDownloadedSongs && !isSelectionMode)
                     Positioned(
                       top: 8,
                       right: 8,
@@ -82,7 +93,7 @@ class AlbumGridItem extends StatelessWidget {
                         ),
                       ),
                     ),
-                  if (isPinned)
+                  if (isPinned && !isSelectionMode)
                     Positioned(
                       top: 8,
                       left: 8,
@@ -103,6 +114,33 @@ class AlbumGridItem extends StatelessWidget {
                           size: 12,
                           color: Colors.black87,
                         ),
+                      ),
+                    ),
+                  if (isSelectionMode)
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        width: 24,
+                        height: 24,
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? Theme.of(context).colorScheme.primary
+                              : Colors.black.withOpacity(0.4),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Colors.white,
+                            width: 1.5,
+                          ),
+                        ),
+                        child: isSelected
+                            ? const Icon(
+                                Icons.check,
+                                size: 14,
+                                color: Colors.white,
+                              )
+                            : null,
                       ),
                     ),
                 ],

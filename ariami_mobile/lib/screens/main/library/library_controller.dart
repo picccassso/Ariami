@@ -17,6 +17,7 @@ import '../../../services/offline/offline_playback_service.dart';
 import '../../../services/playback_manager.dart';
 import '../../../services/playlist_service.dart';
 import '../../../services/stats/streaming_stats_service.dart';
+import '../../../services/quality/quality_settings_service.dart';
 import '../../../utils/artwork_url.dart';
 import 'library_state.dart';
 
@@ -50,6 +51,220 @@ class LibraryController extends ChangeNotifier {
   // State
   LibraryState _state = const LibraryState();
   LibraryState get state => _state;
+
+  // Multi-Selection State
+  bool _isSelectionModeActive = false;
+  bool get isSelectionModeActive => _isSelectionModeActive;
+
+  final Set<String> _selectedPlaylistIds = {};
+  Set<String> get selectedPlaylistIds => _selectedPlaylistIds;
+
+  final Set<String> _selectedAlbumIds = {};
+  Set<String> get selectedAlbumIds => _selectedAlbumIds;
+
+  final Set<String> _selectedSongIds = {};
+  Set<String> get selectedSongIds => _selectedSongIds;
+
+  int get totalSelectedCount =>
+      _selectedPlaylistIds.length +
+      _selectedAlbumIds.length +
+      _selectedSongIds.length;
+
+  void enterSelectionMode() {
+    _isSelectionModeActive = true;
+    _selectedPlaylistIds.clear();
+    _selectedAlbumIds.clear();
+    _selectedSongIds.clear();
+    notifyListeners();
+  }
+
+  void exitSelectionMode() {
+    _isSelectionModeActive = false;
+    _selectedPlaylistIds.clear();
+    _selectedAlbumIds.clear();
+    _selectedSongIds.clear();
+    notifyListeners();
+  }
+
+  void togglePlaylistSelection(String playlistId) {
+    if (_selectedPlaylistIds.contains(playlistId)) {
+      _selectedPlaylistIds.remove(playlistId);
+    } else {
+      _selectedPlaylistIds.add(playlistId);
+    }
+    notifyListeners();
+  }
+
+  void toggleAlbumSelection(String albumId) {
+    if (_selectedAlbumIds.contains(albumId)) {
+      _selectedAlbumIds.remove(albumId);
+    } else {
+      _selectedAlbumIds.add(albumId);
+    }
+    notifyListeners();
+  }
+
+  void toggleSongSelection(String songId) {
+    if (_selectedSongIds.contains(songId)) {
+      _selectedSongIds.remove(songId);
+    } else {
+      _selectedSongIds.add(songId);
+    }
+    notifyListeners();
+  }
+
+  void selectAllVisible() {
+    // Select all currently visible regular and liked playlists, albums and songs
+    final visiblePlaylists = _playlistService.playlists;
+    for (final p in visiblePlaylists) {
+      _selectedPlaylistIds.add(p.id);
+    }
+    
+    final visibleAlbums = _state.albumsToShow;
+    for (final a in visibleAlbums) {
+      _selectedAlbumIds.add(a.id);
+    }
+
+    if (_state.isOfflineMode) {
+      for (final s in _state.offlineSongs) {
+        _selectedSongIds.add(s.id);
+      }
+    } else {
+      for (final s in _state.onlineSongsToShow) {
+        _selectedSongIds.add(s.id);
+      }
+    }
+
+    notifyListeners();
+  }
+
+  void clearSelection() {
+    _selectedPlaylistIds.clear();
+    _selectedAlbumIds.clear();
+    _selectedSongIds.clear();
+    notifyListeners();
+  }
+
+  Future<int> downloadSelectedItems() async {
+    if (totalSelectedCount == 0) return 0;
+
+    final songIdsList = _selectedSongIds.toList();
+    final albumIdsList = _selectedAlbumIds.toList();
+    final playlistIdsList = _selectedPlaylistIds.toList();
+
+    exitSelectionMode();
+
+    final resolvedSongIds = <String>{};
+    resolvedSongIds.addAll(songIdsList);
+
+    final finalPlaylistIds = <String>[];
+
+    for (final playlistId in playlistIdsList) {
+      final localPlaylist = _playlistService.getPlaylist(playlistId);
+      if (localPlaylist != null) {
+        resolvedSongIds.addAll(localPlaylist.songIds);
+      } else {
+        finalPlaylistIds.add(playlistId);
+      }
+    }
+
+    int count = 0;
+    try {
+      count = await _downloadManager.enqueueDownloadJob(
+        songIds: resolvedSongIds.toList(),
+        albumIds: albumIdsList,
+        playlistIds: finalPlaylistIds,
+      );
+    } catch (e, stackTrace) {
+      print('DownloadManager enqueueDownloadJob failed, falling back to local resolver: $e\n$stackTrace');
+
+      // Fallback resolver
+      final allFallbackSongIds = <String>{};
+      allFallbackSongIds.addAll(resolvedSongIds);
+
+      // Add all song IDs from selected albums
+      for (final albumId in albumIdsList) {
+        final albumSongs = _state.songs
+            .where((s) => s.albumId == albumId)
+            .map((s) => s.id);
+        allFallbackSongIds.addAll(albumSongs);
+      }
+
+      for (final songId in allFallbackSongIds) {
+        // Try to find song in _state.songs
+        final songMatch = _state.songs.where((s) => s.id == songId);
+
+        String? title;
+        String? artist;
+        String? albumId;
+        int duration = 0;
+        int? trackNumber;
+
+        if (songMatch.isNotEmpty) {
+          final song = songMatch.first;
+          title = song.title;
+          artist = song.artist;
+          albumId = song.albumId;
+          duration = song.duration;
+          trackNumber = song.trackNumber;
+        } else {
+          // Check in selected playlists for cached song metadata
+          for (final playlistId in playlistIdsList) {
+            final localPlaylist = _playlistService.getPlaylist(playlistId);
+            if (localPlaylist != null &&
+                localPlaylist.songIds.contains(songId)) {
+              title = localPlaylist.songTitles[songId];
+              artist = localPlaylist.songArtists[songId];
+              albumId = localPlaylist.songAlbumIds[songId];
+              duration = localPlaylist.songDurations[songId] ?? 0;
+              break;
+            }
+          }
+        }
+
+        // Apply defaults if still not resolved
+        title ??= 'Song $songId';
+        artist ??= 'Unknown Artist';
+        duration ??= 0;
+
+        // Try to resolve album details
+        String? albumName;
+        String? albumArtist;
+        if (albumId != null) {
+          final albumMatch = _state.albums.where((a) => a.id == albumId);
+          if (albumMatch.isNotEmpty) {
+            albumName = albumMatch.first.title;
+            albumArtist = albumMatch.first.artist;
+          }
+        }
+
+        final baseUrl = _connectionService.apiClient?.baseUrl;
+        final albumArt = (albumId != null && baseUrl != null)
+            ? '$baseUrl/artwork/$albumId'
+            : '';
+
+        try {
+          await _downloadManager.downloadSong(
+            songId: songId,
+            title: title,
+            artist: artist,
+            albumId: albumId,
+            albumName: albumName,
+            albumArtist: albumArtist,
+            albumArt: albumArt,
+            duration: duration,
+            trackNumber: trackNumber,
+            totalBytes: 0,
+          );
+          count++;
+        } catch (downloadErr) {
+          print('Failed to enqueue fallback download for song $songId: $downloadErr');
+        }
+      }
+    }
+
+    return count;
+  }
 
   // Duration retry tracking
   bool _durationsPending = false;

@@ -34,6 +34,10 @@ class LibraryBody extends StatelessWidget {
   final void Function(SongModel) onSongLongPress;
   final void Function(Song) onOfflineSongTap;
   final void Function(Song) onOfflineSongLongPress;
+  final bool isSelectionMode;
+  final Set<String> selectedPlaylistIds;
+  final Set<String> selectedAlbumIds;
+  final Set<String> selectedSongIds;
 
   const LibraryBody({
     super.key,
@@ -55,6 +59,10 @@ class LibraryBody extends StatelessWidget {
     required this.onSongLongPress,
     required this.onOfflineSongTap,
     required this.onOfflineSongLongPress,
+    this.isSelectionMode = false,
+    this.selectedPlaylistIds = const {},
+    this.selectedAlbumIds = const {},
+    this.selectedSongIds = const {},
   });
 
   @override
@@ -119,6 +127,9 @@ class LibraryBody extends StatelessWidget {
         onPlaylistLongPress: onPlaylistLongPress,
         onAlbumTap: onAlbumTap,
         onAlbumLongPress: onAlbumLongPress,
+        isSelectionMode: isSelectionMode,
+        selectedPlaylistIds: selectedPlaylistIds,
+        selectedAlbumIds: selectedAlbumIds,
       ),
 
       // Songs Section
@@ -135,6 +146,8 @@ class LibraryBody extends StatelessWidget {
           onSongLongPress: onSongLongPress,
           onOfflineSongTap: onOfflineSongTap,
           onOfflineSongLongPress: onOfflineSongLongPress,
+          isSelectionMode: isSelectionMode,
+          selectedSongIds: selectedSongIds,
         ),
 
       // Bottom padding for mini player
@@ -162,6 +175,8 @@ class LibraryBody extends StatelessWidget {
             onShowServerPlaylists: onShowServerPlaylists,
             onPlaylistTap: onPlaylistTap,
             onPlaylistLongPress: onPlaylistLongPress,
+            isSelectionMode: isSelectionMode,
+            selectedPlaylistIds: selectedPlaylistIds,
           ),
         ),
       ),
@@ -178,6 +193,8 @@ class LibraryBody extends StatelessWidget {
           isOffline: isOffline,
           onAlbumTap: onAlbumTap,
           onAlbumLongPress: onAlbumLongPress,
+          isSelectionMode: isSelectionMode,
+          selectedAlbumIds: selectedAlbumIds,
         ),
 
       // Songs Section
@@ -194,6 +211,8 @@ class LibraryBody extends StatelessWidget {
           onSongLongPress: onSongLongPress,
           onOfflineSongTap: onOfflineSongTap,
           onOfflineSongLongPress: onOfflineSongLongPress,
+          isSelectionMode: isSelectionMode,
+          selectedSongIds: selectedSongIds,
         ),
 
       // Bottom padding for mini player

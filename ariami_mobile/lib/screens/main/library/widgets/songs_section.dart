@@ -13,6 +13,8 @@ class SongsSection extends StatelessWidget {
   final Function(SongModel) onSongLongPress;
   final Function(Song) onOfflineSongTap;
   final Function(Song) onOfflineSongLongPress;
+  final bool isSelectionMode;
+  final Set<String> selectedSongIds;
 
   const SongsSection({
     super.key,
@@ -22,6 +24,8 @@ class SongsSection extends StatelessWidget {
     required this.onSongLongPress,
     required this.onOfflineSongTap,
     required this.onOfflineSongLongPress,
+    this.isSelectionMode = false,
+    this.selectedSongIds = const {},
   });
 
   @override
@@ -71,6 +75,8 @@ class SongsSection extends StatelessWidget {
             isAvailable: true,
             albumName: song.album,
             albumArtist: song.albumArtist,
+            isSelectionMode: isSelectionMode,
+            isSelected: selectedSongIds.contains(song.id),
           );
         },
         childCount: state.offlineSongs.length,
@@ -117,6 +123,8 @@ class SongsSection extends StatelessWidget {
             isAvailable: isAvailable,
             albumName: album?.title,
             albumArtist: album?.artist,
+            isSelectionMode: isSelectionMode,
+            isSelected: selectedSongIds.contains(song.id),
           );
         },
         childCount: songsToShow.length,

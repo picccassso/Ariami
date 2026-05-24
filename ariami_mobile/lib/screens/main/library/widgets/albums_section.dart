@@ -10,6 +10,8 @@ class AlbumsSection extends StatelessWidget {
   final bool isOffline;
   final Function(AlbumModel) onAlbumTap;
   final Function(AlbumModel) onAlbumLongPress;
+  final bool isSelectionMode;
+  final Set<String> selectedAlbumIds;
 
   const AlbumsSection({
     super.key,
@@ -17,6 +19,8 @@ class AlbumsSection extends StatelessWidget {
     required this.isOffline,
     required this.onAlbumTap,
     required this.onAlbumLongPress,
+    this.isSelectionMode = false,
+    this.selectedAlbumIds = const {},
   });
 
   @override
@@ -67,6 +71,8 @@ class AlbumsSection extends StatelessWidget {
                 isAvailable: isAvailable,
                 hasDownloadedSongs: hasDownloads,
                 isPinned: state.isAlbumPinned(album.id),
+                isSelectionMode: isSelectionMode,
+                isSelected: selectedAlbumIds.contains(album.id),
               );
             },
             childCount: albumsToShow.length,
@@ -89,6 +95,8 @@ class AlbumsSection extends StatelessWidget {
             isAvailable: isAvailable,
             hasDownloadedSongs: hasDownloads,
             isPinned: state.isAlbumPinned(album.id),
+            isSelectionMode: isSelectionMode,
+            isSelected: selectedAlbumIds.contains(album.id),
           );
         },
         childCount: albumsToShow.length,

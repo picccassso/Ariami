@@ -15,6 +15,8 @@ class PlaylistCard extends StatefulWidget {
   final bool isImportedFromServer;
   final bool hasDownloadedSongs;
   final bool isPinned;
+  final bool isSelectionMode;
+  final bool isSelected;
 
   const PlaylistCard({
     super.key,
@@ -26,6 +28,8 @@ class PlaylistCard extends StatefulWidget {
     this.isImportedFromServer = false,
     this.hasDownloadedSongs = false,
     this.isPinned = false,
+    this.isSelectionMode = false,
+    this.isSelected = false,
   });
 
   @override
@@ -70,7 +74,7 @@ class _PlaylistCardState extends State<PlaylistCard> {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: widget.onTap,
-      onLongPress: widget.onLongPress,
+      onLongPress: widget.isSelectionMode ? null : widget.onLongPress,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -89,7 +93,14 @@ class _PlaylistCardState extends State<PlaylistCard> {
                   ),
                 ),
 
-                if (widget.hasDownloadedSongs)
+                if (widget.isSelected)
+                  Positioned.fill(
+                    child: Container(
+                      color: Colors.black26,
+                    ),
+                  ),
+
+                if (widget.hasDownloadedSongs && !widget.isSelectionMode)
                   Positioned(
                     top: 8,
                     right: 8,
@@ -115,7 +126,7 @@ class _PlaylistCardState extends State<PlaylistCard> {
                       ),
                     ),
                   ),
-                if (widget.isPinned)
+                if (widget.isPinned && !widget.isSelectionMode)
                   Positioned(
                     top: 8,
                     left: 8,
@@ -136,6 +147,33 @@ class _PlaylistCardState extends State<PlaylistCard> {
                         size: 12,
                         color: Colors.black87,
                       ),
+                    ),
+                  ),
+                if (widget.isSelectionMode)
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      width: 24,
+                      height: 24,
+                      decoration: BoxDecoration(
+                        color: widget.isSelected
+                            ? Theme.of(context).colorScheme.primary
+                            : Colors.black.withOpacity(0.4),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.white,
+                          width: 1.5,
+                        ),
+                      ),
+                      child: widget.isSelected
+                          ? const Icon(
+                              Icons.check,
+                              size: 14,
+                              color: Colors.white,
+                            )
+                          : null,
                     ),
                   ),
               ],

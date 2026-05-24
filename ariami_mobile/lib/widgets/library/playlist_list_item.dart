@@ -15,6 +15,8 @@ class PlaylistListItem extends StatefulWidget {
   final bool isImportedFromServer;
   final bool hasDownloadedSongs;
   final bool isPinned;
+  final bool isSelectionMode;
+  final bool isSelected;
 
   const PlaylistListItem({
     super.key,
@@ -26,6 +28,8 @@ class PlaylistListItem extends StatefulWidget {
     this.isImportedFromServer = false,
     this.hasDownloadedSongs = false,
     this.isPinned = false,
+    this.isSelectionMode = false,
+    this.isSelected = false,
   });
 
   @override
@@ -66,129 +70,162 @@ class _PlaylistListItemState extends State<PlaylistListItem> {
       color: Colors.transparent,
       child: InkWell(
         onTap: widget.onTap,
-        onLongPress: widget.onLongPress,
+        onLongPress: widget.isSelectionMode ? null : widget.onLongPress,
         borderRadius: BorderRadius.circular(0),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Row(
-            children: [
-              // Playlist Artwork
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(0),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.2),
-                      blurRadius: 4,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Stack(
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(0),
-                      child: _buildPlaylistArt(),
-                    ),
-
-                    // Download Indicator
-                    if (widget.hasDownloadedSongs)
-                      Positioned(
-                        bottom: -2,
-                        right: -2,
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: BoxDecoration(
-                            color: Colors.green,
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                                color:
-                                    Theme.of(context).scaffoldBackgroundColor,
-                                width: 2),
-                          ),
-                          child: const Icon(
-                            Icons.download_done,
-                            size: 10,
-                            color: Colors.white,
-                          ),
-                        ),
+        child: Container(
+          color: widget.isSelected ? Colors.white.withOpacity(0.05) : Colors.transparent,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              children: [
+                // Selection Checkbox
+                if (widget.isSelectionMode) ...[
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    width: 24,
+                    height: 24,
+                    decoration: BoxDecoration(
+                      color: widget.isSelected
+                          ? Theme.of(context).colorScheme.primary
+                          : Colors.transparent,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: widget.isSelected
+                            ? Theme.of(context).colorScheme.primary
+                            : Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
+                        width: 1.5,
                       ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(width: 16),
-
-              // Text Details
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      children: [
-                        if (widget.isPinned) ...[
-                          Icon(
-                            Icons.push_pin,
+                    ),
+                    child: widget.isSelected
+                        ? const Icon(
+                            Icons.check,
                             size: 14,
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onSurface
-                                .withValues(alpha: 0.5),
-                          ),
-                          const SizedBox(width: 4),
-                        ],
-                        if (widget.isImportedFromServer) ...[
-                          Icon(
-                            Icons.cloud_done_rounded,
-                            size: 16,
-                            color: Theme.of(context).colorScheme.secondary,
-                          ),
-                          const SizedBox(width: 4),
-                        ],
-                        Expanded(
-                          child: Text(
-                            widget.playlist.name,
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
-                                ?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 16,
-                                ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                            color: Colors.white,
+                          )
+                        : null,
+                  ),
+                  const SizedBox(width: 16),
+                ],
+
+                // Playlist Artwork
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(0),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.2),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Stack(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(0),
+                        child: _buildPlaylistArt(),
+                      ),
+
+                      // Download Indicator
+                      if (widget.hasDownloadedSongs)
+                        Positioned(
+                          bottom: -2,
+                          right: -2,
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: Colors.green,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                  color:
+                                      Theme.of(context).scaffoldBackgroundColor,
+                                  width: 2),
+                            ),
+                            child: const Icon(
+                              Icons.download_done,
+                              size: 10,
+                              color: Colors.white,
+                            ),
                           ),
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${widget.playlist.songCount} songs',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            fontSize: 14,
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onSurface
-                                .withValues(alpha: 0.6),
-                          ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
 
-              Icon(
-                Icons.chevron_right_rounded,
-                color: Theme.of(context)
-                    .colorScheme
-                    .onSurface
-                    .withValues(alpha: 0.3),
-              ),
-            ],
+                const SizedBox(width: 16),
+
+                // Text Details
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          if (widget.isPinned) ...[
+                            Icon(
+                              Icons.push_pin,
+                              size: 14,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurface
+                                  .withValues(alpha: 0.5),
+                            ),
+                            const SizedBox(width: 4),
+                          ],
+                          if (widget.isImportedFromServer) ...[
+                            Icon(
+                              Icons.cloud_done_rounded,
+                              size: 16,
+                              color: Theme.of(context).colorScheme.secondary,
+                            ),
+                            const SizedBox(width: 4),
+                          ],
+                          Expanded(
+                            child: Text(
+                              widget.playlist.name,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleMedium
+                                  ?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 16,
+                                  ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${widget.playlist.songCount} songs',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              fontSize: 14,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurface
+                                  .withValues(alpha: 0.6),
+                            ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+
+                if (!widget.isSelectionMode)
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    color: Theme.of(context)
+                        .colorScheme
+                        .onSurface
+                        .withValues(alpha: 0.3),
+                  ),
+              ],
+            ),
           ),
         ),
       ),

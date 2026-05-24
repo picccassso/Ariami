@@ -14,6 +14,7 @@ Future<void> showAlbumContextMenu({
   required VoidCallback onAddToQueue,
   required VoidCallback onDownload,
   required VoidCallback onTogglePin,
+  required VoidCallback onSelectMultiple,
 }) {
   final resolvedCoverArt = connectionService.resolveServerUrl(album.coverArt);
 
@@ -62,6 +63,14 @@ Future<void> showAlbumContextMenu({
         onTap: () {
           Navigator.pop(context);
           onAddToQueue();
+        },
+      ),
+      ListTile(
+        leading: const Icon(Icons.playlist_add_check),
+        title: const Text('Select Multiple'),
+        onTap: () {
+          Navigator.pop(context);
+          onSelectMultiple();
         },
       ),
       if (isFullyDownloaded)

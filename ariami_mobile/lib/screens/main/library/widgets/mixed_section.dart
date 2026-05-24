@@ -22,6 +22,9 @@ class MixedSection extends StatefulWidget {
   final void Function(PlaylistModel) onPlaylistLongPress;
   final void Function(AlbumModel) onAlbumTap;
   final void Function(AlbumModel) onAlbumLongPress;
+  final bool isSelectionMode;
+  final Set<String> selectedPlaylistIds;
+  final Set<String> selectedAlbumIds;
 
   const MixedSection({
     super.key,
@@ -35,6 +38,9 @@ class MixedSection extends StatefulWidget {
     required this.onPlaylistLongPress,
     required this.onAlbumTap,
     required this.onAlbumLongPress,
+    this.isSelectionMode = false,
+    this.selectedPlaylistIds = const {},
+    this.selectedAlbumIds = const {},
   });
 
   @override
@@ -148,6 +154,8 @@ class _MixedSectionState extends State<MixedSection> {
                   hasDownloadedSongs:
                       widget.state.hasPlaylistDownloads(playlist.id),
                   isPinned: item.isPinned,
+                  isSelectionMode: widget.isSelectionMode,
+                  isSelected: widget.selectedPlaylistIds.contains(playlist.id),
                 );
               },
               album: (album) {
@@ -160,6 +168,8 @@ class _MixedSectionState extends State<MixedSection> {
                   isAvailable: isAvailable,
                   hasDownloadedSongs: hasDownloads,
                   isPinned: item.isPinned,
+                  isSelectionMode: widget.isSelectionMode,
+                  isSelected: widget.selectedAlbumIds.contains(album.id),
                 );
               },
             );
@@ -189,6 +199,8 @@ class _MixedSectionState extends State<MixedSection> {
                 hasDownloadedSongs:
                     widget.state.hasPlaylistDownloads(playlist.id),
                 isPinned: item.isPinned,
+                isSelectionMode: widget.isSelectionMode,
+                isSelected: widget.selectedPlaylistIds.contains(playlist.id),
               );
             },
             album: (album) {
@@ -201,6 +213,8 @@ class _MixedSectionState extends State<MixedSection> {
                 isAvailable: isAvailable,
                 hasDownloadedSongs: hasDownloads,
                 isPinned: item.isPinned,
+                isSelectionMode: widget.isSelectionMode,
+                isSelected: widget.selectedAlbumIds.contains(album.id),
               );
             },
           );

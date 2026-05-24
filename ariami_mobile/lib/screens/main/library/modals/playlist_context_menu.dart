@@ -12,6 +12,7 @@ Future<void> showPlaylistContextMenu({
   required VoidCallback onAddToQueue,
   required VoidCallback onDownload,
   required VoidCallback onTogglePin,
+  required VoidCallback onSelectMultiple,
 }) {
   return showAriamiSheet<void>(
     context: context,
@@ -52,6 +53,14 @@ Future<void> showPlaylistContextMenu({
         onTap: () {
           Navigator.pop(context);
           onAddToQueue();
+        },
+      ),
+      ListTile(
+        leading: const Icon(Icons.playlist_add_check),
+        title: const Text('Select Multiple'),
+        onTap: () {
+          Navigator.pop(context);
+          onSelectMultiple();
         },
       ),
       if (isFullyDownloaded)

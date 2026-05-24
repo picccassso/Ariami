@@ -12,6 +12,8 @@ class AlbumListItem extends StatelessWidget {
   final bool isAvailable;
   final bool hasDownloadedSongs;
   final bool isPinned;
+  final bool isSelectionMode;
+  final bool isSelected;
 
   const AlbumListItem({
     super.key,
@@ -21,6 +23,8 @@ class AlbumListItem extends StatelessWidget {
     this.isAvailable = true,
     this.hasDownloadedSongs = false,
     this.isPinned = false,
+    this.isSelectionMode = false,
+    this.isSelected = false,
   });
 
   @override
@@ -34,141 +38,175 @@ class AlbumListItem extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           onTap: isAvailable ? onTap : null,
-          onLongPress: onLongPress,
+          onLongPress: isSelectionMode ? null : onLongPress,
           borderRadius: BorderRadius.circular(0),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
-              children: [
-                // Album Artwork
-                Container(
-                  width: 56,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(0),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.2),
-                        blurRadius: 4,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Stack(
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(0),
-                        child: _buildAlbumArt(context),
-                      ),
-
-                      // Download Indicator
-                      if (hasDownloadedSongs)
-                        Positioned(
-                          bottom: -2,
-                          right: -2,
-                          child: Container(
-                            padding: const EdgeInsets.all(4),
-                            decoration: BoxDecoration(
-                              color: Colors.green,
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                  color:
-                                      Theme.of(context).scaffoldBackgroundColor,
-                                  width: 2),
-                            ),
-                            child: const Icon(
-                              Icons.download_done,
-                              size: 10,
-                              color: Colors.white,
-                            ),
-                          ),
+          child: Container(
+            color: isSelected ? Colors.white.withOpacity(0.05) : Colors.transparent,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                children: [
+                  // Selection Checkbox
+                  if (isSelectionMode) ...[
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      width: 24,
+                      height: 24,
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? Theme.of(context).colorScheme.primary
+                            : Colors.transparent,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: isSelected
+                              ? Theme.of(context).colorScheme.primary
+                              : Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
+                          width: 1.5,
                         ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(width: 16),
-
-                // Text Details
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Row(
-                        children: [
-                          if (isPinned) ...[
-                            Icon(
-                              Icons.push_pin,
+                      ),
+                      child: isSelected
+                          ? const Icon(
+                              Icons.check,
                               size: 14,
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurface
-                                  .withValues(alpha: 0.5),
-                            ),
-                            const SizedBox(width: 4),
-                          ],
-                          Expanded(
-                            child: Text(
-                              album.title,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleMedium
-                                  ?.copyWith(
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 16,
-                                    color: isAvailable
-                                        ? Theme.of(context)
-                                            .colorScheme
-                                            .onSurface
-                                        : Colors.grey,
-                                  ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                              color: Colors.white,
+                            )
+                          : null,
+                    ),
+                    const SizedBox(width: 16),
+                  ],
+
+                  // Album Artwork
+                  Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(0),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.2),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Stack(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(0),
+                          child: _buildAlbumArt(context),
+                        ),
+
+                        // Download Indicator
+                        if (hasDownloadedSongs)
+                          Positioned(
+                            bottom: -2,
+                            right: -2,
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: Colors.green,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                    color:
+                                        Theme.of(context).scaffoldBackgroundColor,
+                                    width: 2),
+                              ),
+                              child: const Icon(
+                                Icons.download_done,
+                                size: 10,
+                                color: Colors.white,
+                              ),
                             ),
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        album.artist,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurface
-                                  .withValues(alpha: 0.6),
-                              fontSize: 14,
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(width: 16),
+
+                  // Text Details
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          children: [
+                            if (isPinned) ...[
+                              Icon(
+                                Icons.push_pin,
+                                size: 14,
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurface
+                                    .withValues(alpha: 0.5),
+                              ),
+                              const SizedBox(width: 4),
+                            ],
+                            Expanded(
+                              child: Text(
+                                album.title,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleMedium
+                                    ?.copyWith(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 16,
+                                      color: isAvailable
+                                          ? Theme.of(context)
+                                              .colorScheme
+                                              .onSurface
+                                          : Colors.grey,
+                                    ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Info (Song Count)
-                Padding(
-                  padding: const EdgeInsets.only(left: 8.0),
-                  child: Text(
-                    '${album.songCount} songs',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .onSurface
-                              .withValues(alpha: 0.4),
+                          ],
                         ),
+                        const SizedBox(height: 4),
+                        Text(
+                          album.artist,
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurface
+                                    .withValues(alpha: 0.6),
+                                fontSize: 14,
+                              ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
                   ),
-                ),
 
-                const SizedBox(width: 8),
-                Icon(
-                  Icons.chevron_right_rounded,
-                  color: Theme.of(context)
-                      .colorScheme
-                      .onSurface
-                      .withValues(alpha: 0.3),
-                ),
-              ],
+                  // Info (Song Count)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 8.0),
+                    child: Text(
+                      '${album.songCount} songs',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurface
+                                .withValues(alpha: 0.4),
+                          ),
+                    ),
+                  ),
+
+                  if (!isSelectionMode) ...[
+                    const SizedBox(width: 8),
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      color: Theme.of(context)
+                          .colorScheme
+                          .onSurface
+                          .withValues(alpha: 0.3),
+                    ),
+                  ],
+                ],
+              ),
             ),
           ),
         ),
