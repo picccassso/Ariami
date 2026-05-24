@@ -792,7 +792,9 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
             canReorder: _songs.length > 1,
             isReorderMode: _isReorderMode,
             onDownloadPlaylist:
-                _isPlaylistFullyDownloaded ? null : _downloadPlaylist,
+                (_songs.isEmpty || _isPlaylistFullyDownloaded)
+                    ? null
+                    : _downloadPlaylist,
             onPlay: _playAll,
             onShuffle: _shuffleAll,
             onToggleReorder: () =>

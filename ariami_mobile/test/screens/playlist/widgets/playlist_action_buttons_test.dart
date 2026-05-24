@@ -153,6 +153,22 @@ void main() {
       expect(shuffleCalled, false);
     });
 
+    testWidgets('should disable Download when onDownloadPlaylist is null',
+        (tester) async {
+      await tester.pumpWidget(
+        buildButtons(onDownloadPlaylist: null),
+      );
+
+      final downloadButton = tester.widget<IconButton>(
+        find.ancestor(
+          of: find.byIcon(Icons.download_for_offline_outlined),
+          matching: find.byType(IconButton),
+        ),
+      );
+
+      expect(downloadButton.onPressed, isNull);
+    });
+
     testWidgets('should disable Reorder when only one song', (tester) async {
       var reorderCalled = false;
 
