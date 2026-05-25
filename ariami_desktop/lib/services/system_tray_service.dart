@@ -186,34 +186,34 @@ class SystemTrayService with TrayListener {
 
   /// Quit the application completely.
   Future<void> quitApp() async {
-    if (_isShuttingDown) return;
-    _isShuttingDown = true;
-
-    final httpServer = AriamiHttpServer();
-    if (httpServer.isRunning) {
-      await httpServer.stop();
-    }
-
-    onPrepareForShutdown?.call();
-    trayManager.removeListener(this);
-    unawaited(trayManager.destroy().catchError((_) {}));
-    unawaited(windowManager.setPreventClose(false).catchError((_) {}));
-
-    if (Platform.isMacOS) {
-      try {
-        await _dockChannel
-            .invokeMethod('terminateApp')
-            .timeout(const Duration(seconds: 2));
-      } catch (e) {
-        print('[Tray] terminateApp failed/timed out: $e');
-      }
+    if (_isShuttingDown) {
       exit(0);
     }
+    _isShuttingDown = true;
 
     try {
+      final httpServer = AriamiHttpServer();
+      if (httpServer.isRunning) {
+        await httpServer.stop();
+      }
+
+      onPrepareForShutdown?.call();
+      trayManager.removeListener(this);
+
+      // Must complete before NSApp.terminate tries to close the window.
+      await windowManager.setPreventClose(false);
+
+      unawaited(trayManager.destroy().catchError((_) {}));
+
+      if (Platform.isMacOS) {
+        unawaited(_dockChannel.invokeMethod('terminateApp').catchError((_) {}));
+        exit(0);
+      }
+
       await windowManager.destroy();
     } catch (e) {
-      print('[Tray] Failed to destroy window: $e');
+      print('[Tray] quitApp error: $e');
+      exit(1);
     }
   }
 

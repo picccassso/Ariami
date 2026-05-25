@@ -40,8 +40,10 @@ class AppDelegate: FlutterAppDelegate {
         case "terminateApp":
           self?.allowAppNap()
           self?.isTerminating = true
-          NSApp.terminate(nil)
           result(nil)
+          DispatchQueue.main.async {
+            NSApp.terminate(nil)
+          }
         default:
           result(FlutterMethodNotImplemented)
         }
