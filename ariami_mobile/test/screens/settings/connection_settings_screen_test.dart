@@ -280,4 +280,51 @@ void main() {
     expect(find.text('Tailscale Address'), findsOneWidget);
     expect(find.text('100.101.102.103'), findsOneWidget);
   });
+
+  testWidgets('shows disconnect server button when auto-offline',
+      (tester) async {
+    await OfflinePlaybackService().notifyConnectionLost();
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: ConnectionSettingsScreen(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Disconnect Server'), findsOneWidget);
+  });
+
+  testWidgets('shows disconnect server button when manual offline mode enabled',
+      (tester) async {
+    await OfflinePlaybackService().setManualOfflineMode(true);
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: ConnectionSettingsScreen(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Disconnect Server'), findsOneWidget);
+  });
+
+  testWidgets('disconnect server dialog opens while offline',
+      (tester) async {
+    await OfflinePlaybackService().notifyConnectionLost();
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: ConnectionSettingsScreen(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.text('Disconnect Server'));
+    await tester.tap(find.text('Disconnect Server'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('DISCONNECT SERVER'), findsOneWidget);
+    expect(find.text('DISCONNECT & CLEAR DATA'), findsOneWidget);
+  });
 }

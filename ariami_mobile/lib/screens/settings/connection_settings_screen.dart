@@ -270,7 +270,7 @@ class _ConnectionSettingsScreenState extends State<ConnectionSettingsScreen> {
                           const SizedBox(width: 12),
                           Expanded(
                             child: Text(
-                              'Offline mode is enabled. Disable it in Settings to connect to the server.',
+                              'You are offline. Disable Offline Mode in Settings to reconnect, or use Disconnect Server below to reset this device.',
                               style: TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w500,
@@ -409,24 +409,22 @@ class _ConnectionSettingsScreenState extends State<ConnectionSettingsScreen> {
                     ),
                     const SizedBox(height: 12),
                   ],
-                  if (!_isOfflineModeEnabled) ...[
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: SizedBox(
-                        height: 54,
-                        child: ElevatedButton.icon(
-                          onPressed: () => showDisconnectServerDialog(context),
-                          icon: const Icon(Icons.logout_rounded, size: 20),
-                          label: const Text(
-                            'Disconnect Server',
-                            style: TextStyle(
-                                fontWeight: FontWeight.w700, fontSize: 16),
-                          ),
-                          style: disconnectServerButtonStyle(),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: SizedBox(
+                      height: 54,
+                      child: ElevatedButton.icon(
+                        onPressed: () => showDisconnectServerDialog(context),
+                        icon: const Icon(Icons.logout_rounded, size: 20),
+                        label: const Text(
+                          'Disconnect Server',
+                          style: TextStyle(
+                              fontWeight: FontWeight.w700, fontSize: 16),
                         ),
+                        style: disconnectServerButtonStyle(),
                       ),
                     ),
-                  ],
+                  ),
                   const SizedBox(height: 32),
                 ],
               );
