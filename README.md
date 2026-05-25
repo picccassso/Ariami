@@ -45,28 +45,41 @@ It is cross-platform so you can run this on your Mac/Windows/Linux machine, and 
 
 **Music Library**
 - Automatically scans your library and groups albums using embedded tags, so your metadata stays yours and does not depend on flaky external lookups.
-- Handles large libraries comfortably.
+- Supports common formats including MP3, M4A, MP4, FLAC, WAV, AIFF, OGG, Opus, WMA, AAC, and ALAC.
+- Handles large libraries comfortably, including compilation albums grouped as Various Artists when appropriate.
+- Real-time folder watching: new, changed, or removed files update the library without a full rescan, and connected clients receive push updates over WebSocket.
+- A metadata cache speeds up rescans by skipping files that have not changed.
 - Incremental v2 sync: the phone keeps a local copy of the catalog, and the server tracks changes so you are not constantly doing full rescans.
-- On mobile, you can use a mixed library view that shows albums and playlists in one place (toggle from the library). Sorting favours what you opened recently on the device, then falls back to the usual ordering.
+- Server-side artwork is resized and cached for efficient delivery to clients.
+- On mobile, browse in grid or list view, or use a mixed view that shows albums and playlists in one place. Pin albums and playlists, filter to downloaded content only, and use multi-select for batch downloads. Sorting favours what you opened recently on the device, then falls back to the usual ordering.
+- Search across songs and albums with recent history; when offline, search works against your downloaded library.
 
 **Multi-user**
 - Password-protected accounts; each user gets their own session, downloads, and playback state.
 - One active session per user at a time (signing in on another device replaces the previous session).
 - If no one has registered yet, the server runs in open mode so older single-user setups still work.
+- Login rate limiting helps protect against brute-force attempts.
+- The desktop app can create an owner account during setup for server administration; mobile users register or log in when auth is required.
 
 **Playlists**
-- Create and edit playlists in the app, including artwork.
+- Create and edit playlists in the app, including artwork, reordering, and renaming.
+- Like songs from the player to build a Liked Songs playlist.
 - Folders whose names start with `[PLAYLIST]` become server-side playlists; you can import them to your phone for offline playback.
 
 **Offline and downloads**
 - Download music for fully offline playback; imported playlists live on the device.
+- Manual offline mode lets you disconnect on purpose and keep using downloads without auto-reconnect.
+- When the connection drops unexpectedly, the app stays usable offline and reconnects when the network returns.
 - Streaming caches tracks you have not downloaded yet, and you can prefer local or cached files even when you are online.
+- Downloads screen for managing in-progress, failed, and completed downloads; bulk download options; original-quality downloads that bypass transcoding when appropriate.
+- Cache controls for streaming artwork and tracks, including size limits and clear cache.
 - Server-managed v2 download jobs for big batches, with the download UI tuned for large queues.
+- Server-side download throttling and per-user concurrency limits keep large download queues stable on busy servers.
 
 **Streaming and audio**
-- Stream from the server to any supported client.
+- Stream from the server to any supported client, with HTTP range requests for seeking while playing.
 - Server-side transcoding powered by Sonic (MP3 -> AAC) so clients can use formats and quality levels that suit the device.
-- Quality presets that follow the connection type (for example Wi‑Fi vs mobile data).
+- Quality presets that follow the connection type (for example Wi‑Fi vs mobile data), with separate settings for streaming and downloads.
 
 **Sonic transcoder (Raspberry Pi 5 benchmarks)**
 - Sonic is Ariami's purpose-built transcoder and is much faster than ffmpeg for Ariami's quality-conversion tasks.
@@ -81,20 +94,32 @@ It is cross-platform so you can run this on your Mac/Windows/Linux machine, and 
 | Medium quality, 2 devices at same time | S23: 4m 56s, iPhone 12: 4m 54s (1993.4 MB each) | S23: 41 songs, iPhone 12: 40 songs after 2m | Sonic completed both full jobs |
 | Different quality, 2 devices at same time | S23 Low: 8m 12s, iPhone 12 Medium: 7m 55s | S23 Low: 22 songs, iPhone 12 Medium: 28 songs after 2m | Sonic completed both full jobs |
 
+**Mobile player**
+- Background playback with lock screen and notification controls.
+- Mini player and full-screen player with seek bar, shuffle, repeat, and playback that resumes where you left off.
+- Queue management: view, reorder, and clear the queue; play next or add to queue from menus; swipe list rows to queue.
+- Dynamic player colours extracted from album artwork; full appearance settings including light, dark, system, preset, and custom themes.
+- Profile hub with optional local avatar and a quick listening snapshot.
+
 **Apps and platforms**
-- Native apps for Android, iOS (build from source), macOS, Windows, and Linux, plus a CLI build with a web dashboard for headless servers.
+- Native apps for Android, iOS (build from source), macOS, Windows, and Linux.
+- Desktop server app with system tray support (minimize to tray instead of quitting), a first-run onboarding wizard, and an admin dashboard.
+- CLI headless server for Raspberry Pi and Linux with `start`, `stop`, and `status` commands, a background daemon after setup, optional custom port, and a web UI for setup and administration.
 
 **Connection, dashboard, and QR**
 - No port forwarding: Tailscale gives you a private path to the server over the internet.
 - When your phone and server are on the same LAN, the app prefers that path; when you are away it uses Tailscale if it is up, and switches back to LAN when you return.
-- The dashboard (desktop app or CLI web UI) shows who is connected, lets admins kick a device or change passwords, and shows whether authentication is required or the server is still open.
+- The dashboard (desktop app or CLI web UI) shows server status, library stats, connected clients, and registered users; start or stop the server, rescan the library, change the music folder, or show the QR code again.
+- Admin actions include kicking a device, changing passwords, and deleting users; live user activity shows download queues and transcoding in progress.
+- Shows whether authentication is required or the server is still open; owner sign-in is required for admin actions on the desktop app.
 - QR setup includes LAN and Tailscale addresses when the server has both, so pairing works at home or on the road.
 
 **Chromecast**
 - The mobile app supports casting to Chromecast devices on the same network.
 
 **Listening data**
-- On the device, keeps listening stats for songs, albums, and artists, including average daily listening time.
+- On the device, keeps listening stats for songs, albums, and artists, including average daily listening time and tabbed top tracks, artists, and albums views.
+- Export and import playlists and listening stats as JSON for backup or moving to a new phone.
 - Richer breakdowns (for example per calendar day) are planned.
 
 **Planned**
