@@ -66,8 +66,7 @@ extension AriamiHttpServerLibraryAndArtworkHandlersMethods on AriamiHttpServer {
 
     final shouldApplyArtworkQuota = size.requiresProcessing &&
         _artworkService != null &&
-        _authRequired &&
-        !_isLegacyUnauthenticatedMode();
+        _hasRegisteredUsers();
     String? artworkUserId;
     _SimpleLimiter? artworkLimiter;
     if (shouldApplyArtworkQuota) {
@@ -169,8 +168,7 @@ extension AriamiHttpServerLibraryAndArtworkHandlersMethods on AriamiHttpServer {
 
     final shouldApplyArtworkQuota = size.requiresProcessing &&
         _artworkService != null &&
-        _authRequired &&
-        !_isLegacyUnauthenticatedMode();
+        _hasRegisteredUsers();
     String? artworkUserId;
     _SimpleLimiter? artworkLimiter;
     if (shouldApplyArtworkQuota) {

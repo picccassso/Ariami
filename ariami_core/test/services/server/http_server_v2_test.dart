@@ -35,8 +35,7 @@ void main() {
       }
     });
 
-    test('P4-1: v2 endpoints support legacy mode and pagination continuity',
-        () async {
+    test('P4-1: v2 endpoints require owner auth during bootstrap', () async {
       await server.initializeAuth(
         usersFilePath: p.join(testDir.path, 'users.json'),
         sessionsFilePath: p.join(testDir.path, 'sessions.json'),
@@ -58,92 +57,19 @@ void main() {
         method: 'GET',
         url: Uri.parse('http://127.0.0.1:$port/api/v2/albums?limit=2'),
       );
-      expect(albumsPage1.statusCode, 200);
-      expect(albumsPage1.jsonBody['syncToken'], isA<int>());
-      expect(
-        _extractIds(albumsPage1.jsonBody['albums'] as List<dynamic>),
-        equals(<String>['album-a', 'album-b']),
-      );
-      final pageInfo1 =
-          albumsPage1.jsonBody['pageInfo'] as Map<String, dynamic>;
-      expect(pageInfo1['hasMore'], isTrue);
-      expect(pageInfo1['nextCursor'], equals('album-b'));
-
-      final albumsPage2 = await _sendJsonRequest(
-        method: 'GET',
-        url: Uri.parse(
-          'http://127.0.0.1:$port/api/v2/albums?limit=2&cursor=${Uri.encodeQueryComponent(pageInfo1['nextCursor'] as String)}',
-        ),
-      );
-      expect(albumsPage2.statusCode, 200);
-      expect(
-        _extractIds(albumsPage2.jsonBody['albums'] as List<dynamic>),
-        equals(<String>['album-c']),
-      );
-      final pageInfo2 =
-          albumsPage2.jsonBody['pageInfo'] as Map<String, dynamic>;
-      expect(pageInfo2['hasMore'], isFalse);
-      expect(pageInfo2['nextCursor'], isNull);
+      expect(albumsPage1.statusCode, 401);
 
       final bootstrapPage1 = await _sendJsonRequest(
         method: 'GET',
         url: Uri.parse('http://127.0.0.1:$port/api/v2/bootstrap?limit=2'),
       );
-      expect(bootstrapPage1.statusCode, 200);
-      expect(
-        _extractIds(bootstrapPage1.jsonBody['albums'] as List<dynamic>),
-        equals(<String>['album-a', 'album-b']),
-      );
-      expect(
-        _extractIds(bootstrapPage1.jsonBody['songs'] as List<dynamic>),
-        equals(<String>['song-a', 'song-b']),
-      );
-      expect(
-        _extractIds(bootstrapPage1.jsonBody['playlists'] as List<dynamic>),
-        equals(<String>['playlist-a']),
-      );
-      expect(
-        ((bootstrapPage1.jsonBody['playlists'] as List<dynamic>).first
-            as Map<String, dynamic>)['songIds'],
-        equals(<dynamic>['song-a', 'song-b']),
-      );
-      final bootstrapInfo1 =
-          bootstrapPage1.jsonBody['pageInfo'] as Map<String, dynamic>;
-      expect(bootstrapInfo1['hasMore'], isTrue);
-      expect(bootstrapInfo1['nextCursor'], isA<String>());
-
-      final bootstrapPage2 = await _sendJsonRequest(
-        method: 'GET',
-        url: Uri.parse(
-          'http://127.0.0.1:$port/api/v2/bootstrap?limit=2&cursor=${Uri.encodeQueryComponent(bootstrapInfo1['nextCursor'] as String)}',
-        ),
-      );
-      expect(bootstrapPage2.statusCode, 200);
-      expect(
-        _extractIds(bootstrapPage2.jsonBody['albums'] as List<dynamic>),
-        equals(<String>['album-c']),
-      );
-      expect(
-        _extractIds(bootstrapPage2.jsonBody['songs'] as List<dynamic>),
-        equals(<String>['song-c']),
-      );
+      expect(bootstrapPage1.statusCode, 401);
 
       final changesPage = await _sendJsonRequest(
         method: 'GET',
         url: Uri.parse('http://127.0.0.1:$port/api/v2/changes?since=0&limit=2'),
       );
-      expect(changesPage.statusCode, 200);
-      expect(changesPage.jsonBody['fromToken'], equals(0));
-      expect(changesPage.jsonBody['events'], isA<List<dynamic>>());
-      expect(changesPage.jsonBody['hasMore'], isTrue);
-      expect(changesPage.jsonBody['syncToken'], isA<int>());
-      final events = changesPage.jsonBody['events'] as List<dynamic>;
-      expect(
-        events.any(
-          (event) => (event as Map<String, dynamic>)['payload'] != null,
-        ),
-        isTrue,
-      );
+      expect(changesPage.statusCode, 401);
     });
 
     test(
@@ -223,7 +149,7 @@ void main() {
         method: 'GET',
         url: Uri.parse('http://127.0.0.1:$port/api/library'),
       );
-      expect(response.statusCode, equals(404));
+      expect(response.statusCode, equals(401));
     });
 
     test(
@@ -1017,12 +943,6 @@ void _seedCatalog(CatalogRepository repository) {
       occurredEpochMs: now + 4,
     ),
   ]);
-}
-
-List<String> _extractIds(List<dynamic> rows) {
-  return rows
-      .map((row) => (row as Map<String, dynamic>)['id'] as String)
-      .toList();
 }
 
 Future<void> _writeAudioStub(String filePath) async {

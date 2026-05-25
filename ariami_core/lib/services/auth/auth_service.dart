@@ -33,7 +33,7 @@ class AuthService {
   // RATE LIMITING
   // ============================================================================
 
-  /// Track failed login attempts per device/identifier
+  /// Track failed login attempts per server-derived identifier.
   final Map<String, _LoginAttemptTracker> _loginAttempts = {};
 
   /// Maximum failed login attempts before rate limiting
@@ -41,6 +41,19 @@ class AuthService {
 
   /// Cooldown period after max attempts reached
   static const Duration rateLimitCooldown = Duration(minutes: 15);
+
+  /// Build a rate-limit bucket from request metadata controlled by the server.
+  static String buildLoginRateLimitKey({
+    required String clientIp,
+    required String username,
+  }) {
+    final normalizedIp =
+        clientIp.trim().isEmpty ? 'unknown_ip' : clientIp.trim();
+    final normalizedUsername = username.trim().toLowerCase().isEmpty
+        ? '<empty>'
+        : username.trim().toLowerCase();
+    return 'ip=$normalizedIp|user=$normalizedUsername';
+  }
 
   /// Initialize the auth service with paths to storage files.
   /// Must be called before any other methods.
@@ -100,13 +113,19 @@ class AuthService {
     String username,
     String password,
     String deviceId,
-    String deviceName,
-  ) async {
+    String deviceName, {
+    String? rateLimitKey,
+  }) async {
     _ensureInitialized();
 
-    // Check rate limiting by deviceId
+    // Check rate limiting by a server-derived key, not client-controlled IDs.
+    final attemptKey = rateLimitKey ??
+        buildLoginRateLimitKey(
+          clientIp: 'unknown_ip',
+          username: username,
+        );
     final tracker =
-        _loginAttempts.putIfAbsent(deviceId, () => _LoginAttemptTracker());
+        _loginAttempts.putIfAbsent(attemptKey, () => _LoginAttemptTracker());
     if (tracker.isLocked) {
       final remainingMinutes =
           (tracker.remainingLockTime.inSeconds / 60).ceil();
@@ -131,7 +150,7 @@ class AuthService {
           AuthErrorCodes.invalidCredentials, 'Invalid username or password');
     }
 
-    // Success - reset rate limit tracker for this device
+    // Success - reset rate limit tracker for this login bucket.
     tracker.reset();
 
     final isDashboardControlLogin = _isDashboardControlDevice(

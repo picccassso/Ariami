@@ -111,6 +111,8 @@ class AriamiHttpServer {
   bool _legacyMode = true;
   AriamiFeatureFlags _featureFlags = const AriamiFeatureFlags();
   final AriamiMetricsService _metricsService = AriamiMetricsService();
+  final Map<String, _AuthEndpointRateLimitTracker> _authEndpointAttempts =
+      <String, _AuthEndpointRateLimitTracker>{};
   int _lastBroadcastSyncToken = 0;
   final Random _secureRandom = Random.secure();
 

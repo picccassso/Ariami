@@ -137,6 +137,65 @@ void main() {
       expect(authorizedStats.statusCode, 200);
       expect(authorizedStats.jsonBody['songCount'], isA<int>());
     });
+
+    test('public registration closes after first user, admin can create users',
+        () async {
+      final port = await _findFreePort();
+      await server.start(
+        advertisedIp: '127.0.0.1',
+        bindAddress: '127.0.0.1',
+        port: port,
+      );
+
+      final registerOwner = await _sendJsonRequest(
+        method: 'POST',
+        url: Uri.parse('http://127.0.0.1:$port/api/auth/register'),
+        jsonBody: <String, dynamic>{
+          'username': 'owner-user',
+          'password': 'owner-pass',
+        },
+      );
+      expect(registerOwner.statusCode, 200);
+
+      final publicRegister = await _sendJsonRequest(
+        method: 'POST',
+        url: Uri.parse('http://127.0.0.1:$port/api/auth/register'),
+        jsonBody: <String, dynamic>{
+          'username': 'public-user',
+          'password': 'public-pass',
+        },
+      );
+      expect(publicRegister.statusCode, 403);
+      expect(
+        (publicRegister.jsonBody['error'] as Map<String, dynamic>)['code'],
+        AuthErrorCodes.registrationClosed,
+      );
+
+      final ownerLogin = await _sendJsonRequest(
+        method: 'POST',
+        url: Uri.parse('http://127.0.0.1:$port/api/auth/login'),
+        jsonBody: <String, dynamic>{
+          'username': 'owner-user',
+          'password': 'owner-pass',
+          'deviceId': 'owner-device',
+          'deviceName': 'Owner Device',
+        },
+      );
+      expect(ownerLogin.statusCode, 200);
+      final ownerToken = ownerLogin.jsonBody['sessionToken'] as String;
+
+      final adminCreate = await _sendJsonRequest(
+        method: 'POST',
+        url: Uri.parse('http://127.0.0.1:$port/api/admin/create-user'),
+        headers: <String, String>{'Authorization': 'Bearer $ownerToken'},
+        jsonBody: <String, dynamic>{
+          'username': 'created-user',
+          'password': 'created-pass',
+        },
+      );
+      expect(adminCreate.statusCode, 201);
+      expect(adminCreate.jsonBody['username'], equals('created-user'));
+    });
   });
 
   group('Admin dashboard auth APIs', () {
@@ -225,13 +284,14 @@ void main() {
 
       final registerTarget = await _sendJsonRequest(
         method: 'POST',
-        url: Uri.parse('http://127.0.0.1:$port/api/auth/register'),
+        url: Uri.parse('http://127.0.0.1:$port/api/admin/create-user'),
+        headers: <String, String>{'Authorization': 'Bearer $adminToken'},
         jsonBody: <String, dynamic>{
           'username': 'target-user',
           'password': 'target-pass',
         },
       );
-      expect(registerTarget.statusCode, 200);
+      expect(registerTarget.statusCode, 201);
 
       final loginTarget = await _sendJsonRequest(
         method: 'POST',
@@ -656,13 +716,14 @@ void main() {
 
       final registerTarget = await _sendJsonRequest(
         method: 'POST',
-        url: Uri.parse('http://127.0.0.1:$port/api/auth/register'),
+        url: Uri.parse('http://127.0.0.1:$port/api/admin/create-user'),
+        headers: <String, String>{'Authorization': 'Bearer $adminToken'},
         jsonBody: <String, dynamic>{
           'username': 'target-user',
           'password': 'target-pass',
         },
       );
-      expect(registerTarget.statusCode, 200);
+      expect(registerTarget.statusCode, 201);
 
       final loginTarget = await _sendJsonRequest(
         method: 'POST',
@@ -770,13 +831,14 @@ void main() {
 
       final registerTarget = await _sendJsonRequest(
         method: 'POST',
-        url: Uri.parse('http://127.0.0.1:$port/api/auth/register'),
+        url: Uri.parse('http://127.0.0.1:$port/api/admin/create-user'),
+        headers: <String, String>{'Authorization': 'Bearer $adminToken'},
         jsonBody: <String, dynamic>{
           'username': 'target-user',
           'password': 'target-pass',
         },
       );
-      expect(registerTarget.statusCode, 200);
+      expect(registerTarget.statusCode, 201);
 
       final loginTarget = await _sendJsonRequest(
         method: 'POST',
@@ -873,13 +935,14 @@ void main() {
 
       final registerTarget = await _sendJsonRequest(
         method: 'POST',
-        url: Uri.parse('http://127.0.0.1:$port/api/auth/register'),
+        url: Uri.parse('http://127.0.0.1:$port/api/admin/create-user'),
+        headers: <String, String>{'Authorization': 'Bearer $adminToken'},
         jsonBody: <String, dynamic>{
           'username': 'target-user',
           'password': 'old-target-pass',
         },
       );
-      expect(registerTarget.statusCode, 200);
+      expect(registerTarget.statusCode, 201);
 
       final loginTargetOld = await _sendJsonRequest(
         method: 'POST',
@@ -985,13 +1048,14 @@ void main() {
 
       final registerTarget = await _sendJsonRequest(
         method: 'POST',
-        url: Uri.parse('http://127.0.0.1:$port/api/auth/register'),
+        url: Uri.parse('http://127.0.0.1:$port/api/admin/create-user'),
+        headers: <String, String>{'Authorization': 'Bearer $adminToken'},
         jsonBody: <String, dynamic>{
           'username': 'target-user',
           'password': 'target-pass',
         },
       );
-      expect(registerTarget.statusCode, 200);
+      expect(registerTarget.statusCode, 201);
       final targetUserId = registerTarget.jsonBody['userId'] as String;
 
       final loginTarget = await _sendJsonRequest(
@@ -1132,15 +1196,29 @@ void main() {
       );
       expect(registerAdmin.statusCode, 200);
 
+      final loginAdmin = await _sendJsonRequest(
+        method: 'POST',
+        url: Uri.parse('http://127.0.0.1:$port/api/auth/login'),
+        jsonBody: <String, dynamic>{
+          'username': 'admin-user',
+          'password': 'admin-pass',
+          'deviceId': 'admin-device',
+          'deviceName': 'Admin Device',
+        },
+      );
+      expect(loginAdmin.statusCode, 200);
+      final adminToken = loginAdmin.jsonBody['sessionToken'] as String;
+
       final registerNonAdmin = await _sendJsonRequest(
         method: 'POST',
-        url: Uri.parse('http://127.0.0.1:$port/api/auth/register'),
+        url: Uri.parse('http://127.0.0.1:$port/api/admin/create-user'),
+        headers: <String, String>{'Authorization': 'Bearer $adminToken'},
         jsonBody: <String, dynamic>{
           'username': 'regular-user',
           'password': 'regular-pass',
         },
       );
-      expect(registerNonAdmin.statusCode, 200);
+      expect(registerNonAdmin.statusCode, 201);
 
       final loginNonAdmin = await _sendJsonRequest(
         method: 'POST',
@@ -1411,13 +1489,14 @@ void main() {
       // Register and login target user
       final registerTarget = await _sendJsonRequest(
         method: 'POST',
-        url: Uri.parse('http://127.0.0.1:$port/api/auth/register'),
+        url: Uri.parse('http://127.0.0.1:$port/api/admin/create-user'),
+        headers: <String, String>{'Authorization': 'Bearer $adminToken'},
         jsonBody: <String, dynamic>{
           'username': 'target-user',
           'password': 'target-pass',
         },
       );
-      expect(registerTarget.statusCode, 200);
+      expect(registerTarget.statusCode, 201);
 
       final loginTarget = await _sendJsonRequest(
         method: 'POST',

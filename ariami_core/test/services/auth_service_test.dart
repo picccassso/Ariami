@@ -369,6 +369,49 @@ void main() {
       }
     });
 
+    test('deviceId rotation does not bypass server-derived rate limit',
+        () async {
+      final username = unique('ratelimit_rotating_device');
+      await authService.register(username, 'correctpassword');
+      final rateLimitKey = AuthService.buildLoginRateLimitKey(
+        clientIp: '203.0.113.10',
+        username: username,
+      );
+
+      for (int i = 0; i < AuthService.maxLoginAttempts; i++) {
+        try {
+          await authService.login(
+            username,
+            'wrongpassword',
+            unique('rotating_device'),
+            'Rotating Device',
+            rateLimitKey: rateLimitKey,
+          );
+          fail('Expected AuthException for invalid credentials');
+        } catch (e) {
+          expect(e, isA<AuthException>());
+          expect(
+            (e as AuthException).code,
+            equals(AuthErrorCodes.invalidCredentials),
+          );
+        }
+      }
+
+      try {
+        await authService.login(
+          username,
+          'wrongpassword',
+          unique('rotating_device'),
+          'Rotating Device',
+          rateLimitKey: rateLimitKey,
+        );
+        fail('Expected rate limit despite rotated deviceId');
+      } catch (e) {
+        expect(e, isA<AuthException>());
+        expect((e as AuthException).code, equals(AuthErrorCodes.rateLimited));
+      }
+    });
+
     test('successful login resets rate limit counter', () async {
       final username = unique('ratelimit_reset');
       final password = 'correctpassword';
@@ -432,6 +475,10 @@ void main() {
       expect(AuthErrorCodes.streamTokenExpired, equals('STREAM_TOKEN_EXPIRED'));
       expect(AuthErrorCodes.authRequired, equals('AUTH_REQUIRED'));
       expect(AuthErrorCodes.rateLimited, equals('RATE_LIMITED'));
+      expect(
+        AuthErrorCodes.registrationClosed,
+        equals('REGISTRATION_CLOSED'),
+      );
       expect(
         AuthErrorCodes.lastAdminProtected,
         equals('LAST_ADMIN_PROTECTED'),

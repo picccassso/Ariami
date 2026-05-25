@@ -18,7 +18,6 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _passwordController = TextEditingController();
 
   bool _isLoading = false;
-  bool _isRegisterMode = false;
   String? _errorMessage;
 
   @override
@@ -45,21 +44,6 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      if (_isRegisterMode) {
-        final registerResponse = await _authService.register(
-          username: username,
-          password: password,
-        );
-        if (!registerResponse.isSuccess) {
-          setState(() {
-            _isLoading = false;
-            _errorMessage =
-                _extractError(registerResponse) ?? 'Registration failed.';
-          });
-          return;
-        }
-      }
-
       final loginResponse = await _authService.login(
         username: username,
         password: password,
@@ -74,9 +58,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (!mounted) return;
       final args = ModalRoute.of(context)?.settings.arguments;
-      final successRoute = args is OwnerSetupLoginArgs
-          ? args.successRoute
-          : '/dashboard';
+      final successRoute =
+          args is OwnerSetupLoginArgs ? args.successRoute : '/dashboard';
       if (successRoute == '/qr-code') {
         final isOwner = await _authService.isCurrentUserAdmin();
         if (!isOwner) {
@@ -120,9 +103,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final actionLabel = _isRegisterMode ? 'Register & Continue' : 'Login';
-    final title = _isRegisterMode ? 'CREATE ACCOUNT' : 'LOGIN REQUIRED';
-
     return Scaffold(
       body: Container(
         decoration: BoxDecoration(
@@ -137,7 +117,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Text(
-                    title,
+                    'LOGIN REQUIRED',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.headlineMedium,
                   ),
@@ -190,23 +170,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 color: Colors.black,
                               ),
                             )
-                          : Text(actionLabel),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextButton(
-                    onPressed: _isLoading
-                        ? null
-                        : () {
-                            setState(() {
-                              _isRegisterMode = !_isRegisterMode;
-                              _errorMessage = null;
-                            });
-                          },
-                    child: Text(
-                      _isRegisterMode
-                          ? 'Already have an account? Login'
-                          : 'Need an account? Register',
+                          : const Text('Login'),
                     ),
                   ),
                 ],

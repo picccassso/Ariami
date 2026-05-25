@@ -224,6 +224,7 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
     final handler = const Pipeline()
         .addMiddleware(logRequests())
         .addMiddleware(_corsMiddleware())
+        .addMiddleware(_authRateLimitMiddleware())
         .addMiddleware(_authMiddleware())
         .addMiddleware(_connectionTrackingMiddleware())
         .addMiddleware(_metricsMiddleware())
@@ -303,6 +304,7 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
     _webSocketClients.clear();
     _metricsService.stop();
     _inFlightDownloadTranscodesByUser.clear();
+    _authEndpointAttempts.clear();
     _streamTracker.dispose();
 
     print('Ariami Server stopped');

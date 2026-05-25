@@ -14,6 +14,32 @@ extension AriamiHttpServerSetupAndStatsHandlersMethods on AriamiHttpServer {
     });
   }
 
+  Future<Response?> _authorizeSetupRequest(Request request) async {
+    if (!_hasRegisteredUsers()) {
+      return null;
+    }
+
+    var session = request.context['session'] as Session?;
+    if (session == null) {
+      final authHeader = request.headers['authorization'];
+      if (authHeader == null || !authHeader.startsWith('Bearer ')) {
+        return _authRequiredResponse();
+      }
+
+      final sessionToken = authHeader.substring(7);
+      session = await _authService.validateSession(sessionToken);
+      if (session == null) {
+        return _sessionExpiredResponse();
+      }
+    }
+
+    if (!_authService.isAdminUser(session.userId)) {
+      return _forbiddenAdminResponse();
+    }
+
+    return null;
+  }
+
   /// Handle ping request
   /// Optionally accepts deviceId query parameter to update heartbeat
   Response _handlePing(Request request) {
@@ -52,6 +78,9 @@ extension AriamiHttpServerSetupAndStatsHandlersMethods on AriamiHttpServer {
 
   /// Handle set music folder request
   Future<Response> _handleSetMusicFolder(Request request) async {
+    final authResponse = await _authorizeSetupRequest(request);
+    if (authResponse != null) return authResponse;
+
     if (_setMusicFolderCallback == null) {
       return _setupNotConfiguredResponse();
     }
@@ -145,6 +174,9 @@ extension AriamiHttpServerSetupAndStatsHandlersMethods on AriamiHttpServer {
 
   /// Handle start scan request
   Future<Response> _handleStartScan(Request request) async {
+    final authResponse = await _authorizeSetupRequest(request);
+    if (authResponse != null) return authResponse;
+
     if (_startScanCallback == null) {
       return _setupNotConfiguredResponse();
     }
@@ -193,6 +225,9 @@ extension AriamiHttpServerSetupAndStatsHandlersMethods on AriamiHttpServer {
 
   /// Handle mark setup complete request
   Future<Response> _handleMarkSetupComplete(Request request) async {
+    final authResponse = await _authorizeSetupRequest(request);
+    if (authResponse != null) return authResponse;
+
     if (_markSetupCompleteCallback == null) {
       return _setupNotConfiguredResponse();
     }
@@ -222,6 +257,9 @@ extension AriamiHttpServerSetupAndStatsHandlersMethods on AriamiHttpServer {
 
   /// Handle transition to background mode request (CLI use)
   Future<Response> _handleTransitionToBackground(Request request) async {
+    final authResponse = await _authorizeSetupRequest(request);
+    if (authResponse != null) return authResponse;
+
     if (_transitionToBackgroundCallback == null) {
       return _setupNotConfiguredResponse(message: 'Transition not configured');
     }

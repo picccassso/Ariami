@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../models/api_models.dart';
 import '../models/server_info.dart';
 import '../services/api/api_client.dart';
 import '../services/api/connection_service.dart';
@@ -53,8 +54,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
     } on ApiException catch (e) {
       setState(() {
         // Show user-friendly error messages
-        if (e.code == 'USER_EXISTS') {
+        if (e.code == ApiErrorCodes.userExists) {
           _errorMessage = 'Username already taken';
+        } else if (_isRegistrationClosed(e)) {
+          _errorMessage =
+              'Registration is closed for this server. Ask the server owner for an account, then sign in.';
         } else {
           _errorMessage = e.message;
         }
@@ -70,6 +74,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
         });
       }
     }
+  }
+
+  bool _isRegistrationClosed(ApiException error) {
+    final code = error.code.toUpperCase();
+    if (code == 'REGISTRATION_CLOSED' ||
+        code == 'REGISTRATION_DISABLED' ||
+        code == 'PUBLIC_REGISTRATION_DISABLED') {
+      return true;
+    }
+
+    final message = error.message.toLowerCase();
+    return message.contains('registration') &&
+        (message.contains('closed') ||
+            message.contains('disabled') ||
+            message.contains('not accepting'));
   }
 
   @override

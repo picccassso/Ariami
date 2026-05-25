@@ -52,9 +52,11 @@ class _OwnerSetupScreenState extends State<OwnerSetupScreen> {
     });
 
     try {
-      await ServerInitializationService.initializeAuth(_httpServer, _stateService);
+      await ServerInitializationService.initializeAuth(
+          _httpServer, _stateService);
       final hasOwner = await _stateService.hasOwnerAccount();
-      final ownerUsername = hasOwner ? await _stateService.getOwnerUsername() : null;
+      final ownerUsername =
+          hasOwner ? await _stateService.getOwnerUsername() : null;
 
       if (!mounted) return;
       setState(() {
@@ -82,11 +84,6 @@ class _OwnerSetupScreenState extends State<OwnerSetupScreen> {
     Navigator.pop(context, true);
   }
 
-  Future<void> _skipForNow() async {
-    await _stateService.markOwnerSetupSkipped();
-    await _completeFlow();
-  }
-
   Future<void> _createOwner() async {
     if (!(_formKey.currentState?.validate() ?? false)) {
       return;
@@ -101,7 +98,8 @@ class _OwnerSetupScreenState extends State<OwnerSetupScreen> {
     final password = _passwordController.text;
 
     try {
-      await ServerInitializationService.initializeAuth(_httpServer, _stateService);
+      await ServerInitializationService.initializeAuth(
+          _httpServer, _stateService);
       final authService = AuthService();
       await authService.register(username, password);
 
@@ -210,14 +208,16 @@ class _OwnerSetupScreenState extends State<OwnerSetupScreen> {
                                     _ownerUsername == null
                                         ? 'You can continue. Use Owner Sign-In when you run Owner-only actions.'
                                         : 'Current owner username: $_ownerUsername',
-                                    style: const TextStyle(color: Colors.white70),
+                                    style:
+                                        const TextStyle(color: Colors.white70),
                                   ),
                                 ],
                               )
                             : Form(
                                 key: _formKey,
                                 child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
                                   children: [
                                     TextFormField(
                                       controller: _usernameController,
@@ -226,7 +226,9 @@ class _OwnerSetupScreenState extends State<OwnerSetupScreen> {
                                       ),
                                       validator: (value) {
                                         final v = (value ?? '').trim();
-                                        if (v.isEmpty) return 'Username is required.';
+                                        if (v.isEmpty) {
+                                          return 'Username is required.';
+                                        }
                                         if (v.length < 3) {
                                           return 'Username must be at least 3 characters.';
                                         }
@@ -242,7 +244,9 @@ class _OwnerSetupScreenState extends State<OwnerSetupScreen> {
                                       ),
                                       validator: (value) {
                                         final v = value ?? '';
-                                        if (v.isEmpty) return 'Password is required.';
+                                        if (v.isEmpty) {
+                                          return 'Password is required.';
+                                        }
                                         if (v.length < 4) {
                                           return 'Password must be at least 4 characters.';
                                         }
@@ -257,7 +261,8 @@ class _OwnerSetupScreenState extends State<OwnerSetupScreen> {
                                         labelText: 'Confirm Password',
                                       ),
                                       validator: (value) {
-                                        if ((value ?? '') != _passwordController.text) {
+                                        if ((value ?? '') !=
+                                            _passwordController.text) {
                                           return 'Passwords do not match.';
                                         }
                                         return null;
@@ -290,23 +295,11 @@ class _OwnerSetupScreenState extends State<OwnerSetupScreen> {
                               ? const SizedBox(
                                   width: 16,
                                   height: 16,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                  child:
+                                      CircularProgressIndicator(strokeWidth: 2),
                                 )
                               : const Text('Create Owner Account'),
                         ),
-                        if (widget.isOnboarding) ...[
-                          const SizedBox(height: 10),
-                          OutlinedButton(
-                            onPressed: _isSubmitting ? null : _skipForNow,
-                            child: const Text('Skip For Now'),
-                          ),
-                          const SizedBox(height: 8),
-                          const Text(
-                            'If skipped, Owner-only actions will stay locked until an owner is created.',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(fontSize: 12, color: Colors.white54),
-                          ),
-                        ],
                       ],
                     ],
                   ),

@@ -18,7 +18,8 @@ void main() {
       server.libraryManager.clear();
       savedPath = null;
 
-      testDir = await Directory.systemTemp.createTemp('ariami_music_setup_api_');
+      testDir =
+          await Directory.systemTemp.createTemp('ariami_music_setup_api_');
       musicDir = Directory(p.join(testDir.path, 'music'));
       await musicDir.create(recursive: true);
 
@@ -132,6 +133,54 @@ void main() {
       expect(response.body['validation']['isValid'], isTrue);
       expect(savedPath, musicDir.path);
     });
+
+    test('POST set requires admin auth after owner exists', () async {
+      await server.initializeAuth(
+        usersFilePath: p.join(testDir.path, 'users.json'),
+        sessionsFilePath: p.join(testDir.path, 'sessions.json'),
+        forceReinitialize: true,
+      );
+
+      final port = await _findFreePort();
+      await server.start(
+        advertisedIp: '127.0.0.1',
+        bindAddress: '127.0.0.1',
+        port: port,
+      );
+
+      final register = await _postJson(
+        Uri.parse('http://127.0.0.1:$port/api/auth/register'),
+        {'username': 'owner', 'password': 'owner-pass'},
+      );
+      expect(register.statusCode, 200);
+
+      final missingAuth = await _postJson(
+        Uri.parse('http://127.0.0.1:$port/api/setup/music-folder'),
+        {'path': musicDir.path},
+      );
+      expect(missingAuth.statusCode, 401);
+
+      final login = await _postJson(
+        Uri.parse('http://127.0.0.1:$port/api/auth/login'),
+        {
+          'username': 'owner',
+          'password': 'owner-pass',
+          'deviceId': 'owner-device',
+          'deviceName': 'Owner Device',
+        },
+      );
+      expect(login.statusCode, 200);
+      final token = login.body['sessionToken'] as String;
+
+      final authorized = await _postJson(
+        Uri.parse('http://127.0.0.1:$port/api/setup/music-folder'),
+        {'path': musicDir.path},
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      expect(authorized.statusCode, 200);
+      expect(authorized.body['success'], isTrue);
+      expect(savedPath, musicDir.path);
+    });
   });
 }
 
@@ -159,12 +208,14 @@ Future<({int statusCode, Map<String, dynamic> body})> _getJson(Uri url) async {
 
 Future<({int statusCode, Map<String, dynamic> body})> _postJson(
   Uri url,
-  Map<String, dynamic> payload,
-) async {
+  Map<String, dynamic> payload, {
+  Map<String, String>? headers,
+}) async {
   final client = HttpClient();
   try {
     final request = await client.postUrl(url);
     request.headers.contentType = ContentType.json;
+    headers?.forEach(request.headers.set);
     request.write(jsonEncode(payload));
     final response = await request.close();
     final bodyText = await response.transform(utf8.decoder).join();

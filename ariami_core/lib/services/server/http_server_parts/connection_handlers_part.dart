@@ -18,6 +18,14 @@ extension AriamiHttpServerConnectionHandlersMethods on AriamiHttpServer {
   /// Handle client connection
   Future<Response> _handleConnect(Request request) async {
     try {
+      if (!_hasRegisteredUsers()) {
+        return _authRequiredResponse();
+      }
+      final session = request.context['session'] as Session?;
+      if (session == null) {
+        return _authRequiredResponse();
+      }
+
       final body = await request.readAsString();
       final data = jsonDecode(body) as Map<String, dynamic>;
 
@@ -33,8 +41,7 @@ extension AriamiHttpServerConnectionHandlersMethods on AriamiHttpServer {
         deviceId = _generateDeviceId();
       }
 
-      final session = request.context['session'] as Session?;
-      final userId = session?.userId;
+      final userId = session.userId;
 
       final presenceClientType = AuthService.isDashboardControlDevice(
               deviceId: deviceId, deviceName: deviceName)
@@ -72,44 +79,22 @@ extension AriamiHttpServerConnectionHandlersMethods on AriamiHttpServer {
     }
   }
 
-  /// Handle client disconnection.
-  /// In auth mode, uses bearer session context.
-  /// In legacy mode, expects deviceId in request body.
+  /// Handle client disconnection using bearer session context.
   Future<Response> _handleDisconnect(Request request) async {
     try {
-      final body = await request.readAsString();
-      final data = body.trim().isEmpty
-          ? <String, dynamic>{}
-          : jsonDecode(body) as Map<String, dynamic>;
-      final deviceId = data['deviceId'] as String?;
       final session = request.context['session'] as Session?;
 
       late final String resolvedDeviceId;
       String? deviceName;
 
-      if (_authRequired && !_legacyMode) {
-        if (session == null) {
-          return _jsonUnauthorized({
-            'error': {
-              'code': AuthErrorCodes.authRequired,
-              'message': 'Not authenticated',
-            },
-          });
-        }
-
-        resolvedDeviceId = session.deviceId;
-        // Disconnect is a presence change only - do NOT revoke auth session
-        // or stream tickets. Session remains valid for reconnection.
-        // Explicit logout (/api/auth/logout) and admin actions still revoke.
-      } else {
-        if (deviceId == null || deviceId.isEmpty) {
-          return _jsonBadRequest({
-            'error': 'Missing required field',
-            'message': 'deviceId is required',
-          });
-        }
-        resolvedDeviceId = deviceId;
+      if (!_hasRegisteredUsers() || session == null) {
+        return _authRequiredResponse();
       }
+
+      resolvedDeviceId = session.deviceId;
+      // Disconnect is a presence change only - do NOT revoke auth session
+      // or stream tickets. Session remains valid for reconnection.
+      // Explicit logout (/api/auth/logout) and admin actions still revoke.
 
       // Get client name before unregistering
       final client = _connectionManager.getClient(resolvedDeviceId);

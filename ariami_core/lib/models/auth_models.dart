@@ -366,4 +366,5 @@ class AuthErrorCodes {
   static const String forbiddenAdmin = 'FORBIDDEN_ADMIN';
   static const String rateLimited = 'RATE_LIMITED';
   static const String lastAdminProtected = 'LAST_ADMIN_PROTECTED';
+  static const String registrationClosed = 'REGISTRATION_CLOSED';
 }

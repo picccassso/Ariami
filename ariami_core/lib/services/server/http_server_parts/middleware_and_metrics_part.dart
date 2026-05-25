@@ -95,6 +95,68 @@ extension AriamiHttpServerMiddlewareAndMetricsMethods on AriamiHttpServer {
   }
 
   /// Auth middleware - validates session tokens for protected endpoints
+  Middleware _authRateLimitMiddleware() {
+    return (Handler handler) {
+      return (Request request) async {
+        final path = '/${request.url.path}';
+        if (path != '/api/auth/login' && path != '/api/auth/register') {
+          return await handler(request);
+        }
+
+        final key = '$path|${_clientIp(request)}';
+        final tracker = _authEndpointAttempts.putIfAbsent(
+          key,
+          () => _AuthEndpointRateLimitTracker(),
+        );
+        if (tracker.isLocked) {
+          final remainingMinutes =
+              (tracker.remainingLockTime.inSeconds / 60).ceil();
+          return _jsonResponse(HttpStatus.tooManyRequests, {
+            'error': {
+              'code': AuthErrorCodes.rateLimited,
+              'message':
+                  'Too many failed auth attempts. Try again in $remainingMinutes minute${remainingMinutes == 1 ? '' : 's'}.',
+            },
+          });
+        }
+
+        final response = await handler(request);
+        if (response.statusCode == HttpStatus.ok ||
+            response.statusCode == HttpStatus.created) {
+          tracker.reset();
+        } else if (response.statusCode == HttpStatus.badRequest ||
+            response.statusCode == HttpStatus.unauthorized ||
+            response.statusCode == HttpStatus.conflict) {
+          tracker.recordFailure(
+            AuthService.maxLoginAttempts,
+            AuthService.rateLimitCooldown,
+          );
+        }
+        return response;
+      };
+    };
+  }
+
+  String _clientIp(Request request) {
+    final forwarded = request.headers['x-forwarded-for'];
+    if (forwarded != null && forwarded.trim().isNotEmpty) {
+      return forwarded.split(',').first.trim();
+    }
+
+    final connectionInfo = request.context['shelf.io.connection_info'];
+    if (connectionInfo is HttpConnectionInfo) {
+      return connectionInfo.remoteAddress.address;
+    }
+
+    final ioRequest = request.context['shelf.io.request'];
+    if (ioRequest is HttpRequest) {
+      return ioRequest.connectionInfo?.remoteAddress.address ?? 'unknown_ip';
+    }
+
+    return 'unknown_ip';
+  }
+
+  /// Auth middleware - validates session tokens for protected endpoints
   Middleware _authMiddleware() {
     return (Handler handler) {
       return (Request request) async {
@@ -110,27 +172,34 @@ extension AriamiHttpServerMiddlewareAndMetricsMethods on AriamiHttpServer {
         final isArtworkPath = path.startsWith('/api/artwork/') ||
             path.startsWith('/api/song-artwork/');
 
-        // Public endpoints that don't require authentication
+        final hasUsers = _hasRegisteredUsers();
+
+        // Public endpoints that don't require authentication.
+        //
+        // First-run bootstrap keeps setup and initial registration reachable,
+        // but legacy mode must not open the full library/API surface.
+        final isBootstrapAuthPath = !hasUsers &&
+            (path == '/api/auth/login' || path == '/api/auth/register');
+        final isBootstrapSetupPath =
+            !hasUsers && path.startsWith('/api/setup/');
+        final isMediaTicketPath = hasUsers &&
+            (path == '/api/stream' ||
+                path.startsWith('/api/stream/') ||
+                path == '/api/download' ||
+                path.startsWith('/api/download/'));
         final isPublicPath = path == '/api/ping' ||
             path == '/api/server-info' ||
             path == '/api/ws' ||
-            path == '/api/stream' ||
-            path.startsWith('/api/stream/') ||
-            path == '/api/download' ||
-            path.startsWith('/api/download/') ||
-            path.startsWith('/api/auth/') ||
-            path.startsWith('/api/setup/') ||
-            path.startsWith('/api/tailscale/');
+            path == '/api/auth/login' ||
+            path == '/api/auth/register' ||
+            path.startsWith('/api/tailscale/') ||
+            isBootstrapAuthPath ||
+            isBootstrapSetupPath ||
+            isMediaTicketPath;
 
         if (isPublicPath) {
           return await handler(request);
         }
-
-        // In legacy mode (no users registered), allow unauthenticated access
-        if (_legacyMode && !_authService.hasUsers()) {
-          return await handler(request);
-        }
-
         // Artwork requests may use either:
         // 1) Session auth (Authorization header), or
         // 2) streamToken query param validated in artwork handlers.
@@ -166,8 +235,12 @@ extension AriamiHttpServerMiddlewareAndMetricsMethods on AriamiHttpServer {
     };
   }
 
-  bool _isLegacyUnauthenticatedMode() {
-    return _legacyMode && !_authService.hasUsers();
+  bool _hasRegisteredUsers() {
+    try {
+      return _authService.hasUsers();
+    } on StateError {
+      return false;
+    }
   }
 
   Response _authRequiredResponse() {
@@ -201,25 +274,27 @@ extension AriamiHttpServerMiddlewareAndMetricsMethods on AriamiHttpServer {
     Request request,
     FutureOr<Response> Function(Request request) handler,
   ) async {
-    if (_authRequired && !_isLegacyUnauthenticatedMode()) {
-      final sessionFromContext = request.context['session'] as Session?;
-      if (sessionFromContext == null) {
-        final authHeader = request.headers['authorization'];
-        if (authHeader == null || !authHeader.startsWith('Bearer ')) {
-          return _authRequiredResponse();
-        }
+    if (!_hasRegisteredUsers()) {
+      return _authRequiredResponse();
+    }
 
-        final sessionToken = authHeader.substring(7);
-        final session = await _authService.validateSession(sessionToken);
-        if (session == null) {
-          return _sessionExpiredResponse();
-        }
-
-        request = request.change(context: {
-          ...request.context,
-          'session': session,
-        });
+    final sessionFromContext = request.context['session'] as Session?;
+    if (sessionFromContext == null) {
+      final authHeader = request.headers['authorization'];
+      if (authHeader == null || !authHeader.startsWith('Bearer ')) {
+        return _authRequiredResponse();
       }
+
+      final sessionToken = authHeader.substring(7);
+      final session = await _authService.validateSession(sessionToken);
+      if (session == null) {
+        return _sessionExpiredResponse();
+      }
+
+      request = request.change(context: {
+        ...request.context,
+        'session': session,
+      });
     }
 
     return await handler(request);
@@ -239,9 +314,8 @@ extension AriamiHttpServerMiddlewareAndMetricsMethods on AriamiHttpServer {
     String? requestedSongId,
     String? requestedAlbumId,
   }) {
-    // In legacy mode with no users, artwork remains publicly accessible.
-    if (!_authRequired || _isLegacyUnauthenticatedMode()) {
-      return null;
+    if (!_hasRegisteredUsers()) {
+      return _authRequiredResponse();
     }
 
     // Session-authenticated request is already authorized.
@@ -416,5 +490,37 @@ extension AriamiHttpServerMiddlewareAndMetricsMethods on AriamiHttpServer {
       return null;
     }
     return int.tryParse(headerValue);
+  }
+}
+
+class _AuthEndpointRateLimitTracker {
+  int failedAttempts = 0;
+  DateTime? lockedUntil;
+
+  bool get isLocked {
+    if (lockedUntil == null) return false;
+    if (DateTime.now().isAfter(lockedUntil!)) {
+      reset();
+      return false;
+    }
+    return true;
+  }
+
+  Duration get remainingLockTime {
+    if (lockedUntil == null) return Duration.zero;
+    final remaining = lockedUntil!.difference(DateTime.now());
+    return remaining.isNegative ? Duration.zero : remaining;
+  }
+
+  void recordFailure(int maxAttempts, Duration cooldown) {
+    failedAttempts++;
+    if (failedAttempts >= maxAttempts) {
+      lockedUntil = DateTime.now().add(cooldown);
+    }
+  }
+
+  void reset() {
+    failedAttempts = 0;
+    lockedUntil = null;
   }
 }

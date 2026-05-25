@@ -22,6 +22,16 @@ extension AriamiHttpServerAuthAndAdminHandlersMethods on AriamiHttpServer {
         );
       }
 
+      if (_authService.hasUsers()) {
+        return _jsonForbidden({
+          'error': {
+            'code': AuthErrorCodes.registrationClosed,
+            'message':
+                'Public registration is only available before the first user is created',
+          },
+        });
+      }
+
       final response = await _authService.register(username, password);
 
       // Update auth mode after first user registration
@@ -84,8 +94,16 @@ extension AriamiHttpServerAuthAndAdminHandlersMethods on AriamiHttpServer {
         );
       }
 
-      final response =
-          await _authService.login(username, password, deviceId, deviceName);
+      final response = await _authService.login(
+        username,
+        password,
+        deviceId,
+        deviceName,
+        rateLimitKey: AuthService.buildLoginRateLimitKey(
+          clientIp: _clientIp(request),
+          username: username,
+        ),
+      );
 
       // Register client connection
       final presenceClientType = AuthService.isDashboardControlDevice(
@@ -110,8 +128,11 @@ extension AriamiHttpServerAuthAndAdminHandlersMethods on AriamiHttpServer {
         headers: {'Content-Type': 'application/json; charset=utf-8'},
       );
     } on AuthException catch (e) {
-      return Response.unauthorized(
-        jsonEncode({
+      return Response(
+        e.code == AuthErrorCodes.rateLimited
+            ? HttpStatus.tooManyRequests
+            : HttpStatus.unauthorized,
+        body: jsonEncode({
           'error': {
             'code': e.code,
             'message': e.message,
@@ -249,6 +270,72 @@ extension AriamiHttpServerAuthAndAdminHandlersMethods on AriamiHttpServer {
       }),
       headers: {'Content-Type': 'application/json; charset=utf-8'},
     );
+  }
+
+  Future<Response> _handleAdminCreateUser(Request request) async {
+    final authResponse = _authorizeAdminRequest(request);
+    if (authResponse != null) return authResponse;
+
+    try {
+      final body = await request.readAsString();
+      final data = body.trim().isEmpty
+          ? <String, dynamic>{}
+          : jsonDecode(body) as Map<String, dynamic>;
+
+      final username = data['username'] as String?;
+      final password = data['password'] as String?;
+      if (username == null || password == null) {
+        return Response.badRequest(
+          body: jsonEncode({
+            'error': {
+              'code': 'INVALID_REQUEST',
+              'message': 'username and password are required',
+            },
+          }),
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
+        );
+      }
+
+      final response = await _authService.register(username, password);
+      updateAuthMode();
+
+      return _jsonResponse(HttpStatus.created, {
+        'status': 'user_created',
+        'userId': response.userId,
+        'username': response.username,
+      });
+    } on UserExistsException {
+      return Response(
+        409,
+        body: jsonEncode({
+          'error': {
+            'code': AuthErrorCodes.userExists,
+            'message': 'Username already taken',
+          },
+        }),
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
+      );
+    } on AuthException catch (e) {
+      return Response.badRequest(
+        body: jsonEncode({
+          'error': {
+            'code': e.code,
+            'message': e.message,
+          },
+        }),
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
+      );
+    } catch (_) {
+      return Response.badRequest(
+        body: jsonEncode({
+          'error': {
+            'code': 'INVALID_REQUEST',
+            'message': 'Invalid request body',
+          },
+        }),
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
+      );
+    }
   }
 
   String _resolveConnectedClientType(ConnectedClient client) {

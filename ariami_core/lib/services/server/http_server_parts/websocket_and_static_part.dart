@@ -21,8 +21,8 @@ extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
 
   /// Handle WebSocket connection
   void _handleWebSocket(WebSocketChannel webSocket, String? subprotocol) {
-    print('WebSocket client connected (${_webSocketClients.length + 1} total)');
-    _webSocketClients.add(webSocket);
+    print(
+        'WebSocket client connected; waiting for identify (${_webSocketClients.length} active)');
 
     webSocket.stream.listen(
       (message) {
@@ -53,6 +53,12 @@ extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
     );
   }
 
+  void _trackWebSocketClient(WebSocketChannel webSocket) {
+    if (!_webSocketClients.contains(webSocket)) {
+      _webSocketClients.add(webSocket);
+    }
+  }
+
   /// Handle incoming WebSocket message
   void _handleWebSocketMessage(WebSocketChannel webSocket, dynamic rawMessage) {
     try {
@@ -70,8 +76,8 @@ extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
         final sessionToken = identifyMsg.sessionToken;
         final clientType = identifyMsg.clientType;
 
-        // Validate session token if auth is required
-        if (_authRequired && !_legacyMode) {
+        // Validate session token once an owner account exists.
+        if (_hasRegisteredUsers()) {
           if (sessionToken == null || sessionToken.isEmpty) {
             // Close WebSocket with code 4001 (auth required)
             webSocket.sink.close(4001, 'Authentication required');
@@ -88,6 +94,7 @@ extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
 
             // Session valid - register or refresh client (upgrade clientType)
             if (deviceId.isNotEmpty) {
+              _trackWebSocketClient(webSocket);
               _webSocketDeviceIds[webSocket] = deviceId;
               final effectiveType = _effectivePresenceClientType(
                 deviceId: deviceId,
@@ -105,8 +112,9 @@ extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
           return;
         }
 
-        // Legacy mode - no auth required
+        // First-run bootstrap mode - no auth required.
         if (deviceId.isNotEmpty) {
+          _trackWebSocketClient(webSocket);
           _webSocketDeviceIds[webSocket] = deviceId;
           final effectiveType = _effectivePresenceClientType(
             deviceId: deviceId,

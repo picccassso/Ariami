@@ -50,6 +50,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   int _connectedClients = 0;
   bool _isLoadingConnectedRows = false;
   bool _isLoadingServerUsers = false;
+  bool _isCreatingUser = false;
   bool _isChangingPassword = false;
   String? _connectedRowsError;
   String? _serverUsersError;
@@ -594,6 +595,156 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if (mounted) {
         setState(() {
           _kickingDeviceIds.remove(row.deviceId);
+        });
+      }
+    }
+  }
+
+  Future<void> _promptCreateUser() async {
+    if (!_hasOwnerAccount) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Set up the Owner account first to add users.'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+      await _openOwnerSetup();
+      return;
+    }
+
+    final usernameController = TextEditingController();
+    final passwordController = TextEditingController();
+    final confirmPasswordController = TextEditingController();
+    String? dialogError;
+
+    final payload = await showDialog<Map<String, String>>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Create User'),
+              content: SizedBox(
+                width: 400,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: usernameController,
+                      decoration: const InputDecoration(labelText: 'Username'),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: passwordController,
+                      obscureText: true,
+                      decoration: const InputDecoration(labelText: 'Password'),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: confirmPasswordController,
+                      obscureText: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Confirm Password',
+                      ),
+                    ),
+                    if (dialogError != null) ...[
+                      const SizedBox(height: 10),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          dialogError!,
+                          style: const TextStyle(
+                            color: Colors.redAccent,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    final username = usernameController.text.trim();
+                    final password = passwordController.text;
+                    final confirmPassword = confirmPasswordController.text;
+                    if (username.isEmpty || password.isEmpty) {
+                      setDialogState(() {
+                        dialogError = 'Username and password are required.';
+                      });
+                      return;
+                    }
+                    if (password != confirmPassword) {
+                      setDialogState(() {
+                        dialogError = 'Passwords do not match.';
+                      });
+                      return;
+                    }
+                    Navigator.of(dialogContext).pop({
+                      'username': username,
+                      'password': password,
+                    });
+                  },
+                  child: const Text('Create User'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    usernameController.dispose();
+    passwordController.dispose();
+    confirmPasswordController.dispose();
+    if (payload == null) return;
+
+    setState(() {
+      _isCreatingUser = true;
+    });
+
+    try {
+      final response = await _adminApi.sendAdminRequest(
+        path: '/api/admin/create-user',
+        body: payload,
+      );
+      if (response == null) return;
+
+      if (!response.isSuccess) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(response.errorMessage ?? 'Failed to create user'),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+        }
+        return;
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Created user ${payload['username']}'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+      await _refreshServerUsers(showLoading: false);
+      await _refreshUserActivity(showLoading: false);
+      await _updateServerStatus();
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isCreatingUser = false;
         });
       }
     }
@@ -1165,13 +1316,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     isActive: _httpServer.libraryManager.lastScanTime != null,
                   ),
                   const SizedBox(height: 32),
-                  const Text(
-                    'Registered Users',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: -0.5,
-                    ),
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'Registered Users',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: _isCreatingUser ? null : _promptCreateUser,
+                        icon: _isCreatingUser
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.person_add_alt_1_rounded),
+                        label: const Text('Add User'),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 12),
                   Card(

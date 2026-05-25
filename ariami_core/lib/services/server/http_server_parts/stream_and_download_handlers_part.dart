@@ -57,29 +57,32 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
       return _songIdRequiredResponse();
     }
 
-    // Validate stream token if auth is required
-    String? streamToken;
-    if (_authRequired && !_legacyMode) {
-      streamToken = request.url.queryParameters['streamToken'];
-      if (streamToken == null || streamToken.isEmpty) {
-        return _streamTokenForbiddenResponse('Stream token required');
-      }
-
-      final ticket = _streamTracker.validateToken(streamToken);
-      if (ticket == null) {
-        return _streamTokenForbiddenResponse('Stream token expired or invalid');
-      }
-
-      // Verify the token is for the requested song
-      if (ticket.songId != path) {
-        return _streamTokenForbiddenResponse(
-          'Stream token does not match requested song',
-        );
-      }
-
-      // Mark stream as active for stats tracking
-      _streamTracker.startStream(streamToken);
+    final hasUsers = _hasRegisteredUsers();
+    if (!hasUsers) {
+      return _authRequiredResponse();
     }
+
+    // Validate stream token when users are registered.
+    String? streamToken;
+    streamToken = request.url.queryParameters['streamToken'];
+    if (streamToken == null || streamToken.isEmpty) {
+      return _streamTokenForbiddenResponse('Stream token required');
+    }
+
+    final ticket = _streamTracker.validateToken(streamToken);
+    if (ticket == null) {
+      return _streamTokenForbiddenResponse('Stream token expired or invalid');
+    }
+
+    // Verify the token is for the requested song
+    if (ticket.songId != path) {
+      return _streamTokenForbiddenResponse(
+        'Stream token does not match requested song',
+      );
+    }
+
+    // Mark stream as active for stats tracking
+    _streamTracker.startStream(streamToken);
 
     void endStreamTracker() {
       if (streamToken != null) {
@@ -181,58 +184,61 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
     final qualityParam = request.url.queryParameters['quality'];
     final quality = QualityPreset.fromString(qualityParam);
 
-    // Validate stream/download token if auth is required
-    String? userId;
-    if (_authRequired && !_legacyMode) {
-      final streamToken = request.url.queryParameters['streamToken'];
-      final downloadToken = request.url.queryParameters['downloadToken'];
-      if ((streamToken == null || streamToken.isEmpty) &&
-          (downloadToken == null || downloadToken.isEmpty)) {
+    final hasUsers = _hasRegisteredUsers();
+    if (!hasUsers) {
+      return _authRequiredResponse();
+    }
+
+    // Validate stream/download token when users are registered.
+    late final String userId;
+    final streamToken = request.url.queryParameters['streamToken'];
+    final downloadToken = request.url.queryParameters['downloadToken'];
+    if ((streamToken == null || streamToken.isEmpty) &&
+        (downloadToken == null || downloadToken.isEmpty)) {
+      return _streamTokenForbiddenResponse(
+        'Stream or download token required',
+      );
+    }
+
+    if (downloadToken != null && downloadToken.isNotEmpty) {
+      final ticket = _streamTracker.validateDownloadToken(downloadToken);
+      if (ticket == null) {
         return _streamTokenForbiddenResponse(
-          'Stream or download token required',
+          'Download token expired or invalid',
         );
       }
 
-      if (downloadToken != null && downloadToken.isNotEmpty) {
-        final ticket = _streamTracker.validateDownloadToken(downloadToken);
-        if (ticket == null) {
-          return _streamTokenForbiddenResponse(
-            'Download token expired or invalid',
-          );
-        }
-
-        if (ticket.songId != path) {
-          return _streamTokenForbiddenResponse(
-            'Download token does not match requested song',
-          );
-        }
-
-        final requestedQuality = quality.name.toLowerCase();
-        final ticketQuality = ticket.quality ?? 'high';
-        if (ticketQuality != requestedQuality) {
-          return _streamTokenForbiddenResponse(
-            'Download token does not match requested quality',
-          );
-        }
-
-        userId = ticket.userId;
-      } else {
-        final ticket = _streamTracker.validateToken(streamToken!);
-        if (ticket == null) {
-          return _streamTokenForbiddenResponse(
-            'Stream token expired or invalid',
-          );
-        }
-
-        // Verify the token is for the requested song
-        if (ticket.songId != path) {
-          return _streamTokenForbiddenResponse(
-            'Stream token does not match requested song',
-          );
-        }
-
-        userId = ticket.userId;
+      if (ticket.songId != path) {
+        return _streamTokenForbiddenResponse(
+          'Download token does not match requested song',
+        );
       }
+
+      final requestedQuality = quality.name.toLowerCase();
+      final ticketQuality = ticket.quality ?? 'high';
+      if (ticketQuality != requestedQuality) {
+        return _streamTokenForbiddenResponse(
+          'Download token does not match requested quality',
+        );
+      }
+
+      userId = ticket.userId;
+    } else {
+      final ticket = _streamTracker.validateToken(streamToken!);
+      if (ticket == null) {
+        return _streamTokenForbiddenResponse(
+          'Stream token expired or invalid',
+        );
+      }
+
+      // Verify the token is for the requested song
+      if (ticket.songId != path) {
+        return _streamTokenForbiddenResponse(
+          'Stream token does not match requested song',
+        );
+      }
+
+      userId = ticket.userId;
     }
 
     // Look up file path from library by song ID
@@ -257,7 +263,7 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
     }
 
     // Enforce weighted-fair download limits across users.
-    final userKey = userId ?? 'legacy';
+    final userKey = userId;
     final acquireResult = await _downloadLimiter.acquire(userKey);
     if (acquireResult == _FairAcquireResult.userQuotaExceeded) {
       print(
