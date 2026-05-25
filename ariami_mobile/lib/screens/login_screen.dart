@@ -3,6 +3,7 @@ import '../models/api_models.dart';
 import '../models/server_info.dart';
 import '../services/api/api_client.dart';
 import '../services/api/connection_service.dart';
+import '../utils/server_disconnect.dart';
 
 /// Login screen for multi-user authentication
 class LoginScreen extends StatefulWidget {
@@ -79,15 +80,18 @@ class _LoginScreenState extends State<LoginScreen> {
       body: Container(
         color: Colors.black,
         child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 32.0, vertical: 24.0),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
+          child: Column(
+            children: [
+              Expanded(
+                child: Center(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 32.0, vertical: 24.0),
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
                     Icon(
                       Icons.account_circle_rounded,
                       size: 100,
@@ -285,10 +289,34 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ],
                     ),
-                  ],
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
               ),
-            ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(32, 0, 32, 16),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 54,
+                  child: ElevatedButton.icon(
+                    onPressed: _isLoading
+                        ? null
+                        : () => showDisconnectServerDialog(context),
+                    icon: const Icon(Icons.logout_rounded, size: 20),
+                    label: const Text(
+                      'Disconnect Server',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
+                      ),
+                    ),
+                    style: disconnectServerButtonStyle(),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),

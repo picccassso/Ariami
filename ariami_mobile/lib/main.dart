@@ -23,6 +23,7 @@ import 'services/quality/network_monitor_service.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 
 import 'services/theme_service.dart';
+import 'utils/server_disconnect.dart';
 
 // Global audio handler instance - accessible throughout the app
 // Nullable because initialization might fail on some devices
@@ -306,10 +307,10 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       return;
     }
 
-    _navigatorKey.currentState?.pushNamedAndRemoveUntil(
-      '/',
-      (route) => false,
-    );
+    final context = _navigatorKey.currentContext;
+    if (context != null) {
+      navigateToWelcomeScreen(context);
+    }
   }
 
   /// Listen for network connectivity changes

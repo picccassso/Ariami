@@ -1,15 +1,11 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import '../../database/library_sync_database.dart';
 import '../../models/api_models.dart';
 import '../../models/server_info.dart';
 import '../../services/api/connection_service.dart';
-import '../../services/cache/cache_manager.dart';
-import '../../services/download/download_manager.dart';
 import '../../services/offline/offline_playback_service.dart';
-import '../../services/offline/sync_service.dart';
-import '../../services/playlist_service.dart';
 import '../../services/theme_service.dart';
+import '../../utils/server_disconnect.dart';
 import '../../widgets/settings/connection_status_card.dart';
 import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
 import '../../widgets/settings/settings_section.dart';
@@ -93,63 +89,6 @@ class _ConnectionSettingsScreenState extends State<ConnectionSettingsScreen> {
   void dispose() {
     _offlineSubscription?.cancel();
     super.dispose();
-  }
-
-  void _handleDisconnect() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: isDark ? const Color(0xFF111111) : Colors.white,
-        title: Text(
-          'DISCONNECT SERVER',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 1.5,
-            color: isDark ? Colors.white : Colors.black,
-          ),
-        ),
-        content: Text(
-          'This will forget this server, sign you out, and remove downloaded music and cached server data from this phone. You will need to scan the QR code again to reconnect.',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-            color: isDark ? Colors.grey[400] : Colors.grey[600],
-          ),
-        ),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        actions: [
-          TextButton(
-            onPressed: Navigator.of(context).pop,
-            child: Text(
-              'CANCEL',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 1.0,
-                color: isDark ? Colors.grey[500] : Colors.grey[600],
-              ),
-            ),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              _disconnect();
-            },
-            child: const Text(
-              'DISCONNECT & CLEAR DATA',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 1.0,
-                color: Color(0xFFFF4B4B),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 
   void _handleLogout() {
@@ -239,35 +178,6 @@ class _ConnectionSettingsScreenState extends State<ConnectionSettingsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error logging out: $e')),
       );
-    }
-  }
-
-  Future<void> _disconnect() async {
-    try {
-      await _connectionService.disconnectAndForgetServer();
-      await DownloadManager().clearAllDownloads();
-      await CacheManager().clearAllCache();
-      final libraryDatabase = await LibrarySyncDatabase.create();
-      await libraryDatabase.clearAllData();
-      await PlaylistService().clearAllPlaylistData();
-      await SyncService().clearPendingActions();
-      await ThemeService().setThemeSource(ThemeSource.darkNeutral);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('Server disconnected and local data cleared')),
-        );
-        Navigator.of(context, rootNavigator: true).pushNamedAndRemoveUntil(
-          '/',
-          (route) => false,
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error disconnecting: $e')),
-        );
-      }
     }
   }
 
@@ -505,22 +415,14 @@ class _ConnectionSettingsScreenState extends State<ConnectionSettingsScreen> {
                       child: SizedBox(
                         height: 54,
                         child: ElevatedButton.icon(
-                          onPressed: _handleDisconnect,
+                          onPressed: () => showDisconnectServerDialog(context),
                           icon: const Icon(Icons.logout_rounded, size: 20),
                           label: const Text(
                             'Disconnect Server',
                             style: TextStyle(
                                 fontWeight: FontWeight.w700, fontSize: 16),
                           ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF1A1A1A),
-                            foregroundColor: const Color(0xFFFF4B4B),
-                            elevation: 0,
-                            shape: const StadiumBorder(),
-                            side: BorderSide(
-                                color: const Color(0xFFFF4B4B)
-                                    .withValues(alpha: 0.2)),
-                          ),
+                          style: disconnectServerButtonStyle(),
                         ),
                       ),
                     ),

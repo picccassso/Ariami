@@ -6,6 +6,7 @@ import '../../services/offline/offline_playback_service.dart';
 import '../../services/profile_image_service.dart';
 import '../../services/stats/streaming_stats_service.dart';
 import '../../services/theme_service.dart';
+import '../../utils/server_disconnect.dart';
 import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
 import '../../widgets/settings/settings_section.dart';
 import '../../widgets/settings/settings_tile.dart';
@@ -215,10 +216,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           arguments: serverInfo,
         );
       } else {
-        Navigator.of(context, rootNavigator: true).pushNamedAndRemoveUntil(
-          '/',
-          (route) => false,
-        );
+        navigateToWelcomeScreen(context);
       }
     } catch (e) {
       if (!mounted) return;
