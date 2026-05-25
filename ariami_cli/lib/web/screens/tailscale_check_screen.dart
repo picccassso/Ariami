@@ -197,7 +197,7 @@ class _TailscaleCheckScreenState extends State<TailscaleCheckScreen> with Single
                         children: [
                           TextButton(
                             onPressed: () {
-                              Navigator.pushReplacementNamed(context, '/welcome');
+                              Navigator.pushReplacementNamed(context, '/');
                             },
                             child: const Text('BACK'),
                           ),

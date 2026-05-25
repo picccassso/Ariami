@@ -57,6 +57,8 @@ void main() {
       expect(json['tailscaleServer'], tsIp);
       expect(json['lanServer'], lan);
       expect(json['port'], port);
+      expect(json['hasUsers'], isFalse);
+      expect(json['registeredUsers'], 0);
     });
 
     test('LAN-only start exposes lanServer and null tailscaleServer', () async {

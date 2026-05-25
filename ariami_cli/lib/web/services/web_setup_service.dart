@@ -1,3 +1,4 @@
+import '../../models/music_folder_validation_result.dart';
 import 'web_api_client.dart';
 import 'web_auth_service.dart';
 
@@ -12,10 +13,61 @@ class WebSetupService {
   static final WebAuthService _authService = WebAuthService();
   final WebApiClient _apiClient;
 
+  /// Fetch suggested music folder paths with server-side validation.
+  Future<List<MusicFolderValidationResult>> getMusicFolderSuggestions() async {
+    try {
+      final response = await _apiClient.get(
+        '/api/setup/music-folder/suggestions',
+      );
+
+      if (!response.isSuccess) {
+        return const [];
+      }
+
+      final data = response.jsonBody ?? <String, dynamic>{};
+      final suggestions = data['suggestions'] as List<dynamic>? ?? const [];
+      return suggestions
+          .whereType<Map<String, dynamic>>()
+          .map(MusicFolderValidationResult.fromJson)
+          .toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  /// Validate a music folder path without saving it.
+  Future<MusicFolderValidationResult> validateMusicFolder(String path) async {
+    try {
+      final response = await _apiClient.post(
+        '/api/setup/music-folder/validate',
+        body: <String, dynamic>{'path': path},
+      );
+
+      if (response.isSuccess) {
+        final data = response.jsonBody ?? <String, dynamic>{};
+        return MusicFolderValidationResult.fromJson(data);
+      }
+
+      return MusicFolderValidationResult(
+        isValid: false,
+        path: path,
+        error: 'request_failed',
+        message: 'Could not validate path (HTTP ${response.statusCode})',
+      );
+    } catch (e) {
+      return MusicFolderValidationResult(
+        isValid: false,
+        path: path,
+        error: 'request_failed',
+        message: 'Error validating path: $e',
+      );
+    }
+  }
+
   /// Set the music folder path on the server
   ///
-  /// Returns true if successful
-  Future<bool> setMusicFolder(String path) async {
+  /// Returns validation details for success and failure cases.
+  Future<MusicFolderValidationResult> setMusicFolder(String path) async {
     try {
       final response = await _apiClient.post(
         '/api/setup/music-folder',
@@ -24,11 +76,22 @@ class WebSetupService {
 
       if (response.isSuccess) {
         final data = response.jsonBody ?? <String, dynamic>{};
-        return data['success'] as bool? ?? false;
+        return MusicFolderValidationResult.fromJson(data);
       }
-      return false;
+
+      return MusicFolderValidationResult(
+        isValid: false,
+        path: path,
+        error: 'request_failed',
+        message: 'Could not save music folder (HTTP ${response.statusCode})',
+      );
     } catch (e) {
-      return false;
+      return MusicFolderValidationResult(
+        isValid: false,
+        path: path,
+        error: 'request_failed',
+        message: 'Error saving music folder: $e',
+      );
     }
   }
 
@@ -108,7 +171,7 @@ class WebSetupService {
   /// Trigger transition from foreground to background mode
   ///
   /// This causes the foreground server to spawn a background daemon
-  /// and then shut down. The browser will briefly disconnect and
+  /// and then shut down. The browser may briefly disconnect and
   /// automatically reconnect to the new background server.
   ///
   /// Returns a map with:

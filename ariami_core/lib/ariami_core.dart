@@ -29,6 +29,9 @@ export 'services/library/library_scanner_isolate.dart';
 export 'services/library/metadata_cache.dart';
 export 'services/library/metadata_extractor.dart';
 
+// Setup Services
+export 'services/setup/music_folder_path_helper.dart';
+
 // Server Services
 export 'services/server/connection_manager.dart';
 export 'services/server/http_server.dart';

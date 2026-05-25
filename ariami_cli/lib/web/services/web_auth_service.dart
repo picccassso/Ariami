@@ -85,6 +85,15 @@ class WebAuthService {
     return apiClient.get('/api/me');
   }
 
+  /// Whether the current session belongs to the server owner/admin.
+  Future<bool> isCurrentUserAdmin() async {
+    final response = await me();
+    if (!response.isSuccess) {
+      return false;
+    }
+    return response.jsonBody?['isAdmin'] as bool? ?? false;
+  }
+
   Future<bool> hasSessionToken() async {
     final token = await getSessionToken();
     return token != null && token.isNotEmpty;

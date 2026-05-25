@@ -90,6 +90,35 @@ void main() {
       expect(rows.first.clientType, equals('dashboard_admin'));
     });
 
+    test('forbidden admin responses are detectable for owner sign-in CTA', () async {
+      final apiClient = WebApiClient(
+        tokenProvider: () async => 'non-owner-token',
+        httpClient: MockClient((request) async {
+          if (request.url.path == '/api/admin/user-activity') {
+            return http.Response(
+              jsonEncode(<String, dynamic>{
+                'error': <String, dynamic>{
+                  'code': 'FORBIDDEN_ADMIN',
+                  'message': 'Owner privileges required',
+                },
+              }),
+              403,
+            );
+          }
+          return http.Response('{}', 404);
+        }),
+      );
+
+      expect(
+        () => apiClient.getUserActivity(),
+        throwsA(
+          predicate<WebApiException>(
+            (e) => e.isForbidden && e.message.contains('Owner privileges'),
+          ),
+        ),
+      );
+    });
+
     test(
         'kick-client and change-password include dashboard device identity on admin actions',
         () async {

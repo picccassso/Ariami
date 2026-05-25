@@ -194,6 +194,7 @@ extension AriamiHttpServerAuthAndAdminHandlersMethods on AriamiHttpServer {
         'username': user.username,
         'deviceId': session.deviceId,
         'deviceName': session.deviceName,
+        'isAdmin': _authService.isAdminUser(session.userId),
       }),
       headers: {'Content-Type': 'application/json; charset=utf-8'},
     );

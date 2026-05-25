@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../services/web_api_client.dart';
 import '../../utils/constants.dart';
+import 'owner_access_error_panel.dart';
 
 class ConnectedClientsSection extends StatelessWidget {
   const ConnectedClientsSection({
@@ -10,6 +11,8 @@ class ConnectedClientsSection extends StatelessWidget {
     required this.isLoading,
     required this.isChangingPassword,
     required this.error,
+    this.showOwnerSignInCta = false,
+    this.onSignInAsOwner,
     required this.kickingDeviceIds,
     required this.onKick,
     required this.onChangePassword,
@@ -22,6 +25,8 @@ class ConnectedClientsSection extends StatelessWidget {
   final bool isLoading;
   final bool isChangingPassword;
   final String? error;
+  final bool showOwnerSignInCta;
+  final VoidCallback? onSignInAsOwner;
   final Set<String> kickingDeviceIds;
   final ValueChanged<ConnectedClientRow> onKick;
   final VoidCallback onChangePassword;
@@ -79,22 +84,27 @@ class ConnectedClientsSection extends StatelessWidget {
               ),
             )
           else if (error != null)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.red.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.red.withOpacity(0.3)),
-              ),
-              child: Text(
-                error!,
-                style: const TextStyle(
-                  color: Colors.redAccent,
-                  fontSize: 13,
-                ),
-              ),
-            )
+            showOwnerSignInCta && onSignInAsOwner != null
+                ? OwnerAccessErrorPanel(
+                    message: error!,
+                    onSignInAsOwner: onSignInAsOwner!,
+                  )
+                : Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.red.withOpacity(0.3)),
+                    ),
+                    child: Text(
+                      error!,
+                      style: const TextStyle(
+                        color: Colors.redAccent,
+                        fontSize: 13,
+                      ),
+                    ),
+                  )
           else if (clients.isEmpty)
             Container(
               width: double.infinity,

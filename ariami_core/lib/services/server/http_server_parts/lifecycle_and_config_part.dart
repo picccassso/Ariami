@@ -105,12 +105,14 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
 
   /// Set setup operation callbacks (optional, for CLI use)
   void setSetupCallbacks({
+    Future<String?> Function()? getConfiguredMusicFolderPath,
     Future<bool> Function(String)? setMusicFolder,
     Future<bool> Function()? startScan,
     Future<Map<String, dynamic>> Function()? getScanStatus,
     Future<bool> Function()? markSetupComplete,
     Future<bool> Function()? getSetupStatus,
   }) {
+    _getConfiguredMusicFolderPathCallback = getConfiguredMusicFolderPath;
     _setMusicFolderCallback = setMusicFolder;
     _startScanCallback = startScan;
     _getScanStatusCallback = getScanStatus;
@@ -292,6 +294,8 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
       'version': '4.3.0',
       'authRequired': _authRequired,
       'legacyMode': _legacyMode,
+      'hasUsers': _authService.hasUsers(),
+      'registeredUsers': _authService.userCount,
       'downloadLimits': {
         'maxConcurrent': _maxConcurrentDownloads,
         'maxQueue': _maxDownloadQueue,

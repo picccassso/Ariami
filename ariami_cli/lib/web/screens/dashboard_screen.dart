@@ -53,6 +53,8 @@ class _DashboardScreenState extends State<DashboardScreen>
   bool _isChangingPassword = false;
   String? _connectedClientsError;
   String? _userActivityError;
+  bool _connectedClientsOwnerForbidden = false;
+  bool _userActivityOwnerForbidden = false;
   List<ConnectedClientRow> _connectedClientRows = const <ConnectedClientRow>[];
   List<UserActivityRow> _userActivityRows = const <UserActivityRow>[];
   final Set<String> _kickingDeviceIds = <String>{};
@@ -204,6 +206,17 @@ class _DashboardScreenState extends State<DashboardScreen>
     Navigator.pushReplacementNamed(context, '/login');
   }
 
+  Future<void> _switchToOwnerLogin() async {
+    await _authService.clearSessionToken();
+    if (!mounted) return;
+    Navigator.pushNamed(context, '/login');
+  }
+
+  static const String _ownerClientsMessage =
+      'Owner privileges required to view connected users and devices.';
+  static const String _ownerActivityMessage =
+      'Owner privileges required to view user activity.';
+
   Future<void> _rescanLibrary() async {
     try {
       final success = await _setupService.startScan();
@@ -285,6 +298,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       setState(() {
         _connectedClientRows = clients;
         _connectedClientsError = null;
+        _connectedClientsOwnerForbidden = false;
         _isLoadingConnectedClients = false;
       });
     } on WebApiException catch (e) {
@@ -296,8 +310,9 @@ class _DashboardScreenState extends State<DashboardScreen>
       if (!mounted) return;
       setState(() {
         _connectedClientRows = const <ConnectedClientRow>[];
+        _connectedClientsOwnerForbidden = e.isForbidden;
         _connectedClientsError = e.isForbidden
-            ? 'Admin privileges required to view connected users and devices.'
+            ? _ownerClientsMessage
             : e.message;
         _isLoadingConnectedClients = false;
       });
@@ -306,6 +321,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       setState(() {
         _connectedClientRows = const <ConnectedClientRow>[];
         _connectedClientsError = 'Failed to load connected users and devices.';
+        _connectedClientsOwnerForbidden = false;
         _isLoadingConnectedClients = false;
       });
     }
@@ -324,6 +340,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       setState(() {
         _userActivityRows = rows;
         _userActivityError = null;
+        _userActivityOwnerForbidden = false;
         _isLoadingUserActivity = false;
       });
     } on WebApiException catch (e) {
@@ -335,9 +352,9 @@ class _DashboardScreenState extends State<DashboardScreen>
       if (!mounted) return;
       setState(() {
         _userActivityRows = const <UserActivityRow>[];
-        _userActivityError = e.isForbidden
-            ? 'Admin privileges required to view user activity.'
-            : e.message;
+        _userActivityOwnerForbidden = e.isForbidden;
+        _userActivityError =
+            e.isForbidden ? _ownerActivityMessage : e.message;
         _isLoadingUserActivity = false;
       });
     } catch (_) {
@@ -345,6 +362,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       setState(() {
         _userActivityRows = const <UserActivityRow>[];
         _userActivityError = 'Failed to load active user activity.';
+        _userActivityOwnerForbidden = false;
         _isLoadingUserActivity = false;
       });
     }
@@ -550,6 +568,10 @@ class _DashboardScreenState extends State<DashboardScreen>
                             rows: _userActivityRows,
                             isLoading: _isLoadingUserActivity,
                             error: _userActivityError,
+                            showOwnerSignInCta: _userActivityOwnerForbidden,
+                            onSignInAsOwner: _userActivityOwnerForbidden
+                                ? _switchToOwnerLogin
+                                : null,
                           ),
                           const SizedBox(height: 48),
                           ConnectedClientsSection(
@@ -557,6 +579,10 @@ class _DashboardScreenState extends State<DashboardScreen>
                             isLoading: _isLoadingConnectedClients,
                             isChangingPassword: _isChangingPassword,
                             error: _connectedClientsError,
+                            showOwnerSignInCta: _connectedClientsOwnerForbidden,
+                            onSignInAsOwner: _connectedClientsOwnerForbidden
+                                ? _switchToOwnerLogin
+                                : null,
                             kickingDeviceIds: _kickingDeviceIds,
                             onKick: _kickClient,
                             onChangePassword: () => _promptChangePassword(),

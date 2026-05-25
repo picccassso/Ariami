@@ -3,6 +3,7 @@ import 'package:args/args.dart';
 import 'package:ariami_cli/commands/start_command.dart';
 import 'package:ariami_cli/commands/stop_command.dart';
 import 'package:ariami_cli/commands/status_command.dart';
+import 'package:ariami_cli/commands/configure_command.dart';
 import 'package:ariami_cli/server_runner.dart';
 
 void main(List<String> arguments) async {
@@ -89,6 +90,12 @@ void main(List<String> arguments) async {
       case 'status':
         await StatusCommand().execute();
         break;
+      case 'configure':
+        await _executeConfigureCommand(results.rest);
+        break;
+      case 'music-folder':
+        await _executeMusicFolderCommand(results.rest);
+        break;
       default:
         print('Error: Unknown command "$command"');
         print('');
@@ -101,6 +108,44 @@ void main(List<String> arguments) async {
   }
 }
 
+Future<void> _executeConfigureCommand(List<String> args) async {
+  final configureParser = ArgParser()
+    ..addOption(
+      'music-folder',
+      help: 'Absolute path to the music library on this machine',
+    );
+
+  final parsed = configureParser.parse(args.skip(1));
+  final musicFolder = parsed['music-folder'] as String?;
+
+  if (musicFolder == null) {
+    print('Error: configure requires at least one option.');
+    print('');
+    print('Usage: ariami_cli configure --music-folder <path>');
+    exit(1);
+  }
+
+  await ConfigureCommand().execute(musicFolder: musicFolder);
+}
+
+Future<void> _executeMusicFolderCommand(List<String> args) async {
+  if (args.length < 2 || args[1] != 'set') {
+    print('Error: unknown music-folder subcommand.');
+    print('');
+    print('Usage: ariami_cli music-folder set <path>');
+    exit(1);
+  }
+
+  if (args.length < 3 || args[2].trim().isEmpty) {
+    print('Error: music-folder set requires a path.');
+    print('');
+    print('Usage: ariami_cli music-folder set <path>');
+    exit(1);
+  }
+
+  await ConfigureCommand().execute(musicFolder: args[2]);
+}
+
 void _showHelp(ArgParser parser) {
   print('Ariami CLI - Music streaming server for headless servers');
   print('');
@@ -110,6 +155,8 @@ void _showHelp(ArgParser parser) {
   print('  start       Start the Ariami server');
   print('  stop        Stop the Ariami server');
   print('  status      Show server status');
+  print('  configure   Configure CLI settings');
+  print('  music-folder  Manage the music library path');
   print('');
   print('Options:');
   print(parser.usage);
@@ -119,4 +166,6 @@ void _showHelp(ArgParser parser) {
   print('  ariami_cli start --port 9000  # Start server on custom port');
   print('  ariami_cli stop               # Stop the running server');
   print('  ariami_cli status             # Check server status');
+  print('  ariami_cli configure --music-folder /home/user/Music');
+  print('  ariami_cli music-folder set /home/user/Music');
 }

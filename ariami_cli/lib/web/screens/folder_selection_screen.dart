@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import '../../models/music_folder_validation_result.dart';
 import '../services/web_setup_service.dart';
 import '../utils/constants.dart';
 
@@ -14,8 +16,17 @@ class _FolderSelectionScreenState extends State<FolderSelectionScreen> {
   final TextEditingController _pathController = TextEditingController();
 
   bool _isValidating = false;
+  bool _isLoadingSuggestions = true;
   bool _isPathValid = false;
   String? _errorMessage;
+  List<MusicFolderValidationResult> _suggestions = const [];
+  String? _selectedSuggestionPath;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSuggestions();
+  }
 
   @override
   void dispose() {
@@ -23,13 +34,62 @@ class _FolderSelectionScreenState extends State<FolderSelectionScreen> {
     super.dispose();
   }
 
-  Future<void> _validatePath() async {
+  Future<void> _loadSuggestions() async {
+    setState(() {
+      _isLoadingSuggestions = true;
+    });
+
+    final suggestions = await _setupService.getMusicFolderSuggestions();
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _suggestions = suggestions;
+      _isLoadingSuggestions = false;
+    });
+  }
+
+  String _validationErrorMessage(MusicFolderValidationResult result) {
+    if (result.message != null && result.message!.isNotEmpty) {
+      return result.message!;
+    }
+
+    switch (result.error) {
+      case 'missing':
+        return 'Path does not exist on the server';
+      case 'permissionDenied':
+        return 'Permission denied: cannot read this folder';
+      case 'notDirectory':
+        return 'Path is not a directory';
+      case 'empty':
+        return 'Path is required';
+      default:
+        return 'Invalid path or path is not accessible on the server';
+    }
+  }
+
+  void _applyValidationResult(MusicFolderValidationResult result) {
+    setState(() {
+      _isValidating = false;
+      _isPathValid = result.isValid;
+      _errorMessage = result.isValid ? null : _validationErrorMessage(result);
+      if (result.isValid) {
+        _selectedSuggestionPath = result.path;
+        _pathController.text = result.path;
+      }
+    });
+  }
+
+  Future<void> _validatePath({bool saveOnSuccess = true}) async {
     final path = _pathController.text.trim();
 
     if (path.isEmpty) {
       setState(() {
         _isPathValid = false;
         _errorMessage = null;
+        _selectedSuggestionPath = null;
       });
       return;
     }
@@ -37,18 +97,14 @@ class _FolderSelectionScreenState extends State<FolderSelectionScreen> {
     setState(() {
       _isValidating = true;
       _errorMessage = null;
+      _selectedSuggestionPath = null;
     });
 
     try {
-      final isValid = await _setupService.setMusicFolder(path);
-
-      setState(() {
-        _isValidating = false;
-        _isPathValid = isValid;
-        if (!isValid) {
-          _errorMessage = 'Invalid path or path does not exist on server';
-        }
-      });
+      final result = saveOnSuccess
+          ? await _setupService.setMusicFolder(path)
+          : await _setupService.validateMusicFolder(path);
+      _applyValidationResult(result);
     } catch (e) {
       setState(() {
         _isValidating = false;
@@ -56,6 +112,26 @@ class _FolderSelectionScreenState extends State<FolderSelectionScreen> {
         _errorMessage = 'Error validating path: $e';
       });
     }
+  }
+
+  Future<void> _selectSuggestion(MusicFolderValidationResult suggestion) async {
+    _pathController.text = suggestion.path;
+    setState(() {
+      _selectedSuggestionPath = suggestion.path;
+      _errorMessage = null;
+    });
+
+    if (suggestion.isValid) {
+      setState(() {
+        _isValidating = true;
+      });
+
+      final result = await _setupService.setMusicFolder(suggestion.path);
+      _applyValidationResult(result);
+      return;
+    }
+
+    await _validatePath(saveOnSuccess: false);
   }
 
   Future<void> _startScanning() async {
@@ -71,6 +147,77 @@ class _FolderSelectionScreenState extends State<FolderSelectionScreen> {
     }
 
     Navigator.pushReplacementNamed(context, '/scanning');
+  }
+
+  Widget _buildSuggestionCard(MusicFolderValidationResult suggestion) {
+    final isSelected = _selectedSuggestionPath == suggestion.path;
+    final statusColor = suggestion.isValid
+        ? Colors.white
+        : suggestion.error == 'missing'
+            ? Colors.white54
+            : Colors.orangeAccent;
+
+    return Material(
+      color: isSelected
+          ? Colors.white.withOpacity(0.12)
+          : Colors.white.withOpacity(0.05),
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: _isValidating ? null : () => _selectSuggestion(suggestion),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isSelected
+                  ? Colors.white
+                  : Colors.white.withOpacity(0.12),
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                suggestion.isValid
+                    ? Icons.folder_rounded
+                    : Icons.folder_off_outlined,
+                color: statusColor,
+                size: 22,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      suggestion.path,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      suggestion.isValid
+                          ? 'Available on this server'
+                          : _validationErrorMessage(suggestion),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: statusColor,
+                        height: 1.3,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (isSelected && _isPathValid)
+                const Icon(Icons.check_circle_rounded, color: Colors.white),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -116,7 +263,7 @@ class _FolderSelectionScreenState extends State<FolderSelectionScreen> {
                       const SizedBox(
                         width: 500,
                         child: Text(
-                          'Provide the absolute path to your music library on the host machine to begin indexing.',
+                          'Choose a common location on the server or enter an absolute path manually.',
                           style: TextStyle(
                             fontSize: 16,
                             color: AppTheme.textSecondary,
@@ -126,12 +273,55 @@ class _FolderSelectionScreenState extends State<FolderSelectionScreen> {
                           textAlign: TextAlign.center,
                         ),
                       ),
-                      const SizedBox(height: 56),
+                      const SizedBox(height: 40),
                       SizedBox(
                         width: 600,
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
+                            Text(
+                              'SUGGESTED PATHS',
+                              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                                    letterSpacing: 1.2,
+                                    color: AppTheme.textSecondary,
+                                  ),
+                            ),
+                            const SizedBox(height: 12),
+                            if (_isLoadingSuggestions)
+                              const Center(
+                                child: Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 24),
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              )
+                            else if (_suggestions.isEmpty)
+                              Text(
+                                'No suggestions available. Enter a path manually below.',
+                                style: TextStyle(
+                                  color: AppTheme.textSecondary.withOpacity(0.9),
+                                ),
+                              )
+                            else
+                              Column(
+                                children: [
+                                  for (final suggestion in _suggestions) ...[
+                                    _buildSuggestionCard(suggestion),
+                                    const SizedBox(height: 10),
+                                  ],
+                                ],
+                              ),
+                            const SizedBox(height: 32),
+                            Text(
+                              'MANUAL PATH',
+                              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                                    letterSpacing: 1.2,
+                                    color: AppTheme.textSecondary,
+                                  ),
+                            ),
+                            const SizedBox(height: 12),
                             TextField(
                               controller: _pathController,
                               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
@@ -160,6 +350,7 @@ class _FolderSelectionScreenState extends State<FolderSelectionScreen> {
                                   setState(() {
                                     _isPathValid = false;
                                     _errorMessage = null;
+                                    _selectedSuggestionPath = null;
                                   });
                                 }
                               },
@@ -169,7 +360,7 @@ class _FolderSelectionScreenState extends State<FolderSelectionScreen> {
                             SizedBox(
                               height: 60,
                               child: ElevatedButton.icon(
-                                onPressed: _isValidating ? null : _validatePath,
+                                onPressed: _isValidating ? null : () => _validatePath(),
                                 icon: _isValidating
                                     ? const SizedBox(
                                         width: 20,

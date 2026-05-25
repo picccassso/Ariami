@@ -68,10 +68,78 @@ extension AriamiHttpServerSetupAndStatsHandlersMethods on AriamiHttpServer {
         });
       }
 
-      final success = await _setMusicFolderCallback!(path);
-      return _jsonOk({'success': success});
+      final validation = await MusicFolderPathHelper.validate(path);
+      if (!validation.isValid) {
+        return _jsonOk({
+          'success': false,
+          'error': validation.errorCode,
+          'message': validation.message,
+          'validation': validation.toJson(),
+        });
+      }
+
+      final success = await _setMusicFolderCallback!(validation.path);
+      if (!success) {
+        return _jsonOk({
+          'success': false,
+          'message': 'Failed to save music folder path',
+          'validation': validation.toJson(),
+          'path': validation.path,
+        });
+      }
+
+      return _jsonOk({
+        'success': true,
+        'path': validation.path,
+        'message': validation.message,
+        'validation': validation.toJson(),
+      });
     } catch (e) {
       return _setupCallbackErrorResponse('set music folder', e);
+    }
+  }
+
+  /// Handle validate music folder request (no save)
+  Future<Response> _handleValidateMusicFolder(Request request) async {
+    try {
+      final body = await request.readAsString();
+      final data = jsonDecode(body) as Map<String, dynamic>;
+      final path = data['path'] as String?;
+
+      if (path == null || path.isEmpty) {
+        return _jsonBadRequest({
+          'error': 'Missing required field',
+          'message': 'path is required',
+        });
+      }
+
+      final validation = await MusicFolderPathHelper.validate(path);
+      return _jsonOk({
+        'success': validation.isValid,
+        'validation': validation.toJson(),
+      });
+    } catch (e) {
+      return _setupCallbackErrorResponse('validate music folder', e);
+    }
+  }
+
+  /// Handle music folder path suggestions for setup UI
+  Future<Response> _handleGetMusicFolderSuggestions(Request request) async {
+    try {
+      String? configuredPath;
+      if (_getConfiguredMusicFolderPathCallback != null) {
+        configuredPath = await _getConfiguredMusicFolderPathCallback!();
+      }
+
+      final suggestions = await MusicFolderPathHelper.buildSuggestionPayload(
+        configuredPath: configuredPath,
+      );
+
+      return _jsonOk({
+        'suggestions': suggestions,
+      });
+    } catch (e) {
+      return _setupCallbackErrorResponse('get music folder suggestions', e);
     }
   }
 

@@ -20,6 +20,8 @@ class _ScanningScreenState extends State<ScanningScreen> with SingleTickerProvid
   int _skippedFileCount = 0;
   bool _isScanning = true;
   bool _isComplete = false;
+  bool _isTransitioning = false;
+  String? _transitionError;
 
   Timer? _pollTimer;
   late AnimationController _pulseController;
@@ -89,22 +91,109 @@ class _ScanningScreenState extends State<ScanningScreen> with SingleTickerProvid
         _albumsFound = status['albumsFound'] as int? ?? 0;
         _skippedFileCount = status['skippedFileCount'] as int? ?? 0;
         _statusMessage = (status['currentStatus'] as String? ?? 'Scanning...').toUpperCase();
-        _isComplete = !_isScanning && _progress >= 1.0;
       });
 
-      if (_isComplete) {
-        _pollTimer?.cancel();
-        await _setupService.markSetupComplete();
-        await _setupService.transitionToBackground();
+      if (_isComplete || _isTransitioning) {
+        return;
+      }
 
-        await Future.delayed(const Duration(seconds: 3));
-        if (mounted) {
-          Navigator.pushReplacementNamed(context, '/qr-code');
-        }
+      final scanFinished = !_isScanning && _progress >= 1.0;
+      if (scanFinished) {
+        _pollTimer?.cancel();
+        await _handleScanComplete();
       }
     } catch (e) {
       debugPrint('Error updating scan status: $e');
     }
+  }
+
+  Future<void> _handleScanComplete() async {
+    if (!mounted) return;
+
+    setState(() {
+      _isComplete = true;
+      _isTransitioning = true;
+      _transitionError = null;
+      _statusMessage = 'MOVING SERVER TO BACKGROUND...';
+    });
+
+    final result = await _setupService.transitionToBackground();
+
+    if (!mounted) return;
+
+    final success = result['success'] as bool? ?? false;
+    final message = result['message'] as String? ?? '';
+    final expectedDisconnect = success || _isLikelyExpectedDisconnect(message);
+
+    if (expectedDisconnect) {
+      setState(() {
+        _statusMessage = 'RECONNECTING...';
+      });
+      await Future.delayed(const Duration(seconds: 3));
+      if (mounted) {
+        Navigator.pushReplacementNamed(context, '/owner-setup');
+      }
+      return;
+    }
+
+    setState(() {
+      _isTransitioning = false;
+      _transitionError = message.isNotEmpty
+          ? message
+          : 'Could not move the server to background mode.';
+      _statusMessage = 'TRANSITION FAILED';
+    });
+  }
+
+  Future<void> _retryBackgroundTransition() async {
+    if (!mounted) return;
+
+    setState(() {
+      _isTransitioning = true;
+      _transitionError = null;
+      _statusMessage = 'MOVING SERVER TO BACKGROUND...';
+    });
+
+    final result = await _setupService.transitionToBackground();
+    if (!mounted) return;
+
+    final success = result['success'] as bool? ?? false;
+    final message = result['message'] as String? ?? '';
+    final expectedDisconnect = success || _isLikelyExpectedDisconnect(message);
+
+    if (expectedDisconnect) {
+      setState(() {
+        _statusMessage = 'RECONNECTING...';
+      });
+      await Future.delayed(const Duration(seconds: 3));
+      if (mounted) {
+        Navigator.pushReplacementNamed(context, '/owner-setup');
+      }
+      return;
+    }
+
+    setState(() {
+      _isTransitioning = false;
+      _transitionError = message.isNotEmpty
+          ? message
+          : 'Could not move the server to background mode.';
+      _statusMessage = 'TRANSITION FAILED';
+    });
+  }
+
+  void _continueInForeground() {
+    Navigator.pushReplacementNamed(context, '/owner-setup');
+  }
+
+  bool _isLikelyExpectedDisconnect(String message) {
+    final lower = message.toLowerCase();
+    return lower.contains('connection closed') ||
+        lower.contains('connection reset') ||
+        lower.contains('connection refused') ||
+        lower.contains('socketexception') ||
+        lower.contains('clientexception') ||
+        lower.contains('failed to fetch') ||
+        lower.contains('network is unreachable');
   }
 
   @override
@@ -267,30 +356,102 @@ class _ScanningScreenState extends State<ScanningScreen> with SingleTickerProvid
                           ),
                         ),
                       ],
-                      if (_isComplete) ...[
+                      if (_isComplete && _isTransitioning) ...[
                         const SizedBox(height: 64),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white70,
+                        SizedBox(
+                          width: 600,
+                          child: Column(
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white70,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Text(
+                                    _statusMessage,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w800,
+                                      color: AppTheme.textSecondary,
+                                      letterSpacing: 1.5,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+                              const Text(
+                                'The page may disconnect briefly while the server moves to background mode.',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: AppTheme.textSecondary,
+                                  height: 1.5,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 8),
+                              const Text(
+                                'Refresh if it does not reconnect automatically.',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: AppTheme.textSecondary,
+                                  height: 1.5,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                      if (_transitionError != null) ...[
+                        const SizedBox(height: 32),
+                        SizedBox(
+                          width: 600,
+                          child: Container(
+                            padding: const EdgeInsets.all(20),
+                            decoration: BoxDecoration(
+                              color: Colors.redAccent.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: Colors.redAccent.withValues(alpha: 0.35),
                               ),
                             ),
-                            const SizedBox(width: 16),
-                            const Text(
-                              'REDIRECTING...',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w800,
-                                color: AppTheme.textSecondary,
-                                letterSpacing: 1.5,
-                              ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Text(
+                                  _transitionError!,
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.white,
+                                    height: 1.5,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                                const SizedBox(height: 20),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    OutlinedButton(
+                                      onPressed: _retryBackgroundTransition,
+                                      child: const Text('RETRY'),
+                                    ),
+                                    const SizedBox(width: 16),
+                                    ElevatedButton(
+                                      onPressed: _continueInForeground,
+                                      child: const Text('CONTINUE IN FOREGROUND'),
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ),
-                          ],
+                          ),
                         ),
                       ],
                     ],

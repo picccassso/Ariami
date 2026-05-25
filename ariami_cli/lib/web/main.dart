@@ -6,6 +6,7 @@ import 'screens/scanning_screen.dart';
 import 'screens/qr_code_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/login_screen.dart';
+import 'screens/owner_setup_screen.dart';
 import 'utils/constants.dart';
 
 void main() {
@@ -13,9 +14,11 @@ void main() {
   final path = Uri.base.path;
   final validRoutes = {
     '/',
+    '/welcome',
     '/tailscale-check',
     '/folder-selection',
     '/scanning',
+    '/owner-setup',
     '/qr-code',
     '/dashboard',
     '/login',
@@ -39,9 +42,11 @@ class AriamiWebApp extends StatelessWidget {
       initialRoute: initialRoute,
       routes: {
         '/': (context) => const WelcomeScreen(),
+        '/welcome': (context) => const WelcomeScreen(),
         '/tailscale-check': (context) => const TailscaleCheckScreen(),
         '/folder-selection': (context) => const FolderSelectionScreen(),
         '/scanning': (context) => const ScanningScreen(),
+        '/owner-setup': (context) => const OwnerSetupScreen(),
         '/qr-code': (context) => const QRCodeScreen(),
         '/dashboard': (context) => const DashboardScreen(),
         '/login': (context) => const LoginScreen(),

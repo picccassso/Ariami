@@ -38,6 +38,8 @@ extension AriamiHttpServerRouterMethods on AriamiHttpServer {
 
   void _registerSetupAndStatsRoutes(Router router) {
     router.get('/api/setup/status', _handleGetSetupStatus);
+    router.get('/api/setup/music-folder/suggestions', _handleGetMusicFolderSuggestions);
+    router.post('/api/setup/music-folder/validate', _handleValidateMusicFolder);
     router.post('/api/setup/music-folder', _handleSetMusicFolder);
     router.post('/api/setup/start-scan', _handleStartScan);
     router.get('/api/setup/scan-status', _handleGetScanStatus);

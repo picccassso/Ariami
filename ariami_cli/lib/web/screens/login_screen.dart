@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../services/web_auth_service.dart';
+import '../services/web_setup_service.dart';
 import '../utils/constants.dart';
+import 'owner_setup_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -71,7 +73,24 @@ class _LoginScreenState extends State<LoginScreen> {
       }
 
       if (!mounted) return;
-      Navigator.pushReplacementNamed(context, '/dashboard');
+      final args = ModalRoute.of(context)?.settings.arguments;
+      final successRoute = args is OwnerSetupLoginArgs
+          ? args.successRoute
+          : '/dashboard';
+      if (successRoute == '/qr-code') {
+        final isOwner = await _authService.isCurrentUserAdmin();
+        if (!isOwner) {
+          setState(() {
+            _isLoading = false;
+            _errorMessage =
+                'This account is not the server owner. Sign in with the owner account to continue setup.';
+          });
+          return;
+        }
+        await WebSetupService().markSetupComplete();
+      }
+      if (!mounted) return;
+      Navigator.pushReplacementNamed(context, successRoute);
     } catch (e) {
       setState(() {
         _errorMessage = 'Authentication failed: $e';

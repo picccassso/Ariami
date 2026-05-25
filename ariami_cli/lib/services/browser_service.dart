@@ -1,25 +1,58 @@
 import 'dart:io';
 
+typedef ProcessRunner = Future<ProcessResult> Function(
+  String executable,
+  List<String> arguments,
+);
+
+typedef HasDisplaySession = bool Function();
+
 /// Service for launching the web browser
 class BrowserService {
-  // Singleton pattern
-  static final BrowserService _instance = BrowserService._internal();
-  factory BrowserService() => _instance;
-  BrowserService._internal();
+  BrowserService._({
+    ProcessRunner? processRunner,
+    HasDisplaySession? hasDisplaySession,
+  })  : _processRunner = processRunner ?? Process.run,
+        _hasDisplaySession = hasDisplaySession ?? _defaultHasDisplaySession;
+
+  factory BrowserService({
+    ProcessRunner? processRunner,
+    HasDisplaySession? hasDisplaySession,
+  }) {
+    if (processRunner != null || hasDisplaySession != null) {
+      return BrowserService._(
+        processRunner: processRunner,
+        hasDisplaySession: hasDisplaySession ??
+            (processRunner != null ? () => true : null),
+      );
+    }
+    return _defaultInstance ??= BrowserService._();
+  }
+
+  static BrowserService? _defaultInstance;
+
+  final ProcessRunner _processRunner;
+  final HasDisplaySession _hasDisplaySession;
 
   /// Open URL in default browser
   Future<bool> openUrl(String url) async {
     try {
+      if (Platform.isLinux && !_hasDisplaySession()) {
+        return false;
+      }
+
+      final ProcessResult result;
       if (Platform.isMacOS) {
-        await Process.run('open', [url]);
+        result = await _processRunner('open', [url]);
       } else if (Platform.isLinux) {
-        await Process.run('xdg-open', [url]);
+        result = await _processRunner('xdg-open', [url]);
       } else if (Platform.isWindows) {
-        await Process.run('cmd', ['/c', 'start', url]);
+        result = await _processRunner('cmd', ['/c', 'start', url]);
       } else {
         return false;
       }
-      return true;
+
+      return result.exitCode == 0;
     } catch (e) {
       return false;
     }
@@ -31,6 +64,13 @@ class BrowserService {
         ? 'http://$tailscaleIp:$port'
         : 'http://localhost:$port';
 
-    return await openUrl(url);
+    return openUrl(url);
+  }
+
+  static bool _defaultHasDisplaySession() {
+    final display = Platform.environment['DISPLAY'];
+    final wayland = Platform.environment['WAYLAND_DISPLAY'];
+    return (display != null && display.isNotEmpty) ||
+        (wayland != null && wayland.isNotEmpty);
   }
 }

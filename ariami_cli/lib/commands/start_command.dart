@@ -2,6 +2,8 @@ import 'dart:io';
 import '../services/daemon_service.dart';
 import '../services/cli_state_service.dart';
 import '../services/browser_service.dart';
+import '../services/cli_tailscale_service.dart';
+import '../services/web_assets_resolver.dart';
 import '../server_runner.dart';
 
 /// Command to start the Ariami CLI server
@@ -9,6 +11,8 @@ class StartCommand {
   final DaemonService _daemonService = DaemonService();
   final CliStateService _stateService = CliStateService();
   final BrowserService _browserService = BrowserService();
+  final WebAssetsResolver _webAssetsResolver = WebAssetsResolver();
+  final CliTailscaleService _tailscaleService = CliTailscaleService();
 
   /// Execute the start command
   Future<void> execute({int port = 8080}) async {
@@ -19,16 +23,9 @@ class StartCommand {
       return;
     }
 
-    // Check if web build exists (dev: build/web, release: web)
-    final devWebPath = Directory('build/web');
-    final releaseWebPath = Directory('web');
-
-    if (!await devWebPath.exists() && !await releaseWebPath.exists()) {
-      print('ERROR: Web UI not found.');
-      print('Please build the web UI first:');
-      print('  cd ariami_cli');
-      print('  flutter build web -t lib/web/main.dart');
-      print('');
+    final webAssets = await _webAssetsResolver.resolve();
+    if (!webAssets.found) {
+      _webAssetsResolver.printNotFoundError(webAssets);
       return;
     }
 
@@ -45,7 +42,10 @@ class StartCommand {
 
       // Open browser after short delay (in background)
       Future.delayed(const Duration(seconds: 2), () async {
-        await _browserService.openAriamiInterface(port: port);
+        final opened = await _browserService.openAriamiInterface(port: port);
+        if (!opened) {
+          await _printBrowserOpenFailureUrls(port);
+        }
       });
 
       // Run server in foreground (setup mode)
@@ -85,5 +85,22 @@ class StartCommand {
       print('Use "ariami_cli stop" to stop the server');
       print('');
     }
+  }
+
+  Future<void> _printBrowserOpenFailureUrls(int port) async {
+    print('Could not open a browser automatically.');
+    print('Open this from your machine: http://localhost:$port');
+
+    final lanIp = await _tailscaleService.getLanIp();
+    if (lanIp != null) {
+      print('Local network: http://$lanIp:$port');
+    }
+
+    final tailscaleIp = await _tailscaleService.getTailscaleIp();
+    if (tailscaleIp != null) {
+      print('Tailscale: http://$tailscaleIp:$port');
+    }
+
+    print('');
   }
 }

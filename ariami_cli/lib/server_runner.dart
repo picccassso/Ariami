@@ -6,6 +6,7 @@ import 'package:ariami_core/models/feature_flags.dart';
 import 'services/cli_state_service.dart';
 import 'services/cli_tailscale_service.dart';
 import 'services/daemon_service.dart';
+import 'services/web_assets_resolver.dart';
 
 /// ServerRunner handles the actual execution of the Ariami server
 /// Can run in both foreground (setup) and background modes
@@ -14,6 +15,7 @@ class ServerRunner {
   final CliStateService _stateService = CliStateService();
   final CliTailscaleService _tailscaleService = CliTailscaleService();
   final DaemonService _daemonService = DaemonService();
+  final WebAssetsResolver _webAssetsResolver = WebAssetsResolver();
 
   bool _isShuttingDown = false;
   int _serverPort = 8080;
@@ -68,9 +70,12 @@ class ServerRunner {
         print('Server PID: $pid');
       }
 
-      // Configure web assets path (dev: build/web, release: web)
-      final webPath = Directory('build/web').existsSync() ? 'build/web' : 'web';
-      _httpServer.setWebAssetsPath(webPath);
+      final webAssets = await _webAssetsResolver.resolve();
+      if (!webAssets.found) {
+        _webAssetsResolver.printNotFoundError(webAssets);
+        throw StateError('Web UI assets not found');
+      }
+      _httpServer.setWebAssetsPath(webAssets.path!);
 
       // Configure Tailscale status callback
       _httpServer
@@ -84,6 +89,7 @@ class ServerRunner {
 
       // Configure setup callbacks
       _httpServer.setSetupCallbacks(
+        getConfiguredMusicFolderPath: _stateService.getMusicFolderPath,
         setMusicFolder: _handleSetMusicFolder,
         startScan: _handleStartScan,
         getScanStatus: _handleGetScanStatus,
@@ -418,15 +424,14 @@ class ServerRunner {
     try {
       print('[ServerRunner] Setting music folder path: $path');
 
-      // Validate path exists
-      final dir = Directory(path);
-      if (!await dir.exists()) {
-        print('[ServerRunner] ERROR: Path does not exist: $path');
+      final validation = await MusicFolderPathHelper.validate(path);
+      if (!validation.isValid) {
+        print('[ServerRunner] ERROR: ${validation.message}');
         return false;
       }
 
       // Save the music folder path
-      await _stateService.setMusicFolderPath(path);
+      await _stateService.setMusicFolderPath(validation.path);
       print('[ServerRunner] ✓ Music folder path saved');
 
       return true;
