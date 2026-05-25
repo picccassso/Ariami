@@ -17,6 +17,16 @@ import '../../widgets/search/search_result_song_item.dart';
 import '../../widgets/search/search_result_album_item.dart';
 import '../../debug/agent_debug_log.dart';
 
+enum _SearchListItemKind { headerSongs, song, spacer, headerAlbums, album }
+
+class _SearchListItem {
+  const _SearchListItem(this.kind, {this.song, this.album});
+
+  final _SearchListItemKind kind;
+  final SongModel? song;
+  final AlbumModel? album;
+}
+
 /// Search screen with real-time search and recent searches
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -36,6 +46,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
   List<SongModel> _allSongs = [];
   List<AlbumModel> _allAlbums = [];
+  Map<String, AlbumModel> _albumsById = {};
   SearchResults? _searchResults;
   List<SongModel> _recentSongs = [];
   Set<String> _downloadedSongIds = {};
@@ -148,8 +159,10 @@ class _SearchScreenState extends State<SearchScreen> {
       setState(() {
         _allSongs = allSongs;
         _allAlbums = albums;
+        _albumsById = {for (final album in albums) album.id: album};
         _isLoading = false;
       });
+      _refreshSearchIfNeeded();
       _logSongIdCollisions('online_bundle', rawSongs);
       _logSongDeduplication(
         'online_bundle',
@@ -214,8 +227,12 @@ class _SearchScreenState extends State<SearchScreen> {
     setState(() {
       _allSongs = deduplicatedSongs;
       _allAlbums = deduplicatedAlbums;
+      _albumsById = {
+        for (final album in deduplicatedAlbums) album.id: album,
+      };
       _isLoading = false;
     });
+    _refreshSearchIfNeeded();
     _logSongIdCollisions('offline_downloads', songs);
     _logSongDeduplication(
       'offline_downloads',
@@ -295,6 +312,7 @@ class _SearchScreenState extends State<SearchScreen> {
     final query = _searchController.text;
 
     if (query.isEmpty) {
+      _debouncer.cancel();
       setState(() {
         _searchResults = null;
         _isSearching = false;
@@ -314,11 +332,20 @@ class _SearchScreenState extends State<SearchScreen> {
 
   /// Perform search with ranking
   void _performSearch(String query) {
+    if (query.trim() != _searchController.text.trim()) return;
+    if (!mounted) return;
+
     final results = _searchService.search(query, _allSongs, _allAlbums);
     setState(() {
       _searchResults = results;
       _isSearching = false;
     });
+  }
+
+  void _refreshSearchIfNeeded() {
+    final query = _searchController.text.trim();
+    if (query.isEmpty) return;
+    _performSearch(query);
   }
 
   /// Play song from recent songs
@@ -328,6 +355,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
   /// Clear search
   void _clearSearch() {
+    _debouncer.cancel();
     _searchController.clear();
     setState(() {
       _searchResults = null;
@@ -498,86 +526,97 @@ class _SearchScreenState extends State<SearchScreen> {
       return _buildNoResultsState();
     }
 
+    final items = _buildSearchResultItems(_searchResults!);
     final bottomPadding = getMiniPlayerScrollBottomPadding(context);
-    return ListView(
-      padding: EdgeInsets.only(
-        bottom: bottomPadding,
-      ),
-      children: [
-        // Songs Section
-        if (_searchResults!.songs.isNotEmpty) ...[
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Text(
-              'Songs',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.9),
-              ),
-            ),
-          ),
-          ..._searchResults!.songs.map(
-            (song) {
-              // Lookup album info from search results
-              String? albumName;
-              String? albumArtist;
-              if (song.albumId != null) {
-                try {
-                  final album = _searchResults!.albums.firstWhere(
-                    (a) => a.id == song.albumId,
-                  );
-                  albumName = album.title;
-                  albumArtist = album.artist;
-                } catch (_) {
-                  // Album not in search results, skip
-                }
-              }
+    return ListView.builder(
+      padding: EdgeInsets.only(bottom: bottomPadding),
+      itemCount: items.length,
+      itemBuilder: (context, index) => _buildSearchResultItem(items[index]),
+    );
+  }
 
-              return SearchResultSongItem(
-                key: ValueKey('search_song_${song.id}'),
-                song: song,
-                searchQuery: _searchController.text,
-                onTap: () {
-                  _saveSong(song);
-                  _playSong(song);
-                },
-                albumName: albumName,
-                albumArtist: albumArtist,
-                isDownloaded: _downloadedSongIds.contains(song.id),
-                isCached: false,
-                isAvailable:
-                    !_isOffline || _downloadedSongIds.contains(song.id),
-              );
-            },
-          ),
-          const SizedBox(height: 16),
-        ],
+  List<_SearchListItem> _buildSearchResultItems(SearchResults results) {
+    final items = <_SearchListItem>[];
 
-        // Albums Section
-        if (_searchResults!.albums.isNotEmpty) ...[
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Text(
-              'Albums',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.9),
-              ),
+    if (results.songs.isNotEmpty) {
+      items.add(const _SearchListItem(_SearchListItemKind.headerSongs));
+      for (final song in results.songs) {
+        items.add(_SearchListItem(_SearchListItemKind.song, song: song));
+      }
+      items.add(const _SearchListItem(_SearchListItemKind.spacer));
+    }
+
+    if (results.albums.isNotEmpty) {
+      items.add(const _SearchListItem(_SearchListItemKind.headerAlbums));
+      for (final album in results.albums) {
+        items.add(_SearchListItem(_SearchListItemKind.album, album: album));
+      }
+    }
+
+    return items;
+  }
+
+  Widget _buildSearchResultItem(_SearchListItem item) {
+    switch (item.kind) {
+      case _SearchListItemKind.headerSongs:
+        return Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Text(
+            'Songs',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.9),
             ),
           ),
-          ..._searchResults!.albums.map(
-            (album) => SearchResultAlbumItem(
-              album: album,
-              searchQuery: _searchController.text,
-              onTap: () {
-                _openAlbum(album);
-              },
+        );
+      case _SearchListItemKind.song:
+        return _buildSearchSongItem(item.song!);
+      case _SearchListItemKind.spacer:
+        return const SizedBox(height: 16);
+      case _SearchListItemKind.headerAlbums:
+        return Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Text(
+            'Albums',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.9),
             ),
           ),
-        ],
-      ],
+        );
+      case _SearchListItemKind.album:
+        return SearchResultAlbumItem(
+          album: item.album!,
+          searchQuery: _searchController.text,
+          onTap: () => _openAlbum(item.album!),
+        );
+    }
+  }
+
+  Widget _buildSearchSongItem(SongModel song) {
+    String? albumName;
+    String? albumArtist;
+    if (song.albumId != null) {
+      final album = _albumsById[song.albumId];
+      albumName = album?.title;
+      albumArtist = album?.artist;
+    }
+
+    return SearchResultSongItem(
+      key: ValueKey('search_song_${song.id}'),
+      song: song,
+      searchQuery: _searchController.text,
+      onTap: () {
+        _saveSong(song);
+        _playSong(song);
+      },
+      albumName: albumName,
+      albumArtist: albumArtist,
+      isDownloaded: _downloadedSongIds.contains(song.id),
+      isCached: false,
+      isAvailable: !_isOffline || _downloadedSongIds.contains(song.id),
     );
   }
 

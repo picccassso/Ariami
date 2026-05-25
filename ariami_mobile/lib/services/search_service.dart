@@ -17,16 +17,17 @@ class SearchService {
       return SearchResults(songs: [], albums: []);
     }
 
-    final lowerQuery = normalizedQuery.toLowerCase();
+    final tokens = _tokenize(normalizedQuery);
     final uniqueSongs = deduplicateSongs(songs);
     final uniqueAlbums = deduplicateAlbums(albums);
+    final albumById = {for (final album in uniqueAlbums) album.id: album};
 
     // Search and rank songs
-    final rankedSongs = _searchAndRankSongs(lowerQuery, uniqueSongs);
+    final rankedSongs = _searchAndRankSongs(tokens, uniqueSongs, albumById);
     final displayUniqueRankedSongs = _deduplicateDisplaySongs(rankedSongs);
 
     // Search and rank albums
-    final rankedAlbums = _searchAndRankAlbums(lowerQuery, uniqueAlbums);
+    final rankedAlbums = _searchAndRankAlbums(tokens, uniqueAlbums);
 
     return SearchResults(
       songs: displayUniqueRankedSongs,
@@ -108,31 +109,96 @@ class SearchService {
     return orderedFingerprints.map((key) => byFingerprint[key]!).toList();
   }
 
+  static const int _exactTier = 3;
+  static const int _prefixTier = 2;
+  static const int _substringTier = 1;
+
+  List<String> _tokenize(String query) {
+    return query
+        .trim()
+        .toLowerCase()
+        .split(RegExp(r'\s+'))
+        .where((token) => token.isNotEmpty)
+        .toList();
+  }
+
+  int _tokenMatchTier(String token, String field) {
+    if (field.isEmpty) return 0;
+    if (field == token) return _exactTier;
+    if (field.startsWith(token)) return _prefixTier;
+    if (field.contains(token)) return _substringTier;
+    return 0;
+  }
+
+  int _bestTokenTierAcrossFields(String token, List<String> fields) {
+    var best = 0;
+    for (final field in fields) {
+      final tier = _tokenMatchTier(token, field);
+      if (tier > best) {
+        best = tier;
+      }
+    }
+    return best;
+  }
+
+  /// Returns bucket index: 0 exact, 1 prefix, 2 substring; null if no match.
+  int? _matchBucketForFields(List<String> tokens, List<String> fields) {
+    if (tokens.isEmpty) return null;
+
+    if (tokens.length == 1) {
+      final tier = _bestTokenTierAcrossFields(tokens.single, fields);
+      if (tier == _exactTier) return 0;
+      if (tier == _prefixTier) return 1;
+      if (tier == _substringTier) return 2;
+      return null;
+    }
+
+    final tiers = tokens
+        .map((token) => _bestTokenTierAcrossFields(token, fields))
+        .toList();
+    if (tiers.any((tier) => tier == 0)) return null;
+
+    final minTier = tiers.reduce((a, b) => a < b ? a : b);
+    if (minTier == _exactTier) return 0;
+    if (minTier >= _prefixTier) return 1;
+    return 2;
+  }
+
+  List<String> _songSearchFields(
+    SongModel song,
+    Map<String, AlbumModel> albumById,
+  ) {
+    final album = albumById[song.albumId ?? ''];
+    return [
+      song.title.toLowerCase(),
+      song.artist.toLowerCase(),
+      album?.title.toLowerCase() ?? '',
+      album?.artist.toLowerCase() ?? '',
+    ];
+  }
+
   /// Search and rank songs by relevance
-  List<SongModel> _searchAndRankSongs(String query, List<SongModel> songs) {
+  List<SongModel> _searchAndRankSongs(
+    List<String> tokens,
+    List<SongModel> songs,
+    Map<String, AlbumModel> albumById,
+  ) {
     final exactMatches = <SongModel>[];
     final prefixMatches = <SongModel>[];
     final substringMatches = <SongModel>[];
 
     for (final song in songs) {
-      final titleLower = song.title.toLowerCase();
-      final artistLower = song.artist.toLowerCase();
-
-      // Check for exact matches (title or artist)
-      if (titleLower == query || artistLower == query) {
-        exactMatches.add(song);
-        continue;
-      }
-
-      // Check for prefix matches (starts with query)
-      if (titleLower.startsWith(query) || artistLower.startsWith(query)) {
-        prefixMatches.add(song);
-        continue;
-      }
-
-      // Check for substring matches (contains query)
-      if (titleLower.contains(query) || artistLower.contains(query)) {
-        substringMatches.add(song);
+      final fields = _songSearchFields(song, albumById);
+      final bucket = _matchBucketForFields(tokens, fields);
+      switch (bucket) {
+        case 0:
+          exactMatches.add(song);
+        case 1:
+          prefixMatches.add(song);
+        case 2:
+          substringMatches.add(song);
+        default:
+          break;
       }
     }
 
@@ -163,30 +229,29 @@ class SearchService {
   }
 
   /// Search and rank albums by relevance
-  List<AlbumModel> _searchAndRankAlbums(String query, List<AlbumModel> albums) {
+  List<AlbumModel> _searchAndRankAlbums(
+    List<String> tokens,
+    List<AlbumModel> albums,
+  ) {
     final exactMatches = <AlbumModel>[];
     final prefixMatches = <AlbumModel>[];
     final substringMatches = <AlbumModel>[];
 
     for (final album in albums) {
-      final titleLower = album.title.toLowerCase();
-      final artistLower = album.artist.toLowerCase();
-
-      // Check for exact matches (title or artist)
-      if (titleLower == query || artistLower == query) {
-        exactMatches.add(album);
-        continue;
-      }
-
-      // Check for prefix matches (starts with query)
-      if (titleLower.startsWith(query) || artistLower.startsWith(query)) {
-        prefixMatches.add(album);
-        continue;
-      }
-
-      // Check for substring matches (contains query)
-      if (titleLower.contains(query) || artistLower.contains(query)) {
-        substringMatches.add(album);
+      final fields = [
+        album.title.toLowerCase(),
+        album.artist.toLowerCase(),
+      ];
+      final bucket = _matchBucketForFields(tokens, fields);
+      switch (bucket) {
+        case 0:
+          exactMatches.add(album);
+        case 1:
+          prefixMatches.add(album);
+        case 2:
+          substringMatches.add(album);
+        default:
+          break;
       }
     }
 

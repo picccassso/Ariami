@@ -95,4 +95,148 @@ void main() {
       expect(results.isEmpty, isTrue);
     });
   });
+
+  group('SearchService matching', () {
+    final service = SearchService();
+
+    AlbumModel album({
+      required String id,
+      required String title,
+      String artist = 'Artist',
+    }) {
+      return AlbumModel(
+        id: id,
+        title: title,
+        artist: artist,
+        songCount: 1,
+        duration: 200,
+      );
+    }
+
+    SongModel song({
+      required String id,
+      required String title,
+      required String artist,
+      String? albumId,
+      int duration = 200,
+    }) {
+      return SongModel(
+        id: id,
+        title: title,
+        artist: artist,
+        albumId: albumId,
+        duration: duration,
+      );
+    }
+
+    test('single-token prefix matches title', () {
+      final songs = [
+        song(id: 'song-a', title: 'Everyday', artist: 'WINNER'),
+      ];
+
+      final results = service.search('every', songs, const []);
+
+      expect(results.songs, hasLength(1));
+      expect(results.songs.single.id, 'song-a');
+    });
+
+    test('album name matches song via albumId lookup', () {
+      final albums = [
+        album(id: 'album-1', title: 'Graduation', artist: 'Kanye West'),
+      ];
+      final songs = [
+        song(
+          id: 'song-a',
+          title: 'Stronger',
+          artist: 'Kanye West',
+          albumId: 'album-1',
+        ),
+      ];
+
+      final results = service.search('graduation', songs, albums);
+
+      expect(results.songs, hasLength(1));
+      expect(results.songs.single.id, 'song-a');
+    });
+
+    test('multi-word cross-field query matches song', () {
+      final albums = [
+        album(id: 'album-1', title: 'Graduation', artist: 'Kanye West'),
+      ];
+      final songs = [
+        song(
+          id: 'song-a',
+          title: 'Everything I Am',
+          artist: 'Kanye West',
+          albumId: 'album-1',
+        ),
+      ];
+
+      final results = service.search('kanye everything', songs, albums);
+
+      expect(results.songs, hasLength(1));
+      expect(results.songs.single.id, 'song-a');
+    });
+
+    test('multi-word query returns empty when a token does not match', () {
+      final albums = [
+        album(id: 'album-1', title: 'Graduation', artist: 'Kanye West'),
+      ];
+      final songs = [
+        song(
+          id: 'song-a',
+          title: 'Stronger',
+          artist: 'Kanye West',
+          albumId: 'album-1',
+        ),
+      ];
+
+      final results = service.search('kanye nonexistent', songs, albums);
+
+      expect(results.songs, isEmpty);
+    });
+
+    test('normalizes whitespace and case in query', () {
+      final songs = [
+        song(id: 'song-a', title: 'Everyday', artist: 'WINNER'),
+      ];
+
+      final results = service.search('  EVERY  ', songs, const []);
+
+      expect(results.songs, hasLength(1));
+      expect(results.songs.single.id, 'song-a');
+    });
+
+    test('song without albumId cannot match on album name', () {
+      final albums = [
+        album(id: 'album-1', title: 'Graduation', artist: 'Kanye West'),
+      ];
+      final songs = [
+        song(
+          id: 'song-a',
+          title: 'Stronger',
+          artist: 'Kanye West',
+        ),
+      ];
+
+      final results = service.search('graduation', songs, albums);
+
+      expect(results.songs, isEmpty);
+    });
+
+    test('multi-word album query matches album section', () {
+      final albums = [
+        album(
+          id: 'album-1',
+          title: 'The Dark Side of the Moon',
+          artist: 'Pink Floyd',
+        ),
+      ];
+
+      final results = service.search('dark side', const [], albums);
+
+      expect(results.albums, hasLength(1));
+      expect(results.albums.single.id, 'album-1');
+    });
+  });
 }
