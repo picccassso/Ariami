@@ -7,6 +7,25 @@ import '../../models/api_models.dart';
 import '../api/api_client.dart';
 import '../library/library_repository.dart';
 
+/// Queryable sync health for UI layers.
+class LibrarySyncHealth {
+  const LibrarySyncHealth({
+    this.lastError,
+    this.lastSuccessfulSyncAt,
+    this.isPartialBootstrap = false,
+    this.bootstrapMismatchReason,
+  });
+
+  final String? lastError;
+  final DateTime? lastSuccessfulSyncAt;
+  final bool isPartialBootstrap;
+  final String? bootstrapMismatchReason;
+
+  bool get hasSyncFailure => lastError != null && lastError!.isNotEmpty;
+
+  bool get isPartialRead => isPartialBootstrap;
+}
+
 /// Sync engine for v2 bootstrap + delta synchronization.
 class LibrarySyncEngine {
   LibrarySyncEngine({
@@ -42,11 +61,26 @@ class LibrarySyncEngine {
   Future<void> _syncQueue = Future<void>.value();
   DateTime? _nextBootstrapRetryAt;
   int _bootstrapRetryAttempts = 0;
+  String? _lastError;
+  DateTime? _lastSuccessfulSyncAt;
 
   bool get isRunning => _running;
 
   Future<LibrarySyncState> getSyncState() {
     return _libraryRepository.getSyncState();
+  }
+
+  Future<LibrarySyncHealth> getSyncHealth() async {
+    final bootstrapComplete = await _libraryRepository.hasCompletedBootstrap();
+    final mismatchReason = bootstrapComplete
+        ? null
+        : await _libraryRepository.getBootstrapPendingReason();
+    return LibrarySyncHealth(
+      lastError: _lastError,
+      lastSuccessfulSyncAt: _lastSuccessfulSyncAt,
+      isPartialBootstrap: !bootstrapComplete,
+      bootstrapMismatchReason: mismatchReason,
+    );
   }
 
   void start() {
@@ -300,11 +334,14 @@ class LibrarySyncEngine {
     final next = _syncQueue.then((_) async {
       if (_disposed) return;
       await action();
+      _lastError = null;
+      _lastSuccessfulSyncAt = DateTime.now();
     });
     _syncQueue = (() async {
       try {
         await next;
       } catch (error, stackTrace) {
+        _lastError = error.toString();
         debugPrint(
           '[LibrarySyncEngine][_enqueueSync] swallowed sync error='
           '$error\n$stackTrace',

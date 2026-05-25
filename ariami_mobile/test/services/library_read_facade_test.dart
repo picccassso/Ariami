@@ -2,6 +2,7 @@ import 'package:ariami_mobile/database/library_sync_database.dart';
 import 'package:ariami_mobile/models/api_models.dart';
 import 'package:ariami_mobile/services/library/library_read_facade.dart';
 import 'package:ariami_mobile/services/library/library_repository.dart';
+import 'package:ariami_mobile/services/sync/library_sync_engine.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -105,6 +106,60 @@ void main() {
       expect(bundle.source, LibraryReadSource.v2LocalStore);
       expect(bundle.songs.length, equals(2));
       expect(bundle.sourceReason, contains('bootstrap is still in progress'));
+      expect(bundle.isPartialRead, isTrue);
+    });
+
+    test('includes sync health and partial read status from provider', () async {
+      final repository = _FlippingBootstrapRepository(
+        completeAfterChecks: 999,
+        bundle: LibraryRepositoryBundle(
+          albums: const <AlbumModel>[],
+          songs: const <SongModel>[],
+          serverPlaylists: const <ServerPlaylist>[],
+        ),
+      );
+
+      final facade = LibraryReadFacade(
+        apiClientProvider: () => Object(),
+        libraryRepository: repository,
+        syncHealthProvider: () async => const LibrarySyncHealth(
+          lastError: 'network timeout',
+          isPartialBootstrap: true,
+          bootstrapMismatchReason: 'sync_state_incomplete',
+        ),
+        bootstrapWaitTimeout: Duration.zero,
+      );
+
+      final bundle = await facade.getLibraryBundle();
+
+      expect(bundle.isPartialRead, isTrue);
+      expect(bundle.syncHealth?.lastError, equals('network timeout'));
+      expect(bundle.syncHealth?.bootstrapMismatchReason,
+          equals('sync_state_incomplete'));
+    });
+
+    test('marks bundle complete when bootstrap and sync health are healthy',
+        () async {
+      final repository = _FlippingBootstrapRepository(
+        completeAfterChecks: 0,
+        bundle: LibraryRepositoryBundle(
+          albums: const <AlbumModel>[],
+          songs: const <SongModel>[],
+          serverPlaylists: const <ServerPlaylist>[],
+        ),
+      );
+
+      final facade = LibraryReadFacade(
+        apiClientProvider: () => Object(),
+        libraryRepository: repository,
+        syncHealthProvider: () async => const LibrarySyncHealth(),
+        bootstrapWaitTimeout: Duration.zero,
+      );
+
+      final bundle = await facade.getLibraryBundle();
+
+      expect(bundle.isPartialRead, isFalse);
+      expect(bundle.syncHealth?.hasSyncFailure, isFalse);
     });
 
     test('returns server playlists directly from local v2 playlist membership',
@@ -169,6 +224,12 @@ class _FlippingBootstrapRepository extends LibraryRepository {
   Future<bool> hasCompletedBootstrap() async {
     _checkCount++;
     return _checkCount > completeAfterChecks;
+  }
+
+  @override
+  Future<String?> getBootstrapPendingReason() async {
+    final complete = await hasCompletedBootstrap();
+    return complete ? null : 'sync_state_incomplete';
   }
 
   @override

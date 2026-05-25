@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:ariami_core/ariami_core.dart';
+import 'package:ariami_core/models/feature_flags.dart';
 import 'package:ariami_core/services/catalog/catalog_database.dart';
 import 'package:ariami_core/services/catalog/catalog_repository.dart';
 import 'package:path/path.dart' as p;
@@ -20,6 +21,12 @@ void main() {
       libraryManager = LibraryManager();
       libraryManager.clear();
       libraryManager.setCachePath(p.join(testDir.path, 'metadata_cache.json'));
+      libraryManager.setFeatureFlags(
+        const AriamiFeatureFlags(
+          enableCatalogWrite: true,
+          enableCatalogRead: true,
+        ),
+      );
     });
 
     tearDown(() async {
@@ -241,13 +248,55 @@ void main() {
       },
       timeout: const Timeout(Duration(seconds: 60)),
     );
+
+    test(
+      'P3-5: incremental album formation updates existing song catalog albumId',
+      () async {
+        final firstPath =
+            p.join(musicDir.path, 'Artist - Shared Album - 01 - First.mp3');
+        final secondPath =
+            p.join(musicDir.path, 'Artist - Shared Album - 02 - Second.mp3');
+
+        await _writeAudioStub(firstPath, fillByte: 1);
+        await libraryManager.scanMusicFolder(musicDir.path);
+
+        final db =
+            CatalogDatabase(databasePath: p.join(testDir.path, 'catalog.db'));
+        db.initialize();
+        final repository = CatalogRepository(database: db.database);
+        addTearDown(db.close);
+
+        final firstSongId = defaultGenerateSongId(firstPath);
+        final secondSongId = defaultGenerateSongId(secondPath);
+        expect(repository.getSongById(firstSongId)?.albumId, isNull);
+
+        final tokenAfterScan = libraryManager.latestToken;
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+
+        await _writeAudioStub(secondPath, fillByte: 2);
+        await _waitForTokenAdvance(
+          libraryManager: libraryManager,
+          previousToken: tokenAfterScan,
+          timeout: const Duration(seconds: 30),
+        );
+
+        final firstCatalogSong = repository.getSongById(firstSongId);
+        final secondCatalogSong = repository.getSongById(secondSongId);
+
+        expect(firstCatalogSong, isNotNull);
+        expect(secondCatalogSong, isNotNull);
+        expect(firstCatalogSong!.albumId, isNotNull);
+        expect(secondCatalogSong!.albumId, equals(firstCatalogSong.albumId));
+      },
+      timeout: const Timeout(Duration(seconds: 60)),
+    );
   });
 }
 
-Future<void> _writeAudioStub(String filePath) async {
+Future<void> _writeAudioStub(String filePath, {int fillByte = 0}) async {
   final file = File(filePath);
   await file.parent.create(recursive: true);
-  await file.writeAsBytes(List<int>.filled(1024, 0), flush: true);
+  await file.writeAsBytes(List<int>.filled(1024, fillByte), flush: true);
 }
 
 Future<void> _copyFixtureAudio({

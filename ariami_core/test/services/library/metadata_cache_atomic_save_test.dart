@@ -46,6 +46,42 @@ void main() {
           (json['entries'] as Map<String, dynamic>), contains(audioFile.path));
     });
 
+    test('upsert updates metadata for incremental changes', () async {
+      final cache = MetadataCache(cachePath);
+      await cache.put(
+        audioFile.path,
+        SongMetadata(filePath: audioFile.path, title: 'Original'),
+      );
+
+      await cache.upsert(
+        audioFile.path,
+        SongMetadata(
+          filePath: audioFile.path,
+          title: 'Updated',
+          artist: 'Artist',
+          duration: 200,
+        ),
+      );
+
+      await cache.save();
+
+      final reloaded = MetadataCache(cachePath);
+      await reloaded.load();
+      final metadata = await reloaded.get(audioFile.path);
+      expect(metadata?.title, 'Updated');
+      expect(metadata?.duration, 200);
+    });
+
+    test('remove deletes stale cache entry', () async {
+      final cache = MetadataCache(cachePath);
+      await cache.put(
+        audioFile.path,
+        SongMetadata(filePath: audioFile.path, title: 'Track'),
+      );
+      cache.remove(audioFile.path);
+      expect(await cache.get(audioFile.path), isNull);
+    });
+
     test('clean cache save skips rewriting existing file', () async {
       final cacheFile = File(cachePath);
       await cacheFile.writeAsString('existing');

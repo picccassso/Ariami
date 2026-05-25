@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:ariami_core/models/album.dart';
+import 'package:ariami_core/models/feature_flags.dart';
 import 'package:ariami_core/models/library_structure.dart';
 import 'package:ariami_core/models/song_metadata.dart';
 import 'package:ariami_core/services/catalog/catalog_repository.dart';
@@ -92,6 +93,9 @@ void main() {
       final tempDir = await Directory.systemTemp.createTemp('ariami_lookup_');
       try {
         manager.setCachePath(p.join(tempDir.path, 'metadata_cache.json'));
+        manager.setFeatureFlags(
+          const AriamiFeatureFlags(enableCatalogRead: true),
+        );
         final repository = manager.createCatalogRepository()!;
         repository.upsertSong(CatalogSongRecord(
           id: 'catalog-song',

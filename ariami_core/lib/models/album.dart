@@ -17,8 +17,11 @@ class Album {
   /// Album release year
   final int? year;
 
-  /// Path to album artwork (if available)
+  /// Internal lazy-extraction source path (first track or sidecar file).
   final String? artworkPath;
+
+  /// Whether embedded or sidecar artwork is known to exist for this album.
+  final bool hasArtwork;
 
   const Album({
     required this.id,
@@ -27,7 +30,29 @@ class Album {
     required this.songs,
     this.year,
     this.artworkPath,
+    this.hasArtwork = false,
   });
+
+  Album copyWith({
+    String? id,
+    String? title,
+    String? artist,
+    List<SongMetadata>? songs,
+    int? year,
+    String? artworkPath,
+    bool? hasArtwork,
+    bool clearArtworkPath = false,
+  }) {
+    return Album(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      artist: artist ?? this.artist,
+      songs: songs ?? this.songs,
+      year: year ?? this.year,
+      artworkPath: clearArtworkPath ? null : (artworkPath ?? this.artworkPath),
+      hasArtwork: hasArtwork ?? this.hasArtwork,
+    );
+  }
 
   /// Whether this album is valid (has at least 2 songs)
   bool get isValid => songs.length >= 2;

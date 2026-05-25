@@ -168,7 +168,12 @@ class DuplicateDetector {
     final groups = <DuplicateGroup>[];
     for (final entry in hashMap.entries) {
       if (entry.value.length > 1) {
-        final sorted = _sortByQuality(entry.value);
+        final confirmed = await _confirmPartialHashDuplicateGroup(entry.value);
+        if (confirmed.length < 2) {
+          continue;
+        }
+
+        final sorted = _sortByQuality(confirmed);
         // #region agent log
         agentDebugLog(
           location: 'duplicate_detector.dart:_hashGroupAndFindDuplicates',
@@ -193,16 +198,42 @@ class DuplicateDetector {
     return groups;
   }
 
+  /// Confirms partial-hash candidates with a full-file hash before merging.
+  Future<List<SongMetadata>> _confirmPartialHashDuplicateGroup(
+    List<SongMetadata> candidates,
+  ) async {
+    final fullHashMap = <String, List<SongMetadata>>{};
+
+    for (final song in candidates) {
+      try {
+        final fullHash = await _calculateFullFileHash(song.filePath);
+        fullHashMap.putIfAbsent(fullHash, () => []);
+        fullHashMap[fullHash]!.add(song);
+      } catch (_) {
+        // Skip unreadable files.
+      }
+    }
+
+    for (final sameHashSongs in fullHashMap.values) {
+      if (sameHashSongs.length > 1) {
+        return sameHashSongs;
+      }
+    }
+
+    return const [];
+  }
+
   /// Finds duplicates by comparing metadata
   ///
-  /// Uses hash table grouping for O(n) performance instead of O(n²)
+  /// Requires non-empty title and either non-empty artist or corroborating
+  /// album+duration match via [_isDetailedMetadataMatch].
   List<DuplicateGroup> _findMetadataDuplicates(List<SongMetadata> songs) {
     final groups = <DuplicateGroup>[];
 
     // Step 1: Group songs by normalized artist+title key (O(n))
     final candidateGroups = <String, List<SongMetadata>>{};
     for (final song in songs) {
-      if (song.title == null) continue; // Skip songs without title
+      if (!_isMetadataDuplicateCandidate(song)) continue;
       final key = _generateMetadataKey(song);
       candidateGroups.putIfAbsent(key, () => []);
       candidateGroups[key]!.add(song);
@@ -273,22 +304,52 @@ class DuplicateDetector {
 
   /// Detailed match check for songs already grouped by artist+title
   ///
-  /// Checks album compatibility and duration tolerance
+  /// Requires non-empty title and either matching non-empty artists or the
+  /// same non-empty album with matching duration.
   bool _isDetailedMetadataMatch(SongMetadata a, SongMetadata b) {
-    // Compare albums (optional, but if both have it, should match)
-    if (a.album != null && b.album != null) {
-      final albumA = _normalizeString(a.album!);
-      final albumB = _normalizeString(b.album!);
-      if (albumA != albumB) return false;
+    final titleA = _normalizeString(a.title ?? '');
+    final titleB = _normalizeString(b.title ?? '');
+    if (titleA.isEmpty || titleB.isEmpty || titleA != titleB) {
+      return false;
     }
 
-    // Compare duration (±2 seconds tolerance)
-    if (a.duration != null && b.duration != null) {
-      final durationDiff = (a.duration! - b.duration!).abs();
-      if (durationDiff > 2) return false;
+    final artistA = _normalizeString(a.artist ?? '');
+    final artistB = _normalizeString(b.artist ?? '');
+
+    if (artistA.isNotEmpty && artistB.isNotEmpty) {
+      if (artistA != artistB) return false;
+      if (a.duration != null && b.duration != null) {
+        return (a.duration! - b.duration!).abs() <= 2;
+      }
+      return true;
     }
 
-    return true;
+    final albumA = _normalizeString(a.album ?? '');
+    final albumB = _normalizeString(b.album ?? '');
+    if (albumA.isEmpty || albumB.isEmpty || albumA != albumB) {
+      return false;
+    }
+
+    if (a.duration == null || b.duration == null) {
+      return false;
+    }
+
+    return (a.duration! - b.duration!).abs() <= 2;
+  }
+
+  bool _isMetadataDuplicateCandidate(SongMetadata song) {
+    final title = song.title?.trim();
+    if (title == null || title.isEmpty) {
+      return false;
+    }
+
+    final artist = song.artist?.trim();
+    if (artist != null && artist.isNotEmpty) {
+      return true;
+    }
+
+    final album = song.album?.trim();
+    return album != null && album.isNotEmpty;
   }
 
   /// Normalizes a string for comparison
@@ -374,6 +435,12 @@ class DuplicateDetector {
     } finally {
       await raf.close();
     }
+  }
+
+  /// Calculates a full-file MD5 hash for confirming partial-hash matches.
+  Future<String> _calculateFullFileHash(String filePath) async {
+    final bytes = await File(filePath).readAsBytes();
+    return md5.convert(bytes).toString();
   }
 
   /// Gets all file paths that have been processed in duplicate groups

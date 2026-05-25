@@ -289,6 +289,135 @@ void main() {
       expect(apiClient.bootstrapCallCount, 1);
       expect(apiClient.changesCallCount, 0);
     });
+
+    test('records sync failure in health state', () async {
+      final repository = _FakeLibraryRepository(
+        initialState: const LibrarySyncState(
+          lastAppliedToken: 8,
+          bootstrapComplete: true,
+          lastSyncEpochMs: 0,
+        ),
+      );
+      final apiClient = _FakeApiClient(
+        bootstrapResponses: const <V2BootstrapResponse>[],
+        changesResponses: <V2ChangesResponse>[
+          V2ChangesResponse(
+            fromToken: 8,
+            toToken: 9,
+            events: <V2ChangeEvent>[
+              const V2ChangeEvent(
+                token: 9,
+                op: V2ChangeOp.upsert,
+                entityType: V2EntityType.song,
+                entityId: 'song-9',
+                payload: null,
+                occurredAt: '2026-02-07T23:00:00Z',
+              ),
+            ],
+            hasMore: false,
+            syncToken: 9,
+          ),
+        ],
+      );
+
+      final engine = LibrarySyncEngine(
+        apiClientProvider: () => apiClient,
+        libraryRepository: repository,
+      );
+
+      await expectLater(engine.syncNow(), throwsA(isA<StateError>()));
+
+      final health = await engine.getSyncHealth();
+      expect(health.lastError, contains('No bootstrap response queued'));
+      expect(health.lastSuccessfulSyncAt, isNull);
+    });
+
+    test('clears sync failure after a successful sync', () async {
+      final bootstrapResponses = <V2BootstrapResponse>[
+        _bootstrapPage(
+          syncToken: 9,
+          hasMore: false,
+          cursor: null,
+          nextCursor: null,
+        ),
+      ];
+      final repository = _FakeLibraryRepository(
+        initialState: const LibrarySyncState(
+          lastAppliedToken: 8,
+          bootstrapComplete: true,
+          lastSyncEpochMs: 0,
+        ),
+      );
+      final apiClient = _FakeApiClient(
+        bootstrapResponses: bootstrapResponses,
+        changesResponses: <V2ChangesResponse>[
+          V2ChangesResponse(
+            fromToken: 8,
+            toToken: 9,
+            events: <V2ChangeEvent>[
+              const V2ChangeEvent(
+                token: 9,
+                op: V2ChangeOp.upsert,
+                entityType: V2EntityType.song,
+                entityId: 'song-9',
+                payload: null,
+                occurredAt: '2026-02-07T23:00:00Z',
+              ),
+            ],
+            hasMore: false,
+            syncToken: 9,
+          ),
+        ],
+      );
+
+      final engine = LibrarySyncEngine(
+        apiClientProvider: () => apiClient,
+        libraryRepository: repository,
+      );
+
+      bootstrapResponses.clear();
+      await expectLater(engine.syncNow(), throwsA(isA<StateError>()));
+
+      bootstrapResponses.add(
+        _bootstrapPage(
+          syncToken: 9,
+          hasMore: false,
+          cursor: null,
+          nextCursor: null,
+        ),
+      );
+      await engine.syncNow();
+
+      final health = await engine.getSyncHealth();
+      expect(health.lastError, isNull);
+      expect(health.lastSuccessfulSyncAt, isNotNull);
+      expect(health.isPartialBootstrap, isFalse);
+    });
+
+    test('reports partial bootstrap readiness in health state', () async {
+      final repository = _AlwaysBackfillPendingLibraryRepository();
+      final apiClient = _FakeApiClient(
+        bootstrapResponses: <V2BootstrapResponse>[
+          _bootstrapPage(
+            syncToken: 10,
+            hasMore: false,
+            cursor: null,
+            nextCursor: null,
+          ),
+        ],
+      );
+
+      final engine = LibrarySyncEngine(
+        apiClientProvider: () => apiClient,
+        libraryRepository: repository,
+      );
+
+      await engine.syncNow();
+
+      final health = await engine.getSyncHealth();
+      expect(health.isPartialBootstrap, isTrue);
+      expect(health.bootstrapMismatchReason, equals('sync_state_incomplete'));
+    });
   });
 }
 
@@ -316,12 +445,11 @@ class _FakeApiClient extends ApiClient {
   _FakeApiClient({
     List<V2BootstrapResponse>? bootstrapResponses,
     List<V2ChangesResponse>? changesResponses,
-  })  : _bootstrapResponses = List<V2BootstrapResponse>.from(
-          bootstrapResponses ?? const <V2BootstrapResponse>[],
-        ),
-        _changesResponses = List<V2ChangesResponse>.from(
-          changesResponses ?? const <V2ChangesResponse>[],
-        ),
+  })  : _bootstrapResponses =
+            bootstrapResponses ?? <V2BootstrapResponse>[],
+        _changesResponses = changesResponses != null
+            ? List<V2ChangesResponse>.from(changesResponses)
+            : <V2ChangesResponse>[],
         super(
           serverInfo: ServerInfo(
             server: '127.0.0.1',
@@ -463,4 +591,7 @@ class _BackfillPendingLibraryRepository extends _FakeLibraryRepository {
 class _AlwaysBackfillPendingLibraryRepository extends _FakeLibraryRepository {
   @override
   Future<bool> hasCompletedBootstrap() async => false;
+
+  @override
+  Future<String?> getBootstrapPendingReason() async => 'sync_state_incomplete';
 }

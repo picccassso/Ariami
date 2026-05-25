@@ -342,7 +342,14 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
         'requires enableV2Api=true.',
       );
     }
+    if (flags.enableCatalogRead && !flags.enableV2Api) {
+      throw StateError(
+        'Invalid feature flag configuration: enableCatalogRead=true '
+        'requires enableV2Api=true.',
+      );
+    }
     _featureFlags = flags;
+    _libraryManager.setFeatureFlags(flags);
     print('[HttpServer] Feature flags set: ${flags.toJson()}');
   }
 
@@ -353,6 +360,13 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
     if (_featureFlags.enableDownloadJobs && !_featureFlags.enableV2Api) {
       throw StateError(
         'Invalid feature flag configuration: enableDownloadJobs=true '
+        'requires enableV2Api=true.',
+      );
+    }
+
+    if (_featureFlags.enableCatalogRead && !_featureFlags.enableV2Api) {
+      throw StateError(
+        'Invalid feature flag configuration: enableCatalogRead=true '
         'requires enableV2Api=true.',
       );
     }

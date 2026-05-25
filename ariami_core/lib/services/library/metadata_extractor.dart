@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:path/path.dart' as p;
 import 'package:dart_tags/dart_tags.dart';
 import 'package:ariami_core/models/song_metadata.dart';
+import 'package:ariami_core/services/library/album_art_detection.dart';
 import 'package:ariami_core/services/library/mp3_duration_parser.dart';
 
 typedef ProcessRunner = Future<ProcessResult> Function(
@@ -513,6 +514,50 @@ class MetadataExtractor {
   /// Cleanup method - no longer needed but kept for API compatibility
   Future<void> dispose() async {
     // No resources to clean up - duration extraction now uses fresh players
+  }
+
+  /// Cheap check for embedded cover art without reading image bytes.
+  Future<bool> hasEmbeddedArtwork(String filePath) async {
+    try {
+      final file = File(filePath);
+      if (!await file.exists()) {
+        return false;
+      }
+
+      final fileStat = await file.stat();
+      final extension = p.extension(filePath).toLowerCase();
+      const optimizedFormats = {'.mp3', '.m4a', '.mp4', '.flac'};
+      final List<Tag> tags;
+      if (optimizedFormats.contains(extension)) {
+        tags = await _readTagsOptimized(file, fileStat.size);
+      } else {
+        tags = await _tagProcessor.getTagsFromByteArray(file.readAsBytes());
+      }
+      return _tagsContainArtwork(tags);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  bool _tagsContainArtwork(List<Tag> tags) {
+    for (final tag in tags) {
+      final picture = _getTagValue(tag.tags, [
+        'picture',
+        'APIC',
+        'PIC',
+        'METADATA_BLOCK_PICTURE',
+      ]);
+      if (picture != null) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /// Returns a sidecar artwork path in the album directory of [songFilePath].
+  String? findSidecarArtworkForSong(String songFilePath) {
+    final albumDir = p.dirname(songFilePath);
+    return findAlbumSidecarArtworkPath(albumDir);
   }
 
   /// Extracts album artwork from a single audio file (lazy extraction)

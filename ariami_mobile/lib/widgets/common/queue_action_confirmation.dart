@@ -6,12 +6,18 @@ import 'mini_player_aware_bottom_sheet.dart';
 
 OverlayEntry? _queueConfirmationEntry;
 Timer? _queueConfirmationTimer;
+DateTime? _lastQueueConfirmationTime;
+String? _lastQueueConfirmationMessage;
 
 void _dismissQueueConfirmation() {
   _queueConfirmationTimer?.cancel();
   _queueConfirmationTimer = null;
   _queueConfirmationEntry?.remove();
   _queueConfirmationEntry = null;
+}
+
+void dismissQueueActionConfirmation() {
+  _dismissQueueConfirmation();
 }
 
 void showQueueActionConfirmation(
@@ -21,6 +27,15 @@ void showQueueActionConfirmation(
   VoidCallback? onAction,
   Duration duration = const Duration(seconds: 3),
 }) {
+  final now = DateTime.now();
+  if (_lastQueueConfirmationTime != null &&
+      _lastQueueConfirmationMessage == message &&
+      now.difference(_lastQueueConfirmationTime!) < const Duration(milliseconds: 500)) {
+    return;
+  }
+  _lastQueueConfirmationTime = now;
+  _lastQueueConfirmationMessage = message;
+
   final overlay = Overlay.maybeOf(context);
   if (overlay == null) return;
 
@@ -78,53 +93,62 @@ class _QueueActionConfirmationState extends State<_QueueActionConfirmation> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final bottom = getMiniPlayerAwareBottomPadding(context) + 16;
+    final bottom = getMiniPlayerAwareBottomPadding(context) + 24;
     final hasAction =
         widget.actionLabel != null && widget.onAction != null;
 
     final bar = Material(
-      color: colorScheme.onSurface,
-      borderRadius: BorderRadius.circular(6),
-      elevation: 8,
+      color: colorScheme.surfaceContainerHigh.withValues(alpha: 0.97),
+      borderRadius: BorderRadius.circular(16),
+      elevation: 4,
       clipBehavior: Clip.antiAlias,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 10,
-              ),
-              child: Text(
-                widget.message,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: colorScheme.surface,
-                      fontWeight: FontWeight.w600,
-                    ),
-              ),
-            ),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: colorScheme.outlineVariant.withValues(alpha: 0.45),
+            width: 1.0,
           ),
-          if (hasAction)
-            InkWell(
-              onTap: widget.onAction,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(
               child: Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16,
-                  vertical: 10,
+                  vertical: 12,
                 ),
                 child: Text(
-                  widget.actionLabel!.toUpperCase(),
-                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                        color: colorScheme.primary,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.5,
+                  widget.message,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: colorScheme.onSurface,
+                        fontWeight: FontWeight.w600,
                       ),
                 ),
               ),
             ),
-        ],
+            if (hasAction)
+              InkWell(
+                onTap: widget.onAction,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  child: Text(
+                    widget.actionLabel!,
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          color: colorScheme.primary,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.5,
+                        ),
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
 

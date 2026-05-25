@@ -73,6 +73,11 @@ extension _LibraryManagerScanningPart on LibraryManager {
         updatedLibrary: updatedLibrary,
       );
 
+      await _updateMetadataCacheForIncrementalChanges(
+        update: update,
+        sourceChanges: changes,
+      );
+
       print('[LibraryManager] Applied file-change batch '
           '(added: ${update.addedSongIds.length}, '
           'removed: ${update.removedSongIds.length}, '
@@ -119,6 +124,7 @@ extension _LibraryManagerScanningPart on LibraryManager {
 
       if (result.library != null) {
         _library = result.library;
+        _latestScanDiagnostics = result.scanDiagnostics;
         _rebuildSongIndexes();
         _lastScanTime = DateTime.now();
         _resetDurationsForRescan();
@@ -170,5 +176,48 @@ extension _LibraryManagerScanningPart on LibraryManager {
     _durationsReady = false;
     _durationWarmupRunning = false;
     print('[LibraryManager] Library cleared');
+  }
+
+  Future<void> _updateMetadataCacheForIncrementalChanges({
+    required LibraryUpdate update,
+    required List<FileChange> sourceChanges,
+  }) async {
+    final metadataCache = _metadataCache;
+    if (metadataCache == null || update.isEmpty) {
+      return;
+    }
+
+    var changed = false;
+
+    for (final entry in update.extractedMetadata.entries) {
+      await metadataCache.upsert(entry.key, entry.value);
+      changed = true;
+    }
+
+    final removedPaths = <String>{};
+    for (final change in sourceChanges) {
+      switch (change.type) {
+        case FileChangeType.removed:
+          removedPaths.add(change.path);
+          break;
+        case FileChangeType.renamed:
+          if (change.oldPath != null) {
+            removedPaths.add(change.oldPath!);
+          }
+          break;
+        case FileChangeType.added:
+        case FileChangeType.modified:
+          break;
+      }
+    }
+
+    for (final removedPath in removedPaths) {
+      metadataCache.remove(removedPath);
+      changed = true;
+    }
+
+    if (changed) {
+      await metadataCache.save();
+    }
   }
 }

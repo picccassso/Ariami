@@ -97,19 +97,29 @@ extension AriamiHttpServerSetupAndStatsHandlersMethods on AriamiHttpServer {
     if (_getScanStatusCallback != null) {
       try {
         final status = await _getScanStatusCallback!();
-        return _jsonOk(status);
+        final diagnostics = _libraryManager.latestScanDiagnostics;
+        return _jsonOk({
+          ...status,
+          'skippedFileCount':
+              status['skippedFileCount'] ?? diagnostics.skippedFileCount,
+          'failedFiles': status['failedFiles'] ??
+              diagnostics.failedFiles.map((f) => f.toJson()).toList(),
+        });
       } catch (e) {
         return _setupCallbackErrorResponse('get scan status', e);
       }
     }
 
     // Return default status if not configured
+    final diagnostics = _libraryManager.latestScanDiagnostics;
     return _jsonOk({
       'isScanning': false,
       'progress': 0.0,
       'songsFound': 0,
       'albumsFound': 0,
       'currentStatus': 'Not configured',
+      'skippedFileCount': diagnostics.skippedFileCount,
+      'failedFiles': diagnostics.failedFiles.map((f) => f.toJson()).toList(),
     });
   }
 

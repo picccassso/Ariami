@@ -325,12 +325,14 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
       final cachedTitle = playlist.songTitles[id];
       final cachedArtist = playlist.songArtists[id];
       final cachedDuration = playlist.songDurations[id];
+      final isUnresolved = (cachedTitle == null || cachedTitle.isEmpty) &&
+          preferredSong == null;
 
       return SongModel(
         id: id,
         title: (cachedTitle != null && cachedTitle.isNotEmpty)
             ? cachedTitle
-            : (preferredSong?.title ?? 'Unknown Song'),
+            : (preferredSong?.title ?? _missingTrackTitle(isUnresolved)),
         artist: (cachedArtist != null && cachedArtist.isNotEmpty)
             ? cachedArtist
             : (preferredSong?.artist ?? 'Unknown Artist'),
@@ -341,6 +343,10 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
         trackNumber: preferredSong?.trackNumber,
       );
     }).toList();
+  }
+
+  String _missingTrackTitle(bool isUnresolved) {
+    return isUnresolved ? 'Missing from library' : 'Unknown Song';
   }
 
   Map<String, SongModel> _buildDownloadedSongsMap() {
@@ -375,6 +381,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
           song.duration <= 0 ||
           song.title.isEmpty ||
           song.title == 'Unknown Song' ||
+          song.title == 'Missing from library' ||
           song.artist.isEmpty ||
           song.artist == 'Unknown Artist',
     );
@@ -407,7 +414,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
         return librarySong ??
             SongModel(
               id: id,
-              title: 'Unknown Song',
+              title: 'Missing from library',
               artist: 'Unknown Artist',
               duration: 0,
             );
@@ -419,7 +426,8 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
 
       return SongModel(
         id: id,
-        title: provisionalSong.title == 'Unknown Song'
+        title: provisionalSong.title == 'Unknown Song' ||
+                provisionalSong.title == 'Missing from library'
             ? librarySong.title
             : provisionalSong.title,
         artist: provisionalSong.artist == 'Unknown Artist'
@@ -448,7 +456,10 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
         return downloadedSongs[id]!;
       } else {
         final albumId = _playlist?.songAlbumIds[id];
-        final title = _playlist?.songTitles[id] ?? 'Unknown Song';
+        final cachedTitle = _playlist?.songTitles[id];
+        final title = (cachedTitle != null && cachedTitle.isNotEmpty)
+            ? cachedTitle
+            : 'Missing from library';
         final artist = _playlist?.songArtists[id] ?? 'Unknown Artist';
         var duration = _playlist?.songDurations[id] ?? 0;
         // Fallback to library duration if playlist duration is 0 or missing

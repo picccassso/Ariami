@@ -5,9 +5,11 @@ import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as path;
 import 'package:ariami_core/models/artwork_size.dart';
+import 'package:ariami_core/models/feature_flags.dart';
 import 'package:ariami_core/models/library_structure.dart';
 import 'package:ariami_core/models/album.dart';
 import 'package:ariami_core/models/file_change.dart';
+import 'package:ariami_core/models/scan_diagnostics.dart';
 import 'package:ariami_core/models/song_metadata.dart';
 import 'package:ariami_core/services/artwork/artwork_service.dart';
 import 'package:ariami_core/services/catalog/catalog_database.dart';
@@ -128,6 +130,12 @@ class LibraryManager {
   /// Whether durations are ready for the current library snapshot
   bool _durationsReady = true;
 
+  /// Feature flags controlling catalog writes and artwork precompute.
+  AriamiFeatureFlags _featureFlags = const AriamiFeatureFlags();
+
+  /// Diagnostics from the most recent full library scan.
+  ScanDiagnostics _latestScanDiagnostics = const ScanDiagnostics();
+
   /// Get the current library structure
   LibraryStructure? get library => _library;
 
@@ -183,8 +191,24 @@ class LibraryManager {
   /// Whether duration warm-up is currently running
   bool get isDurationWarmupRunning => _durationWarmupRunning;
 
+  /// Diagnostics from the most recent full library scan.
+  ScanDiagnostics get latestScanDiagnostics => _latestScanDiagnostics;
+
   /// Latest token written to `library_changes`.
   int get latestToken => _latestCatalogToken;
+
+  /// Configure feature flags for catalog and artwork behavior.
+  void setFeatureFlags(AriamiFeatureFlags flags) {
+    _featureFlags = flags;
+  }
+
+  bool get _shouldWriteCatalog =>
+      _featureFlags.enableCatalogWrite || _featureFlags.enableV2Api;
+
+  bool get _shouldReadCatalog =>
+      _featureFlags.enableCatalogRead || _featureFlags.enableV2Api;
+
+  bool get _shouldPrecomputeArtwork => _featureFlags.enableArtworkPrecompute;
 
   void _rebuildSongIndexes() {
     _songById.clear();
@@ -214,6 +238,10 @@ class LibraryManager {
   /// Creates a catalog repository instance when catalog DB is initialized.
   /// Returns null if catalog persistence is not available yet.
   CatalogRepository? createCatalogRepository() {
+    if (!_shouldReadCatalog && !_shouldWriteCatalog) {
+      return null;
+    }
+
     final catalogDatabase = _catalogDatabase;
     if (catalogDatabase == null || !catalogDatabase.isInitialized) {
       return null;

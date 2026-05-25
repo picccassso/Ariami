@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:ariami_core/models/folder_playlist.dart';
 import 'package:ariami_core/models/library_structure.dart';
+import 'package:ariami_core/models/album.dart';
 import 'package:ariami_core/models/song_metadata.dart';
 import 'package:ariami_core/services/catalog/catalog_database.dart';
 import 'package:ariami_core/services/catalog/catalog_repository.dart';
@@ -91,6 +92,84 @@ void main() {
         jsonDecode(playlistEvents.single.payloadJson!)['duration'],
         equals(360),
       );
+    });
+
+    test('does not set coverArtKey when album hasArtwork is false', () {
+      final library = LibraryStructure(
+        albums: {
+          'album-no-art': Album(
+            id: 'album-no-art',
+            title: 'No Art Album',
+            artist: 'Artist',
+            songs: const [
+              SongMetadata(
+                filePath: '/tmp/album/track1.mp3',
+                title: 'Track 1',
+                artist: 'Artist',
+                album: 'No Art Album',
+                duration: 180,
+              ),
+              SongMetadata(
+                filePath: '/tmp/album/track2.mp3',
+                title: 'Track 2',
+                artist: 'Artist',
+                album: 'No Art Album',
+                duration: 180,
+              ),
+            ],
+            artworkPath: '/tmp/album/track1.mp3',
+            hasArtwork: false,
+          ),
+        },
+        standaloneSongs: const [],
+      );
+
+      writer.writeFullSnapshot(
+        library: library,
+        songIdForPath: (path) => 'song-${path.hashCode}',
+      );
+
+      final album = repository.getAlbumsByIds(['album-no-art']).single;
+      expect(album.coverArtKey, isNull);
+    });
+
+    test('sets coverArtKey when album hasArtwork is true', () {
+      final library = LibraryStructure(
+        albums: {
+          'album-with-art': Album(
+            id: 'album-with-art',
+            title: 'Art Album',
+            artist: 'Artist',
+            songs: const [
+              SongMetadata(
+                filePath: '/tmp/art/track1.mp3',
+                title: 'Track 1',
+                artist: 'Artist',
+                album: 'Art Album',
+                duration: 180,
+              ),
+              SongMetadata(
+                filePath: '/tmp/art/track2.mp3',
+                title: 'Track 2',
+                artist: 'Artist',
+                album: 'Art Album',
+                duration: 180,
+              ),
+            ],
+            artworkPath: '/tmp/art/cover.jpg',
+            hasArtwork: true,
+          ),
+        },
+        standaloneSongs: const [],
+      );
+
+      writer.writeFullSnapshot(
+        library: library,
+        songIdForPath: (path) => 'song-${path.hashCode}',
+      );
+
+      final album = repository.getAlbumsByIds(['album-with-art']).single;
+      expect(album.coverArtKey, 'album-with-art');
     });
   });
 }

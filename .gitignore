@@ -130,6 +130,7 @@ ariami_core/.dart_tool/
 
 # Context folder
 /context/
+/@context/
 /plans/
 /.cursor/
 

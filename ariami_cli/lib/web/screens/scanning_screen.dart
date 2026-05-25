@@ -17,6 +17,7 @@ class _ScanningScreenState extends State<ScanningScreen> with SingleTickerProvid
   String _statusMessage = 'INITIALIZING SCAN...';
   int _songsFound = 0;
   int _albumsFound = 0;
+  int _skippedFileCount = 0;
   bool _isScanning = true;
   bool _isComplete = false;
 
@@ -86,6 +87,7 @@ class _ScanningScreenState extends State<ScanningScreen> with SingleTickerProvid
         _progress = (status['progress'] as num?)?.toDouble() ?? 0.0;
         _songsFound = status['songsFound'] as int? ?? 0;
         _albumsFound = status['albumsFound'] as int? ?? 0;
+        _skippedFileCount = status['skippedFileCount'] as int? ?? 0;
         _statusMessage = (status['currentStatus'] as String? ?? 'Scanning...').toUpperCase();
         _isComplete = !_isScanning && _progress >= 1.0;
       });
@@ -228,6 +230,43 @@ class _ScanningScreenState extends State<ScanningScreen> with SingleTickerProvid
                           ],
                         ),
                       ),
+                      if (_isComplete && _skippedFileCount > 0) ...[
+                        const SizedBox(height: 32),
+                        SizedBox(
+                          width: 600,
+                          child: Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.amber.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: Colors.amber.withValues(alpha: 0.35),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.warning_amber_rounded,
+                                  color: Colors.amber.shade300,
+                                  size: 22,
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    '$_skippedFileCount FILE(S) COULD NOT BE READ AND WERE SKIPPED',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w800,
+                                      color: Colors.amber.shade100,
+                                      letterSpacing: 0.8,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                       if (_isComplete) ...[
                         const SizedBox(height: 64),
                         Row(

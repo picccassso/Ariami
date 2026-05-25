@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../services/playback_manager.dart';
 import 'bottom_chrome_metrics.dart';
+import 'queue_action_confirmation.dart';
 
 /// Tracks whether the full player screen is currently covering the mini player.
 ///
@@ -97,6 +98,7 @@ Future<T?> showMiniPlayerAwareBottomSheet<T>({
   AnimationController? transitionAnimationController,
   Offset? anchorPoint,
 }) {
+  dismissQueueActionConfirmation();
   return showModalBottomSheet<T>(
     context: context,
     backgroundColor: backgroundColor,
@@ -214,6 +216,8 @@ Future<T?> showAriamiSheet<T>({
     (items != null) ^ (child != null),
     'showAriamiSheet requires exactly one of `items` or `child`.',
   );
+
+  dismissQueueActionConfirmation();
 
   return showModalBottomSheet<T>(
     context: context,

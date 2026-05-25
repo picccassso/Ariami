@@ -1,12 +1,33 @@
-import 'package:crypto/crypto.dart';
-import 'dart:convert';
 import 'package:ariami_core/models/album.dart';
 import 'package:ariami_core/models/song_metadata.dart';
 import 'package:ariami_core/models/library_structure.dart';
+import 'package:ariami_core/services/library/album_art_detection.dart';
 import 'package:ariami_core/services/library/album_grouping.dart';
+import 'package:ariami_core/services/library/album_identity.dart';
+import 'package:ariami_core/services/library/metadata_extractor.dart';
+
+/// Resolves artwork source path and whether artwork is confirmed present.
+({String? artworkPath, bool hasArtwork}) resolveAlbumArtworkSources(
+  List<SongMetadata> songs,
+) {
+  final albumDir = albumDirectoryFromSongPaths(songs.map((s) => s.filePath));
+  if (albumDir != null) {
+    final sidecarPath = findAlbumSidecarArtworkPath(albumDir);
+    if (sidecarPath != null) {
+      return (artworkPath: sidecarPath, hasArtwork: true);
+    }
+  }
+
+  final lazyPath = songs.isNotEmpty ? songs.first.filePath : null;
+  return (artworkPath: lazyPath, hasArtwork: false);
+}
 
 /// Service for building album structures from song metadata
 class AlbumBuilder {
+  AlbumBuilder({MetadataExtractor? metadataExtractor})
+      : _metadataExtractor = metadataExtractor ?? MetadataExtractor();
+
+  final MetadataExtractor _metadataExtractor;
   /// Groups songs into albums based on metadata
   ///
   /// Uses [albumGroupingKey] (album + album artist, or normalized track artist).
@@ -52,6 +73,46 @@ class AlbumBuilder {
     );
   }
 
+  /// Builds library structure and cheaply detects embedded artwork per album.
+  Future<LibraryStructure> buildLibraryAsync(List<SongMetadata> songs) async {
+    final structure = buildLibrary(songs);
+    final enrichedAlbums = await enrichAlbumsWithEmbeddedArtwork(
+      structure.albums,
+      _metadataExtractor,
+    );
+    return LibraryStructure(
+      albums: enrichedAlbums,
+      standaloneSongs: structure.standaloneSongs,
+      folderPlaylists: structure.folderPlaylists,
+    );
+  }
+
+  /// Confirms embedded artwork for albums that only had sidecar-less lazy paths.
+  static Future<Map<String, Album>> enrichAlbumsWithEmbeddedArtwork(
+    Map<String, Album> albums,
+    MetadataExtractor extractor,
+  ) async {
+    final enriched = <String, Album>{};
+
+    for (final entry in albums.entries) {
+      var album = entry.value;
+      if (!album.hasArtwork) {
+        for (final song in album.songs) {
+          if (await extractor.hasEmbeddedArtwork(song.filePath)) {
+            album = album.copyWith(
+              hasArtwork: true,
+              artworkPath: song.filePath,
+            );
+            break;
+          }
+        }
+      }
+      enriched[entry.key] = album;
+    }
+
+    return enriched;
+  }
+
   /// Builds an Album object from grouped songs
   Album _buildAlbum(String key, List<SongMetadata> songs) {
     // Extract album info from first song
@@ -67,11 +128,10 @@ class AlbumBuilder {
     // Find the most common year
     final year = _getMostCommonYear(songs);
 
-    // Use first song's file path as artwork source (artwork extracted lazily on demand)
-    final artworkPath = songs.isNotEmpty ? songs.first.filePath : null;
+    final artwork = resolveAlbumArtworkSources(songs);
 
     // Generate unique ID for the album
-    final albumId = _generateAlbumId(albumTitle, finalArtist);
+    final albumId = generateAlbumId(albumTitle, finalArtist);
 
     return Album(
       id: albumId,
@@ -79,7 +139,8 @@ class AlbumBuilder {
       artist: finalArtist,
       songs: songs,
       year: year,
-      artworkPath: artworkPath,
+      artworkPath: artwork.artworkPath,
+      hasArtwork: artwork.hasArtwork,
     );
   }
 
@@ -151,11 +212,4 @@ class AlbumBuilder {
     return yearCounts.entries.reduce((a, b) => a.value > b.value ? a : b).key;
   }
 
-  /// Generates a unique ID for an album
-  String _generateAlbumId(String title, String artist) {
-    final input = '$title|||$artist'.toLowerCase();
-    final bytes = utf8.encode(input);
-    final digest = md5.convert(bytes);
-    return digest.toString();
-  }
 }

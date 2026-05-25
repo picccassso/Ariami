@@ -23,6 +23,7 @@ class _ScanningScreenState extends State<ScanningScreen> {
   bool _isComplete = false;
   int _albumCount = 0;
   int _songCount = 0;
+  int _skippedFileCount = 0;
 
   @override
   void initState() {
@@ -43,11 +44,15 @@ class _ScanningScreenState extends State<ScanningScreen> {
 
       await _httpServer.libraryManager.scanMusicFolder(widget.musicFolderPath);
 
+      final diagnostics = _httpServer.libraryManager.latestScanDiagnostics;
       setState(() {
         _isComplete = true;
         _albumCount = _httpServer.libraryManager.library?.totalAlbums ?? 0;
         _songCount = _httpServer.libraryManager.library?.totalSongs ?? 0;
-        _status = 'Scan complete!';
+        _skippedFileCount = diagnostics.skippedFileCount;
+        _status = diagnostics.skippedFileCount > 0
+            ? 'Scan complete with ${diagnostics.skippedFileCount} skipped file(s)'
+            : 'Scan complete!';
       });
 
       // Wait a moment to show the completion, then navigate
@@ -144,6 +149,41 @@ class _ScanningScreenState extends State<ScanningScreen> {
                     ),
                   ),
                 ),
+                if (_skippedFileCount > 0) ...[
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2A1F0A),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.amber.withValues(alpha: 0.4)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.warning_amber_rounded,
+                          color: Colors.amber.shade300,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 10),
+                        Flexible(
+                          child: Text(
+                            '$_skippedFileCount file(s) could not be read and were skipped',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.amber.shade100,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ],
             ],
           ),

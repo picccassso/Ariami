@@ -17,6 +17,7 @@ class LibraryState {
   /// Loading and error states
   final bool isLoading;
   final String? errorMessage;
+  final String? syncWarningMessage;
 
   /// UI preferences
   final bool isGridView;
@@ -43,6 +44,7 @@ class LibraryState {
     this.isOfflineMode = false,
     this.isLoading = true,
     this.errorMessage,
+    this.syncWarningMessage,
     this.isGridView = true,
     this.albumsExpanded = true,
     this.songsExpanded = false,
@@ -65,6 +67,7 @@ class LibraryState {
     bool? isOfflineMode,
     bool? isLoading,
     String? errorMessage,
+    String? syncWarningMessage,
     bool? isGridView,
     bool? albumsExpanded,
     bool? songsExpanded,
@@ -78,6 +81,7 @@ class LibraryState {
     Map<String, DateTime>? itemLastPlayedAt,
     Set<String>? pinnedItemIds,
     bool clearError = false,
+    bool clearSyncWarning = false,
   }) {
     return LibraryState(
       albums: albums ?? this.albums,
@@ -86,6 +90,9 @@ class LibraryState {
       isOfflineMode: isOfflineMode ?? this.isOfflineMode,
       isLoading: isLoading ?? this.isLoading,
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
+      syncWarningMessage: clearSyncWarning
+          ? null
+          : (syncWarningMessage ?? this.syncWarningMessage),
       isGridView: isGridView ?? this.isGridView,
       albumsExpanded: albumsExpanded ?? this.albumsExpanded,
       songsExpanded: songsExpanded ?? this.songsExpanded,
@@ -163,6 +170,7 @@ class LibraryState {
         other.isOfflineMode == isOfflineMode &&
         other.isLoading == isLoading &&
         other.errorMessage == errorMessage &&
+        other.syncWarningMessage == syncWarningMessage &&
         other.isGridView == isGridView &&
         other.albumsExpanded == albumsExpanded &&
         other.songsExpanded == songsExpanded &&
@@ -185,6 +193,7 @@ class LibraryState {
         isOfflineMode,
         isLoading,
         errorMessage,
+        syncWarningMessage,
         isGridView,
         albumsExpanded,
         songsExpanded,
@@ -204,6 +213,7 @@ class LibraryState {
     return 'LibraryState(albums: ${albums.length}, songs: ${songs.length}, '
         'offlineSongs: ${offlineSongs.length}, isOfflineMode: $isOfflineMode, '
         'isLoading: $isLoading, errorMessage: $errorMessage, '
+        'syncWarningMessage: $syncWarningMessage, '
         'isGridView: $isGridView, albumsExpanded: $albumsExpanded, '
         'songsExpanded: $songsExpanded, isMixedMode: $isMixedMode, '
         'showDownloadedOnly: $showDownloadedOnly, '

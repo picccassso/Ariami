@@ -32,42 +32,60 @@ class LibraryRepository {
     return (await _database).getSyncState();
   }
 
-  Future<bool> hasCompletedBootstrap() async {
+  Future<String?> getBootstrapPendingReason() async {
     final syncState = await getSyncState();
     if (!syncState.bootstrapComplete) {
-      _logBootstrapPending(
-        reason: 'sync_state_incomplete',
-        syncState: syncState,
-      );
-      return false;
+      return 'sync_state_incomplete';
     }
 
     final db = await _database;
     final albumIssues = await db.listAlbumSongCountIssues();
     if (albumIssues.isNotEmpty) {
-      final issueSummary = albumIssues
-          .map(
-            (issue) => '${issue.albumTitle}(${issue.albumId}): '
-                'expected=${issue.expectedSongCount} '
-                'actual=${issue.activeSongCount}',
-          )
-          .join(' | ');
-      _logBootstrapPending(
-        reason: 'album_song_count_mismatch',
-        syncState: syncState,
-        issues: <PlaylistMembershipBackfillIssue>[],
-        extraDetail: issueSummary,
-      );
-      return false;
+      return 'album_song_count_mismatch';
     }
 
     final issues = await db.listPlaylistMembershipBackfillIssues();
     if (issues.isNotEmpty) {
-      _logBootstrapPending(
-        reason: 'playlist_membership_backfill_pending',
-        syncState: syncState,
-        issues: issues,
-      );
+      return 'playlist_membership_backfill_pending';
+    }
+
+    return null;
+  }
+
+  Future<bool> hasCompletedBootstrap() async {
+    final syncState = await getSyncState();
+    final pendingReason = await getBootstrapPendingReason();
+    if (pendingReason != null) {
+      if (pendingReason == 'sync_state_incomplete') {
+        _logBootstrapPending(
+          reason: pendingReason,
+          syncState: syncState,
+        );
+      } else if (pendingReason == 'album_song_count_mismatch') {
+        final db = await _database;
+        final albumIssues = await db.listAlbumSongCountIssues();
+        final issueSummary = albumIssues
+            .map(
+              (issue) => '${issue.albumTitle}(${issue.albumId}): '
+                  'expected=${issue.expectedSongCount} '
+                  'actual=${issue.activeSongCount}',
+            )
+            .join(' | ');
+        _logBootstrapPending(
+          reason: pendingReason,
+          syncState: syncState,
+          issues: const <PlaylistMembershipBackfillIssue>[],
+          extraDetail: issueSummary,
+        );
+      } else if (pendingReason == 'playlist_membership_backfill_pending') {
+        final db = await _database;
+        final issues = await db.listPlaylistMembershipBackfillIssues();
+        _logBootstrapPending(
+          reason: pendingReason,
+          syncState: syncState,
+          issues: issues,
+        );
+      }
       return false;
     }
 

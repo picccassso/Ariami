@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../../models/api_models.dart';
+import '../sync/library_sync_engine.dart';
 import 'library_repository.dart';
 
 enum LibraryReadSource {
@@ -25,6 +26,8 @@ class LibraryReadBundle {
     required this.durationsReady,
     required this.source,
     required this.sourceReason,
+    this.syncHealth,
+    this.isPartialRead = false,
   });
 
   final List<AlbumModel> albums;
@@ -33,6 +36,8 @@ class LibraryReadBundle {
   final bool durationsReady;
   final LibraryReadSource source;
   final String sourceReason;
+  final LibrarySyncHealth? syncHealth;
+  final bool isPartialRead;
 }
 
 /// Unified v2-only facade for locally synced library reads.
@@ -40,15 +45,18 @@ class LibraryReadFacade {
   LibraryReadFacade({
     required Object? Function() apiClientProvider,
     LibraryRepository? libraryRepository,
+    Future<LibrarySyncHealth> Function()? syncHealthProvider,
     Duration bootstrapWaitTimeout = const Duration(seconds: 2),
     Duration bootstrapPollInterval = const Duration(milliseconds: 100),
   })  : _apiClientProvider = apiClientProvider,
         _libraryRepository = libraryRepository ?? LibraryRepository(),
+        _syncHealthProvider = syncHealthProvider,
         _bootstrapWaitTimeout = bootstrapWaitTimeout,
         _bootstrapPollInterval = bootstrapPollInterval;
 
   final Object? Function() _apiClientProvider;
   final LibraryRepository _libraryRepository;
+  final Future<LibrarySyncHealth> Function()? _syncHealthProvider;
   final Duration _bootstrapWaitTimeout;
   final Duration _bootstrapPollInterval;
 
@@ -136,6 +144,12 @@ class LibraryReadFacade {
     _logDecision('getLibraryBundle', decision);
 
     final localBundle = await _libraryRepository.getLibraryBundle();
+    final syncHealth = _syncHealthProvider != null
+        ? await _syncHealthProvider!()
+        : await _defaultSyncHealth(decision);
+    final isPartialRead = !decision.reason.contains('bootstrap is complete') ||
+        syncHealth.isPartialRead;
+
     return LibraryReadBundle(
       albums: localBundle.albums,
       songs: localBundle.songs,
@@ -143,6 +157,20 @@ class LibraryReadFacade {
       durationsReady: _durationsReady(localBundle.songs),
       source: decision.source,
       sourceReason: decision.reason,
+      syncHealth: syncHealth,
+      isPartialRead: isPartialRead,
+    );
+  }
+
+  Future<LibrarySyncHealth> _defaultSyncHealth(LibraryReadDecision decision) async {
+    final bootstrapComplete =
+        decision.reason.contains('bootstrap is complete');
+    final mismatchReason = bootstrapComplete
+        ? null
+        : await _libraryRepository.getBootstrapPendingReason();
+    return LibrarySyncHealth(
+      isPartialBootstrap: !bootstrapComplete,
+      bootstrapMismatchReason: mismatchReason,
     );
   }
 

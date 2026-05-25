@@ -9,6 +9,10 @@ extension _LibraryManagerCatalogPart on LibraryManager {
   }
 
   Future<void> _writeCatalogSnapshot() async {
+    if (!_shouldWriteCatalog) {
+      return;
+    }
+
     final library = _library;
     final catalogWriter = _catalogWriter;
     if (library == null || catalogWriter == null) {
@@ -45,6 +49,10 @@ extension _LibraryManagerCatalogPart on LibraryManager {
     required LibraryStructure previousLibrary,
     required LibraryStructure updatedLibrary,
   }) async {
+    if (!_shouldWriteCatalog) {
+      return;
+    }
+
     final catalogDatabase = _catalogDatabase;
     if (catalogDatabase == null) {
       return;
@@ -72,6 +80,15 @@ extension _LibraryManagerCatalogPart on LibraryManager {
     final deletedSongIds = <String>{...update.removedSongIds};
 
     final affectedAlbumIds = <String>{...update.affectedAlbumIds};
+    for (final entry in updatedSongAlbumIds.entries) {
+      final songId = entry.key;
+      if (!songRecordsById.containsKey(songId)) {
+        continue;
+      }
+      if (previousSongAlbumIds[songId] != entry.value) {
+        upsertSongIds.add(songId);
+      }
+    }
     for (final songId in upsertSongIds) {
       final previousAlbumId = previousSongAlbumIds[songId];
       final updatedAlbumId = updatedSongAlbumIds[songId];
@@ -296,6 +313,10 @@ extension _LibraryManagerCatalogPart on LibraryManager {
   }
 
   Future<void> _writeCatalogDurationUpdates(Set<String> updatedSongIds) async {
+    if (!_shouldWriteCatalog) {
+      return;
+    }
+
     final catalogDatabase = _catalogDatabase;
     final library = _library;
     if (catalogDatabase == null || library == null || updatedSongIds.isEmpty) {
@@ -432,6 +453,10 @@ extension _LibraryManagerCatalogPart on LibraryManager {
     required LibraryStructure library,
     required Iterable<String> albumIds,
   }) async {
+    if (!_shouldPrecomputeArtwork) {
+      return;
+    }
+
     final catalogWriter = _catalogWriter;
     final artworkService = _artworkPrecomputeService;
     if (catalogWriter == null || artworkService == null) {
@@ -495,6 +520,7 @@ extension _LibraryManagerCatalogPart on LibraryManager {
             updatedToken: _latestCatalogToken,
           ),
         );
+        _markAlbumHasArtworkInMemory(album.id);
       } catch (e) {
         print('[LibraryManager] WARNING: Failed artwork precompute for '
             'album $albumId: $e');
@@ -509,17 +535,41 @@ extension _LibraryManagerCatalogPart on LibraryManager {
         return null;
       }
 
-      final sourceSong = album.songs.isNotEmpty ? album.songs.first : null;
-      if (sourceSong == null) {
+      final referencePath = album.artworkPath ??
+          (album.songs.isNotEmpty ? album.songs.first.filePath : null);
+      if (referencePath == null) {
         return null;
       }
 
       return _AlbumArtworkSource(
         artworkBytes: cachedArtwork,
-        referencePath: sourceSong.filePath,
-        lastModifiedEpochMs: sourceSong.modifiedTime?.millisecondsSinceEpoch ??
-            DateTime.now().millisecondsSinceEpoch,
+        referencePath: referencePath,
+        lastModifiedEpochMs: _artworkReferenceModifiedEpochMs(
+          album,
+          referencePath,
+        ),
       );
+    }
+
+    final sidecarOrLazyPath = album.artworkPath;
+    if (sidecarOrLazyPath != null && _isImageFilePath(sidecarOrLazyPath)) {
+      try {
+        final sidecarFile = File(sidecarOrLazyPath);
+        if (await sidecarFile.exists()) {
+          final artworkBytes = await sidecarFile.readAsBytes();
+          if (artworkBytes.isNotEmpty) {
+            _artworkCache[album.id] = artworkBytes;
+            return _AlbumArtworkSource(
+              artworkBytes: artworkBytes,
+              referencePath: sidecarOrLazyPath,
+              lastModifiedEpochMs:
+                  (await sidecarFile.stat()).modified.millisecondsSinceEpoch,
+            );
+          }
+        }
+      } catch (_) {
+        // Fall through to embedded extraction.
+      }
     }
 
     for (final song in album.songs) {
@@ -655,7 +705,7 @@ extension _LibraryManagerCatalogPart on LibraryManager {
         title: album.title,
         artist: album.artist,
         year: album.year,
-        coverArtKey: album.artworkPath != null ? album.id : null,
+        coverArtKey: album.hasArtwork ? album.id : null,
         songCount: album.songCount,
         durationSeconds: durationSeconds,
         updatedToken: 0,
@@ -806,6 +856,50 @@ INSERT INTO library_changes (
     return previous.name != current.name ||
         previous.songCount != current.songCount ||
         previous.durationSeconds != current.durationSeconds;
+  }
+
+  void _markAlbumHasArtworkInMemory(String albumId) {
+    final library = _library;
+    if (library == null) {
+      return;
+    }
+
+    final album = library.albums[albumId];
+    if (album == null || album.hasArtwork) {
+      return;
+    }
+
+    final updatedAlbums = Map<String, Album>.from(library.albums);
+    updatedAlbums[albumId] = album.copyWith(hasArtwork: true);
+    _library = LibraryStructure(
+      albums: updatedAlbums,
+      standaloneSongs: library.standaloneSongs,
+      folderPlaylists: library.folderPlaylists,
+    );
+  }
+
+  bool _isImageFilePath(String filePath) {
+    final extension = path.extension(filePath).toLowerCase();
+    return extension == '.jpg' ||
+        extension == '.jpeg' ||
+        extension == '.png' ||
+        extension == '.gif' ||
+        extension == '.webp';
+  }
+
+  int _artworkReferenceModifiedEpochMs(Album album, String referencePath) {
+    for (final song in album.songs) {
+      if (song.filePath == referencePath) {
+        return song.modifiedTime?.millisecondsSinceEpoch ??
+            DateTime.now().millisecondsSinceEpoch;
+      }
+    }
+
+    try {
+      return File(referencePath).statSync().modified.millisecondsSinceEpoch;
+    } catch (_) {
+      return DateTime.now().millisecondsSinceEpoch;
+    }
   }
 
   String _catalogAlbumPayloadJson(CatalogAlbumRecord record) {

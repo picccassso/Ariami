@@ -42,7 +42,7 @@ class SongsSection extends StatelessWidget {
         child: Padding(
           padding: EdgeInsets.all(16.0),
           child: Text(
-            'No offline songs available',
+            'No downloaded standalone songs',
             style: TextStyle(color: Colors.grey),
             textAlign: TextAlign.center,
           ),
@@ -92,7 +92,7 @@ class SongsSection extends StatelessWidget {
         child: Padding(
           padding: EdgeInsets.all(16.0),
           child: Text(
-            'No standalone songs found',
+            'No songs found',
             style: TextStyle(color: Colors.grey),
             textAlign: TextAlign.center,
           ),

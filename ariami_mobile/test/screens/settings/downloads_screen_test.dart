@@ -19,6 +19,7 @@ void main() {
         expect(bundle.source, LibraryReadSource.v2LocalStore);
         expect(bundle.songs.length, greaterThan(0));
         expect(bundle.albums.length, greaterThan(0));
+        expect(bundle.isPartialRead, isTrue);
       },
     );
   });
@@ -30,6 +31,9 @@ class _SnapshotWhileBootstrappingRepository extends LibraryRepository {
 
   @override
   Future<bool> hasCompletedBootstrap() async => false;
+
+  @override
+  Future<String?> getBootstrapPendingReason() async => 'sync_state_incomplete';
 
   @override
   Future<LibraryRepositoryBundle> getLibraryBundle() async {

@@ -159,6 +159,13 @@ void main() {
 
       server.libraryManager
           .setCachePath(p.join(testDir.path, 'metadata_cache.json'));
+      server.setFeatureFlags(
+        const AriamiFeatureFlags(
+          enableV2Api: true,
+          enableCatalogWrite: true,
+          enableCatalogRead: true,
+        ),
+      );
       server.setWebAssetsPath(webDir.path);
       await server.initializeAuth(
         usersFilePath: p.join(testDir.path, 'users.json'),

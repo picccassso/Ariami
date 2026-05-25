@@ -372,6 +372,16 @@ class _LibraryScreenState extends State<LibraryScreen> {
     switch (outcome) {
       case LibraryRefreshOutcome.ok:
         break;
+      case LibraryRefreshOutcome.showSyncFailedSnack:
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Library sync failed. Showing cached data.',
+            ),
+            duration: Duration(seconds: 3),
+          ),
+        );
+        break;
       case LibraryRefreshOutcome.showSessionExpiredSnack:
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(

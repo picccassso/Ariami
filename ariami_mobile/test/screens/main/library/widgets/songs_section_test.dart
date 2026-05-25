@@ -101,7 +101,7 @@ void main() {
       await tester.pumpWidget(buildTestWidget(state: state));
       await tester.pump();
 
-      expect(find.text('No offline songs available'), findsOneWidget);
+      expect(find.text('No downloaded standalone songs'), findsOneWidget);
     });
 
     testWidgets('should display empty message for online mode with no songs',
@@ -115,7 +115,7 @@ void main() {
       await tester.pumpWidget(buildTestWidget(state: state));
       await tester.pump();
 
-      expect(find.text('No standalone songs found'), findsOneWidget);
+      expect(find.text('No songs found'), findsOneWidget);
     });
 
     testWidgets('should filter songs by downloads', (tester) async {

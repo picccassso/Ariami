@@ -328,7 +328,7 @@ ON CONFLICT(artwork_key, variant) DO UPDATE SET
         title: album.title,
         artist: album.artist,
         year: album.year,
-        coverArtKey: album.artworkPath != null ? album.id : null,
+        coverArtKey: album.hasArtwork ? album.id : null,
         songCount: album.songCount,
         durationSeconds: durationSeconds,
       );

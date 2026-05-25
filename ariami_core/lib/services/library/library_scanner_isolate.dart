@@ -5,6 +5,7 @@ import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as path;
 import 'package:ariami_core/models/folder_playlist.dart';
 import 'package:ariami_core/models/library_structure.dart';
+import 'package:ariami_core/models/scan_diagnostics.dart';
 import 'package:ariami_core/models/song_metadata.dart';
 import 'package:ariami_core/services/library/file_scanner.dart';
 import 'package:ariami_core/services/library/metadata_extractor.dart';
@@ -52,6 +53,12 @@ class ScanResultMessage {
   final int cacheHits;
   final int cacheMisses;
 
+  /// Bounded list of files that could not be processed during scan.
+  final List<ScanFailedFile> failedFiles;
+
+  /// Total skipped files (may exceed [failedFiles].length when bounded).
+  final int skippedFileCount;
+
   const ScanResultMessage({
     required this.type,
     this.library,
@@ -60,6 +67,8 @@ class ScanResultMessage {
     this.updatedCache,
     this.cacheHits = 0,
     this.cacheMisses = 0,
+    this.failedFiles = const [],
+    this.skippedFileCount = 0,
   });
 }
 
@@ -112,7 +121,8 @@ class LibraryScannerIsolate {
         LibraryStructure? library,
         Map<String, Map<String, dynamic>>? updatedCache,
         int cacheHits,
-        int cacheMisses
+        int cacheMisses,
+        ScanDiagnostics scanDiagnostics,
       })> scan(
     String folderPath, {
     void Function(ScanProgressMessage)? onProgress,
@@ -136,6 +146,7 @@ class LibraryScannerIsolate {
       Map<String, Map<String, dynamic>>? updatedCache;
       int cacheHits = 0;
       int cacheMisses = 0;
+      ScanDiagnostics scanDiagnostics = const ScanDiagnostics();
       String? errorMessage;
 
       await for (final message in receivePort) {
@@ -147,6 +158,10 @@ class LibraryScannerIsolate {
             updatedCache = message.updatedCache;
             cacheHits = message.cacheHits;
             cacheMisses = message.cacheMisses;
+            scanDiagnostics = ScanDiagnostics(
+              skippedFileCount: message.skippedFileCount,
+              failedFiles: message.failedFiles,
+            );
           } else if (message.type == ScanMessageType.error) {
             errorMessage = message.error;
           }
@@ -160,7 +175,8 @@ class LibraryScannerIsolate {
           library: null,
           updatedCache: null,
           cacheHits: 0,
-          cacheMisses: 0
+          cacheMisses: 0,
+          scanDiagnostics: const ScanDiagnostics(),
         );
       }
 
@@ -168,11 +184,18 @@ class LibraryScannerIsolate {
         library: result,
         updatedCache: updatedCache,
         cacheHits: cacheHits,
-        cacheMisses: cacheMisses
+        cacheMisses: cacheMisses,
+        scanDiagnostics: scanDiagnostics,
       );
     } catch (e) {
       print('[LibraryScannerIsolate] Error spawning isolate: $e');
-      return (library: null, updatedCache: null, cacheHits: 0, cacheMisses: 0);
+      return (
+        library: null,
+        updatedCache: null,
+        cacheHits: 0,
+        cacheMisses: 0,
+        scanDiagnostics: const ScanDiagnostics(),
+      );
     } finally {
       receivePort.close();
     }
@@ -190,6 +213,15 @@ class LibraryScannerIsolate {
 
     // Build updated cache as we go
     final updatedCache = <String, Map<String, dynamic>>{};
+    final failedFiles = <ScanFailedFile>[];
+    var skippedFileCount = 0;
+
+    void recordFailure(String filePath, String reason) {
+      skippedFileCount++;
+      if (failedFiles.length < ScanDiagnostics.maxFailedFiles) {
+        failedFiles.add(ScanFailedFile(path: filePath, reason: reason));
+      }
+    }
 
     try {
       // Step 1: Collect audio files and detect [PLAYLIST] folders
@@ -220,6 +252,8 @@ class LibraryScannerIsolate {
           updatedCache: updatedCache,
           cacheHits: 0,
           cacheMisses: 0,
+          failedFiles: failedFiles,
+          skippedFileCount: skippedFileCount,
         ));
         return;
       }
@@ -247,7 +281,8 @@ class LibraryScannerIsolate {
         );
 
         // Collect successful results and update cache
-        for (final result in results) {
+        for (var i = 0; i < results.length; i++) {
+          final result = results[i];
           if (result != null) {
             songs.add(result.metadata);
             // Store in updated cache
@@ -261,6 +296,8 @@ class LibraryScannerIsolate {
             } else {
               cacheMisses++;
             }
+          } else {
+            recordFailure(batch[i], 'metadata extraction failed');
           }
         }
 
@@ -349,8 +386,9 @@ class LibraryScannerIsolate {
       _sendProgress(sendPort, 'albums', 0, uniqueSongs.length, 85.0,
           'Building album structure...');
 
-      final albumBuilder = AlbumBuilder();
-      final baseLibrary = albumBuilder.buildLibrary(albumCandidateSongs);
+      final albumBuilder = AlbumBuilder(metadataExtractor: extractor);
+      final baseLibrary =
+          await albumBuilder.buildLibraryAsync(albumCandidateSongs);
 
       // Step 5: Build folder playlists
       // First, build a map from duplicate file paths to their "original" paths
@@ -418,6 +456,8 @@ class LibraryScannerIsolate {
         updatedCache: updatedCache,
         cacheHits: cacheHits,
         cacheMisses: cacheMisses,
+        failedFiles: failedFiles,
+        skippedFileCount: skippedFileCount,
       ));
     } catch (e, stackTrace) {
       print('[LibraryScannerIsolate] ERROR in isolate: $e');

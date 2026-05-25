@@ -417,9 +417,8 @@ extension _DownloadManagerOperationsImpl on DownloadManager {
     final albumArt = item.albumId != null
         ? '${apiClient.baseUrl}/artwork/${item.albumId}'
         : '';
-    final title = item.title.trim().isNotEmpty ? item.title : item.songId;
-    final artist =
-        item.artist.trim().isNotEmpty ? item.artist : 'Unknown Artist';
+    final title = _resolveDownloadTitle(item);
+    final artist = _resolveDownloadArtist(item);
 
     return DownloadTask(
       id: taskId,
@@ -445,6 +444,33 @@ extension _DownloadManagerOperationsImpl on DownloadManager {
       status: DownloadStatus.pending,
       totalBytes: item.fileSizeBytes ?? 0,
     );
+  }
+
+  String _resolveDownloadTitle(DownloadJobItemModel item) {
+    final title = item.title.trim();
+    if (title.isNotEmpty) {
+      return title;
+    }
+    final albumName = item.albumName?.trim();
+    if (albumName != null && albumName.isNotEmpty) {
+      if (item.trackNumber != null && item.trackNumber! > 0) {
+        return '$albumName · track ${item.trackNumber}';
+      }
+      return 'Track from $albumName';
+    }
+    return item.songId;
+  }
+
+  String _resolveDownloadArtist(DownloadJobItemModel item) {
+    final artist = item.artist.trim();
+    if (artist.isNotEmpty) {
+      return artist;
+    }
+    final albumArtist = item.albumArtist?.trim();
+    if (albumArtist != null && albumArtist.isNotEmpty) {
+      return albumArtist;
+    }
+    return 'Unknown Artist';
   }
 
   Future<String> _resolveDownloadUrl(DownloadTask task) async {

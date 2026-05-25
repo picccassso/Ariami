@@ -14,6 +14,9 @@ enum LibraryRefreshOutcome {
   /// Library load finished; no extra UI action.
   ok,
 
+  /// Sync failed but cached library data was preserved.
+  showSyncFailedSnack,
+
   /// Same message as Settings when session/auth restore fails.
   showSessionExpiredSnack,
 

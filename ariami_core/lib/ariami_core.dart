@@ -18,7 +18,9 @@ export 'models/websocket_models.dart';
 
 // Library Services
 export 'services/library/album_builder.dart';
+export 'services/library/album_identity.dart';
 export 'services/library/change_processor.dart';
+export 'services/library/library_playlist_builder.dart';
 export 'services/library/duplicate_detector.dart';
 export 'services/library/file_scanner.dart';
 export 'services/library/folder_watcher.dart';

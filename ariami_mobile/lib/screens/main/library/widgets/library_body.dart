@@ -106,9 +106,15 @@ class LibraryBody extends StatelessWidget {
       onRefresh: onRefresh,
       child: CustomScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        slivers: state.isMixedMode
-            ? _buildMixedModeSlivers(context)
-            : _buildSeparateModeSlivers(context),
+        slivers: [
+          if (state.syncWarningMessage != null)
+            SliverToBoxAdapter(
+              child: _SyncWarningBanner(message: state.syncWarningMessage!),
+            ),
+          ...state.isMixedMode
+              ? _buildMixedModeSlivers(context)
+              : _buildSeparateModeSlivers(context),
+        ],
       ),
     );
   }
@@ -222,5 +228,41 @@ class LibraryBody extends StatelessWidget {
         ),
       ),
     ];
+  }
+}
+
+class _SyncWarningBanner extends StatelessWidget {
+  const _SyncWarningBanner({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.amber.withValues(alpha: 0.12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              Icons.sync_problem_rounded,
+              size: 18,
+              color: Colors.amber.shade700,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                message,
+                style: TextStyle(
+                  color: Colors.amber.shade100,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

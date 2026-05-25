@@ -756,7 +756,27 @@ class LibraryController extends ChangeNotifier {
       }
     }
 
+    if (!_offlineService.isOfflineModeEnabled &&
+        _connectionService.isConnected &&
+        _connectionService.apiClient != null) {
+      try {
+        await _connectionService.librarySyncEngine.syncNow();
+      } catch (_) {
+        // Sync errors are recorded in the engine; keep serving local data.
+      }
+    }
+
     await _loadLibrary();
+
+    if (!_offlineService.isOfflineModeEnabled &&
+        _connectionService.isConnected) {
+      final syncHealth =
+          await _connectionService.librarySyncEngine.getSyncHealth();
+      if (syncHealth.hasSyncFailure) {
+        return LibraryRefreshOutcome.showSyncFailedSnack;
+      }
+    }
+
     return LibraryRefreshOutcome.ok;
   }
 
@@ -770,6 +790,7 @@ class LibraryController extends ChangeNotifier {
       _updateState(_state.copyWith(
         isLoading: false,
         clearError: true,
+        clearSyncWarning: true,
         showDownloadedOnly: true,
       ));
       return;
@@ -798,6 +819,7 @@ class LibraryController extends ChangeNotifier {
         _updateState(_state.copyWith(
           isLoading: false,
           clearError: true,
+          clearSyncWarning: true,
           showDownloadedOnly: true,
         ));
       } else {
@@ -825,6 +847,8 @@ class LibraryController extends ChangeNotifier {
       isOfflineMode: false,
       isLoading: false,
       showDownloadedOnly: false,
+      syncWarningMessage: _buildSyncWarningMessage(library),
+      clearSyncWarning: !_hasSyncWarning(library),
     ));
 
     if (library.durationsReady) {
@@ -855,6 +879,20 @@ class LibraryController extends ChangeNotifier {
     }
 
     await _loadDownloadedSongs();
+  }
+
+  bool _hasSyncWarning(LibraryReadBundle library) {
+    return library.isPartialRead || library.syncHealth?.hasSyncFailure == true;
+  }
+
+  String? _buildSyncWarningMessage(LibraryReadBundle library) {
+    if (library.syncHealth?.hasSyncFailure == true) {
+      return 'Library sync failed. Showing cached data.';
+    }
+    if (library.isPartialRead) {
+      return 'Library sync is still in progress. Some content may be missing.';
+    }
+    return null;
   }
 
   // ============================================================================

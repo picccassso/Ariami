@@ -21,6 +21,7 @@ void main() {
         LibraryRefreshOutcome.values,
         containsAll(<LibraryRefreshOutcome>[
           LibraryRefreshOutcome.ok,
+          LibraryRefreshOutcome.showSyncFailedSnack,
           LibraryRefreshOutcome.showSessionExpiredSnack,
           LibraryRefreshOutcome.showManualReconnectFailedSnack,
           LibraryRefreshOutcome.navigateToReconnectScreen,

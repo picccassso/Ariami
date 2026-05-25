@@ -4,14 +4,12 @@ import 'dart:convert';
 import 'package:ariami_core/models/file_change.dart';
 import 'package:ariami_core/models/song_metadata.dart';
 import 'package:ariami_core/models/library_structure.dart';
-import 'package:ariami_core/services/library/album_grouping.dart';
 import 'package:ariami_core/services/library/metadata_extractor.dart';
-import 'package:ariami_core/services/library/album_builder.dart';
+import 'package:ariami_core/services/library/library_playlist_builder.dart';
 
 /// Service for processing file system changes into library updates
 class ChangeProcessor {
   final MetadataExtractor _metadataExtractor = MetadataExtractor();
-  final AlbumBuilder _albumBuilder = AlbumBuilder();
   Set<String> _lastAddedFiles = <String>{};
   Set<String> _lastModifiedFiles = <String>{};
 
@@ -88,13 +86,6 @@ class ChangeProcessor {
           extractedMetadata[path] = metadata;
           final songId = _generateSongId(metadata.filePath);
           addedSongIds.add(songId);
-
-          // Determine which album this will affect
-          final albumKey = albumGroupingKey(metadata);
-          if (albumKey != null) {
-            final albumId = _generateAlbumId(albumKey);
-            affectedAlbumIds.add(albumId);
-          }
         } catch (e) {
           print('Error processing added file "$path": $e');
         }
@@ -111,17 +102,11 @@ class ChangeProcessor {
           final songId = _generateSongId(metadata.filePath);
           modifiedSongIds.add(songId);
 
-          // Find affected albums (could be old and new if metadata changed)
-          // O(1) lookup using reverse index
+          // Track prior album membership; post-rebuild index comparison in
+          // library_manager_catalog fills in the final affected album IDs.
           final oldAlbumId = filePathToAlbumId[metadata.filePath];
           if (oldAlbumId != null) {
             affectedAlbumIds.add(oldAlbumId);
-          }
-
-          final albumKey = albumGroupingKey(metadata);
-          if (albumKey != null) {
-            final newAlbumId = _generateAlbumId(albumKey);
-            affectedAlbumIds.add(newAlbumId);
           }
         } catch (e) {
           print('Error processing modified file "$path": $e');
@@ -142,11 +127,6 @@ class ChangeProcessor {
   /// Generates a unique song ID from file path
   String _generateSongId(String filePath) {
     return md5.convert(utf8.encode(filePath)).toString().substring(0, 12);
-  }
-
-  /// Generates a unique album ID from album key
-  String _generateAlbumId(String albumKey) {
-    return md5.convert(utf8.encode(albumKey)).toString();
   }
 
   /// Applies library updates to rebuild affected portions of the library
@@ -215,8 +195,12 @@ class ChangeProcessor {
       }
     }
 
-    // Rebuild library structure
-    return _albumBuilder.buildLibrary(allSongs);
+    // Rebuild library structure, preserving and updating folder playlists.
+    return buildLibraryWithPlaylistsAsync(
+      allSongs: allSongs,
+      existingPlaylists: currentLibrary.folderPlaylists,
+      generateSongId: _generateSongId,
+    );
   }
 
   /// Checks if a file still exists and hasn't been modified

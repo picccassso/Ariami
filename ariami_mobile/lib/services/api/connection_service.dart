@@ -141,6 +141,7 @@ class ConnectionService {
     _libraryReadFacade = LibraryReadFacade(
       apiClientProvider: () => _lifecycleManager.apiClient,
       libraryRepository: _libraryRepository,
+      syncHealthProvider: () => _librarySyncEngine.getSyncHealth(),
     );
   }
 
@@ -180,6 +181,9 @@ class ConnectionService {
 
   /// Unified library read facade for deterministic v1/v2 source selection
   LibraryReadFacade get libraryReadFacade => _libraryReadFacade;
+
+  /// V2 library sync engine for explicit refresh and health queries.
+  LibrarySyncEngine get librarySyncEngine => _librarySyncEngine;
 
   /// Stream of connection state changes (true = connected, false = disconnected)
   Stream<bool> get connectionStateStream => _stateManager.connectionStateStream;

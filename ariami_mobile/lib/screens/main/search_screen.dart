@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
+import '../../widgets/common/queue_action_confirmation.dart';
 import '../../widgets/common/bottom_chrome_metrics.dart';
 import '../../models/api_models.dart';
 import '../../models/download_task.dart';
@@ -353,48 +354,12 @@ class _SearchScreenState extends State<SearchScreen> {
 
     // Show confirmation with undo option above bottom chrome (mini player + nav)
     if (mounted) {
-      final theme = Theme.of(context);
-      final colorScheme = theme.colorScheme;
-      final isMiniPlayerVisible = _playbackManager.currentSong != null;
-      final bottomOffset = getMiniPlayerAwareSnackBarBottomMargin(
+      showQueueActionConfirmation(
         context,
-        isMiniPlayerVisible: isMiniPlayerVisible,
-        spacing: 0,
-      );
-      final messenger = ScaffoldMessenger.of(context);
-
-      messenger.hideCurrentSnackBar();
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(
-            '"${song.title}" removed',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: colorScheme.onSurface,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          action: SnackBarAction(
-            label: 'Undo',
-            onPressed: () => _undoRemoveRecentSong(song, originalIndex),
-            textColor: colorScheme.primary,
-          ),
-          backgroundColor:
-              colorScheme.surfaceContainerHigh.withValues(alpha: 0.97),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(
-              color: colorScheme.outlineVariant.withValues(alpha: 0.45),
-            ),
-          ),
-          margin: EdgeInsets.only(
-            bottom: bottomOffset,
-            left: 16,
-            right: 16,
-          ),
-          elevation: 0,
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 4),
-        ),
+        message: '"${song.title}" removed',
+        actionLabel: 'Undo',
+        onAction: () => _undoRemoveRecentSong(song, originalIndex),
+        duration: const Duration(seconds: 4),
       );
     }
   }
@@ -583,6 +548,7 @@ class _SearchScreenState extends State<SearchScreen> {
               }
 
               return SearchResultSongItem(
+                key: ValueKey('search_song_${song.id}'),
                 song: song,
                 searchQuery: _searchController.text,
                 onTap: () {
@@ -683,6 +649,7 @@ class _SearchScreenState extends State<SearchScreen> {
             itemBuilder: (context, index) {
               final song = _recentSongs[index];
               return SearchResultSongItem(
+                key: ValueKey('recent_song_${song.id}'),
                 song: song,
                 searchQuery: '',
                 onTap: () => _playRecentSong(song),

@@ -30,6 +30,7 @@ class ServerInitializationService {
     final appDir = await getApplicationSupportDirectory();
     final cachePath = p.join(appDir.path, 'metadata_cache.json');
     httpServer.libraryManager.setCachePath(cachePath);
+    httpServer.setFeatureFlags(featureFlags);
 
     if (featureFlags.enableV2Api &&
         httpServer.libraryManager.createCatalogRepository() == null) {
@@ -38,8 +39,6 @@ class ServerInitializationService {
         'repository availability. Failed to initialize catalog at $cachePath.',
       );
     }
-
-    httpServer.setFeatureFlags(featureFlags);
   }
 
   /// Desktop transcoding and artwork caches (idempotent).

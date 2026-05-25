@@ -111,7 +111,7 @@ extension _LibraryManagerApiPart on LibraryManager {
       'title': album.title,
       'artist': album.artist,
       'coverArt':
-          album.artworkPath != null ? '$baseUrl/api/artwork/${album.id}' : null,
+          album.hasArtwork ? '$baseUrl/api/artwork/${album.id}' : null,
       'songCount': album.songCount,
       'duration': totalDurationSeconds,
     };
@@ -177,10 +177,10 @@ extension _LibraryManagerApiPart on LibraryManager {
 
     print('[LibraryManager] Found album: ${album.title} by ${album.artist}');
     print('[LibraryManager] Album artworkPath: ${album.artworkPath}');
-    print('[LibraryManager] Album has artwork: ${album.artworkPath != null}');
+    print('[LibraryManager] Album has artwork: ${album.hasArtwork}');
 
     final coverArtUrl =
-        album.artworkPath != null ? '$baseUrl/api/artwork/${album.id}' : null;
+        album.hasArtwork ? '$baseUrl/api/artwork/${album.id}' : null;
     print('[LibraryManager] Generated coverArt URL: $coverArtUrl');
 
     // Build songs with lazily extracted durations
