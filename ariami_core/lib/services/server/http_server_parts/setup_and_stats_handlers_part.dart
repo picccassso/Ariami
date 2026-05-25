@@ -270,4 +270,14 @@ extension AriamiHttpServerSetupAndStatsHandlersMethods on AriamiHttpServer {
     final serverInfo = getServerInfo();
     return _jsonOk(serverInfo);
   }
+
+  /// Force endpoint rediscovery, then return fresh server info.
+  Future<Response> _handleRefreshServerInfo(Request request) async {
+    try {
+      final serverInfo = await refreshAdvertisedEndpoints();
+      return _jsonOk(serverInfo);
+    } catch (e) {
+      return _setupCallbackErrorResponse('refresh server addresses', e);
+    }
+  }
 }

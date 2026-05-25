@@ -1,5 +1,15 @@
 part of '../http_server.dart';
 
+class _ServerInfoAuthSnapshot {
+  const _ServerInfoAuthSnapshot({
+    required this.hasUsers,
+    required this.registeredUsers,
+  });
+
+  final bool hasUsers;
+  final int registeredUsers;
+}
+
 extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
   /// Check if server is running
   bool get isRunning => _server != null;
@@ -76,6 +86,21 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
       _endpointsChangedController.add(getServerInfo());
     }
     return true;
+  }
+
+  /// Immediately re-run endpoint discovery instead of waiting for the poller.
+  Future<Map<String, dynamic>> refreshAdvertisedEndpoints() async {
+    final callback = _endpointDiscoveryCallback;
+    if (callback == null) {
+      return getServerInfo();
+    }
+
+    final endpoints = await callback();
+    updateAdvertisedEndpoints(
+      tailscaleIp: endpoints.tailscaleIp,
+      lanIp: endpoints.lanIp,
+    );
+    return getServerInfo();
   }
 
   void _ensureEndpointMonitor() {
@@ -285,6 +310,7 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
 
   /// Get server info for QR code generation
   Map<String, dynamic> getServerInfo() {
+    final authSnapshot = _getAuthSnapshotForServerInfo();
     return {
       'server': _advertisedIp ?? _tailscaleIp,
       'lanServer': _lanIp,
@@ -294,8 +320,8 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
       'version': '4.3.0',
       'authRequired': _authRequired,
       'legacyMode': _legacyMode,
-      'hasUsers': _authService.hasUsers(),
-      'registeredUsers': _authService.userCount,
+      'hasUsers': authSnapshot.hasUsers,
+      'registeredUsers': authSnapshot.registeredUsers,
       'downloadLimits': {
         'maxConcurrent': _maxConcurrentDownloads,
         'maxQueue': _maxDownloadQueue,
@@ -303,6 +329,20 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
         'maxQueuePerUser': _maxDownloadQueuePerUser,
       },
     };
+  }
+
+  _ServerInfoAuthSnapshot _getAuthSnapshotForServerInfo() {
+    try {
+      return _ServerInfoAuthSnapshot(
+        hasUsers: _authService.hasUsers(),
+        registeredUsers: _authService.userCount,
+      );
+    } on StateError {
+      return const _ServerInfoAuthSnapshot(
+        hasUsers: false,
+        registeredUsers: 0,
+      );
+    }
   }
 
   /// Configure download limits (call before server start)

@@ -42,8 +42,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   String? _musicFolderPath;
   String? _tailscaleIP;
+  String? _lanIP;
   String? _ownerUsername;
   bool _isLoading = true;
+  bool _isRefreshingAddresses = false;
   bool _hasOwnerAccount = false;
   int _connectedClients = 0;
   bool _isLoadingConnectedRows = false;
@@ -61,6 +63,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Timer? _connectedRowsRefreshTimer;
   Timer? _userActivityRefreshTimer;
   Timer? _adminHeartbeatTimer;
+  DateTime? _addressesUpdatedAt;
 
   @override
   void initState() {
@@ -245,8 +248,81 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (!mounted) return;
     setState(() {
       _tailscaleIP = serverInfo['tailscaleServer'] as String?;
+      _lanIP = serverInfo['lanServer'] as String?;
       _connectedClients = clientCount;
+      _addressesUpdatedAt = DateTime.now();
     });
+  }
+
+  String _formatAddressRefreshTime() {
+    final value = _addressesUpdatedAt;
+    if (value == null) {
+      return 'Addresses have not been refreshed yet.';
+    }
+
+    final difference = DateTime.now().difference(value);
+    if (difference.inSeconds < 5) {
+      return 'Addresses updated just now.';
+    }
+    if (difference.inMinutes < 1) {
+      return 'Addresses updated ${difference.inSeconds}s ago.';
+    }
+    if (difference.inHours < 1) {
+      return 'Addresses updated ${difference.inMinutes}m ago.';
+    }
+
+    final hour = value.hour.toString().padLeft(2, '0');
+    final minute = value.minute.toString().padLeft(2, '0');
+    return 'Addresses updated at $hour:$minute.';
+  }
+
+  Future<void> _refreshServerAddresses() async {
+    if (_isRefreshingAddresses) return;
+
+    if (!_httpServer.isRunning) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Start the server before refreshing addresses.'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isRefreshingAddresses = true;
+    });
+
+    try {
+      final serverInfo = await _httpServer.refreshAdvertisedEndpoints();
+      if (!mounted) return;
+      setState(() {
+        _tailscaleIP = serverInfo['tailscaleServer'] as String?;
+        _lanIP = serverInfo['lanServer'] as String?;
+        _connectedClients = _httpServer.connectionManager.clientCount;
+        _addressesUpdatedAt = DateTime.now();
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Server addresses refreshed.'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to refresh addresses: $e'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isRefreshingAddresses = false;
+        });
+      }
+    }
   }
 
   Future<void> _refreshOwnerState() async {
@@ -1000,10 +1076,52 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                   const SizedBox(height: 12),
                   InfoCard(
+                    title: 'LAN Address',
+                    value: _lanIP ?? 'Not connected',
+                    icon: Icons.router_rounded,
+                    isActive: _lanIP != null,
+                  ),
+                  const SizedBox(height: 12),
+                  InfoCard(
                     title: 'Tailscale IP',
                     value: _tailscaleIP ?? 'Not connected',
                     icon: Icons.cloud_done_rounded,
                     isActive: _tailscaleIP != null,
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          _formatAddressRefreshTime(),
+                          style: TextStyle(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurface
+                                .withOpacity(0.55),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: _isRefreshingAddresses
+                            ? null
+                            : _refreshServerAddresses,
+                        icon: _isRefreshingAddresses
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.refresh_rounded, size: 18),
+                        label: Text(_isRefreshingAddresses
+                            ? 'Refreshing...'
+                            : 'Refresh Addresses'),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 32),
                   const Text(

@@ -29,7 +29,9 @@ class _QRCodeScreenState extends State<QRCodeScreen>
   bool _authRequired = false;
   String? _qrData;
   bool _isLoading = true;
+  bool _isRefreshingAddresses = false;
   String? _errorMessage;
+  DateTime? _lastEndpointRefresh;
 
   Timer? _connectionPollTimer;
   Timer? _serverInfoPollTimer;
@@ -114,16 +116,7 @@ class _QRCodeScreenState extends State<QRCodeScreen>
         final serverInfo = response.jsonBody ?? <String, dynamic>{};
 
         if (mounted) {
-          setState(() {
-            _primaryServer = serverInfo['server'] as String? ?? 'Unknown';
-            _lanServer = serverInfo['lanServer'] as String?;
-            _tailscaleServer = serverInfo['tailscaleServer'] as String?;
-            _serverPort = serverInfo['port'] as int? ?? 8080;
-            _serverName = serverInfo['name'] as String? ?? 'Ariami Server';
-            _authRequired = serverInfo['authRequired'] as bool? ?? false;
-            _qrData = jsonEncode(serverInfo);
-            _isLoading = false;
-          });
+          setState(() => _applyServerInfo(serverInfo));
           if (!refreshOnly) {
             _startConnectionPolling();
             _startServerInfoPolling();
@@ -148,6 +141,54 @@ class _QRCodeScreenState extends State<QRCodeScreen>
     }
   }
 
+  Future<void> _refreshServerAddresses() async {
+    if (_isRefreshingAddresses) return;
+
+    setState(() {
+      _isRefreshingAddresses = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final response = await _apiClient.post('/api/server-info/refresh');
+      if (response.statusCode == 200 && response.jsonBody != null) {
+        if (mounted) {
+          setState(() => _applyServerInfo(response.jsonBody!));
+        }
+      } else if (mounted) {
+        setState(() {
+          _errorMessage = 'Failed to refresh server addresses';
+        });
+      }
+    } catch (e) {
+      debugPrint('Error refreshing server addresses: $e');
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Error: $e';
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isRefreshingAddresses = false;
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  void _applyServerInfo(Map<String, dynamic> serverInfo) {
+    _primaryServer = serverInfo['server'] as String? ?? 'Unknown';
+    _lanServer = serverInfo['lanServer'] as String?;
+    _tailscaleServer = serverInfo['tailscaleServer'] as String?;
+    _serverPort = serverInfo['port'] as int? ?? 8080;
+    _serverName = serverInfo['name'] as String? ?? 'Ariami Server';
+    _authRequired = serverInfo['authRequired'] as bool? ?? false;
+    _qrData = jsonEncode(serverInfo);
+    _lastEndpointRefresh = DateTime.now();
+    _isLoading = false;
+  }
+
   Future<void> _redirectToLogin() async {
     _connectionPollTimer?.cancel();
     if (!mounted) return;
@@ -170,13 +211,19 @@ class _QRCodeScreenState extends State<QRCodeScreen>
               title: const Text('CONNECT'),
               actions: [
                 IconButton(
-                  icon: const Icon(Icons.refresh_rounded),
+                  tooltip: 'Refresh addresses',
+                  icon: _isRefreshingAddresses
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.refresh_rounded),
                   onPressed: () {
-                    setState(() {
-                      _isLoading = true;
-                      _errorMessage = null;
-                    });
-                    _loadServerInfo();
+                    _refreshServerAddresses();
                   },
                 ),
                 const SizedBox(width: 8),
@@ -242,6 +289,28 @@ class _QRCodeScreenState extends State<QRCodeScreen>
                                           _buildInfoRow('NAME', _serverName),
                                           const SizedBox(height: 16),
                                           ..._buildEndpointSection(),
+                                          if (_lastEndpointRefresh != null) ...[
+                                            const SizedBox(height: 12),
+                                            Row(
+                                              children: [
+                                                const Icon(
+                                                  Icons.schedule_rounded,
+                                                  size: 14,
+                                                  color: AppTheme.textSecondary,
+                                                ),
+                                                const SizedBox(width: 6),
+                                                Text(
+                                                  'Updated ${_formatEndpointRefreshTime()}',
+                                                  style: const TextStyle(
+                                                    color:
+                                                        AppTheme.textSecondary,
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
                                           const SizedBox(height: 16),
                                           _buildInfoRow('PORT', '$_serverPort'),
                                           const SizedBox(height: 16),
@@ -454,6 +523,21 @@ class _QRCodeScreenState extends State<QRCodeScreen>
         ],
       ),
     );
+  }
+
+  String _formatEndpointRefreshTime() {
+    final value = _lastEndpointRefresh;
+    if (value == null) return 'Never';
+
+    final now = DateTime.now();
+    final difference = now.difference(value);
+    if (difference.inSeconds < 5) return 'just now';
+    if (difference.inMinutes < 1) return '${difference.inSeconds}s ago';
+    if (difference.inHours < 1) return '${difference.inMinutes}m ago';
+
+    final hour = value.hour.toString().padLeft(2, '0');
+    final minute = value.minute.toString().padLeft(2, '0');
+    return 'at $hour:$minute';
   }
 
   Widget _buildInfoRow(String label, String value) {

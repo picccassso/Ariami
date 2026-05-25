@@ -61,6 +61,8 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   String? _dashboardLanServer;
   String? _dashboardTailscaleServer;
+  DateTime? _dashboardEndpointsUpdatedAt;
+  bool _isRefreshingAddresses = false;
 
   Timer? _refreshTimer;
   Timer? _userActivityRefreshTimer;
@@ -140,6 +142,7 @@ class _DashboardScreenState extends State<DashboardScreen>
             _serverRunning = data['serverRunning'] as bool? ?? true;
             _dashboardLanServer = lan;
             _dashboardTailscaleServer = ts;
+            _dashboardEndpointsUpdatedAt = DateTime.now();
             _isLoading = false;
           });
         }
@@ -152,6 +155,39 @@ class _DashboardScreenState extends State<DashboardScreen>
       if (mounted) {
         setState(() {
           _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _refreshServerAddresses() async {
+    if (_isRefreshingAddresses) return;
+
+    setState(() {
+      _isRefreshingAddresses = true;
+    });
+
+    try {
+      final response = await _apiClient.post('/api/server-info/refresh');
+      if (response.isAuthError) {
+        await _redirectToLogin();
+        return;
+      }
+
+      if (response.statusCode == 200 && response.jsonBody != null && mounted) {
+        final data = response.jsonBody!;
+        setState(() {
+          _dashboardLanServer = data['lanServer'] as String?;
+          _dashboardTailscaleServer = data['tailscaleServer'] as String?;
+          _dashboardEndpointsUpdatedAt = DateTime.now();
+        });
+      }
+    } catch (e) {
+      debugPrint('Error refreshing server addresses: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isRefreshingAddresses = false;
         });
       }
     }
@@ -311,9 +347,8 @@ class _DashboardScreenState extends State<DashboardScreen>
       setState(() {
         _connectedClientRows = const <ConnectedClientRow>[];
         _connectedClientsOwnerForbidden = e.isForbidden;
-        _connectedClientsError = e.isForbidden
-            ? _ownerClientsMessage
-            : e.message;
+        _connectedClientsError =
+            e.isForbidden ? _ownerClientsMessage : e.message;
         _isLoadingConnectedClients = false;
       });
     } catch (e) {
@@ -353,8 +388,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       setState(() {
         _userActivityRows = const <UserActivityRow>[];
         _userActivityOwnerForbidden = e.isForbidden;
-        _userActivityError =
-            e.isForbidden ? _ownerActivityMessage : e.message;
+        _userActivityError = e.isForbidden ? _ownerActivityMessage : e.message;
         _isLoadingUserActivity = false;
       });
     } catch (_) {
@@ -602,6 +636,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                           ServerInfoCard(
                             lanServer: _dashboardLanServer,
                             tailscaleServer: _dashboardTailscaleServer,
+                            lastUpdatedLabel: _formatEndpointRefreshTime(),
+                            isRefreshing: _isRefreshingAddresses,
+                            onRefreshAddresses: _refreshServerAddresses,
                           ),
                           const SizedBox(height: 48),
                         ],
@@ -612,5 +649,19 @@ class _DashboardScreenState extends State<DashboardScreen>
               ),
       ),
     );
+  }
+
+  String? _formatEndpointRefreshTime() {
+    final value = _dashboardEndpointsUpdatedAt;
+    if (value == null) return null;
+
+    final difference = DateTime.now().difference(value);
+    if (difference.inSeconds < 5) return 'just now';
+    if (difference.inMinutes < 1) return '${difference.inSeconds}s ago';
+    if (difference.inHours < 1) return '${difference.inMinutes}m ago';
+
+    final hour = value.hour.toString().padLeft(2, '0');
+    final minute = value.minute.toString().padLeft(2, '0');
+    return 'at $hour:$minute';
   }
 }

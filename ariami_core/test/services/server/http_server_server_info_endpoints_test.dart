@@ -34,6 +34,13 @@ void main() {
       }
     });
 
+    test('getServerInfo is safe before auth initialization', () async {
+      final info = server.getServerInfo();
+
+      expect(info['hasUsers'], isFalse);
+      expect(info['registeredUsers'], 0);
+    });
+
     test('includes lanServer and tailscaleServer when both are set', () async {
       const tsIp = '100.64.10.20';
       const lan = '192.168.1.50';
@@ -171,6 +178,36 @@ void main() {
       expect(info['tailscaleServer'], '100.64.10.99');
       expect(info['server'], '100.64.10.99');
     });
+
+    test('server-info refresh endpoint runs endpoint discovery immediately',
+        () async {
+      const initialLan = '192.168.1.50';
+      var lan = initialLan;
+      final port = await _findFreePort();
+
+      server.setEndpointDiscoveryCallback(() async {
+        return NetworkEndpoints(lanIp: lan);
+      });
+
+      await server.start(
+        advertisedIp: initialLan,
+        tailscaleIp: null,
+        lanIp: initialLan,
+        bindAddress: '127.0.0.1',
+        port: port,
+      );
+
+      lan = '192.168.1.88';
+      final (status, body) = await _httpPost(
+        Uri.parse('http://127.0.0.1:$port/api/server-info/refresh'),
+      );
+      expect(status, 200);
+
+      final json = jsonDecode(body) as Map<String, dynamic>;
+      expect(json['server'], lan);
+      expect(json['lanServer'], lan);
+      expect(json['tailscaleServer'], isNull);
+    });
   });
 }
 
@@ -185,6 +222,19 @@ Future<(int status, String body)> _httpGet(Uri url) async {
   final client = HttpClient();
   try {
     final request = await client.getUrl(url);
+    final response = await request.close();
+    final body = await utf8.decoder.bind(response).join();
+    return (response.statusCode, body);
+  } finally {
+    client.close(force: true);
+  }
+}
+
+Future<(int status, String body)> _httpPost(Uri url) async {
+  final client = HttpClient();
+  try {
+    final request = await client.postUrl(url);
+    request.headers.contentType = ContentType.json;
     final response = await request.close();
     final body = await utf8.decoder.bind(response).join();
     return (response.statusCode, body);

@@ -34,11 +34,13 @@ extension AriamiHttpServerRouterMethods on AriamiHttpServer {
     router.get('/api/ping', _handlePing);
     router.get('/api/tailscale/status', _handleTailscaleStatus);
     router.get('/api/server-info', _handleGetServerInfo);
+    router.post('/api/server-info/refresh', _handleRefreshServerInfo);
   }
 
   void _registerSetupAndStatsRoutes(Router router) {
     router.get('/api/setup/status', _handleGetSetupStatus);
-    router.get('/api/setup/music-folder/suggestions', _handleGetMusicFolderSuggestions);
+    router.get('/api/setup/music-folder/suggestions',
+        _handleGetMusicFolderSuggestions);
     router.post('/api/setup/music-folder/validate', _handleValidateMusicFolder);
     router.post('/api/setup/music-folder', _handleSetMusicFolder);
     router.post('/api/setup/start-scan', _handleStartScan);
