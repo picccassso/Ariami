@@ -53,7 +53,12 @@ double getBottomNavigationBarTotalHeight(BuildContext context) {
   } catch (_) {
     viewPaddingBottom = MediaQuery.viewPaddingOf(context).bottom;
   }
-  final viewInsetsBottom = MediaQuery.viewInsetsOf(context).bottom;
+  double viewInsetsBottom = 0.0;
+  try {
+    viewInsetsBottom = MediaQueryData.fromView(View.of(context)).viewInsets.bottom;
+  } catch (_) {
+    viewInsetsBottom = MediaQuery.viewInsetsOf(context).bottom;
+  }
   final total = viewInsetsBottom > 0
       ? 0.0
       : kBottomNavigationBarHeight + viewPaddingBottom;
