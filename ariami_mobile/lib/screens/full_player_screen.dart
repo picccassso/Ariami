@@ -34,6 +34,10 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
   bool _showQueueConfirmation = false;
   String _queueConfirmationMessage = 'Added to queue';
 
+  /// Optimistic queue index while rapid skip taps are in flight.
+  int? _pendingSkipIndex;
+  int? _lastKnownQueueLength;
+
   @override
   void initState() {
     super.initState();
@@ -62,7 +66,71 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
   }
 
   void _onPlaybackStateChanged() {
+    _resetPendingSkipOnQueueChange();
+    _clearPendingSkipIfCaughtUp();
     setState(() {});
+  }
+
+  int get _effectiveSkipIndex =>
+      _pendingSkipIndex ?? _playbackManager.queue.currentIndex;
+
+  void _resetPendingSkipOnQueueChange() {
+    final length = _playbackManager.queue.length;
+    if (_lastKnownQueueLength != length) {
+      _pendingSkipIndex = null;
+      _lastKnownQueueLength = length;
+    }
+  }
+
+  void _clearPendingSkipIfCaughtUp() {
+    final currentIndex = _playbackManager.queue.currentIndex;
+    if (_pendingSkipIndex == null || _pendingSkipIndex == currentIndex) {
+      _pendingSkipIndex = null;
+    }
+  }
+
+  int? _computeNextSkipTarget() {
+    final queueLength = _playbackManager.queue.length;
+    if (queueLength == 0) {
+      return null;
+    }
+
+    final fromIndex = _effectiveSkipIndex;
+    if (fromIndex < queueLength - 1) {
+      return fromIndex + 1;
+    }
+
+    if (_playbackManager.repeatMode == playback_repeat.RepeatMode.all &&
+        queueLength > 1) {
+      return 0;
+    }
+
+    return null;
+  }
+
+  int? _computePreviousSkipTarget() {
+    final queueLength = _playbackManager.queue.length;
+    if (queueLength == 0) {
+      return null;
+    }
+
+    final fromIndex = _effectiveSkipIndex;
+    if (fromIndex > 0) {
+      return fromIndex - 1;
+    }
+
+    if (_playbackManager.repeatMode == playback_repeat.RepeatMode.all &&
+        queueLength > 1) {
+      return queueLength - 1;
+    }
+
+    return null;
+  }
+
+  void _performSkipToIndex(int targetIndex) {
+    _pendingSkipIndex = targetIndex;
+    unawaited(_artworkController.animateToIndex(targetIndex));
+    unawaited(_playbackManager.skipToQueueItem(targetIndex));
   }
 
   void _onPlaylistsChanged() {
@@ -135,54 +203,36 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
     _openQueue();
   }
 
-  Future<void> _skipNextWithArtworkAnimation() async {
-    if (_playbackManager.hasNext) {
-      final targetIndex = _playbackManager.queue.currentIndex + 1;
-      final didAnimate = await _artworkController.animateToIndex(targetIndex);
-      if (!didAnimate && mounted) {
-        await _playbackManager.skipToQueueItem(targetIndex);
-      }
+  void _skipNextWithArtworkAnimation() {
+    _resetPendingSkipOnQueueChange();
+
+    final targetIndex = _computeNextSkipTarget();
+    if (targetIndex != null) {
+      _performSkipToIndex(targetIndex);
       return;
     }
 
-    if (_playbackManager.repeatMode == playback_repeat.RepeatMode.all &&
-        _playbackManager.queue.length > 1) {
-      final didAnimate = await _artworkController.animateToIndex(0);
-      if (!didAnimate && mounted) {
-        await _playbackManager.skipNext();
-      }
-      return;
-    }
-
-    await _playbackManager.skipNext();
+    _pendingSkipIndex = null;
+    unawaited(_playbackManager.skipNext());
   }
 
-  Future<void> _skipPreviousWithArtworkAnimation() async {
+  void _skipPreviousWithArtworkAnimation() {
+    _resetPendingSkipOnQueueChange();
+
     if (_playbackManager.position.inSeconds > 3) {
-      await _playbackManager.seek(Duration.zero);
+      _pendingSkipIndex = null;
+      unawaited(_playbackManager.seek(Duration.zero));
       return;
     }
 
-    if (_playbackManager.hasPrevious) {
-      final targetIndex = _playbackManager.queue.currentIndex - 1;
-      final didAnimate = await _artworkController.animateToIndex(targetIndex);
-      if (!didAnimate && mounted) {
-        await _playbackManager.skipToQueueItem(targetIndex);
-      }
+    final targetIndex = _computePreviousSkipTarget();
+    if (targetIndex != null) {
+      _performSkipToIndex(targetIndex);
       return;
     }
 
-    if (_playbackManager.repeatMode == playback_repeat.RepeatMode.all &&
-        _playbackManager.queue.length > 1) {
-      final targetIndex = _playbackManager.queue.length - 1;
-      final didAnimate = await _artworkController.animateToIndex(targetIndex);
-      if (!didAnimate && mounted) {
-        await _playbackManager.skipPrevious();
-      }
-      return;
-    }
-
-    await _playbackManager.skipPrevious();
+    _pendingSkipIndex = null;
+    unawaited(_playbackManager.skipPrevious());
   }
 
   @override
@@ -294,6 +344,7 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
                     currentIndex: _playbackManager.queue.currentIndex,
                     repeatMode: _playbackManager.repeatMode,
                     onPageChanged: (index) {
+                      _pendingSkipIndex = null;
                       _playbackManager.skipToQueueItem(index);
                     },
                   ),
@@ -442,7 +493,7 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
                     (_playbackManager.repeatMode ==
                             playback_repeat.RepeatMode.all &&
                         _playbackManager.queue.length > 1))
-                ? () => unawaited(_skipPreviousWithArtworkAnimation())
+                ? _skipPreviousWithArtworkAnimation
                 : null,
             tooltip: 'Previous',
           ),
@@ -498,7 +549,7 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
                     (_playbackManager.repeatMode ==
                             playback_repeat.RepeatMode.all &&
                         _playbackManager.queue.length > 1))
-                ? () => unawaited(_skipNextWithArtworkAnimation())
+                ? _skipNextWithArtworkAnimation
                 : null,
             tooltip: 'Next',
           ),

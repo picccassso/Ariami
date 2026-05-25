@@ -95,6 +95,9 @@ class _PlayerArtworkState extends State<PlayerArtwork> {
   /// Bumps when a post-frame sync is scheduled so older callbacks no-op.
   int _playbackPageSyncGeneration = 0;
 
+  /// Bumps on each button-driven page animation so only the latest tap wins.
+  int _buttonAnimateGeneration = 0;
+
   bool get _wrapEnabledForWidget => playerArtworkWrapEnabled(
         repeatMode: widget.repeatMode,
         queueLength: widget.queue.length,
@@ -207,6 +210,9 @@ class _PlayerArtworkState extends State<PlayerArtwork> {
       if (!_pageController.hasClients) {
         return;
       }
+      if (_pageController.position.isScrollingNotifier.value) {
+        return;
+      }
       if (widget.queue.isEmpty) {
         return;
       }
@@ -266,11 +272,24 @@ class _PlayerArtworkState extends State<PlayerArtwork> {
       return false;
     }
 
+    _buttonAnimateGeneration++;
+    final gen = _buttonAnimateGeneration;
+    final isScrolling = _pageController.position.isScrollingNotifier.value;
+
+    if (isScrolling) {
+      _pageController.jumpToPage(targetPage);
+      _visualIndex = targetPage;
+      return true;
+    }
+
     await _pageController.animateToPage(
       targetPage,
       duration: _kArtworkPageTurnDuration,
       curve: Curves.easeInOut,
     );
+    if (!mounted || gen != _buttonAnimateGeneration) {
+      return true;
+    }
     _visualIndex = targetPage;
     return true;
   }
