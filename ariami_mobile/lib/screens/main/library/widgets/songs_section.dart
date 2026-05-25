@@ -67,6 +67,7 @@ class SongsSection extends StatelessWidget {
           );
 
           return SongListItem(
+            key: ValueKey('song-${song.id}'),
             song: songModel,
             onTap: () => onOfflineSongTap(song),
             onLongPress: () => onOfflineSongLongPress(song),
@@ -115,6 +116,7 @@ class SongsSection extends StatelessWidget {
           final album = song.albumId == null ? null : albumById[song.albumId!];
 
           return SongListItem(
+            key: ValueKey('song-${song.id}'),
             song: song,
             onTap: isAvailable ? () => onSongTap(song) : null,
             onLongPress: () => onSongLongPress(song),

@@ -144,6 +144,7 @@ class _MixedSectionState extends State<MixedSection> {
               playlist: (playlist) {
                 final isLikedSongs = playlist.id == PlaylistService.likedSongsId;
                 return PlaylistCard(
+                  key: ValueKey('playlist-${playlist.id}'),
                   playlist: playlist,
                   onTap: () => widget.onPlaylistTap(playlist),
                   onLongPress: () => widget.onPlaylistLongPress(playlist),
@@ -162,6 +163,7 @@ class _MixedSectionState extends State<MixedSection> {
                 final hasDownloads = widget.state.hasAlbumDownloads(album.id);
                 final isAvailable = !widget.isOffline || hasDownloads;
                 return AlbumGridItem(
+                  key: ValueKey('album-${album.id}'),
                   album: album,
                   onTap: isAvailable ? () => widget.onAlbumTap(album) : null,
                   onLongPress: () => widget.onAlbumLongPress(album),
@@ -189,6 +191,7 @@ class _MixedSectionState extends State<MixedSection> {
             playlist: (playlist) {
               final isLikedSongs = playlist.id == PlaylistService.likedSongsId;
               return PlaylistListItem(
+                key: ValueKey('playlist-${playlist.id}'),
                 playlist: playlist,
                 onTap: () => widget.onPlaylistTap(playlist),
                 onLongPress: () => widget.onPlaylistLongPress(playlist),
@@ -207,6 +210,7 @@ class _MixedSectionState extends State<MixedSection> {
               final hasDownloads = widget.state.hasAlbumDownloads(album.id);
               final isAvailable = !widget.isOffline || hasDownloads;
               return AlbumListItem(
+                key: ValueKey('album-${album.id}'),
                 album: album,
                 onTap: isAvailable ? () => widget.onAlbumTap(album) : null,
                 onLongPress: () => widget.onAlbumLongPress(album),

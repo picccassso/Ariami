@@ -287,6 +287,15 @@ class LibraryController extends ChangeNotifier {
   StreamSubscription<WsMessage>? _webSocketSubscription;
 
   bool _isInitialized = false;
+  bool _isLibraryLoadInFlight = false;
+  bool _pendingScrollRestore = false;
+
+  /// Returns true once when the UI should restore scroll after a library update.
+  bool consumeScrollRestorePending() {
+    if (!_pendingScrollRestore) return false;
+    _pendingScrollRestore = false;
+    return true;
+  }
 
   LibraryController._internal() {
     _connectionService = ConnectionService();
@@ -316,15 +325,15 @@ class LibraryController extends ChangeNotifier {
   void _setupStreamListeners() {
     // Listen to offline state changes
     _offlineSubscription = _offlineService.offlineModeStream.listen((_) {
-      _loadLibrary();
+      unawaited(_loadLibrary(background: true));
     });
 
     // Listen to connection state changes
     _connectionSubscription =
         _connectionService.connectionStateStream.listen((isConnected) {
       if (isConnected) {
-        _loadLibrary();
-        _loadDownloadedSongs();
+        unawaited(_loadLibrary(background: true));
+        unawaited(_loadDownloadedSongs());
       }
     });
 
@@ -536,11 +545,11 @@ class LibraryController extends ChangeNotifier {
     }
 
     if (!_durationsPending) return;
-    if (_state.isLoading) return;
+    if (_isLibraryLoadInFlight) return;
     if (_durationRetryCount >= _maxDurationRetries) return;
 
     _durationRetryCount++;
-    await _loadLibrary();
+    await _loadLibrary(background: true);
   }
 
   Future<bool> _isUsingV2LibrarySource() async {
@@ -557,10 +566,10 @@ class LibraryController extends ChangeNotifier {
 
   Future<void> _refreshFromSyncToken(int latestToken) async {
     if (!await _isUsingV2LibrarySource()) return;
-    if (_state.isLoading) return;
+    if (_isLibraryLoadInFlight) return;
 
     if (latestToken <= 0) {
-      await _loadLibrary();
+      await _loadLibrary(background: true);
       return;
     }
 
@@ -568,13 +577,13 @@ class LibraryController extends ChangeNotifier {
       final appliedToken = await _connectionService.libraryReadFacade
           .getActiveLastAppliedToken();
       if (appliedToken != null && appliedToken >= latestToken) {
-        await _loadLibrary();
+        await _loadLibrary(background: true);
         return;
       }
       await Future<void>.delayed(const Duration(milliseconds: 200));
     }
 
-    await _loadLibrary();
+    await _loadLibrary(background: true);
   }
 
   void _scheduleDurationRetry() {
@@ -582,11 +591,11 @@ class LibraryController extends ChangeNotifier {
 
     _durationRetryTimer?.cancel();
     _durationRetryTimer = Timer(_durationRetryDelay, () {
-      if (!_durationsPending || _state.isLoading) return;
+      if (!_durationsPending || _isLibraryLoadInFlight) return;
       if (_durationRetryCount >= _maxDurationRetries) return;
 
       _durationRetryCount++;
-      _loadLibrary();
+      unawaited(_loadLibrary(background: true));
     });
   }
 
@@ -727,7 +736,7 @@ class LibraryController extends ChangeNotifier {
         offline: _offlineService,
         connection: _connectionService,
       );
-      await _loadLibrary();
+      await _loadLibrary(background: true);
       switch (outcome) {
         case ManualOfflineReconnectOutcome.success:
           return LibraryRefreshOutcome.ok;
@@ -744,14 +753,14 @@ class LibraryController extends ChangeNotifier {
       final restored = await _connectionService.tryRestoreConnection();
       if (!restored) {
         if (!_connectionService.hasServerInfo) {
-          await _loadLibrary();
+          await _loadLibrary(background: true);
           return LibraryRefreshOutcome.navigateToReconnectScreen;
         }
         if (_connectionService.didLastRestoreFailForAuth) {
-          await _loadLibrary();
+          await _loadLibrary(background: true);
           return LibraryRefreshOutcome.showSessionExpiredSnack;
         }
-        await _loadLibrary();
+        await _loadLibrary(background: true);
         return LibraryRefreshOutcome.ok;
       }
     }
@@ -766,7 +775,7 @@ class LibraryController extends ChangeNotifier {
       }
     }
 
-    await _loadLibrary();
+    await _loadLibrary(background: true);
 
     if (!_offlineService.isOfflineModeEnabled &&
         _connectionService.isConnected) {
@@ -780,33 +789,59 @@ class LibraryController extends ChangeNotifier {
     return LibraryRefreshOutcome.ok;
   }
 
-  Future<void> _loadLibrary() async {
-    // If offline mode is enabled, build library from downloaded songs
-    if (_offlineService.isOfflineModeEnabled) {
-      _clearDurationRetries();
-      await _loadDownloadedSongs();
-      _buildLibraryFromDownloads();
-      await _loadDownloadedSongs();
-      _updateState(_state.copyWith(
-        isLoading: false,
-        clearError: true,
-        clearSyncWarning: true,
-        showDownloadedOnly: true,
-      ));
-      return;
-    }
+  Future<void> _loadLibrary({bool background = false}) async {
+    if (_isLibraryLoadInFlight) return;
 
-    if (_connectionService.apiClient == null) {
-      _clearDurationRetries();
-      _updateState(_state.copyWith(
-        isLoading: false,
-        errorMessage: 'Not connected to server',
-      ));
-      return;
-    }
+    final hasExistingContent = _state.albums.isNotEmpty ||
+        _state.songs.isNotEmpty ||
+        _state.offlineSongs.isNotEmpty;
+    final useFullScreenLoader = !background && !hasExistingContent;
 
+    _isLibraryLoadInFlight = true;
     try {
-      _updateState(_state.copyWith(isLoading: true, clearError: true));
+      // If offline mode is enabled, build library from downloaded songs
+      if (_offlineService.isOfflineModeEnabled) {
+        _clearDurationRetries();
+        await _loadDownloadedSongs();
+        if (hasExistingContent) {
+          _pendingScrollRestore = true;
+        }
+        _buildLibraryFromDownloads();
+        await _loadDownloadedSongs();
+        _updateState(_state.copyWith(
+          isLoading: false,
+          isRefreshing: false,
+          clearError: true,
+          clearSyncWarning: true,
+          showDownloadedOnly: true,
+        ));
+        return;
+      }
+
+      if (_connectionService.apiClient == null) {
+        _clearDurationRetries();
+        _updateState(_state.copyWith(
+          isLoading: false,
+          isRefreshing: false,
+          errorMessage: 'Not connected to server',
+        ));
+        return;
+      }
+
+      if (useFullScreenLoader) {
+        _updateState(_state.copyWith(
+          isLoading: true,
+          isRefreshing: false,
+          clearError: true,
+        ));
+      } else {
+        _updateState(_state.copyWith(
+          isRefreshing: true,
+          isLoading: false,
+          clearError: true,
+        ));
+      }
+
       await _loadLibraryFromFacade();
     } catch (e) {
       // If it's a network/timeout error, gracefully fall back to offline mode
@@ -814,21 +849,36 @@ class LibraryController extends ChangeNotifier {
           e.toString().contains('TimeoutException') ||
           e.toString().contains('SocketException')) {
         _clearDurationRetries();
-        await _loadDownloadedSongs();
-        _buildLibraryFromDownloads();
-        _updateState(_state.copyWith(
-          isLoading: false,
-          clearError: true,
-          clearSyncWarning: true,
-          showDownloadedOnly: true,
-        ));
+        if (background && hasExistingContent) {
+          _updateState(_state.copyWith(
+            isLoading: false,
+            isRefreshing: false,
+            syncWarningMessage: 'Library sync failed. Showing cached data.',
+          ));
+        } else {
+          if (hasExistingContent) {
+            _pendingScrollRestore = true;
+          }
+          await _loadDownloadedSongs();
+          _buildLibraryFromDownloads();
+          _updateState(_state.copyWith(
+            isLoading: false,
+            isRefreshing: false,
+            clearError: true,
+            clearSyncWarning: true,
+            showDownloadedOnly: true,
+          ));
+        }
       } else {
         _clearDurationRetries();
         _updateState(_state.copyWith(
           isLoading: false,
+          isRefreshing: false,
           errorMessage: 'Failed to load library: $e',
         ));
       }
+    } finally {
+      _isLibraryLoadInFlight = false;
     }
   }
 
@@ -846,6 +896,7 @@ class LibraryController extends ChangeNotifier {
       songs: library.songs,
       isOfflineMode: false,
       isLoading: false,
+      isRefreshing: false,
       showDownloadedOnly: false,
       syncWarningMessage: _buildSyncWarningMessage(library),
       clearSyncWarning: !_hasSyncWarning(library),

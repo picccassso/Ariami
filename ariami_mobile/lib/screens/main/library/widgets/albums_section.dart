@@ -65,6 +65,7 @@ class AlbumsSection extends StatelessWidget {
               final isAvailable = !isOffline || hasDownloads;
 
               return AlbumGridItem(
+                key: ValueKey('album-${album.id}'),
                 album: album,
                 onTap: isAvailable ? () => onAlbumTap(album) : null,
                 onLongPress: () => onAlbumLongPress(album),
@@ -89,6 +90,7 @@ class AlbumsSection extends StatelessWidget {
           final isAvailable = !isOffline || hasDownloads;
 
           return AlbumListItem(
+            key: ValueKey('album-${album.id}'),
             album: album,
             onTap: isAvailable ? () => onAlbumTap(album) : null,
             onLongPress: () => onAlbumLongPress(album),

@@ -23,6 +23,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
   late final LibraryController _controller;
   final PlaybackManager _playbackManager = PlaybackManager();
   final QualitySettingsService _qualityService = QualitySettingsService();
+  final ScrollController _scrollController = ScrollController();
+  double _savedScrollOffset = 0;
 
   @override
   void initState() {
@@ -30,17 +32,35 @@ class _LibraryScreenState extends State<LibraryScreen> {
     _controller = LibraryController();
     _controller.initialize();
     _controller.addListener(_onControllerChanged);
+    _scrollController.addListener(_trackScrollOffset);
+  }
+
+  void _trackScrollOffset() {
+    if (_scrollController.hasClients) {
+      _savedScrollOffset = _scrollController.offset;
+    }
   }
 
   @override
   void dispose() {
+    _scrollController.removeListener(_trackScrollOffset);
+    _scrollController.dispose();
     _controller.removeListener(_onControllerChanged);
     super.dispose();
   }
 
   void _onControllerChanged() {
-    if (mounted) {
-      setState(() {});
+    if (!mounted) return;
+
+    final shouldRestoreScroll = _controller.consumeScrollRestorePending();
+    setState(() {});
+
+    if (shouldRestoreScroll) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_scrollController.hasClients) return;
+        final maxExtent = _scrollController.position.maxScrollExtent;
+        _scrollController.jumpTo(_savedScrollOffset.clamp(0, maxExtent));
+      });
     }
   }
 
@@ -529,6 +549,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
               return LibraryBody(
                 state: _controller.state,
                 isOffline: isOffline,
+                scrollController: _scrollController,
                 onRefresh: _handleLibraryRefresh,
                 onRetry: () => unawaited(_handleLibraryRefresh()),
                 onToggleAlbumsExpanded: _controller.toggleAlbumsExpanded,

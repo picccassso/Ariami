@@ -13,6 +13,7 @@ void main() {
       expect(state.offlineSongs, isEmpty);
       expect(state.isOfflineMode, false);
       expect(state.isLoading, true);
+      expect(state.isRefreshing, false);
       expect(state.errorMessage, isNull);
       expect(state.isGridView, true);
       expect(state.albumsExpanded, true);
@@ -29,11 +30,13 @@ void main() {
       const state = LibraryState();
       final newState = state.copyWith(
         isLoading: false,
+        isRefreshing: true,
         isGridView: false,
         albumsExpanded: false,
       );
 
       expect(newState.isLoading, false);
+      expect(newState.isRefreshing, true);
       expect(newState.isGridView, false);
       expect(newState.albumsExpanded, false);
       // Unchanged values should remain
@@ -251,6 +254,7 @@ void main() {
       expect(str, contains('albums:'));
       expect(str, contains('songs:'));
       expect(str, contains('isLoading:'));
+      expect(str, contains('isRefreshing:'));
     });
   });
 

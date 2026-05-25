@@ -104,6 +104,7 @@ class PlaylistsSection extends StatelessWidget {
 
             if (hasLikedSongs && index == currentIndex) {
               return PlaylistCard(
+                key: ValueKey('playlist-${likedSongsPlaylist.id}'),
                 playlist: likedSongsPlaylist,
                 onTap: () => onPlaylistTap(likedSongsPlaylist),
                 onLongPress: () => onPlaylistLongPress(likedSongsPlaylist),
@@ -121,6 +122,7 @@ class PlaylistsSection extends StatelessWidget {
             final playlistIndex = index - currentIndex;
             final playlist = regularPlaylists[playlistIndex];
             return PlaylistCard(
+              key: ValueKey('playlist-${playlist.id}'),
               playlist: playlist,
               onTap: () => onPlaylistTap(playlist),
               onLongPress: () => onPlaylistLongPress(playlist),
@@ -203,6 +205,7 @@ class PlaylistsSection extends StatelessWidget {
               likedSongsPlaylist.songIds.isNotEmpty;
           if (hasLikedSongs && index == currentIndex) {
             return PlaylistCard(
+              key: ValueKey('playlist-${likedSongsPlaylist.id}'),
               playlist: likedSongsPlaylist,
               onTap: () => onPlaylistTap(likedSongsPlaylist),
               onLongPress: () => onPlaylistLongPress(likedSongsPlaylist),
@@ -218,6 +221,7 @@ class PlaylistsSection extends StatelessWidget {
           final playlistIndex = index - currentIndex;
           final playlist = regularPlaylists[playlistIndex];
           return PlaylistCard(
+            key: ValueKey('playlist-${playlist.id}'),
             playlist: playlist,
             onTap: () => onPlaylistTap(playlist),
             onLongPress: () => onPlaylistLongPress(playlist),
@@ -253,6 +257,7 @@ class PlaylistsSection extends StatelessWidget {
 
           if (hasLikedSongs && index == currentIndex) {
             return PlaylistListItem(
+              key: ValueKey('playlist-${likedSongsPlaylist.id}'),
               playlist: likedSongsPlaylist,
               onTap: () => onPlaylistTap(likedSongsPlaylist),
               onLongPress: () => onPlaylistLongPress(likedSongsPlaylist),
@@ -270,6 +275,7 @@ class PlaylistsSection extends StatelessWidget {
           final playlistIndex = index - currentIndex;
           final playlist = regularPlaylists[playlistIndex];
           return PlaylistListItem(
+            key: ValueKey('playlist-${playlist.id}'),
             playlist: playlist,
             onTap: () => onPlaylistTap(playlist),
             onLongPress: () => onPlaylistLongPress(playlist),
@@ -330,6 +336,7 @@ class PlaylistsSection extends StatelessWidget {
 
         if (hasLikedSongs && index == currentIndex) {
           return PlaylistListItem(
+            key: ValueKey('playlist-${likedSongsPlaylist.id}'),
             playlist: likedSongsPlaylist,
             onTap: () => onPlaylistTap(likedSongsPlaylist),
             onLongPress: () => onPlaylistLongPress(likedSongsPlaylist),
@@ -345,6 +352,7 @@ class PlaylistsSection extends StatelessWidget {
         final playlistIndex = index - currentIndex;
         final playlist = regularPlaylists[playlistIndex];
         return PlaylistListItem(
+          key: ValueKey('playlist-${playlist.id}'),
           playlist: playlist,
           onTap: () => onPlaylistTap(playlist),
           onLongPress: () => onPlaylistLongPress(playlist),

@@ -16,6 +16,7 @@ class LibraryState {
 
   /// Loading and error states
   final bool isLoading;
+  final bool isRefreshing;
   final String? errorMessage;
   final String? syncWarningMessage;
 
@@ -43,6 +44,7 @@ class LibraryState {
     this.offlineSongs = const [],
     this.isOfflineMode = false,
     this.isLoading = true,
+    this.isRefreshing = false,
     this.errorMessage,
     this.syncWarningMessage,
     this.isGridView = true,
@@ -66,6 +68,7 @@ class LibraryState {
     List<Song>? offlineSongs,
     bool? isOfflineMode,
     bool? isLoading,
+    bool? isRefreshing,
     String? errorMessage,
     String? syncWarningMessage,
     bool? isGridView,
@@ -89,6 +92,7 @@ class LibraryState {
       offlineSongs: offlineSongs ?? this.offlineSongs,
       isOfflineMode: isOfflineMode ?? this.isOfflineMode,
       isLoading: isLoading ?? this.isLoading,
+      isRefreshing: isRefreshing ?? this.isRefreshing,
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
       syncWarningMessage: clearSyncWarning
           ? null
@@ -169,6 +173,7 @@ class LibraryState {
         listEquals(other.offlineSongs, offlineSongs) &&
         other.isOfflineMode == isOfflineMode &&
         other.isLoading == isLoading &&
+        other.isRefreshing == isRefreshing &&
         other.errorMessage == errorMessage &&
         other.syncWarningMessage == syncWarningMessage &&
         other.isGridView == isGridView &&
@@ -192,6 +197,7 @@ class LibraryState {
         Object.hashAll(offlineSongs),
         isOfflineMode,
         isLoading,
+        isRefreshing,
         errorMessage,
         syncWarningMessage,
         isGridView,
@@ -212,7 +218,8 @@ class LibraryState {
   String toString() {
     return 'LibraryState(albums: ${albums.length}, songs: ${songs.length}, '
         'offlineSongs: ${offlineSongs.length}, isOfflineMode: $isOfflineMode, '
-        'isLoading: $isLoading, errorMessage: $errorMessage, '
+        'isLoading: $isLoading, isRefreshing: $isRefreshing, '
+        'errorMessage: $errorMessage, '
         'syncWarningMessage: $syncWarningMessage, '
         'isGridView: $isGridView, albumsExpanded: $albumsExpanded, '
         'songsExpanded: $songsExpanded, isMixedMode: $isMixedMode, '

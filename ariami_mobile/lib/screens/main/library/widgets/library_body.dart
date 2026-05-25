@@ -38,11 +38,13 @@ class LibraryBody extends StatelessWidget {
   final Set<String> selectedPlaylistIds;
   final Set<String> selectedAlbumIds;
   final Set<String> selectedSongIds;
+  final ScrollController scrollController;
 
   const LibraryBody({
     super.key,
     required this.state,
     required this.isOffline,
+    required this.scrollController,
     required this.onRefresh,
     required this.onRetry,
     required this.onToggleAlbumsExpanded,
@@ -67,13 +69,17 @@ class LibraryBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (state.isLoading) {
+    if (state.isLoading &&
+        state.isLibraryEmpty &&
+        playlistService.playlists.isEmpty) {
       return const Center(
         child: CircularProgressIndicator(),
       );
     }
 
-    if (state.errorMessage != null) {
+    if (state.errorMessage != null &&
+        state.isLibraryEmpty &&
+        playlistService.playlists.isEmpty) {
       return LibraryErrorState(
         errorMessage: state.errorMessage!,
         onRetry: onRetry,
@@ -86,8 +92,10 @@ class LibraryBody extends StatelessWidget {
           return RefreshIndicator(
             onRefresh: onRefresh,
             child: CustomScrollView(
+              controller: scrollController,
               physics: const AlwaysScrollableScrollPhysics(),
               slivers: [
+                ..._buildTopSlivers(),
                 SliverFillRemaining(
                   hasScrollBody: false,
                   child: Padding(
@@ -109,12 +117,10 @@ class LibraryBody extends StatelessWidget {
         return RefreshIndicator(
           onRefresh: onRefresh,
           child: CustomScrollView(
+            controller: scrollController,
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
-              if (state.syncWarningMessage != null)
-                SliverToBoxAdapter(
-                  child: _SyncWarningBanner(message: state.syncWarningMessage!),
-                ),
+              ..._buildTopSlivers(),
               ...state.isMixedMode
                   ? _buildMixedModeSlivers(bottomPadding)
                   : _buildSeparateModeSlivers(bottomPadding),
@@ -123,6 +129,19 @@ class LibraryBody extends StatelessWidget {
         );
       },
     );
+  }
+
+  List<Widget> _buildTopSlivers() {
+    return [
+      if (state.isRefreshing)
+        const SliverToBoxAdapter(
+          child: LinearProgressIndicator(minHeight: 2),
+        ),
+      if (state.syncWarningMessage != null)
+        SliverToBoxAdapter(
+          child: _SyncWarningBanner(message: state.syncWarningMessage!),
+        ),
+    ];
   }
 
   List<Widget> _buildMixedModeSlivers(double bottomPadding) {
