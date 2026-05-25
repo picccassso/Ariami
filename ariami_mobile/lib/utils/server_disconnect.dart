@@ -1,13 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../database/library_sync_database.dart';
+import 'app_local_data_reset.dart';
 import '../screens/welcome_screen.dart';
 import '../services/api/connection_service.dart';
-import '../services/cache/cache_manager.dart';
-import '../services/download/download_manager.dart';
-import '../services/offline/sync_service.dart';
-import '../services/playlist_service.dart';
-import '../services/theme_service.dart';
 
 /// Shows the confirmation dialog for disconnecting from the server.
 void showDisconnectServerDialog(BuildContext context) {
@@ -77,21 +72,11 @@ void navigateToWelcomeScreen(BuildContext context) {
 
 /// Disconnects from the server, clears local data, and navigates to welcome.
 Future<void> disconnectServerAndClearData(BuildContext context) async {
+  final userId = ConnectionService().userId;
+
   try {
-    await ConnectionService().disconnectAndForgetServer();
-    await DownloadManager().clearAllDownloads();
-    await CacheManager().clearAllCache();
-    final libraryDatabase = await LibrarySyncDatabase.create();
-    await libraryDatabase.clearAllData();
-    await PlaylistService().clearAllPlaylistData();
-    await SyncService().clearPendingActions();
-    await ThemeService().setThemeSource(ThemeSource.darkNeutral);
+    await clearAllLocalUserData(userId: userId);
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Server disconnected and local data cleared'),
-        ),
-      );
       navigateToWelcomeScreen(context);
     }
   } catch (e) {

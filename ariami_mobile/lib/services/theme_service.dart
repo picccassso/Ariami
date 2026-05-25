@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import '../main.dart'; // For sharedPrefs
+import '../utils/shared_preferences_cache.dart';
 import '../utils/constants.dart';
 import 'color_extraction_service.dart';
 import 'playback_manager.dart';
@@ -245,6 +245,18 @@ class ThemeService extends ChangeNotifier {
     _themeSource = source;
     await sharedPrefs.setInt(_appearanceSourceKey, source.index);
     notifyListeners();
+  }
+
+  /// Reset in-memory theme customization to factory defaults.
+  void resetToDefaults() {
+    _presetColor = const Color(0xFFFFFFFF);
+    _customColor = const Color(0xFFFFFFFF);
+    _staticCoverArtColor = const Color(0xFFFFFFFF);
+    _staticSongId = null;
+    _staticSongTitle = null;
+    _staticSongArtist = null;
+    _staticSongAlbumId = null;
+    _themeSource = ThemeSource.systemNeutral;
   }
 
   Future<void> setPresetColor(Color color) async {

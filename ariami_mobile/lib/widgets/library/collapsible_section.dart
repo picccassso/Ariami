@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../../main.dart' show sharedPrefs;
+import '../../utils/shared_preferences_cache.dart';
 
 /// A collapsible section widget with animated expansion
 /// Used in the library screen to show/hide Playlists, Albums, and Songs sections

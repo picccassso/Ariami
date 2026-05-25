@@ -246,6 +246,13 @@ class OfflinePlaybackService {
   /// Get the connection state stream
   Stream<bool> get connectionStateStream => _connectionService.connectionStateStream;
 
+  /// Reset in-memory offline state to factory defaults.
+  void resetToDefaults() {
+    _offlineMode = OfflineMode.online;
+    _preferDownloaded = true;
+    _offlineStateController.add(_offlineMode);
+  }
+
   // ============================================================================
   // CLEANUP
   // ============================================================================

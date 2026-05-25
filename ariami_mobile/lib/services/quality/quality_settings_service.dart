@@ -186,6 +186,12 @@ class QualitySettingsService {
   /// Current network type
   NetworkType get currentNetworkType => _networkMonitor.currentNetworkType;
 
+  /// Reset in-memory quality settings to factory defaults.
+  void resetToDefaults() {
+    _settings = const QualitySettings();
+    _settingsController.add(_settings);
+  }
+
   /// Dispose resources
   void dispose() {
     _settingsController.close();
