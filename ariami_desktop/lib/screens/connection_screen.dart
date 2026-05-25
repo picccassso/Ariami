@@ -196,7 +196,9 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
     if (!_serverStarted) return '';
 
     // Generate server info for QR code (matching Phase 4 spec)
-    final serverInfo = _httpServer.getServerInfo();
+    final serverInfo = _httpServer.getServerInfo(
+      includeRegistrationToken: true,
+    );
 
     // Validate that server info has a valid IP before generating QR code
     final serverIp = serverInfo['server'];

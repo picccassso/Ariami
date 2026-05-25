@@ -114,6 +114,9 @@ class _QRCodeScreenState extends State<QRCodeScreen>
 
       if (response.statusCode == 200) {
         final serverInfo = response.jsonBody ?? <String, dynamic>{};
+        if (!await _addRegistrationToken(serverInfo)) {
+          return;
+        }
 
         if (mounted) {
           setState(() => _applyServerInfo(serverInfo));
@@ -152,6 +155,9 @@ class _QRCodeScreenState extends State<QRCodeScreen>
     try {
       final response = await _apiClient.post('/api/server-info/refresh');
       if (response.statusCode == 200 && response.jsonBody != null) {
+        if (!await _addRegistrationToken(response.jsonBody!)) {
+          return;
+        }
         if (mounted) {
           setState(() => _applyServerInfo(response.jsonBody!));
         }
@@ -175,6 +181,18 @@ class _QRCodeScreenState extends State<QRCodeScreen>
         });
       }
     }
+  }
+
+  Future<bool> _addRegistrationToken(Map<String, dynamic> serverInfo) async {
+    final response = await _apiClient.get('/api/admin/registration-token');
+    if (response.isAuthError) {
+      await _redirectToLogin();
+      return false;
+    }
+    if (response.statusCode == 200 && response.jsonBody != null) {
+      serverInfo.addAll(response.jsonBody!);
+    }
+    return true;
   }
 
   void _applyServerInfo(Map<String, dynamic> serverInfo) {

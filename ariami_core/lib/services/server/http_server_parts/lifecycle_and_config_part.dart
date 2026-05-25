@@ -305,15 +305,20 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
     _metricsService.stop();
     _inFlightDownloadTranscodesByUser.clear();
     _authEndpointAttempts.clear();
+    _registrationTokens.clear();
     _streamTracker.dispose();
 
     print('Ariami Server stopped');
   }
 
-  /// Get server info for QR code generation
-  Map<String, dynamic> getServerInfo() {
+  /// Get server info for QR code generation.
+  ///
+  /// Public `/api/server-info` must not include registration tokens. Local
+  /// desktop/dashboard QR flows opt in so scanning the QR becomes the
+  /// capability to create a non-admin mobile account.
+  Map<String, dynamic> getServerInfo({bool includeRegistrationToken = false}) {
     final authSnapshot = _getAuthSnapshotForServerInfo();
-    return {
+    final info = {
       'server': _advertisedIp ?? _tailscaleIp,
       'lanServer': _lanIp,
       'tailscaleServer': _tailscaleIp,
@@ -331,6 +336,39 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
         'maxQueuePerUser': _maxDownloadQueuePerUser,
       },
     };
+    if (includeRegistrationToken) {
+      info.addAll(_createRegistrationTokenPayload());
+    }
+    return info;
+  }
+
+  Map<String, dynamic> _createRegistrationTokenPayload() {
+    _purgeExpiredRegistrationTokens();
+    final token = _generateRegistrationTokenValue();
+    final expiresAt =
+        DateTime.now().toUtc().add(AriamiHttpServer._registrationTokenTtl);
+    _registrationTokens[token] = expiresAt;
+    return {
+      'registrationToken': token,
+      'registrationTokenExpiresAt': expiresAt.toIso8601String(),
+    };
+  }
+
+  bool _hasValidRegistrationToken(String? token) {
+    _purgeExpiredRegistrationTokens();
+    if (token == null || token.trim().isEmpty) {
+      return false;
+    }
+    return _registrationTokens.containsKey(token.trim());
+  }
+
+  void _consumeRegistrationToken(String token) {
+    _registrationTokens.remove(token.trim());
+  }
+
+  void _purgeExpiredRegistrationTokens() {
+    final now = DateTime.now().toUtc();
+    _registrationTokens.removeWhere((_, expiresAt) => !expiresAt.isAfter(now));
   }
 
   _ServerInfoAuthSnapshot _getAuthSnapshotForServerInfo() {

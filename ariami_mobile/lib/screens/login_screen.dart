@@ -270,7 +270,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           const SizedBox(height: 24),
 
                           // Register link
-                          if (widget.serverInfo.legacyMode)
+                          if (widget.serverInfo.canRegister)
                             Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
@@ -301,7 +301,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             )
                           else
                             Text(
-                              'Registration is closed for this server. Ask the server owner for an account.',
+                              'Registration is closed for this server. Scan the owner QR code or ask the server owner for an account.',
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                 color: Theme.of(context)

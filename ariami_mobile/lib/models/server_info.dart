@@ -10,6 +10,7 @@ class ServerInfo {
   final String version;
   final bool authRequired; // Whether server requires authentication
   final bool legacyMode; // Whether server is in legacy mode (no users yet)
+  final String? registrationToken; // QR-scoped token for non-admin signup
   final DownloadLimits downloadLimits;
 
   ServerInfo({
@@ -21,6 +22,7 @@ class ServerInfo {
     required this.version,
     this.authRequired = false,
     this.legacyMode = true,
+    this.registrationToken,
     this.downloadLimits = DownloadLimits.fallback,
   });
 
@@ -40,6 +42,7 @@ class ServerInfo {
       version: json['version'] as String,
       authRequired: json['authRequired'] as bool? ?? false,
       legacyMode: json['legacyMode'] as bool? ?? true,
+      registrationToken: json['registrationToken'] as String?,
       downloadLimits: DownloadLimits.fromJson(
         json['downloadLimits'] as Map<String, dynamic>?,
       ),
@@ -56,6 +59,7 @@ class ServerInfo {
       'version': version,
       'authRequired': authRequired,
       'legacyMode': legacyMode,
+      'registrationToken': registrationToken,
       'downloadLimits': downloadLimits.toJson(),
     };
   }
@@ -75,6 +79,8 @@ class ServerInfo {
 
   bool get isUsingLocalNetworkRoute => isUsingLanRoute || !hasTailscaleEndpoint;
 
+  bool get canRegister => legacyMode || registrationToken != null;
+
   String get routeLabel =>
       isUsingLocalNetworkRoute ? 'Local Network' : 'Tailscale';
 
@@ -88,6 +94,7 @@ class ServerInfo {
       version: version,
       authRequired: authRequired,
       legacyMode: legacyMode,
+      registrationToken: registrationToken,
       downloadLimits: downloadLimits,
     );
   }
@@ -101,6 +108,7 @@ class ServerInfo {
     String? version,
     bool? authRequired,
     bool? legacyMode,
+    String? registrationToken,
     DownloadLimits? downloadLimits,
   }) {
     return ServerInfo(
@@ -112,13 +120,14 @@ class ServerInfo {
       version: version ?? this.version,
       authRequired: authRequired ?? this.authRequired,
       legacyMode: legacyMode ?? this.legacyMode,
+      registrationToken: registrationToken ?? this.registrationToken,
       downloadLimits: downloadLimits ?? this.downloadLimits,
     );
   }
 
   @override
   String toString() {
-    return 'ServerInfo(server: $server, lanServer: $lanServer, tailscaleServer: $tailscaleServer, port: $port, name: $name, version: $version, authRequired: $authRequired, legacyMode: $legacyMode, downloadLimits: $downloadLimits)';
+    return 'ServerInfo(server: $server, lanServer: $lanServer, tailscaleServer: $tailscaleServer, port: $port, name: $name, version: $version, authRequired: $authRequired, legacyMode: $legacyMode, hasRegistrationToken: ${registrationToken != null}, downloadLimits: $downloadLimits)';
   }
 }
 

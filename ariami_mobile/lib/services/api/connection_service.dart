@@ -275,6 +275,7 @@ class ConnectionService {
       await apiClient.register(RegisterRequest(
         username: username,
         password: password,
+        registrationToken: resolvedServerInfo.registrationToken,
       ));
 
       // Login immediately

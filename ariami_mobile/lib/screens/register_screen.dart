@@ -58,7 +58,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           _errorMessage = 'Username already taken';
         } else if (_isRegistrationClosed(e)) {
           _errorMessage =
-              'Registration is closed for this server. Ask the server owner for an account, then sign in.';
+              'Registration requires a fresh owner QR code. Scan it again or ask the server owner for an account.';
         } else {
           _errorMessage = e.message;
         }

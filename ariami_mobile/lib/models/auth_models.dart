@@ -9,16 +9,19 @@ library;
 class RegisterRequest {
   final String username;
   final String password;
+  final String? registrationToken;
 
   RegisterRequest({
     required this.username,
     required this.password,
+    this.registrationToken,
   });
 
   Map<String, dynamic> toJson() {
     return {
       'username': username,
       'password': password,
+      if (registrationToken != null) 'registrationToken': registrationToken,
     };
   }
 }

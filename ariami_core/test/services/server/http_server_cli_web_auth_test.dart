@@ -184,6 +184,45 @@ void main() {
       expect(ownerLogin.statusCode, 200);
       final ownerToken = ownerLogin.jsonBody['sessionToken'] as String;
 
+      final unauthToken = await _sendJsonRequest(
+        method: 'GET',
+        url: Uri.parse('http://127.0.0.1:$port/api/admin/registration-token'),
+      );
+      expect(unauthToken.statusCode, 401);
+
+      final registrationTokenResponse = await _sendJsonRequest(
+        method: 'GET',
+        url: Uri.parse('http://127.0.0.1:$port/api/admin/registration-token'),
+        headers: <String, String>{'Authorization': 'Bearer $ownerToken'},
+      );
+      expect(registrationTokenResponse.statusCode, 200);
+      final registrationToken =
+          registrationTokenResponse.jsonBody['registrationToken'] as String;
+      expect(registrationToken, isNotEmpty);
+
+      final qrRegister = await _sendJsonRequest(
+        method: 'POST',
+        url: Uri.parse('http://127.0.0.1:$port/api/auth/register'),
+        jsonBody: <String, dynamic>{
+          'username': 'qr-user',
+          'password': 'qr-pass',
+          'registrationToken': registrationToken,
+        },
+      );
+      expect(qrRegister.statusCode, 200);
+      expect(qrRegister.jsonBody['username'], equals('qr-user'));
+
+      final reusedTokenRegister = await _sendJsonRequest(
+        method: 'POST',
+        url: Uri.parse('http://127.0.0.1:$port/api/auth/register'),
+        jsonBody: <String, dynamic>{
+          'username': 'reused-token-user',
+          'password': 'reused-token-pass',
+          'registrationToken': registrationToken,
+        },
+      );
+      expect(reusedTokenRegister.statusCode, 403);
+
       final adminCreate = await _sendJsonRequest(
         method: 'POST',
         url: Uri.parse('http://127.0.0.1:$port/api/admin/create-user'),

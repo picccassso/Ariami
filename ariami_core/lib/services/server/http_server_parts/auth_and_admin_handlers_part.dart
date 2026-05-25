@@ -9,6 +9,7 @@ extension AriamiHttpServerAuthAndAdminHandlersMethods on AriamiHttpServer {
 
       final username = data['username'] as String?;
       final password = data['password'] as String?;
+      final registrationToken = data['registrationToken'] as String?;
 
       if (username == null || password == null) {
         return Response.badRequest(
@@ -22,17 +23,20 @@ extension AriamiHttpServerAuthAndAdminHandlersMethods on AriamiHttpServer {
         );
       }
 
-      if (_authService.hasUsers()) {
+      if (_authService.hasUsers() &&
+          !_hasValidRegistrationToken(registrationToken)) {
         return _jsonForbidden({
           'error': {
             'code': AuthErrorCodes.registrationClosed,
-            'message':
-                'Public registration is only available before the first user is created',
+            'message': 'Registration requires a valid QR registration token',
           },
         });
       }
 
       final response = await _authService.register(username, password);
+      if (registrationToken != null && registrationToken.isNotEmpty) {
+        _consumeRegistrationToken(registrationToken);
+      }
 
       // Update auth mode after first user registration
       if (_authService.userCount == 1) {
@@ -230,6 +234,13 @@ extension AriamiHttpServerAuthAndAdminHandlersMethods on AriamiHttpServer {
       return _forbiddenAdminResponse();
     }
     return null;
+  }
+
+  Response _handleAdminRegistrationToken(Request request) {
+    final authResponse = _authorizeAdminRequest(request);
+    if (authResponse != null) return authResponse;
+
+    return _jsonOk(_createRegistrationTokenPayload());
   }
 
   Future<Response> _handleAdminConnectedClients(Request request) async {

@@ -113,8 +113,10 @@ class AriamiHttpServer {
   final AriamiMetricsService _metricsService = AriamiMetricsService();
   final Map<String, _AuthEndpointRateLimitTracker> _authEndpointAttempts =
       <String, _AuthEndpointRateLimitTracker>{};
+  final Map<String, DateTime> _registrationTokens = <String, DateTime>{};
   int _lastBroadcastSyncToken = 0;
   final Random _secureRandom = Random.secure();
+  static const Duration _registrationTokenTtl = Duration(minutes: 10);
 
   // Store web assets path for serving static files
   String? _webAssetsPath;
@@ -136,4 +138,13 @@ class AriamiHttpServer {
   Future<bool> Function()? _markSetupCompleteCallback;
   Future<bool> Function()? _getSetupStatusCallback;
   Future<Map<String, dynamic>> Function()? _transitionToBackgroundCallback;
+
+  String _generateRegistrationTokenValue() {
+    final buffer = StringBuffer();
+    for (var i = 0; i < 32; i++) {
+      final byte = _secureRandom.nextInt(256);
+      buffer.write(byte.toRadixString(16).padLeft(2, '0'));
+    }
+    return buffer.toString();
+  }
 }
