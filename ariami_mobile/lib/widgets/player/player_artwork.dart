@@ -89,6 +89,8 @@ class _PlayerArtworkState extends State<PlayerArtwork> {
 
   late int _visualIndex;
   late bool _wrapEnabled;
+  late List<String> _songIds;
+  bool _disableHeroThisFrame = false;
 
   /// Bumps when a post-frame sync is scheduled so older callbacks no-op.
   int _playbackPageSyncGeneration = 0;
@@ -135,6 +137,7 @@ class _PlayerArtworkState extends State<PlayerArtwork> {
     final initialPage = _queueIndexToPageIndex(widget.currentIndex);
     _visualIndex = initialPage;
     _pageController = _createPageController(initialPage);
+    _songIds = widget.queue.songs.map((s) => s.id).toList();
     _castService.initialize();
     _wasConnected = _castService.isConnected;
     _castService.addListener(_handleCastStateChanged);
@@ -151,15 +154,39 @@ class _PlayerArtworkState extends State<PlayerArtwork> {
 
     final wrapEnabled = _wrapEnabledForWidget;
     final wrapModeChanged = wrapEnabled != _wrapEnabled;
-    final queueLengthChanged =
-        widget.queue.length != oldWidget.queue.length;
     _wrapEnabled = wrapEnabled;
 
-    if (widget.queue != oldWidget.queue ||
-        wrapModeChanged ||
-        queueLengthChanged) {
+    // Check if the actual list of song IDs or their order has changed.
+    // This allows us to handle shuffle/unshuffle and queue reordering without disorienting page animations.
+    final newSongIds = widget.queue.songs.map((s) => s.id).toList();
+    bool songOrderChanged = false;
+    if (newSongIds.length != _songIds.length) {
+      songOrderChanged = true;
+    } else {
+      for (int i = 0; i < newSongIds.length; i++) {
+        if (newSongIds[i] != _songIds[i]) {
+          songOrderChanged = true;
+          break;
+        }
+      }
+    }
+    _songIds = newSongIds;
+
+    if (songOrderChanged || wrapModeChanged) {
+      _disableHeroThisFrame = true;
       final targetPage = _queueIndexToPageIndex(widget.currentIndex);
-      _replacePageController(targetPage);
+      _visualIndex = targetPage;
+      if (_pageController.hasClients) {
+        final position = _pageController.position;
+        if (position.viewportDimension > 0) {
+          final targetPixels = targetPage *
+              position.viewportDimension *
+              _pageController.viewportFraction;
+          position.correctPixels(targetPixels);
+        }
+      } else {
+        _replacePageController(targetPage);
+      }
       return;
     }
 
@@ -250,6 +277,16 @@ class _PlayerArtworkState extends State<PlayerArtwork> {
 
   @override
   Widget build(BuildContext context) {
+    if (_disableHeroThisFrame) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          setState(() {
+            _disableHeroThisFrame = false;
+          });
+        }
+      });
+    }
+
     return Listener(
       onPointerDown: _handleHorizontalSwipePointerDown,
       onPointerUp: (_) => _resetHorizontalPagingGuard(),
@@ -362,11 +399,14 @@ class _PlayerArtworkState extends State<PlayerArtwork> {
     );
 
     return Center(
-      child: Hero(
-        tag: isCurrent
-            ? 'album_art_${song.id}'
-            : 'album_art_${song.id}_$queueIndex',
-        child: child,
+      child: HeroMode(
+        enabled: !_disableHeroThisFrame,
+        child: Hero(
+          tag: isCurrent
+              ? 'album_art_${song.id}'
+              : 'album_art_${song.id}_$queueIndex',
+          child: child,
+        ),
       ),
     );
   }
