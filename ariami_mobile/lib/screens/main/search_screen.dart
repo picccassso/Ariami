@@ -498,20 +498,7 @@ class _SearchScreenState extends State<SearchScreen> {
       return _buildNoResultsState();
     }
 
-    final bottomPadding = getMiniPlayerAwareBottomPadding(context);
-    // #region agent log
-    debugLogBottomLayout(
-      hypothesisId: 'H4',
-      location: 'search_screen.dart:_buildSearchResults',
-      message: 'Search results list padding applied',
-      data: {
-        'keyboardVisible': MediaQuery.viewInsetsOf(context).bottom > 0,
-        'queryLength': _searchController.text.length,
-        'bottomPadding': bottomPadding,
-        'hasMiniPlayer': _playbackManager.currentSong != null,
-      },
-    );
-    // #endregion
+    final bottomPadding = getMiniPlayerScrollBottomPadding(context);
     return ListView(
       padding: EdgeInsets.only(
         bottom: bottomPadding,
@@ -600,20 +587,7 @@ class _SearchScreenState extends State<SearchScreen> {
       return _buildStartSearchingState();
     }
 
-    final bottomPadding = getMiniPlayerAwareBottomPadding(context);
-    // #region agent log
-    debugLogBottomLayout(
-      hypothesisId: 'H5',
-      location: 'search_screen.dart:_buildRecentSearches',
-      message: 'Recent searches list padding applied',
-      data: {
-        'keyboardVisible': MediaQuery.viewInsetsOf(context).bottom > 0,
-        'recentCount': _recentSongs.length,
-        'bottomPadding': bottomPadding,
-        'hasMiniPlayer': _playbackManager.currentSong != null,
-      },
-    );
-    // #endregion
+    final bottomPadding = getMiniPlayerScrollBottomPadding(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

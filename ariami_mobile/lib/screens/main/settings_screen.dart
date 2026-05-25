@@ -244,7 +244,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         builder: (context, _) {
           return ListView(
         padding: EdgeInsets.only(
-          bottom: getMiniPlayerAwareBottomPadding(context),
+          bottom: getMiniPlayerScrollBottomPadding(context),
         ),
         children: [
           _buildUserProfileHeader(),

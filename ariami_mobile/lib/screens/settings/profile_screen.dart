@@ -612,7 +612,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         builder: (context, _) {
           return ListView(
             padding: EdgeInsets.only(
-              bottom: getMiniPlayerAwareBottomPadding(context),
+              bottom: getMiniPlayerScrollBottomPadding(context),
             ),
             children: [
               _buildHeader(isDark: isDark, username: username),

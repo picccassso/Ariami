@@ -134,7 +134,7 @@ class _ImportExportScreenState extends State<ImportExportScreen> {
             32,
             0,
             32,
-            getMiniPlayerAwareBottomPadding(context) + 24,
+            getMiniPlayerScrollBottomPadding(context) + 24,
           ),
           child: Column(
             children: [

@@ -376,7 +376,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                     ),
                   SliverToBoxAdapter(
                     child: SizedBox(
-                      height: getMiniPlayerAwareBottomPadding(context) + 16,
+                      height: getMiniPlayerScrollBottomPadding(context) + 16,
                     ),
                   ),
                 ],

@@ -166,7 +166,7 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
         builder: (context, _) {
           return ListView(
             padding: EdgeInsets.only(
-              bottom: getMiniPlayerAwareBottomPadding(context) + 16,
+              bottom: getMiniPlayerScrollBottomPadding(context) + 16,
             ),
             children: [
               SettingsSection(

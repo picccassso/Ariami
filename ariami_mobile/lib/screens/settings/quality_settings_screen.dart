@@ -99,7 +99,7 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
                 16,
                 8,
                 16,
-                getMiniPlayerAwareBottomPadding(context) + 20,
+                getMiniPlayerScrollBottomPadding(context) + 20,
               ),
               children: [
                 // Current network indicator

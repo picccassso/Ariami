@@ -1,6 +1,3 @@
-import 'dart:async';
-import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/material.dart';
 
 /// Render height of the mini player widget.
@@ -11,36 +8,6 @@ const double kDownloadBarHeight = 4.0;
 
 /// Total height of mini player + download bar overlay.
 const double kMiniPlayerOverlayHeight = kMiniPlayerHeight + kDownloadBarHeight;
-
-// #region agent log
-void debugLogBottomLayout({
-  required String hypothesisId,
-  required String location,
-  required String message,
-  required Map<String, Object?> data,
-  String runId = 'initial',
-}) {
-  final payload = <String, Object?>{
-    'sessionId': 'c796da',
-    'runId': runId,
-    'hypothesisId': hypothesisId,
-    'location': location,
-    'message': message,
-    'data': data,
-    'timestamp': DateTime.now().millisecondsSinceEpoch,
-  };
-  unawaited(() async {
-    try {
-      await File('/Users/alex/Documents/Ariami/Ariami/.cursor/debug-c796da.log')
-          .writeAsString(
-        '${jsonEncode(payload)}\n',
-        mode: FileMode.append,
-        flush: true,
-      );
-    } catch (_) {}
-  }());
-}
-// #endregion
 
 /// Bottom navigation bar height including device safe-area inset.
 ///
@@ -59,23 +26,9 @@ double getBottomNavigationBarTotalHeight(BuildContext context) {
   } catch (_) {
     viewInsetsBottom = MediaQuery.viewInsetsOf(context).bottom;
   }
-  final total = viewInsetsBottom > 0
+  return viewInsetsBottom > 0
       ? 0.0
       : kBottomNavigationBarHeight + viewPaddingBottom;
-  // #region agent log
-  debugLogBottomLayout(
-    hypothesisId: 'H2',
-    location: 'bottom_chrome_metrics.dart:getBottomNavigationBarTotalHeight',
-    message: 'Bottom navigation height computed',
-    data: {
-      'viewPaddingBottom': viewPaddingBottom,
-      'viewInsetsBottom': viewInsetsBottom,
-      'keyboardVisible': viewInsetsBottom > 0,
-      'total': total,
-    },
-  );
-  // #endregion
-  return total;
 }
 
 /// Total bottom chrome height that content should stay above.
@@ -86,24 +39,8 @@ double getBottomChromeHeight(
   required bool isMiniPlayerVisible,
 }) {
   final bottomNavHeight = getBottomNavigationBarTotalHeight(context);
-  final total =
-      bottomNavHeight + (isMiniPlayerVisible ? kMiniPlayerOverlayHeight : 0.0);
-  // #region agent log
-  debugLogBottomLayout(
-    hypothesisId: 'H3',
-    location: 'bottom_chrome_metrics.dart:getBottomChromeHeight',
-    message: 'Bottom chrome height computed',
-    data: {
-      'isMiniPlayerVisible': isMiniPlayerVisible,
-      'keyboardVisible': MediaQuery.viewInsetsOf(context).bottom > 0,
-      'bottomNavHeight': bottomNavHeight,
-      'miniPlayerOverlayHeight':
-          isMiniPlayerVisible ? kMiniPlayerOverlayHeight : 0.0,
-      'total': total,
-    },
-  );
-  // #endregion
-  return total;
+  return bottomNavHeight +
+      (isMiniPlayerVisible ? kMiniPlayerOverlayHeight : 0.0);
 }
 
 /// Bottom margin for floating SnackBars in shells that already account for
@@ -118,23 +55,5 @@ double getMiniPlayerAwareSnackBarBottomMargin(
 }) {
   final keyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
   final miniPlayerHeight = isMiniPlayerVisible ? kMiniPlayerHeight : 0.0;
-  final margin = keyboardVisible ? spacing : miniPlayerHeight + spacing;
-
-  // #region agent log
-  debugLogBottomLayout(
-    hypothesisId: 'H6',
-    location:
-        'bottom_chrome_metrics.dart:getMiniPlayerAwareSnackBarBottomMargin',
-    message: 'SnackBar bottom margin computed',
-    data: {
-      'keyboardVisible': keyboardVisible,
-      'isMiniPlayerVisible': isMiniPlayerVisible,
-      'miniPlayerHeight': miniPlayerHeight,
-      'spacing': spacing,
-      'margin': margin,
-    },
-  );
-  // #endregion
-
-  return margin;
+  return keyboardVisible ? spacing : miniPlayerHeight + spacing;
 }

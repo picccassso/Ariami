@@ -894,7 +894,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
         // Bottom padding for mini player
         SliverPadding(
           padding: EdgeInsets.only(
-            bottom: getMiniPlayerAwareBottomPadding(context),
+            bottom: getMiniPlayerScrollBottomPadding(context),
           ),
         ),
       ],

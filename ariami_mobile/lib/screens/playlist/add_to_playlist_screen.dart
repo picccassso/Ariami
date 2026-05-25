@@ -246,7 +246,7 @@ class _AddToPlaylistScreenState extends State<AddToPlaylistScreen> {
 
     return ListView.builder(
       padding: EdgeInsets.only(
-        bottom: getMiniPlayerAwareBottomPadding(context),
+        bottom: getMiniPlayerScrollBottomPadding(context),
       ),
       itemCount: _filteredSongs.length,
       itemBuilder: (context, index) {

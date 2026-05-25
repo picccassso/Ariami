@@ -602,18 +602,18 @@ class _LibraryScreenState extends State<LibraryScreen> {
           ),
           
           // Premium Floating Glassmorphic Batch Action Bar
-          AnimatedBuilder(
-            animation: _controller,
-            builder: (context, child) {
-              final isVisible = _controller.isSelectionModeActive && _controller.totalSelectedCount > 0;
-              return AnimatedPositioned(
-                duration: const Duration(milliseconds: 300),
-                curve: isVisible ? Curves.easeOutBack : Curves.easeInOut,
-                left: 16,
-                right: 16,
-                bottom: isVisible
-                    ? getMiniPlayerAwareBottomPadding(context) + 16
-                    : -150, // Hide offscreen smoothly
+          MiniPlayerScrollPaddingBuilder(
+            builder: (context, bottomPadding) {
+              return AnimatedBuilder(
+                animation: _controller,
+                builder: (context, child) {
+                  final isVisible = _controller.isSelectionModeActive && _controller.totalSelectedCount > 0;
+                  return AnimatedPositioned(
+                    duration: const Duration(milliseconds: 300),
+                    curve: isVisible ? Curves.easeOutBack : Curves.easeInOut,
+                    left: 16,
+                    right: 16,
+                    bottom: isVisible ? bottomPadding + 16 : -150,
                 child: AnimatedOpacity(
                   duration: const Duration(milliseconds: 200),
                   opacity: isVisible ? 1.0 : 0.0,
@@ -704,6 +704,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
                     ),
                   ),
                 ),
+              );
+                },
               );
             },
           ),

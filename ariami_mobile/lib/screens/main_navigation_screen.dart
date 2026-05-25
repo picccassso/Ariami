@@ -118,22 +118,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
 
   @override
   Widget build(BuildContext context) {
-    final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
     final bottomNavHeight = getBottomNavigationBarTotalHeight(context);
-    // #region agent log
-    debugLogBottomLayout(
-      hypothesisId: 'H1',
-      location: 'main_navigation_screen.dart:build',
-      message: 'Main navigation layout state',
-      data: {
-        'currentIndex': _currentIndex,
-        'hasCurrentSong': _playbackManager.currentSong != null,
-        'keyboardVisible': keyboardInset > 0,
-        'keyboardInset': keyboardInset,
-        'overlayBottomOffset': bottomNavHeight,
-      },
-    );
-    // #endregion
     return Scaffold(
       extendBody: true,
       body: Stack(

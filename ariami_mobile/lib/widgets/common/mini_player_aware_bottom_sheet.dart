@@ -8,21 +8,87 @@ import 'queue_action_confirmation.dart';
 /// When the full player is on top, the mini player and bottom navigation bar
 /// are visually hidden behind it, so bottom sheets shown from inside the full
 /// player should not reserve space for that chrome.
-class MiniPlayerVisibility {
-  MiniPlayerVisibility._();
+class MiniPlayerVisibility extends ChangeNotifier {
+  MiniPlayerVisibility._internal();
 
-  static int _fullPlayerStackDepth = 0;
+  static final MiniPlayerVisibility instance = MiniPlayerVisibility._internal();
 
-  static bool get isFullPlayerOnTop => _fullPlayerStackDepth > 0;
+  int _fullPlayerStackDepth = 0;
+
+  bool get isFullPlayerOnTop => _fullPlayerStackDepth > 0;
 
   static void pushFullPlayer() {
-    _fullPlayerStackDepth++;
+    instance._pushFullPlayer();
   }
 
   static void popFullPlayer() {
+    instance._popFullPlayer();
+  }
+
+  void _pushFullPlayer() {
+    _fullPlayerStackDepth++;
+    notifyListeners();
+  }
+
+  void _popFullPlayer() {
     if (_fullPlayerStackDepth > 0) {
       _fullPlayerStackDepth--;
+      notifyListeners();
     }
+  }
+}
+
+Listenable get miniPlayerPaddingListenables => Listenable.merge([
+      PlaybackManager(),
+      MiniPlayerVisibility.instance,
+    ]);
+
+/// Rebuilds when playback or full-player visibility changes and supplies
+/// [getMiniPlayerAwareBottomPadding] to [builder].
+///
+/// Use [MiniPlayerScrollPaddingBuilder] for scrollable lists instead — it
+/// keeps padding stable while Now Playing is open so scroll position is
+/// preserved when returning from the full player.
+class MiniPlayerAwareBuilder extends StatelessWidget {
+  final Widget Function(BuildContext context, double bottomPadding) builder;
+
+  const MiniPlayerAwareBuilder({
+    super.key,
+    required this.builder,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: miniPlayerPaddingListenables,
+      builder: (context, _) {
+        return builder(context, getMiniPlayerAwareBottomPadding(context));
+      },
+    );
+  }
+}
+
+/// Rebuilds when playback changes and supplies stable scroll bottom padding.
+///
+/// Unlike [MiniPlayerAwareBuilder], this does not shrink padding while the
+/// full player is open, preventing scroll extent changes and position jumps
+/// when returning from Now Playing.
+class MiniPlayerScrollPaddingBuilder extends StatelessWidget {
+  final Widget Function(BuildContext context, double bottomPadding) builder;
+
+  const MiniPlayerScrollPaddingBuilder({
+    super.key,
+    required this.builder,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: PlaybackManager(),
+      builder: (context, _) {
+        return builder(context, getMiniPlayerScrollBottomPadding(context));
+      },
+    );
   }
 }
 
@@ -31,10 +97,19 @@ class MiniPlayerVisibility {
 ///
 /// Returns 0 when the full player screen is on top, since the mini player
 /// and bottom navigation bar are not visible to the user in that case.
+/// For scrollable lists, prefer [getMiniPlayerScrollBottomPadding].
 double getMiniPlayerAwareBottomPadding(BuildContext context) {
-  if (MiniPlayerVisibility.isFullPlayerOnTop) {
+  if (MiniPlayerVisibility.instance.isFullPlayerOnTop) {
     return 0.0;
   }
+  return getMiniPlayerScrollBottomPadding(context);
+}
+
+/// Bottom padding for scrollable content above the mini player and nav bar.
+///
+/// Stays constant while the full player is open so [ScrollView] extent and
+/// scroll offset are not disturbed when opening or closing Now Playing.
+double getMiniPlayerScrollBottomPadding(BuildContext context) {
   final playbackManager = PlaybackManager();
   final isMiniPlayerVisible = playbackManager.currentSong != null;
   return getBottomChromeHeight(
@@ -45,7 +120,7 @@ double getMiniPlayerAwareBottomPadding(BuildContext context) {
 
 /// Returns whether the mini player is currently visible to the user.
 bool isMiniPlayerVisible() {
-  if (MiniPlayerVisibility.isFullPlayerOnTop) return false;
+  if (MiniPlayerVisibility.instance.isFullPlayerOnTop) return false;
   return PlaybackManager().currentSong != null;
 }
 
@@ -63,10 +138,8 @@ class MiniPlayerAwareBottomSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final playbackManager = PlaybackManager();
-
     return ListenableBuilder(
-      listenable: playbackManager,
+      listenable: miniPlayerPaddingListenables,
       builder: (context, _) {
         final bottomPadding = getMiniPlayerAwareBottomPadding(context);
         return Padding(

@@ -299,7 +299,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
         // Bottom padding for mini player + download bar + nav bar
         SliverPadding(
           padding: EdgeInsets.only(
-            bottom: getMiniPlayerAwareBottomPadding(context),
+            bottom: getMiniPlayerScrollBottomPadding(context),
           ),
         ),
       ],

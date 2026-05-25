@@ -248,7 +248,7 @@ class _ConnectionSettingsScreenState extends State<ConnectionSettingsScreen> {
       ),
       body: ListView(
         padding: EdgeInsets.only(
-          bottom: getMiniPlayerAwareBottomPadding(context) + 20,
+          bottom: getMiniPlayerScrollBottomPadding(context) + 20,
         ),
         children: [
           StreamBuilder<ServerInfo?>(

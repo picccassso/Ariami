@@ -81,45 +81,51 @@ class LibraryBody extends StatelessWidget {
     }
 
     if (state.isLibraryEmpty && playlistService.playlists.isEmpty) {
-      return RefreshIndicator(
-        onRefresh: onRefresh,
-        child: CustomScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          slivers: [
-            SliverFillRemaining(
-              hasScrollBody: false,
-              child: Padding(
-                padding: EdgeInsets.only(
-                  bottom: getMiniPlayerAwareBottomPadding(context),
+      return MiniPlayerScrollPaddingBuilder(
+        builder: (context, bottomPadding) {
+          return RefreshIndicator(
+            onRefresh: onRefresh,
+            child: CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Padding(
+                    padding: EdgeInsets.only(bottom: bottomPadding),
+                    child: LibraryEmptyState(
+                      isOfflineMode: state.isOfflineMode || isOffline,
+                    ),
+                  ),
                 ),
-                child: LibraryEmptyState(
-                  isOfflineMode: state.isOfflineMode || isOffline,
-                ),
-              ),
+              ],
             ),
-          ],
-        ),
+          );
+        },
       );
     }
 
-    return RefreshIndicator(
-      onRefresh: onRefresh,
-      child: CustomScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        slivers: [
-          if (state.syncWarningMessage != null)
-            SliverToBoxAdapter(
-              child: _SyncWarningBanner(message: state.syncWarningMessage!),
-            ),
-          ...state.isMixedMode
-              ? _buildMixedModeSlivers(context)
-              : _buildSeparateModeSlivers(context),
-        ],
-      ),
+    return MiniPlayerScrollPaddingBuilder(
+      builder: (context, bottomPadding) {
+        return RefreshIndicator(
+          onRefresh: onRefresh,
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              if (state.syncWarningMessage != null)
+                SliverToBoxAdapter(
+                  child: _SyncWarningBanner(message: state.syncWarningMessage!),
+                ),
+              ...state.isMixedMode
+                  ? _buildMixedModeSlivers(bottomPadding)
+                  : _buildSeparateModeSlivers(bottomPadding),
+            ],
+          ),
+        );
+      },
     );
   }
 
-  List<Widget> _buildMixedModeSlivers(BuildContext context) {
+  List<Widget> _buildMixedModeSlivers(double bottomPadding) {
     return [
       // Mixed Playlists + Albums Section
       MixedSection(
@@ -158,14 +164,12 @@ class LibraryBody extends StatelessWidget {
 
       // Bottom padding for mini player
       SliverPadding(
-        padding: EdgeInsets.only(
-          bottom: getMiniPlayerAwareBottomPadding(context),
-        ),
+        padding: EdgeInsets.only(bottom: bottomPadding),
       ),
     ];
   }
 
-  List<Widget> _buildSeparateModeSlivers(BuildContext context) {
+  List<Widget> _buildSeparateModeSlivers(double bottomPadding) {
     return [
       // Playlists Section
       SliverToBoxAdapter(
@@ -223,9 +227,7 @@ class LibraryBody extends StatelessWidget {
 
       // Bottom padding for mini player
       SliverPadding(
-        padding: EdgeInsets.only(
-          bottom: getMiniPlayerAwareBottomPadding(context),
-        ),
+        padding: EdgeInsets.only(bottom: bottomPadding),
       ),
     ];
   }
