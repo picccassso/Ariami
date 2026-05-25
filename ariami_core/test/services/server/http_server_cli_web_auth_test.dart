@@ -115,6 +115,24 @@ void main() {
         AuthErrorCodes.authRequired,
       );
 
+      final publicSetupStatus = await _sendJsonRequest(
+        method: 'GET',
+        url: Uri.parse('http://127.0.0.1:$port/api/setup/status'),
+      );
+      expect(publicSetupStatus.statusCode, 200);
+      expect(publicSetupStatus.jsonBody['isComplete'], isFalse);
+
+      final protectedSetupAction = await _sendJsonRequest(
+        method: 'POST',
+        url: Uri.parse('http://127.0.0.1:$port/api/setup/start-scan'),
+      );
+      expect(protectedSetupAction.statusCode, 401);
+      expect(
+        (protectedSetupAction.jsonBody['error']
+            as Map<String, dynamic>)['code'],
+        AuthErrorCodes.authRequired,
+      );
+
       final loginResponse = await _sendJsonRequest(
         method: 'POST',
         url: Uri.parse('http://127.0.0.1:$port/api/auth/login'),

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:ariami_core/models/auth_models.dart';
 import 'package:ariami_core/models/websocket_models.dart';
 import '../services/web_api_client.dart';
 import '../services/web_auth_service.dart';
@@ -108,7 +109,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       );
 
       if (response.isAuthError) {
-        await _redirectToLogin();
+        await _redirectToLoginIfSessionCannotRecover(response.errorCode);
         return;
       }
 
@@ -170,7 +171,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     try {
       final response = await _apiClient.post('/api/server-info/refresh');
       if (response.isAuthError) {
-        await _redirectToLogin();
+        await _redirectToLoginIfSessionCannotRecover(response.errorCode);
         return;
       }
 
@@ -240,6 +241,15 @@ class _DashboardScreenState extends State<DashboardScreen>
     if (!mounted) return;
     await _authService.clearSessionToken();
     Navigator.pushReplacementNamed(context, '/login');
+  }
+
+  Future<bool> _redirectToLoginIfSessionCannotRecover(String? errorCode) async {
+    final hasToken = await _authService.hasSessionToken();
+    if (!hasToken || errorCode == AuthErrorCodes.sessionExpired) {
+      await _redirectToLogin();
+      return true;
+    }
+    return false;
   }
 
   Future<void> _switchToOwnerLogin() async {
@@ -339,8 +349,9 @@ class _DashboardScreenState extends State<DashboardScreen>
       });
     } on WebApiException catch (e) {
       if (e.isAuthError) {
-        await _redirectToLogin();
-        return;
+        final didRedirect =
+            await _redirectToLoginIfSessionCannotRecover(e.code);
+        if (didRedirect) return;
       }
 
       if (!mounted) return;
@@ -380,8 +391,9 @@ class _DashboardScreenState extends State<DashboardScreen>
       });
     } on WebApiException catch (e) {
       if (e.isAuthError) {
-        await _redirectToLogin();
-        return;
+        final didRedirect =
+            await _redirectToLoginIfSessionCannotRecover(e.code);
+        if (didRedirect) return;
       }
 
       if (!mounted) return;
@@ -449,8 +461,9 @@ class _DashboardScreenState extends State<DashboardScreen>
       await _loadServerStats();
     } on WebApiException catch (e) {
       if (e.isAuthError) {
-        await _redirectToLogin();
-        return;
+        final didRedirect =
+            await _redirectToLoginIfSessionCannotRecover(e.code);
+        if (didRedirect) return;
       }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -506,8 +519,9 @@ class _DashboardScreenState extends State<DashboardScreen>
       await _loadServerStats();
     } on WebApiException catch (e) {
       if (e.isAuthError) {
-        await _redirectToLogin();
-        return;
+        final didRedirect =
+            await _redirectToLoginIfSessionCannotRecover(e.code);
+        if (didRedirect) return;
       }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -552,7 +566,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                     expandedHeight: 120,
                     floating: true,
                     pinned: true,
-                    backgroundColor: AppTheme.pureBlack.withOpacity(0.8),
+                    backgroundColor: AppTheme.pureBlack.withValues(alpha: 0.8),
                     flexibleSpace: FlexibleSpaceBar(
                       centerTitle: true,
                       title: Text(

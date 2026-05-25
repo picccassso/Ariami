@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'package:ariami_core/models/auth_models.dart';
 import 'package:flutter/material.dart';
 import '../services/web_api_client.dart';
 import '../services/web_auth_service.dart';
@@ -28,6 +29,16 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
   Future<void> _checkSetupStatus() async {
     try {
       final response = await _apiClient.get('/api/setup/status');
+
+      if (response.isAuthError) {
+        if (response.errorCode == AuthErrorCodes.sessionExpired) {
+          await _authService.clearSessionToken();
+        }
+        if (mounted) {
+          Navigator.pushReplacementNamed(context, '/login');
+        }
+        return;
+      }
 
       if (response.statusCode == 200) {
         final data = response.jsonBody ?? <String, dynamic>{};

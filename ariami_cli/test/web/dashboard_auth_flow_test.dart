@@ -54,7 +54,52 @@ void main() {
       expect(response.isAuthError, isFalse);
     });
 
-    test('connected-clients requests include dashboard device identity', () async {
+    test('retries once when a token appears after an auth-required response',
+        () async {
+      var tokenReadCount = 0;
+      final capturedAuthHeaders = <String?>[];
+
+      final apiClient = WebApiClient(
+        tokenProvider: () async {
+          tokenReadCount++;
+          return tokenReadCount == 1 ? null : 'session-token';
+        },
+        httpClient: MockClient((request) async {
+          if (request.url.path == '/api/stats') {
+            capturedAuthHeaders.add(request.headers['authorization']);
+            if (request.headers['authorization'] == null) {
+              return http.Response(
+                jsonEncode(<String, dynamic>{
+                  'error': <String, dynamic>{
+                    'code': 'AUTH_REQUIRED',
+                    'message': 'Authentication required',
+                  },
+                }),
+                401,
+              );
+            }
+            return http.Response(
+              jsonEncode(<String, dynamic>{'songCount': 1}),
+              200,
+            );
+          }
+          return http.Response('{}', 404);
+        }),
+      );
+
+      final response = await apiClient.get('/api/stats');
+
+      expect(response.statusCode, 200);
+      expect(
+          capturedAuthHeaders,
+          equals(<String?>[
+            null,
+            'Bearer session-token',
+          ]));
+    });
+
+    test('connected-clients requests include dashboard device identity',
+        () async {
       String? capturedDeviceId;
       String? capturedDeviceName;
 
@@ -90,7 +135,8 @@ void main() {
       expect(rows.first.clientType, equals('dashboard_admin'));
     });
 
-    test('forbidden admin responses are detectable for owner sign-in CTA', () async {
+    test('forbidden admin responses are detectable for owner sign-in CTA',
+        () async {
       final apiClient = WebApiClient(
         tokenProvider: () async => 'non-owner-token',
         httpClient: MockClient((request) async {

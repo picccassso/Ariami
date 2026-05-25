@@ -288,7 +288,11 @@ class LibraryController extends ChangeNotifier {
 
   bool _isInitialized = false;
   bool _isLibraryLoadInFlight = false;
+  bool _pendingBackgroundReload = false;
   bool _pendingScrollRestore = false;
+
+  @visibleForTesting
+  int libraryLoadAttemptsForTest = 0;
 
   /// Returns true once when the UI should restore scroll after a library update.
   bool consumeScrollRestorePending() {
@@ -533,8 +537,8 @@ class LibraryController extends ChangeNotifier {
     if (latestToken > 0 && latestToken <= _lastHandledSyncToken) {
       return;
     }
-    await _refreshFromSyncToken(latestToken);
-    if (latestToken > 0) {
+    final refreshed = await _refreshFromSyncToken(latestToken);
+    if (refreshed && latestToken > 0) {
       _lastHandledSyncToken = latestToken;
     }
   }
@@ -564,13 +568,16 @@ class LibraryController extends ChangeNotifier {
     return 0;
   }
 
-  Future<void> _refreshFromSyncToken(int latestToken) async {
-    if (!await _isUsingV2LibrarySource()) return;
-    if (_isLibraryLoadInFlight) return;
+  Future<bool> _refreshFromSyncToken(int latestToken) async {
+    if (_isLibraryLoadInFlight) {
+      _pendingBackgroundReload = true;
+      return false;
+    }
+    if (!await _isUsingV2LibrarySource()) return false;
 
     if (latestToken <= 0) {
       await _loadLibrary(background: true);
-      return;
+      return true;
     }
 
     for (var attempt = 0; attempt < 10; attempt++) {
@@ -578,12 +585,13 @@ class LibraryController extends ChangeNotifier {
           .getActiveLastAppliedToken();
       if (appliedToken != null && appliedToken >= latestToken) {
         await _loadLibrary(background: true);
-        return;
+        return true;
       }
       await Future<void>.delayed(const Duration(milliseconds: 200));
     }
 
     await _loadLibrary(background: true);
+    return true;
   }
 
   void _scheduleDurationRetry() {
@@ -790,8 +798,12 @@ class LibraryController extends ChangeNotifier {
   }
 
   Future<void> _loadLibrary({bool background = false}) async {
-    if (_isLibraryLoadInFlight) return;
+    if (_isLibraryLoadInFlight) {
+      _pendingBackgroundReload = true;
+      return;
+    }
 
+    libraryLoadAttemptsForTest++;
     final hasExistingContent = _state.albums.isNotEmpty ||
         _state.songs.isNotEmpty ||
         _state.offlineSongs.isNotEmpty;
@@ -878,7 +890,35 @@ class LibraryController extends ChangeNotifier {
         ));
       }
     } finally {
-      _isLibraryLoadInFlight = false;
+      await _completeLibraryLoad();
+    }
+  }
+
+  Future<void> _completeLibraryLoad() async {
+    _isLibraryLoadInFlight = false;
+    if (_pendingBackgroundReload) {
+      _pendingBackgroundReload = false;
+      unawaited(_loadLibrary(background: true));
+      return;
+    }
+    await _recheckStaleSyncWarning();
+  }
+
+  Future<void> _recheckStaleSyncWarning() async {
+    if (_state.syncWarningMessage == null) return;
+    if (_offlineService.isOfflineModeEnabled) return;
+    if (_connectionService.apiClient == null) return;
+
+    try {
+      final health = await _connectionService.librarySyncEngine.getSyncHealth();
+      if (!health.isPartialRead && !health.hasSyncFailure) {
+        _updateState(_state.copyWith(
+          clearSyncWarning: true,
+          isRefreshing: false,
+        ));
+      }
+    } catch (_) {
+      // Keep the existing warning if health cannot be queried.
     }
   }
 
@@ -1013,6 +1053,46 @@ class LibraryController extends ChangeNotifier {
       isOfflineMode: true,
     ));
   }
+
+  // ============================================================================
+  // Test hooks
+  // ============================================================================
+
+  @visibleForTesting
+  bool get pendingBackgroundReloadForTest => _pendingBackgroundReload;
+
+  @visibleForTesting
+  bool get isLibraryLoadInFlightForTest => _isLibraryLoadInFlight;
+
+  @visibleForTesting
+  int get lastHandledSyncTokenForTest => _lastHandledSyncToken;
+
+  @visibleForTesting
+  void resetLoadSchedulingForTest() {
+    _isLibraryLoadInFlight = false;
+    _pendingBackgroundReload = false;
+    libraryLoadAttemptsForTest = 0;
+  }
+
+  @visibleForTesting
+  void markLibraryLoadInFlightForTest() {
+    _isLibraryLoadInFlight = true;
+  }
+
+  @visibleForTesting
+  Future<void> loadLibraryForTest({bool background = false}) =>
+      _loadLibrary(background: background);
+
+  @visibleForTesting
+  Future<void> completeLibraryLoadForTest() => _completeLibraryLoad();
+
+  @visibleForTesting
+  Future<bool> refreshFromSyncTokenForTest(int latestToken) =>
+      _refreshFromSyncToken(latestToken);
+
+  @visibleForTesting
+  Future<void> handleSyncTokenAdvancedForTest(int latestToken) =>
+      _handleSyncTokenAdvanced(latestToken);
 
   // ============================================================================
   // Getters for Services (needed by widgets/modals)

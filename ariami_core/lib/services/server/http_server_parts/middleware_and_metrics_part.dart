@@ -189,6 +189,7 @@ extension AriamiHttpServerMiddlewareAndMetricsMethods on AriamiHttpServer {
                 path.startsWith('/api/download/'));
         final isPublicPath = path == '/api/ping' ||
             path == '/api/server-info' ||
+            path == '/api/setup/status' ||
             path == '/api/ws' ||
             path == '/api/auth/login' ||
             path == '/api/auth/register' ||

@@ -10,35 +10,26 @@ class AuthRequiredBanner extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 24),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.orange.withOpacity(0.15),
+        color: Colors.green.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.orange.withOpacity(0.3)),
+        border: Border.all(color: Colors.green.withValues(alpha: 0.28)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.lock_rounded, color: Colors.orange.shade300, size: 20),
+          Icon(Icons.verified_user_rounded,
+              color: Colors.green.shade300, size: 20),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Authentication is enabled. Users must log in to access this server.',
+                  'You are signed in. Authentication is enabled for this server.',
                   style: TextStyle(
-                    color: Colors.orange.shade200,
+                    color: Colors.green.shade200,
                     fontSize: 13,
                     fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: OutlinedButton(
-                    onPressed: () {
-                      Navigator.pushNamed(context, '/login');
-                    },
-                    child: const Text('SIGN IN'),
                   ),
                 ),
               ],

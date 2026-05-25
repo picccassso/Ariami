@@ -256,19 +256,39 @@ class WebApiClient {
         );
       }
     }
-    late final http.Response response;
-    if (method == 'GET') {
-      response = await _httpClient.get(uri, headers: requestHeaders);
-    } else if (method == 'POST') {
-      response = await _httpClient.post(
-        uri,
-        headers: requestHeaders,
-        body: body == null ? null : jsonEncode(body),
-      );
-    } else {
+    Future<http.Response> sendRequest(Map<String, String> effectiveHeaders) {
+      if (method == 'GET') {
+        return _httpClient.get(uri, headers: effectiveHeaders);
+      }
+      if (method == 'POST') {
+        return _httpClient.post(
+          uri,
+          headers: effectiveHeaders,
+          body: body == null ? null : jsonEncode(body),
+        );
+      }
       throw UnsupportedError('Unsupported HTTP method: $method');
     }
 
+    var apiResponse = _decodeResponse(await sendRequest(requestHeaders));
+    if (includeAuth &&
+        tokenProvider != null &&
+        !requestHeaders.containsKey('Authorization') &&
+        apiResponse.errorCode == AuthErrorCodes.authRequired) {
+      final retryToken = await tokenProvider!.call();
+      if (retryToken != null && retryToken.isNotEmpty) {
+        final retryHeaders = <String, String>{
+          ...requestHeaders,
+          'Authorization': 'Bearer $retryToken',
+        };
+        apiResponse = _decodeResponse(await sendRequest(retryHeaders));
+      }
+    }
+
+    return apiResponse;
+  }
+
+  WebApiResponse _decodeResponse(http.Response response) {
     Map<String, dynamic>? jsonBody;
     if (response.body.isNotEmpty) {
       try {

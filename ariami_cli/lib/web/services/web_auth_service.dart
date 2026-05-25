@@ -17,6 +17,7 @@ class WebAuthService {
   static const String _sessionTokenKey = 'cli_web_session_token';
   static const String _deviceIdKey = 'cli_web_device_id';
   static const String _defaultDeviceName = 'Ariami CLI Web Dashboard';
+  static String? _sessionTokenCache;
 
   final http.Client _httpClient;
   final SharedPreferencesLoader _preferencesLoader;
@@ -101,10 +102,16 @@ class WebAuthService {
 
   Future<String?> getSessionToken() async {
     final prefs = await _preferencesLoader();
-    return prefs.getString(_sessionTokenKey);
+    final persistedToken = prefs.getString(_sessionTokenKey);
+    if (persistedToken != null && persistedToken.isNotEmpty) {
+      _sessionTokenCache = persistedToken;
+      return persistedToken;
+    }
+    return _sessionTokenCache;
   }
 
   Future<void> clearSessionToken() async {
+    _sessionTokenCache = null;
     final prefs = await _preferencesLoader();
     await prefs.remove(_sessionTokenKey);
   }
@@ -132,6 +139,7 @@ class WebAuthService {
   }
 
   Future<void> _saveSessionToken(String token) async {
+    _sessionTokenCache = token;
     final prefs = await _preferencesLoader();
     await prefs.setString(_sessionTokenKey, token);
   }

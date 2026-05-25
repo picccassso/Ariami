@@ -186,7 +186,9 @@ class _QRCodeScreenState extends State<QRCodeScreen>
   Future<bool> _addRegistrationToken(Map<String, dynamic> serverInfo) async {
     final response = await _apiClient.get('/api/admin/registration-token');
     if (response.isAuthError) {
-      await _redirectToLogin();
+      final didRedirect =
+          await _redirectToLoginIfSessionCannotRecover(response.errorCode);
+      if (didRedirect) return false;
       return false;
     }
     if (response.statusCode == 200 && response.jsonBody != null) {
@@ -212,6 +214,15 @@ class _QRCodeScreenState extends State<QRCodeScreen>
     if (!mounted) return;
     await _authService.clearSessionToken();
     Navigator.pushReplacementNamed(context, '/login');
+  }
+
+  Future<bool> _redirectToLoginIfSessionCannotRecover(String? errorCode) async {
+    final hasToken = await _authService.hasSessionToken();
+    if (!hasToken || errorCode == AuthErrorCodes.sessionExpired) {
+      await _redirectToLogin();
+      return true;
+    }
+    return false;
   }
 
   @override
@@ -379,8 +390,8 @@ class _QRCodeScreenState extends State<QRCodeScreen>
                                         borderRadius: BorderRadius.circular(24),
                                         boxShadow: [
                                           BoxShadow(
-                                            color:
-                                                Colors.white.withOpacity(0.1),
+                                            color: Colors.white
+                                                .withValues(alpha: 0.1),
                                             blurRadius: 30,
                                             spreadRadius: 5,
                                           ),
@@ -511,9 +522,11 @@ class _QRCodeScreenState extends State<QRCodeScreen>
       width: 500,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: Colors.redAccent.withOpacity(0.1),
+        color: Colors.redAccent.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.redAccent.withOpacity(0.2)),
+        border: Border.all(
+          color: Colors.redAccent.withValues(alpha: 0.2),
+        ),
       ),
       child: Column(
         children: [
