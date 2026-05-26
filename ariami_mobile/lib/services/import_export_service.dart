@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/api_models.dart';
@@ -61,8 +62,8 @@ class ImportExportService {
   late StatsDatabase _statsDatabase;
   bool _initialized = false;
 
-  /// Data version for future compatibility (v2 adds pinnedItems)
-  static const int _dataVersion = 2;
+  /// Data version for future compatibility (v2 adds pinnedItems, v3 adds server-import state)
+  static const int _dataVersion = 3;
 
   /// Keys for SharedPreferences
   static const String _lastExportKey = 'import_export_last_export';
@@ -103,28 +104,7 @@ class ImportExportService {
       // Ensure playlists are loaded
       await _playlistService.loadPlaylists();
 
-      // Get all data
-      final playlists = _playlistService.playlists;
-      final stats = await _statsDatabase.getAllStats();
-
-      // Get pinned items
-      final prefs = await SharedPreferences.getInstance();
-      final pinnedItems = (await LibraryPinStorage.loadForUser(
-        _connectionService.userId,
-      ))
-          .toList();
-
-      // Get app version
-      final packageInfo = await PackageInfo.fromPlatform();
-
-      final exportData = {
-        'exportDate': DateTime.now().toIso8601String(),
-        'appVersion': packageInfo.version,
-        'dataVersion': _dataVersion,
-        'playlists': playlists.map((p) => p.toJson()).toList(),
-        'stats': stats.map((s) => s.toJson()).toList(),
-        'pinnedItems': pinnedItems,
-      };
+      final exportData = await buildBackupData();
 
       // Generate filename with timestamp
       final now = DateTime.now();
@@ -154,7 +134,11 @@ class ImportExportService {
 
       // Save export timestamp
       _lastExportTime = DateTime.now();
+      final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_lastExportKey, _lastExportTime!.toIso8601String());
+
+      final playlists = exportData['playlists'] as List<dynamic>;
+      final stats = exportData['stats'] as List<dynamic>;
 
       return ExportResult(
         success: true,
@@ -192,7 +176,6 @@ class ImportExportService {
       final file = File(result.files.single.path!);
       final jsonString = await file.readAsString();
 
-      // Parse JSON
       final Map<String, dynamic> data;
       try {
         data = json.decode(jsonString) as Map<String, dynamic>;
@@ -202,6 +185,53 @@ class ImportExportService {
           error: 'Invalid JSON format',
         );
       }
+
+      return importBackupData(data, mode);
+    } catch (e) {
+      print('[ImportExportService] Import error: $e');
+      return ImportResult(
+        success: false,
+        error: e.toString(),
+      );
+    }
+  }
+
+  /// Build backup payload for export or testing.
+  @visibleForTesting
+  Future<Map<String, dynamic>> buildBackupData() async {
+    await initialize();
+    await _playlistService.loadPlaylists();
+
+    final playlists = _playlistService.playlists;
+    final stats = await _statsDatabase.getAllStats();
+    final pinnedItems = (await LibraryPinStorage.loadForUser(
+      _connectionService.userId,
+    ))
+        .toList();
+    final packageInfo = await PackageInfo.fromPlatform();
+
+    return {
+      'exportDate': DateTime.now().toIso8601String(),
+      'appVersion': packageInfo.version,
+      'dataVersion': _dataVersion,
+      'playlists': playlists.map((p) => p.toJson()).toList(),
+      'stats': stats.map((s) => s.toJson()).toList(),
+      'pinnedItems': pinnedItems,
+      'hiddenServerPlaylistIds':
+          _playlistService.hiddenServerPlaylistIds.toList(),
+      'importedFromServer': _playlistService.importedFromServer,
+    };
+  }
+
+  /// Import backup data from a parsed JSON map (used by tests and [importData]).
+  @visibleForTesting
+  Future<ImportResult> importBackupData(
+    Map<String, dynamic> data,
+    ImportMode mode,
+  ) async {
+    try {
+      await initialize();
+      await _playlistService.loadPlaylists();
 
       // Validate structure
       if (!data.containsKey('playlists') || !data.containsKey('stats')) {
@@ -236,6 +266,20 @@ class ImportExportService {
       final importedPinnedItems =
           (data['pinnedItems'] as List<dynamic>?)?.cast<String>().toSet() ??
               <String>{};
+
+      // Parse server-import state (v3+, empty for older backups)
+      final importedHiddenServerPlaylistIds =
+          (data['hiddenServerPlaylistIds'] as List<dynamic>?)
+                  ?.cast<String>()
+                  .toSet() ??
+              <String>{};
+      final importedFromServerRaw =
+          data['importedFromServer'] as Map<String, dynamic>?;
+      final importedFromServer = importedFromServerRaw == null
+          ? <String, String>{}
+          : importedFromServerRaw.map(
+              (key, value) => MapEntry(key, value as String),
+            );
 
       // -----------------------------------------------------------------------
       // Remap stale song IDs using current library data
@@ -303,6 +347,12 @@ class ImportExportService {
               _connectionService.userId, merged);
         }
       }
+
+      await _playlistService.applyServerImportState(
+        hiddenServerPlaylistIds: importedHiddenServerPlaylistIds,
+        importedFromServer: importedFromServer,
+        replace: mode == ImportMode.replace,
+      );
 
       // Refresh stats service cache
       await _statsService.reloadFromDatabase();

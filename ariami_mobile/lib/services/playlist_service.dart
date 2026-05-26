@@ -69,6 +69,14 @@ class PlaylistService extends ChangeNotifier {
   String? getServerPlaylistId(String localPlaylistId) =>
       _importedFromServer[localPlaylistId];
 
+  /// Hidden server playlist IDs (for backup serialization)
+  Set<String> get hiddenServerPlaylistIds =>
+      Set.unmodifiable(_hiddenServerPlaylistIds);
+
+  /// Local-to-server playlist mapping (for backup serialization)
+  Map<String, String> get importedFromServer =>
+      Map.unmodifiable(_importedFromServer);
+
   /// Check if service has loaded data
   bool get isLoaded => _isLoaded;
 
@@ -178,6 +186,65 @@ class PlaylistService extends ChangeNotifier {
     }
   }
 
+  PlaylistModel? _findLocalPlaylistByName(String name) {
+    final normalizedName = name.toLowerCase();
+    for (final playlist in _playlists) {
+      if (playlist.name.toLowerCase() == normalizedName) {
+        return playlist;
+      }
+    }
+    return null;
+  }
+
+  PlaylistModel? _findLocalPlaylistForServerId(String serverPlaylistId) {
+    for (final entry in _importedFromServer.entries) {
+      if (entry.value == serverPlaylistId) {
+        return getPlaylist(entry.key);
+      }
+    }
+    return null;
+  }
+
+  Future<void> _ensureServerPlaylistHidden(
+    String serverPlaylistId,
+    String localPlaylistId,
+  ) async {
+    var changed = false;
+    if (!_hiddenServerPlaylistIds.contains(serverPlaylistId)) {
+      _hiddenServerPlaylistIds.add(serverPlaylistId);
+      changed = true;
+    }
+    if (_importedFromServer[localPlaylistId] != serverPlaylistId) {
+      _importedFromServer[localPlaylistId] = serverPlaylistId;
+      changed = true;
+    }
+    if (changed) {
+      await _saveHiddenServerPlaylists();
+      await _saveImportedFromServer();
+      notifyListeners();
+    }
+  }
+
+  /// Restore server-import tracking from a backup file.
+  Future<void> applyServerImportState({
+    required Set<String> hiddenServerPlaylistIds,
+    required Map<String, String> importedFromServer,
+    required bool replace,
+  }) async {
+    if (replace) {
+      _hiddenServerPlaylistIds = Set<String>.from(hiddenServerPlaylistIds);
+      _importedFromServer = Map<String, String>.from(importedFromServer);
+    } else {
+      _hiddenServerPlaylistIds.addAll(hiddenServerPlaylistIds);
+      _importedFromServer.addAll(importedFromServer);
+    }
+
+    await _saveHiddenServerPlaylists();
+    await _saveImportedFromServer();
+    await _autoHideMatchingServerPlaylists();
+    notifyListeners();
+  }
+
   // ============================================================================
   // SERVER PLAYLIST METHODS
   // ============================================================================
@@ -241,6 +308,24 @@ class PlaylistService extends ChangeNotifier {
     ServerPlaylist serverPlaylist, {
     required List<SongModel> allSongs,
   }) async {
+    if (_hiddenServerPlaylistIds.contains(serverPlaylist.id)) {
+      final existing =
+          _findLocalPlaylistForServerId(serverPlaylist.id) ??
+              _findLocalPlaylistByName(serverPlaylist.name);
+      if (existing != null) {
+        return existing;
+      }
+    }
+
+    final existingByName = _findLocalPlaylistByName(serverPlaylist.name);
+    if (existingByName != null) {
+      await _ensureServerPlaylistHidden(
+        serverPlaylist.id,
+        existingByName.id,
+      );
+      return existingByName;
+    }
+
     final now = DateTime.now();
     final localId = _uuid.v4();
     final metadata = await _buildPlaylistSongMetadata(
@@ -302,6 +387,8 @@ class PlaylistService extends ChangeNotifier {
     for (final serverPlaylist in serverPlaylists) {
       // Skip if already hidden (shouldn't happen, but safety check)
       if (_hiddenServerPlaylistIds.contains(serverPlaylist.id)) continue;
+
+      if (_findLocalPlaylistByName(serverPlaylist.name) != null) continue;
 
       final localId = _uuid.v4();
       final metadata = _buildPlaylistSongMetadataFromIndex(
@@ -756,6 +843,8 @@ class PlaylistService extends ChangeNotifier {
     for (final playlist in playlists) {
       // Skip if playlist with same ID already exists
       if (getPlaylist(playlist.id) != null) continue;
+      // Skip if a local playlist with the same name already exists
+      if (_findLocalPlaylistByName(playlist.name) != null) continue;
       _playlists.add(playlist);
       imported++;
     }
@@ -767,19 +856,16 @@ class PlaylistService extends ChangeNotifier {
     return imported;
   }
 
-  /// Replace all playlists (replace mode)
-  /// Also clears server playlist tracking to avoid orphaned data
+  /// Replace all playlists (replace mode).
+  /// Server-import tracking is restored separately via [applyServerImportState].
   Future<void> replaceAllPlaylists(List<PlaylistModel> playlists) async {
     _playlists = List.from(playlists);
     _isLoaded = true;
-
-    // Clear server playlist tracking since imported playlists may no longer exist
-    _hiddenServerPlaylistIds.clear();
-    _importedFromServer.clear();
     _recentlyImportedIds.clear();
 
     await _savePlaylists();
     await _autoHideMatchingServerPlaylists();
+    await _saveHiddenServerPlaylists();
     await _saveImportedFromServer();
     notifyListeners();
   }
