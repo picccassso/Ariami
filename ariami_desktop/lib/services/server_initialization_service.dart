@@ -8,6 +8,7 @@ import '../utils/feature_flags_loader.dart';
 import 'desktop_download_limits_service.dart';
 import 'desktop_state_service.dart';
 import 'desktop_tailscale_service.dart';
+import 'desktop_transcode_slots_service.dart';
 
 /// Shared desktop server configuration: feature flags, library cache, transcoding/artwork.
 ///
@@ -20,6 +21,8 @@ class ServerInitializationService {
 
   TranscodingService? _transcodingService;
   ArtworkService? _artworkService;
+  final DesktopTranscodeSlotsService _transcodeSlotsService =
+      DesktopTranscodeSlotsService();
 
   /// Feature flags, metadata cache path, catalog repository check, [setFeatureFlags].
   Future<void> configureLibraryCacheAndFeatureFlags(
@@ -44,38 +47,61 @@ class ServerInitializationService {
   /// Desktop transcoding and artwork caches (idempotent).
   Future<void> ensureTranscodingAndArtworkServices(
       AriamiHttpServer httpServer) async {
+    await _ensureTranscodingService(httpServer);
+    await _ensureArtworkService(httpServer);
+  }
+
+  /// Rebuild the transcoding service with the latest slot configuration.
+  Future<void> recreateTranscodingService(AriamiHttpServer httpServer) async {
+    _transcodingService?.dispose();
+    _transcodingService = null;
+    await _ensureTranscodingService(httpServer);
+  }
+
+  Future<void> _ensureTranscodingService(AriamiHttpServer httpServer) async {
+    if (_transcodingService != null) {
+      return;
+    }
+
     final appDir = await getApplicationSupportDirectory();
+    final transcodingCachePath = p.join(appDir.path, 'transcoded_cache');
+    final snapshot = await _transcodeSlotsService.getSnapshot();
+    final slots = snapshot.effective;
 
-    if (_transcodingService == null) {
-      final transcodingCachePath = p.join(appDir.path, 'transcoded_cache');
-      _transcodingService = TranscodingService(
-        cacheDirectory: transcodingCachePath,
-        maxCacheSizeMB: 4096,
-        maxConcurrency: 2,
-        maxDownloadConcurrency: Platform.isMacOS ? 10 : 6,
-        sonicLibraryPath: _resolveBundledSonicLibraryPath(),
-      );
-      httpServer.setTranscodingService(_transcodingService!);
-      print(
-          '[ServerInit] Transcoding service initialized at: $transcodingCachePath');
+    _transcodingService = TranscodingService(
+      cacheDirectory: transcodingCachePath,
+      maxCacheSizeMB: 4096,
+      maxConcurrency: slots,
+      maxDownloadConcurrency: slots,
+      sonicLibraryPath: _resolveBundledSonicLibraryPath(),
+    );
+    httpServer.setTranscodingService(_transcodingService!);
+    print(
+        '[ServerInit] Transcoding service initialized at: $transcodingCachePath '
+        '(slots=$slots, default=${snapshot.defaultSlots}'
+        '${snapshot.isCustom ? ', custom override' : ''})');
 
-      _transcodingService!.isSonicAvailable().then((available) {
-        if (!available) {
-          print(
-              '[ServerInit] Warning: Sonic not available - transcoding will be disabled');
-        }
-      });
+    _transcodingService!.isSonicAvailable().then((available) {
+      if (!available) {
+        print(
+            '[ServerInit] Warning: Sonic not available - transcoding will be disabled');
+      }
+    });
+  }
+
+  Future<void> _ensureArtworkService(AriamiHttpServer httpServer) async {
+    if (_artworkService != null) {
+      return;
     }
 
-    if (_artworkService == null) {
-      final artworkCachePath = p.join(appDir.path, 'artwork_cache');
-      _artworkService = ArtworkService(
-        cacheDirectory: artworkCachePath,
-        maxCacheSizeMB: 256,
-      );
-      httpServer.setArtworkService(_artworkService!);
-      print('[ServerInit] Artwork service initialized at: $artworkCachePath');
-    }
+    final appDir = await getApplicationSupportDirectory();
+    final artworkCachePath = p.join(appDir.path, 'artwork_cache');
+    _artworkService = ArtworkService(
+      cacheDirectory: artworkCachePath,
+      maxCacheSizeMB: 256,
+    );
+    httpServer.setArtworkService(_artworkService!);
+    print('[ServerInit] Artwork service initialized at: $artworkCachePath');
   }
 
   /// Multi-user auth file paths and [initializeAuth] on the server.

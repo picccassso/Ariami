@@ -12,6 +12,7 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:crypto/crypto.dart';
 import 'package:ariami_core/services/server/connection_manager.dart';
 import 'package:ariami_core/services/server/streaming_service.dart';
+import 'package:ariami_core/services/transcoding/transcode_slots_policy.dart';
 import 'package:ariami_core/services/transcoding/transcoding_service.dart';
 import 'package:ariami_core/services/artwork/artwork_service.dart';
 import 'package:ariami_core/models/quality_preset.dart';
@@ -138,6 +139,11 @@ class AriamiHttpServer {
   Future<bool> Function()? _markSetupCompleteCallback;
   Future<bool> Function()? _getSetupStatusCallback;
   Future<Map<String, dynamic>> Function()? _transitionToBackgroundCallback;
+
+  // Callbacks for transcode slot configuration (optional, for CLI use)
+  Future<TranscodeSlotsSnapshot> Function()? _getTranscodeSlotsSnapshotCallback;
+  Future<TranscodeSlotsSnapshot> Function(int? slots)?
+      _setTranscodeSlotsOverrideCallback;
 
   String _generateRegistrationTokenValue() {
     final buffer = StringBuffer();

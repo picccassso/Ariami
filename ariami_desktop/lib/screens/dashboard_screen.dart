@@ -12,14 +12,15 @@ import '../models/server_user_row.dart';
 import '../services/dashboard_admin_api_service.dart';
 import '../services/desktop_state_service.dart';
 import '../services/desktop_tailscale_service.dart';
+import '../services/desktop_transcode_slots_service.dart';
 import '../services/server_initialization_service.dart';
-import '../utils/date_formatter.dart';
 import '../widgets/admin_credentials_dialog.dart';
 import '../widgets/change_password_dialog.dart';
-import '../widgets/connected_users_table.dart';
-import '../widgets/info_card.dart';
-import '../widgets/server_users_table.dart';
-import '../widgets/user_activity_table.dart';
+import '../widgets/dashboard/dashboard_activity_tab.dart';
+import '../widgets/dashboard/dashboard_overview_tab.dart';
+import '../widgets/dashboard/dashboard_server_tab.dart';
+import '../widgets/dashboard/dashboard_users_tab.dart';
+import '../widgets/transcode_slots_dialog.dart';
 import 'owner_setup_screen.dart';
 import 'scanning_screen.dart';
 
@@ -30,11 +31,14 @@ class DashboardScreen extends StatefulWidget {
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> {
+class _DashboardScreenState extends State<DashboardScreen>
+    with SingleTickerProviderStateMixin {
   final AriamiHttpServer _httpServer = AriamiHttpServer();
   final DesktopTailscaleService _tailscaleService = DesktopTailscaleService();
   final DesktopStateService _stateService = DesktopStateService();
   final ServerInitializationService _serverInit = ServerInitializationService();
+  final DesktopTranscodeSlotsService _transcodeSlotsService =
+      DesktopTranscodeSlotsService();
 
   static const _dockChannel = MethodChannel('ariami_desktop/dock');
 
@@ -65,10 +69,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Timer? _userActivityRefreshTimer;
   Timer? _adminHeartbeatTimer;
   DateTime? _addressesUpdatedAt;
+  TranscodeSlotsSnapshot? _transcodeSlotsSnapshot;
+  bool _isSavingTranscodeSlots = false;
+  late TabController _tabController;
 
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 4, vsync: this);
     _adminApi = DashboardAdminApiService(
       httpServer: _httpServer,
       promptCredentials: () =>
@@ -122,6 +130,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   void dispose() {
+    _tabController.dispose();
     _httpServer.libraryManager
         .removeScanCompleteListener(_onLibraryScanComplete);
     _httpServer.connectionManager.removeListener(_onClientConnectionChanged);
@@ -174,6 +183,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     await _refreshConnectedClientRows(showLoading: true);
     await _refreshServerUsers(showLoading: true);
     await _refreshUserActivity(showLoading: true);
+
+    _transcodeSlotsSnapshot = await _transcodeSlotsService.getSnapshot();
 
     setState(() {
       _isLoading = false;
@@ -949,6 +960,110 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
+  Future<void> _promptEditTranscodeSlots() async {
+    final snapshot = _transcodeSlotsSnapshot;
+    if (snapshot == null || _isSavingTranscodeSlots) {
+      return;
+    }
+
+    final result = await showTranscodeSlotsDialog(
+      context,
+      snapshot: snapshot,
+    );
+    if (result == null) {
+      return;
+    }
+
+    setState(() {
+      _isSavingTranscodeSlots = true;
+    });
+
+    try {
+      final updated = result.reset
+          ? await _transcodeSlotsService.setOverride(null)
+          : await _transcodeSlotsService.setOverride(result.slots);
+
+      if (!mounted) return;
+
+      setState(() {
+        _transcodeSlotsSnapshot = updated;
+      });
+
+      await _restartServerForTranscodeSlotsChange();
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Transcode slots updated to ${updated.effective}.',
+          ),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to update transcode slots: $e'),
+          backgroundColor: Colors.redAccent,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSavingTranscodeSlots = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _restartServerForTranscodeSlotsChange() async {
+    final wasRunning = _httpServer.isRunning;
+    if (wasRunning) {
+      await _httpServer.stop();
+      _adminApi.clearAdminSessionToken();
+    }
+
+    await _serverInit.recreateTranscodingService(_httpServer);
+
+    if (!wasRunning) {
+      return;
+    }
+
+    final tailscaleIp = await _tailscaleService.getTailscaleIp();
+    final lanIp = await _tailscaleService.getLanIp();
+    final advertisedIp = tailscaleIp ?? lanIp;
+    if (advertisedIp == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Settings saved, but the server could not be restarted '
+              'because no network address is available.',
+            ),
+            duration: Duration(seconds: 4),
+          ),
+        );
+      }
+      return;
+    }
+
+    await ServerInitializationService.initializeAuth(
+        _httpServer, _stateService);
+    await ServerInitializationService.applyDesktopDownloadLimits(_httpServer);
+    await _httpServer.start(
+      advertisedIp: advertisedIp,
+      tailscaleIp: tailscaleIp,
+      lanIp: lanIp,
+      port: 8080,
+    );
+
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
   Future<void> _toggleServer() async {
     if (_httpServer.isRunning) {
       await _httpServer.stop();
@@ -1057,426 +1172,81 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isRunning = _httpServer.isRunning;
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Dashboard'),
         automaticallyImplyLeading: false,
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(text: 'Overview'),
+            Tab(text: 'Activity'),
+            Tab(text: 'Users'),
+            Tab(text: 'Server'),
+          ],
+        ),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: Colors.white))
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Server Status',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: -0.5,
-                    ),
+          : TabBarView(
+              controller: _tabController,
+              children: [
+                DashboardOverviewTab(
+                  httpServer: _httpServer,
+                  connectedClients: _connectedClients,
+                  hasOwnerAccount: _hasOwnerAccount,
+                  onToggleServer: _toggleServer,
+                  onOpenOwnerSetup: _openOwnerSetup,
+                ),
+                DashboardActivityTab(
+                  isLoadingUserActivity: _isLoadingUserActivity,
+                  userActivityError: _userActivityError,
+                  userActivityRows: _userActivityRows,
+                  isLoadingConnectedRows: _isLoadingConnectedRows,
+                  connectedRowsError: _connectedRowsError,
+                  connectedClientRows: _connectedClientRows,
+                  hasOwnerAccount: _hasOwnerAccount,
+                  kickingDeviceIds: _kickingDeviceIds,
+                  onKick: _kickClient,
+                  onOpenOwnerSetup: _openOwnerSetup,
+                ),
+                DashboardUsersTab(
+                  isLoadingServerUsers: _isLoadingServerUsers,
+                  serverUsersError: _serverUsersError,
+                  serverUserRows: _serverUserRows,
+                  hasOwnerAccount: _hasOwnerAccount,
+                  isCreatingUser: _isCreatingUser,
+                  isChangingPassword: _isChangingPassword,
+                  deletingUserIds: _deletingUserIds,
+                  onCreateUser: _promptCreateUser,
+                  onChangePassword: (row) => _promptChangePassword(
+                    initialUsername: row.username,
                   ),
-                  const SizedBox(height: 16),
-                  InfoCard(
-                    title: 'Status',
-                    value: isRunning ? 'Active' : 'Stopped',
-                    icon: isRunning
-                        ? Icons.check_circle_rounded
-                        : Icons.stop_circle_rounded,
-                    isActive: isRunning,
-                  ),
-                  const SizedBox(height: 12),
-                  if (isRunning) ...[
-                    InfoCard(
-                      title: 'Connected Clients',
-                      value: _connectedClients.toString(),
-                      icon: Icons.devices_rounded,
-                      isActive: _connectedClients > 0,
-                    ),
-                    const SizedBox(height: 12),
-                    InfoCard(
-                      title: 'Connected Users',
-                      value: _httpServer.connectedUsers.toString(),
-                      icon: Icons.people_rounded,
-                      isActive: _httpServer.connectedUsers > 0,
-                    ),
-                    const SizedBox(height: 12),
-                    InfoCard(
-                      title: 'Active Sessions',
-                      value: _httpServer.activeSessions.toString(),
-                      icon: Icons.vpn_key_rounded,
-                      isActive: _httpServer.activeSessions > 0,
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: _toggleServer,
-                      icon: Icon(isRunning
-                          ? Icons.stop_rounded
-                          : Icons.play_arrow_rounded),
-                      label: Text(isRunning ? 'Stop Server' : 'Start Server'),
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 20),
-                        backgroundColor:
-                            isRunning ? const Color(0xFF141414) : Colors.white,
-                        foregroundColor:
-                            isRunning ? Colors.redAccent : Colors.black,
-                        side: isRunning
-                            ? const BorderSide(
-                                color: Colors.redAccent, width: 2)
-                            : null,
-                        elevation: isRunning ? 0 : 2,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  if (!_hasOwnerAccount)
-                    Container(
-                      width: double.infinity,
-                      margin: const EdgeInsets.only(bottom: 8),
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.orange.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                            color: Colors.orange.withValues(alpha: 0.3)),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(Icons.person_add_alt_1_rounded,
-                                  color: Colors.orange.shade300, size: 20),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  'Owner setup is pending. Owner is the first account created on this server.',
-                                  style: TextStyle(
-                                    color: Colors.orange.shade200,
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 10),
-                          OutlinedButton.icon(
-                            onPressed: _openOwnerSetup,
-                            icon:
-                                const Icon(Icons.person_add_rounded, size: 18),
-                            label: const Text('Set Up Owner Account'),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: Colors.orange.shade100,
-                              side: BorderSide(color: Colors.orange.shade400),
-                            ),
-                          ),
-                        ],
-                      ),
-                    )
-                  else if (_httpServer.authRequired)
-                    Container(
-                      width: double.infinity,
-                      margin: const EdgeInsets.only(bottom: 8),
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.orange.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                            color: Colors.orange.withValues(alpha: 0.3)),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.lock_rounded,
-                              color: Colors.orange.shade300, size: 20),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              'Owner authentication is enabled. Users must sign in to access this server.',
-                              style: TextStyle(
-                                color: Colors.orange.shade200,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  const Text(
-                    'Configuration',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: -0.5,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  InfoCard(
-                    title: 'Music Folder',
-                    value: _musicFolderPath ?? 'Not configured',
-                    icon: Icons.folder_rounded,
-                    isActive: _musicFolderPath != null,
-                  ),
-                  const SizedBox(height: 12),
-                  InfoCard(
-                    title: 'LAN Address',
-                    value: _lanIP ?? 'Not connected',
-                    icon: Icons.router_rounded,
-                    isActive: _lanIP != null,
-                  ),
-                  const SizedBox(height: 12),
-                  InfoCard(
-                    title: 'Tailscale IP',
-                    value: _tailscaleIP ?? 'Not connected',
-                    icon: Icons.cloud_done_rounded,
-                    isActive: _tailscaleIP != null,
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          _formatAddressRefreshTime(),
-                          style: TextStyle(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onSurface
-                                .withOpacity(0.55),
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                      OutlinedButton.icon(
-                        onPressed: _isRefreshingAddresses
-                            ? null
-                            : _refreshServerAddresses,
-                        icon: _isRefreshingAddresses
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Icon(Icons.refresh_rounded, size: 18),
-                        label: Text(_isRefreshingAddresses
-                            ? 'Refreshing...'
-                            : 'Refresh Addresses'),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 32),
-                  const Text(
-                    'Library Statistics',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: -0.5,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  InfoCard(
-                    title: 'Albums',
-                    value: _httpServer.libraryManager.library?.totalAlbums
-                            .toString() ??
-                        '0',
-                    icon: Icons.album_rounded,
-                    isActive:
-                        (_httpServer.libraryManager.library?.totalAlbums ?? 0) >
-                            0,
-                  ),
-                  const SizedBox(height: 12),
-                  InfoCard(
-                    title: 'Songs',
-                    value: _httpServer.libraryManager.library?.totalSongs
-                            .toString() ??
-                        '0',
-                    icon: Icons.music_note_rounded,
-                    isActive:
-                        (_httpServer.libraryManager.library?.totalSongs ?? 0) >
-                            0,
-                  ),
-                  const SizedBox(height: 12),
-                  InfoCard(
-                    title: 'Last Scan',
-                    value: _httpServer.libraryManager.lastScanTime != null
-                        ? formatDashboardDateTime(
-                            _httpServer.libraryManager.lastScanTime!)
-                        : 'Never',
-                    icon: Icons.access_time_rounded,
-                    isActive: _httpServer.libraryManager.lastScanTime != null,
-                  ),
-                  const SizedBox(height: 32),
-                  Row(
-                    children: [
-                      const Expanded(
-                        child: Text(
-                          'Registered Users',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: -0.5,
-                          ),
-                        ),
-                      ),
-                      OutlinedButton.icon(
-                        onPressed: _isCreatingUser ? null : _promptCreateUser,
-                        icon: _isCreatingUser
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child:
-                                    CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            : const Icon(Icons.person_add_alt_1_rounded),
-                        label: const Text('Add User'),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Card(
-                    elevation: 0,
-                    margin: EdgeInsets.zero,
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: ServerUsersTable(
-                        isLoading: _isLoadingServerUsers,
-                        errorMessage: _serverUsersError,
-                        rows: _serverUserRows,
-                        ownerActionsEnabled: _hasOwnerAccount,
-                        isChangingPassword: _isChangingPassword,
-                        deletingUserIds: _deletingUserIds,
-                        onChangePassword: (row) => _promptChangePassword(
-                          initialUsername: row.username,
-                        ),
-                        onDeleteUser: _deleteUser,
-                        onSetUpOwner: _openOwnerSetup,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-                  const Text(
-                    'User Activity',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: -0.5,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Card(
-                    elevation: 0,
-                    margin: EdgeInsets.zero,
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: UserActivityTable(
-                        isLoading: _isLoadingUserActivity,
-                        errorMessage: _userActivityError,
-                        rows: _userActivityRows,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-                  const Text(
-                    'Connected Users & Devices',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: -0.5,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Card(
-                    elevation: 0,
-                    margin: EdgeInsets.zero,
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: ConnectedUsersTable(
-                        isLoading: _isLoadingConnectedRows,
-                        errorMessage: _connectedRowsError,
-                        rows: _connectedClientRows,
-                        ownerActionsEnabled: _hasOwnerAccount,
-                        kickingDeviceIds: _kickingDeviceIds,
-                        onKick: _kickClient,
-                        onSetUpOwner: _openOwnerSetup,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-                  const Text(
-                    'Quick Actions',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: -0.5,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () {
-                            Navigator.pushNamed(context, '/folder-selection');
-                          },
-                          icon: const Icon(Icons.drive_file_move_rounded,
-                              size: 20),
-                          label: const Text('Change Folder'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.white,
-                            side: const BorderSide(color: Color(0xFF333333)),
-                            shape: const StadiumBorder(),
-                            padding: const EdgeInsets.symmetric(vertical: 20),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () {
-                            Navigator.pushNamed(context, '/connection');
-                          },
-                          icon: const Icon(Icons.qr_code_rounded, size: 20),
-                          label: const Text('Show QR'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.white,
-                            side: const BorderSide(color: Color(0xFF333333)),
-                            shape: const StadiumBorder(),
-                            padding: const EdgeInsets.symmetric(vertical: 20),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: _musicFolderPath != null &&
-                              _musicFolderPath!.isNotEmpty
-                          ? _rescanLibrary
-                          : null,
-                      icon: const Icon(Icons.refresh_rounded, size: 20),
-                      label: const Text('Rescan Library'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.white,
-                        side: const BorderSide(color: Color(0xFF333333)),
-                        shape: const StadiumBorder(),
-                        padding: const EdgeInsets.symmetric(vertical: 20),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+                  onDeleteUser: _deleteUser,
+                  onOpenOwnerSetup: _openOwnerSetup,
+                ),
+                DashboardServerTab(
+                  musicFolderPath: _musicFolderPath,
+                  transcodeSlotsSnapshot: _transcodeSlotsSnapshot,
+                  isSavingTranscodeSlots: _isSavingTranscodeSlots,
+                  lanIP: _lanIP,
+                  tailscaleIP: _tailscaleIP,
+                  addressRefreshTimeLabel: _formatAddressRefreshTime(),
+                  isRefreshingAddresses: _isRefreshingAddresses,
+                  onEditTranscodeSlots: _promptEditTranscodeSlots,
+                  onRefreshAddresses: _refreshServerAddresses,
+                  onChangeFolder: () {
+                    Navigator.pushNamed(context, '/folder-selection');
+                  },
+                  onShowQr: () {
+                    Navigator.pushNamed(context, '/connection');
+                  },
+                  onRescanLibrary: _musicFolderPath != null &&
+                          _musicFolderPath!.isNotEmpty
+                      ? _rescanLibrary
+                      : null,
+                ),
+              ],
             ),
     );
   }

@@ -151,6 +151,15 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
     _transitionToBackgroundCallback = callback;
   }
 
+  /// Set callbacks for transcode slot configuration (CLI use).
+  void setTranscodeSlotsCallbacks({
+    Future<TranscodeSlotsSnapshot> Function()? getSnapshot,
+    Future<TranscodeSlotsSnapshot> Function(int? slots)? setOverride,
+  }) {
+    _getTranscodeSlotsSnapshotCallback = getSnapshot;
+    _setTranscodeSlotsOverrideCallback = setOverride;
+  }
+
   /// Initialize auth services for multi-user support.
   /// Must be called before server start if auth is needed.
   ///

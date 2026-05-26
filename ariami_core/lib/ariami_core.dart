@@ -40,6 +40,7 @@ export 'services/server/stream_tracker.dart';
 export 'services/server/streaming_service.dart';
 
 // Transcoding Services
+export 'services/transcoding/transcode_slots_policy.dart';
 export 'services/transcoding/transcoding_service.dart';
 
 // Artwork Services

@@ -5,6 +5,7 @@ import 'package:ariami_core/models/auth_models.dart';
 import 'package:ariami_core/models/feature_flags.dart';
 import 'package:ariami_core/models/quality_preset.dart';
 import 'package:ariami_core/services/server/http_server.dart';
+import 'package:ariami_core/services/transcoding/transcode_slots_policy.dart';
 import 'package:ariami_core/services/transcoding/transcoding_service.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
@@ -1352,6 +1353,103 @@ void main() {
         (deleteUser.jsonBody['error'] as Map<String, dynamic>)['code'],
         AuthErrorCodes.forbiddenAdmin,
       );
+
+      final transcodeSlots = await _sendJsonRequest(
+        method: 'GET',
+        url: Uri.parse('http://127.0.0.1:$port/api/admin/transcode-slots'),
+        headers: <String, String>{'Authorization': 'Bearer $nonAdminToken'},
+      );
+      expect(transcodeSlots.statusCode, 403);
+      expect(
+        (transcodeSlots.jsonBody['error'] as Map<String, dynamic>)['code'],
+        AuthErrorCodes.forbiddenAdmin,
+      );
+    });
+
+    test('admin transcode-slots requires auth and supports get/set/reset', () async {
+      int? storedOverride;
+      server.setTranscodeSlotsCallbacks(
+        getSnapshot: () async {
+          return TranscodeSlotsPolicy.resolve(
+            override: storedOverride,
+            defaultSlots: 4,
+          );
+        },
+        setOverride: (slots) async {
+          storedOverride = slots;
+          return TranscodeSlotsPolicy.resolve(
+            override: storedOverride,
+            defaultSlots: 4,
+          );
+        },
+      );
+
+      final port = await _findFreePort();
+      await server.start(
+        advertisedIp: '127.0.0.1',
+        bindAddress: '127.0.0.1',
+        port: port,
+      );
+
+      final unauthenticated = await _sendJsonRequest(
+        method: 'GET',
+        url: Uri.parse('http://127.0.0.1:$port/api/admin/transcode-slots'),
+      );
+      expect(unauthenticated.statusCode, 401);
+
+      final registerAdmin = await _sendJsonRequest(
+        method: 'POST',
+        url: Uri.parse('http://127.0.0.1:$port/api/auth/register'),
+        jsonBody: <String, dynamic>{
+          'username': 'admin-user',
+          'password': 'admin-pass',
+        },
+      );
+      expect(registerAdmin.statusCode, 200);
+
+      final loginAdmin = await _sendJsonRequest(
+        method: 'POST',
+        url: Uri.parse('http://127.0.0.1:$port/api/auth/login'),
+        jsonBody: <String, dynamic>{
+          'username': 'admin-user',
+          'password': 'admin-pass',
+          'deviceId': 'admin-device',
+          'deviceName': 'Admin Device',
+        },
+      );
+      expect(loginAdmin.statusCode, 200);
+      final adminToken = loginAdmin.jsonBody['sessionToken'] as String;
+
+      final initial = await _sendJsonRequest(
+        method: 'GET',
+        url: Uri.parse('http://127.0.0.1:$port/api/admin/transcode-slots'),
+        headers: <String, String>{'Authorization': 'Bearer $adminToken'},
+      );
+      expect(initial.statusCode, 200);
+      expect(initial.jsonBody['effective'], 4);
+      expect(initial.jsonBody['defaultSlots'], 4);
+      expect(initial.jsonBody['override'], isNull);
+
+      final updated = await _sendJsonRequest(
+        method: 'POST',
+        url: Uri.parse('http://127.0.0.1:$port/api/admin/transcode-slots'),
+        headers: <String, String>{'Authorization': 'Bearer $adminToken'},
+        jsonBody: <String, dynamic>{'slots': 6},
+      );
+      expect(updated.statusCode, 200);
+      expect(updated.jsonBody['effective'], 6);
+      expect(updated.jsonBody['override'], 6);
+      expect(updated.jsonBody['restartRequired'], isTrue);
+
+      final reset = await _sendJsonRequest(
+        method: 'POST',
+        url: Uri.parse('http://127.0.0.1:$port/api/admin/transcode-slots'),
+        headers: <String, String>{'Authorization': 'Bearer $adminToken'},
+        jsonBody: <String, dynamic>{'reset': true},
+      );
+      expect(reset.statusCode, 200);
+      expect(reset.jsonBody['effective'], 4);
+      expect(reset.jsonBody['override'], isNull);
     });
 
     test('websocket identify without session token closes with auth-required',

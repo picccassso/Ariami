@@ -97,6 +97,11 @@ class ServerRunner {
         getSetupStatus: _handleGetSetupStatus,
       );
 
+      _httpServer.setTranscodeSlotsCallbacks(
+        getSnapshot: _getTranscodeSlotsSnapshot,
+        setOverride: _setTranscodeSlotsOverride,
+      );
+
       // Configure transition callback for setup mode
       if (isSetupMode) {
         _httpServer
@@ -162,37 +167,17 @@ class ServerRunner {
       print('✓ Server accessible at: http://$advertisedIp:$port');
 
       // Initialize transcoding service for quality-based streaming
-      // Platform-aware settings: conservative for Pi, higher for desktop
       final transcodingCachePath =
           p.join(CliStateService.getConfigDir(), 'transcoded_cache');
 
-      // Detect platform for concurrency settings
-      final int maxConcurrency;
-      final int maxDownloadConcurrency;
-      final int maxCacheSizeMB;
-
-      if (isPi) {
-        // Raspberry Pi: Pi 5 can sustain more transcode work; older Pi models
-        // keep a lower cap to preserve playback responsiveness.
-        maxConcurrency = isPi5 ? 4 : 3;
-        maxDownloadConcurrency = isPi5 ? 4 : 3;
-        maxCacheSizeMB = cachePolicy.transcodeCacheSizeMB;
-        print(
-            'Platform: Raspberry Pi${isPi5 ? ' 5' : ''} detected - using Pi transcoding settings (streaming+download slots)');
-      } else if (Platform.isMacOS || Platform.isWindows) {
-        // Desktop: more resources available
-        maxConcurrency = 2;
-        maxDownloadConcurrency = 8;
-        maxCacheSizeMB = cachePolicy.transcodeCacheSizeMB;
-        print(
-            'Platform: Desktop (${Platform.operatingSystem}) - using standard transcoding settings');
-      } else {
-        // Linux desktop or other: moderate settings
-        maxConcurrency = 2;
-        maxDownloadConcurrency = 3;
-        maxCacheSizeMB = cachePolicy.transcodeCacheSizeMB;
-        print('Platform: Linux - using moderate transcoding settings');
-      }
+      final transcodeSlotsSnapshot = await _getTranscodeSlotsSnapshot();
+      final maxConcurrency = transcodeSlotsSnapshot.effective;
+      final maxDownloadConcurrency = transcodeSlotsSnapshot.effective;
+      final maxCacheSizeMB = cachePolicy.transcodeCacheSizeMB;
+      print(
+          'Transcode slots: $maxConcurrency '
+          '(default ${transcodeSlotsSnapshot.defaultSlots}'
+          '${transcodeSlotsSnapshot.isCustom ? ', custom override' : ''})');
 
       final transcodingService = TranscodingService(
         cacheDirectory: transcodingCachePath,
@@ -512,6 +497,19 @@ class ServerRunner {
   /// Setup callback: Check if setup is complete
   Future<bool> _handleGetSetupStatus() async {
     return await _stateService.isSetupComplete();
+  }
+
+  Future<TranscodeSlotsSnapshot> _getTranscodeSlotsSnapshot() async {
+    final override = await _stateService.getTranscodeSlotsOverride();
+    return TranscodeSlotsPolicy.resolveSnapshot(override: override);
+  }
+
+  Future<TranscodeSlotsSnapshot> _setTranscodeSlotsOverride(int? slots) async {
+    if (slots != null) {
+      TranscodeSlotsPolicy.validateSlots(slots);
+    }
+    await _stateService.setTranscodeSlotsOverride(slots);
+    return _getTranscodeSlotsSnapshot();
   }
 
   /// Detect if running on a Raspberry Pi.

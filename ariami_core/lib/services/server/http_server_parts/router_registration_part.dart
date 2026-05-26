@@ -68,6 +68,8 @@ extension AriamiHttpServerRouterMethods on AriamiHttpServer {
     router.post('/api/admin/kick-client', _handleAdminKickClient);
     router.post('/api/admin/change-password', _handleAdminChangePassword);
     router.post('/api/admin/delete-user', _handleAdminDeleteUser);
+    router.get('/api/admin/transcode-slots', _handleAdminGetTranscodeSlots);
+    router.post('/api/admin/transcode-slots', _handleAdminPostTranscodeSlots);
   }
 
   void _registerLibraryAndArtworkRoutes(Router router) {

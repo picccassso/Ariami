@@ -283,6 +283,98 @@ extension AriamiHttpServerAuthAndAdminHandlersMethods on AriamiHttpServer {
     );
   }
 
+  Future<Response> _handleAdminGetTranscodeSlots(Request request) async {
+    final authResponse = _authorizeAdminRequest(request);
+    if (authResponse != null) return authResponse;
+
+    final callback = _getTranscodeSlotsSnapshotCallback;
+    if (callback == null) {
+      return _jsonResponse(HttpStatus.serviceUnavailable, {
+        'error': {
+          'code': 'NOT_CONFIGURED',
+          'message': 'Transcode slot configuration is not available',
+        },
+      });
+    }
+
+    try {
+      final snapshot = await callback();
+      return _jsonOk(snapshot.toJson());
+    } catch (e) {
+      return _jsonBadRequest({
+        'error': {
+          'code': 'INVALID_REQUEST',
+          'message': e.toString(),
+        },
+      });
+    }
+  }
+
+  Future<Response> _handleAdminPostTranscodeSlots(Request request) async {
+    final authResponse = _authorizeAdminRequest(request);
+    if (authResponse != null) return authResponse;
+
+    final callback = _setTranscodeSlotsOverrideCallback;
+    if (callback == null) {
+      return _jsonResponse(HttpStatus.serviceUnavailable, {
+        'error': {
+          'code': 'NOT_CONFIGURED',
+          'message': 'Transcode slot configuration is not available',
+        },
+      });
+    }
+
+    try {
+      final body = await request.readAsString();
+      final data = body.trim().isEmpty
+          ? <String, dynamic>{}
+          : jsonDecode(body) as Map<String, dynamic>;
+
+      if (data['reset'] == true) {
+        final snapshot = await callback(null);
+        return _jsonOk(snapshot.toJson());
+      }
+
+      final slotsValue = data['slots'];
+      if (slotsValue == null) {
+        return _jsonBadRequest({
+          'error': {
+            'code': 'INVALID_REQUEST',
+            'message': 'slots is required unless reset is true',
+          },
+        });
+      }
+
+      if (slotsValue is! num || slotsValue != slotsValue.roundToDouble()) {
+        return _jsonBadRequest({
+          'error': {
+            'code': 'INVALID_REQUEST',
+            'message': 'slots must be an integer >= ${TranscodeSlotsPolicy.minSlots}',
+          },
+        });
+      }
+
+      final slots = slotsValue.toInt();
+      TranscodeSlotsPolicy.validateSlots(slots);
+      final snapshot = await callback(slots);
+      return _jsonOk(snapshot.toJson());
+    } on ArgumentError catch (e) {
+      return _jsonBadRequest({
+        'error': {
+          'code': 'INVALID_REQUEST',
+          'message': e.message?.toString() ?? e.toString(),
+        },
+      });
+    } catch (e) {
+      return _jsonInternalServerError({
+        'error': {
+          'code': 'INTERNAL_ERROR',
+          'message': e.toString(),
+        },
+      });
+    }
+  }
+
   Future<Response> _handleAdminCreateUser(Request request) async {
     final authResponse = _authorizeAdminRequest(request);
     if (authResponse != null) return authResponse;

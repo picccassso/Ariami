@@ -8,12 +8,16 @@ class InfoCard extends StatelessWidget {
     required this.value,
     required this.icon,
     this.isActive = true,
+    this.subtitle,
+    this.trailing,
   });
 
   final String title;
   final String value;
   final IconData icon;
   final bool isActive;
+  final String? subtitle;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -70,9 +74,24 @@ class InfoCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     maxLines: 1,
                   ),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle!,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: theme.colorScheme.onSurface.withOpacity(0.55),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
+            if (trailing != null) ...[
+              const SizedBox(width: 12),
+              trailing!,
+            ],
           ],
         ),
       ),

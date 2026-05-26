@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:ariami_core/models/auth_models.dart';
+import 'package:ariami_core/services/transcoding/transcode_slots_policy.dart';
 import 'package:http/http.dart' as http;
 
 typedef WebSessionTokenProvider = Future<String?> Function();
@@ -220,6 +221,40 @@ class WebApiClient {
         .whereType<Map<String, dynamic>>()
         .map(UserActivityRow.fromJson)
         .toList();
+  }
+
+  Future<TranscodeSlotsSnapshot> getTranscodeSlots() async {
+    final response = await get(
+      '/api/admin/transcode-slots',
+      includeDeviceIdentity: true,
+    );
+    if (!response.isSuccess) {
+      throw WebApiException(response);
+    }
+
+    return TranscodeSlotsSnapshot.fromJson(
+      response.jsonBody ?? <String, dynamic>{},
+    );
+  }
+
+  Future<TranscodeSlotsSnapshot> setTranscodeSlots({
+    int? slots,
+    bool reset = false,
+  }) async {
+    final response = await post(
+      '/api/admin/transcode-slots',
+      body: reset
+          ? <String, dynamic>{'reset': true}
+          : <String, dynamic>{'slots': slots},
+      includeDeviceIdentity: true,
+    );
+    if (!response.isSuccess) {
+      throw WebApiException(response);
+    }
+
+    return TranscodeSlotsSnapshot.fromJson(
+      response.jsonBody ?? <String, dynamic>{},
+    );
   }
 
   Future<WebApiResponse> _send({

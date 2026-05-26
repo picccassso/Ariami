@@ -2,19 +2,17 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:ariami_core/models/auth_models.dart';
 import 'package:ariami_core/models/websocket_models.dart';
+import 'package:ariami_core/services/transcoding/transcode_slots_policy.dart';
 import '../services/web_api_client.dart';
 import '../services/web_auth_service.dart';
 import '../services/web_setup_service.dart';
 import '../services/web_websocket_service.dart';
 import '../utils/constants.dart';
-import '../widgets/dashboard/auth_required_banner.dart';
+import '../widgets/dashboard/dashboard_activity_tab.dart';
+import '../widgets/dashboard/dashboard_overview_tab.dart';
+import '../widgets/dashboard/dashboard_server_tab.dart';
 import '../widgets/dashboard/change_password_dialog.dart';
-import '../widgets/dashboard/connected_clients_section.dart';
-import '../widgets/dashboard/library_stats_section.dart';
-import '../widgets/dashboard/quick_actions_section.dart';
-import '../widgets/dashboard/server_info_card.dart';
-import '../widgets/dashboard/server_status_card.dart';
-import '../widgets/dashboard/user_activity_section.dart';
+import '../widgets/dashboard/transcode_slots_dialog.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -24,7 +22,7 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   static const String _dashboardDeviceName = 'Ariami CLI Web Dashboard';
   static const String _desktopDashboardDeviceName = 'Ariami Desktop Dashboard';
   static const String _clientTypeDashboard = 'dashboard';
@@ -52,6 +50,11 @@ class _DashboardScreenState extends State<DashboardScreen>
   bool _isLoadingConnectedClients = false;
   bool _isLoadingUserActivity = true;
   bool _isChangingPassword = false;
+  bool _isAdmin = false;
+  bool _isLoadingTranscodeSlots = false;
+  bool _isSavingTranscodeSlots = false;
+  String? _transcodeSlotsError;
+  TranscodeSlotsSnapshot? _transcodeSlotsSnapshot;
   String? _connectedClientsError;
   String? _userActivityError;
   bool _connectedClientsOwnerForbidden = false;
@@ -68,10 +71,12 @@ class _DashboardScreenState extends State<DashboardScreen>
   Timer? _refreshTimer;
   Timer? _userActivityRefreshTimer;
   late AnimationController _pulseController;
+  late TabController _tabController;
 
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 3, vsync: this);
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
@@ -92,6 +97,7 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   @override
   void dispose() {
+    _tabController.dispose();
     _refreshTimer?.cancel();
     _userActivityRefreshTimer?.cancel();
     _wsSubscription?.cancel();
@@ -150,12 +156,129 @@ class _DashboardScreenState extends State<DashboardScreen>
 
         await _loadConnectedClients(showLoading: false);
         await _loadUserActivity(showLoading: false);
+        await _loadTranscodeSlots(showLoading: false);
       }
     } catch (e) {
       debugPrint('Error loading server stats: $e');
       if (mounted) {
         setState(() {
           _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _loadTranscodeSlots({required bool showLoading}) async {
+    final isAdmin = await _authService.isCurrentUserAdmin();
+    if (!mounted) return;
+
+    setState(() {
+      _isAdmin = isAdmin;
+      if (showLoading) {
+        _isLoadingTranscodeSlots = true;
+      }
+      if (!isAdmin) {
+        _transcodeSlotsSnapshot = null;
+        _transcodeSlotsError = null;
+        _isLoadingTranscodeSlots = false;
+      }
+    });
+
+    if (!isAdmin) {
+      return;
+    }
+
+    try {
+      final snapshot = await _apiClient.getTranscodeSlots();
+      if (!mounted) return;
+      setState(() {
+        _transcodeSlotsSnapshot = snapshot;
+        _transcodeSlotsError = null;
+        _isLoadingTranscodeSlots = false;
+      });
+    } on WebApiException catch (e) {
+      if (e.isAuthError) {
+        await _redirectToLoginIfSessionCannotRecover(e.code);
+        return;
+      }
+      if (!mounted) return;
+      setState(() {
+        _transcodeSlotsSnapshot = null;
+        _transcodeSlotsError = e.message;
+        _isLoadingTranscodeSlots = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _transcodeSlotsSnapshot = null;
+        _transcodeSlotsError = 'Failed to load transcode slots.';
+        _isLoadingTranscodeSlots = false;
+      });
+    }
+  }
+
+  Future<void> _promptEditTranscodeSlots() async {
+    final snapshot = _transcodeSlotsSnapshot;
+    if (snapshot == null || _isSavingTranscodeSlots) {
+      return;
+    }
+
+    final result = await showTranscodeSlotsDialog(
+      context,
+      snapshot: snapshot,
+    );
+    if (result == null) {
+      return;
+    }
+
+    setState(() {
+      _isSavingTranscodeSlots = true;
+    });
+
+    try {
+      final updated = result.reset
+          ? await _apiClient.setTranscodeSlots(reset: true)
+          : await _apiClient.setTranscodeSlots(slots: result.slots);
+      if (!mounted) return;
+      setState(() {
+        _transcodeSlotsSnapshot = updated;
+        _transcodeSlotsError = null;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Saved. Restart the Ariami server for changes to take effect.',
+          ),
+          backgroundColor: AppTheme.surfaceBlack,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } on WebApiException catch (e) {
+      if (e.isAuthError) {
+        await _redirectToLoginIfSessionCannotRecover(e.code);
+        return;
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.message),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to save transcode slots.'),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSavingTranscodeSlots = false;
         });
       }
     }
@@ -552,6 +675,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.transparent,
       body: Container(
         decoration: BoxDecoration(
           gradient: AppTheme.backgroundGradient,
@@ -559,21 +683,15 @@ class _DashboardScreenState extends State<DashboardScreen>
         child: _isLoading
             ? const Center(
                 child: CircularProgressIndicator(color: Colors.white))
-            : CustomScrollView(
-                slivers: [
-                  // Floating Header
-                  SliverAppBar(
-                    expandedHeight: 120,
-                    floating: true,
-                    pinned: true,
+            : Column(
+                children: [
+                  AppBar(
                     backgroundColor: AppTheme.pureBlack.withValues(alpha: 0.8),
-                    flexibleSpace: FlexibleSpaceBar(
-                      centerTitle: true,
-                      title: Text(
-                        'DASHBOARD',
-                        style: Theme.of(context).appBarTheme.titleTextStyle,
-                      ),
+                    title: Text(
+                      'DASHBOARD',
+                      style: Theme.of(context).appBarTheme.titleTextStyle,
                     ),
+                    centerTitle: true,
                     actions: [
                       IconButton(
                         icon: const Icon(Icons.refresh_rounded),
@@ -587,76 +705,80 @@ class _DashboardScreenState extends State<DashboardScreen>
                       ),
                       const SizedBox(width: 8),
                     ],
-                  ),
-
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 24.0, vertical: 32),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          ServerStatusCard(
-                            serverRunning: _serverRunning,
-                            isScanning: _isScanning,
-                            pulseController: _pulseController,
-                          ),
-                          const SizedBox(height: 24),
-                          if (_authRequired) const AuthRequiredBanner(),
-                          LibraryStatsSection(
-                            songCount: _songCount,
-                            albumCount: _albumCount,
-                            connectedClients: _connectedClients,
-                            connectedUsers: _connectedUsers,
-                            activeSessions: _activeSessions,
-                            lastScanTimeFormatted: _formatLastScanTime(),
-                          ),
-                          const SizedBox(height: 48),
-                          UserActivitySection(
-                            rows: _userActivityRows,
-                            isLoading: _isLoadingUserActivity,
-                            error: _userActivityError,
-                            showOwnerSignInCta: _userActivityOwnerForbidden,
-                            onSignInAsOwner: _userActivityOwnerForbidden
-                                ? _switchToOwnerLogin
-                                : null,
-                          ),
-                          const SizedBox(height: 48),
-                          ConnectedClientsSection(
-                            clients: _connectedClientRows,
-                            isLoading: _isLoadingConnectedClients,
-                            isChangingPassword: _isChangingPassword,
-                            error: _connectedClientsError,
-                            showOwnerSignInCta: _connectedClientsOwnerForbidden,
-                            onSignInAsOwner: _connectedClientsOwnerForbidden
-                                ? _switchToOwnerLogin
-                                : null,
-                            kickingDeviceIds: _kickingDeviceIds,
-                            onKick: _kickClient,
-                            onChangePassword: () => _promptChangePassword(),
-                            onChangePasswordForUser: (username) =>
-                                _promptChangePassword(
-                                    initialUsername: username),
-                            formatClientTime: _formatClientTime,
-                            formatDeviceLabel: _formatDeviceLabel,
-                          ),
-                          const SizedBox(height: 48),
-                          QuickActionsSection(
-                            isScanning: _isScanning,
-                            onRescanLibrary: _rescanLibrary,
-                            onViewQRCode: _viewQRCode,
-                          ),
-                          const SizedBox(height: 56),
-                          ServerInfoCard(
-                            lanServer: _dashboardLanServer,
-                            tailscaleServer: _dashboardTailscaleServer,
-                            lastUpdatedLabel: _formatEndpointRefreshTime(),
-                            isRefreshing: _isRefreshingAddresses,
-                            onRefreshAddresses: _refreshServerAddresses,
-                          ),
-                          const SizedBox(height: 48),
-                        ],
+                    bottom: TabBar(
+                      controller: _tabController,
+                      indicatorColor: Colors.white,
+                      indicatorSize: TabBarIndicatorSize.label,
+                      labelColor: Colors.white,
+                      unselectedLabelColor: AppTheme.textSecondary,
+                      dividerColor: Colors.transparent,
+                      labelStyle: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.0,
                       ),
+                      tabs: const [
+                        Tab(text: 'OVERVIEW'),
+                        Tab(text: 'ACTIVITY'),
+                        Tab(text: 'SERVER'),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: TabBarView(
+                      controller: _tabController,
+                      children: [
+                        DashboardOverviewTab(
+                          serverRunning: _serverRunning,
+                          isScanning: _isScanning,
+                          pulseController: _pulseController,
+                          authRequired: _authRequired,
+                          songCount: _songCount,
+                          albumCount: _albumCount,
+                          connectedClients: _connectedClients,
+                          connectedUsers: _connectedUsers,
+                          activeSessions: _activeSessions,
+                          lastScanTimeFormatted: _formatLastScanTime(),
+                          onRescanLibrary: _rescanLibrary,
+                          onViewQRCode: _viewQRCode,
+                        ),
+                        DashboardActivityTab(
+                          userActivityRows: _userActivityRows,
+                          isLoadingUserActivity: _isLoadingUserActivity,
+                          userActivityError: _userActivityError,
+                          userActivityOwnerForbidden:
+                              _userActivityOwnerForbidden,
+                          onSignInAsOwner: _userActivityOwnerForbidden
+                              ? _switchToOwnerLogin
+                              : null,
+                          connectedClientRows: _connectedClientRows,
+                          isLoadingConnectedClients: _isLoadingConnectedClients,
+                          isChangingPassword: _isChangingPassword,
+                          connectedClientsError: _connectedClientsError,
+                          connectedClientsOwnerForbidden:
+                              _connectedClientsOwnerForbidden,
+                          kickingDeviceIds: _kickingDeviceIds,
+                          onKick: _kickClient,
+                          onChangePassword: () => _promptChangePassword(),
+                          onChangePasswordForUser: (username) =>
+                              _promptChangePassword(initialUsername: username),
+                          formatClientTime: _formatClientTime,
+                          formatDeviceLabel: _formatDeviceLabel,
+                        ),
+                        DashboardServerTab(
+                          lanServer: _dashboardLanServer,
+                          tailscaleServer: _dashboardTailscaleServer,
+                          lastUpdatedLabel: _formatEndpointRefreshTime(),
+                          isRefreshingAddresses: _isRefreshingAddresses,
+                          onRefreshAddresses: _refreshServerAddresses,
+                          isAdmin: _isAdmin,
+                          transcodeSlotsSnapshot: _transcodeSlotsSnapshot,
+                          isLoadingTranscodeSlots: _isLoadingTranscodeSlots,
+                          isSavingTranscodeSlots: _isSavingTranscodeSlots,
+                          transcodeSlotsError: _transcodeSlotsError,
+                          onEditTranscodeSlots: _promptEditTranscodeSlots,
+                        ),
+                      ],
                     ),
                   ),
                 ],

@@ -121,6 +121,30 @@ class CliStateService {
     await _updateConfigField('music_folder_path', folderPath);
   }
 
+  /// Get optional transcode slots override from config.
+  Future<int?> getTranscodeSlotsOverride() async {
+    final config = await _readConfig();
+    final value = config['transcode_slots'];
+    if (value is int) {
+      return value;
+    }
+    if (value is num) {
+      return value.toInt();
+    }
+    return null;
+  }
+
+  /// Set or clear the transcode slots override in config.
+  Future<void> setTranscodeSlotsOverride(int? slots) async {
+    final config = await _readConfig();
+    if (slots == null) {
+      config.remove('transcode_slots');
+    } else {
+      config['transcode_slots'] = slots;
+    }
+    await _writeConfig(config);
+  }
+
   /// Clear all configuration
   Future<void> clearConfig() async {
     final configDir = Directory(getConfigDir());
