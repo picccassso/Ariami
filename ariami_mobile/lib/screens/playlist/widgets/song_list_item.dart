@@ -128,6 +128,8 @@ class _SongListItemState extends State<SongListItem> {
                       const SizedBox(width: 8),
                       SongOverflowMenu(
                         song: widget.song,
+                        onPlay: widget.onTap,
+                        isDownloaded: widget.isDownloaded,
                         albumName: widget.albumName,
                         albumArtist: widget.albumArtist,
                       ),

@@ -6,11 +6,14 @@ import '../../screens/playlist/add_to_playlist_screen.dart';
 import '../../services/api/connection_service.dart';
 import '../../services/download/download_manager.dart';
 import '../../services/playback_manager.dart';
+import 'mini_player_aware_bottom_sheet.dart';
 
-/// Per-track overflow menu (Play Next, Add to Queue, Add to Playlist, Download).
+/// Per-track overflow menu (Play, Play Next, Add to Queue, Add to Playlist, Download).
 class SongOverflowMenu extends StatelessWidget {
   final SongModel song;
   final bool enabled;
+  final bool isDownloaded;
+  final VoidCallback? onPlay;
   final String? albumName;
   final String? albumArtist;
 
@@ -18,6 +21,8 @@ class SongOverflowMenu extends StatelessWidget {
     super.key,
     required this.song,
     this.enabled = true,
+    this.isDownloaded = false,
+    this.onPlay,
     this.albumName,
     this.albumArtist,
   });
@@ -28,85 +33,91 @@ class SongOverflowMenu extends StatelessWidget {
       return const SizedBox(width: 48);
     }
 
-    return PopupMenuButton<String>(
+    return IconButton(
       icon: Icon(
-        Icons.more_vert,
+        Icons.more_vert_rounded,
         size: 20,
-        color: Colors.grey[600],
+        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
       ),
-      onSelected: (value) => _handleMenuAction(context, value),
-      itemBuilder: (BuildContext context) => const [
-        PopupMenuItem<String>(
-          value: 'play_next',
-          child: Row(
-            children: [
-              Icon(Icons.skip_next, size: 20),
-              SizedBox(width: 12),
-              Text('Play Next'),
-            ],
-          ),
+      onPressed: () => _showSongMenu(context),
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+    );
+  }
+
+  void _showSongMenu(BuildContext context) {
+    showAriamiSheet<void>(
+      context: context,
+      header: AriamiSheetHeader(
+        title: song.title,
+        subtitle: song.artist,
+        leading: const Icon(Icons.music_note_rounded, size: 28),
+      ),
+      items: [
+        ListTile(
+          leading: const Icon(Icons.play_arrow),
+          title: const Text('Play'),
+          onTap: onPlay != null
+              ? () {
+                  Navigator.pop(context);
+                  onPlay?.call();
+                }
+              : null,
         ),
-        PopupMenuItem<String>(
-          value: 'add_queue',
-          child: Row(
-            children: [
-              Icon(Icons.queue_music, size: 20),
-              SizedBox(width: 12),
-              Text('Add to Queue'),
-            ],
-          ),
+        ListTile(
+          leading: const Icon(Icons.skip_next),
+          title: const Text('Play Next'),
+          onTap: () {
+            Navigator.pop(context);
+            _handlePlayNext();
+          },
         ),
-        PopupMenuItem<String>(
-          value: 'add_playlist',
-          child: Row(
-            children: [
-              Icon(Icons.playlist_add, size: 20),
-              SizedBox(width: 12),
-              Text('Add to Playlist'),
-            ],
-          ),
+        ListTile(
+          leading: const Icon(Icons.queue_music),
+          title: const Text('Add to Queue'),
+          onTap: () {
+            Navigator.pop(context);
+            _handleAddToQueue();
+          },
         ),
-        PopupMenuItem<String>(
-          value: 'download',
-          child: Row(
-            children: [
-              Icon(Icons.download, size: 20),
-              SizedBox(width: 12),
-              Text('Download'),
-            ],
+        ListTile(
+          leading: const Icon(Icons.playlist_add),
+          title: const Text('Add to Playlist'),
+          onTap: () {
+            Navigator.pop(context);
+            AddToPlaylistScreen.showForSong(
+              context,
+              song.id,
+              albumId: song.albumId,
+              title: song.title,
+              artist: song.artist,
+              duration: song.duration,
+            );
+          },
+        ),
+        ListTile(
+          leading: Icon(
+            isDownloaded ? Icons.download_done : Icons.download,
+            color: isDownloaded ? Colors.green : null,
           ),
+          title: Text(isDownloaded ? 'Downloaded' : 'Download'),
+          onTap: isDownloaded
+              ? null
+              : () {
+                  Navigator.pop(context);
+                  _handleDownload(context);
+                },
         ),
       ],
     );
   }
 
-  void _handleMenuAction(BuildContext context, String action) {
-    final playbackManager = PlaybackManager();
-    final playbackSong = _toSong();
+  void _handlePlayNext() {
+    PlaybackManager().playNext(_toSong());
+  }
 
-    switch (action) {
-      case 'play_next':
-        playbackManager.playNext(playbackSong);
-        break;
-      case 'add_queue':
-        playbackManager.addToQueue(playbackSong);
-        break;
-      case 'add_playlist':
-        AddToPlaylistScreen.showForSong(
-          context,
-          song.id,
-          albumId: song.albumId,
-          title: song.title,
-          artist: song.artist,
-          duration: song.duration,
-        );
-        return;
-      case 'download':
-        _handleDownload(context);
-        return;
-      default:
-        return;
-    }
+  void _handleAddToQueue() {
+    PlaybackManager().addToQueue(_toSong());
   }
 
   Song _toSong() {

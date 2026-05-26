@@ -110,6 +110,8 @@ class TrackListItem extends StatelessWidget {
                     const SizedBox(width: 8),
                     SongOverflowMenu(
                       song: track,
+                      onPlay: onTap,
+                      isDownloaded: isDownloaded,
                       albumName: albumName,
                       albumArtist: albumArtist,
                     ),
