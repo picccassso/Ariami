@@ -71,6 +71,7 @@ extension _DownloadManagerOperationsImpl on DownloadManager {
       }
 
       if (batch.isNotEmpty) {
+        _trackSessionTasks(batch);
         _queue.enqueueBatch(batch);
         queuedCount += batch.length;
         _fillDownloadSlots();
@@ -149,6 +150,7 @@ extension _DownloadManagerOperationsImpl on DownloadManager {
       totalBytes: totalBytes,
     );
 
+    _trackSessionTasks([task]);
     _queue.enqueue(task);
     _fillDownloadSlots();
   }
@@ -212,6 +214,7 @@ extension _DownloadManagerOperationsImpl on DownloadManager {
     }
 
     if (newTasks.isNotEmpty) {
+      _trackSessionTasks(newTasks);
       _queue.enqueueBatch(newTasks);
       _fillDownloadSlots();
     }
@@ -401,6 +404,12 @@ extension _DownloadManagerOperationsImpl on DownloadManager {
       }
     }
     return unique.toList();
+  }
+
+  void _trackSessionTasks(Iterable<DownloadTask> tasks) {
+    for (final task in tasks) {
+      sessionTaskIds.add(task.id);
+    }
   }
 
   DownloadTask? _buildTaskFromDownloadJobItem({

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../services/playback_manager.dart';
+import '../download/global_download_chrome_visibility.dart';
 import 'bottom_chrome_metrics.dart';
 import 'queue_action_confirmation.dart';
 
@@ -41,6 +42,7 @@ class MiniPlayerVisibility extends ChangeNotifier {
 Listenable get miniPlayerPaddingListenables => Listenable.merge([
       PlaybackManager(),
       MiniPlayerVisibility.instance,
+      GlobalDownloadChromeVisibility.instance,
     ]);
 
 /// Rebuilds when playback or full-player visibility changes and supplies
@@ -84,7 +86,10 @@ class MiniPlayerScrollPaddingBuilder extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: PlaybackManager(),
+      listenable: Listenable.merge([
+        PlaybackManager(),
+        GlobalDownloadChromeVisibility.instance,
+      ]),
       builder: (context, _) {
         return builder(context, getMiniPlayerScrollBottomPadding(context));
       },
@@ -115,6 +120,7 @@ double getMiniPlayerScrollBottomPadding(BuildContext context) {
   return getBottomChromeHeight(
     context,
     isMiniPlayerVisible: isMiniPlayerVisible,
+    isDownloadBarVisible: GlobalDownloadChromeVisibility.instance.isBarVisible,
   );
 }
 

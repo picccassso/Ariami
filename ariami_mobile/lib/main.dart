@@ -15,6 +15,7 @@ import 'services/api/connection_service.dart';
 import 'services/audio/audio_handler.dart';
 import 'services/offline/offline_playback_service.dart';
 import 'services/download/download_manager.dart';
+import 'widgets/download/global_download_chrome_visibility.dart';
 import 'services/cache/cache_manager.dart';
 import 'services/stats/streaming_stats_service.dart';
 import 'services/quality/quality_settings_service.dart';
@@ -149,6 +150,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     await _offlineService.initialize();
     // Initialize download manager
     await _downloadManager.initialize();
+    GlobalDownloadChromeVisibility.instance.startListening();
     _startupInterruptedDownloadCount =
         _downloadManager.getInterruptedDownloadCount();
     _startupAutoResumeInterruptedOnLaunch =

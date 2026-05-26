@@ -1,5 +1,6 @@
 import 'package:ariami_mobile/widgets/common/bottom_chrome_metrics.dart';
 import 'package:ariami_mobile/widgets/common/mini_player_aware_bottom_sheet.dart';
+import 'package:ariami_mobile/widgets/download/global_download_chrome_visibility.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -12,6 +13,7 @@ void main() {
     while (MiniPlayerVisibility.instance.isFullPlayerOnTop) {
       MiniPlayerVisibility.popFullPlayer();
     }
+    GlobalDownloadChromeVisibility.instance.debugReset();
   });
 
   testWidgets('scroll padding stays stable while full player is open', (
@@ -80,5 +82,35 @@ void main() {
 
     expect(paddingDuring, paddingBefore);
     expect(paddingBefore, greaterThanOrEqualTo(kBottomNavigationBarHeight));
+  });
+
+  testWidgets('download bar adds overlay height when visible', (tester) async {
+    late BuildContext capturedContext;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) {
+            capturedContext = context;
+            return const SizedBox.shrink();
+          },
+        ),
+      ),
+    );
+
+    GlobalDownloadChromeVisibility.instance.debugApplyQueue([]);
+
+    final withoutDownloadBar = getBottomChromeHeight(
+      capturedContext,
+      isMiniPlayerVisible: true,
+      isDownloadBarVisible: false,
+    );
+    final withDownloadBar = getBottomChromeHeight(
+      capturedContext,
+      isMiniPlayerVisible: true,
+      isDownloadBarVisible: true,
+    );
+
+    expect(withDownloadBar - withoutDownloadBar, kDownloadBarHeight);
   });
 }

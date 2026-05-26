@@ -34,11 +34,17 @@ double getBottomNavigationBarTotalHeight(BuildContext context) {
 /// Total bottom chrome height that content should stay above.
 ///
 /// Includes bottom nav + safe area, and optionally mini player overlay.
+/// The download bar slot is included only while a download session is active.
 double getBottomChromeHeight(
   BuildContext context, {
   required bool isMiniPlayerVisible,
+  required bool isDownloadBarVisible,
 }) {
   final bottomNavHeight = getBottomNavigationBarTotalHeight(context);
+  if (!isMiniPlayerVisible) {
+    return bottomNavHeight;
+  }
   return bottomNavHeight +
-      (isMiniPlayerVisible ? kMiniPlayerOverlayHeight : 0.0);
+      kMiniPlayerHeight +
+      (isDownloadBarVisible ? kDownloadBarHeight : 0.0);
 }
