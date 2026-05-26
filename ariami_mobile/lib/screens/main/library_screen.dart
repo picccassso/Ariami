@@ -43,6 +43,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
 
   @override
   void dispose() {
+    if (_controller.isSelectionModeActive) {
+      _controller.exitSelectionMode();
+    }
     _scrollController.removeListener(_trackScrollOffset);
     _scrollController.dispose();
     _controller.removeListener(_onControllerChanged);
@@ -581,6 +584,13 @@ class _LibraryScreenState extends State<LibraryScreen> {
                 animation: _controller,
                 builder: (context, child) {
                   final isVisible = _controller.isSelectionModeActive && _controller.totalSelectedCount > 0;
+                  final batchSummary = _controller.batchDownloadSummary;
+                  final hasItemsToDownload = _controller.hasBatchItemsToDownload;
+                  final subtitle = batchSummary.allSaved
+                      ? 'Already downloaded'
+                      : batchSummary.hasPartialSkip
+                          ? '${batchSummary.containerCount} items · ${batchSummary.toDownloadCount} to download'
+                          : '${batchSummary.containerCount} items selected';
                   return AnimatedPositioned(
                     duration: const Duration(milliseconds: 300),
                     curve: isVisible ? Curves.easeOutBack : Curves.easeInOut,
@@ -633,7 +643,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                                     ),
                                     const SizedBox(height: 2),
                                     Text(
-                                      '${_controller.totalSelectedCount} items selected',
+                                      subtitle,
                                       style: TextStyle(
                                         color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
                                         fontSize: 12,
@@ -642,19 +652,44 @@ class _LibraryScreenState extends State<LibraryScreen> {
                                   ],
                                 ),
                                 ElevatedButton.icon(
-                                  onPressed: () async {
-                                    await _controller.downloadSelectedItems();
-                                  },
-                                  icon: const Icon(Icons.download_rounded),
-                                  label: const Text(
-                                    'Download',
-                                    style: TextStyle(
+                                  onPressed: hasItemsToDownload
+                                      ? () async {
+                                          await _controller.downloadSelectedItems();
+                                        }
+                                      : null,
+                                  icon: Icon(
+                                    hasItemsToDownload
+                                        ? Icons.download_rounded
+                                        : Icons.download_done,
+                                    color: hasItemsToDownload
+                                        ? null
+                                        : Colors.green,
+                                  ),
+                                  label: Text(
+                                    hasItemsToDownload ? 'Download' : 'Downloaded',
+                                    style: const TextStyle(
                                       fontWeight: FontWeight.bold,
                                     ),
                                   ),
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: Theme.of(context).colorScheme.primary,
-                                    foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                                    backgroundColor: hasItemsToDownload
+                                        ? Theme.of(context).colorScheme.primary
+                                        : Theme.of(context)
+                                            .colorScheme
+                                            .surfaceContainerHighest,
+                                    foregroundColor: hasItemsToDownload
+                                        ? Theme.of(context).colorScheme.onPrimary
+                                        : Theme.of(context)
+                                            .colorScheme
+                                            .onSurface
+                                            .withOpacity(0.6),
+                                    disabledBackgroundColor: Theme.of(context)
+                                        .colorScheme
+                                        .surfaceContainerHighest,
+                                    disabledForegroundColor: Theme.of(context)
+                                        .colorScheme
+                                        .onSurface
+                                        .withOpacity(0.6),
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(20),
                                     ),
