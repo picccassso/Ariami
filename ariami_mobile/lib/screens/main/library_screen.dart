@@ -166,32 +166,17 @@ class _LibraryScreenState extends State<LibraryScreen> {
     );
 
     try {
-      final localPlaylist =
-          await _controller.playlistService.importServerPlaylist(
+      await _controller.playlistService.importServerPlaylist(
         serverPlaylist,
         allSongs: _controller.state.songs,
       );
 
       if (mounted) {
         Navigator.of(context, rootNavigator: true).pop();
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-                'Imported "${localPlaylist.name}" with ${localPlaylist.songCount} songs'),
-            action: SnackBarAction(
-              label: 'View',
-              onPressed: () => _openPlaylist(localPlaylist),
-            ),
-          ),
-        );
       }
     } catch (e) {
       if (mounted) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to import: $e')),
-        );
       }
     }
   }
@@ -218,9 +203,6 @@ class _LibraryScreenState extends State<LibraryScreen> {
     } catch (e) {
       if (mounted) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to import: $e')),
-        );
       }
     }
   }
@@ -389,42 +371,12 @@ class _LibraryScreenState extends State<LibraryScreen> {
   Future<void> _handleLibraryRefresh() async {
     final outcome = await _controller.refreshLibrary();
     if (!mounted) return;
-    switch (outcome) {
-      case LibraryRefreshOutcome.ok:
-        break;
-      case LibraryRefreshOutcome.showSyncFailedSnack:
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Library sync failed. Showing cached data.',
-            ),
-            duration: Duration(seconds: 3),
-          ),
-        );
-        break;
-      case LibraryRefreshOutcome.showSessionExpiredSnack:
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Session expired. Please log in to reconnect.'),
-            duration: Duration(seconds: 3),
-          ),
-        );
-        break;
-      case LibraryRefreshOutcome.showManualReconnectFailedSnack:
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Cannot connect to server. Staying in offline mode.'),
-            duration: Duration(seconds: 3),
-          ),
-        );
-        break;
-      case LibraryRefreshOutcome.navigateToReconnectScreen:
-        Navigator.pushNamedAndRemoveUntil(
-          context,
-          '/reconnect',
-          (route) => false,
-        );
-        break;
+    if (outcome == LibraryRefreshOutcome.navigateToReconnectScreen) {
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        '/reconnect',
+        (route) => false,
+      );
     }
   }
 
@@ -691,15 +643,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                                 ),
                                 ElevatedButton.icon(
                                   onPressed: () async {
-                                    final count = await _controller.downloadSelectedItems();
-                                    if (context.mounted) {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(
-                                          content: Text('Downloading $count songs in the background...'),
-                                          duration: const Duration(seconds: 3),
-                                        ),
-                                      );
-                                    }
+                                    await _controller.downloadSelectedItems();
                                   },
                                   icon: const Icon(Icons.download_rounded),
                                   label: const Text(

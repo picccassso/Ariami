@@ -42,18 +42,3 @@ double getBottomChromeHeight(
   return bottomNavHeight +
       (isMiniPlayerVisible ? kMiniPlayerOverlayHeight : 0.0);
 }
-
-/// Bottom margin for floating SnackBars in shells that already account for
-/// bottom navigation (e.g., the app's main scaffold messenger host).
-///
-/// This reserves only the mini-player overlay height plus a small visual gap,
-/// preventing double-counting of bottom navigation height.
-double getMiniPlayerAwareSnackBarBottomMargin(
-  BuildContext context, {
-  required bool isMiniPlayerVisible,
-  double spacing = 12.0,
-}) {
-  final keyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
-  final miniPlayerHeight = isMiniPlayerVisible ? kMiniPlayerHeight : 0.0;
-  return keyboardVisible ? spacing : miniPlayerHeight + spacing;
-}

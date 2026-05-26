@@ -128,28 +128,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _isOfflineModeEnabled = false;
             _isReconnecting = false;
           });
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Session expired. Please log in to reconnect.'),
-                duration: Duration(seconds: 3),
-              ),
-            );
-          }
           break;
         case ManualOfflineReconnectOutcome.networkFailure:
           setState(() {
             _isReconnecting = false;
           });
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content:
-                    Text('Cannot connect to server. Staying in offline mode.'),
-                duration: Duration(seconds: 3),
-              ),
-            );
-          }
           break;
       }
     }
@@ -409,13 +392,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           TextButton(
             onPressed: () async {
               final navigator = Navigator.of(context);
-              final messenger = ScaffoldMessenger.of(context);
               await _statsService.resetAllStats();
               if (!mounted) return;
               navigator.pop();
-              messenger.showSnackBar(
-                const SnackBar(content: Text('Statistics reset')),
-              );
             },
             child: const Text(
               'RESET',

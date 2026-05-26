@@ -128,9 +128,6 @@ class SongOverflowMenu extends StatelessWidget {
     final connectionService = ConnectionService();
 
     if (connectionService.apiClient == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Not connected to server')),
-      );
       return;
     }
 

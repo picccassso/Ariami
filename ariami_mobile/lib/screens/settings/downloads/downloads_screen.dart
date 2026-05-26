@@ -47,12 +47,6 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
     }
   }
 
-  void _showSnackBarMessage(String message) {
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.hideCurrentSnackBar();
-    messenger.showSnackBar(SnackBar(content: Text(message)));
-  }
-
   void _listenForConnectionRecovery() {
     _connectionSubscription = _connectionService.connectionStateStream.listen(
       (isConnected) {
@@ -137,15 +131,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
   }
 
   Future<void> _resumeInterruptedDownloads() async {
-    final resumedCount = await _controller.resumeInterruptedDownloads();
-    if (!mounted) return;
-    if (resumedCount == 0) {
-      _showSnackBarMessage('No interrupted downloads to resume.');
-      return;
-    }
-    _showSnackBarMessage(
-      'Resuming $resumedCount interrupted download${resumedCount == 1 ? '' : 's'}.',
-    );
+    await _controller.resumeInterruptedDownloads();
   }
 
   Future<void> _cancelInterruptedDownloads() async {
@@ -174,15 +160,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
 
     if (confirmed != true) return;
 
-    final cancelledCount = await _controller.cancelInterruptedDownloads();
-    if (!mounted) return;
-    if (cancelledCount == 0) {
-      _showSnackBarMessage('No interrupted downloads to cancel.');
-      return;
-    }
-    _showSnackBarMessage(
-      'Cancelled $cancelledCount interrupted download${cancelledCount == 1 ? '' : 's'}.',
-    );
+    await _controller.cancelInterruptedDownloads();
   }
 
   @override

@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import '../../models/api_models.dart';
 import '../../models/server_info.dart';
 import '../../services/api/connection_service.dart';
 import '../../services/offline/offline_playback_service.dart';
@@ -173,51 +172,20 @@ class _ConnectionSettingsScreenState extends State<ConnectionSettingsScreen> {
           (route) => false,
         );
       }
-    } catch (e) {
+    } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error logging out: $e')),
-      );
     }
   }
 
   Future<void> _retryConnection() async {
     try {
-      final retryResult = widget.retryConnectionAttempt != null
-          ? await widget.retryConnectionAttempt!.call()
-          : await _runDefaultRetryConnectionAttempt();
-      if (mounted) {
-        if (retryResult.restored) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Connection restored')),
-          );
-        } else if (retryResult.didAuthFail) {
-          final isAuthRequired =
-              retryResult.failureCode == ApiErrorCodes.authRequired;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                isAuthRequired
-                    ? 'Authentication required. Please log in to reconnect.'
-                    : 'Session expired. Please log in again.',
-              ),
-            ),
-          );
-        } else {
-          final fallbackMessage = retryResult.failureMessage?.isNotEmpty == true
-              ? retryResult.failureMessage!
-              : 'Failed to restore connection';
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(fallbackMessage)),
-          );
-        }
+      if (widget.retryConnectionAttempt != null) {
+        await widget.retryConnectionAttempt!.call();
+      } else {
+        await _runDefaultRetryConnectionAttempt();
       }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
-      }
+    } catch (_) {
+      // Retry failed silently.
     }
   }
 

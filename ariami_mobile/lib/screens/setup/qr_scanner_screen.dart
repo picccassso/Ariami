@@ -88,20 +88,6 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
     } catch (e) {
       // Restart camera on error
       await cameraController.start();
-
-      // Handle different error types
-      String errorMessage;
-      if (e.toString().contains('Invalid QR code format')) {
-        errorMessage = 'Invalid QR code. Please scan an Ariami QR code.';
-      } else if (e.toString().contains('Cannot reach server')) {
-        errorMessage =
-            "Cannot reach server. Make sure you're on the same Wi-Fi network, or that Tailscale is connected for remote access.";
-      } else if (e.toString().contains('Connection failed')) {
-        errorMessage = 'Connection failed. Please try again.';
-      } else {
-        errorMessage = 'Error: ${e.toString()}';
-      }
-      _showError(errorMessage);
     } finally {
       if (mounted) {
         setState(() {
@@ -109,39 +95,6 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
         });
       }
     }
-  }
-
-  void _showError(String message) {
-    if (!mounted) return;
-
-    setState(() {
-      _isProcessing = false;
-    });
-
-    // Show error to user with SnackBar
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            const Icon(Icons.error, color: Colors.white),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(message),
-            ),
-          ],
-        ),
-        backgroundColor: Colors.red,
-        duration: const Duration(seconds: 4),
-        behavior: SnackBarBehavior.floating,
-        action: SnackBarAction(
-          label: 'Dismiss',
-          textColor: Colors.white,
-          onPressed: () {
-            ScaffoldMessenger.of(context).hideCurrentSnackBar();
-          },
-        ),
-      ),
-    );
   }
 
   void _toggleTorch() {

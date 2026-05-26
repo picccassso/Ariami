@@ -79,12 +79,8 @@ Future<void> disconnectServerAndClearData(BuildContext context) async {
     if (context.mounted) {
       navigateToWelcomeScreen(context);
     }
-  } catch (e) {
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error disconnecting: $e')),
-      );
-    }
+  } catch (_) {
+    // Disconnect failed; user remains on current screen.
   }
 }
 

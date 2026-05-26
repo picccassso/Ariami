@@ -414,20 +414,13 @@ class SongListItem extends StatelessWidget {
   /// Handle download action
   void _handleDownload(BuildContext context) {
     if (isDownloaded) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Song already downloaded')),
-      );
       return;
     }
 
     final connectionService = ConnectionService();
     final downloadManager = DownloadManager();
 
-    // Check if connected to server
     if (connectionService.apiClient == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Not connected to server')),
-      );
       return;
     }
 

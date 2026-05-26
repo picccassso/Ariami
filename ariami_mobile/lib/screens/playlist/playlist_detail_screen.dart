@@ -485,9 +485,6 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   /// Download all songs in the playlist that are not already downloaded.
   void _downloadPlaylist() {
     if (_connectionService.apiClient == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Not connected to server')),
-      );
       return;
     }
 
@@ -496,17 +493,8 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
         .toList();
 
     if (songsToDownload.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('All songs already downloaded')),
-      );
       return;
     }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Starting download of ${songsToDownload.length} songs...'),
-      ),
-    );
 
     final baseUrl = _connectionService.apiClient!.baseUrl;
     final playlist = _playlist;
@@ -550,14 +538,6 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
         : _songs;
 
     if (songsToPlay.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No downloaded songs available'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-      }
       return;
     }
 
@@ -577,14 +557,6 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
         : _songs;
 
     if (songsToPlay.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No downloaded songs available'),
-            backgroundColor: Color(0xFF141414),
-          ),
-        );
-      }
       return;
     }
 

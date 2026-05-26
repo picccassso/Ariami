@@ -113,8 +113,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   final QualitySettingsService _qualityService = QualitySettingsService();
   final NetworkMonitorService _networkMonitor = NetworkMonitorService();
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
-  final GlobalKey<ScaffoldMessengerState> _scaffoldMessengerKey =
-      GlobalKey<ScaffoldMessengerState>();
   bool _isLoading = true;
   Widget? _initialScreen;
   StreamSubscription<bool>? _connectionSubscription;
@@ -404,16 +402,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   Future<void> _autoResumeStartupDownloads() async {
     if (!mounted) return;
-    final resumed = await _downloadManager.resumeInterruptedDownloads();
-    if (!mounted || resumed <= 0) return;
-
-    _scaffoldMessengerKey.currentState?.showSnackBar(
-      SnackBar(
-        content: Text(
-          'Auto-resumed $resumed paused download${resumed == 1 ? '' : 's'}.',
-        ),
-      ),
-    );
+    await _downloadManager.resumeInterruptedDownloads();
   }
 
   void _maybePromptStartupDownloadRecovery() {
@@ -457,16 +446,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
     if (!mounted || shouldResume != true) return;
 
-    final resumed = await _downloadManager.resumeInterruptedDownloads();
-    if (!mounted || resumed <= 0) return;
-
-    _scaffoldMessengerKey.currentState?.showSnackBar(
-      SnackBar(
-        content: Text(
-          'Resumed $resumed paused download${resumed == 1 ? '' : 's'}.',
-        ),
-      ),
-    );
+    await _downloadManager.resumeInterruptedDownloads();
   }
 
   @override
@@ -477,7 +457,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         return MaterialApp(
           title: 'Ariami',
           navigatorKey: _navigatorKey,
-          scaffoldMessengerKey: _scaffoldMessengerKey,
           theme: ThemeService().lightTheme,
           darkTheme: ThemeService().darkTheme,
           themeMode: ThemeService().themeMode,

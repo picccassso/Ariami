@@ -129,10 +129,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _copyUserId(String userId) async {
     await Clipboard.setData(ClipboardData(text: userId));
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('User ID copied')),
-    );
   }
 
   Future<void> _handleLogout() async {
@@ -220,9 +216,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error logging out: $e')),
-      );
       setState(() {
         _isLoggingOut = false;
       });

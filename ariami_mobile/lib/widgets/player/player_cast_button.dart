@@ -121,11 +121,8 @@ class _PlayerCastButtonState extends State<PlayerCastButton> {
   Future<void> _connectAndSync(GoogleCastDevice device) async {
     try {
       await widget.playbackManager.startCastingToDevice(device);
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to connect Chromecast: $e')),
-      );
+    } catch (_) {
+      // Chromecast connection failed silently.
     }
   }
 

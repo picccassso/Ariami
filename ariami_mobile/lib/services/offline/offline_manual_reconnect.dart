@@ -9,7 +9,7 @@ enum ManualOfflineReconnectOutcome {
   networkFailure,
 }
 
-/// Outcome of [LibraryController.refreshLibrary] so the UI can show snackbars or navigate.
+/// Outcome of [LibraryController.refreshLibrary] so the UI can navigate or no-op.
 enum LibraryRefreshOutcome {
   /// Library load finished; no extra UI action.
   ok,

@@ -369,11 +369,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
   void _downloadAlbum() {
     if (_albumDetail == null) return;
 
-    // Check connection
     if (_connectionService.apiClient == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Not connected to server')),
-      );
       return;
     }
 
@@ -382,22 +378,8 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
         .toList();
 
     if (songsToDownload.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('All songs already downloaded')),
-      );
       return;
     }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-          content:
-              Text('Starting download of ${songsToDownload.length} songs...')),
-    );
-
-    // Queue downloads
-    // Note: In a real implementation, we might want to batch this or use a dedicated album download method
-    // For now, we queue individual songs
-    // We already have _handleDownload logic in SongListItem, but we can access DownloadManager directly
 
     for (final song in songsToDownload) {
       _downloadManager.downloadSong(
@@ -431,14 +413,6 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
         : _albumDetail!.songs;
 
     if (songsToPlay.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No offline songs available'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-      }
       return;
     }
 
@@ -463,14 +437,6 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
       await _playbackManager.playSongs(allSongs);
     } catch (e) {
       print('[AlbumDetailScreen] Error playing all: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
     }
   }
 
@@ -490,14 +456,6 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
         : _albumDetail!.songs;
 
     if (songsToPlay.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No offline songs available'),
-            backgroundColor: Color(0xFF141414),
-          ),
-        );
-      }
       return;
     }
 
@@ -522,14 +480,6 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
       await _playbackManager.playShuffled(allSongs);
     } catch (e) {
       print('[AlbumDetailScreen] Error shuffling: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
     }
   }
 
@@ -654,16 +604,6 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
     } catch (e, stackTrace) {
       print('[AlbumDetailScreen] ❌ ERROR: $e');
       print('[AlbumDetailScreen] Stack trace: $stackTrace');
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to play: $e'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
     }
   }
 }
