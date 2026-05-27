@@ -147,6 +147,12 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
           _statsService.onSongStarted(currentSong!, isResume: true);
           await _castService.play();
         }
+        audioHandler?.updateCastPlaybackState(
+          position: _castService.remotePosition,
+          isPlaying: _castService.isRemotePlaying,
+          duration: _castService.remoteDuration ?? currentSong?.duration,
+          isBuffering: _castService.isRemoteBuffering,
+        );
         _notifyStateChanged();
         return;
       }

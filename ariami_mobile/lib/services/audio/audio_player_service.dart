@@ -97,6 +97,12 @@ class AudioPlayerService {
     await audioHandler?.pause();
   }
 
+  /// Pause local [just_audio] only, without touching a Chromecast session.
+  Future<void> pauseLocal() async {
+    if (audioHandler == null) return;
+    await audioHandler?.pauseLocal();
+  }
+
   /// Resume playback
   Future<void> resume() async {
     if (audioHandler == null) return;

@@ -21,6 +21,8 @@ class AriamiAudioHandler extends BaseAudioHandler
   final _skipPreviousController = StreamController<void>.broadcast();
   final ChromeCastService _castService = ChromeCastService();
 
+  bool _isCastMode = false;
+
   // Expose streams for PlaybackManager to listen to
   Stream<void> get onSkipNext => _skipNextController.stream;
   Stream<void> get onSkipPrevious => _skipPreviousController.stream;
@@ -116,6 +118,12 @@ class AriamiAudioHandler extends BaseAudioHandler
     }
   }
 
+  /// Pause local playback only. Used when handing off to Chromecast so the
+  /// remote session is not affected by cast-mode control delegation.
+  Future<void> pauseLocal() async {
+    await _player.pause();
+  }
+
   /// Load a song without starting playback (for seeking before play)
   Future<void> loadSong(Song song, String streamUrl, {Uri? artworkUri}) async {
     print('[AriamiAudioHandler] loadSong() called');
@@ -170,6 +178,10 @@ class AriamiAudioHandler extends BaseAudioHandler
 
   /// Broadcast the current playback state to the system
   void _broadcastState(PlaybackEvent event) {
+    if (_isCastMode) {
+      return;
+    }
+
     final playing = _player.playing;
     final processingState = _player.processingState;
 
@@ -203,6 +215,89 @@ class AriamiAudioHandler extends BaseAudioHandler
     );
   }
 
+  void _broadcastCastState({
+    required Duration position,
+    required bool isPlaying,
+    Duration? duration,
+    required bool isBuffering,
+  }) {
+    final processingState = isBuffering
+        ? AudioProcessingState.buffering
+        : AudioProcessingState.ready;
+
+    playbackState.add(
+      playbackState.value.copyWith(
+        controls: [
+          MediaControl.skipToPrevious,
+          if (isPlaying) MediaControl.pause else MediaControl.play,
+          MediaControl.skipToNext,
+        ],
+        systemActions: const {
+          MediaAction.seek,
+          MediaAction.seekForward,
+          MediaAction.seekBackward,
+        },
+        androidCompactActionIndices: const [0, 1, 2],
+        processingState: processingState,
+        playing: isPlaying,
+        updatePosition: position,
+        bufferedPosition: position,
+        speed: 1.0,
+        queueIndex: 0,
+      ),
+    );
+  }
+
+  /// Switch notification to cast playback without starting local audio.
+  void enterCastMode(
+    Song song,
+    String streamUrl,
+    Uri? artworkUri,
+    Duration position,
+    bool isPlaying,
+  ) {
+    print(
+      '[AriamiAudioHandler] enterCastMode: ${song.title} at ${position.inMilliseconds}ms',
+    );
+    _isCastMode = true;
+    _currentSong = song;
+    mediaItem.add(_songToMediaItem(song, streamUrl, artworkUri: artworkUri));
+    _broadcastCastState(
+      position: position,
+      isPlaying: isPlaying,
+      duration: song.duration,
+      isBuffering: false,
+    );
+  }
+
+  /// Keep the Ariami notification in sync with remote cast playback.
+  void updateCastPlaybackState({
+    required Duration position,
+    required bool isPlaying,
+    Duration? duration,
+    required bool isBuffering,
+  }) {
+    if (!_isCastMode) {
+      return;
+    }
+    _broadcastCastState(
+      position: position,
+      isPlaying: isPlaying,
+      duration: duration,
+      isBuffering: isBuffering,
+    );
+  }
+
+  /// Restore local notification control from just_audio state.
+  void exitCastMode() {
+    if (!_isCastMode) {
+      return;
+    }
+    print('[AriamiAudioHandler] exitCastMode');
+    _isCastMode = false;
+    _broadcastState(_player.playbackEvent);
+  }
+
   /// Map just_audio ProcessingState to audio_service AudioProcessingState
   AudioProcessingState _mapProcessingState(
     ProcessingState processingState,
@@ -229,18 +324,41 @@ class AriamiAudioHandler extends BaseAudioHandler
   @override
   Future<void> play() async {
     print('[AriamiAudioHandler] play() called');
+    if (_isCastMode) {
+      await _castService.play();
+      updateCastPlaybackState(
+        position: _castService.remotePosition,
+        isPlaying: true,
+        duration: _castService.remoteDuration ?? _currentSong?.duration,
+        isBuffering: _castService.isRemoteBuffering,
+      );
+      return;
+    }
     await _player.play();
   }
 
   @override
   Future<void> pause() async {
     print('[AriamiAudioHandler] pause() called');
+    if (_isCastMode) {
+      await _castService.pause();
+      updateCastPlaybackState(
+        position: _castService.remotePosition,
+        isPlaying: false,
+        duration: _castService.remoteDuration ?? _currentSong?.duration,
+        isBuffering: false,
+      );
+      return;
+    }
     await _player.pause();
   }
 
   @override
   Future<void> stop() async {
     print('[AriamiAudioHandler] stop() called');
+    if (_isCastMode) {
+      _isCastMode = false;
+    }
     await _player.stop();
     await _player.seek(Duration.zero);
 
@@ -261,6 +379,19 @@ class AriamiAudioHandler extends BaseAudioHandler
   @override
   Future<void> seek(Duration position) async {
     print('[AriamiAudioHandler] seek() called: $position');
+    if (_isCastMode) {
+      await _castService.seek(
+        position,
+        playAfterSeek: _castService.isRemotePlaying,
+      );
+      updateCastPlaybackState(
+        position: position,
+        isPlaying: _castService.isRemotePlaying,
+        duration: _castService.remoteDuration ?? _currentSong?.duration,
+        isBuffering: _castService.isRemoteBuffering,
+      );
+      return;
+    }
     await _player.seek(position);
   }
 
@@ -302,18 +433,24 @@ class AriamiAudioHandler extends BaseAudioHandler
   // ============================================================================
 
   /// Check if currently playing
-  bool get isPlaying => _player.playing;
+  bool get isPlaying => _isCastMode
+      ? _castService.isRemotePlaying
+      : _player.playing;
 
   /// Check if loading/buffering
-  bool get isLoading =>
-      _player.processingState == ProcessingState.loading ||
-      _player.processingState == ProcessingState.buffering;
+  bool get isLoading => _isCastMode
+      ? _castService.isRemoteBuffering
+      : _player.processingState == ProcessingState.loading ||
+          _player.processingState == ProcessingState.buffering;
 
   /// Get current position
-  Duration get position => _player.position;
+  Duration get position =>
+      _isCastMode ? _castService.remotePosition : _player.position;
 
   /// Get current duration
-  Duration? get duration => _player.duration;
+  Duration? get duration => _isCastMode
+      ? (_castService.remoteDuration ?? _currentSong?.duration)
+      : _player.duration;
 
   /// Get buffered position
   Duration get bufferedPosition => _player.bufferedPosition;

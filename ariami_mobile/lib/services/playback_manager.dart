@@ -189,12 +189,20 @@ class PlaybackManager extends ChangeNotifier {
     _lastObservedCastPlayerState = nextState;
 
     if (!_castService.isConnected) {
+      audioHandler?.exitCastMode();
       _lastObservedCastPlayerState = null;
       _castStatsForwardTimer?.cancel();
       _castStatsForwardTimer = null;
       notifyListeners();
       return;
     }
+
+    audioHandler?.updateCastPlaybackState(
+      position: _castService.remotePosition,
+      isPlaying: _castService.isRemotePlaying,
+      duration: _castService.remoteDuration ?? currentSong?.duration,
+      isBuffering: _castService.isRemoteBuffering,
+    );
 
     // Forward cast position updates to stats service
     _castStatsForwardTimer ??= Timer.periodic(
@@ -362,6 +370,21 @@ class PlaybackManager extends ChangeNotifier {
 
   void _notifyStateChanged() {
     notifyListeners();
+  }
+
+  void _enterCastNotificationMode(Song song, bool isPlaying) {
+    final payload = _castService.lastSyncPayload;
+    if (payload == null) {
+      return;
+    }
+
+    audioHandler?.enterCastMode(
+      song,
+      payload.streamUrl,
+      payload.artworkUri,
+      payload.position,
+      isPlaying,
+    );
   }
 
   @override

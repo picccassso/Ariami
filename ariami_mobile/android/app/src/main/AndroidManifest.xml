@@ -32,7 +32,13 @@
         android:usesCleartextTraffic="true">
         <meta-data
             android:name="com.google.android.gms.cast.framework.OPTIONS_PROVIDER_CLASS_NAME"
-            android:value="com.felnanuke.google_cast.GoogleCastOptionsProvider" />
+            android:value="com.example.ariami_mobile.AriamiCastOptionsProvider" />
+
+        <!-- Cast SDK merges this service by default; strip it so only Ariami's
+             audio_service notification is shown during cast. -->
+        <service
+            android:name="com.google.android.gms.cast.framework.media.MediaNotificationService"
+            tools:node="remove" />
 
         <!-- WorkManager foreground downloads (SpecifyForegroundServiceType / dataSync) -->
         <service
@@ -72,11 +78,6 @@
                 <action android:name="android.media.browse.MediaBrowserService" />
             </intent-filter>
         </service>
-
-        <service
-            android:name="com.google.android.gms.cast.framework.media.MediaNotificationService"
-            android:exported="false"
-            android:foregroundServiceType="mediaPlayback" />
 
         <!-- Receiver for media button events -->
         <receiver

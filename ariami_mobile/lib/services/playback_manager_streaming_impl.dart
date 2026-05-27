@@ -25,7 +25,8 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
           force: true,
         );
         if (casted) {
-          await _audioPlayer.pause();
+          await _audioPlayer.pauseLocal();
+          _enterCastNotificationMode(song, autoPlay);
           _restoredPosition = null;
           _pendingUiPosition = null;
           if (restartStatsTracking) {

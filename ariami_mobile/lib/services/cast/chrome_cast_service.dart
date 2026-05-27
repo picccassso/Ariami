@@ -38,6 +38,10 @@ class ChromeCastService extends ChangeNotifier {
   Duration _lastKnownRemotePosition = Duration.zero;
   DateTime? _lastRemotePositionUpdatedAt;
   CastMediaPlayerState? _lastRemotePlayerState;
+  CastSyncPayload? _lastSyncPayload;
+
+  /// Metadata from the most recent successful cast media load.
+  CastSyncPayload? get lastSyncPayload => _lastSyncPayload;
 
   bool get isSupportedPlatform =>
       !kIsWeb && (Platform.isAndroid || Platform.isIOS);
@@ -197,6 +201,7 @@ class ChromeCastService extends ChangeNotifier {
     _connectedDeviceName = null;
     _lastCastedSongId = null;
     _lastSentPlaying = null;
+    _lastSyncPayload = null;
     notifyListeners();
   }
 
@@ -282,6 +287,7 @@ class ChromeCastService extends ChangeNotifier {
 
     _connectedDeviceName = null;
     _lastCastedSongId = null;
+    _lastSyncPayload = null;
     _forceLocalPlayback = false;
     notifyListeners();
   }
@@ -354,11 +360,23 @@ class ChromeCastService extends ChangeNotifier {
         return false;
       }
 
+      final artworkUri = payload.artworkUri;
       final mediaInfo = GoogleCastMediaInformation(
         contentId: payload.streamUrl,
         contentUrl: Uri.parse(payload.streamUrl),
         streamType: CastMediaStreamType.buffered,
         contentType: payload.contentType,
+        duration: song.duration,
+        metadata: GoogleCastMusicMediaMetadata(
+          title: song.title,
+          artist: song.artist,
+          albumName: song.album,
+          albumArtist: song.albumArtist,
+          trackNumber: song.trackNumber,
+          discNumber: song.discNumber,
+          images:
+              artworkUri != null ? [GoogleCastImage(url: artworkUri)] : null,
+        ),
       );
 
       await GoogleCastRemoteMediaClient.instance.loadMedia(
@@ -373,6 +391,11 @@ class ChromeCastService extends ChangeNotifier {
           : CastMediaPlayerState.paused;
       _lastCastedSongId = song.id;
       _lastSentPlaying = isPlaying;
+      _lastSyncPayload = CastSyncPayload(
+        streamUrl: payload.streamUrl,
+        artworkUri: artworkUri,
+        position: payload.position,
+      );
       return true;
     } finally {
       _isSyncing = false;
@@ -399,7 +422,45 @@ class ChromeCastService extends ChangeNotifier {
       streamUrl: streamUrl,
       contentType: _resolveContentType(song, quality),
       position: position,
+      artworkUri: _buildArtworkUri(song, streamUrl),
     );
+  }
+
+  Uri? _buildArtworkUri(Song song, String streamUrl) {
+    try {
+      final apiClient = _connectionService.apiClient;
+      final String artworkUrl;
+      if (apiClient != null) {
+        if (song.albumId != null) {
+          artworkUrl = '${apiClient.baseUrl}/artwork/${song.albumId}';
+        } else {
+          artworkUrl = '${apiClient.baseUrl}/song-artwork/${song.id}';
+        }
+      } else {
+        final uri = Uri.parse(streamUrl);
+        if (uri.scheme != 'http' && uri.scheme != 'https') {
+          return null;
+        }
+        final baseUrl = '${uri.scheme}://${uri.host}:${uri.port}';
+        if (song.albumId != null) {
+          artworkUrl = '$baseUrl/api/artwork/${song.albumId}';
+        } else {
+          artworkUrl = '$baseUrl/api/song-artwork/${song.id}';
+        }
+      }
+
+      var artworkUri = Uri.parse(artworkUrl);
+      final streamToken = Uri.parse(streamUrl).queryParameters['streamToken'];
+      if (streamToken != null && streamToken.isNotEmpty) {
+        artworkUri = artworkUri.replace(
+          queryParameters: {'streamToken': streamToken},
+        );
+      }
+      return artworkUri;
+    } catch (e) {
+      debugPrint('[ChromeCastService] Error building artwork URI: $e');
+      return null;
+    }
   }
 
   Future<String?> _getStreamUrlWithRetry({
@@ -464,6 +525,7 @@ class ChromeCastService extends ChangeNotifier {
       _connectedDeviceName = null;
       _lastCastedSongId = null;
       _lastSentPlaying = null;
+      _lastSyncPayload = null;
       _forceLocalPlayback = false;
       _lastKnownRemotePosition = Duration.zero;
       _lastRemotePositionUpdatedAt = null;
@@ -595,14 +657,29 @@ class ChromeCastService extends ChangeNotifier {
   }
 }
 
+/// Payload from a successful cast media load, for notification sync.
+class CastSyncPayload {
+  final String streamUrl;
+  final Uri? artworkUri;
+  final Duration position;
+
+  const CastSyncPayload({
+    required this.streamUrl,
+    required this.artworkUri,
+    required this.position,
+  });
+}
+
 class _CastPayload {
   final String streamUrl;
   final String contentType;
   final Duration position;
+  final Uri? artworkUri;
 
   const _CastPayload({
     required this.streamUrl,
     required this.contentType,
     required this.position,
+    required this.artworkUri,
   });
 }

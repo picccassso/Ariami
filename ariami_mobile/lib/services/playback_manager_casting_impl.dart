@@ -71,6 +71,7 @@ extension _PlaybackManagerCastingImpl on PlaybackManager {
             'Chromecast session connected but the media handoff failed.',
           );
         }
+        _enterCastNotificationMode(snapshot.song!, snapshot.wasPlaying);
       }
 
       _notifyStateChanged();
@@ -103,6 +104,7 @@ extension _PlaybackManagerCastingImpl on PlaybackManager {
     );
 
     if (snapshot.song == null) {
+      audioHandler?.exitCastMode();
       await _castService.beginLocalPlaybackHandoff(
         capturedPosition: snapshot.position,
         wasPlaying: snapshot.wasPlaying,
@@ -112,6 +114,7 @@ extension _PlaybackManagerCastingImpl on PlaybackManager {
       return;
     }
 
+    audioHandler?.exitCastMode();
     await _castService.beginLocalPlaybackHandoff(
       capturedPosition: snapshot.position,
       wasPlaying: snapshot.wasPlaying,
