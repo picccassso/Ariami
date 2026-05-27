@@ -8,6 +8,7 @@ import 'screens/dashboard_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/owner_setup_screen.dart';
 import 'utils/constants.dart';
+import 'utils/web_navigation.dart';
 
 void main() {
   // Get the initial route from the browser URL to avoid transition animation on refresh
@@ -40,6 +41,7 @@ class AriamiWebApp extends StatelessWidget {
       theme: AppTheme.darkTheme,
       debugShowCheckedModeBanner: false,
       initialRoute: initialRoute,
+      navigatorObservers: [webRouteObserver],
       routes: {
         '/': (context) => const WelcomeScreen(),
         '/welcome': (context) => const WelcomeScreen(),

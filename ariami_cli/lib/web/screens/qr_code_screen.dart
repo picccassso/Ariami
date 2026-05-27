@@ -6,6 +6,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../services/web_api_client.dart';
 import '../services/web_auth_service.dart';
 import '../utils/constants.dart';
+import '../utils/web_navigation.dart';
 import '../widgets/endpoint_display.dart';
 
 class QRCodeScreen extends StatefulWidget {
@@ -99,7 +100,7 @@ class _QRCodeScreenState extends State<QRCodeScreen>
         if (mounted) {
           if (mobileClients > 0) {
             _connectionPollTimer?.cancel();
-            Navigator.pushReplacementNamed(context, '/dashboard');
+            navigateToDashboard(context);
           }
         }
       }
@@ -225,6 +226,14 @@ class _QRCodeScreenState extends State<QRCodeScreen>
     return false;
   }
 
+  void _closeQrScreen() {
+    if (Navigator.canPop(context)) {
+      Navigator.pop(context);
+    } else {
+      navigateToDashboard(context);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -237,8 +246,14 @@ class _QRCodeScreenState extends State<QRCodeScreen>
             AppBar(
               backgroundColor: Colors.transparent,
               elevation: 0,
+              automaticallyImplyLeading: false,
               title: const Text('CONNECT'),
               actions: [
+                IconButton(
+                  tooltip: 'Close',
+                  icon: const Icon(Icons.close_rounded),
+                  onPressed: _closeQrScreen,
+                ),
                 IconButton(
                   tooltip: 'Refresh addresses',
                   icon: _isRefreshingAddresses
@@ -447,8 +462,7 @@ class _QRCodeScreenState extends State<QRCodeScreen>
                         width: 280,
                         child: ElevatedButton(
                           onPressed: () {
-                            Navigator.pushReplacementNamed(
-                                context, '/dashboard');
+                            navigateToDashboard(context);
                           },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppTheme.surfaceBlack,

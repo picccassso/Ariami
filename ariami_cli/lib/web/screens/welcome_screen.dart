@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../services/web_api_client.dart';
 import '../services/web_auth_service.dart';
 import '../utils/constants.dart';
+import '../utils/web_navigation.dart';
 
 class WelcomeScreen extends StatefulWidget {
   const WelcomeScreen({super.key});
@@ -12,7 +13,7 @@ class WelcomeScreen extends StatefulWidget {
   State<WelcomeScreen> createState() => _WelcomeScreenState();
 }
 
-class _WelcomeScreenState extends State<WelcomeScreen> {
+class _WelcomeScreenState extends State<WelcomeScreen> with RouteAware {
   final WebAuthService _authService = WebAuthService();
   late final WebApiClient _apiClient = WebApiClient(
     tokenProvider: _authService.getSessionToken,
@@ -22,6 +23,26 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
   @override
   void initState() {
     super.initState();
+    _checkSetupStatus();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route is PageRoute<void>) {
+      webRouteObserver.subscribe(this, route);
+    }
+  }
+
+  @override
+  void dispose() {
+    webRouteObserver.unsubscribe(this);
+    super.dispose();
+  }
+
+  @override
+  void didPopNext() {
     _checkSetupStatus();
   }
 
@@ -45,7 +66,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
         final isComplete = data['isComplete'] as bool? ?? false;
 
         if (isComplete && mounted) {
-          Navigator.pushReplacementNamed(context, '/dashboard');
+          navigateToDashboard(context);
           return;
         }
       }

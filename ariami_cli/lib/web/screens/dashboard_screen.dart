@@ -67,6 +67,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   String? _dashboardTailscaleServer;
   DateTime? _dashboardEndpointsUpdatedAt;
   bool _isRefreshingAddresses = false;
+  bool _setupComplete = false;
 
   Timer? _refreshTimer;
   Timer? _userActivityRefreshTimer;
@@ -93,6 +94,24 @@ class _DashboardScreenState extends State<DashboardScreen>
     });
 
     _connectWebSocket();
+    unawaited(_loadSetupCompleteStatus());
+  }
+
+  Future<void> _loadSetupCompleteStatus() async {
+    try {
+      final response = await _apiClient.get('/api/setup/status');
+      if (response.statusCode == 200) {
+        final data = response.jsonBody ?? <String, dynamic>{};
+        final isComplete = data['isComplete'] as bool? ?? false;
+        if (mounted) {
+          setState(() {
+            _setupComplete = isComplete;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error checking setup status: $e');
+    }
   }
 
   @override
@@ -674,9 +693,11 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: Container(
+    return PopScope(
+      canPop: !_setupComplete,
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: Container(
         decoration: BoxDecoration(
           gradient: AppTheme.backgroundGradient,
         ),
@@ -687,6 +708,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                 children: [
                   AppBar(
                     backgroundColor: AppTheme.pureBlack.withValues(alpha: 0.8),
+                    automaticallyImplyLeading: false,
                     title: Text(
                       'DASHBOARD',
                       style: Theme.of(context).appBarTheme.titleTextStyle,
@@ -783,6 +805,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                   ),
                 ],
               ),
+        ),
       ),
     );
   }

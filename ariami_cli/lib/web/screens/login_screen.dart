@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../services/web_auth_service.dart';
 import '../services/web_setup_service.dart';
 import '../utils/constants.dart';
+import '../utils/web_navigation.dart';
 import 'owner_setup_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -73,7 +74,11 @@ class _LoginScreenState extends State<LoginScreen> {
         await WebSetupService().markSetupComplete();
       }
       if (!mounted) return;
-      Navigator.pushReplacementNamed(context, successRoute);
+      if (successRoute == '/dashboard') {
+        navigateToDashboard(context);
+      } else {
+        Navigator.pushReplacementNamed(context, successRoute);
+      }
     } catch (e) {
       setState(() {
         _errorMessage = 'Authentication failed: $e';
