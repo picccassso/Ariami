@@ -115,38 +115,70 @@ class _ReorderableQueueListState extends State<ReorderableQueueList> {
       widget.songs,
       widget.currentIndex,
     );
+    final currentSong = displayedSongs.first;
+    final upcomingSongs = displayedSongs.skip(1).toList();
+    final currentRealIndex = QueueDisplayOrder.displayIndexToReal(
+      0,
+      widget.songs.length,
+      widget.currentIndex,
+    );
+    final currentRowKey = ValueKey('${currentSong.id}-$currentRealIndex');
 
-    return ReorderableListView.builder(
-      padding: EdgeInsets.only(
-        bottom: getMiniPlayerScrollBottomPadding(context),
-      ),
-      itemCount: displayedSongs.length,
-      onReorder: widget.onReorder,
-      itemBuilder: (context, displayIndex) {
-        final song = displayedSongs[displayIndex];
-        final isCurrentlyPlaying = displayIndex == 0;
-        final realIndex = QueueDisplayOrder.displayIndexToReal(
-          displayIndex,
-          widget.songs.length,
-          widget.currentIndex,
-        );
-        // Default to available if not yet checked (avoids flicker)
-        final isAvailable = _availabilityMap[song.id] ?? true;
-        final rowKey = ValueKey('${song.id}-$realIndex');
-
-        return QueueItem(
-          key: rowKey,
-          rowKey: rowKey,
-          song: song,
-          index: displayIndex,
-          isCurrentlyPlaying: isCurrentlyPlaying,
-          isAvailable: isAvailable,
-          onTap: widget.onTap != null ? () => widget.onTap!(realIndex) : null,
-          onRemove: widget.onRemove != null
-              ? () => widget.onRemove!(realIndex)
+    return Column(
+      children: [
+        QueueItem(
+          key: currentRowKey,
+          rowKey: currentRowKey,
+          song: currentSong,
+          index: 0,
+          isCurrentlyPlaying: true,
+          isAvailable: _availabilityMap[currentSong.id] ?? true,
+          onTap: widget.onTap != null
+              ? () => widget.onTap!(currentRealIndex)
               : null,
-        );
-      },
+          onRemove: widget.onRemove != null
+              ? () => widget.onRemove!(currentRealIndex)
+              : null,
+        ),
+        Expanded(
+          child: ReorderableListView.builder(
+            padding: EdgeInsets.only(
+              bottom: getMiniPlayerScrollBottomPadding(context),
+            ),
+            itemCount: upcomingSongs.length,
+            onReorder: (oldUpcomingIndex, newUpcomingIndex) {
+              widget.onReorder(oldUpcomingIndex + 1, newUpcomingIndex + 1);
+            },
+            itemBuilder: (context, upcomingIndex) {
+              final displayIndex = upcomingIndex + 1;
+              final song = upcomingSongs[upcomingIndex];
+              final realIndex = QueueDisplayOrder.displayIndexToReal(
+                displayIndex,
+                widget.songs.length,
+                widget.currentIndex,
+              );
+              // Default to available if not yet checked (avoids flicker)
+              final isAvailable = _availabilityMap[song.id] ?? true;
+              final rowKey = ValueKey('${song.id}-$realIndex');
+
+              return QueueItem(
+                key: rowKey,
+                rowKey: rowKey,
+                song: song,
+                index: displayIndex,
+                isCurrentlyPlaying: false,
+                isAvailable: isAvailable,
+                onTap: widget.onTap != null
+                    ? () => widget.onTap!(realIndex)
+                    : null,
+                onRemove: widget.onRemove != null
+                    ? () => widget.onRemove!(realIndex)
+                    : null,
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }
