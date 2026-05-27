@@ -7,6 +7,7 @@ import '../../models/song.dart';
 import '../../services/offline/offline_manual_reconnect.dart';
 import '../../services/playback_manager.dart';
 import '../../services/quality/quality_settings_service.dart';
+import '../../widgets/common/bottom_chrome_metrics.dart';
 import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
 import '../playlist/create_playlist_screen.dart';
 import 'library/library.dart';
@@ -570,6 +571,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
                         _controller.toggleSongSelection(song.id);
                       },
                 isSelectionMode: _controller.isSelectionModeActive,
+                isBatchBarVisible: _controller.isSelectionModeActive &&
+                    _controller.totalSelectedCount > 0,
                 selectedPlaylistIds: _controller.selectedPlaylistIds,
                 selectedAlbumIds: _controller.selectedAlbumIds,
                 selectedSongIds: _controller.selectedSongIds,
@@ -596,7 +599,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
                     curve: isVisible ? Curves.easeOutBack : Curves.easeInOut,
                     left: 16,
                     right: 16,
-                    bottom: isVisible ? bottomPadding + 16 : -150,
+                    bottom: isVisible
+                        ? bottomPadding + kBatchDownloadBarBottomGap
+                        : -150,
                 child: AnimatedOpacity(
                   duration: const Duration(milliseconds: 200),
                   opacity: isVisible ? 1.0 : 0.0,

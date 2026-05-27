@@ -9,6 +9,16 @@ const double kDownloadBarHeight = 4.0;
 /// Total height of mini player + download bar overlay.
 const double kMiniPlayerOverlayHeight = kMiniPlayerHeight + kDownloadBarHeight;
 
+/// Content height of the library batch-download floating bar.
+const double kBatchDownloadBarContentHeight = 76.0;
+
+/// Gap between the batch-download bar and bottom chrome (mini player / nav).
+const double kBatchDownloadBarBottomGap = 16.0;
+
+/// Extra scroll inset when the library batch-download bar is visible.
+const double kBatchDownloadBarScrollInset =
+    kBatchDownloadBarContentHeight + kBatchDownloadBarBottomGap;
+
 /// Bottom navigation bar height including device safe-area inset.
 ///
 /// When the IME (keyboard) is open, the bottom nav is obscured and the scaffold

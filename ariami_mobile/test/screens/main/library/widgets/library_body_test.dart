@@ -3,6 +3,7 @@ import 'package:ariami_mobile/screens/main/library/library_state.dart';
 import 'package:ariami_mobile/screens/main/library/widgets/library_body.dart';
 import 'package:ariami_mobile/services/playlist_service.dart';
 import 'package:ariami_mobile/utils/shared_preferences_cache.dart';
+import 'package:ariami_mobile/widgets/common/bottom_chrome_metrics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -43,6 +44,7 @@ void main() {
     Widget buildTestWidget({
       required LibraryState state,
       bool isOffline = false,
+      bool isBatchBarVisible = false,
     }) {
       return MaterialApp(
         home: Scaffold(
@@ -66,9 +68,20 @@ void main() {
             onSongLongPress: (_) {},
             onOfflineSongTap: (_) {},
             onOfflineSongLongPress: (_) {},
+            isBatchBarVisible: isBatchBarVisible,
           ),
         ),
       );
+    }
+
+    double findScrollBottomPadding(WidgetTester tester) {
+      final sliverPadding = tester.widget<SliverPadding>(
+        find.descendant(
+          of: find.byType(CustomScrollView),
+          matching: find.byType(SliverPadding),
+        ).last,
+      );
+      return sliverPadding.padding.resolve(TextDirection.ltr).bottom;
     }
 
     testWidgets('shows full-screen spinner only for empty initial load',
@@ -112,6 +125,29 @@ void main() {
       expect(find.byType(LinearProgressIndicator), findsOneWidget);
       expect(find.text('Test Album'), findsOneWidget);
       expect(find.byType(CustomScrollView), findsOneWidget);
+    });
+
+    testWidgets('adds batch bar scroll inset when batch bar is visible',
+        (tester) async {
+      final state = const LibraryState(isLoading: false).copyWith(
+        albums: testAlbums,
+        isMixedMode: true,
+      );
+
+      await tester.pumpWidget(buildTestWidget(state: state));
+      await tester.pump();
+      final paddingWithoutBatchBar = findScrollBottomPadding(tester);
+
+      await tester.pumpWidget(
+        buildTestWidget(state: state, isBatchBarVisible: true),
+      );
+      await tester.pump();
+      final paddingWithBatchBar = findScrollBottomPadding(tester);
+
+      expect(
+        paddingWithBatchBar - paddingWithoutBatchBar,
+        kBatchDownloadBarScrollInset,
+      );
     });
   });
 }

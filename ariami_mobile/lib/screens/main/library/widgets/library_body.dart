@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../../models/api_models.dart';
 import '../../../../models/song.dart';
 import '../../../../services/playlist_service.dart';
+import '../../../../widgets/common/bottom_chrome_metrics.dart';
 import '../../../../widgets/common/mini_player_aware_bottom_sheet.dart';
 import '../../../../widgets/library/collapsible_section.dart';
 import '../library_state.dart';
@@ -35,6 +36,7 @@ class LibraryBody extends StatelessWidget {
   final void Function(Song) onOfflineSongTap;
   final void Function(Song) onOfflineSongLongPress;
   final bool isSelectionMode;
+  final bool isBatchBarVisible;
   final Set<String> selectedPlaylistIds;
   final Set<String> selectedAlbumIds;
   final Set<String> selectedSongIds;
@@ -62,6 +64,7 @@ class LibraryBody extends StatelessWidget {
     required this.onOfflineSongTap,
     required this.onOfflineSongLongPress,
     this.isSelectionMode = false,
+    this.isBatchBarVisible = false,
     this.selectedPlaylistIds = const {},
     this.selectedAlbumIds = const {},
     this.selectedSongIds = const {},
@@ -145,6 +148,9 @@ class LibraryBody extends StatelessWidget {
   }
 
   List<Widget> _buildMixedModeSlivers(double bottomPadding) {
+    final effectiveBottomPadding = bottomPadding +
+        (isBatchBarVisible ? kBatchDownloadBarScrollInset : 0);
+
     return [
       // Mixed Playlists + Albums Section
       MixedSection(
@@ -181,14 +187,17 @@ class LibraryBody extends StatelessWidget {
           selectedSongIds: selectedSongIds,
         ),
 
-      // Bottom padding for mini player
+      // Bottom padding for mini player and batch-download bar
       SliverPadding(
-        padding: EdgeInsets.only(bottom: bottomPadding),
+        padding: EdgeInsets.only(bottom: effectiveBottomPadding),
       ),
     ];
   }
 
   List<Widget> _buildSeparateModeSlivers(double bottomPadding) {
+    final effectiveBottomPadding = bottomPadding +
+        (isBatchBarVisible ? kBatchDownloadBarScrollInset : 0);
+
     return [
       // Playlists Section
       SliverToBoxAdapter(
@@ -244,9 +253,9 @@ class LibraryBody extends StatelessWidget {
           selectedSongIds: selectedSongIds,
         ),
 
-      // Bottom padding for mini player
+      // Bottom padding for mini player and batch-download bar
       SliverPadding(
-        padding: EdgeInsets.only(bottom: bottomPadding),
+        padding: EdgeInsets.only(bottom: effectiveBottomPadding),
       ),
     ];
   }
