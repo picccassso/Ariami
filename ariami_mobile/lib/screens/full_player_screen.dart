@@ -332,8 +332,6 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
                 PlayerTopBar(
                   onMinimize: () => Navigator.pop(context),
                   onOpenQueue: _openQueue,
-                  onPlayNext: _playCurrentSongNext,
-                  onAddToQueue: _addCurrentSongToQueue,
                 ),
                 const SizedBox(height: 16),
                 Expanded(
@@ -378,6 +376,8 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
                 PlayerSecondaryControls(
                   castButton:
                       PlayerCastButton(playbackManager: _playbackManager),
+                  onPlayNext: _playCurrentSongNext,
+                  onAddToQueue: _addCurrentSongToQueue,
                   onOpenQueue: _openQueue,
                   onAddToPlaylist: () {
                     final song = _playbackManager.currentSong;
