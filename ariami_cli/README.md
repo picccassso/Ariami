@@ -27,7 +27,7 @@ library), use `./build-pi-release-mac.sh` from this directory.
 ## Usage
 
 ```bash
-./ariami_cli start          # Start server (opens browser on first run)
+./ariami_cli start          # Start server (opens browser when ready on first run)
 ./ariami_cli status         # Check if running
 ./ariami_cli stop           # Stop server
 ./ariami_cli start --port 8081  # Custom port

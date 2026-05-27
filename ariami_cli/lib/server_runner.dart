@@ -29,10 +29,12 @@ class ServerRunner {
   /// - [port]: Server port (default: 8080)
   /// - [isSetupMode]: If true, server runs for setup without library scanning
   /// - [isServerMode]: If true, running as background daemon (write own PID)
+  /// - [onHttpServerReady]: Called after the HTTP server is listening (setup browser open)
   Future<void> run(
       {required int port,
       required bool isSetupMode,
-      bool isServerMode = false}) async {
+      bool isServerMode = false,
+      Future<void> Function(int port)? onHttpServerReady}) async {
     print('Ariami Server starting...');
     _serverPort = port;
 
@@ -165,6 +167,8 @@ class ServerRunner {
       );
       print('✓ HTTP server started successfully');
       print('✓ Server accessible at: http://$advertisedIp:$port');
+
+      await notifyHttpServerReady(onHttpServerReady, port);
 
       // Initialize transcoding service for quality-based streaming
       final transcodingCachePath =
@@ -726,6 +730,16 @@ class ServerRunner {
       await _cancelSignalHandlers();
       exit(1);
     }
+  }
+}
+
+/// Invokes [onHttpServerReady] after the HTTP server has bound [port].
+Future<void> notifyHttpServerReady(
+  Future<void> Function(int port)? onHttpServerReady,
+  int port,
+) async {
+  if (onHttpServerReady != null) {
+    await onHttpServerReady(port);
   }
 }
 

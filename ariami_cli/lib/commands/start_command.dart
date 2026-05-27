@@ -34,23 +34,20 @@ class StartCommand {
 
     if (!isSetupComplete) {
       print('Starting Ariami CLI server for first-time setup...');
-      print('Opening web browser for setup at http://localhost:$port');
+      print('Setup URL: http://localhost:$port');
+      print('The browser will open automatically when the server is ready.');
       print('');
       print('Note: The server will run in the foreground during setup.');
       print('After completing setup, you can run the server in the background.');
       print('');
 
-      // Open browser after short delay (in background)
-      Future.delayed(const Duration(seconds: 2), () async {
-        final opened = await _browserService.openAriamiInterface(port: port);
-        if (!opened) {
-          await _printBrowserOpenFailureUrls(port);
-        }
-      });
-
       // Run server in foreground (setup mode)
       final runner = ServerRunner();
-      await runner.run(port: port, isSetupMode: true);
+      await runner.run(
+        port: port,
+        isSetupMode: true,
+        onHttpServerReady: _openSetupBrowser,
+      );
     } else {
       print('Starting Ariami CLI server in background...');
       print('');
@@ -84,6 +81,13 @@ class StartCommand {
       print('Use "ariami_cli status" to check server status');
       print('Use "ariami_cli stop" to stop the server');
       print('');
+    }
+  }
+
+  Future<void> _openSetupBrowser(int port) async {
+    final opened = await _browserService.openAriamiInterface(port: port);
+    if (!opened) {
+      await _printBrowserOpenFailureUrls(port);
     }
   }
 

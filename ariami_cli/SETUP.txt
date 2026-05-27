@@ -23,7 +23,7 @@ FIRST RUN
 ---------
 On first run, the server will:
 - Start in foreground mode
-- Attempt to open a browser for setup
+- Open a browser for setup once the server is ready
 - Prompt you to select your music folder
 - Generate a QR code for mobile app connection
 
