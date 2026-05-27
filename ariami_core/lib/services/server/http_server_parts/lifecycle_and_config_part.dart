@@ -262,6 +262,71 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
     }
   }
 
+  /// Start the HTTP server, trying [preferredPort] first and scanning 8080–8099
+  /// when [allowFallback] is true.
+  ///
+  /// Returns the port the server is listening on.
+  Future<int> startWithPortFallback({
+    required String advertisedIp,
+    String? tailscaleIp,
+    String? lanIp,
+    String bindAddress = '0.0.0.0',
+    required int preferredPort,
+    int? savedPort,
+    bool allowFallback = true,
+  }) async {
+    if (_server != null) {
+      await start(
+        advertisedIp: advertisedIp,
+        tailscaleIp: tailscaleIp,
+        lanIp: lanIp,
+        bindAddress: bindAddress,
+        port: _port,
+      );
+      return _port;
+    }
+
+    final candidates = ServerPortPolicy.buildCandidates(
+      preferredPort: preferredPort,
+      savedPort: savedPort,
+      allowFallback: allowFallback,
+    );
+    if (candidates.isEmpty) {
+      throw PortBindingException(
+        preferredPort: preferredPort,
+        candidates: candidates,
+        explicitPort: !allowFallback,
+      );
+    }
+
+    final attemptedPort = candidates.first;
+    for (final candidate in candidates) {
+      try {
+        await start(
+          advertisedIp: advertisedIp,
+          tailscaleIp: tailscaleIp,
+          lanIp: lanIp,
+          bindAddress: bindAddress,
+          port: candidate,
+        );
+        _attemptedPort = attemptedPort;
+        _portFallbackUsed = candidate != attemptedPort;
+        return candidate;
+      } catch (e) {
+        if (ServerPortPolicy.isAddressInUseError(e)) {
+          continue;
+        }
+        rethrow;
+      }
+    }
+
+    throw PortBindingException(
+      preferredPort: preferredPort,
+      candidates: candidates,
+      explicitPort: !allowFallback,
+    );
+  }
+
   void _registerLibraryListeners() {
     if (_libraryListenersRegistered) return;
 
@@ -332,6 +397,8 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
       'lanServer': _lanIp,
       'tailscaleServer': _tailscaleIp,
       'port': _port,
+      'attemptedPort': _attemptedPort ?? _port,
+      'portFallbackUsed': _portFallbackUsed,
       'name': Platform.localHostname,
       'version': '4.3.0',
       'authRequired': _authRequired,

@@ -121,6 +121,24 @@ class CliStateService {
     await _updateConfigField('music_folder_path', folderPath);
   }
 
+  /// Get persisted server port from config.
+  Future<int?> getServerPort() async {
+    final config = await _readConfig();
+    final value = config['server_port'];
+    if (value is int) {
+      return value;
+    }
+    if (value is num) {
+      return value.toInt();
+    }
+    return null;
+  }
+
+  /// Persist the server port used for future starts.
+  Future<void> setServerPort(int port) async {
+    await _updateConfigField('server_port', port);
+  }
+
   /// Get optional transcode slots override from config.
   Future<int?> getTranscodeSlotsOverride() async {
     final config = await _readConfig();

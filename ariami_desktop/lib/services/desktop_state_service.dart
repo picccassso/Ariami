@@ -13,6 +13,7 @@ class DesktopStateService {
 
   static const String _setupCompleteKey = 'setup_completed';
   static const String _ownerSetupSkippedKey = 'owner_setup_skipped';
+  static const String _serverPortKey = 'server_port';
 
   /// Check if initial setup has been completed
   Future<bool> isSetupComplete() async {
@@ -48,6 +49,18 @@ class DesktopStateService {
   Future<void> clearOwnerSetupSkipped() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_ownerSetupSkippedKey);
+  }
+
+  /// Persisted HTTP server port for future starts.
+  Future<int?> getServerPort() async {
+    final prefs = await SharedPreferences.getInstance();
+    final value = prefs.getInt(_serverPortKey);
+    return value;
+  }
+
+  Future<void> setServerPort(int port) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_serverPortKey, port);
   }
 
   // ============================================================================

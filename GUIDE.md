@@ -80,8 +80,14 @@ flutter clean && flutter pub get
 ```
 
 ### Port conflicts
+Ariami prefers port **8080** and automatically tries **8081–8099** if it is busy, then saves the port it used. Check which port is listening with:
 ```bash
 lsof -i :8080
+./ariami_cli status
+```
+
+To pin a specific port (no automatic fallback):
+```bash
 dart run bin/ariami_cli.dart start --port 8081
 ```
 

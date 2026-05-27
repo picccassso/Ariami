@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'package:ariami_core/ariami_core.dart';
 import 'package:ariami_core/models/auth_models.dart';
 import 'package:flutter/material.dart';
 import '../services/web_api_client.dart';
@@ -19,6 +20,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> with RouteAware {
     tokenProvider: _authService.getSessionToken,
   );
   bool _isCheckingStatus = true;
+  String? _portFallbackMessage;
 
   @override
   void initState() {
@@ -74,10 +76,38 @@ class _WelcomeScreenState extends State<WelcomeScreen> with RouteAware {
       debugPrint('Error checking setup status: $e');
     }
 
+    await _loadPortFallbackMessage();
+
     if (mounted) {
       setState(() {
         _isCheckingStatus = false;
       });
+    }
+  }
+
+  Future<void> _loadPortFallbackMessage() async {
+    try {
+      final response = await _apiClient.get('/api/server-info');
+      if (response.statusCode != 200) {
+        return;
+      }
+
+      final data = response.jsonBody ?? <String, dynamic>{};
+      final portFallbackUsed = data['portFallbackUsed'] as bool? ?? false;
+      if (!portFallbackUsed) {
+        return;
+      }
+
+      final attemptedPort = data['attemptedPort'] as int? ??
+          ServerPortPolicy.defaultPort;
+      final actualPort =
+          data['port'] as int? ?? ServerPortPolicy.defaultPort;
+      _portFallbackMessage = ServerPortPolicy.formatFallbackMessage(
+        attemptedPort: attemptedPort,
+        actualPort: actualPort,
+      );
+    } catch (e) {
+      debugPrint('Error loading server port info: $e');
     }
   }
 
@@ -92,14 +122,33 @@ class _WelcomeScreenState extends State<WelcomeScreen> with RouteAware {
     }
 
     return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: AppTheme.backgroundGradient,
-        ),
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
+      body: Column(
+        children: [
+          if (_portFallbackMessage != null)
+            MaterialBanner(
+              content: Text(_portFallbackMessage!),
+              leading: const Icon(Icons.info_outline),
+              backgroundColor: Colors.amber.shade100,
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    setState(() {
+                      _portFallbackMessage = null;
+                    });
+                  },
+                  child: const Text('Dismiss'),
+                ),
+              ],
+            ),
+          Expanded(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: AppTheme.backgroundGradient,
+              ),
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
               // Glass Logo Container
               ClipRRect(
                 borderRadius: BorderRadius.circular(100),
@@ -154,8 +203,11 @@ class _WelcomeScreenState extends State<WelcomeScreen> with RouteAware {
                 ),
               ),
             ],
+                ),
+              ),
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

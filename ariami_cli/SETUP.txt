@@ -73,8 +73,13 @@ TROUBLESHOOTING
 ---------------
 Server not responding:
 - Check if running: ./ariami_cli status
-- Check firewall allows port 8080
+- Check firewall allows port 8080 (or the port shown by status)
 - Check logs in foreground: ./ariami_cli start (after stopping)
+
+Port 8080 already in use:
+- Ariami tries 8081–8099 automatically on first start
+- Run ./ariami_cli status to see the port in use
+- Or pin a port: ./ariami_cli start --port 9000
 
 Reset configuration:
 - Stop server: ./ariami_cli stop

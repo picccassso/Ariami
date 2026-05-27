@@ -25,7 +25,12 @@ void main(List<String> arguments) async {
 
     for (int attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        await runner.run(port: port, isSetupMode: false, isServerMode: true);
+        await runner.run(
+          port: port,
+          isSetupMode: false,
+          isServerMode: true,
+          allowPortFallback: false,
+        );
         break; // Success - exit the loop
       } catch (e) {
         final isAddressInUse = e.toString().contains('Address already in use') ||
@@ -78,11 +83,15 @@ void main(List<String> arguments) async {
 
     final command = results.rest[0];
     final port = int.tryParse(results['port'] as String) ?? 8080;
+    final portExplicitlyRequested = results.wasParsed('port');
 
     // Execute command
     switch (command) {
       case 'start':
-        await StartCommand().execute(port: port);
+        await StartCommand().execute(
+          port: port,
+          portExplicitlyRequested: portExplicitlyRequested,
+        );
         break;
       case 'stop':
         await StopCommand().execute();

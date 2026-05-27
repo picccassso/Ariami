@@ -10,6 +10,17 @@ import 'desktop_state_service.dart';
 import 'desktop_tailscale_service.dart';
 import 'desktop_transcode_slots_service.dart';
 
+/// Result of starting the desktop HTTP listener with optional port fallback.
+class DesktopServerStartResult {
+  const DesktopServerStartResult({
+    required this.port,
+    this.fallbackMessage,
+  });
+
+  final int port;
+  final String? fallbackMessage;
+}
+
 /// Shared desktop server configuration: feature flags, library cache, transcoding/artwork.
 ///
 /// Holds process-wide transcoding/artwork instances (previously file-level globals).
@@ -140,6 +151,41 @@ class ServerInitializationService {
       final lan = await tailscaleService.getLanIp();
       return NetworkEndpoints(tailscaleIp: ts, lanIp: lan);
     });
+  }
+
+  /// Start the HTTP server with port fallback and persist the resolved port.
+  static Future<DesktopServerStartResult> startListeningServer({
+    required AriamiHttpServer httpServer,
+    required DesktopStateService stateService,
+    required String advertisedIp,
+    String? tailscaleIp,
+    String? lanIp,
+  }) async {
+    final savedPort = await stateService.getServerPort();
+    final preferredPort = savedPort ?? ServerPortPolicy.defaultPort;
+
+    final resolvedPort = await httpServer.startWithPortFallback(
+      advertisedIp: advertisedIp,
+      tailscaleIp: tailscaleIp,
+      lanIp: lanIp,
+      preferredPort: preferredPort,
+      savedPort: savedPort,
+      allowFallback: true,
+    );
+
+    await stateService.setServerPort(resolvedPort);
+
+    final attemptedPort =
+        httpServer.getServerInfo()['attemptedPort'] as int? ?? preferredPort;
+    final fallbackMessage = ServerPortPolicy.formatFallbackMessage(
+      attemptedPort: attemptedPort,
+      actualPort: resolvedPort,
+    );
+
+    return DesktopServerStartResult(
+      port: resolvedPort,
+      fallbackMessage: fallbackMessage,
+    );
   }
 
   String? _resolveBundledSonicLibraryPath() {

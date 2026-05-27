@@ -15,7 +15,10 @@ class StartCommand {
   final CliTailscaleService _tailscaleService = CliTailscaleService();
 
   /// Execute the start command
-  Future<void> execute({int port = 8080}) async {
+  Future<void> execute({
+    int port = 8080,
+    bool portExplicitlyRequested = false,
+  }) async {
     // Check if already running
     if (await _daemonService.isRunning()) {
       print('Ariami CLI server is already running.');
@@ -31,10 +34,18 @@ class StartCommand {
 
     // Check if this is first-time setup
     final isSetupComplete = await _stateService.isSetupComplete();
+    final savedPort = await _stateService.getServerPort();
+    final preferredPort =
+        portExplicitlyRequested ? port : (savedPort ?? port);
+    final allowPortFallback = !portExplicitlyRequested;
 
     if (!isSetupComplete) {
       print('Starting Ariami CLI server for first-time setup...');
-      print('Setup URL: http://localhost:$port');
+      if (allowPortFallback) {
+        print('Setup URL: http://localhost:$preferredPort (or next free port 8080–8099)');
+      } else {
+        print('Setup URL: http://localhost:$preferredPort');
+      }
       print('The browser will open automatically when the server is ready.');
       print('');
       print('Note: The server will run in the foreground during setup.');
@@ -44,18 +55,21 @@ class StartCommand {
       // Run server in foreground (setup mode)
       final runner = ServerRunner();
       await runner.run(
-        port: port,
+        port: preferredPort,
         isSetupMode: true,
+        allowPortFallback: allowPortFallback,
         onHttpServerReady: _openSetupBrowser,
       );
     } else {
       print('Starting Ariami CLI server in background...');
       print('');
 
+      final daemonPort = savedPort ?? preferredPort;
+
       // Start server in background with --server-mode flag
       final pid = await _daemonService.startServerInBackground([
         '--server-mode',
-        '--port', port.toString(),
+        '--port', daemonPort.toString(),
       ]);
 
       if (pid == null) {
@@ -66,7 +80,7 @@ class StartCommand {
 
       // Save server state
       await _daemonService.saveServerState({
-        'port': port,
+        'port': daemonPort,
         'pid': pid,
         'started_at': DateTime.now().toIso8601String(),
       });
@@ -75,8 +89,8 @@ class StartCommand {
       print('');
       print('Server details:');
       print('  PID: $pid');
-      print('  Port: $port');
-      print('  URL: http://localhost:$port');
+      print('  Port: $daemonPort');
+      print('  URL: http://localhost:$daemonPort');
       print('');
       print('Use "ariami_cli status" to check server status');
       print('Use "ariami_cli stop" to stop the server');

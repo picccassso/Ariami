@@ -138,12 +138,21 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
       await ServerInitializationService.applyDesktopDownloadLimits(_httpServer);
 
       // Start HTTP server (singleton will prevent double-start)
-      await _httpServer.start(
+      final startResult = await ServerInitializationService.startListeningServer(
+        httpServer: _httpServer,
+        stateService: _stateService,
         advertisedIp: advertisedIp,
         tailscaleIp: tailscaleIp,
         lanIp: lanIp,
-        port: 8080,
       );
+      if (startResult.fallbackMessage != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(startResult.fallbackMessage!),
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
 
       // Check if we need to scan before showing the QR code
       final prefs = await SharedPreferences.getInstance();
@@ -176,7 +185,9 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
       }
     } catch (e) {
       setState(() {
-        _errorMessage = 'Error starting server: $e';
+        _errorMessage = e is PortBindingException
+            ? e.toString()
+            : 'Error starting server: $e';
         _isLoading = false;
       });
     }

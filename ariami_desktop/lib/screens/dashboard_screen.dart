@@ -206,16 +206,26 @@ class _DashboardScreenState extends State<DashboardScreen>
     }
 
     try {
-      print('[Dashboard] Auto-starting server on $advertisedIp:8080');
+      print('[Dashboard] Auto-starting server on $advertisedIp');
       await ServerInitializationService.initializeAuth(
           _httpServer, _stateService);
       await ServerInitializationService.applyDesktopDownloadLimits(_httpServer);
-      await _httpServer.start(
+      final startResult = await ServerInitializationService.startListeningServer(
+        httpServer: _httpServer,
+        stateService: _stateService,
         advertisedIp: advertisedIp,
         tailscaleIp: tailscaleIp,
         lanIp: lanIp,
-        port: 8080,
       );
+      print('[Dashboard] Server listening on port ${startResult.port}');
+      if (startResult.fallbackMessage != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(startResult.fallbackMessage!),
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
 
       if (Platform.isMacOS) {
         try {
@@ -1052,12 +1062,22 @@ class _DashboardScreenState extends State<DashboardScreen>
     await ServerInitializationService.initializeAuth(
         _httpServer, _stateService);
     await ServerInitializationService.applyDesktopDownloadLimits(_httpServer);
-    await _httpServer.start(
+    final startResult = await ServerInitializationService.startListeningServer(
+      httpServer: _httpServer,
+      stateService: _stateService,
       advertisedIp: advertisedIp,
       tailscaleIp: tailscaleIp,
       lanIp: lanIp,
-      port: 8080,
     );
+
+    if (startResult.fallbackMessage != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(startResult.fallbackMessage!),
+          duration: const Duration(seconds: 5),
+        ),
+      );
+    }
 
     if (mounted) {
       setState(() {});
@@ -1098,12 +1118,22 @@ class _DashboardScreenState extends State<DashboardScreen>
             _httpServer, _stateService);
         await ServerInitializationService.applyDesktopDownloadLimits(
             _httpServer);
-        await _httpServer.start(
+        final startResult =
+            await ServerInitializationService.startListeningServer(
+          httpServer: _httpServer,
+          stateService: _stateService,
           advertisedIp: advertisedIp,
           tailscaleIp: tailscaleIp,
           lanIp: lanIp,
-          port: 8080,
         );
+        if (startResult.fallbackMessage != null && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(startResult.fallbackMessage!),
+              duration: const Duration(seconds: 5),
+            ),
+          );
+        }
 
         print('[Dashboard] Music folder path: "$_musicFolderPath"');
         print('[Dashboard] Is null: ${_musicFolderPath == null}');
@@ -1155,7 +1185,11 @@ class _DashboardScreenState extends State<DashboardScreen>
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Failed to start server: $e'),
+              content: Text(
+                e is PortBindingException
+                    ? e.toString()
+                    : 'Failed to start server: $e',
+              ),
               duration: const Duration(seconds: 3),
             ),
           );

@@ -26,15 +26,18 @@ class ServerRunner {
 
   /// Run the Ariami server
   ///
-  /// - [port]: Server port (default: 8080)
+  /// - [port]: Preferred server port (default: 8080)
+  /// - [allowPortFallback]: When true, scan 8080–8099 if preferred port is busy
   /// - [isSetupMode]: If true, server runs for setup without library scanning
   /// - [isServerMode]: If true, running as background daemon (write own PID)
   /// - [onHttpServerReady]: Called after the HTTP server is listening (setup browser open)
-  Future<void> run(
-      {required int port,
-      required bool isSetupMode,
-      bool isServerMode = false,
-      Future<void> Function(int port)? onHttpServerReady}) async {
+  Future<void> run({
+    required int port,
+    required bool isSetupMode,
+    bool isServerMode = false,
+    bool allowPortFallback = true,
+    Future<void> Function(int port)? onHttpServerReady,
+  }) async {
     print('Ariami Server starting...');
     _serverPort = port;
 
@@ -157,18 +160,37 @@ class ServerRunner {
       final advertisedIp = tailscaleIp ?? lanIp ?? 'localhost';
 
       // Start HTTP server - bind to 0.0.0.0 to accept connections from any interface
-      print('Starting HTTP server on 0.0.0.0:$port...');
-      await _httpServer.start(
+      final savedPort = await _stateService.getServerPort();
+      print('Starting HTTP server on 0.0.0.0 (preferred port: $port)...');
+      final resolvedPort = await _httpServer.startWithPortFallback(
         advertisedIp: advertisedIp,
         tailscaleIp: tailscaleIp,
         lanIp: lanIp,
         bindAddress: '0.0.0.0',
-        port: port,
+        preferredPort: port,
+        savedPort: savedPort,
+        allowFallback: allowPortFallback,
       );
-      print('✓ HTTP server started successfully');
-      print('✓ Server accessible at: http://$advertisedIp:$port');
+      _serverPort = resolvedPort;
+      await _stateService.setServerPort(resolvedPort);
 
-      await notifyHttpServerReady(onHttpServerReady, port);
+      final attemptedPort =
+          _httpServer.getServerInfo()['attemptedPort'] as int? ?? port;
+      final fallbackMessage = ServerPortPolicy.formatFallbackMessage(
+        attemptedPort: attemptedPort,
+        actualPort: resolvedPort,
+      );
+      if (fallbackMessage != null) {
+        print('');
+        print(fallbackMessage);
+        print('Rescan the QR code if you previously connected on port $attemptedPort.');
+        print('');
+      }
+
+      print('✓ HTTP server started successfully');
+      print('✓ Server accessible at: http://$advertisedIp:$resolvedPort');
+
+      await notifyHttpServerReady(onHttpServerReady, resolvedPort);
 
       // Initialize transcoding service for quality-based streaming
       final transcodingCachePath =
@@ -271,7 +293,7 @@ class ServerRunner {
       print('');
       print('═══════════════════════════════════════════════════════');
       print('  Ariami Server is running');
-      print('  URL: http://localhost:$port');
+      print('  URL: http://localhost:$_serverPort');
       if (isSetupMode) {
         print('  Mode: Setup (first-time configuration)');
       } else {
