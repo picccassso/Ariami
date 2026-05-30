@@ -8,9 +8,12 @@ import 'library/library_repository.dart';
 import 'song_id_remapping_service.dart';
 
 part 'playlist_service_local_impl.dart';
+part 'playlist_service_liked_songs_impl.dart';
+part 'playlist_service_backup_impl.dart';
 part 'playlist_service_metadata_impl.dart';
 part 'playlist_service_persistence_impl.dart';
 part 'playlist_service_server_impl.dart';
+part 'playlist_service_server_import_impl.dart';
 
 /// Service for managing playlists locally.
 ///
