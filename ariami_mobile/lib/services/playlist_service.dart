@@ -7,9 +7,15 @@ import '../models/api_models.dart';
 import 'library/library_repository.dart';
 import 'song_id_remapping_service.dart';
 
-/// Service for managing playlists locally
-/// Handles CRUD operations and persistence via SharedPreferences
-/// Also manages server playlists (from [PLAYLIST] folders)
+part 'playlist_service_local_impl.dart';
+part 'playlist_service_metadata_impl.dart';
+part 'playlist_service_persistence_impl.dart';
+part 'playlist_service_server_impl.dart';
+
+/// Service for managing playlists locally.
+///
+/// Handles CRUD operations and persistence via SharedPreferences. It also
+/// manages server playlists discovered from [PLAYLIST] folders.
 class PlaylistService extends ChangeNotifier {
   static const String _storageKey = 'ariami_playlists';
   static const String _hiddenServerPlaylistsKey =
@@ -31,621 +37,150 @@ class PlaylistService extends ChangeNotifier {
   Set<String> _hiddenServerPlaylistIds = {};
   // Track which local playlists were imported from server (localId -> serverId)
   Map<String, String> _importedFromServer = {};
-  // Track recently imported playlists for temporary UI indicator (clears after 5 seconds)
+  // Track recently imported playlists for temporary UI indicator.
   final Set<String> _recentlyImportedIds = {};
 
-  /// Get all local playlists
+  /// Get all local playlists.
   List<PlaylistModel> get playlists => List.unmodifiable(_playlists);
 
-  /// Get all server playlists
+  /// Get all server playlists.
   List<ServerPlaylist> get serverPlaylists =>
       List.unmodifiable(_serverPlaylists);
 
-  /// Get visible server playlists (not hidden/imported)
+  /// Get visible server playlists (not hidden/imported).
   List<ServerPlaylist> get visibleServerPlaylists => _serverPlaylists
-      .where((p) => !_hiddenServerPlaylistIds.contains(p.id))
+      .where((playlist) => !_hiddenServerPlaylistIds.contains(playlist.id))
       .toList();
 
-  /// Get hidden server playlists (for recovery)
+  /// Get hidden server playlists (for recovery).
   List<ServerPlaylist> get hiddenServerPlaylists => _serverPlaylists
-      .where((p) => _hiddenServerPlaylistIds.contains(p.id))
+      .where((playlist) => _hiddenServerPlaylistIds.contains(playlist.id))
       .toList();
 
-  /// Check if there are any visible server playlists
+  /// Check if there are any visible server playlists.
   bool get hasVisibleServerPlaylists => visibleServerPlaylists.isNotEmpty;
 
-  /// Check if there are any server playlists at all
+  /// Check if there are any server playlists at all.
   bool get hasServerPlaylists => _serverPlaylists.isNotEmpty;
 
-  /// Check if a local playlist was imported from server
+  /// Check if a local playlist was imported from server.
   bool isImportedFromServer(String localPlaylistId) =>
       _importedFromServer.containsKey(localPlaylistId);
 
-  /// Check if a playlist was recently imported (for temporary UI indicator)
+  /// Check if a playlist was recently imported (for temporary UI indicator).
   bool isRecentlyImported(String localPlaylistId) =>
       _recentlyImportedIds.contains(localPlaylistId);
 
-  /// Get the server playlist ID that a local playlist was imported from
+  /// Get the server playlist ID that a local playlist was imported from.
   String? getServerPlaylistId(String localPlaylistId) =>
       _importedFromServer[localPlaylistId];
 
-  /// Hidden server playlist IDs (for backup serialization)
+  /// Hidden server playlist IDs (for backup serialization).
   Set<String> get hiddenServerPlaylistIds =>
       Set.unmodifiable(_hiddenServerPlaylistIds);
 
-  /// Local-to-server playlist mapping (for backup serialization)
+  /// Local-to-server playlist mapping (for backup serialization).
   Map<String, String> get importedFromServer =>
       Map.unmodifiable(_importedFromServer);
 
-  /// Check if service has loaded data
+  /// Check if service has loaded data.
   bool get isLoaded => _isLoaded;
 
-  /// Load playlists from SharedPreferences
-  Future<void> loadPlaylists() async {
-    if (_isLoaded) return;
+  void _notifyListeners() => notifyListeners();
 
-    try {
-      final prefs = await SharedPreferences.getInstance();
-
-      // Load local playlists
-      final jsonString = prefs.getString(_storageKey);
-      if (jsonString != null && jsonString.isNotEmpty) {
-        final List<dynamic> jsonList = json.decode(jsonString);
-        _playlists = jsonList
-            .map((e) => PlaylistModel.fromJson(e as Map<String, dynamic>))
-            .toList();
-      }
-
-      // Load hidden server playlist IDs
-      final hiddenJson = prefs.getString(_hiddenServerPlaylistsKey);
-      if (hiddenJson != null && hiddenJson.isNotEmpty) {
-        final List<dynamic> hiddenList = json.decode(hiddenJson);
-        _hiddenServerPlaylistIds = hiddenList.cast<String>().toSet();
-      }
-
-      // Load imported from server mapping
-      final importedJson = prefs.getString(_importedFromServerKey);
-      if (importedJson != null && importedJson.isNotEmpty) {
-        final Map<String, dynamic> importedMap = json.decode(importedJson);
-        _importedFromServer =
-            importedMap.map((k, v) => MapEntry(k, v as String));
-      }
-
-      _isLoaded = true;
-      notifyListeners();
-    } catch (e) {
-      print('[PlaylistService] Error loading playlists: $e');
-      _playlists = [];
-      _isLoaded = true;
-      notifyListeners();
-    }
-  }
-
-  /// Save playlists to SharedPreferences
-  Future<void> _savePlaylists() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final jsonList = _playlists.map((p) => p.toJson()).toList();
-      await prefs.setString(_storageKey, json.encode(jsonList));
-    } catch (e) {
-      print('[PlaylistService] Error saving playlists: $e');
-    }
-  }
-
-  /// Save hidden server playlist IDs to SharedPreferences
-  Future<void> _saveHiddenServerPlaylists() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(
-        _hiddenServerPlaylistsKey,
-        json.encode(_hiddenServerPlaylistIds.toList()),
-      );
-    } catch (e) {
-      print('[PlaylistService] Error saving hidden server playlists: $e');
-    }
-  }
-
-  /// Save imported from server mapping to SharedPreferences
-  Future<void> _saveImportedFromServer() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(
-        _importedFromServerKey,
-        json.encode(_importedFromServer),
-      );
-    } catch (e) {
-      print('[PlaylistService] Error saving imported from server mapping: $e');
-    }
-  }
-
-  /// Auto-hide server playlists that match local playlist names (case-insensitive)
-  /// Called after import operations to prevent duplicate entries in UI
-  Future<void> _autoHideMatchingServerPlaylists() async {
-    if (_serverPlaylists.isEmpty || _playlists.isEmpty) return;
-
-    // Build set of normalized local playlist names
-    final localPlaylistNames =
-        _playlists.map((p) => p.name.toLowerCase()).toSet();
-
-    // Find and hide matching server playlists
-    int hiddenCount = 0;
-    for (final serverPlaylist in _serverPlaylists) {
-      final normalizedName = serverPlaylist.name.toLowerCase();
-      if (localPlaylistNames.contains(normalizedName)) {
-        if (!_hiddenServerPlaylistIds.contains(serverPlaylist.id)) {
-          _hiddenServerPlaylistIds.add(serverPlaylist.id);
-          hiddenCount++;
-        }
-      }
-    }
-
-    if (hiddenCount > 0) {
-      await _saveHiddenServerPlaylists();
-      print(
-          '[PlaylistService] Auto-hidden $hiddenCount server playlists by name match');
-    }
-  }
-
-  PlaylistModel? _findLocalPlaylistByName(String name) {
-    final normalizedName = name.toLowerCase();
-    for (final playlist in _playlists) {
-      if (playlist.name.toLowerCase() == normalizedName) {
-        return playlist;
-      }
-    }
-    return null;
-  }
-
-  PlaylistModel? _findLocalPlaylistForServerId(String serverPlaylistId) {
-    for (final entry in _importedFromServer.entries) {
-      if (entry.value == serverPlaylistId) {
-        return getPlaylist(entry.key);
-      }
-    }
-    return null;
-  }
-
-  Future<void> _ensureServerPlaylistHidden(
-    String serverPlaylistId,
-    String localPlaylistId,
-  ) async {
-    var changed = false;
-    if (!_hiddenServerPlaylistIds.contains(serverPlaylistId)) {
-      _hiddenServerPlaylistIds.add(serverPlaylistId);
-      changed = true;
-    }
-    if (_importedFromServer[localPlaylistId] != serverPlaylistId) {
-      _importedFromServer[localPlaylistId] = serverPlaylistId;
-      changed = true;
-    }
-    if (changed) {
-      await _saveHiddenServerPlaylists();
-      await _saveImportedFromServer();
-      notifyListeners();
-    }
-  }
+  /// Load playlists from SharedPreferences.
+  Future<void> loadPlaylists() => _loadPlaylistsImpl();
 
   /// Restore server-import tracking from a backup file.
   Future<void> applyServerImportState({
     required Set<String> hiddenServerPlaylistIds,
     required Map<String, String> importedFromServer,
     required bool replace,
-  }) async {
-    if (replace) {
-      _hiddenServerPlaylistIds = Set<String>.from(hiddenServerPlaylistIds);
-      _importedFromServer = Map<String, String>.from(importedFromServer);
-    } else {
-      _hiddenServerPlaylistIds.addAll(hiddenServerPlaylistIds);
-      _importedFromServer.addAll(importedFromServer);
-    }
+  }) =>
+      _applyServerImportStateImpl(
+        hiddenServerPlaylistIds: hiddenServerPlaylistIds,
+        importedFromServer: importedFromServer,
+        replace: replace,
+      );
 
-    await _saveHiddenServerPlaylists();
-    await _saveImportedFromServer();
-    await _autoHideMatchingServerPlaylists();
-    notifyListeners();
-  }
+  /// Update server playlists from API response.
+  ///
+  /// Called when library is fetched from server.
+  void updateServerPlaylists(List<ServerPlaylist> playlists) =>
+      _updateServerPlaylistsImpl(playlists);
 
-  // ============================================================================
-  // SERVER PLAYLIST METHODS
-  // ============================================================================
-
-  /// Update server playlists from API response
-  /// Called when library is fetched from server
-  void updateServerPlaylists(List<ServerPlaylist> playlists) {
-    if (_serverPlaylistsEqual(_serverPlaylists, playlists)) {
-      return;
-    }
-
-    _serverPlaylists = playlists;
-    print('[PlaylistService] Updated server playlists: ${playlists.length}');
-
-    // Auto-hide server playlists that match existing local playlists
-    // This handles the case when switching between servers with different playlist IDs
-    _autoHideMatchingServerPlaylists().then((_) {
-      notifyListeners();
-    });
-  }
-
-  bool _serverPlaylistsEqual(
-    List<ServerPlaylist> current,
-    List<ServerPlaylist> next,
-  ) {
-    if (identical(current, next)) {
-      return true;
-    }
-    if (current.length != next.length) {
-      return false;
-    }
-
-    for (var index = 0; index < current.length; index++) {
-      final currentPlaylist = current[index];
-      final nextPlaylist = next[index];
-
-      if (currentPlaylist.id != nextPlaylist.id ||
-          currentPlaylist.name != nextPlaylist.name ||
-          currentPlaylist.songCount != nextPlaylist.songCount) {
-        return false;
-      }
-      if (currentPlaylist.songIds.length != nextPlaylist.songIds.length) {
-        return false;
-      }
-      for (var songIndex = 0;
-          songIndex < currentPlaylist.songIds.length;
-          songIndex++) {
-        if (currentPlaylist.songIds[songIndex] !=
-            nextPlaylist.songIds[songIndex]) {
-          return false;
-        }
-      }
-    }
-
-    return true;
-  }
-
-  /// Import a server playlist as a local playlist
-  /// Creates a local copy and hides the server version
+  /// Import a server playlist as a local playlist.
+  ///
+  /// Creates a local copy and hides the server version.
   Future<PlaylistModel> importServerPlaylist(
     ServerPlaylist serverPlaylist, {
     required List<SongModel> allSongs,
-  }) async {
-    if (_hiddenServerPlaylistIds.contains(serverPlaylist.id)) {
-      final existing =
-          _findLocalPlaylistForServerId(serverPlaylist.id) ??
-              _findLocalPlaylistByName(serverPlaylist.name);
-      if (existing != null) {
-        return existing;
-      }
-    }
+  }) =>
+      _importServerPlaylistImpl(serverPlaylist, allSongs: allSongs);
 
-    final existingByName = _findLocalPlaylistByName(serverPlaylist.name);
-    if (existingByName != null) {
-      await _ensureServerPlaylistHidden(
-        serverPlaylist.id,
-        existingByName.id,
-      );
-      return existingByName;
-    }
-
-    final now = DateTime.now();
-    final localId = _uuid.v4();
-    final metadata = await _buildPlaylistSongMetadata(
-      serverPlaylist.songIds,
-      allSongs: allSongs,
-    );
-
-    final playlist = PlaylistModel(
-      id: localId,
-      name: serverPlaylist.name,
-      description: null,
-      songIds: List.from(serverPlaylist.songIds),
-      songAlbumIds: metadata.songAlbumIds,
-      songTitles: metadata.songTitles,
-      songArtists: metadata.songArtists,
-      songDurations: metadata.songDurations,
-      createdAt: now,
-      modifiedAt: now,
-    );
-
-    // Add to local playlists
-    _playlists.insert(0, playlist);
-
-    // Hide the server playlist
-    _hiddenServerPlaylistIds.add(serverPlaylist.id);
-
-    // Track that this local playlist came from server
-    _importedFromServer[localId] = serverPlaylist.id;
-
-    // Track as recently imported for temporary UI indicator
-    _recentlyImportedIds.add(localId);
-    Timer(const Duration(seconds: 5), () {
-      _recentlyImportedIds.remove(localId);
-      notifyListeners();
-    });
-
-    // Save all changes
-    await _savePlaylists();
-    await _saveHiddenServerPlaylists();
-    await _saveImportedFromServer();
-
-    print(
-        '[PlaylistService] Imported server playlist "${serverPlaylist.name}" as local');
-    notifyListeners();
-
-    return playlist;
-  }
-
-  /// Import all server playlists as local playlists
-  /// Returns the number of playlists imported
+  /// Import all server playlists as local playlists.
+  ///
+  /// Returns the number of playlists imported.
   Future<int> importAllServerPlaylists(
     List<ServerPlaylist> serverPlaylists, {
     required List<SongModel> allSongs,
-  }) async {
-    int imported = 0;
-    final now = DateTime.now();
-    final canonicalSongsById = await _buildCanonicalSongIndex(allSongs);
+  }) =>
+      _importAllServerPlaylistsImpl(serverPlaylists, allSongs: allSongs);
 
-    for (final serverPlaylist in serverPlaylists) {
-      // Skip if already hidden (shouldn't happen, but safety check)
-      if (_hiddenServerPlaylistIds.contains(serverPlaylist.id)) continue;
+  /// Unhide a server playlist (make it visible again).
+  Future<void> unhideServerPlaylist(String serverPlaylistId) =>
+      _unhideServerPlaylistImpl(serverPlaylistId);
 
-      if (_findLocalPlaylistByName(serverPlaylist.name) != null) continue;
+  /// Get a server playlist by ID.
+  ServerPlaylist? getServerPlaylist(String id) => _getServerPlaylistImpl(id);
 
-      final localId = _uuid.v4();
-      final metadata = _buildPlaylistSongMetadataFromIndex(
-        serverPlaylist.songIds,
-        canonicalSongsById,
-      );
-
-      final playlist = PlaylistModel(
-        id: localId,
-        name: serverPlaylist.name,
-        description: null,
-        songIds: List.from(serverPlaylist.songIds),
-        songAlbumIds: metadata.songAlbumIds,
-        songTitles: metadata.songTitles,
-        songArtists: metadata.songArtists,
-        songDurations: metadata.songDurations,
-        createdAt: now,
-        modifiedAt: now,
-      );
-
-      // Add to local playlists
-      _playlists.insert(0, playlist);
-
-      // Hide the server playlist
-      _hiddenServerPlaylistIds.add(serverPlaylist.id);
-
-      // Track that this local playlist came from server
-      _importedFromServer[localId] = serverPlaylist.id;
-
-      // Track as recently imported
-      _recentlyImportedIds.add(localId);
-      Timer(const Duration(seconds: 5), () {
-        _recentlyImportedIds.remove(localId);
-        notifyListeners();
-      });
-
-      imported++;
-    }
-
-    if (imported > 0) {
-      // Save all changes
-      await _savePlaylists();
-      await _saveHiddenServerPlaylists();
-      await _saveImportedFromServer();
-      notifyListeners();
-    }
-
-    print('[PlaylistService] Imported $imported server playlists');
-    return imported;
-  }
-
-  Future<_PlaylistSongMetadata> _buildPlaylistSongMetadata(
-    List<String> songIds, {
-    required List<SongModel> allSongs,
-  }) async {
-    final canonicalSongsById = await _buildCanonicalSongIndex(allSongs);
-    return _buildPlaylistSongMetadataFromIndex(songIds, canonicalSongsById);
-  }
-
-  Future<Map<String, SongModel>> _buildCanonicalSongIndex(
-    List<SongModel> allSongs,
-  ) async {
-    final songsById = <String, SongModel>{};
-
-    void mergeSong(SongModel song) {
-      final existing = songsById[song.id];
-      if (existing == null) {
-        songsById[song.id] = song;
-        return;
-      }
-
-      final existingScore = _songMetadataScore(existing);
-      final candidateScore = _songMetadataScore(song);
-      if (candidateScore >= existingScore) {
-        songsById[song.id] = song;
-      }
-    }
-
-    for (final song in allSongs) {
-      mergeSong(song);
-    }
-
-    try {
-      final repositorySongs = await _loadCanonicalLibrarySongs();
-      for (final song in repositorySongs) {
-        mergeSong(song);
-      }
-    } catch (e) {
-      print('[PlaylistService] Error loading canonical library songs: $e');
-    }
-
-    return songsById;
-  }
-
-  Future<List<SongModel>> _loadCanonicalLibrarySongs() async {
-    try {
-      return await _libraryRepository.getSongs();
-    } catch (e) {
-      if (!_isClosedDatabaseError(e)) {
-        rethrow;
-      }
-
-      _libraryRepository = LibraryRepository();
-      return _libraryRepository.getSongs();
-    }
-  }
-
-  _PlaylistSongMetadata _buildPlaylistSongMetadataFromIndex(
-    List<String> songIds,
-    Map<String, SongModel> songsById,
-  ) {
-    final songAlbumIds = <String, String>{};
-    final songTitles = <String, String>{};
-    final songArtists = <String, String>{};
-    final songDurations = <String, int>{};
-
-    for (final songId in songIds) {
-      final song = songsById[songId];
-      if (song == null) {
-        continue;
-      }
-      if (song.albumId != null) {
-        songAlbumIds[songId] = song.albumId!;
-      }
-      songTitles[songId] = song.title;
-      songArtists[songId] = song.artist;
-      songDurations[songId] = song.duration;
-    }
-
-    return _PlaylistSongMetadata(
-      songAlbumIds: songAlbumIds,
-      songTitles: songTitles,
-      songArtists: songArtists,
-      songDurations: songDurations,
-    );
-  }
-
-  int _songMetadataScore(SongModel song) {
-    var score = 0;
-    if (song.duration > 0) score += 4;
-    if (song.albumId != null && song.albumId!.isNotEmpty) score += 2;
-    if (song.title.isNotEmpty && song.title != 'Unknown Song') score += 1;
-    if (song.artist.isNotEmpty && song.artist != 'Unknown Artist') score += 1;
-    return score;
-  }
-
-  bool _isClosedDatabaseError(Object error) {
-    return error.toString().contains('database has already been closed');
-  }
-
-  /// Unhide a server playlist (make it visible again)
-  Future<void> unhideServerPlaylist(String serverPlaylistId) async {
-    _hiddenServerPlaylistIds.remove(serverPlaylistId);
-    await _saveHiddenServerPlaylists();
-    notifyListeners();
-  }
-
-  /// Get a server playlist by ID
-  ServerPlaylist? getServerPlaylist(String id) {
-    try {
-      return _serverPlaylists.firstWhere((p) => p.id == id);
-    } catch (_) {
-      return null;
-    }
-  }
-
-  /// Create a new playlist
+  /// Create a new playlist.
   Future<PlaylistModel> createPlaylist({
     required String name,
     String? description,
-  }) async {
-    final now = DateTime.now();
-    final playlist = PlaylistModel(
-      id: _uuid.v4(),
-      name: name,
-      description: description,
-      songIds: [],
-      createdAt: now,
-      modifiedAt: now,
-    );
+  }) =>
+      _createPlaylistImpl(name: name, description: description);
 
-    _playlists.insert(0, playlist); // Add to beginning
-    await _savePlaylists();
-    notifyListeners();
+  /// Get a playlist by ID.
+  PlaylistModel? getPlaylist(String id) => _getPlaylistImpl(id);
 
-    return playlist;
-  }
-
-  /// Get a playlist by ID
-  PlaylistModel? getPlaylist(String id) {
-    try {
-      return _playlists.firstWhere((p) => p.id == id);
-    } catch (_) {
-      return null;
-    }
-  }
-
-  /// Update playlist name, description, and/or custom image
-  /// Use clearCustomImage: true to remove the custom image
+  /// Update playlist name, description, and/or custom image.
+  ///
+  /// Use [clearCustomImage] to remove the custom image.
   Future<void> updatePlaylist({
     required String id,
     String? name,
     String? description,
     String? customImagePath,
     bool clearCustomImage = false,
-  }) async {
-    final index = _playlists.indexWhere((p) => p.id == id);
-    if (index == -1) return;
+  }) =>
+      _updatePlaylistImpl(
+        id: id,
+        name: name,
+        description: description,
+        customImagePath: customImagePath,
+        clearCustomImage: clearCustomImage,
+      );
 
-    final playlist = _playlists[index];
-    _playlists[index] = playlist.copyWith(
-      name: name ?? playlist.name,
-      description: description,
-      customImagePath: customImagePath,
-      clearCustomImagePath: clearCustomImage,
-      modifiedAt: DateTime.now(),
-    );
+  /// Delete a playlist.
+  ///
+  /// For imported playlists, use [deleteImportedPlaylist] instead to handle
+  /// the restore option.
+  Future<void> deletePlaylist(String id) => _deletePlaylistImpl(id);
 
-    await _savePlaylists();
-    notifyListeners();
-  }
+  /// Delete an imported playlist with an option to restore the server version.
+  Future<void> deleteImportedPlaylist(
+    String id, {
+    required bool restoreServerVersion,
+  }) =>
+      _deleteImportedPlaylistImpl(
+        id,
+        restoreServerVersion: restoreServerVersion,
+      );
 
-  /// Delete a playlist
-  /// For imported playlists, use deleteImportedPlaylist() instead to handle restore option
-  Future<void> deletePlaylist(String id) async {
-    // Clean up imported tracking if this was an imported playlist
-    final serverPlaylistId = _importedFromServer.remove(id);
-    if (serverPlaylistId != null) {
-      // Permanently delete - don't restore server version
-      await _saveImportedFromServer();
-    }
-
-    _playlists.removeWhere((p) => p.id == id);
-    await _savePlaylists();
-    notifyListeners();
-  }
-
-  /// Delete an imported playlist with option to restore server version
-  /// [restoreServerVersion] - if true, unhides the original server playlist
-  Future<void> deleteImportedPlaylist(String id,
-      {required bool restoreServerVersion}) async {
-    final serverPlaylistId = _importedFromServer.remove(id);
-
-    if (serverPlaylistId != null && restoreServerVersion) {
-      // Restore server version by unhiding it
-      _hiddenServerPlaylistIds.remove(serverPlaylistId);
-      await _saveHiddenServerPlaylists();
-    }
-
-    await _saveImportedFromServer();
-    _playlists.removeWhere((p) => p.id == id);
-    await _savePlaylists();
-    notifyListeners();
-  }
-
-  /// Add a song to a playlist
-  /// Stores song metadata (title, artist, duration) for offline display
+  /// Add a song to a playlist.
+  ///
+  /// Stores song metadata for offline display.
   Future<void> addSongToPlaylist({
     required String playlistId,
     required String songId,
@@ -653,378 +188,93 @@ class PlaylistService extends ChangeNotifier {
     String? title,
     String? artist,
     int? duration,
-  }) async {
-    final index = _playlists.indexWhere((p) => p.id == playlistId);
-    if (index == -1) return;
-
-    final playlist = _playlists[index];
-
-    // Don't add duplicate songs
-    if (playlist.songIds.contains(songId)) return;
-
-    final updatedSongIds = List<String>.from(playlist.songIds)..add(songId);
-    final updatedSongAlbumIds = Map<String, String>.from(playlist.songAlbumIds);
-    final updatedSongTitles = Map<String, String>.from(playlist.songTitles);
-    final updatedSongArtists = Map<String, String>.from(playlist.songArtists);
-    final updatedSongDurations = Map<String, int>.from(playlist.songDurations);
-
-    if (albumId != null) {
-      updatedSongAlbumIds[songId] = albumId;
-    }
-    if (title != null) {
-      updatedSongTitles[songId] = title;
-    }
-    if (artist != null) {
-      updatedSongArtists[songId] = artist;
-    }
-    if (duration != null) {
-      updatedSongDurations[songId] = duration;
-    }
-
-    _playlists[index] = playlist.copyWith(
-      songIds: updatedSongIds,
-      songAlbumIds: updatedSongAlbumIds,
-      songTitles: updatedSongTitles,
-      songArtists: updatedSongArtists,
-      songDurations: updatedSongDurations,
-      modifiedAt: DateTime.now(),
-    );
-
-    await _savePlaylists();
-    notifyListeners();
-  }
-
-  /// Remove a song from a playlist
-  Future<void> removeSongFromPlaylist({
-    required String playlistId,
-    required String songId,
-  }) async {
-    final index = _playlists.indexWhere((p) => p.id == playlistId);
-    if (index == -1) return;
-
-    final playlist = _playlists[index];
-    final updatedSongIds = List<String>.from(playlist.songIds)..remove(songId);
-    _playlists[index] = playlist.copyWith(
-      songIds: updatedSongIds,
-      modifiedAt: DateTime.now(),
-    );
-
-    await _savePlaylists();
-    notifyListeners();
-  }
-
-  /// Reorder songs in a playlist
-  Future<void> reorderSongs({
-    required String playlistId,
-    required int oldIndex,
-    required int newIndex,
-  }) async {
-    final index = _playlists.indexWhere((p) => p.id == playlistId);
-    if (index == -1) return;
-
-    final playlist = _playlists[index];
-    final updatedSongIds = List<String>.from(playlist.songIds);
-
-    // Adjust for removal
-    if (oldIndex < newIndex) {
-      newIndex -= 1;
-    }
-
-    final songId = updatedSongIds.removeAt(oldIndex);
-    updatedSongIds.insert(newIndex, songId);
-
-    _playlists[index] = playlist.copyWith(
-      songIds: updatedSongIds,
-      modifiedAt: DateTime.now(),
-    );
-
-    await _savePlaylists();
-    notifyListeners();
-  }
-
-  /// Get or create the Liked Songs playlist
-  Future<PlaylistModel> getLikedSongsPlaylist() async {
-    // Ensure playlists are loaded
-    if (!_isLoaded) {
-      await loadPlaylists();
-    }
-
-    // Check if Liked Songs playlist already exists
-    final existingPlaylist = getPlaylist(likedSongsId);
-    if (existingPlaylist != null) {
-      return existingPlaylist;
-    }
-
-    // Create Liked Songs playlist
-    final now = DateTime.now();
-    final likedSongsPlaylist = PlaylistModel(
-      id: likedSongsId,
-      name: 'Liked Songs',
-      description: 'Your favorite tracks',
-      songIds: [],
-      createdAt: now,
-      modifiedAt: now,
-    );
-
-    _playlists.insert(0, likedSongsPlaylist);
-    await _savePlaylists();
-    notifyListeners();
-
-    return likedSongsPlaylist;
-  }
-
-  /// Check if a song is liked (in Liked Songs playlist)
-  bool isLikedSong(String songId) {
-    if (!_isLoaded) return false;
-
-    final likedPlaylist = getPlaylist(likedSongsId);
-    if (likedPlaylist == null) return false;
-
-    return likedPlaylist.songIds.contains(songId);
-  }
-
-  /// Toggle a song's liked status
-  /// Pass song metadata for offline display when liking
-  Future<void> toggleLikedSong(
-    String songId,
-    String? albumId, {
-    String? title,
-    String? artist,
-    int? duration,
-  }) async {
-    // Ensure Liked Songs playlist exists
-    await getLikedSongsPlaylist();
-
-    if (isLikedSong(songId)) {
-      // Remove from Liked Songs
-      await removeSongFromPlaylist(
-        playlistId: likedSongsId,
-        songId: songId,
-      );
-    } else {
-      // Add to Liked Songs
-      await addSongToPlaylist(
-        playlistId: likedSongsId,
+  }) =>
+      _addSongToPlaylistImpl(
+        playlistId: playlistId,
         songId: songId,
         albumId: albumId,
         title: title,
         artist: artist,
         duration: duration,
       );
-    }
-  }
 
-  /// Clear all playlists (for testing)
-  Future<void> clearAll() async {
-    _playlists.clear();
-    await _savePlaylists();
-    notifyListeners();
-  }
+  /// Remove a song from a playlist.
+  Future<void> removeSongFromPlaylist({
+    required String playlistId,
+    required String songId,
+  }) =>
+      _removeSongFromPlaylistImpl(playlistId: playlistId, songId: songId);
+
+  /// Reorder songs in a playlist.
+  Future<void> reorderSongs({
+    required String playlistId,
+    required int oldIndex,
+    required int newIndex,
+  }) =>
+      _reorderSongsImpl(
+        playlistId: playlistId,
+        oldIndex: oldIndex,
+        newIndex: newIndex,
+      );
+
+  /// Get or create the Liked Songs playlist.
+  Future<PlaylistModel> getLikedSongsPlaylist() => _getLikedSongsPlaylistImpl();
+
+  /// Check if a song is liked (in Liked Songs playlist).
+  bool isLikedSong(String songId) => _isLikedSongImpl(songId);
+
+  /// Toggle a song's liked status.
+  ///
+  /// Pass song metadata for offline display when liking.
+  Future<void> toggleLikedSong(
+    String songId,
+    String? albumId, {
+    String? title,
+    String? artist,
+    int? duration,
+  }) =>
+      _toggleLikedSongImpl(
+        songId,
+        albumId,
+        title: title,
+        artist: artist,
+        duration: duration,
+      );
+
+  /// Clear all playlists (for testing).
+  Future<void> clearAll() => _clearAllImpl();
 
   /// Clear all local and server-derived playlist state.
-  Future<void> clearAllPlaylistData() async {
-    _playlists.clear();
-    _serverPlaylists.clear();
-    _hiddenServerPlaylistIds.clear();
-    _importedFromServer.clear();
-    _recentlyImportedIds.clear();
-    _isLoaded = true;
+  Future<void> clearAllPlaylistData() => _clearAllPlaylistDataImpl();
 
-    await _savePlaylists();
-    await _saveHiddenServerPlaylists();
-    await _saveImportedFromServer();
-    notifyListeners();
-  }
+  /// Import playlists in merge mode, skipping existing IDs and names.
+  ///
+  /// Returns the number of playlists actually imported.
+  Future<int> importPlaylists(List<PlaylistModel> playlists) =>
+      _importPlaylistsImpl(playlists);
 
-  /// Import playlists (merge mode - skip existing IDs)
-  /// Returns the number of playlists actually imported
-  Future<int> importPlaylists(List<PlaylistModel> playlists) async {
-    int imported = 0;
-    for (final playlist in playlists) {
-      // Skip if playlist with same ID already exists
-      if (getPlaylist(playlist.id) != null) continue;
-      // Skip if a local playlist with the same name already exists
-      if (_findLocalPlaylistByName(playlist.name) != null) continue;
-      _playlists.add(playlist);
-      imported++;
-    }
-    if (imported > 0) {
-      await _savePlaylists();
-      await _autoHideMatchingServerPlaylists();
-      notifyListeners();
-    }
-    return imported;
-  }
-
-  /// Replace all playlists (replace mode).
+  /// Replace all playlists.
+  ///
   /// Server-import tracking is restored separately via [applyServerImportState].
-  Future<void> replaceAllPlaylists(List<PlaylistModel> playlists) async {
-    _playlists = List.from(playlists);
-    _isLoaded = true;
-    _recentlyImportedIds.clear();
-
-    await _savePlaylists();
-    await _autoHideMatchingServerPlaylists();
-    await _saveHiddenServerPlaylists();
-    await _saveImportedFromServer();
-    notifyListeners();
-  }
+  Future<void> replaceAllPlaylists(List<PlaylistModel> playlists) =>
+      _replaceAllPlaylistsImpl(playlists);
 
   /// Rehydrate missing album IDs for playlist songs using current library data.
-  /// Returns number of playlists updated.
-  Future<int> rehydrateAlbumIdsFromLibrary(List<SongModel> librarySongs) async {
-    return _rehydrateSongMetadataFromLibrary(
-      librarySongs,
-      updateTitles: false,
-      updateArtists: false,
-      updateDurations: false,
-    );
-  }
+  ///
+  /// Returns the number of playlists updated.
+  Future<int> rehydrateAlbumIdsFromLibrary(List<SongModel> librarySongs) =>
+      _rehydrateAlbumIdsFromLibraryImpl(librarySongs);
 
   /// Rehydrate cached playlist song metadata using current library data.
-  /// Returns number of playlists updated.
-  Future<int> rehydrateSongMetadataFromLibrary(
-    List<SongModel> librarySongs,
-  ) async {
-    return _rehydrateSongMetadataFromLibrary(librarySongs);
-  }
+  ///
+  /// Returns the number of playlists updated.
+  Future<int> rehydrateSongMetadataFromLibrary(List<SongModel> librarySongs) =>
+      _rehydrateSongMetadataFromLibraryImpl(librarySongs);
 
   /// Remap stale song IDs in all playlists using current library data.
-  /// This is useful when the server library has been rescanned (e.g. after
-  /// moving the music folder), which changes MD5-based song IDs.
-  /// Returns the number of playlists that were modified.
-  Future<int> remapPlaylistSongIds(List<SongModel> librarySongs) async {
-    if (!_isLoaded) await loadPlaylists();
-    if (_playlists.isEmpty || librarySongs.isEmpty) return 0;
-
-    final remappingService = SongIdRemappingService();
-    final remapped = remappingService.remapPlaylists(_playlists, librarySongs);
-
-    var changedCount = 0;
-    for (var i = 0; i < _playlists.length; i++) {
-      if (!identical(_playlists[i], remapped[i])) {
-        changedCount++;
-      }
-    }
-
-    if (changedCount > 0) {
-      _playlists = remapped;
-      await _savePlaylists();
-      notifyListeners();
-      print(
-          '[PlaylistService] Remapped stale song IDs in $changedCount playlists');
-    }
-
-    return changedCount;
-  }
-
-  Future<int> _rehydrateSongMetadataFromLibrary(
-    List<SongModel> librarySongs, {
-    bool updateTitles = true,
-    bool updateArtists = true,
-    bool updateDurations = true,
-  }) async {
-    if (!_isLoaded) {
-      await loadPlaylists();
-    }
-
-    final songsById = <String, SongModel>{};
-    for (final song in librarySongs) {
-      songsById[song.id] = song;
-    }
-
-    if (songsById.isEmpty || _playlists.isEmpty) {
-      return 0;
-    }
-
-    var updatedCount = 0;
-    final updatedPlaylists = <PlaylistModel>[];
-
-    for (final playlist in _playlists) {
-      var changed = false;
-      final updatedSongAlbumIds =
-          Map<String, String>.from(playlist.songAlbumIds);
-      final updatedSongTitles = Map<String, String>.from(playlist.songTitles);
-      final updatedSongArtists = Map<String, String>.from(playlist.songArtists);
-      final updatedSongDurations =
-          Map<String, int>.from(playlist.songDurations);
-
-      for (final songId in playlist.songIds) {
-        final song = songsById[songId];
-        if (song == null) continue;
-
-        final albumId = song.albumId;
-        if (albumId != null && albumId.isNotEmpty) {
-          if (updatedSongAlbumIds[songId] != albumId) {
-            updatedSongAlbumIds[songId] = albumId;
-            changed = true;
-          }
-        } else if (updatedSongAlbumIds.containsKey(songId)) {
-          // Remove stale album mapping when the canonical library now reports
-          // the song as standalone. This ensures per-song artwork lookup uses
-          // /song-artwork/{songId} instead of an outdated shared album ID.
-          updatedSongAlbumIds.remove(songId);
-          changed = true;
-        }
-
-        if (updateTitles &&
-            song.title.isNotEmpty &&
-            updatedSongTitles[songId] != song.title) {
-          updatedSongTitles[songId] = song.title;
-          changed = true;
-        }
-
-        if (updateArtists &&
-            song.artist.isNotEmpty &&
-            updatedSongArtists[songId] != song.artist) {
-          updatedSongArtists[songId] = song.artist;
-          changed = true;
-        }
-
-        if (updateDurations &&
-            song.duration > 0 &&
-            updatedSongDurations[songId] != song.duration) {
-          updatedSongDurations[songId] = song.duration;
-          changed = true;
-        }
-      }
-
-      if (changed) {
-        updatedCount++;
-        updatedPlaylists.add(
-          playlist.copyWith(
-            songAlbumIds: updatedSongAlbumIds,
-            songTitles: updatedSongTitles,
-            songArtists: updatedSongArtists,
-            songDurations: updatedSongDurations,
-            modifiedAt: DateTime.now(),
-          ),
-        );
-      } else {
-        updatedPlaylists.add(playlist);
-      }
-    }
-
-    if (updatedCount > 0) {
-      _playlists = updatedPlaylists;
-      await _savePlaylists();
-      notifyListeners();
-    }
-
-    return updatedCount;
-  }
-}
-
-class _PlaylistSongMetadata {
-  const _PlaylistSongMetadata({
-    required this.songAlbumIds,
-    required this.songTitles,
-    required this.songArtists,
-    required this.songDurations,
-  });
-
-  final Map<String, String> songAlbumIds;
-  final Map<String, String> songTitles;
-  final Map<String, String> songArtists;
-  final Map<String, int> songDurations;
+  ///
+  /// This is useful when the server library has been rescanned, which changes
+  /// MD5-based song IDs. Returns the number of playlists modified.
+  Future<int> remapPlaylistSongIds(List<SongModel> librarySongs) =>
+      _remapPlaylistSongIdsImpl(librarySongs);
 }
