@@ -196,10 +196,14 @@ void main() {
         bindAddress: '127.0.0.1',
         port: port,
       );
+      final sessionToken = await _registerAndLogin(port);
 
       lan = '192.168.1.88';
       final (status, body) = await _httpPost(
         Uri.parse('http://127.0.0.1:$port/api/server-info/refresh'),
+        headers: <String, String>{
+          'Authorization': 'Bearer $sessionToken',
+        },
       );
       expect(status, 200);
 
@@ -230,11 +234,46 @@ Future<(int status, String body)> _httpGet(Uri url) async {
   }
 }
 
-Future<(int status, String body)> _httpPost(Uri url) async {
+Future<String> _registerAndLogin(int port) async {
+  final registerUrl = Uri.parse('http://127.0.0.1:$port/api/auth/register');
+  final (registerStatus, _) = await _httpPost(
+    registerUrl,
+    jsonBody: <String, dynamic>{
+      'username': 'server-info-owner',
+      'password': 'server-info-pass',
+    },
+  );
+  expect(registerStatus, 200);
+
+  final loginUrl = Uri.parse('http://127.0.0.1:$port/api/auth/login');
+  final (loginStatus, loginBody) = await _httpPost(
+    loginUrl,
+    jsonBody: <String, dynamic>{
+      'username': 'server-info-owner',
+      'password': 'server-info-pass',
+      'deviceId': 'server-info-device',
+      'deviceName': 'Server Info Device',
+    },
+  );
+  expect(loginStatus, 200);
+
+  final json = jsonDecode(loginBody) as Map<String, dynamic>;
+  return json['sessionToken'] as String;
+}
+
+Future<(int status, String body)> _httpPost(
+  Uri url, {
+  Map<String, String>? headers,
+  Map<String, dynamic>? jsonBody,
+}) async {
   final client = HttpClient();
   try {
     final request = await client.postUrl(url);
     request.headers.contentType = ContentType.json;
+    headers?.forEach(request.headers.set);
+    if (jsonBody != null) {
+      request.write(jsonEncode(jsonBody));
+    }
     final response = await request.close();
     final body = await utf8.decoder.bind(response).join();
     return (response.statusCode, body);

@@ -44,7 +44,7 @@ void main() {
         buildSubject(onRemove: () {}),
       );
 
-      expect(find.byIcon(Icons.more_vert), findsOneWidget);
+      expect(find.byIcon(Icons.more_vert_rounded), findsOneWidget);
     });
 
     testWidgets('hides more_vert when song is unavailable', (tester) async {
@@ -63,7 +63,7 @@ void main() {
         ),
       );
 
-      expect(find.byIcon(Icons.more_vert), findsNothing);
+      expect(find.byIcon(Icons.more_vert_rounded), findsNothing);
     });
   });
 

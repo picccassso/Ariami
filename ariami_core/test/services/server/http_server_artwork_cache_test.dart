@@ -76,6 +76,10 @@ void main() {
           bindAddress: '127.0.0.1',
           port: port,
         );
+        final sessionToken = await _registerAndLogin(port);
+        final authHeaders = <String, String>{
+          'Authorization': 'Bearer $sessionToken',
+        };
 
         final repository = server.libraryManager.createCatalogRepository();
         expect(repository, isNotNull);
@@ -95,6 +99,7 @@ void main() {
           method: 'GET',
           url: Uri.parse(
               'http://127.0.0.1:$port/api/artwork/$albumId?size=full'),
+          headers: authHeaders,
         );
         expect(albumArtworkResponse.statusCode, 200);
         final albumEtag = albumArtworkResponse.headers['etag'];
@@ -107,7 +112,10 @@ void main() {
           method: 'GET',
           url: Uri.parse(
               'http://127.0.0.1:$port/api/artwork/$albumId?size=full'),
-          headers: <String, String>{'If-None-Match': albumEtag!},
+          headers: <String, String>{
+            ...authHeaders,
+            'If-None-Match': albumEtag!,
+          },
         );
         expect(albumNotModifiedResponse.statusCode, 304);
         expect(albumNotModifiedResponse.headers['etag'], equals(albumEtag));
@@ -117,6 +125,7 @@ void main() {
           url: Uri.parse(
             'http://127.0.0.1:$port/api/song-artwork/$standaloneSongId?size=full',
           ),
+          headers: authHeaders,
         );
         expect(songArtworkResponse.statusCode, 200);
         final songEtag = songArtworkResponse.headers['etag'];
@@ -130,7 +139,10 @@ void main() {
           url: Uri.parse(
             'http://127.0.0.1:$port/api/song-artwork/$standaloneSongId?size=full',
           ),
-          headers: <String, String>{'If-None-Match': songEtag!},
+          headers: <String, String>{
+            ...authHeaders,
+            'If-None-Match': songEtag!,
+          },
         );
         expect(songNotModifiedResponse.statusCode, 304);
         expect(songNotModifiedResponse.headers['etag'], equals(songEtag));
@@ -181,6 +193,48 @@ Future<_BinaryHttpResponse> _sendBinaryRequest({
   } finally {
     client.close(force: true);
   }
+}
+
+Future<String> _registerAndLogin(int port) async {
+  final client = HttpClient();
+  try {
+    await _postJson(
+      client,
+      Uri.parse('http://127.0.0.1:$port/api/auth/register'),
+      <String, dynamic>{
+        'username': 'artwork-owner',
+        'password': 'artwork-pass',
+      },
+    );
+    final login = await _postJson(
+      client,
+      Uri.parse('http://127.0.0.1:$port/api/auth/login'),
+      <String, dynamic>{
+        'username': 'artwork-owner',
+        'password': 'artwork-pass',
+        'deviceId': 'artwork-device',
+        'deviceName': 'Artwork Device',
+      },
+    );
+    return login['sessionToken'] as String;
+  } finally {
+    client.close(force: true);
+  }
+}
+
+Future<Map<String, dynamic>> _postJson(
+  HttpClient client,
+  Uri uri,
+  Map<String, dynamic> payload,
+) async {
+  final request = await client.postUrl(uri);
+  request.headers.contentType = ContentType.json;
+  request.write(jsonEncode(payload));
+
+  final response = await request.close();
+  expect(response.statusCode, inInclusiveRange(200, 299));
+  final body = await response.transform(utf8.decoder).join();
+  return jsonDecode(body) as Map<String, dynamic>;
 }
 
 Future<void> _writeTaggedMp3Stub(

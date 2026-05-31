@@ -163,6 +163,7 @@ Future<void> _runDownloadBenchmark({required int simulatedUsers}) async {
       users.add(await _registerAndLogin(
         client,
         baseUri,
+        adminToken: users.isEmpty ? null : users.first.sessionToken,
         username: 'user_$i',
         password: 'pass_$i',
         deviceId: 'device_$i',
@@ -260,6 +261,7 @@ Future<int> _findFreePort() async {
 Future<_LoginInfo> _registerAndLogin(
   HttpClient client,
   Uri baseUri, {
+  required String? adminToken,
   required String username,
   required String password,
   required String deviceId,
@@ -267,11 +269,14 @@ Future<_LoginInfo> _registerAndLogin(
 }) async {
   await _postJson(
     client,
-    baseUri.resolve('/api/auth/register'),
+    baseUri.resolve(
+      adminToken == null ? '/api/auth/register' : '/api/admin/create-user',
+    ),
     {
       'username': username,
       'password': password,
     },
+    authToken: adminToken,
   );
 
   final loginResponse = await _postJson(

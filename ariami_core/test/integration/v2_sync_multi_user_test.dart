@@ -54,8 +54,6 @@ void main() {
         );
 
         await _registerUser(port, 'user-a', 'pass-a');
-        await _registerUser(port, 'user-b', 'pass-b');
-
         final userAToken = await _loginUser(
           port: port,
           username: 'user-a',
@@ -63,6 +61,7 @@ void main() {
           deviceId: 'phase11-device-a',
           deviceName: 'Phase11 Device A',
         );
+        await _createUser(port, userAToken, 'user-b', 'pass-b');
         final userBToken = await _loginUser(
           port: port,
           username: 'user-b',
@@ -182,6 +181,24 @@ Future<void> _registerUser(int port, String username, String password) async {
     },
   );
   expect(response.statusCode, equals(200));
+}
+
+Future<void> _createUser(
+  int port,
+  String adminToken,
+  String username,
+  String password,
+) async {
+  final response = await _sendJsonRequest(
+    method: 'POST',
+    url: Uri.parse('http://127.0.0.1:$port/api/admin/create-user'),
+    headers: <String, String>{'Authorization': 'Bearer $adminToken'},
+    jsonBody: <String, dynamic>{
+      'username': username,
+      'password': password,
+    },
+  );
+  expect(response.statusCode, equals(201));
 }
 
 Future<String> _loginUser({
