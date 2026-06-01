@@ -24,8 +24,11 @@ FIRST RUN
 On first run, the server will:
 - Start in foreground mode
 - Open a browser for setup once the server is ready
-- Prompt you to select your music folder
-- Generate a QR code for mobile app connection
+- Walk you through Tailscale (optional), music folder selection, and library scan
+- Prompt you to create the owner account (first account = server admin)
+- Show a QR code so phones can register or log in
+
+Complete these steps in the browser before setup is finished.
 
 If the browser does not open automatically, navigate to:
 http://localhost:8080
@@ -66,8 +69,9 @@ If low/medium requests fall back to high quality, verify:
 
 MOBILE APP
 ----------
-Scan the QR code displayed in the web interface to connect
-the Ariami mobile app to your server.
+After owner setup, scan the QR code in the web interface with
+the Ariami mobile app, then register a new account or log in.
+Registration uses a time-limited token embedded in the QR code.
 
 TROUBLESHOOTING
 ---------------

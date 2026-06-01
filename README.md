@@ -9,16 +9,32 @@ Ariami is a self-hosted music library server with native desktop and mobile play
 
 ## Quick Start
 
-1. **Download the desktop server** from [releases](https://github.com/picccassso/Ariami/releases). Pick the ZIP for your OS (for example `Ariami-Desktop-v4.3.0-macos.zip`, `Ariami-Desktop-v4.3.0-windows.zip`, or `Ariami-Desktop-v4.3.0-linux.zip` — filenames follow that pattern for each version).
-2. **Download the Android app** from the same [releases](https://github.com/picccassso/Ariami/releases) page (`ariami_apk_release_v4.3.0.apk` for v4.3.0). For iOS, you will have to build it and run it yourself.
-3. **Install Tailscale** on the computer running the server and on your phone: [tailscale.com/download](https://tailscale.com/download)
-4. **Run the server** and choose your music folder.
-5. **Scan the QR code** shown by the server with the mobile app to connect.
+**First-time checklist**
 
-### For Raspberry Pi
+- [ ] Install Tailscale on the server and your phone ([tailscale.com/download](https://tailscale.com/download))
+- [ ] Download and run the server (desktop app or Raspberry Pi CLI)
+- [ ] Choose your music folder and wait for the library scan
+- [ ] Create the **owner account** (server admin — required before phones can register)
+- [ ] Scan the server QR code on your phone and **register** or log in
+
+Downloads are on the [releases](https://github.com/picccassso/Ariami/releases) page: desktop server ZIP for your OS (for example `Ariami-Desktop-v4.3.0-macos.zip`), and the Android APK (`ariami_apk_release_v4.3.0.apk` for v4.3.0). For iOS, build from source (see [Building from Source](#building-from-source)).
+
+### Desktop server (macOS, Windows, Linux)
+
+1. Install **Tailscale** on the computer running the server and on your phone.
+2. **Run the desktop app** and follow the first-run wizard.
+3. **Choose your music folder** and wait for the initial library scan.
+4. **Create the owner account** when prompted. The first account on the server is the owner (admin). You need this before the server finishes setup.
+5. **Scan the QR code** from the connection screen with the Ariami mobile app, then **register** a new account or log in.
+
+After setup, use the dashboard for server status and the QR code. **Owner sign-in** is required for admin actions (manage users, kick devices, change passwords).
+
+### Raspberry Pi / CLI server
+
+On first run, the CLI starts in the foreground and opens a **browser setup wizard** (or go to `http://localhost:8080` if it does not open). Later runs use `./ariami_cli start` as a background daemon.
 
 ```bash
-# Install Tailscale (follow commands from https://tailscale.com/download/linux/rpi)
+# Install Tailscale (see https://tailscale.com/download/linux/rpi)
 curl -fsSL https://tailscale.com/install.sh | sh
 sudo tailscale up
 
@@ -27,12 +43,29 @@ curl -L https://github.com/picccassso/Ariami/releases/download/v4.3.0/ariami-cli
 unzip ariami-cli.zip
 cd ariami-cli-raspberry-pi-arm64-v4.3.0
 
-# Run the server
 chmod +x ariami_cli
 ./ariami_cli start
-
-# Web interface opens automatically - scan QR code on phone, complete
 ```
+
+In the browser wizard:
+
+1. Optional: set up **Tailscale** (or continue with local-only access).
+2. **Select your music folder** and wait for the scan.
+3. **Create the owner account** and sign in as owner.
+4. **Scan the QR code** with the mobile app and **register** or log in.
+
+Day-to-day: `./ariami_cli start` | `./ariami_cli status` | `./ariami_cli stop`. See `ariami_cli/SETUP.txt` in the release zip for more detail.
+
+### Mobile app
+
+1. Install the Android APK from [releases](https://github.com/picccassso/Ariami/releases) (or build iOS from source).
+2. Install **Tailscale** on your phone.
+3. Scan the **QR code** shown by the server (desktop connection screen or CLI web UI after owner setup).
+4. **Register** a new account or **log in**. After the owner account exists, registration requires the time-limited token embedded in that QR code.
+
+### Managing the server (owner)
+
+The **owner** is the first account created on the server. Use **owner sign-in** on the desktop or CLI web dashboard for admin actions: view connected devices, kick a client, change passwords, delete users, and show a fresh registration QR for new phone accounts.
 
 ---
 

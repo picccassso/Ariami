@@ -35,10 +35,12 @@ directory. The release archive includes a root `./ariami_cli` launcher.
 
 ## First Run
 
-1. Run `./ariami_cli start`
-2. Browser opens to web setup
-3. Select music folder and wait for scan
-4. Server auto-transitions to background
-5. Scan QR code with Ariami Mobile
+1. Run `./ariami_cli start` (foreground on first launch; browser opens when ready)
+2. Complete the web wizard: Tailscale (optional) → music folder → library scan
+3. **Create the owner account** (first account is server admin) and sign in as owner
+4. Server auto-transitions to background; setup is marked complete
+5. Scan the QR code with Ariami Mobile and **register** or log in
+
+If the browser does not open, go to `http://localhost:8080` (or the next free port 8080–8099).
 
 See `REBUILD.md` for rebuild workflows and Raspberry Pi cross-compilation.
