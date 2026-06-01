@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ariami-core:
+    name: ariami_core
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    defaults:
+      run:
+        working-directory: ariami_core
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Dart
+        uses: dart-lang/setup-dart@v1
+        with:
+          sdk: '3.12.0'
+
+      - name: Get dependencies
+        run: dart pub get --enforce-lockfile
+
+      - name: Run tests
+        run: dart test
+
+  flutter-packages:
+    name: ${{ matrix.package }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - package: ariami_cli
+            test_args: ''
+          - package: ariami_mobile
+            test_args: '--concurrency=1'
+          - package: ariami_desktop
+            test_args: ''
+
+    defaults:
+      run:
+        working-directory: ${{ matrix.package }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.0'
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get --enforce-lockfile
+
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+
+      - name: Run tests if present
+        shell: bash
+        run: |
+          if find test -name '*_test.dart' -print -quit 2>/dev/null | grep -q .; then
+            flutter test ${{ matrix.test_args }}
+          else
+            echo "No Dart tests found; skipping flutter test."
+          fi
