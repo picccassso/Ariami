@@ -86,19 +86,22 @@ flutter build web -t lib/web/main.dart
 
 # Compile CLI to native executable
 dart build cli -o build/cli-release
-cp build/cli-release/bundle/bin/ariami_cli ./ariami_cli
-chmod +x ./ariami_cli
 
-# Run it
-./ariami_cli start
+# Run the bundled executable
+./build/cli-release/bundle/bin/ariami_cli start
 ```
 
-To install globally:
+Keep the generated `bundle/bin` and `bundle/lib` directories together when
+deploying. The executable loads native assets such as `libsqlite3.so` from the
+adjacent bundle library directory.
+
+To install globally, preserve that layout:
 
 ```bash
 dart build cli -o build/cli-release
-cp build/cli-release/bundle/bin/ariami_cli /usr/local/bin/ariami_cli
-chmod +x /usr/local/bin/ariami_cli
+sudo mkdir -p /opt/ariami-cli
+sudo cp -R build/cli-release/bundle/. /opt/ariami-cli/
+sudo ln -sf /opt/ariami-cli/bin/ariami_cli /usr/local/bin/ariami_cli
 
 # Then run from anywhere
 ariami_cli start
@@ -141,7 +144,7 @@ The script will:
 4. Compile ARM64 Linux binary using Docker (--platform linux/arm64)
 5. Build `libsonic_transcoder.so` for ARM64 in Docker
 6. Create release directory structure
-7. Copy all necessary files (binary, web UI, Sonic library, SETUP.txt)
+7. Copy all necessary files (binary, web UI, SQLite library, Sonic library, SETUP.txt)
 8. Package everything into `ariami-cli-raspberry-pi-arm64-v4.3.0.zip`
 9. Verify the binary and Sonic library architectures
 
@@ -154,8 +157,10 @@ On Intel Macs, Docker will use emulation (slower but still works).
 ### Output
 
 Same as Pi build - a ready-to-distribute zip file containing:
-- `ariami_cli` - Compiled ARM64 Linux executable
+- `ariami_cli` - Launcher for the bundled ARM64 Linux executable
+- `bin/ariami_cli` - Compiled ARM64 Linux executable
 - `web/` - Built Flutter web UI
+- `lib/libsqlite3.so` - Bundled SQLite native library for the catalog
 - `lib/libsonic_transcoder.so` - Bundled Sonic library for low/medium transcoding
 - `SETUP.txt` - User instructions
 

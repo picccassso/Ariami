@@ -12,6 +12,10 @@ SONIC_DIR="${PARENT_DIR}/sonic"
 SONIC_TARGET_DIR="/workspace/ariami_cli/build/sonic_target"
 SONIC_LIB_RELATIVE_PATH="build/sonic_target/release/libsonic_transcoder.so"
 SONIC_LIB_LOCAL_PATH="${SCRIPT_DIR}/${SONIC_LIB_RELATIVE_PATH}"
+CLI_BUNDLE_RELATIVE_DIR="build/pi-cli-bundle"
+CLI_BINARY_RELATIVE_PATH="${CLI_BUNDLE_RELATIVE_DIR}/bin/ariami_cli"
+SQLITE_LIB_RELATIVE_PATH="${CLI_BUNDLE_RELATIVE_DIR}/lib/libsqlite3.so"
+LAUNCHER_PATH="${SCRIPT_DIR}/ariami_cli-launcher.sh"
 
 echo "=== Ariami CLI - Raspberry Pi Release Builder (Mac) ==="
 echo "Version: ${VERSION}"
@@ -43,6 +47,11 @@ if [ ! -f "${SONIC_DIR}/Cargo.toml" ]; then
     exit 1
 fi
 
+if [ ! -f "${LAUNCHER_PATH}" ]; then
+    echo "ERROR: CLI launcher not found at ${LAUNCHER_PATH}"
+    exit 1
+fi
+
 # Step 1: Clean previous builds
 echo "[1/7] Cleaning previous builds..."
 rm -rf build/
@@ -66,7 +75,17 @@ docker run --rm \
   -w /workspace/ariami_cli \
   --platform linux/arm64 \
   ghcr.io/cirruslabs/flutter:stable \
-  sh -c "flutter pub get && dart build cli -o /tmp/ariami-pi-cli && cp /tmp/ariami-pi-cli/bundle/bin/ariami_cli ./ariami_cli && chmod +x ./ariami_cli"
+  sh -c "flutter pub get && dart build cli -o /tmp/ariami-pi-cli && rm -rf ./${CLI_BUNDLE_RELATIVE_DIR} && cp -R /tmp/ariami-pi-cli/bundle ./${CLI_BUNDLE_RELATIVE_DIR} && chmod +x ./${CLI_BINARY_RELATIVE_PATH}"
+
+if [ ! -f "${SCRIPT_DIR}/${CLI_BINARY_RELATIVE_PATH}" ]; then
+    echo "ERROR: CLI binary was not produced at ${SCRIPT_DIR}/${CLI_BINARY_RELATIVE_PATH}"
+    exit 1
+fi
+
+if [ ! -f "${SCRIPT_DIR}/${SQLITE_LIB_RELATIVE_PATH}" ]; then
+    echo "ERROR: SQLite native library was not produced at ${SCRIPT_DIR}/${SQLITE_LIB_RELATIVE_PATH}"
+    exit 1
+fi
 
 echo "✓ ARM64 binary compiled successfully"
 
@@ -88,27 +107,32 @@ echo "✓ Sonic ARM64 library built successfully"
 # Step 6: Create release directory structure
 echo "[6/7] Creating release directory structure..."
 mkdir -p "${RELEASE_NAME}/web"
+mkdir -p "${RELEASE_NAME}/bin"
 mkdir -p "${RELEASE_NAME}/lib"
 
 # Step 7: Copy files and create zip
 echo "[7/7] Copying files and creating zip archive..."
-cp ariami_cli "${RELEASE_NAME}/"
+cp "${CLI_BINARY_RELATIVE_PATH}" "${RELEASE_NAME}/bin/ariami_cli"
+cp "${SQLITE_LIB_RELATIVE_PATH}" "${RELEASE_NAME}/lib/libsqlite3.so"
 cp -r build/web/* "${RELEASE_NAME}/web/"
 cp "${SONIC_LIB_RELATIVE_PATH}" "${RELEASE_NAME}/lib/libsonic_transcoder.so"
+cp "${LAUNCHER_PATH}" "${RELEASE_NAME}/ariami_cli"
+chmod +x "${RELEASE_NAME}/ariami_cli"
 cp SETUP.txt "${RELEASE_NAME}/"
 
 zip -r -q "${RELEASE_NAME}.zip" "${RELEASE_NAME}"
 
 # Cleanup
 rm -rf "${RELEASE_NAME}"
-rm -f ariami_cli
 
 # Verify binary architecture
 echo ""
 echo "=== Verifying Binary ==="
 unzip -q "${RELEASE_NAME}.zip"
-ARCH_INFO=$(file "${RELEASE_NAME}/ariami_cli" 2>/dev/null || echo "unknown")
+ARCH_INFO=$(file "${RELEASE_NAME}/bin/ariami_cli" 2>/dev/null || echo "unknown")
 echo "Binary info: ${ARCH_INFO}"
+SQLITE_INFO=$(file "${RELEASE_NAME}/lib/libsqlite3.so" 2>/dev/null || echo "unknown")
+echo "SQLite info: ${SQLITE_INFO}"
 SONIC_INFO=$(file "${RELEASE_NAME}/lib/libsonic_transcoder.so" 2>/dev/null || echo "unknown")
 echo "Sonic info: ${SONIC_INFO}"
 rm -rf "${RELEASE_NAME}"

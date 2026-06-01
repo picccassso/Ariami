@@ -33,6 +33,18 @@ void main() {
       expect(resolution.path, '/opt/ariami/web');
     });
 
+    test('finds sibling web directory for bundled bin executable', () async {
+      final resolution = await resolver.resolve(
+        cwd: '/opt/ariami/bin',
+        executableDir: '/opt/ariami/bin',
+        scriptPath: '/opt/ariami/bin/ariami_cli',
+        exists: (path) => path == '/opt/ariami/web',
+      );
+
+      expect(resolution.found, isTrue);
+      expect(resolution.path, '/opt/ariami/web');
+    });
+
     test('uses script package root fallback for dart run layouts', () async {
       final resolution = await resolver.resolve(
         cwd: '/tmp',
@@ -61,7 +73,7 @@ void main() {
       expect(resolution.path, isNull);
       expect(resolution.cwd, '/project');
       expect(resolution.executableDir, '/opt/ariami');
-      expect(resolution.candidatesChecked.length, 6);
+      expect(resolution.candidatesChecked.length, 8);
     });
 
     test('isDevRun detects dart script invocations', () {

@@ -37,6 +37,8 @@ class WebAssetsResolver {
       p.join(workingDir, 'web'),
       p.join(exeDir, 'web'),
       p.join(exeDir, 'build', 'web'),
+      p.join(exeDir, '..', 'web'),
+      p.join(exeDir, '..', 'build', 'web'),
     ];
 
     if (scriptPath != null && scriptPath.endsWith('.dart')) {
