@@ -22,8 +22,8 @@ class BrowserService {
     if (processRunner != null || hasDisplaySession != null) {
       return BrowserService._(
         processRunner: processRunner,
-        hasDisplaySession: hasDisplaySession ??
-            (processRunner != null ? () => true : null),
+        hasDisplaySession:
+            processRunner != null ? () => true : hasDisplaySession,
       );
     }
     return _defaultInstance ??= BrowserService._();
@@ -59,7 +59,8 @@ class BrowserService {
   }
 
   /// Open the Ariami web interface
-  Future<bool> openAriamiInterface({String? tailscaleIp, int port = 8080}) async {
+  Future<bool> openAriamiInterface(
+      {String? tailscaleIp, int port = 8080}) async {
     final url = tailscaleIp != null
         ? 'http://$tailscaleIp:$port'
         : 'http://localhost:$port';

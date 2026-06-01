@@ -173,10 +173,7 @@ void main() {
       'P3-3: full rescan refreshes cached metadata entries that are missing duration',
       () async {
         final cachedSongPath = p.join(musicDir.path, 'cached song.mp3');
-        await _copyFixtureAudio(
-          sourceFileName: 'Atat De Liberi.mp3',
-          destinationPath: cachedSongPath,
-        );
+        await _writeMp3DurationStub(cachedSongPath);
 
         final stat = await File(cachedSongPath).stat();
         final staleCache = MetadataCache(
@@ -218,10 +215,7 @@ void main() {
       'P3-4: incremental file adds persist duration during change processing',
       () async {
         final originalPath = p.join(musicDir.path, 'initial song.mp3');
-        await _copyFixtureAudio(
-          sourceFileName: 'A Very Strange Time.mp3',
-          destinationPath: originalPath,
-        );
+        await _writeMp3DurationStub(originalPath);
         await libraryManager.scanMusicFolder(musicDir.path);
 
         final tokenAfterScan = libraryManager.latestToken;
@@ -229,10 +223,7 @@ void main() {
         await Future<void>.delayed(const Duration(milliseconds: 500));
 
         final addedPath = p.join(musicDir.path, 'added song.mp3');
-        await _copyFixtureAudio(
-          sourceFileName: 'Everything is Everything.mp3',
-          destinationPath: addedPath,
-        );
+        await _writeMp3DurationStub(addedPath);
 
         await _waitForTokenAdvance(
           libraryManager: libraryManager,
@@ -299,15 +290,15 @@ Future<void> _writeAudioStub(String filePath, {int fillByte = 0}) async {
   await file.writeAsBytes(List<int>.filled(1024, fillByte), flush: true);
 }
 
-Future<void> _copyFixtureAudio({
-  required String sourceFileName,
-  required String destinationPath,
-}) async {
-  final sourcePath = p.normalize(
-      p.join(Directory.current.path, '..', 'examples', sourceFileName));
-  final destinationFile = File(destinationPath);
-  await destinationFile.parent.create(recursive: true);
-  await File(sourcePath).copy(destinationPath);
+Future<void> _writeMp3DurationStub(String filePath) async {
+  final file = File(filePath);
+  await file.parent.create(recursive: true);
+
+  // MPEG-1 Layer III, 128 kbps, 44.1 kHz. The pure Dart duration parser uses
+  // this frame header and the file size to calculate a positive CBR duration.
+  final bytes = List<int>.filled(32 * 1024, 0);
+  bytes.setAll(0, <int>[0xff, 0xfb, 0x90, 0x00]);
+  await file.writeAsBytes(bytes, flush: true);
 }
 
 int _countSongs(CatalogRepository repository) {
