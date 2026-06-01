@@ -11,6 +11,64 @@ on:
         default: 'v0.0.0-test'
 
 jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.0'
+          cache: true
+
+      - name: Get dependencies
+        run: |
+          cd ariami_mobile
+          flutter pub get
+
+      - name: Build Android APKs
+        run: |
+          cd ariami_mobile
+          flutter build apk --debug
+          flutter build apk --release
+
+      - name: Get version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Rename APKs
+        run: |
+          mv ariami_mobile/build/app/outputs/flutter-apk/app-release.apk \
+            "ariami_mobile/Ariami-Mobile-${{ steps.version.outputs.version }}-android-release.apk"
+          mv ariami_mobile/build/app/outputs/flutter-apk/app-debug.apk \
+            "ariami_mobile/Ariami-Mobile-${{ steps.version.outputs.version }}-android-debug.apk"
+
+      - name: Upload to Release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            ariami_mobile/Ariami-Mobile-${{ steps.version.outputs.version }}-android-release.apk
+            ariami_mobile/Ariami-Mobile-${{ steps.version.outputs.version }}-android-debug.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Artifact (for manual runs)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v6
+        with:
+          name: Ariami-Mobile-${{ steps.version.outputs.version }}-android
+          path: |
+            ariami_mobile/Ariami-Mobile-${{ steps.version.outputs.version }}-android-release.apk
+            ariami_mobile/Ariami-Mobile-${{ steps.version.outputs.version }}-android-debug.apk
+
   build-macos:
     runs-on: macos-latest
     steps:
