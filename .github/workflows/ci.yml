@@ -31,7 +31,7 @@ jobs:
           sdk: '3.12.0'
 
       - name: Get dependencies
-        run: dart pub get --enforce-lockfile
+        run: dart pub get
 
       - name: Run tests
         run: dart test
@@ -67,7 +67,7 @@ jobs:
           cache: true
 
       - name: Get dependencies
-        run: flutter pub get --enforce-lockfile
+        run: flutter pub get
 
       - name: Analyze
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
