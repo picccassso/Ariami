@@ -295,6 +295,7 @@ extension _TranscodingServiceCache on TranscodingService {
 
       final lockKey = '${songId}_${quality.name}';
       final cachedFile = _getCachedFile(songId, quality);
+      final partialFile = File('${cachedFile.path}.partial');
 
       if (await cachedFile.exists()) {
         try {
@@ -306,6 +307,15 @@ extension _TranscodingServiceCache on TranscodingService {
         }
       } else if (_cacheIndex.containsKey(lockKey)) {
         _removeFromIndex(lockKey);
+      }
+
+      if (await partialFile.exists()) {
+        try {
+          await partialFile.delete();
+        } catch (e) {
+          print(
+              'TranscodingService: Failed to remove partial output for $songId: $e');
+        }
       }
     }
   }
