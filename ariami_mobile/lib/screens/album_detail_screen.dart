@@ -10,10 +10,12 @@ import '../services/api/connection_service.dart';
 import '../services/playback_manager.dart';
 import '../services/playlist_service.dart';
 import '../services/offline/offline_playback_service.dart';
+import '../services/offline/offline_copy_service.dart';
 import '../services/download/download_manager.dart';
 import '../services/cache/cache_manager.dart';
 import '../screens/main/library/library_controller.dart';
 import '../utils/download_state_watcher.dart';
+import '../utils/downloaded_album_metadata.dart';
 import '../widgets/album/album_action_buttons.dart';
 import '../widgets/album/album_header.dart';
 import '../widgets/album/album_info_section.dart';
@@ -38,6 +40,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
   final ConnectionService _connectionService = ConnectionService();
   final PlaybackManager _playbackManager = PlaybackManager();
   final OfflinePlaybackService _offlineService = OfflinePlaybackService();
+  final OfflineCopyService _offlineCopyService = OfflineCopyService();
   final DownloadManager _downloadManager = DownloadManager();
   final CacheManager _cacheManager = CacheManager();
   final LibraryController _libraryController = LibraryController();
@@ -112,9 +115,10 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
   /// Load album detail with songs from server (or from downloads if offline)
   Future<void> _loadAlbumDetail() async {
     // If offline mode is enabled, build from downloads
-    if (_offlineService.isOfflineModeEnabled) {
+    if (_offlineService.isOfflineModeEnabled || _isOfflineCopy) {
       print('[AlbumDetailScreen] Offline mode - building from downloads');
       _buildAlbumDetailFromDownloads();
+      unawaited(_showOfflineCopyNoticeIfNeeded());
       return;
     }
 
@@ -146,6 +150,47 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
     }
   }
 
+  bool get _isOfflineCopy =>
+      _offlineCopyService.isRetainedAlbum(widget.album.id);
+
+  bool get _shouldUseOfflineTracks =>
+      _offlineService.isOffline || _isOfflineCopy;
+
+  Future<void> _showOfflineCopyNoticeIfNeeded() async {
+    if (!_isOfflineCopy ||
+        !await _offlineCopyService.claimNotice('album', widget.album.id) ||
+        !mounted) {
+      return;
+    }
+
+    final removeDownload = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Offline copy kept'),
+        content: const Text(
+          'Just a heads up - this album has been deleted from the server.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Keep offline copy'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Remove download'),
+          ),
+        ],
+      ),
+    );
+
+    if (removeDownload != true || !mounted) return;
+    final songIds = _albumDetail?.songs.map((song) => song.id) ?? const [];
+    await _downloadManager.deleteAlbumDownloads(widget.album.id);
+    await _offlineCopyService.forgetAlbum(widget.album.id, songIds);
+    await _libraryController.refreshOfflineCopyState();
+    if (mounted) Navigator.of(context).pop();
+  }
+
   /// Build album detail from downloaded songs when offline
   void _buildAlbumDetailFromDownloads() {
     final queue = _downloadManager.queue;
@@ -158,7 +203,9 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
     // Get album metadata from first task (if available)
     final firstTask = downloadTasks.isNotEmpty ? downloadTasks.first : null;
     final albumName = firstTask?.albumName ?? widget.album.title;
-    final albumArtist = firstTask?.albumArtist ?? widget.album.artist;
+    final albumArtist = downloadTasks.isEmpty
+        ? widget.album.artist
+        : resolveDownloadedAlbumArtist(downloadTasks);
 
     // Build song models from download tasks
     final albumSongs = downloadTasks
@@ -242,7 +289,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
         SliverToBoxAdapter(
           child: AlbumInfoSection(
             albumTitle: widget.album.title,
-            albumArtist: widget.album.artist,
+            albumArtist: _albumDetail?.artist ?? widget.album.artist,
             year: _albumDetail?.year,
             songCount: _albumDetail?.songs.length ?? widget.album.songCount,
             totalDurationSeconds: _albumDetail != null
@@ -251,6 +298,11 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
                 : widget.album.duration,
           ),
         ),
+
+        if (_isOfflineCopy)
+          const SliverToBoxAdapter(
+            child: _OfflineCopyBanner(itemType: 'album'),
+          ),
 
         // Action buttons
         SliverToBoxAdapter(
@@ -278,7 +330,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
               final track = _albumDetail!.songs[index];
               final isDownloaded = _downloadedSongIds.contains(track.id);
               final isCached = _cachedSongIds.contains(track.id);
-              final isOffline = _offlineService.isOffline;
+              final isOffline = _shouldUseOfflineTracks;
               final isAvailable = !isOffline || isDownloaded || isCached;
 
               return TrackListItem(
@@ -403,7 +455,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
     print('[AlbumDetailScreen] Playing all tracks in album...');
 
     // Filter songs for offline mode (include both downloaded and cached)
-    final isOffline = _offlineService.isOffline;
+    final isOffline = _shouldUseOfflineTracks;
     final songsToPlay = isOffline
         ? _albumDetail!.songs
             .where((s) =>
@@ -446,7 +498,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
     print('[AlbumDetailScreen] Shuffling all tracks in album...');
 
     // Filter songs for offline mode (include both downloaded and cached)
-    final isOffline = _offlineService.isOffline;
+    final isOffline = _shouldUseOfflineTracks;
     final songsToPlay = isOffline
         ? _albumDetail!.songs
             .where((s) =>
@@ -549,7 +601,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
     print('[AlbumDetailScreen] Track index: $index');
     print('==========================================================');
 
-    final isOffline = _offlineService.isOffline;
+    final isOffline = _shouldUseOfflineTracks;
 
     // Get songs to add to queue - filter to downloaded only when offline
     List<SongModel> songsForQueue;
@@ -605,5 +657,26 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
       print('[AlbumDetailScreen] ❌ ERROR: $e');
       print('[AlbumDetailScreen] Stack trace: $stackTrace');
     }
+  }
+}
+
+class _OfflineCopyBanner extends StatelessWidget {
+  final String itemType;
+
+  const _OfflineCopyBanner({required this.itemType});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      padding: const EdgeInsets.all(12),
+      color: Theme.of(context).colorScheme.secondaryContainer,
+      child: Text(
+        'Offline copy: this $itemType is no longer available on the server.',
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.onSecondaryContainer,
+        ),
+      ),
+    );
   }
 }

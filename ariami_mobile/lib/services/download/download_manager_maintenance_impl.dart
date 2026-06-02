@@ -369,6 +369,254 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
     return tasksToRemove.length;
   }
 
+  Future<int> _pruneOrphanedIncompleteDownloadsImpl(
+    Set<String> validSongIds,
+  ) async {
+    await _ensureInitialized();
+
+    final tasksToRemove = _getScopedQueue()
+        .where((task) =>
+            task.status != DownloadStatus.completed &&
+            !validSongIds.contains(task.songId))
+        .toList();
+    for (final task in tasksToRemove) {
+      cancelDownload(task.id);
+    }
+    return tasksToRemove.length;
+  }
+
+  Future<int> _relinkOrphanedCompletedDownloadsImpl({
+    required List<SongModel> librarySongs,
+    required List<AlbumModel> libraryAlbums,
+  }) async {
+    await _ensureInitialized();
+    if (librarySongs.isEmpty) return 0;
+
+    final librarySongIds = librarySongs.map((song) => song.id).toSet();
+    final albumsById = {for (final album in libraryAlbums) album.id: album};
+    final orphanedTasks = _getScopedQueue()
+        .where((task) =>
+            task.status == DownloadStatus.completed &&
+            !librarySongIds.contains(task.songId))
+        .toList();
+    var relinkedCount = 0;
+
+    for (final task in orphanedTasks) {
+      final matches = librarySongs
+          .where((song) => _downloadTaskMatchesSong(task, song, albumsById))
+          .where((song) =>
+              !_queue.queue.any((queuedTask) => queuedTask.songId == song.id))
+          .toList();
+      if (matches.length != 1) continue;
+
+      final song = matches.single;
+      if (!await _renameCompletedSongFile(task.songId, song.id)) continue;
+
+      final replacement = _buildRelinkedDownloadTask(task, song, albumsById);
+      if (!_queue.replaceTask(task.id, replacement)) {
+        await _renameCompletedSongFile(song.id, task.songId);
+        continue;
+      }
+      _invalidateScopedQueueCache();
+
+      if (sessionTaskIds.remove(task.id)) {
+        sessionTaskIds.add(replacement.id);
+      }
+      unawaited(_cacheArtworkForDownload(replacement));
+      relinkedCount++;
+    }
+
+    if (relinkedCount > 0) {
+      print('[DownloadManager] Relinked $relinkedCount completed download(s)');
+    }
+    return relinkedCount;
+  }
+
+  Future<int> _refreshDownloadAlbumMetadataImpl({
+    required List<AlbumModel> libraryAlbums,
+  }) async {
+    await _ensureInitialized();
+    if (libraryAlbums.isEmpty) return 0;
+
+    final albumsById = {for (final album in libraryAlbums) album.id: album};
+    final tasks =
+        _getScopedQueue().where((task) => task.albumId != null).toList();
+    var refreshedCount = 0;
+
+    _queue.beginBatch();
+    try {
+      for (final task in tasks) {
+        final album = albumsById[task.albumId];
+        if (album == null ||
+            (task.albumName == album.title &&
+                task.albumArtist == album.artist &&
+                (album.coverArt == null || task.albumArt == album.coverArt))) {
+          continue;
+        }
+
+        final replacement = _buildDownloadTaskWithAlbumMetadata(task, album);
+        if (_queue.replaceTask(task.id, replacement)) {
+          refreshedCount++;
+        }
+      }
+    } finally {
+      _queue.endBatch();
+    }
+
+    if (refreshedCount > 0) {
+      _invalidateScopedQueueCache();
+    }
+    return refreshedCount;
+  }
+
+  bool _downloadTaskMatchesSong(
+    DownloadTask task,
+    SongModel song,
+    Map<String, AlbumModel> albumsById,
+  ) {
+    var hasSupportingMetadata = false;
+    if (_normalizeDownloadMetadata(task.title) !=
+            _normalizeDownloadMetadata(song.title) ||
+        _normalizeDownloadMetadata(task.artist) !=
+            _normalizeDownloadMetadata(song.artist)) {
+      return false;
+    }
+    if (task.duration > 0 &&
+        song.duration > 0 &&
+        (task.duration - song.duration).abs() > 3) {
+      return false;
+    }
+    if (task.duration > 0 && song.duration > 0) {
+      hasSupportingMetadata = true;
+    }
+    if (task.trackNumber != null && task.trackNumber != song.trackNumber) {
+      return false;
+    }
+    if (task.trackNumber != null) {
+      hasSupportingMetadata = true;
+    }
+    if ((task.albumId == null) != (song.albumId == null)) {
+      return false;
+    }
+
+    final album = song.albumId == null ? null : albumsById[song.albumId];
+    if (!_optionalDownloadMetadataMatches(task.albumName, album?.title) ||
+        !_optionalAlbumArtistMatches(task.albumArtist, album?.artist)) {
+      return false;
+    }
+    if ((task.albumName?.trim().isNotEmpty ?? false) ||
+        (task.albumArtist?.trim().isNotEmpty ?? false)) {
+      hasSupportingMetadata = true;
+    }
+    return hasSupportingMetadata;
+  }
+
+  bool _optionalDownloadMetadataMatches(String? expected, String? actual) {
+    if (expected == null || expected.trim().isEmpty) return true;
+    if (actual == null || actual.trim().isEmpty) return false;
+    return _normalizeDownloadMetadata(expected) ==
+        _normalizeDownloadMetadata(actual);
+  }
+
+  bool _optionalAlbumArtistMatches(String? expected, String? actual) {
+    if (expected == null || expected.trim().isEmpty) return true;
+    if (_normalizeDownloadMetadata(expected) == 'various artists') return true;
+    return _optionalDownloadMetadataMatches(expected, actual);
+  }
+
+  String _normalizeDownloadMetadata(String value) => value.trim().toLowerCase();
+
+  Future<bool> _renameCompletedSongFile(
+      String oldSongId, String newSongId) async {
+    if (oldSongId == newSongId) return true;
+
+    final oldFile = File(_getSongFilePath(oldSongId));
+    final newFile = File(_getSongFilePath(newSongId));
+    if (!await oldFile.exists() || await newFile.exists()) return false;
+
+    try {
+      await oldFile.rename(newFile.path);
+      return true;
+    } catch (e) {
+      print(
+        '[DownloadManager] Failed to relink local file $oldSongId -> $newSongId: $e',
+      );
+      return false;
+    }
+  }
+
+  DownloadTask _buildRelinkedDownloadTask(
+    DownloadTask task,
+    SongModel song,
+    Map<String, AlbumModel> albumsById,
+  ) {
+    final album = song.albumId == null ? null : albumsById[song.albumId];
+    final apiClient = ConnectionService().apiClient;
+    return DownloadTask(
+      id: 'song_${song.id}',
+      songId: song.id,
+      serverId: task.serverId,
+      userId: task.userId,
+      title: song.title,
+      artist: song.artist,
+      albumId: song.albumId,
+      albumName: album?.title ?? task.albumName,
+      albumArtist: album?.artist ?? task.albumArtist,
+      albumArt: task.albumArt,
+      downloadUrl: apiClient == null
+          ? task.downloadUrl
+          : _buildLegacyDownloadUrl(
+              apiClient: apiClient,
+              songId: song.id,
+              downloadQuality: task.downloadQuality,
+              downloadOriginal: task.downloadOriginal,
+            ),
+      downloadQuality: task.downloadQuality,
+      downloadOriginal: task.downloadOriginal,
+      duration: song.duration,
+      trackNumber: song.trackNumber,
+      status: DownloadStatus.completed,
+      progress: task.progress,
+      bytesDownloaded: task.bytesDownloaded,
+      totalBytes: task.totalBytes,
+      errorMessage: task.errorMessage,
+      retryCount: task.retryCount,
+      nativeBackend: task.nativeBackend,
+      nativeTaskId: task.nativeTaskId,
+    );
+  }
+
+  DownloadTask _buildDownloadTaskWithAlbumMetadata(
+    DownloadTask task,
+    AlbumModel album,
+  ) {
+    return DownloadTask(
+      id: task.id,
+      songId: task.songId,
+      serverId: task.serverId,
+      userId: task.userId,
+      title: task.title,
+      artist: task.artist,
+      albumId: task.albumId,
+      albumName: album.title,
+      albumArtist: album.artist,
+      albumArt: album.coverArt ?? task.albumArt,
+      downloadUrl: task.downloadUrl,
+      downloadQuality: task.downloadQuality,
+      downloadOriginal: task.downloadOriginal,
+      duration: task.duration,
+      trackNumber: task.trackNumber,
+      status: task.status,
+      progress: task.progress,
+      bytesDownloaded: task.bytesDownloaded,
+      totalBytes: task.totalBytes,
+      errorMessage: task.errorMessage,
+      retryCount: task.retryCount,
+      nativeBackend: task.nativeBackend,
+      nativeTaskId: task.nativeTaskId,
+    );
+  }
+
   Future<void> _clearAllDownloadsImpl() async {
     await _ensureInitialized();
 
@@ -416,5 +664,21 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
 
     print(
         'Deleted ${tasksToDelete.length} downloads for album: ${albumId ?? "Singles"} ($deletedFileCount local file${deletedFileCount == 1 ? '' : 's'} removed)');
+  }
+
+  Future<void> _deleteSongDownloadsImpl(Iterable<String> songIds) async {
+    await _ensureInitialized();
+
+    final ids = songIds.toSet();
+    final tasksToDelete =
+        _getScopedQueue().where((task) => ids.contains(task.songId)).toList();
+    if (tasksToDelete.isEmpty) return;
+
+    for (final task in tasksToDelete) {
+      cancelDownload(task.id);
+    }
+    for (final songId in ids) {
+      await _deleteSongFileIfUnreferenced(songId);
+    }
   }
 }

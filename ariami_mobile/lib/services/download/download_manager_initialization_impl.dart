@@ -49,7 +49,7 @@ extension _DownloadManagerInitializationImpl on DownloadManager {
 
     // Listen to queue changes and persist
     _queue.queueStream.listen((tasks) {
-      _scopedQueueCache = null;
+      _invalidateScopedQueueCache();
       _ensureServerScope(tasks);
       _ensureUserScope(tasks);
       _scheduleQueuePersistence(tasks);
@@ -185,6 +185,12 @@ extension _DownloadManagerInitializationImpl on DownloadManager {
     _scopedQueueCacheServerId = currentServerId;
     _scopedQueueCacheUserId = currentUserId;
     return scoped;
+  }
+
+  void _invalidateScopedQueueCache() {
+    _scopedQueueCache = null;
+    _scopedQueueCacheServerId = null;
+    _scopedQueueCacheUserId = null;
   }
 
   void _scheduleQueuePersistence(List<DownloadTask> tasks) {

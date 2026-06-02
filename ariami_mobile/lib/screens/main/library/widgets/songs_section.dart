@@ -111,6 +111,7 @@ class SongsSection extends StatelessWidget {
           final song = songsToShow[index];
           final isDownloaded = state.isSongDownloaded(song.id);
           final isCached = state.isSongCached(song.id);
+          final isOfflineCopy = state.isOfflineCopySong(song.id);
           final isAvailable = !isOffline || isDownloaded || isCached;
 
           final album = song.albumId == null ? null : albumById[song.albumId!];
@@ -123,6 +124,7 @@ class SongsSection extends StatelessWidget {
             isDownloaded: isDownloaded,
             isCached: isCached,
             isAvailable: isAvailable,
+            isOfflineCopy: isOfflineCopy,
             albumName: album?.title,
             albumArtist: album?.artist,
             isSelectionMode: isSelectionMode,

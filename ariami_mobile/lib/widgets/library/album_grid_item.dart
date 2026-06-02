@@ -11,6 +11,7 @@ class AlbumGridItem extends StatelessWidget {
   final VoidCallback? onLongPress;
   final bool isAvailable;
   final bool hasDownloadedSongs;
+  final bool isOfflineCopy;
   final bool isPinned;
   final bool isSelectionMode;
   final bool isSelected;
@@ -22,6 +23,7 @@ class AlbumGridItem extends StatelessWidget {
     this.onLongPress,
     this.isAvailable = true,
     this.hasDownloadedSongs = false,
+    this.isOfflineCopy = false,
     this.isPinned = false,
     this.isSelectionMode = false,
     this.isSelected = false,
@@ -49,7 +51,8 @@ class AlbumGridItem extends StatelessWidget {
                   // Shadow & Container
                   Container(
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(0), // Spotify borderless
+                      borderRadius:
+                          BorderRadius.circular(0), // Spotify borderless
                     ),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(0),
@@ -74,7 +77,9 @@ class AlbumGridItem extends StatelessWidget {
                       child: Container(
                         padding: const EdgeInsets.all(4),
                         decoration: BoxDecoration(
-                          color: Colors.green,
+                          color: isOfflineCopy
+                              ? Theme.of(context).colorScheme.secondary
+                              : Colors.green,
                           shape: BoxShape.circle,
                           border: Border.all(
                               color: Theme.of(context).scaffoldBackgroundColor,
@@ -86,8 +91,10 @@ class AlbumGridItem extends StatelessWidget {
                             )
                           ],
                         ),
-                        child: const Icon(
-                          Icons.download_done,
+                        child: Icon(
+                          isOfflineCopy
+                              ? Icons.cloud_off_rounded
+                              : Icons.download_done,
                           size: 12,
                           color: Colors.white,
                         ),
@@ -169,12 +176,16 @@ class AlbumGridItem extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    album.artist,
+                    isOfflineCopy
+                        ? '${album.artist} · Offline copy'
+                        : album.artist,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .onSurface
-                              .withOpacity(0.6),
+                          color: isOfflineCopy
+                              ? Theme.of(context).colorScheme.secondary
+                              : Theme.of(context)
+                                  .colorScheme
+                                  .onSurface
+                                  .withOpacity(0.6),
                           fontSize: 12,
                         ),
                     maxLines: 1,

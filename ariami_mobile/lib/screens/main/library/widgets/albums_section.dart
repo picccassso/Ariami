@@ -62,6 +62,7 @@ class AlbumsSection extends StatelessWidget {
             (context, index) {
               final album = albumsToShow[index];
               final hasDownloads = state.hasAlbumDownloads(album.id);
+              final isOfflineCopy = state.isOfflineCopyAlbum(album.id);
               final isAvailable = !isOffline || hasDownloads;
 
               return AlbumGridItem(
@@ -71,6 +72,7 @@ class AlbumsSection extends StatelessWidget {
                 onLongPress: () => onAlbumLongPress(album),
                 isAvailable: isAvailable,
                 hasDownloadedSongs: hasDownloads,
+                isOfflineCopy: isOfflineCopy,
                 isPinned: state.isAlbumPinned(album.id),
                 isSelectionMode: isSelectionMode,
                 isSelected: selectedAlbumIds.contains(album.id),
@@ -87,6 +89,7 @@ class AlbumsSection extends StatelessWidget {
         (context, index) {
           final album = albumsToShow[index];
           final hasDownloads = state.hasAlbumDownloads(album.id);
+          final isOfflineCopy = state.isOfflineCopyAlbum(album.id);
           final isAvailable = !isOffline || hasDownloads;
 
           return AlbumListItem(
@@ -96,6 +99,7 @@ class AlbumsSection extends StatelessWidget {
             onLongPress: () => onAlbumLongPress(album),
             isAvailable: isAvailable,
             hasDownloadedSongs: hasDownloads,
+            isOfflineCopy: isOfflineCopy,
             isPinned: state.isAlbumPinned(album.id),
             isSelectionMode: isSelectionMode,
             isSelected: selectedAlbumIds.contains(album.id),

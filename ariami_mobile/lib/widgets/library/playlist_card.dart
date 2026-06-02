@@ -14,6 +14,7 @@ class PlaylistCard extends StatefulWidget {
   final bool isLikedSongs;
   final bool isImportedFromServer;
   final bool hasDownloadedSongs;
+  final bool isOfflineCopy;
   final bool isPinned;
   final bool isSelectionMode;
   final bool isSelected;
@@ -27,6 +28,7 @@ class PlaylistCard extends StatefulWidget {
     this.isLikedSongs = false,
     this.isImportedFromServer = false,
     this.hasDownloadedSongs = false,
+    this.isOfflineCopy = false,
     this.isPinned = false,
     this.isSelectionMode = false,
     this.isSelected = false,
@@ -92,14 +94,12 @@ class _PlaylistCardState extends State<PlaylistCard> {
                     child: _buildPlaylistArt(),
                   ),
                 ),
-
                 if (widget.isSelected)
                   Positioned.fill(
                     child: Container(
                       color: Colors.black26,
                     ),
                   ),
-
                 if (widget.hasDownloadedSongs && !widget.isSelectionMode)
                   Positioned(
                     top: 8,
@@ -107,7 +107,9 @@ class _PlaylistCardState extends State<PlaylistCard> {
                     child: Container(
                       padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
-                        color: Colors.green,
+                        color: widget.isOfflineCopy
+                            ? Theme.of(context).colorScheme.secondary
+                            : Colors.green,
                         shape: BoxShape.circle,
                         border: Border.all(
                             color: Theme.of(context).scaffoldBackgroundColor,
@@ -119,8 +121,10 @@ class _PlaylistCardState extends State<PlaylistCard> {
                           )
                         ],
                       ),
-                      child: const Icon(
-                        Icons.download_done,
+                      child: Icon(
+                        widget.isOfflineCopy
+                            ? Icons.cloud_off_rounded
+                            : Icons.download_done,
                         size: 12,
                         color: Colors.white,
                       ),
@@ -215,13 +219,17 @@ class _PlaylistCardState extends State<PlaylistCard> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${widget.playlist.songCount} songs',
+                    widget.isOfflineCopy
+                        ? '${widget.playlist.songCount} songs · Offline copy'
+                        : '${widget.playlist.songCount} songs',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           fontSize: 12,
-                          color: Theme.of(context)
-                              .colorScheme
-                              .onSurface
-                              .withOpacity(0.6),
+                          color: widget.isOfflineCopy
+                              ? Theme.of(context).colorScheme.secondary
+                              : Theme.of(context)
+                                  .colorScheme
+                                  .onSurface
+                                  .withOpacity(0.6),
                         ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -450,15 +458,15 @@ class CreatePlaylistCard extends StatelessWidget {
         children: [
           AspectRatio(
             aspectRatio: 1.0,
-            child:               Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(0),
-                  color: Theme.of(context)
-                      .colorScheme
-                      .surfaceContainerHighest
-                      .withOpacity(0.5),
-                ),
-                child: Center(
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(0),
+                color: Theme.of(context)
+                    .colorScheme
+                    .surfaceContainerHighest
+                    .withOpacity(0.5),
+              ),
+              child: Center(
                 child: Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
@@ -512,19 +520,19 @@ class ImportFromServerCard extends StatelessWidget {
         children: [
           AspectRatio(
             aspectRatio: 1.0,
-            child:               Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(0),
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Theme.of(context).colorScheme.secondary,
-                      Theme.of(context).colorScheme.primary,
-                    ],
-                  ),
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(0),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Theme.of(context).colorScheme.secondary,
+                    Theme.of(context).colorScheme.primary,
+                  ],
                 ),
-                child: Column(
+              ),
+              child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   const Icon(Icons.cloud_download_rounded,

@@ -18,6 +18,7 @@ class SongListItem extends StatelessWidget {
   final bool isDownloaded;
   final bool isCached;
   final bool isAvailable;
+  final bool isOfflineCopy;
   final String? albumName;
   final String? albumArtist;
   final bool isSelectionMode;
@@ -31,6 +32,7 @@ class SongListItem extends StatelessWidget {
     this.isDownloaded = false,
     this.isCached = false,
     this.isAvailable = true,
+    this.isOfflineCopy = false,
     this.albumName,
     this.albumArtist,
     this.isSelectionMode = false,
@@ -55,9 +57,12 @@ class SongListItem extends StatelessWidget {
             onLongPress: isSelectionMode ? null : onLongPress,
             borderRadius: BorderRadius.circular(0),
             child: Container(
-              color: isSelected ? Colors.white.withOpacity(0.05) : Colors.transparent,
+              color: isSelected
+                  ? Colors.white.withOpacity(0.05)
+                  : Colors.transparent,
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: Row(
                   children: [
                     // Selection Checkbox
@@ -74,7 +79,10 @@ class SongListItem extends StatelessWidget {
                           border: Border.all(
                             color: isSelected
                                 ? Theme.of(context).colorScheme.primary
-                                : Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
+                                : Theme.of(context)
+                                    .colorScheme
+                                    .onSurface
+                                    .withOpacity(0.4),
                             width: 1.5,
                           ),
                         ),
@@ -117,15 +125,21 @@ class SongListItem extends StatelessWidget {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            song.artist,
-                            style:
-                                Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                      fontSize: 14,
-                                      color: Theme.of(context)
+                            isOfflineCopy
+                                ? '${song.artist} · Offline copy'
+                                : song.artist,
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
+                                ?.copyWith(
+                                  fontSize: 14,
+                                  color: isOfflineCopy
+                                      ? Theme.of(context).colorScheme.secondary
+                                      : Theme.of(context)
                                           .colorScheme
                                           .onSurface
                                           .withOpacity(0.6),
-                                    ),
+                                ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -139,12 +153,13 @@ class SongListItem extends StatelessWidget {
                       children: [
                         Text(
                           _formatDuration(song.duration),
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .onSurface
-                                    .withOpacity(0.4),
-                              ),
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurface
+                                        .withOpacity(0.4),
+                                  ),
                         ),
                         if (!isSelectionMode) ...[
                           const SizedBox(width: 4),
@@ -159,8 +174,8 @@ class SongListItem extends StatelessWidget {
                             ),
                             onPressed: () => _showSongMenu(context),
                             padding: EdgeInsets.zero,
-                            constraints:
-                                const BoxConstraints(minWidth: 40, minHeight: 40),
+                            constraints: const BoxConstraints(
+                                minWidth: 40, minHeight: 40),
                           ),
                         ],
                       ],
@@ -203,14 +218,16 @@ class SongListItem extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.all(4),
                 decoration: BoxDecoration(
-                  color: Colors.green, // Functional green for downloads
+                  color: isOfflineCopy
+                      ? Theme.of(context).colorScheme.secondary
+                      : Colors.green,
                   shape: BoxShape.circle,
                   border: Border.all(
                       color: Theme.of(context).scaffoldBackgroundColor,
                       width: 2),
                 ),
-                child: const Icon(
-                  Icons.check,
+                child: Icon(
+                  isOfflineCopy ? Icons.cloud_off_rounded : Icons.check,
                   size: 10,
                   color: Colors.white,
                 ),

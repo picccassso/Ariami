@@ -10,6 +10,7 @@ import '../services/cache/cache_manager.dart';
 import '../services/color_extraction_service.dart';
 import '../services/download/download_manager.dart';
 import '../services/offline/offline_playback_service.dart';
+import '../services/offline/offline_copy_service.dart';
 import '../services/offline/sync_service.dart';
 import '../services/playback_manager.dart';
 import '../services/playlist_service.dart';
@@ -50,6 +51,7 @@ Future<void> clearAllLocalUserData({String? userId}) async {
   ColorExtractionService().clearCache();
   QualitySettingsService().resetToDefaults();
   OfflinePlaybackService().resetToDefaults();
+  OfflineCopyService().resetToDefaults();
   await ThemeService().setThemeSource(ThemeSource.darkNeutral);
 }
 

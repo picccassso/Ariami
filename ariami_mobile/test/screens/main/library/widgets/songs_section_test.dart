@@ -76,6 +76,30 @@ void main() {
       expect(find.text('Test Song 2'), findsOneWidget);
     });
 
+    testWidgets('should show retained standalone song in Songs with badge',
+        (tester) async {
+      final state = LibraryState(
+        offlineCopySongs: [
+          SongModel(
+            id: 'offline-copy',
+            title: 'Saved Single',
+            artist: 'Saved Artist',
+            duration: 180,
+          ),
+        ],
+        downloadedSongIds: {'offline-copy'},
+        isOfflineMode: false,
+        isLoading: false,
+      );
+
+      await tester.pumpWidget(buildTestWidget(state: state));
+      await tester.pump();
+
+      expect(find.text('Saved Single'), findsOneWidget);
+      expect(find.text('Saved Artist · Offline copy'), findsOneWidget);
+      expect(find.byIcon(Icons.cloud_off_rounded), findsOneWidget);
+    });
+
     testWidgets('should display offline songs when in offline mode',
         (tester) async {
       final state = LibraryState(

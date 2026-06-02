@@ -9,6 +9,7 @@ class LibraryState {
   /// Online mode state from server API
   final List<AlbumModel> albums;
   final List<SongModel> songs;
+  final List<SongModel> offlineCopySongs;
 
   /// Offline mode state built from downloads
   final List<Song> offlineSongs;
@@ -33,6 +34,8 @@ class LibraryState {
   final Set<String> albumsWithDownloads;
   final Set<String> fullyDownloadedAlbumIds;
   final Set<String> playlistsWithDownloads;
+  final Set<String> offlineCopyAlbumIds;
+  final Set<String> offlineCopyPlaylistIds;
   final Map<String, DateTime> itemLastPlayedAt;
 
   /// Pinned library items (keys like "album:$id" or "playlist:$id")
@@ -41,6 +44,7 @@ class LibraryState {
   const LibraryState({
     this.albums = const [],
     this.songs = const [],
+    this.offlineCopySongs = const [],
     this.offlineSongs = const [],
     this.isOfflineMode = false,
     this.isLoading = true,
@@ -57,6 +61,8 @@ class LibraryState {
     this.albumsWithDownloads = const {},
     this.fullyDownloadedAlbumIds = const {},
     this.playlistsWithDownloads = const {},
+    this.offlineCopyAlbumIds = const {},
+    this.offlineCopyPlaylistIds = const {},
     this.itemLastPlayedAt = const {},
     this.pinnedItemIds = const {},
   });
@@ -65,6 +71,7 @@ class LibraryState {
   LibraryState copyWith({
     List<AlbumModel>? albums,
     List<SongModel>? songs,
+    List<SongModel>? offlineCopySongs,
     List<Song>? offlineSongs,
     bool? isOfflineMode,
     bool? isLoading,
@@ -81,6 +88,8 @@ class LibraryState {
     Set<String>? albumsWithDownloads,
     Set<String>? fullyDownloadedAlbumIds,
     Set<String>? playlistsWithDownloads,
+    Set<String>? offlineCopyAlbumIds,
+    Set<String>? offlineCopyPlaylistIds,
     Map<String, DateTime>? itemLastPlayedAt,
     Set<String>? pinnedItemIds,
     bool clearError = false,
@@ -89,6 +98,7 @@ class LibraryState {
     return LibraryState(
       albums: albums ?? this.albums,
       songs: songs ?? this.songs,
+      offlineCopySongs: offlineCopySongs ?? this.offlineCopySongs,
       offlineSongs: offlineSongs ?? this.offlineSongs,
       isOfflineMode: isOfflineMode ?? this.isOfflineMode,
       isLoading: isLoading ?? this.isLoading,
@@ -109,6 +119,9 @@ class LibraryState {
           fullyDownloadedAlbumIds ?? this.fullyDownloadedAlbumIds,
       playlistsWithDownloads:
           playlistsWithDownloads ?? this.playlistsWithDownloads,
+      offlineCopyAlbumIds: offlineCopyAlbumIds ?? this.offlineCopyAlbumIds,
+      offlineCopyPlaylistIds:
+          offlineCopyPlaylistIds ?? this.offlineCopyPlaylistIds,
       itemLastPlayedAt: itemLastPlayedAt ?? this.itemLastPlayedAt,
       pinnedItemIds: pinnedItemIds ?? this.pinnedItemIds,
     );
@@ -117,7 +130,7 @@ class LibraryState {
   /// Returns true if the library is empty (no playlists, albums, or songs)
   bool get isLibraryEmpty {
     final songsEmpty = isOfflineMode ? offlineSongs.isEmpty : songs.isEmpty;
-    return albums.isEmpty && songsEmpty;
+    return albums.isEmpty && songsEmpty && offlineCopySongs.isEmpty;
   }
 
   /// Returns the list of albums to show based on download filter
@@ -128,10 +141,22 @@ class LibraryState {
         .toList();
   }
 
+  bool get hasOfflineCopies =>
+      offlineCopyAlbumIds.isNotEmpty ||
+      offlineCopyPlaylistIds.isNotEmpty ||
+      offlineCopySongs.isNotEmpty;
+
   /// Returns the list of online songs to show based on download filter
   List<SongModel> get onlineSongsToShow {
-    if (!showDownloadedOnly) return songs;
-    return songs.where((song) => downloadedSongIds.contains(song.id)).toList();
+    final visibleSongs = [...songs];
+    final visibleSongIds = songs.map((song) => song.id).toSet();
+    visibleSongs.addAll(
+      offlineCopySongs.where((song) => visibleSongIds.add(song.id)),
+    );
+    if (!showDownloadedOnly) return visibleSongs;
+    return visibleSongs
+        .where((song) => downloadedSongIds.contains(song.id))
+        .toList();
   }
 
   /// Returns true if the given album has downloaded songs
@@ -152,6 +177,15 @@ class LibraryState {
   bool hasPlaylistDownloads(String playlistId) =>
       playlistsWithDownloads.contains(playlistId);
 
+  bool isOfflineCopyAlbum(String albumId) =>
+      offlineCopyAlbumIds.contains(albumId);
+
+  bool isOfflineCopySong(String songId) =>
+      offlineCopySongs.any((song) => song.id == songId);
+
+  bool isOfflineCopyPlaylist(String playlistId) =>
+      offlineCopyPlaylistIds.contains(playlistId);
+
   DateTime? lastPlayedForAlbum(String albumId) =>
       itemLastPlayedAt['album:$albumId'];
 
@@ -170,6 +204,7 @@ class LibraryState {
     return other is LibraryState &&
         listEquals(other.albums, albums) &&
         listEquals(other.songs, songs) &&
+        listEquals(other.offlineCopySongs, offlineCopySongs) &&
         listEquals(other.offlineSongs, offlineSongs) &&
         other.isOfflineMode == isOfflineMode &&
         other.isLoading == isLoading &&
@@ -186,14 +221,17 @@ class LibraryState {
         setEquals(other.albumsWithDownloads, albumsWithDownloads) &&
         setEquals(other.fullyDownloadedAlbumIds, fullyDownloadedAlbumIds) &&
         setEquals(other.playlistsWithDownloads, playlistsWithDownloads) &&
+        setEquals(other.offlineCopyAlbumIds, offlineCopyAlbumIds) &&
+        setEquals(other.offlineCopyPlaylistIds, offlineCopyPlaylistIds) &&
         mapEquals(other.itemLastPlayedAt, itemLastPlayedAt) &&
         setEquals(other.pinnedItemIds, pinnedItemIds);
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
         Object.hashAll(albums),
         Object.hashAll(songs),
+        Object.hashAll(offlineCopySongs),
         Object.hashAll(offlineSongs),
         isOfflineMode,
         isLoading,
@@ -210,9 +248,11 @@ class LibraryState {
         Object.hashAll(albumsWithDownloads),
         Object.hashAll(fullyDownloadedAlbumIds),
         Object.hashAll(playlistsWithDownloads),
+        Object.hashAll(offlineCopyAlbumIds),
+        Object.hashAll(offlineCopyPlaylistIds),
         Object.hashAllUnordered(itemLastPlayedAt.entries),
         Object.hashAll(pinnedItemIds),
-      );
+      ]);
 
   @override
   String toString() {

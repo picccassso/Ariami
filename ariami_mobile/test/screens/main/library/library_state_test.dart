@@ -10,6 +10,7 @@ void main() {
 
       expect(state.albums, isEmpty);
       expect(state.songs, isEmpty);
+      expect(state.offlineCopySongs, isEmpty);
       expect(state.offlineSongs, isEmpty);
       expect(state.isOfflineMode, false);
       expect(state.isLoading, true);
@@ -24,6 +25,8 @@ void main() {
       expect(state.albumsWithDownloads, isEmpty);
       expect(state.fullyDownloadedAlbumIds, isEmpty);
       expect(state.playlistsWithDownloads, isEmpty);
+      expect(state.offlineCopyAlbumIds, isEmpty);
+      expect(state.offlineCopyPlaylistIds, isEmpty);
     });
 
     test('copyWith should create modified copy', () {
@@ -161,6 +164,49 @@ void main() {
       final state = const LibraryState().copyWith(songs: songs);
 
       expect(state.onlineSongsToShow.length, 2);
+    });
+
+    test('retained standalone song makes offline copies visible', () {
+      final state = const LibraryState().copyWith(
+        offlineCopySongs: [
+          SongModel(
+            id: 'offline-song',
+            title: 'Offline Song',
+            artist: 'Artist',
+            duration: 100,
+          ),
+        ],
+      );
+
+      expect(state.hasOfflineCopies, isTrue);
+      expect(state.isLibraryEmpty, isFalse);
+      expect(state.onlineSongsToShow.map((song) => song.id), ['offline-song']);
+      expect(state.isOfflineCopySong('offline-song'), isTrue);
+    });
+
+    test('albumsToShow keeps retained offline copies in the normal list', () {
+      final albums = [
+        AlbumModel(
+            id: 'server',
+            title: 'Server Album',
+            artist: 'Artist',
+            songCount: 1,
+            duration: 100),
+        AlbumModel(
+            id: 'offline',
+            title: 'Offline Album',
+            artist: 'Artist',
+            songCount: 1,
+            duration: 100),
+      ];
+      final state = const LibraryState().copyWith(
+        albums: albums,
+        offlineCopyAlbumIds: {'offline'},
+      );
+
+      expect(
+          state.albumsToShow.map((album) => album.id), ['server', 'offline']);
+      expect(state.hasOfflineCopies, isTrue);
     });
 
     test(

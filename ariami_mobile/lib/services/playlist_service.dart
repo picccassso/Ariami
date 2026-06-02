@@ -78,6 +78,13 @@ class PlaylistService extends ChangeNotifier {
   String? getServerPlaylistId(String localPlaylistId) =>
       _importedFromServer[localPlaylistId];
 
+  /// Whether an imported local playlist's original server playlist is absent.
+  bool isImportedServerPlaylistMissing(String localPlaylistId) {
+    final serverPlaylistId = _importedFromServer[localPlaylistId];
+    if (serverPlaylistId == null) return false;
+    return !_serverPlaylists.any((playlist) => playlist.id == serverPlaylistId);
+  }
+
   /// Hidden server playlist IDs (for backup serialization).
   Set<String> get hiddenServerPlaylistIds =>
       Set.unmodifiable(_hiddenServerPlaylistIds);

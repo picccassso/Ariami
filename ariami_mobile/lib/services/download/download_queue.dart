@@ -69,6 +69,20 @@ class DownloadQueue {
     }
   }
 
+  /// Replace a task whose identity changed, such as a path-derived song ID.
+  bool replaceTask(String existingTaskId, DownloadTask replacement) {
+    final index = _queue.indexWhere((task) => task.id == existingTaskId);
+    if (index < 0) return false;
+    if (_queue.any(
+        (task) => task.id == replacement.id && task.id != existingTaskId)) {
+      return false;
+    }
+
+    _queue[index] = replacement;
+    _notifyListeners();
+    return true;
+  }
+
   /// Get next pending task
   DownloadTask? getNextPending() {
     try {
@@ -130,8 +144,10 @@ class DownloadQueue {
   /// Get queue statistics
   QueueStats getStats() {
     int totalTasks = _queue.length;
-    int completed = _queue.where((t) => t.status == DownloadStatus.completed).length;
-    int downloading = _queue.where((t) => t.status == DownloadStatus.downloading).length;
+    int completed =
+        _queue.where((t) => t.status == DownloadStatus.completed).length;
+    int downloading =
+        _queue.where((t) => t.status == DownloadStatus.downloading).length;
     int failed = _queue.where((t) => t.status == DownloadStatus.failed).length;
     int paused = _queue.where((t) => t.status == DownloadStatus.paused).length;
 

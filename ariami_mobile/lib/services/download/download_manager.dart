@@ -234,6 +234,27 @@ class DownloadManager {
   Future<int> pruneOrphanedDownloads(Set<String> validSongIds) =>
       _pruneOrphanedDownloadsImpl(validSongIds);
 
+  /// Remove unfinished downloads that no longer exist in the current library.
+  Future<int> pruneOrphanedIncompleteDownloads(Set<String> validSongIds) =>
+      _pruneOrphanedIncompleteDownloadsImpl(validSongIds);
+
+  /// Relink completed downloads after path-derived server song IDs change.
+  Future<int> relinkOrphanedCompletedDownloads({
+    required List<SongModel> librarySongs,
+    required List<AlbumModel> libraryAlbums,
+  }) =>
+      _relinkOrphanedCompletedDownloadsImpl(
+        librarySongs: librarySongs,
+        libraryAlbums: libraryAlbums,
+      );
+
+  /// Refresh saved album metadata while an authoritative library snapshot is
+  /// available, so offline copies retain the server's title and artist.
+  Future<int> refreshDownloadAlbumMetadata({
+    required List<AlbumModel> libraryAlbums,
+  }) =>
+      _refreshDownloadAlbumMetadataImpl(libraryAlbums: libraryAlbums);
+
   /// Clear all downloads
   Future<void> clearAllDownloads() => _clearAllDownloadsImpl();
 
@@ -241,6 +262,10 @@ class DownloadManager {
   /// Pass null albumId to delete all "Singles" (songs without an album)
   Future<void> deleteAlbumDownloads(String? albumId) =>
       _deleteAlbumDownloadsImpl(albumId);
+
+  /// Delete explicit downloads for the given songs.
+  Future<void> deleteSongDownloads(Iterable<String> songIds) =>
+      _deleteSongDownloadsImpl(songIds);
 
   /// Get download settings
   bool getWifiOnly() => _database.getWifiOnly();

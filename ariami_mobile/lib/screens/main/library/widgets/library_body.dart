@@ -148,8 +148,8 @@ class LibraryBody extends StatelessWidget {
   }
 
   List<Widget> _buildMixedModeSlivers(double bottomPadding) {
-    final effectiveBottomPadding = bottomPadding +
-        (isBatchBarVisible ? kBatchDownloadBarScrollInset : 0);
+    final effectiveBottomPadding =
+        bottomPadding + (isBatchBarVisible ? kBatchDownloadBarScrollInset : 0);
 
     return [
       // Mixed Playlists + Albums Section
@@ -195,8 +195,8 @@ class LibraryBody extends StatelessWidget {
   }
 
   List<Widget> _buildSeparateModeSlivers(double bottomPadding) {
-    final effectiveBottomPadding = bottomPadding +
-        (isBatchBarVisible ? kBatchDownloadBarScrollInset : 0);
+    final effectiveBottomPadding =
+        bottomPadding + (isBatchBarVisible ? kBatchDownloadBarScrollInset : 0);
 
     return [
       // Playlists Section

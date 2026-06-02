@@ -83,8 +83,8 @@ class PlaylistsSection extends StatelessWidget {
     final hasServerPlaylists = playlistService.hasVisibleServerPlaylists;
 
     if (isSelectionMode) {
-      final hasLikedSongs = likedSongsPlaylist != null &&
-          likedSongsPlaylist.songIds.isNotEmpty;
+      final hasLikedSongs =
+          likedSongsPlaylist != null && likedSongsPlaylist.songIds.isNotEmpty;
       final itemCount = (hasLikedSongs ? 1 : 0) + regularPlaylists.length;
 
       return Padding(
@@ -130,6 +130,7 @@ class PlaylistsSection extends StatelessWidget {
               isImportedFromServer:
                   playlistService.isRecentlyImported(playlist.id),
               hasDownloadedSongs: state.hasPlaylistDownloads(playlist.id),
+              isOfflineCopy: state.isOfflineCopyPlaylist(playlist.id),
               isPinned: state.isPlaylistPinned(playlist.id),
               isSelectionMode: true,
               isSelected: selectedPlaylistIds.contains(playlist.id),
@@ -229,6 +230,7 @@ class PlaylistsSection extends StatelessWidget {
             isImportedFromServer:
                 playlistService.isRecentlyImported(playlist.id),
             hasDownloadedSongs: state.hasPlaylistDownloads(playlist.id),
+            isOfflineCopy: state.isOfflineCopyPlaylist(playlist.id),
             isPinned: state.isPlaylistPinned(playlist.id),
           );
         },
@@ -243,8 +245,8 @@ class PlaylistsSection extends StatelessWidget {
     final hasServerPlaylists = playlistService.hasVisibleServerPlaylists;
 
     if (isSelectionMode) {
-      final hasLikedSongs = likedSongsPlaylist != null &&
-          likedSongsPlaylist.songIds.isNotEmpty;
+      final hasLikedSongs =
+          likedSongsPlaylist != null && likedSongsPlaylist.songIds.isNotEmpty;
       final itemCount = (hasLikedSongs ? 1 : 0) + regularPlaylists.length;
 
       return ListView.separated(
@@ -280,8 +282,10 @@ class PlaylistsSection extends StatelessWidget {
             onTap: () => onPlaylistTap(playlist),
             onLongPress: () => onPlaylistLongPress(playlist),
             albumIds: _getPlaylistArtworkIds(playlist),
-            isImportedFromServer: playlistService.isRecentlyImported(playlist.id),
+            isImportedFromServer:
+                playlistService.isRecentlyImported(playlist.id),
             hasDownloadedSongs: state.hasPlaylistDownloads(playlist.id),
+            isOfflineCopy: state.isOfflineCopyPlaylist(playlist.id),
             isPinned: state.isPlaylistPinned(playlist.id),
             isSelectionMode: true,
             isSelected: selectedPlaylistIds.contains(playlist.id),
@@ -359,6 +363,7 @@ class PlaylistsSection extends StatelessWidget {
           albumIds: _getPlaylistArtworkIds(playlist),
           isImportedFromServer: playlistService.isRecentlyImported(playlist.id),
           hasDownloadedSongs: state.hasPlaylistDownloads(playlist.id),
+          isOfflineCopy: state.isOfflineCopyPlaylist(playlist.id),
           isPinned: state.isPlaylistPinned(playlist.id),
         );
       },

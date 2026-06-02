@@ -14,6 +14,7 @@ class PlaylistListItem extends StatefulWidget {
   final bool isLikedSongs;
   final bool isImportedFromServer;
   final bool hasDownloadedSongs;
+  final bool isOfflineCopy;
   final bool isPinned;
   final bool isSelectionMode;
   final bool isSelected;
@@ -27,6 +28,7 @@ class PlaylistListItem extends StatefulWidget {
     this.isLikedSongs = false,
     this.isImportedFromServer = false,
     this.hasDownloadedSongs = false,
+    this.isOfflineCopy = false,
     this.isPinned = false,
     this.isSelectionMode = false,
     this.isSelected = false,
@@ -73,7 +75,9 @@ class _PlaylistListItemState extends State<PlaylistListItem> {
         onLongPress: widget.isSelectionMode ? null : widget.onLongPress,
         borderRadius: BorderRadius.circular(0),
         child: Container(
-          color: widget.isSelected ? Colors.white.withOpacity(0.05) : Colors.transparent,
+          color: widget.isSelected
+              ? Colors.white.withOpacity(0.05)
+              : Colors.transparent,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Row(
@@ -92,7 +96,10 @@ class _PlaylistListItemState extends State<PlaylistListItem> {
                       border: Border.all(
                         color: widget.isSelected
                             ? Theme.of(context).colorScheme.primary
-                            : Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
+                            : Theme.of(context)
+                                .colorScheme
+                                .onSurface
+                                .withOpacity(0.4),
                         width: 1.5,
                       ),
                     ),
@@ -136,15 +143,19 @@ class _PlaylistListItemState extends State<PlaylistListItem> {
                           child: Container(
                             padding: const EdgeInsets.all(4),
                             decoration: BoxDecoration(
-                              color: Colors.green,
+                              color: widget.isOfflineCopy
+                                  ? Theme.of(context).colorScheme.secondary
+                                  : Colors.green,
                               shape: BoxShape.circle,
                               border: Border.all(
                                   color:
                                       Theme.of(context).scaffoldBackgroundColor,
                                   width: 2),
                             ),
-                            child: const Icon(
-                              Icons.download_done,
+                            child: Icon(
+                              widget.isOfflineCopy
+                                  ? Icons.cloud_off_rounded
+                                  : Icons.download_done,
                               size: 10,
                               color: Colors.white,
                             ),
@@ -201,13 +212,17 @@ class _PlaylistListItemState extends State<PlaylistListItem> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '${widget.playlist.songCount} songs',
+                        widget.isOfflineCopy
+                            ? '${widget.playlist.songCount} songs · Offline copy'
+                            : '${widget.playlist.songCount} songs',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                               fontSize: 14,
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurface
-                                  .withValues(alpha: 0.6),
+                              color: widget.isOfflineCopy
+                                  ? Theme.of(context).colorScheme.secondary
+                                  : Theme.of(context)
+                                      .colorScheme
+                                      .onSurface
+                                      .withValues(alpha: 0.6),
                             ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,

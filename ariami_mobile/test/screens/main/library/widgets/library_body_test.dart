@@ -76,10 +76,12 @@ void main() {
 
     double findScrollBottomPadding(WidgetTester tester) {
       final sliverPadding = tester.widget<SliverPadding>(
-        find.descendant(
-          of: find.byType(CustomScrollView),
-          matching: find.byType(SliverPadding),
-        ).last,
+        find
+            .descendant(
+              of: find.byType(CustomScrollView),
+              matching: find.byType(SliverPadding),
+            )
+            .last,
       );
       return sliverPadding.padding.resolve(TextDirection.ltr).bottom;
     }
@@ -148,6 +150,24 @@ void main() {
         paddingWithBatchBar - paddingWithoutBatchBar,
         kBatchDownloadBarScrollInset,
       );
+    });
+
+    testWidgets('keeps retained album in Albums without a separate section',
+        (tester) async {
+      final state = const LibraryState(isLoading: false).copyWith(
+        albums: testAlbums,
+        albumsWithDownloads: {'album-1'},
+        offlineCopyAlbumIds: {'album-1'},
+      );
+
+      await tester.pumpWidget(buildTestWidget(state: state));
+      await tester.pump();
+
+      expect(find.text('Offline copies'), findsNothing);
+      expect(find.text('Albums'), findsOneWidget);
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, -400));
+      await tester.pump();
+      expect(find.text('Test Album'), findsOneWidget);
     });
   });
 }

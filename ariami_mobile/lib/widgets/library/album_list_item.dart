@@ -11,6 +11,7 @@ class AlbumListItem extends StatelessWidget {
   final VoidCallback? onLongPress;
   final bool isAvailable;
   final bool hasDownloadedSongs;
+  final bool isOfflineCopy;
   final bool isPinned;
   final bool isSelectionMode;
   final bool isSelected;
@@ -22,6 +23,7 @@ class AlbumListItem extends StatelessWidget {
     this.onLongPress,
     this.isAvailable = true,
     this.hasDownloadedSongs = false,
+    this.isOfflineCopy = false,
     this.isPinned = false,
     this.isSelectionMode = false,
     this.isSelected = false,
@@ -41,7 +43,9 @@ class AlbumListItem extends StatelessWidget {
           onLongPress: isSelectionMode ? null : onLongPress,
           borderRadius: BorderRadius.circular(0),
           child: Container(
-            color: isSelected ? Colors.white.withOpacity(0.05) : Colors.transparent,
+            color: isSelected
+                ? Colors.white.withOpacity(0.05)
+                : Colors.transparent,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Row(
@@ -60,7 +64,10 @@ class AlbumListItem extends StatelessWidget {
                         border: Border.all(
                           color: isSelected
                               ? Theme.of(context).colorScheme.primary
-                              : Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
+                              : Theme.of(context)
+                                  .colorScheme
+                                  .onSurface
+                                  .withOpacity(0.4),
                           width: 1.5,
                         ),
                       ),
@@ -104,15 +111,19 @@ class AlbumListItem extends StatelessWidget {
                             child: Container(
                               padding: const EdgeInsets.all(4),
                               decoration: BoxDecoration(
-                                color: Colors.green,
+                                color: isOfflineCopy
+                                    ? Theme.of(context).colorScheme.secondary
+                                    : Colors.green,
                                 shape: BoxShape.circle,
                                 border: Border.all(
-                                    color:
-                                        Theme.of(context).scaffoldBackgroundColor,
+                                    color: Theme.of(context)
+                                        .scaffoldBackgroundColor,
                                     width: 2),
                               ),
-                              child: const Icon(
-                                Icons.download_done,
+                              child: Icon(
+                                isOfflineCopy
+                                    ? Icons.cloud_off_rounded
+                                    : Icons.download_done,
                                 size: 10,
                                 color: Colors.white,
                               ),
@@ -166,12 +177,19 @@ class AlbumListItem extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          album.artist,
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .onSurface
-                                    .withValues(alpha: 0.6),
+                          isOfflineCopy
+                              ? '${album.artist} · Offline copy'
+                              : album.artist,
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodyMedium
+                              ?.copyWith(
+                                color: isOfflineCopy
+                                    ? Theme.of(context).colorScheme.secondary
+                                    : Theme.of(context)
+                                        .colorScheme
+                                        .onSurface
+                                        .withValues(alpha: 0.6),
                                 fontSize: 14,
                               ),
                           maxLines: 1,

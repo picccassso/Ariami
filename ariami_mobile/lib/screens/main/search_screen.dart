@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
 import '../../widgets/common/queue_action_confirmation.dart';
-import '../../widgets/common/bottom_chrome_metrics.dart';
 import '../../models/api_models.dart';
 import '../../models/download_task.dart';
 import '../../models/song.dart';
@@ -13,6 +12,7 @@ import '../../services/playback_manager.dart';
 import '../../services/download/download_manager.dart';
 import '../../services/offline/offline_playback_service.dart';
 import '../../utils/download_state_watcher.dart';
+import '../../utils/downloaded_album_metadata.dart';
 import '../../widgets/search/search_result_song_item.dart';
 import '../../widgets/search/search_result_album_item.dart';
 import '../../debug/agent_debug_log.dart';
@@ -214,7 +214,7 @@ class _SearchScreenState extends State<SearchScreen> {
       return AlbumModel(
         id: entry.key,
         title: firstTask.albumName!,
-        artist: firstTask.albumArtist ?? firstTask.artist,
+        artist: resolveDownloadedAlbumArtist(albumTasks),
         coverArt: firstTask.albumArt,
         songCount: albumTasks.length,
         duration: totalDuration,

@@ -9,8 +9,10 @@ import '../../services/library/library_repository.dart';
 import '../../services/playlist_service.dart';
 import '../../services/playback_manager.dart';
 import '../../services/offline/offline_playback_service.dart';
+import '../../services/offline/offline_copy_service.dart';
 import '../../services/download/download_manager.dart';
 import '../../utils/download_state_watcher.dart';
+import '../../utils/downloaded_album_metadata.dart';
 import 'add_to_playlist_screen.dart';
 import '../main/library/library_controller.dart';
 import 'utils/playlist_helpers.dart';
@@ -34,6 +36,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   final ConnectionService _connectionService = ConnectionService();
   final PlaybackManager _playbackManager = PlaybackManager();
   final OfflinePlaybackService _offlineService = OfflinePlaybackService();
+  final OfflineCopyService _offlineCopyService = OfflineCopyService();
   final DownloadManager _downloadManager = DownloadManager();
   final LibraryRepository _libraryRepository = LibraryRepository();
   final LibraryController _libraryController = LibraryController();
@@ -60,7 +63,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
     );
     _downloadStateWatcher.start();
     _loadDownloadedSongs();
-    _loadPlaylist();
+    unawaited(_loadPlaylist().then((_) => _showOfflineCopyNoticeIfNeeded()));
     _playlistService.addListener(_onPlaylistsChanged);
     _webSocketSubscription = _connectionService.webSocketMessages.listen(
       _handleLibrarySyncMessage,
@@ -269,14 +272,13 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
           _albumInfoMap[album.id] = (name: album.title, artist: album.artist);
         }
 
-        for (final task in _downloadManager.queue) {
-          if (task.status == DownloadStatus.completed &&
-              task.albumId != null &&
-              task.albumName != null &&
-              !_albumInfoMap.containsKey(task.albumId)) {
-            _albumInfoMap[task.albumId!] = (
-              name: task.albumName!,
-              artist: task.albumArtist ?? task.artist,
+        for (final entry in _completedDownloadTasksByAlbum().entries) {
+          final firstTask = entry.value.first;
+          if (firstTask.albumName != null &&
+              !_albumInfoMap.containsKey(entry.key)) {
+            _albumInfoMap[entry.key] = (
+              name: firstTask.albumName!,
+              artist: resolveDownloadedAlbumArtist(entry.value),
             );
           }
         }
@@ -325,8 +327,8 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
       final cachedTitle = playlist.songTitles[id];
       final cachedArtist = playlist.songArtists[id];
       final cachedDuration = playlist.songDurations[id];
-      final isUnresolved = (cachedTitle == null || cachedTitle.isEmpty) &&
-          preferredSong == null;
+      final isUnresolved =
+          (cachedTitle == null || cachedTitle.isEmpty) && preferredSong == null;
 
       return SongModel(
         id: id,
@@ -365,14 +367,30 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
         duration: task.duration,
         trackNumber: task.trackNumber,
       );
+    }
 
-      if (task.albumId != null && task.albumName != null) {
-        _albumInfoMap[task.albumId!] =
-            (name: task.albumName!, artist: task.albumArtist ?? task.artist);
+    for (final entry in _completedDownloadTasksByAlbum().entries) {
+      final firstTask = entry.value.first;
+      if (firstTask.albumName != null) {
+        _albumInfoMap[entry.key] = (
+          name: firstTask.albumName!,
+          artist: resolveDownloadedAlbumArtist(entry.value),
+        );
       }
     }
 
     return downloadedSongs;
+  }
+
+  Map<String, List<DownloadTask>> _completedDownloadTasksByAlbum() {
+    final tasksByAlbum = <String, List<DownloadTask>>{};
+    for (final task in _downloadManager.queue) {
+      if (task.status != DownloadStatus.completed || task.albumId == null) {
+        continue;
+      }
+      tasksByAlbum.putIfAbsent(task.albumId!, () => []).add(task);
+    }
+    return tasksByAlbum;
   }
 
   bool _needsLibrarySongMetadata(List<SongModel> songs) {
@@ -482,15 +500,54 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
       _songs.isNotEmpty &&
       _songs.every((s) => _downloadedSongIds.contains(s.id));
 
+  bool get _isOfflineCopy =>
+      _offlineCopyService.isRetainedPlaylist(widget.playlistId);
+
+  bool get _shouldUseOfflineTracks =>
+      _offlineService.isOffline || _isOfflineCopy;
+
+  Future<void> _showOfflineCopyNoticeIfNeeded() async {
+    if (!_isOfflineCopy ||
+        !await _offlineCopyService.claimNotice('playlist', widget.playlistId) ||
+        !mounted) {
+      return;
+    }
+
+    final removeDownloads = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Offline copy kept'),
+        content: const Text(
+          'Just a heads up - this playlist has been deleted from the server.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Keep offline copy'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Remove downloads'),
+          ),
+        ],
+      ),
+    );
+
+    if (removeDownloads != true || !mounted) return;
+    await _downloadManager.deleteSongDownloads(_playlist?.songIds ?? const []);
+    await _offlineCopyService.forgetPlaylist(widget.playlistId);
+    await _libraryController.refreshOfflineCopyState();
+    if (mounted) Navigator.of(context).pop();
+  }
+
   /// Download all songs in the playlist that are not already downloaded.
   void _downloadPlaylist() {
     if (_connectionService.apiClient == null) {
       return;
     }
 
-    final songsToDownload = _songs
-        .where((s) => !_downloadedSongIds.contains(s.id))
-        .toList();
+    final songsToDownload =
+        _songs.where((s) => !_downloadedSongIds.contains(s.id)).toList();
 
     if (songsToDownload.isEmpty) {
       return;
@@ -500,8 +557,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
     final playlist = _playlist;
 
     for (final song in songsToDownload) {
-      final albumId =
-          song.albumId ?? playlist?.songAlbumIds[song.id];
+      final albumId = song.albumId ?? playlist?.songAlbumIds[song.id];
       String? albumName;
       String? albumArtist;
 
@@ -532,7 +588,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   Future<void> _playAll() async {
     if (_songs.isEmpty) return;
 
-    final isOffline = _offlineService.isOffline;
+    final isOffline = _shouldUseOfflineTracks;
     final songsToPlay = isOffline
         ? _songs.where((s) => _downloadedSongIds.contains(s.id)).toList()
         : _songs;
@@ -551,7 +607,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   Future<void> _shuffleAll() async {
     if (_songs.isEmpty) return;
 
-    final isOffline = _offlineService.isOffline;
+    final isOffline = _shouldUseOfflineTracks;
     final songsToPlay = isOffline
         ? _songs.where((s) => _downloadedSongIds.contains(s.id)).toList()
         : _songs;
@@ -568,7 +624,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
 
   /// Play a specific track
   Future<void> _playTrack(SongModel track, int index) async {
-    final isOffline = _offlineService.isOffline;
+    final isOffline = _shouldUseOfflineTracks;
     final songsToPlay = isOffline
         ? _songs.where((s) => _downloadedSongIds.contains(s.id)).toList()
         : _songs;
@@ -767,6 +823,11 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
           ),
         ),
 
+        if (_isOfflineCopy)
+          const SliverToBoxAdapter(
+            child: _PlaylistOfflineCopyBanner(),
+          ),
+
         // Action buttons
         SliverToBoxAdapter(
           child: PlaylistActionButtons(
@@ -774,10 +835,9 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
             hasSongs: _songs.isNotEmpty,
             canReorder: _songs.length > 1,
             isReorderMode: _isReorderMode,
-            onDownloadPlaylist:
-                (_songs.isEmpty || _isPlaylistFullyDownloaded)
-                    ? null
-                    : _downloadPlaylist,
+            onDownloadPlaylist: (_songs.isEmpty || _isPlaylistFullyDownloaded)
+                ? null
+                : _downloadPlaylist,
             onPlay: _playAll,
             onShuffle: _shuffleAll,
             onToggleReorder: () =>
@@ -828,7 +888,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
               (context, index) {
                 final song = _songs[index];
                 final isDownloaded = _downloadedSongIds.contains(song.id);
-                final isOffline = _offlineService.isOffline;
+                final isOffline = _shouldUseOfflineTracks;
                 final isAvailable = !isOffline || isDownloaded;
                 final albumId = song.albumId;
                 final albumInfo =
@@ -870,6 +930,25 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _PlaylistOfflineCopyBanner extends StatelessWidget {
+  const _PlaylistOfflineCopyBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      padding: const EdgeInsets.all(12),
+      color: Theme.of(context).colorScheme.secondaryContainer,
+      child: Text(
+        'Offline copy: this playlist is no longer available on the server.',
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.onSecondaryContainer,
+        ),
+      ),
     );
   }
 }

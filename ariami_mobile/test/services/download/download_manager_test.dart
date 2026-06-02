@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:ariami_mobile/models/api_models.dart';
 import 'package:ariami_mobile/models/download_task.dart';
 import 'package:ariami_mobile/services/download/download_helpers.dart';
 import 'package:ariami_mobile/services/download/download_manager.dart';
@@ -255,6 +256,90 @@ void main() {
             .existsSync(),
         isFalse,
       );
+    });
+
+    test('relinks a completed download only for one metadata match', () async {
+      final album = AlbumModel(
+        id: 'album-1',
+        title: 'Album album-1',
+        artist: 'Test Album Artist',
+        songCount: 1,
+        duration: 0,
+      );
+      SongModel song(String id) => SongModel(
+            id: id,
+            title: 'Complete',
+            artist: 'Test Artist',
+            albumId: album.id,
+            duration: 0,
+          );
+
+      await manager.refreshDownloadAlbumMetadata(
+        libraryAlbums: [
+          AlbumModel(
+            id: album.id,
+            title: album.title,
+            artist: 'Various Artists',
+            songCount: album.songCount,
+            duration: album.duration,
+          ),
+        ],
+      );
+
+      final relinked = await manager.relinkOrphanedCompletedDownloads(
+        librarySongs: [song('song-restored')],
+        libraryAlbums: [album],
+      );
+
+      expect(relinked, 1);
+      expect(await manager.isSongDownloaded('song-restored'), isTrue);
+      expect(await manager.isSongDownloaded('song-complete'), isFalse);
+      expect(
+        File(p.join(docsDir.path, 'downloads', 'songs', 'song-restored.mp3'))
+            .existsSync(),
+        isTrue,
+      );
+      expect(
+        File(p.join(docsDir.path, 'downloads', 'songs', 'song-complete.mp3'))
+            .existsSync(),
+        isFalse,
+      );
+
+      final relinkedBack = await manager.relinkOrphanedCompletedDownloads(
+        librarySongs: [song('song-complete')],
+        libraryAlbums: [album],
+      );
+      expect(relinkedBack, 1);
+
+      final ambiguous = await manager.relinkOrphanedCompletedDownloads(
+        librarySongs: [song('candidate-a'), song('candidate-b')],
+        libraryAlbums: [album],
+      );
+      expect(ambiguous, 0);
+      expect(await manager.isSongDownloaded('song-complete'), isTrue);
+    });
+
+    test('refreshes saved album metadata from an authoritative snapshot',
+        () async {
+      final refreshed = await manager.refreshDownloadAlbumMetadata(
+        libraryAlbums: [
+          AlbumModel(
+            id: 'album-1',
+            title: 'Correct Album',
+            artist: 'Correct Album Artist',
+            coverArt: 'https://example.com/correct-art.jpg',
+            songCount: 1,
+            duration: 0,
+          ),
+        ],
+      );
+
+      final task =
+          manager.queue.firstWhere((task) => task.songId == 'song-complete');
+      expect(refreshed, 1);
+      expect(task.albumName, 'Correct Album');
+      expect(task.albumArtist, 'Correct Album Artist');
+      expect(task.albumArt, 'https://example.com/correct-art.jpg');
     });
 
     test('resume, prune, and clear operations preserve behavior', () async {

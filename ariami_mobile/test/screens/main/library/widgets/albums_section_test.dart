@@ -194,5 +194,24 @@ void main() {
 
       expect(tapped, true);
     });
+
+    testWidgets('should keep retained album in Albums with offline-copy badge',
+        (tester) async {
+      final state = LibraryState(
+        albums: testAlbums,
+        isGridView: true,
+        isLoading: false,
+        albumsWithDownloads: {'album-1'},
+        offlineCopyAlbumIds: {'album-1'},
+      );
+
+      await tester.pumpWidget(buildTestWidget(state: state));
+      await tester.pump();
+
+      expect(find.text('Test Album 1'), findsOneWidget);
+      expect(find.text('Test Artist 1 · Offline copy'), findsOneWidget);
+      expect(find.byIcon(Icons.cloud_off_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.download_done), findsNothing);
+    });
   });
 }

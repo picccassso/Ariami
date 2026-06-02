@@ -142,7 +142,8 @@ class _MixedSectionState extends State<MixedSection> {
             final item = items[index];
             return item.when(
               playlist: (playlist) {
-                final isLikedSongs = playlist.id == PlaylistService.likedSongsId;
+                final isLikedSongs =
+                    playlist.id == PlaylistService.likedSongsId;
                 return PlaylistCard(
                   key: ValueKey('playlist-${playlist.id}'),
                   playlist: playlist,
@@ -154,6 +155,8 @@ class _MixedSectionState extends State<MixedSection> {
                       widget.playlistService.isRecentlyImported(playlist.id),
                   hasDownloadedSongs:
                       widget.state.hasPlaylistDownloads(playlist.id),
+                  isOfflineCopy:
+                      widget.state.isOfflineCopyPlaylist(playlist.id),
                   isPinned: item.isPinned,
                   isSelectionMode: widget.isSelectionMode,
                   isSelected: widget.selectedPlaylistIds.contains(playlist.id),
@@ -169,6 +172,7 @@ class _MixedSectionState extends State<MixedSection> {
                   onLongPress: () => widget.onAlbumLongPress(album),
                   isAvailable: isAvailable,
                   hasDownloadedSongs: hasDownloads,
+                  isOfflineCopy: widget.state.isOfflineCopyAlbum(album.id),
                   isPinned: item.isPinned,
                   isSelectionMode: widget.isSelectionMode,
                   isSelected: widget.selectedAlbumIds.contains(album.id),
@@ -201,6 +205,7 @@ class _MixedSectionState extends State<MixedSection> {
                     widget.playlistService.isRecentlyImported(playlist.id),
                 hasDownloadedSongs:
                     widget.state.hasPlaylistDownloads(playlist.id),
+                isOfflineCopy: widget.state.isOfflineCopyPlaylist(playlist.id),
                 isPinned: item.isPinned,
                 isSelectionMode: widget.isSelectionMode,
                 isSelected: widget.selectedPlaylistIds.contains(playlist.id),
@@ -216,6 +221,7 @@ class _MixedSectionState extends State<MixedSection> {
                 onLongPress: () => widget.onAlbumLongPress(album),
                 isAvailable: isAvailable,
                 hasDownloadedSongs: hasDownloads,
+                isOfflineCopy: widget.state.isOfflineCopyAlbum(album.id),
                 isPinned: item.isPinned,
                 isSelectionMode: widget.isSelectionMode,
                 isSelected: widget.selectedAlbumIds.contains(album.id),

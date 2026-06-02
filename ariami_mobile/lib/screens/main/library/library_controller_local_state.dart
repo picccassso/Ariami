@@ -73,6 +73,20 @@ extension _LibraryControllerLocalState on LibraryController {
       }
     }
 
+    if (_hasLoadedOnlineLibrary) {
+      await _offlineCopyService.reconcilePlaylists(
+        _playlistService.playlists
+            .where((playlist) =>
+                playlistsWithDownloads.contains(playlist.id) &&
+                _playlistService.isImportedServerPlaylistMissing(playlist.id))
+            .map((playlist) => playlist.id)
+            .toSet(),
+      );
+    }
+    final offlineCopyPlaylistIds = _offlineCopyService.retainedPlaylistIds
+        .where(playlistsWithDownloads.contains)
+        .toSet();
+
     _lastCompletedDownloadsSignature = _buildCompletedDownloadsSignature(queue);
 
     final downloadStateUnchanged = _state.downloadedSongIds.length ==
@@ -83,7 +97,9 @@ extension _LibraryControllerLocalState on LibraryController {
         _state.fullyDownloadedAlbumIds.length == fullyDownloaded.length &&
         _state.fullyDownloadedAlbumIds.containsAll(fullyDownloaded) &&
         _state.playlistsWithDownloads.length == playlistsWithDownloads.length &&
-        _state.playlistsWithDownloads.containsAll(playlistsWithDownloads);
+        _state.playlistsWithDownloads.containsAll(playlistsWithDownloads) &&
+        _state.offlineCopyPlaylistIds.length == offlineCopyPlaylistIds.length &&
+        _state.offlineCopyPlaylistIds.containsAll(offlineCopyPlaylistIds);
 
     if (downloadStateUnchanged) return;
 
@@ -92,6 +108,7 @@ extension _LibraryControllerLocalState on LibraryController {
       albumsWithDownloads: albumsWithDownloads,
       fullyDownloadedAlbumIds: fullyDownloaded,
       playlistsWithDownloads: playlistsWithDownloads,
+      offlineCopyPlaylistIds: offlineCopyPlaylistIds,
     ));
   }
 
@@ -137,6 +154,54 @@ extension _LibraryControllerLocalState on LibraryController {
       }
     }
 
+    final albums = _buildAlbumsFromDownloadGroups(albumMap);
+
+    songs.sort((a, b) => a.title.compareTo(b.title));
+
+    _updateState(_state.copyWith(
+      offlineSongs: songs,
+      offlineCopySongs: const [],
+      albums: albums,
+      offlineCopyAlbumIds: _offlineCopyService.retainedAlbumIds,
+      offlineCopyPlaylistIds: _offlineCopyService.retainedPlaylistIds,
+      isOfflineMode: true,
+    ));
+  }
+
+  List<AlbumModel> _buildRetainedOfflineAlbums() {
+    final albumMap = <String, List<DownloadTask>>{};
+    for (final task in _downloadManager.queue) {
+      if (task.status != DownloadStatus.completed ||
+          task.albumId == null ||
+          !_offlineCopyService.isRetainedAlbum(task.albumId!)) {
+        continue;
+      }
+      albumMap.putIfAbsent(task.albumId!, () => []).add(task);
+    }
+    return _buildAlbumsFromDownloadGroups(albumMap);
+  }
+
+  List<SongModel> _buildRetainedOfflineSongs() {
+    final songs = _downloadManager.queue
+        .where((task) =>
+            task.status == DownloadStatus.completed &&
+            task.albumId == null &&
+            _offlineCopyService.isRetainedSong(task.songId))
+        .map((task) => SongModel(
+              id: task.songId,
+              title: task.title,
+              artist: task.artist,
+              duration: task.duration,
+              trackNumber: task.trackNumber,
+            ))
+        .toList();
+    songs.sort((a, b) => a.title.compareTo(b.title));
+    return songs;
+  }
+
+  List<AlbumModel> _buildAlbumsFromDownloadGroups(
+    Map<String, List<DownloadTask>> albumMap,
+  ) {
     final albums = <AlbumModel>[];
     for (final entry in albumMap.entries) {
       final albumId = entry.key;
@@ -148,20 +213,14 @@ extension _LibraryControllerLocalState on LibraryController {
       albums.add(AlbumModel(
         id: albumId,
         title: firstTask.albumName ?? '${firstTask.artist} Album',
-        artist: firstTask.albumArtist ?? firstTask.artist,
+        artist: resolveDownloadedAlbumArtist(albumTasks),
         coverArt: resolveAlbumArtworkUrl(albumId: albumId),
         songCount: albumTasks.length,
         duration: totalDuration,
       ));
     }
 
-    songs.sort((a, b) => a.title.compareTo(b.title));
     albums.sort((a, b) => a.title.compareTo(b.title));
-
-    _updateState(_state.copyWith(
-      offlineSongs: songs,
-      albums: albums,
-      isOfflineMode: true,
-    ));
+    return albums;
   }
 }

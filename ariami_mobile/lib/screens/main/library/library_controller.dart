@@ -13,11 +13,13 @@ import '../../../services/download/download_manager.dart';
 import '../../../services/library/library_read_facade.dart';
 import '../../../services/library/library_pin_storage.dart';
 import '../../../services/offline/offline_manual_reconnect.dart';
+import '../../../services/offline/offline_copy_service.dart';
 import '../../../services/offline/offline_playback_service.dart';
 import '../../../services/playback_manager.dart';
 import '../../../services/playlist_service.dart';
 import '../../../services/stats/streaming_stats_service.dart';
 import '../../../utils/artwork_url.dart';
+import '../../../utils/downloaded_album_metadata.dart';
 import 'library_state.dart';
 
 part 'library_controller_loading.dart';
@@ -36,6 +38,7 @@ class LibraryController extends ChangeNotifier {
   late final PlaybackManager _playbackManager;
   late final PlaylistService _playlistService;
   late final OfflinePlaybackService _offlineService;
+  late final OfflineCopyService _offlineCopyService;
   late final DownloadManager _downloadManager;
   late final CacheManager _cacheManager;
   late final StreamingStatsService _statsService;
@@ -92,6 +95,7 @@ class LibraryController extends ChangeNotifier {
   bool _isLibraryLoadInFlight = false;
   bool _pendingBackgroundReload = false;
   bool _pendingScrollRestore = false;
+  bool _hasLoadedOnlineLibrary = false;
 
   @visibleForTesting
   int libraryLoadAttemptsForTest = 0;
@@ -101,6 +105,7 @@ class LibraryController extends ChangeNotifier {
     _playbackManager = PlaybackManager();
     _playlistService = PlaylistService();
     _offlineService = OfflinePlaybackService();
+    _offlineCopyService = OfflineCopyService();
     _downloadManager = DownloadManager();
     _cacheManager = CacheManager();
     _statsService = StreamingStatsService();
@@ -142,10 +147,20 @@ class LibraryController extends ChangeNotifier {
   /// Refreshes the library; attempts reconnect when offline or disconnected.
   Future<LibraryRefreshOutcome> refreshLibrary() => _refreshLibrary();
 
+  Future<void> refreshOfflineCopyState() async {
+    if (_offlineService.isOfflineModeEnabled) {
+      _buildLibraryFromDownloads();
+      await _loadDownloadedSongs();
+      return;
+    }
+    await _loadLibrary(background: true);
+  }
+
   /// Initialize the controller and load initial data.
   Future<void> initialize() async {
     if (_isInitialized) return;
     _isInitialized = true;
+    await _offlineCopyService.initialize();
     await _loadUiPreferences();
     await _loadPlayedHistory();
     await _loadPinnedItems();

@@ -190,11 +190,34 @@ extension _LibraryControllerLoading on LibraryController {
     _playlistService.updateServerPlaylists(library.serverPlaylists);
 
     final validSongIds = library.songs.map((song) => song.id).toSet();
-    await _downloadManager.pruneOrphanedDownloads(validSongIds);
+    final validAlbumIds = library.albums.map((album) => album.id).toSet();
+    await _downloadManager.pruneOrphanedIncompleteDownloads(validSongIds);
+    await _downloadManager.relinkOrphanedCompletedDownloads(
+      librarySongs: library.songs,
+      libraryAlbums: library.albums,
+    );
+    await _downloadManager.refreshDownloadAlbumMetadata(
+      libraryAlbums: [
+        ..._state.albums.where(
+          (album) => !_state.isOfflineCopyAlbum(album.id),
+        ),
+        ...library.albums,
+      ],
+    );
+    await _offlineCopyService.reconcileAlbums(
+      tasks: _downloadManager.queue,
+      serverSongIds: validSongIds,
+      serverAlbumIds: validAlbumIds,
+    );
+    final retainedAlbums = _buildRetainedOfflineAlbums();
+    final retainedSongs = _buildRetainedOfflineSongs();
+    _hasLoadedOnlineLibrary = true;
 
     _updateState(_state.copyWith(
-      albums: library.albums,
+      albums: [...library.albums, ...retainedAlbums],
       songs: library.songs,
+      offlineCopySongs: retainedSongs,
+      offlineCopyAlbumIds: _offlineCopyService.retainedAlbumIds,
       isOfflineMode: false,
       isLoading: false,
       isRefreshing: false,
