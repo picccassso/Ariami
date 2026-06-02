@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../models/server_info.dart';
 import '../../services/api/connection_service.dart';
+import 'server_connection_router.dart';
 
 // Phase 6 (Tests and Validation) completed:
 // - AuthService unit tests cover register/login/logout/validate and rate limiting
@@ -52,38 +53,8 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
         throw Exception('Invalid QR code format');
       }
 
-      final requiresAuth = serverInfo.authRequired && !serverInfo.legacyMode;
-
-      if (requiresAuth) {
-        // Auth required - navigate to login screen
-        if (mounted) {
-          Navigator.pushReplacementNamed(
-            context,
-            '/auth/login',
-            arguments: serverInfo,
-          );
-        }
-        return;
-      }
-
-      if (serverInfo.legacyMode) {
-        // First account must be created before access
-        if (mounted) {
-          Navigator.pushReplacementNamed(
-            context,
-            '/auth/register',
-            arguments: serverInfo,
-          );
-        }
-        return;
-      }
-
-      // Fallback: connect directly if server doesn't require auth
-      await _connectionService.connectToServer(serverInfo);
-
-      // Success! Navigate to permissions screen
       if (mounted) {
-        Navigator.pushReplacementNamed(context, '/setup/permissions');
+        await routeForServerInfo(context, serverInfo, _connectionService);
       }
     } catch (e) {
       // Restart camera on error
@@ -205,6 +176,30 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
                     ),
                   ),
               ],
+            ),
+          ),
+
+          // Manual entry fallback (for when a QR code isn't available)
+          Positioned(
+            bottom: 24,
+            left: 20,
+            right: 20,
+            child: SizedBox(
+              height: 52,
+              child: OutlinedButton.icon(
+                onPressed: _isProcessing
+                    ? null
+                    : () => Navigator.pushNamed(context, '/setup/manual'),
+                icon: const Icon(Icons.keyboard),
+                label: const Text('Manual entry'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  side: const BorderSide(color: Colors.white70),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(28),
+                  ),
+                ),
+              ),
             ),
           ),
         ],

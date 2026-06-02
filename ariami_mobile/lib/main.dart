@@ -5,6 +5,7 @@ import 'package:audio_service/audio_service.dart';
 import 'screens/welcome_screen.dart';
 import 'screens/setup/tailscale_check_screen.dart';
 import 'screens/setup/qr_scanner_screen.dart';
+import 'screens/setup/manual_server_entry_screen.dart';
 import 'screens/setup/permissions_screen.dart';
 import 'screens/main_navigation_screen.dart';
 import 'screens/reconnect_screen.dart';
@@ -472,6 +473,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           routes: {
             '/setup/tailscale': (context) => const TailscaleCheckScreen(),
             '/setup/scanner': (context) => const QRScannerScreen(),
+            '/setup/manual': (context) => const ManualServerEntryScreen(),
             '/setup/permissions': (context) => const PermissionsScreen(),
             '/main': (context) => const MainNavigationScreen(),
             '/reconnect': (context) => const ReconnectScreen(),

@@ -243,6 +243,14 @@ extension AriamiHttpServerAuthAndAdminHandlersMethods on AriamiHttpServer {
     return _jsonOk(_createRegistrationTokenPayload());
   }
 
+  /// Admin-only: mint a short, typeable invite code for manual-entry signup.
+  Response _handleAdminInviteCode(Request request) {
+    final authResponse = _authorizeAdminRequest(request);
+    if (authResponse != null) return authResponse;
+
+    return _jsonOk(_createInviteCodePayload());
+  }
+
   Response _handleAdminUsers(Request request) {
     final authResponse = _authorizeAdminRequest(request);
     if (authResponse != null) return authResponse;

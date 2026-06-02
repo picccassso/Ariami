@@ -156,4 +156,17 @@ class AriamiHttpServer {
     }
     return buffer.toString();
   }
+
+  /// Generate a short, human-typeable invite code (canonical form: uppercase,
+  /// no separators). Uses an unambiguous alphabet (no 0/1/I/L/O/U) so it can be
+  /// read aloud or relayed without confusion. Displayed grouped (e.g. XXXX-XXXX)
+  /// by clients, but stored/validated in this canonical form.
+  String _generateInviteCodeValue() {
+    const alphabet = '23456789ABCDEFGHJKMNPQRSTVWXYZ';
+    final buffer = StringBuffer();
+    for (var i = 0; i < 8; i++) {
+      buffer.write(alphabet[_secureRandom.nextInt(alphabet.length)]);
+    }
+    return buffer.toString();
+  }
 }

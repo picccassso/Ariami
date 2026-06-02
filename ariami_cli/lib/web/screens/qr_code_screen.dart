@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:ariami_core/models/auth_models.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../services/web_api_client.dart';
 import '../services/web_auth_service.dart';
@@ -39,6 +40,13 @@ class _QRCodeScreenState extends State<QRCodeScreen>
   bool _isWaitingForConnection = false;
   late AnimationController _pulseController;
 
+  // Manual-entry invite code (for phones that can't scan the QR).
+  String? _inviteCode;
+  DateTime? _inviteExpiresAt;
+  bool _isGeneratingInvite = false;
+  String? _inviteError;
+  Timer? _inviteCountdownTimer;
+
   @override
   void initState() {
     super.initState();
@@ -53,8 +61,90 @@ class _QRCodeScreenState extends State<QRCodeScreen>
   void dispose() {
     _connectionPollTimer?.cancel();
     _serverInfoPollTimer?.cancel();
+    _inviteCountdownTimer?.cancel();
     _pulseController.dispose();
     super.dispose();
+  }
+
+  Future<void> _generateInviteCode() async {
+    setState(() {
+      _isGeneratingInvite = true;
+      _inviteError = null;
+    });
+
+    try {
+      final response = await _apiClient.get('/api/admin/invite-code');
+
+      if (response.isAuthError) {
+        await _redirectToLoginIfSessionCannotRecover(response.errorCode);
+        if (mounted) setState(() => _isGeneratingInvite = false);
+        return;
+      }
+
+      if (response.statusCode == 200 && response.jsonBody != null) {
+        final code = response.jsonBody!['inviteCode'] as String?;
+        final expiresAtRaw = response.jsonBody!['expiresAt'] as String?;
+        if (mounted) {
+          setState(() {
+            _inviteCode = code;
+            _inviteExpiresAt = expiresAtRaw != null
+                ? DateTime.tryParse(expiresAtRaw)?.toLocal()
+                : null;
+            _isGeneratingInvite = false;
+          });
+          _startInviteCountdown();
+        }
+      } else if (mounted) {
+        setState(() {
+          _inviteError = 'Failed to generate invite code';
+          _isGeneratingInvite = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error generating invite code: $e');
+      if (mounted) {
+        setState(() {
+          _inviteError = 'Error: $e';
+          _isGeneratingInvite = false;
+        });
+      }
+    }
+  }
+
+  void _startInviteCountdown() {
+    _inviteCountdownTimer?.cancel();
+    _inviteCountdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      final expiresAt = _inviteExpiresAt;
+      if (expiresAt == null || !expiresAt.isAfter(DateTime.now())) {
+        _inviteCountdownTimer?.cancel();
+      }
+      setState(() {});
+    });
+  }
+
+  String _formatInviteCode(String code) =>
+      code.length == 8 ? '${code.substring(0, 4)}-${code.substring(4)}' : code;
+
+  String _inviteCountdownLabel() {
+    final expiresAt = _inviteExpiresAt;
+    if (expiresAt == null) return '';
+    final remaining = expiresAt.difference(DateTime.now());
+    if (remaining.isNegative) return 'Expired — generate a new code';
+    final minutes = remaining.inMinutes;
+    final seconds = remaining.inSeconds % 60;
+    return 'Expires in $minutes:${seconds.toString().padLeft(2, '0')}';
+  }
+
+  Future<void> _copyInviteCode() async {
+    final code = _inviteCode;
+    if (code == null) return;
+    await Clipboard.setData(ClipboardData(text: _formatInviteCode(code)));
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Invite code copied')),
+      );
+    }
   }
 
   void _startServerInfoPolling() {
@@ -385,6 +475,10 @@ class _QRCodeScreenState extends State<QRCodeScreen>
                                               fontWeight: FontWeight.w500,
                                             ),
                                           ),
+                                          const SizedBox(height: 24),
+                                          const Divider(color: Colors.white10),
+                                          const SizedBox(height: 24),
+                                          ..._buildManualEntrySection(),
                                         ],
                                       ),
                                     ),
@@ -528,6 +622,119 @@ class _QRCodeScreenState extends State<QRCodeScreen>
 
     return [
       _buildInfoRow('ADDRESS', 'Unknown'),
+    ];
+  }
+
+  List<Widget> _buildManualEntrySection() {
+    final code = _inviteCode;
+    return [
+      const Text(
+        "CAN'T SCAN? MANUAL ENTRY",
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+          color: AppTheme.textSecondary,
+          letterSpacing: 1.5,
+        ),
+      ),
+      const SizedBox(height: 12),
+      const Text(
+        'In the app, tap "Manual entry", type the address above, then this '
+        'one-time invite code:',
+        style: TextStyle(
+          fontSize: 14,
+          color: Colors.white70,
+          height: 1.6,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+      const SizedBox(height: 16),
+      if (_inviteError != null) ...[
+        Text(
+          _inviteError!,
+          style: const TextStyle(
+            color: Colors.redAccent,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 12),
+      ],
+      if (code == null)
+        SizedBox(
+          height: 48,
+          child: ElevatedButton.icon(
+            onPressed: _isGeneratingInvite ? null : _generateInviteCode,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.surfaceBlack,
+              foregroundColor: Colors.white,
+              side: const BorderSide(color: AppTheme.borderGrey),
+            ),
+            icon: _isGeneratingInvite
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Icon(Icons.vpn_key_rounded, size: 18),
+            label: const Text('GENERATE INVITE CODE'),
+          ),
+        )
+      else ...[
+        Row(
+          children: [
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: AppTheme.surfaceBlack,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppTheme.borderGrey),
+              ),
+              child: Text(
+                _formatInviteCode(code),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 3.0,
+                  fontFamily: 'monospace',
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            IconButton(
+              tooltip: 'Copy code',
+              icon: const Icon(Icons.copy_rounded, color: Colors.white),
+              onPressed: _copyInviteCode,
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            const Icon(Icons.schedule_rounded,
+                size: 14, color: AppTheme.textSecondary),
+            const SizedBox(width: 6),
+            Text(
+              _inviteCountdownLabel(),
+              style: const TextStyle(
+                color: AppTheme.textSecondary,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        TextButton.icon(
+          onPressed: _isGeneratingInvite ? null : _generateInviteCode,
+          icon: const Icon(Icons.refresh_rounded, size: 16),
+          label: const Text('Generate new code'),
+        ),
+      ],
     ];
   }
 

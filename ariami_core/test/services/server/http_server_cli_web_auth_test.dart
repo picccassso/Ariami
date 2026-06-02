@@ -254,6 +254,85 @@ void main() {
       expect(adminCreate.statusCode, 201);
       expect(adminCreate.jsonBody['username'], equals('created-user'));
     });
+
+    test('admin invite code lets manual entry register, single-use', () async {
+      final port = await _findFreePort();
+      await server.start(
+        advertisedIp: '127.0.0.1',
+        bindAddress: '127.0.0.1',
+        port: port,
+      );
+
+      final registerOwner = await _sendJsonRequest(
+        method: 'POST',
+        url: Uri.parse('http://127.0.0.1:$port/api/auth/register'),
+        jsonBody: <String, dynamic>{
+          'username': 'invite-owner',
+          'password': 'invite-owner-pass',
+        },
+      );
+      expect(registerOwner.statusCode, 200);
+
+      final ownerLogin = await _sendJsonRequest(
+        method: 'POST',
+        url: Uri.parse('http://127.0.0.1:$port/api/auth/login'),
+        jsonBody: <String, dynamic>{
+          'username': 'invite-owner',
+          'password': 'invite-owner-pass',
+          'deviceId': 'invite-owner-device',
+          'deviceName': 'Invite Owner Device',
+        },
+      );
+      expect(ownerLogin.statusCode, 200);
+      final ownerToken = ownerLogin.jsonBody['sessionToken'] as String;
+
+      // Minting an invite code requires an admin session.
+      final unauthInvite = await _sendJsonRequest(
+        method: 'GET',
+        url: Uri.parse('http://127.0.0.1:$port/api/admin/invite-code'),
+      );
+      expect(unauthInvite.statusCode, 401);
+
+      final inviteResponse = await _sendJsonRequest(
+        method: 'GET',
+        url: Uri.parse('http://127.0.0.1:$port/api/admin/invite-code'),
+        headers: <String, String>{'Authorization': 'Bearer $ownerToken'},
+      );
+      expect(inviteResponse.statusCode, 200);
+      final inviteCode = inviteResponse.jsonBody['inviteCode'] as String;
+      expect(inviteCode, isNotEmpty);
+      // Short, canonical, unambiguous alphabet (no 0/1/I/L/O/U).
+      expect(inviteCode, matches(RegExp(r'^[2-9A-HJ-NP-TV-Z]{8}$')));
+      expect(inviteResponse.jsonBody['expiresAt'], isA<String>());
+
+      final inviteRegister = await _sendJsonRequest(
+        method: 'POST',
+        url: Uri.parse('http://127.0.0.1:$port/api/auth/register'),
+        jsonBody: <String, dynamic>{
+          'username': 'invited-user',
+          'password': 'invited-pass',
+          'registrationToken': inviteCode,
+        },
+      );
+      expect(inviteRegister.statusCode, 200);
+      expect(inviteRegister.jsonBody['username'], equals('invited-user'));
+
+      // Single-use: the same code can't be reused.
+      final reuseInvite = await _sendJsonRequest(
+        method: 'POST',
+        url: Uri.parse('http://127.0.0.1:$port/api/auth/register'),
+        jsonBody: <String, dynamic>{
+          'username': 'second-invited-user',
+          'password': 'second-invited-pass',
+          'registrationToken': inviteCode,
+        },
+      );
+      expect(reuseInvite.statusCode, 403);
+      expect(
+        (reuseInvite.jsonBody['error'] as Map<String, dynamic>)['code'],
+        AuthErrorCodes.registrationClosed,
+      );
+    });
   });
 
   group('Admin dashboard auth APIs', () {

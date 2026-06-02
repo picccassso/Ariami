@@ -430,6 +430,30 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
     };
   }
 
+  /// Mint a short, single-use invite code for manual-entry registration.
+  ///
+  /// Public entry point for the in-process desktop app (which holds the server
+  /// instance directly, with no HTTP round-trip). Returns `{ inviteCode,
+  /// expiresAt }`.
+  Map<String, dynamic> createInviteCode() => _createInviteCodePayload();
+
+  /// Mint a short, single-use invite code for manual-entry registration.
+  ///
+  /// Stored in the same [_registrationTokens] map (same 10-min TTL, same
+  /// single-use consumption on register) so it validates through the identical
+  /// path as a QR registration token.
+  Map<String, dynamic> _createInviteCodePayload() {
+    _purgeExpiredRegistrationTokens();
+    final code = _generateInviteCodeValue();
+    final expiresAt =
+        DateTime.now().toUtc().add(AriamiHttpServer._registrationTokenTtl);
+    _registrationTokens[code] = expiresAt;
+    return {
+      'inviteCode': code,
+      'expiresAt': expiresAt.toIso8601String(),
+    };
+  }
+
   bool _hasValidRegistrationToken(String? token) {
     _purgeExpiredRegistrationTokens();
     if (token == null || token.trim().isEmpty) {
