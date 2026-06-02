@@ -19,6 +19,7 @@ import 'library/library_repository.dart';
 import 'cast/chrome_cast_service.dart';
 import 'offline/offline_playback_service.dart';
 import 'cache/cache_manager.dart';
+import 'media/media_request_scheduler.dart';
 import 'stats/streaming_stats_service.dart';
 import 'color_extraction_service.dart';
 import 'quality/quality_settings_service.dart';

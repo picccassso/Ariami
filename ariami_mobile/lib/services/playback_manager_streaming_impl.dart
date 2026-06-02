@@ -145,6 +145,8 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
           }
           print('[PlaybackManager] Using server artwork: $artworkUri');
 
+          _cacheFullArtworkInBackground(song, artworkUri);
+
           // Trigger background caching of the song for offline use
           _cacheSongInBackground(song);
           _warmNextStreamInBackground(streamingQuality);
@@ -263,6 +265,29 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
         }
       } catch (e) {
         print('[PlaybackManager] Failed to start background cache: $e');
+      }
+    }());
+  }
+
+  void _cacheFullArtworkInBackground(Song song, Uri? artworkUri) {
+    if (artworkUri == null) return;
+
+    final cacheKey = song.albumId ?? 'song_${song.id}';
+    final artworkUrl = artworkUri.toString();
+
+    unawaited(() async {
+      try {
+        final cachedPath = await _cacheManager.cacheArtwork(
+          cacheKey,
+          artworkUrl,
+          priority: MediaRequestPriority.nearby,
+        );
+        if (cachedPath != null) {
+          debugPrint(
+              '[PlaybackManager] Cached full artwork for: ${song.title}');
+        }
+      } catch (e) {
+        debugPrint('[PlaybackManager] Failed to cache full artwork: $e');
       }
     }());
   }

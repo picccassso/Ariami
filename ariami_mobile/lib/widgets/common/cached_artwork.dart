@@ -134,15 +134,21 @@ class _CachedArtworkState extends State<CachedArtwork> {
     return widget.albumId;
   }
 
-  /// Get the fallback cache key (opposite size variant)
-  /// Used when primary cache key is not found - allows thumbnail to fall back to full-size and vice versa
-  String get _fallbackCacheKey {
+  /// Get the fallback cache key.
+  ///
+  /// Thumbnail views can safely reuse full-size artwork because Flutter will
+  /// downscale it. Full-size views only fall back to thumbnails when there is no
+  /// way to fetch the original, otherwise streamed artwork can look blurry.
+  String? get _fallbackCacheKey {
     if (widget.sizeHint == ArtworkSizeHint.thumbnail) {
       // Thumbnail requested but not cached - try full-size
       return widget.albumId;
     }
-    // Full-size requested but not cached - try thumbnail
-    return '${widget.albumId}_thumb';
+    if (_offlineService.isOffline || _effectiveUrl == null) {
+      // Full-size requested but no network source is available - try thumbnail.
+      return '${widget.albumId}_thumb';
+    }
+    return null;
   }
 
   /// Get the effective URL with size parameter appended
@@ -454,10 +460,8 @@ class _CachedArtworkState extends State<CachedArtwork> {
     }
     return LayoutBuilder(
       builder: (context, constraints) {
-        final w =
-            constraints.maxWidth.isFinite ? constraints.maxWidth : null;
-        final h =
-            constraints.maxHeight.isFinite ? constraints.maxHeight : null;
+        final w = constraints.maxWidth.isFinite ? constraints.maxWidth : null;
+        final h = constraints.maxHeight.isFinite ? constraints.maxHeight : null;
         return Image.file(
           file,
           width: w,
@@ -494,10 +498,8 @@ class _CachedArtworkState extends State<CachedArtwork> {
     }
     return LayoutBuilder(
       builder: (context, constraints) {
-        final w =
-            constraints.maxWidth.isFinite ? constraints.maxWidth : null;
-        final h =
-            constraints.maxHeight.isFinite ? constraints.maxHeight : null;
+        final w = constraints.maxWidth.isFinite ? constraints.maxWidth : null;
+        final h = constraints.maxHeight.isFinite ? constraints.maxHeight : null;
         return Image.network(
           _networkFallbackUrl!,
           width: w,
