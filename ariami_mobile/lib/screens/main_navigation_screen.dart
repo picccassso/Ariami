@@ -121,6 +121,11 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
     final bottomNavHeight = getBottomNavigationBarTotalHeight(context);
     return Scaffold(
       extendBody: true,
+      // Don't shrink the body when the keyboard opens. The nested screens
+      // (e.g. search) handle their own keyboard avoidance, while the mini
+      // player stays anchored at the bottom and is simply covered by the
+      // keyboard — like Spotify — instead of being pushed up above it.
+      resizeToAvoidBottomInset: false,
       body: Stack(
         children: [
           // Main content area - can scroll behind nav bar
