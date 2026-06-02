@@ -135,6 +135,40 @@ void main() {
       expect(rows.first.clientType, equals('dashboard_admin'));
     });
 
+    test('registered-users requests parse dashboard rows', () async {
+      final apiClient = WebApiClient(
+        tokenProvider: () async => 'session-token',
+        deviceIdProvider: () async => 'dashboard-device',
+        deviceName: 'Dashboard Control',
+        httpClient: MockClient((request) async {
+          if (request.url.path == '/api/admin/users') {
+            return http.Response(
+              jsonEncode(<String, dynamic>{
+                'users': <Map<String, dynamic>>[
+                  <String, dynamic>{
+                    'userId': 'admin-id',
+                    'username': 'admin',
+                    'createdAt': '2026-05-27T19:32:00.000Z',
+                    'isAdmin': true,
+                    'connectedDeviceCount': 2,
+                  },
+                ],
+              }),
+              200,
+            );
+          }
+          return http.Response('{}', 404);
+        }),
+      );
+
+      final rows = await apiClient.getRegisteredUsers();
+      expect(rows, hasLength(1));
+      expect(rows.first.username, equals('admin'));
+      expect(rows.first.isAdmin, isTrue);
+      expect(rows.first.connectedDeviceCount, equals(2));
+      expect(rows.first.createdAt, isNotNull);
+    });
+
     test('forbidden admin responses are detectable for owner sign-in CTA',
         () async {
       final apiClient = WebApiClient(
@@ -165,9 +199,7 @@ void main() {
       );
     });
 
-    test(
-        'kick-client and change-password include dashboard device identity on admin actions',
-        () async {
+    test('user admin actions include dashboard device identity', () async {
       final capturedPaths = <String>[];
       final capturedDeviceIds = <String?>[];
       final capturedDeviceNames = <String?>[];
@@ -193,6 +225,18 @@ void main() {
               200,
             );
           }
+          if (request.url.path == '/api/admin/create-user') {
+            return http.Response(
+              jsonEncode(<String, dynamic>{'status': 'user_created'}),
+              201,
+            );
+          }
+          if (request.url.path == '/api/admin/delete-user') {
+            return http.Response(
+              jsonEncode(<String, dynamic>{'status': 'user_deleted'}),
+              200,
+            );
+          }
           return http.Response('{}', 404);
         }),
       );
@@ -202,12 +246,19 @@ void main() {
         username: 'target-user',
         newPassword: 'new-password',
       );
+      await apiClient.createUser(
+        username: 'new-user',
+        password: 'new-password',
+      );
+      await apiClient.deleteUser('target-user-id');
 
       expect(
         capturedPaths,
         equals(<String>[
           '/api/admin/kick-client',
           '/api/admin/change-password',
+          '/api/admin/create-user',
+          '/api/admin/delete-user',
         ]),
       );
       expect(capturedDeviceIds, everyElement(equals('dashboard-device')));

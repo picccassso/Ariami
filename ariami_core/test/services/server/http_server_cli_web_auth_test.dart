@@ -465,6 +465,68 @@ void main() {
           returnsNormally);
     });
 
+    test('admin users returns registered users with device counts', () async {
+      final port = await _findFreePort();
+      await server.start(
+        advertisedIp: '127.0.0.1',
+        bindAddress: '127.0.0.1',
+        port: port,
+      );
+
+      final registerAdmin = await _sendJsonRequest(
+        method: 'POST',
+        url: Uri.parse('http://127.0.0.1:$port/api/auth/register'),
+        jsonBody: <String, dynamic>{
+          'username': 'admin-user',
+          'password': 'admin-pass',
+        },
+      );
+      expect(registerAdmin.statusCode, 200);
+
+      final loginAdmin = await _sendJsonRequest(
+        method: 'POST',
+        url: Uri.parse('http://127.0.0.1:$port/api/auth/login'),
+        jsonBody: <String, dynamic>{
+          'username': 'admin-user',
+          'password': 'admin-pass',
+          'deviceId': 'admin-device',
+          'deviceName': 'Admin Device',
+        },
+      );
+      expect(loginAdmin.statusCode, 200);
+      final adminToken = loginAdmin.jsonBody['sessionToken'] as String;
+
+      final createUser = await _sendJsonRequest(
+        method: 'POST',
+        url: Uri.parse('http://127.0.0.1:$port/api/admin/create-user'),
+        headers: <String, String>{'Authorization': 'Bearer $adminToken'},
+        jsonBody: <String, dynamic>{
+          'username': 'target-user',
+          'password': 'target-pass',
+        },
+      );
+      expect(createUser.statusCode, 201);
+
+      final usersResponse = await _sendJsonRequest(
+        method: 'GET',
+        url: Uri.parse('http://127.0.0.1:$port/api/admin/users'),
+        headers: <String, String>{'Authorization': 'Bearer $adminToken'},
+      );
+      expect(usersResponse.statusCode, 200);
+
+      final users = (usersResponse.jsonBody['users'] as List<dynamic>)
+          .cast<Map<String, dynamic>>();
+      expect(users, hasLength(2));
+      expect(users.first['username'], equals('admin-user'));
+      expect(users.first['isAdmin'], isTrue);
+      expect(users.first['connectedDeviceCount'], equals(1));
+      expect(users.last['username'], equals('target-user'));
+      expect(users.last['isAdmin'], isFalse);
+      expect(users.last['connectedDeviceCount'], equals(0));
+      expect(() => DateTime.parse(users.first['createdAt'] as String),
+          returnsNormally);
+    });
+
     test('dashboard login stays active while the same user logs in on mobile',
         () async {
       final port = await _findFreePort();
@@ -1302,6 +1364,17 @@ void main() {
         AuthErrorCodes.forbiddenAdmin,
       );
 
+      final users = await _sendJsonRequest(
+        method: 'GET',
+        url: Uri.parse('http://127.0.0.1:$port/api/admin/users'),
+        headers: <String, String>{'Authorization': 'Bearer $nonAdminToken'},
+      );
+      expect(users.statusCode, 403);
+      expect(
+        (users.jsonBody['error'] as Map<String, dynamic>)['code'],
+        AuthErrorCodes.forbiddenAdmin,
+      );
+
       final userActivity = await _sendJsonRequest(
         method: 'GET',
         url: Uri.parse('http://127.0.0.1:$port/api/admin/user-activity'),
@@ -1366,7 +1439,8 @@ void main() {
       );
     });
 
-    test('admin transcode-slots requires auth and supports get/set/reset', () async {
+    test('admin transcode-slots requires auth and supports get/set/reset',
+        () async {
       int? storedOverride;
       server.setTranscodeSlotsCallbacks(
         getSnapshot: () async {

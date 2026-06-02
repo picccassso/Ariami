@@ -11,7 +11,10 @@ import '../utils/constants.dart';
 import '../widgets/dashboard/dashboard_activity_tab.dart';
 import '../widgets/dashboard/dashboard_overview_tab.dart';
 import '../widgets/dashboard/dashboard_server_tab.dart';
+import '../widgets/dashboard/dashboard_users_tab.dart';
 import '../widgets/dashboard/change_password_dialog.dart';
+import '../widgets/dashboard/create_user_dialog.dart';
+import '../widgets/dashboard/delete_user_dialog.dart';
 import '../widgets/dashboard/transcode_slots_dialog.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -49,6 +52,8 @@ class _DashboardScreenState extends State<DashboardScreen>
   bool _isLoading = true;
   bool _isLoadingConnectedClients = false;
   bool _isLoadingUserActivity = true;
+  bool _isLoadingServerUsers = true;
+  bool _isCreatingUser = false;
   bool _isChangingPassword = false;
   bool _isAdmin = false;
   bool _isLoadingTranscodeSlots = false;
@@ -57,11 +62,15 @@ class _DashboardScreenState extends State<DashboardScreen>
   TranscodeSlotsSnapshot? _transcodeSlotsSnapshot;
   String? _connectedClientsError;
   String? _userActivityError;
+  String? _serverUsersError;
   bool _connectedClientsOwnerForbidden = false;
   bool _userActivityOwnerForbidden = false;
+  bool _serverUsersOwnerForbidden = false;
   List<ConnectedClientRow> _connectedClientRows = const <ConnectedClientRow>[];
   List<UserActivityRow> _userActivityRows = const <UserActivityRow>[];
+  List<ServerUserRow> _serverUserRows = const <ServerUserRow>[];
   final Set<String> _kickingDeviceIds = <String>{};
+  final Set<String> _deletingUserIds = <String>{};
 
   String? _dashboardLanServer;
   String? _dashboardTailscaleServer;
@@ -77,7 +86,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
@@ -175,6 +184,7 @@ class _DashboardScreenState extends State<DashboardScreen>
 
         await _loadConnectedClients(showLoading: false);
         await _loadUserActivity(showLoading: false);
+        await _loadRegisteredUsers(showLoading: false);
         await _loadTranscodeSlots(showLoading: false);
       }
     } catch (e) {
@@ -377,6 +387,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     }
     unawaited(_loadConnectedClients(showLoading: false));
     unawaited(_loadUserActivity(showLoading: false));
+    unawaited(_loadRegisteredUsers(showLoading: false));
   }
 
   Future<void> _redirectToLogin() async {
@@ -404,6 +415,8 @@ class _DashboardScreenState extends State<DashboardScreen>
       'Owner privileges required to view connected users and devices.';
   static const String _ownerActivityMessage =
       'Owner privileges required to view user activity.';
+  static const String _ownerUsersMessage =
+      'Owner privileges required to manage registered users.';
 
   Future<void> _rescanLibrary() async {
     try {
@@ -556,6 +569,47 @@ class _DashboardScreenState extends State<DashboardScreen>
     }
   }
 
+  Future<void> _loadRegisteredUsers({bool showLoading = true}) async {
+    if (showLoading && mounted) {
+      setState(() {
+        _isLoadingServerUsers = true;
+      });
+    }
+
+    try {
+      final rows = await _apiClient.getRegisteredUsers();
+      if (!mounted) return;
+      setState(() {
+        _serverUserRows = rows;
+        _serverUsersError = null;
+        _serverUsersOwnerForbidden = false;
+        _isLoadingServerUsers = false;
+      });
+    } on WebApiException catch (e) {
+      if (e.isAuthError) {
+        final didRedirect =
+            await _redirectToLoginIfSessionCannotRecover(e.code);
+        if (didRedirect) return;
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _serverUserRows = const <ServerUserRow>[];
+        _serverUsersOwnerForbidden = e.isForbidden;
+        _serverUsersError = e.isForbidden ? _ownerUsersMessage : e.message;
+        _isLoadingServerUsers = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _serverUserRows = const <ServerUserRow>[];
+        _serverUsersError = 'Failed to load registered users.';
+        _serverUsersOwnerForbidden = false;
+        _isLoadingServerUsers = false;
+      });
+    }
+  }
+
   String _formatClientTime(DateTime? value) {
     if (value == null) return '—';
     final now = DateTime.now();
@@ -691,6 +745,112 @@ class _DashboardScreenState extends State<DashboardScreen>
     }
   }
 
+  Future<void> _promptCreateUser() async {
+    final payload = await showCreateUserDialog(context);
+    if (payload == null) return;
+
+    setState(() {
+      _isCreatingUser = true;
+    });
+
+    try {
+      await _apiClient.createUser(
+        username: payload.username,
+        password: payload.password,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Created user ${payload.username}'),
+          backgroundColor: AppTheme.surfaceBlack,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      await _loadRegisteredUsers(showLoading: false);
+    } on WebApiException catch (e) {
+      if (e.isAuthError) {
+        final didRedirect =
+            await _redirectToLoginIfSessionCannotRecover(e.code);
+        if (didRedirect) return;
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.message),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to create user.'),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isCreatingUser = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _deleteUser(ServerUserRow row) async {
+    if (_deletingUserIds.contains(row.userId)) return;
+    final confirmed = await showDeleteUserDialog(context, user: row);
+    if (!confirmed) return;
+
+    setState(() {
+      _deletingUserIds.add(row.userId);
+    });
+
+    try {
+      await _apiClient.deleteUser(row.userId);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Deleted user ${row.username}'),
+          backgroundColor: AppTheme.surfaceBlack,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      await _loadServerStats();
+    } on WebApiException catch (e) {
+      if (e.isAuthError) {
+        final didRedirect =
+            await _redirectToLoginIfSessionCannotRecover(e.code);
+        if (didRedirect) return;
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.message),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to delete user.'),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _deletingUserIds.remove(row.userId);
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -698,113 +858,134 @@ class _DashboardScreenState extends State<DashboardScreen>
       child: Scaffold(
         backgroundColor: Colors.transparent,
         body: Container(
-        decoration: BoxDecoration(
-          gradient: AppTheme.backgroundGradient,
-        ),
-        child: _isLoading
-            ? const Center(
-                child: CircularProgressIndicator(color: Colors.white))
-            : Column(
-                children: [
-                  AppBar(
-                    backgroundColor: AppTheme.pureBlack.withValues(alpha: 0.8),
-                    automaticallyImplyLeading: false,
-                    title: Text(
-                      'DASHBOARD',
-                      style: Theme.of(context).appBarTheme.titleTextStyle,
-                    ),
-                    centerTitle: true,
-                    actions: [
-                      IconButton(
-                        icon: const Icon(Icons.refresh_rounded),
-                        onPressed: _loadServerStats,
-                        tooltip: 'Refresh Stats',
+          decoration: BoxDecoration(
+            gradient: AppTheme.backgroundGradient,
+          ),
+          child: _isLoading
+              ? const Center(
+                  child: CircularProgressIndicator(color: Colors.white))
+              : Column(
+                  children: [
+                    AppBar(
+                      backgroundColor:
+                          AppTheme.pureBlack.withValues(alpha: 0.8),
+                      automaticallyImplyLeading: false,
+                      title: Text(
+                        'Dashboard',
+                        style: Theme.of(context).appBarTheme.titleTextStyle,
                       ),
-                      IconButton(
-                        icon: const Icon(Icons.qr_code_2_rounded),
-                        onPressed: _viewQRCode,
-                        tooltip: 'Show QR Code',
-                      ),
-                      const SizedBox(width: 8),
-                    ],
-                    bottom: TabBar(
-                      controller: _tabController,
-                      indicatorColor: Colors.white,
-                      indicatorSize: TabBarIndicatorSize.label,
-                      labelColor: Colors.white,
-                      unselectedLabelColor: AppTheme.textSecondary,
-                      dividerColor: Colors.transparent,
-                      labelStyle: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1.0,
-                      ),
-                      tabs: const [
-                        Tab(text: 'OVERVIEW'),
-                        Tab(text: 'ACTIVITY'),
-                        Tab(text: 'SERVER'),
+                      centerTitle: true,
+                      actions: [
+                        IconButton(
+                          icon: const Icon(Icons.refresh_rounded),
+                          onPressed: _loadServerStats,
+                          tooltip: 'Refresh Stats',
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.qr_code_2_rounded),
+                          onPressed: _viewQRCode,
+                          tooltip: 'Show QR Code',
+                        ),
+                        const SizedBox(width: 8),
                       ],
+                      bottom: TabBar(
+                        controller: _tabController,
+                        indicatorColor: Colors.white,
+                        indicatorSize: TabBarIndicatorSize.label,
+                        labelColor: Colors.white,
+                        unselectedLabelColor: AppTheme.textSecondary,
+                        dividerColor: Colors.transparent,
+                        labelStyle: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.0,
+                        ),
+                        tabs: const [
+                          Tab(text: 'Overview'),
+                          Tab(text: 'Activity'),
+                          Tab(text: 'Users'),
+                          Tab(text: 'Server'),
+                        ],
+                      ),
                     ),
-                  ),
-                  Expanded(
-                    child: TabBarView(
-                      controller: _tabController,
-                      children: [
-                        DashboardOverviewTab(
-                          serverRunning: _serverRunning,
-                          isScanning: _isScanning,
-                          pulseController: _pulseController,
-                          authRequired: _authRequired,
-                          songCount: _songCount,
-                          albumCount: _albumCount,
-                          connectedClients: _connectedClients,
-                          connectedUsers: _connectedUsers,
-                          activeSessions: _activeSessions,
-                          lastScanTimeFormatted: _formatLastScanTime(),
-                          onRescanLibrary: _rescanLibrary,
-                          onViewQRCode: _viewQRCode,
-                        ),
-                        DashboardActivityTab(
-                          userActivityRows: _userActivityRows,
-                          isLoadingUserActivity: _isLoadingUserActivity,
-                          userActivityError: _userActivityError,
-                          userActivityOwnerForbidden:
-                              _userActivityOwnerForbidden,
-                          onSignInAsOwner: _userActivityOwnerForbidden
-                              ? _switchToOwnerLogin
-                              : null,
-                          connectedClientRows: _connectedClientRows,
-                          isLoadingConnectedClients: _isLoadingConnectedClients,
-                          isChangingPassword: _isChangingPassword,
-                          connectedClientsError: _connectedClientsError,
-                          connectedClientsOwnerForbidden:
-                              _connectedClientsOwnerForbidden,
-                          kickingDeviceIds: _kickingDeviceIds,
-                          onKick: _kickClient,
-                          onChangePassword: () => _promptChangePassword(),
-                          onChangePasswordForUser: (username) =>
-                              _promptChangePassword(initialUsername: username),
-                          formatClientTime: _formatClientTime,
-                          formatDeviceLabel: _formatDeviceLabel,
-                        ),
-                        DashboardServerTab(
-                          lanServer: _dashboardLanServer,
-                          tailscaleServer: _dashboardTailscaleServer,
-                          lastUpdatedLabel: _formatEndpointRefreshTime(),
-                          isRefreshingAddresses: _isRefreshingAddresses,
-                          onRefreshAddresses: _refreshServerAddresses,
-                          isAdmin: _isAdmin,
-                          transcodeSlotsSnapshot: _transcodeSlotsSnapshot,
-                          isLoadingTranscodeSlots: _isLoadingTranscodeSlots,
-                          isSavingTranscodeSlots: _isSavingTranscodeSlots,
-                          transcodeSlotsError: _transcodeSlotsError,
-                          onEditTranscodeSlots: _promptEditTranscodeSlots,
-                        ),
-                      ],
+                    Expanded(
+                      child: TabBarView(
+                        controller: _tabController,
+                        children: [
+                          DashboardOverviewTab(
+                            serverRunning: _serverRunning,
+                            isScanning: _isScanning,
+                            pulseController: _pulseController,
+                            authRequired: _authRequired,
+                            songCount: _songCount,
+                            albumCount: _albumCount,
+                            connectedClients: _connectedClients,
+                            connectedUsers: _connectedUsers,
+                            activeSessions: _activeSessions,
+                            lastScanTimeFormatted: _formatLastScanTime(),
+                            onRescanLibrary: _rescanLibrary,
+                            onViewQRCode: _viewQRCode,
+                          ),
+                          DashboardActivityTab(
+                            userActivityRows: _userActivityRows,
+                            isLoadingUserActivity: _isLoadingUserActivity,
+                            userActivityError: _userActivityError,
+                            userActivityOwnerForbidden:
+                                _userActivityOwnerForbidden,
+                            onSignInAsOwner: _userActivityOwnerForbidden
+                                ? _switchToOwnerLogin
+                                : null,
+                            connectedClientRows: _connectedClientRows,
+                            isLoadingConnectedClients:
+                                _isLoadingConnectedClients,
+                            isChangingPassword: _isChangingPassword,
+                            connectedClientsError: _connectedClientsError,
+                            connectedClientsOwnerForbidden:
+                                _connectedClientsOwnerForbidden,
+                            kickingDeviceIds: _kickingDeviceIds,
+                            onKick: _kickClient,
+                            onChangePassword: () => _promptChangePassword(),
+                            onChangePasswordForUser: (username) =>
+                                _promptChangePassword(
+                                    initialUsername: username),
+                            formatClientTime: _formatClientTime,
+                            formatDeviceLabel: _formatDeviceLabel,
+                          ),
+                          DashboardUsersTab(
+                            rows: _serverUserRows,
+                            isLoading: _isLoadingServerUsers,
+                            error: _serverUsersError,
+                            showOwnerSignInCta: _serverUsersOwnerForbidden,
+                            onSignInAsOwner: _serverUsersOwnerForbidden
+                                ? _switchToOwnerLogin
+                                : null,
+                            isCreatingUser: _isCreatingUser,
+                            isChangingPassword: _isChangingPassword,
+                            deletingUserIds: _deletingUserIds,
+                            onCreateUser: _promptCreateUser,
+                            onChangePassword: (row) => _promptChangePassword(
+                              initialUsername: row.username,
+                            ),
+                            onDeleteUser: _deleteUser,
+                          ),
+                          DashboardServerTab(
+                            lanServer: _dashboardLanServer,
+                            tailscaleServer: _dashboardTailscaleServer,
+                            lastUpdatedLabel: _formatEndpointRefreshTime(),
+                            isRefreshingAddresses: _isRefreshingAddresses,
+                            onRefreshAddresses: _refreshServerAddresses,
+                            isAdmin: _isAdmin,
+                            transcodeSlotsSnapshot: _transcodeSlotsSnapshot,
+                            isLoadingTranscodeSlots: _isLoadingTranscodeSlots,
+                            isSavingTranscodeSlots: _isSavingTranscodeSlots,
+                            transcodeSlotsError: _transcodeSlotsError,
+                            onEditTranscodeSlots: _promptEditTranscodeSlots,
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                ),
         ),
       ),
     );

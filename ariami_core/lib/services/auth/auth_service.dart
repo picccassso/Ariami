@@ -249,6 +249,12 @@ class AuthService {
     return _userStore.userCount;
   }
 
+  /// Get all registered users ordered by creation time.
+  List<User> getUsers() {
+    _ensureInitialized();
+    return _userStore.getUsers();
+  }
+
   /// Get count of active sessions.
   int get sessionCount {
     _ensureInitialized();

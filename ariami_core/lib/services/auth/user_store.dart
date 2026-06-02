@@ -112,18 +112,23 @@ class UserStore {
     return _users.length;
   }
 
-  /// Resolve the admin user as the earliest created account.
-  /// This preserves backward compatibility with existing users.json data.
-  String? getAdminUserId() {
+  /// Get all registered users ordered by creation time.
+  List<User> getUsers() {
     _ensureInitialized();
-    if (_users.isEmpty) return null;
-
-    final users = _users.values.toList()
+    return _users.values.toList()
       ..sort((a, b) {
         final createdCompare = a.createdAt.compareTo(b.createdAt);
         if (createdCompare != 0) return createdCompare;
         return a.userId.compareTo(b.userId);
       });
+  }
+
+  /// Resolve the admin user as the earliest created account.
+  /// This preserves backward compatibility with existing users.json data.
+  String? getAdminUserId() {
+    _ensureInitialized();
+    final users = getUsers();
+    if (users.isEmpty) return null;
 
     return users.first.userId;
   }

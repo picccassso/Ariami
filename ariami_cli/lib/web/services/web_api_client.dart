@@ -77,6 +77,34 @@ class ConnectedClientRow {
   }
 }
 
+class ServerUserRow {
+  const ServerUserRow({
+    required this.userId,
+    required this.username,
+    required this.createdAt,
+    required this.isAdmin,
+    required this.connectedDeviceCount,
+  });
+
+  final String userId;
+  final String username;
+  final DateTime? createdAt;
+  final bool isAdmin;
+  final int connectedDeviceCount;
+
+  factory ServerUserRow.fromJson(Map<String, dynamic> json) {
+    final createdAt = json['createdAt'];
+    return ServerUserRow(
+      userId: json['userId'] as String? ?? '',
+      username: json['username'] as String? ?? 'Unknown User',
+      createdAt:
+          createdAt is String ? DateTime.tryParse(createdAt)?.toLocal() : null,
+      isAdmin: json['isAdmin'] as bool? ?? false,
+      connectedDeviceCount: json['connectedDeviceCount'] as int? ?? 0,
+    );
+  }
+}
+
 class UserActivityRow {
   const UserActivityRow({
     required this.userId,
@@ -175,6 +203,43 @@ class WebApiClient {
         .toList();
   }
 
+  Future<List<ServerUserRow>> getRegisteredUsers() async {
+    final response = await get(
+      '/api/admin/users',
+      includeDeviceIdentity: true,
+    );
+    if (!response.isSuccess) {
+      throw WebApiException(response);
+    }
+
+    final rows = response.jsonBody?['users'];
+    if (rows is! List) {
+      return const <ServerUserRow>[];
+    }
+
+    return rows
+        .whereType<Map<String, dynamic>>()
+        .map(ServerUserRow.fromJson)
+        .toList();
+  }
+
+  Future<void> createUser({
+    required String username,
+    required String password,
+  }) async {
+    final response = await post(
+      '/api/admin/create-user',
+      body: <String, dynamic>{
+        'username': username,
+        'password': password,
+      },
+      includeDeviceIdentity: true,
+    );
+    if (!response.isSuccess) {
+      throw WebApiException(response);
+    }
+  }
+
   Future<void> kickClient(String deviceId) async {
     final response = await post(
       '/api/admin/kick-client',
@@ -196,6 +261,17 @@ class WebApiClient {
         'username': username,
         'newPassword': newPassword,
       },
+      includeDeviceIdentity: true,
+    );
+    if (!response.isSuccess) {
+      throw WebApiException(response);
+    }
+  }
+
+  Future<void> deleteUser(String userId) async {
+    final response = await post(
+      '/api/admin/delete-user',
+      body: <String, dynamic>{'userId': userId},
       includeDeviceIdentity: true,
     );
     if (!response.isSuccess) {

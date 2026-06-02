@@ -243,6 +243,38 @@ extension AriamiHttpServerAuthAndAdminHandlersMethods on AriamiHttpServer {
     return _jsonOk(_createRegistrationTokenPayload());
   }
 
+  Response _handleAdminUsers(Request request) {
+    final authResponse = _authorizeAdminRequest(request);
+    if (authResponse != null) return authResponse;
+
+    final connectedDeviceCountByUserId = <String, int>{};
+    for (final client in _connectionManager.getConnectedClients()) {
+      final userId = client.userId;
+      if (userId == null ||
+          userId.isEmpty ||
+          _isDashboardControlClient(
+            deviceId: client.deviceId,
+            deviceName: client.deviceName,
+          )) {
+        continue;
+      }
+      connectedDeviceCountByUserId[userId] =
+          (connectedDeviceCountByUserId[userId] ?? 0) + 1;
+    }
+
+    final rows = _authService.getUsers().map((user) {
+      return {
+        'userId': user.userId,
+        'username': user.username,
+        'createdAt': user.createdAt,
+        'isAdmin': _authService.isAdminUser(user.userId),
+        'connectedDeviceCount': connectedDeviceCountByUserId[user.userId] ?? 0,
+      };
+    }).toList(growable: false);
+
+    return _jsonOk({'users': rows});
+  }
+
   Future<Response> _handleAdminConnectedClients(Request request) async {
     final authResponse = _authorizeAdminRequest(request);
     if (authResponse != null) return authResponse;
@@ -349,7 +381,8 @@ extension AriamiHttpServerAuthAndAdminHandlersMethods on AriamiHttpServer {
         return _jsonBadRequest({
           'error': {
             'code': 'INVALID_REQUEST',
-            'message': 'slots must be an integer >= ${TranscodeSlotsPolicy.minSlots}',
+            'message':
+                'slots must be an integer >= ${TranscodeSlotsPolicy.minSlots}',
           },
         });
       }
