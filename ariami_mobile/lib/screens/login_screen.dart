@@ -75,6 +75,11 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // While the keyboard is open the user is entering credentials, so the
+    // bottom "Disconnect Server" button isn't needed. Hide it then instead of
+    // letting the keyboard push it up over the form (it returns once the
+    // keyboard is dismissed).
+    final isKeyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
     return Scaffold(
       backgroundColor: Colors.black,
       body: Container(
@@ -316,27 +321,28 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(32, 0, 32, 16),
-                child: SizedBox(
-                  width: double.infinity,
-                  height: 54,
-                  child: ElevatedButton.icon(
-                    onPressed: _isLoading
-                        ? null
-                        : () => showDisconnectServerDialog(context),
-                    icon: const Icon(Icons.logout_rounded, size: 20),
-                    label: const Text(
-                      'Disconnect Server',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 16,
+              if (!isKeyboardOpen)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(32, 0, 32, 16),
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 54,
+                    child: ElevatedButton.icon(
+                      onPressed: _isLoading
+                          ? null
+                          : () => showDisconnectServerDialog(context),
+                      icon: const Icon(Icons.logout_rounded, size: 20),
+                      label: const Text(
+                        'Disconnect Server',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 16,
+                        ),
                       ),
+                      style: disconnectServerButtonStyle(),
                     ),
-                    style: disconnectServerButtonStyle(),
                   ),
                 ),
-              ),
             ],
           ),
         ),
