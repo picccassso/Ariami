@@ -6,6 +6,7 @@ import '../services/web_api_client.dart';
 import '../services/web_auth_service.dart';
 import '../services/web_setup_service.dart';
 import '../utils/constants.dart';
+import 'qr_code_screen.dart';
 
 /// First-run owner account creation before QR / dashboard handoff.
 class OwnerSetupScreen extends StatefulWidget {
@@ -121,7 +122,11 @@ class _OwnerSetupScreenState extends State<OwnerSetupScreen> {
 
       await _setupService.markSetupComplete();
       if (!mounted) return;
-      Navigator.pushReplacementNamed(context, '/qr-code');
+      Navigator.pushReplacementNamed(
+        context,
+        '/qr-code',
+        arguments: const QRCodeScreenArgs(autoNavigateOnConnection: true),
+      );
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -366,8 +371,9 @@ class _OwnerSetupScreenState extends State<OwnerSetupScreen> {
                             SizedBox(
                               height: 52,
                               child: ElevatedButton(
-                                onPressed:
-                                    _isSubmitting ? null : _finishSetupAndContinue,
+                                onPressed: _isSubmitting
+                                    ? null
+                                    : _finishSetupAndContinue,
                                 child: _isSubmitting
                                     ? const SizedBox(
                                         width: 20,

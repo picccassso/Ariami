@@ -17,6 +17,14 @@ class QRCodeScreen extends StatefulWidget {
   State<QRCodeScreen> createState() => _QRCodeScreenState();
 }
 
+class QRCodeScreenArgs {
+  const QRCodeScreenArgs({
+    this.autoNavigateOnConnection = false,
+  });
+
+  final bool autoNavigateOnConnection;
+}
+
 class _QRCodeScreenState extends State<QRCodeScreen>
     with SingleTickerProviderStateMixin {
   final WebAuthService _authService = WebAuthService();
@@ -46,6 +54,8 @@ class _QRCodeScreenState extends State<QRCodeScreen>
   bool _isGeneratingInvite = false;
   String? _inviteError;
   Timer? _inviteCountdownTimer;
+  bool _didReadRouteArgs = false;
+  bool _autoNavigateOnConnection = false;
 
   @override
   void initState() {
@@ -64,6 +74,17 @@ class _QRCodeScreenState extends State<QRCodeScreen>
     _inviteCountdownTimer?.cancel();
     _pulseController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_didReadRouteArgs) return;
+
+    final args = ModalRoute.of(context)?.settings.arguments;
+    _autoNavigateOnConnection =
+        args is QRCodeScreenArgs && args.autoNavigateOnConnection;
+    _didReadRouteArgs = true;
   }
 
   Future<void> _generateInviteCode() async {
@@ -156,6 +177,8 @@ class _QRCodeScreenState extends State<QRCodeScreen>
 
   /// Start polling for mobile app connections
   void _startConnectionPolling() {
+    if (!_autoNavigateOnConnection) return;
+
     setState(() {
       _isWaitingForConnection = true;
     });
