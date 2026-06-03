@@ -30,7 +30,7 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  Future<void> _handleLogin() async {
+  Future<void> _handleLogin({bool allowOtherDeviceTakeover = false}) async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() {
@@ -43,6 +43,7 @@ class _LoginScreenState extends State<LoginScreen> {
         username: _usernameController.text.trim(),
         password: _passwordController.text,
         serverInfo: widget.serverInfo,
+        allowOtherDeviceTakeover: allowOtherDeviceTakeover,
       );
 
       if (!mounted) return;
@@ -50,12 +51,24 @@ class _LoginScreenState extends State<LoginScreen> {
       // Navigate to main screen on success
       Navigator.pushNamedAndRemoveUntil(context, '/main', (route) => false);
     } on ApiException catch (e) {
+      // The account is signed in elsewhere. Offer to take over rather than
+      // dead-ending the user, then retry the login with confirmation.
+      if (e.code == ApiErrorCodes.alreadyLoggedInOtherDevice &&
+          !allowOtherDeviceTakeover) {
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
+        final confirmed = await _confirmOtherDeviceTakeover();
+        if (confirmed == true) {
+          await _handleLogin(allowOtherDeviceTakeover: true);
+        }
+        return;
+      }
+
       setState(() {
         // Show user-friendly error messages
         if (e.code == ApiErrorCodes.invalidCredentials) {
           _errorMessage = 'Invalid username or password';
-        } else if (e.code == ApiErrorCodes.alreadyLoggedInOtherDevice) {
-          _errorMessage = 'You are logged in on another device.';
         } else {
           _errorMessage = e.message;
         }
@@ -71,6 +84,38 @@ class _LoginScreenState extends State<LoginScreen> {
         });
       }
     }
+  }
+
+  /// Ask the user whether to sign out their other device and take over here.
+  /// Warns that on-device data (playlists, stats) doesn't transfer between
+  /// devices, so they should export it from the other device first.
+  Future<bool?> _confirmOtherDeviceTakeover() {
+    return showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Already signed in elsewhere'),
+          content: const Text(
+            'This account is signed in on another device. You can continue '
+            'and sign in here, which will sign the other device out.\n\n'
+            'Your playlists, listening stats and other on-device data stay on '
+            'that device — they won\'t move over automatically. If you want '
+            'them here, export your data on the other device first, then '
+            'import it after signing in.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Sign in here'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override

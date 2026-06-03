@@ -54,11 +54,17 @@ class LoginRequest {
   final String deviceId;
   final String deviceName;
 
+  /// When true, the server signs out any other device this account is logged
+  /// in on and lets this device take over. Used to confirm past an
+  /// ALREADY_LOGGED_IN_OTHER_DEVICE conflict.
+  final bool allowOtherDeviceTakeover;
+
   LoginRequest({
     required this.username,
     required this.password,
     required this.deviceId,
     required this.deviceName,
+    this.allowOtherDeviceTakeover = false,
   });
 
   Map<String, dynamic> toJson() {
@@ -67,6 +73,7 @@ class LoginRequest {
       'password': password,
       'deviceId': deviceId,
       'deviceName': deviceName,
+      'allowOtherDeviceTakeover': allowOtherDeviceTakeover,
     };
   }
 }

@@ -176,6 +176,24 @@ class SessionStore {
     }
   }
 
+  /// Revoke a specific set of sessions by token in a single batch.
+  /// Persists once if at least one token was present.
+  Future<void> revokeSessionTokens(Iterable<String> sessionTokens) async {
+    _ensureInitialized();
+
+    var removedAny = false;
+    for (final token in sessionTokens) {
+      if (_sessions.remove(token) != null) {
+        _lastRefreshPersistAt.remove(token);
+        removedAny = true;
+      }
+    }
+
+    if (removedAny) {
+      await _persist();
+    }
+  }
+
   /// Revoke all sessions for a user (logout all devices).
   Future<void> revokeAllForUser(String userId) async {
     await revokeAllForUserWithDetails(userId);

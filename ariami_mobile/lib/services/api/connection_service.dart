@@ -309,6 +309,7 @@ class ConnectionService {
     required String username,
     required String password,
     required ServerInfo serverInfo,
+    bool allowOtherDeviceTakeover = false,
   }) async {
     final deviceId = await _deviceInfoManager.getDeviceId();
     final deviceName = await _deviceInfoManager.getDeviceName();
@@ -343,6 +344,7 @@ class ConnectionService {
         password: password,
         deviceId: deviceId,
         deviceName: deviceName,
+        allowOtherDeviceTakeover: allowOtherDeviceTakeover,
       ));
 
       // Store auth info

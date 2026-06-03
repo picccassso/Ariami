@@ -333,6 +333,80 @@ void main() {
         AuthErrorCodes.registrationClosed,
       );
     });
+
+    test(
+        'second-device login returns 409, then takeover signs the first device out',
+        () async {
+      final port = await _findFreePort();
+      await server.start(
+        advertisedIp: '127.0.0.1',
+        bindAddress: '127.0.0.1',
+        port: port,
+      );
+
+      final loginUrl = Uri.parse('http://127.0.0.1:$port/api/auth/login');
+
+      await _sendJsonRequest(
+        method: 'POST',
+        url: Uri.parse('http://127.0.0.1:$port/api/auth/register'),
+        jsonBody: <String, dynamic>{
+          'username': 'takeover-user',
+          'password': 'takeover-pass',
+        },
+      );
+
+      final firstLogin = await _sendJsonRequest(
+        method: 'POST',
+        url: loginUrl,
+        jsonBody: <String, dynamic>{
+          'username': 'takeover-user',
+          'password': 'takeover-pass',
+          'deviceId': 'first-device',
+          'deviceName': 'First Device',
+        },
+      );
+      expect(firstLogin.statusCode, 200);
+      final firstToken = firstLogin.jsonBody['sessionToken'] as String;
+
+      // A second device is told the account is signed in elsewhere (409).
+      final blocked = await _sendJsonRequest(
+        method: 'POST',
+        url: loginUrl,
+        jsonBody: <String, dynamic>{
+          'username': 'takeover-user',
+          'password': 'takeover-pass',
+          'deviceId': 'second-device',
+          'deviceName': 'Second Device',
+        },
+      );
+      expect(blocked.statusCode, 409);
+      expect(
+        (blocked.jsonBody['error'] as Map<String, dynamic>)['code'],
+        AuthErrorCodes.alreadyLoggedInOtherDevice,
+      );
+
+      // Confirming the takeover succeeds.
+      final takeover = await _sendJsonRequest(
+        method: 'POST',
+        url: loginUrl,
+        jsonBody: <String, dynamic>{
+          'username': 'takeover-user',
+          'password': 'takeover-pass',
+          'deviceId': 'second-device',
+          'deviceName': 'Second Device',
+          'allowOtherDeviceTakeover': true,
+        },
+      );
+      expect(takeover.statusCode, 200);
+
+      // The first device's session is now revoked: /api/me rejects its token.
+      final firstDeviceMe = await _sendJsonRequest(
+        method: 'GET',
+        url: Uri.parse('http://127.0.0.1:$port/api/me'),
+        headers: <String, String>{'Authorization': 'Bearer $firstToken'},
+      );
+      expect(firstDeviceMe.statusCode, 401);
+    });
   });
 
   group('Admin dashboard auth APIs', () {

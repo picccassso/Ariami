@@ -81,6 +81,8 @@ extension AriamiHttpServerAuthAndAdminHandlersMethods on AriamiHttpServer {
       final password = data['password'] as String?;
       final deviceId = data['deviceId'] as String?;
       final deviceName = data['deviceName'] as String?;
+      final allowOtherDeviceTakeover =
+          data['allowOtherDeviceTakeover'] == true;
 
       if (username == null ||
           password == null ||
@@ -107,6 +109,7 @@ extension AriamiHttpServerAuthAndAdminHandlersMethods on AriamiHttpServer {
           clientIp: _clientIp(request),
           username: username,
         ),
+        allowOtherDeviceTakeover: allowOtherDeviceTakeover,
       );
 
       // Register client connection
@@ -133,9 +136,7 @@ extension AriamiHttpServerAuthAndAdminHandlersMethods on AriamiHttpServer {
       );
     } on AuthException catch (e) {
       return Response(
-        e.code == AuthErrorCodes.rateLimited
-            ? HttpStatus.tooManyRequests
-            : HttpStatus.unauthorized,
+        _statusForAuthException(e.code),
         body: jsonEncode({
           'error': {
             'code': e.code,
@@ -144,6 +145,21 @@ extension AriamiHttpServerAuthAndAdminHandlersMethods on AriamiHttpServer {
         }),
         headers: {'Content-Type': 'application/json; charset=utf-8'},
       );
+    }
+  }
+
+  /// Map a login [AuthException] code to its HTTP status.
+  int _statusForAuthException(String code) {
+    switch (code) {
+      case AuthErrorCodes.rateLimited:
+        return HttpStatus.tooManyRequests;
+      // A login blocked because the account is signed in elsewhere is a
+      // conflict the client can resolve by retrying with a confirmed takeover,
+      // not an authentication failure — keep it distinct from 401.
+      case AuthErrorCodes.alreadyLoggedInOtherDevice:
+        return HttpStatus.conflict;
+      default:
+        return HttpStatus.unauthorized;
     }
   }
 

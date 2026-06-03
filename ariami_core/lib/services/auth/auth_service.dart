@@ -115,6 +115,7 @@ class AuthService {
     String deviceId,
     String deviceName, {
     String? rateLimitKey,
+    bool allowOtherDeviceTakeover = false,
   }) async {
     _ensureInitialized();
 
@@ -161,14 +162,20 @@ class AuthService {
     // Enforce single active session policy:
     // - dashboard control sessions can coexist with one real device session
     // - same-device re-login is allowed (replace existing same-device session)
-    // - different non-dashboard device login is rejected while an active
-    //   non-dashboard session exists
+    // - a different non-dashboard device login while an active non-dashboard
+    //   session exists is rejected, unless the caller confirms a takeover via
+    //   [allowOtherDeviceTakeover]. A takeover revokes the other device's
+    //   session(s) (it will be signed out on its next request) while leaving
+    //   any coexisting dashboard control session untouched.
     if (!isDashboardControlLogin &&
         _hasActiveUserDeviceSessionOnDifferentDevice(user.userId, deviceId)) {
-      throw AuthException(
-        AuthErrorCodes.alreadyLoggedInOtherDevice,
-        'You are logged in on another device.',
-      );
+      if (!allowOtherDeviceTakeover) {
+        throw AuthException(
+          AuthErrorCodes.alreadyLoggedInOtherDevice,
+          'You are already signed in on another device.',
+        );
+      }
+      await _revokeOtherDeviceSessionsForUser(user.userId, deviceId);
     }
     await _sessionStore.revokeSessionsForUserOnDevice(user.userId, deviceId);
 
@@ -277,6 +284,22 @@ class AuthService {
   Future<void> revokeAllSessionsForUser(String userId) async {
     _ensureInitialized();
     await _sessionStore.revokeAllForUser(userId);
+  }
+
+  /// Revoke the user's active sessions on devices other than [deviceId],
+  /// leaving dashboard control sessions in place so they can keep coexisting
+  /// with the new device session.
+  Future<void> _revokeOtherDeviceSessionsForUser(
+    String userId,
+    String deviceId,
+  ) async {
+    final tokens = _sessionStore
+        .getSessionsForUser(userId)
+        .where((session) => session.deviceId != deviceId)
+        .where((session) => !_isDashboardControlSession(session))
+        .map((session) => session.sessionToken)
+        .toList();
+    await _sessionStore.revokeSessionTokens(tokens);
   }
 
   bool _hasActiveUserDeviceSessionOnDifferentDevice(

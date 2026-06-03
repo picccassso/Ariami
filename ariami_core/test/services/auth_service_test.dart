@@ -155,9 +155,92 @@ void main() {
         );
         expect(
           authError.message,
-          equals('You are logged in on another device.'),
+          equals('You are already signed in on another device.'),
         );
       }
+    });
+
+    test(
+        'allowOtherDeviceTakeover signs the other device out and takes over',
+        () async {
+      final username = unique('single_session_takeover');
+      const password = 'strongpassword';
+      await authService.register(username, password);
+
+      final firstDeviceId = unique('device');
+      final firstLogin = await authService.login(
+        username,
+        password,
+        firstDeviceId,
+        'First Device',
+      );
+
+      final secondDeviceId = unique('device');
+      final secondLogin = await authService.login(
+        username,
+        password,
+        secondDeviceId,
+        'Second Device',
+        allowOtherDeviceTakeover: true,
+      );
+
+      expect(secondLogin.sessionToken, isNotEmpty);
+
+      // The other device's session is revoked (it is signed out).
+      final firstSession =
+          await authService.validateSession(firstLogin.sessionToken);
+      expect(firstSession, isNull);
+
+      // Only the new device's session remains active.
+      final sessions = authService.getSessionsForUser(secondLogin.userId);
+      expect(sessions.length, equals(1));
+      expect(sessions.first.deviceId, equals(secondDeviceId));
+    });
+
+    test(
+        'takeover from a new device leaves a coexisting dashboard session intact',
+        () async {
+      final username = unique('takeover_keeps_dashboard');
+      const password = 'strongpassword';
+      await authService.register(username, password);
+
+      final firstPhone = await authService.login(
+        username,
+        password,
+        unique('phone'),
+        'First Phone',
+      );
+      final dashboardLogin = await authService.login(
+        username,
+        password,
+        unique('dashboard'),
+        'Ariami CLI Web Dashboard',
+      );
+
+      final secondPhone = await authService.login(
+        username,
+        password,
+        unique('phone'),
+        'Second Phone',
+        allowOtherDeviceTakeover: true,
+      );
+
+      // The other phone is signed out, the dashboard session survives.
+      expect(
+        await authService.validateSession(firstPhone.sessionToken),
+        isNull,
+      );
+      expect(
+        await authService.validateSession(dashboardLogin.sessionToken),
+        isNotNull,
+      );
+      expect(
+        await authService.validateSession(secondPhone.sessionToken),
+        isNotNull,
+      );
+
+      final sessions = authService.getSessionsForUser(secondPhone.userId);
+      expect(sessions.length, equals(2));
     });
 
     test('allows re-login from same device and replaces prior device session',
