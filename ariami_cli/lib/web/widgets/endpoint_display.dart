@@ -42,7 +42,7 @@ class EndpointDisplay extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.06),
+                color: Colors.white.withValues(alpha: 0.06),
                 borderRadius: BorderRadius.circular(999),
                 border: Border.all(color: AppTheme.borderGrey),
               ),
@@ -65,7 +65,7 @@ class EndpointDisplay extends StatelessWidget {
             fontSize: valueSize,
             fontWeight: FontWeight.bold,
             color: Colors.white,
-            letterSpacing: -0.5,
+            letterSpacing: 0,
           ),
         ),
       ],

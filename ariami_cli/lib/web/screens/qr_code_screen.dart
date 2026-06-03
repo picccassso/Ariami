@@ -364,216 +364,252 @@ class _QRCodeScreenState extends State<QRCodeScreen>
               ],
             ),
             Expanded(
-              child: Center(
-                child: Container(
-                  constraints: const BoxConstraints(maxWidth: 1000),
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 48.0, vertical: 24.0),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.qr_code_2_rounded,
-                          size: 48, color: Colors.white),
-                      const SizedBox(height: 16),
-                      Text(
-                        'CONNECT MOBILE APP',
-                        style: Theme.of(context)
-                            .textTheme
-                            .headlineMedium
-                            ?.copyWith(
-                              fontSize: 28,
-                              letterSpacing: -0.5,
-                            ),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final isNarrow = constraints.maxWidth < 820;
+                  final isShort = constraints.maxHeight < 760;
+
+                  return SingleChildScrollView(
+                    padding: EdgeInsets.fromLTRB(
+                      isNarrow ? 20 : 48,
+                      isShort ? 12 : 24,
+                      isNarrow ? 20 : 48,
+                      32,
+                    ),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minHeight: constraints.maxHeight - (isShort ? 12 : 24),
                       ),
-                      const SizedBox(height: 48),
-                      if (_errorMessage != null)
-                        _buildErrorState()
-                      else if (_isLoading || _qrData == null)
-                        const Center(
-                            child:
-                                CircularProgressIndicator(color: Colors.white))
-                      else
-                        Expanded(
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.center,
+                      child: Align(
+                        alignment: Alignment.topCenter,
+                        child: Container(
+                          constraints: BoxConstraints(
+                            maxWidth: isNarrow ? 560 : 1120,
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              // Left Side: Server Details
-                              Expanded(
-                                flex: 2,
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Container(
-                                      decoration: AppTheme.glassDecoration,
-                                      padding: const EdgeInsets.all(32.0),
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          const Text(
-                                            'SERVER INFORMATION',
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w800,
-                                              color: AppTheme.textSecondary,
-                                              letterSpacing: 1.5,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 24),
-                                          _buildInfoRow('NAME', _serverName),
-                                          const SizedBox(height: 16),
-                                          ..._buildEndpointSection(),
-                                          if (_lastEndpointRefresh != null) ...[
-                                            const SizedBox(height: 12),
-                                            Row(
-                                              children: [
-                                                const Icon(
-                                                  Icons.schedule_rounded,
-                                                  size: 14,
-                                                  color: AppTheme.textSecondary,
-                                                ),
-                                                const SizedBox(width: 6),
-                                                Text(
-                                                  'Updated ${_formatEndpointRefreshTime()}',
-                                                  style: const TextStyle(
-                                                    color:
-                                                        AppTheme.textSecondary,
-                                                    fontSize: 12,
-                                                    fontWeight: FontWeight.w600,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ],
-                                          const SizedBox(height: 16),
-                                          _buildInfoRow('PORT', '$_serverPort'),
-                                          const SizedBox(height: 16),
-                                          _buildInfoRow(
-                                              'AUTH',
-                                              _authRequired
-                                                  ? 'REQUIRED'
-                                                  : 'OPEN'),
-                                          const SizedBox(height: 24),
-                                          const Divider(color: Colors.white10),
-                                          const SizedBox(height: 24),
-                                          const Text(
-                                            'INSTRUCTIONS',
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w800,
-                                              color: AppTheme.textSecondary,
-                                              letterSpacing: 1.5,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 12),
-                                          const Text(
-                                            '1. Open Ariami Mobile App\n2. Scan the QR code\n3. Wait for connection',
-                                            style: TextStyle(
-                                              fontSize: 14,
-                                              color: Colors.white70,
-                                              height: 1.6,
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 24),
-                                          const Divider(color: Colors.white10),
-                                          const SizedBox(height: 24),
-                                          ..._buildManualEntrySection(),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                              Icon(
+                                Icons.qr_code_2_rounded,
+                                size: isShort ? 34 : 42,
+                                color: Colors.white,
                               ),
-                              const SizedBox(width: 48),
-                              // Right Side: QR Code
-                              Expanded(
-                                flex: 1,
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.all(24),
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        borderRadius: BorderRadius.circular(24),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: Colors.white
-                                                .withValues(alpha: 0.1),
-                                            blurRadius: 30,
-                                            spreadRadius: 5,
-                                          ),
-                                        ],
-                                      ),
-                                      child: QrImageView(
-                                        data: _qrData!,
-                                        version: QrVersions.auto,
-                                        size: 200,
-                                        backgroundColor: Colors.white,
-                                        padding: EdgeInsets.zero,
-                                      ),
+                              const SizedBox(height: 14),
+                              Text(
+                                'CONNECT MOBILE APP',
+                                textAlign: TextAlign.center,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .headlineMedium
+                                    ?.copyWith(
+                                      fontSize: isNarrow ? 24 : 28,
+                                      letterSpacing: 0,
                                     ),
-                                    if (_isWaitingForConnection) ...[
-                                      const SizedBox(height: 32),
-                                      Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          FadeTransition(
-                                            opacity: _pulseController,
-                                            child: Container(
-                                              width: 8,
-                                              height: 8,
-                                              decoration: const BoxDecoration(
-                                                color: Colors.white,
-                                                shape: BoxShape.circle,
-                                              ),
-                                            ),
-                                          ),
-                                          const SizedBox(width: 12),
-                                          const Text(
-                                            'WAITING...',
-                                            style: TextStyle(
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.w900,
-                                              color: AppTheme.textSecondary,
-                                              letterSpacing: 2.0,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ],
-                                ),
                               ),
+                              SizedBox(height: isShort ? 24 : 40),
+                              if (_errorMessage != null)
+                                _buildErrorState()
+                              else if (_isLoading || _qrData == null)
+                                const Center(
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                  ),
+                                )
+                              else
+                                _buildConnectionContent(isNarrow: isNarrow),
+                              SizedBox(height: isShort ? 24 : 32),
+                              _buildDashboardButton(isNarrow: isNarrow),
                             ],
                           ),
                         ),
-                      const SizedBox(height: 48),
-                      SizedBox(
-                        height: 60,
-                        width: 280,
-                        child: ElevatedButton(
-                          onPressed: () {
-                            navigateToDashboard(context);
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppTheme.surfaceBlack,
-                            foregroundColor: Colors.white,
-                            side: const BorderSide(color: AppTheme.borderGrey),
-                          ),
-                          child: const Text('GO TO DASHBOARD'),
-                        ),
                       ),
-                      const SizedBox(height: 24),
-                    ],
-                  ),
-                ),
+                    ),
+                  );
+                },
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildConnectionContent({required bool isNarrow}) {
+    if (isNarrow) {
+      return Column(
+        children: [
+          _buildQrPanel(qrSize: 180),
+          const SizedBox(height: 24),
+          _buildServerInfoCard(),
+        ],
+      );
+    }
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Expanded(
+          flex: 3,
+          child: _buildServerInfoCard(),
+        ),
+        const SizedBox(width: 48),
+        Expanded(
+          flex: 2,
+          child: _buildQrPanel(qrSize: 220),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildServerInfoCard() {
+    return Container(
+      width: double.infinity,
+      decoration: AppTheme.glassDecoration,
+      padding: const EdgeInsets.all(32.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'SERVER INFORMATION',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              color: AppTheme.textSecondary,
+              letterSpacing: 1.5,
+            ),
+          ),
+          const SizedBox(height: 24),
+          _buildInfoRow('NAME', _serverName),
+          const SizedBox(height: 16),
+          ..._buildEndpointSection(),
+          if (_lastEndpointRefresh != null) ...[
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                const Icon(
+                  Icons.schedule_rounded,
+                  size: 14,
+                  color: AppTheme.textSecondary,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'Updated ${_formatEndpointRefreshTime()}',
+                  style: const TextStyle(
+                    color: AppTheme.textSecondary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ],
+          const SizedBox(height: 16),
+          _buildInfoRow('PORT', '$_serverPort'),
+          const SizedBox(height: 16),
+          _buildInfoRow('AUTH', _authRequired ? 'REQUIRED' : 'OPEN'),
+          const SizedBox(height: 24),
+          const Divider(color: Colors.white10),
+          const SizedBox(height: 24),
+          const Text(
+            'INSTRUCTIONS',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              color: AppTheme.textSecondary,
+              letterSpacing: 1.5,
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            '1. Open Ariami Mobile App\n2. Scan the QR code\n3. Wait for connection',
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.white70,
+              height: 1.6,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 24),
+          const Divider(color: Colors.white10),
+          const SizedBox(height: 24),
+          ..._buildManualEntrySection(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQrPanel({required double qrSize}) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.white.withValues(alpha: 0.1),
+                blurRadius: 30,
+                spreadRadius: 5,
+              ),
+            ],
+          ),
+          child: QrImageView(
+            data: _qrData!,
+            version: QrVersions.auto,
+            size: qrSize,
+            backgroundColor: Colors.white,
+            padding: EdgeInsets.zero,
+          ),
+        ),
+        if (_isWaitingForConnection) ...[
+          const SizedBox(height: 28),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              FadeTransition(
+                opacity: _pulseController,
+                child: Container(
+                  width: 8,
+                  height: 8,
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Text(
+                'WAITING...',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w900,
+                  color: AppTheme.textSecondary,
+                  letterSpacing: 2.0,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildDashboardButton({required bool isNarrow}) {
+    return SizedBox(
+      height: 56,
+      width: isNarrow ? double.infinity : 280,
+      child: ElevatedButton(
+        onPressed: () {
+          navigateToDashboard(context);
+        },
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppTheme.surfaceBlack,
+          foregroundColor: Colors.white,
+          side: const BorderSide(color: AppTheme.borderGrey),
+        ),
+        child: const Text('GO TO DASHBOARD'),
       ),
     );
   }
@@ -683,11 +719,13 @@ class _QRCodeScreenState extends State<QRCodeScreen>
           ),
         )
       else ...[
-        Row(
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
                 color: AppTheme.surfaceBlack,
                 borderRadius: BorderRadius.circular(12),
@@ -704,7 +742,6 @@ class _QRCodeScreenState extends State<QRCodeScreen>
                 ),
               ),
             ),
-            const SizedBox(width: 8),
             IconButton(
               tooltip: 'Copy code',
               icon: const Icon(Icons.copy_rounded, color: Colors.white),
@@ -740,7 +777,8 @@ class _QRCodeScreenState extends State<QRCodeScreen>
 
   Widget _buildErrorState() {
     return Container(
-      width: 500,
+      width: double.infinity,
+      constraints: const BoxConstraints(maxWidth: 500),
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: Colors.redAccent.withValues(alpha: 0.1),
@@ -812,7 +850,7 @@ class _QRCodeScreenState extends State<QRCodeScreen>
             color: Colors.white,
             fontSize: 16,
             fontWeight: FontWeight.w900,
-            letterSpacing: -0.2,
+            letterSpacing: 0,
           ),
         ),
       ],
