@@ -165,8 +165,14 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
       } else {
         if (currentSong == null) return;
 
-        // If no song is loaded yet OR we have a restored position to seek to, load/reload the song
-        if (duration == null || _restoredPosition != null) {
+        // If the player hasn't actually loaded the current song yet (e.g. the
+        // song was only added to an empty queue and never played), or we have a
+        // restored position to seek to, load/reload the song. We can't use the
+        // public `duration` getter here: it falls back to the song's metadata
+        // duration, so it's non-null even when nothing is loaded into the
+        // player, which would make resume() a no-op and the song never play.
+        final loadedSong = _audioPlayer.currentSong;
+        if (loadedSong?.id != currentSong!.id || _restoredPosition != null) {
           await _playCurrentSong(isResume: true);
         } else {
           // Resuming - restart stats tracking
