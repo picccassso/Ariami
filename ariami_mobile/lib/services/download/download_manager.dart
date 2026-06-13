@@ -52,6 +52,7 @@ class DownloadManager {
   StreamSubscription<bool>? _connectionStateSubscription;
 
   bool _initialized = false;
+  Future<void>? _initFuture;
   String? _downloadPath;
   String? _lastKnownServerId;
   String? _lastKnownUserId;
@@ -84,8 +85,12 @@ class DownloadManager {
   // INITIALIZATION
   // ============================================================================
 
-  /// Initialize the download manager
-  Future<void> initialize() => _initializeImpl();
+  /// Initialize the download manager.
+  ///
+  /// Idempotent: concurrent or repeat callers (the startup warm-up and the
+  /// library's lazy `_ensureInitialized`) share a single initialization so the
+  /// database and queue are never loaded more than once.
+  Future<void> initialize() => _initFuture ??= _initializeImpl();
 
   /// Update the maximum number of concurrent downloads (per device)
   void setMaxConcurrentDownloads(int maxConcurrent) =>

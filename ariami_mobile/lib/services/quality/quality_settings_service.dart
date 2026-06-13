@@ -28,7 +28,10 @@ class QualitySettingsService {
   /// Current quality settings
   QualitySettings get settings => _settings;
 
-  /// Initialize the service and load saved settings
+  /// Initialize the service and load saved settings.
+  ///
+  /// Safe to call repeatedly (settings reload is just idempotent pref reads),
+  /// and the network monitor it depends on guards its own one-time setup.
   Future<void> initialize() async {
     final normalizedLegacySettings = await _loadSettings();
     if (normalizedLegacySettings) {

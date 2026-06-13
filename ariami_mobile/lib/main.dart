@@ -139,38 +139,61 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     _listenToNetworkChanges();
   }
 
-  /// Initialize services and determine initial screen (must be sequential)
+  /// Initialize the bare minimum needed to choose a screen, show it, then warm
+  /// everything else in the background.
   Future<void> _initializeAndDetermineScreen() async {
-    await _initializeServices();
+    // Critical path: only auth info and offline state are needed to decide
+    // which screen to show first.
+    await _connectionService.loadAuthInfo();
+    await _offlineService.initialize();
+
+    // Pick and render the initial screen as soon as possible.
     await _determineInitialScreen();
+
+    // Warm the remaining services once the UI is already on screen.
+    unawaited(_initializeDeferredServices());
   }
 
-  /// Initialize background services
-  Future<void> _initializeServices() async {
-    // Load stored auth info (session token, userId, username) before connection attempt
-    await _connectionService.loadAuthInfo();
-    // Initialize offline playback service (listens to connection changes)
-    await _offlineService.initialize();
-    // Initialize download manager
-    await _downloadManager.initialize();
+  /// Initialize non-critical services after the first screen is shown.
+  ///
+  /// None of these gate the initial-screen decision, and they are independent
+  /// of one another, so they run concurrently instead of blocking startup with
+  /// a chain of sequential awaits.
+  Future<void> _initializeDeferredServices() async {
+    await Future.wait([
+      // Download manager (also initializes quality settings internally)
+      _downloadManager.initialize(),
+      // Artwork/song cache
+      _cacheManager.initialize(),
+      // Streaming play-stats
+      _statsService.initialize(),
+      // Quality settings (idempotent; shared with the download manager)
+      _qualityService.initialize(),
+      // Network-type monitor for quality-based streaming
+      _networkMonitor.initialize(),
+      // Profile image, pre-cached before the Settings tab is opened
+      _profileImageService.initialize(),
+    ]);
+
     GlobalDownloadChromeVisibility.instance.startListening();
+
     _startupInterruptedDownloadCount =
         _downloadManager.getInterruptedDownloadCount();
     _startupAutoResumeInterruptedOnLaunch =
         _downloadManager.getAutoResumeInterruptedOnLaunch();
-    // Initialize cache manager for artwork and song caching
-    await _cacheManager.initialize();
-    // Initialize streaming stats service for play tracking
-    await _statsService.initialize();
-    // Initialize network monitor for quality-based streaming
-    await _networkMonitor.initialize();
-    // Initialize quality settings service
-    await _qualityService.initialize();
-    // Load and pre-cache the profile image so it's ready (and warm in the
-    // image cache) before the Settings tab is ever opened.
-    await _profileImageService.initialize();
+
     print(
-        '[Main] Auth, Offline, Download, Cache, Stats, Network, Quality, and Profile services initialized');
+        '[Main] Deferred services initialized (Download, Cache, Stats, Network, Quality, Profile)');
+
+    if (!mounted) return;
+
+    // Download recovery depends on the download manager being initialized, so
+    // it runs here rather than during initial-screen selection.
+    if (_startupAutoResumeInterruptedOnLaunch) {
+      _maybeAutoResumeStartupDownloads();
+    } else {
+      _maybePromptStartupDownloadRecovery();
+    }
   }
 
   @override
@@ -351,9 +374,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   }
 
   Future<void> _determineInitialScreen() async {
-    // Ensure offline service is initialized before checking its state
-    await _offlineService.initialize();
-
     // If manual offline mode was persisted, skip connection restoration
     if (_offlineService.isManualOfflineModeEnabled) {
       print('Manual offline mode persisted - skipping connection restoration');
@@ -365,36 +385,47 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       return;
     }
 
-    // Try to restore previous connection
-    final restored = await _connectionService.tryRestoreConnection();
-
-    // If restore failed, make sure we load server info from storage
-    // (tryRestoreConnection sets _serverInfo, but we want to be sure)
-    if (!restored) {
-      await _connectionService.loadServerInfoFromStorage();
-    }
+    // Load saved server info from storage. This only touches local storage, so
+    // it's fast - unlike the network reconnect, which we defer to the
+    // background so the UI is never gated on a socket timeout.
+    await _connectionService.loadServerInfoFromStorage();
 
     setState(() {
-      if (restored) {
-        // Connection restored successfully - go to main app
-        _initialScreen = const MainNavigationScreen();
-      } else if (_connectionService.serverInfo != null) {
-        // Has saved server info but couldn't connect
-        // Notify connection lost (will auto-enable auto offline mode)
-        // User can still use downloaded content and app will auto-reconnect when possible
-        _offlineService.notifyConnectionLost();
-        _initialScreen = const MainNavigationScreen();
-      } else {
-        // No saved connection - go to welcome/setup flow
-        _initialScreen = const WelcomeScreen();
-      }
+      // A saved server means the user has set the app up before, so drop them
+      // straight into the app (offline-capable) while we reconnect in the
+      // background. Otherwise start the welcome/setup flow.
+      _initialScreen = _connectionService.serverInfo != null
+          ? const MainNavigationScreen()
+          : const WelcomeScreen();
       _isLoading = false;
     });
 
-    if (_startupAutoResumeInterruptedOnLaunch) {
-      _maybeAutoResumeStartupDownloads();
-    } else {
-      _maybePromptStartupDownloadRecovery();
+    if (_connectionService.serverInfo != null) {
+      unawaited(_restoreConnectionInBackground());
+    }
+  }
+
+  /// Restore the saved server connection without blocking the UI.
+  ///
+  /// Short-circuits the socket-probe round trip entirely when there is no
+  /// network, so offline launches drop straight into auto-offline mode instead
+  /// of waiting out connect timeouts. On any failure we enter auto-offline so
+  /// downloaded content stays usable and the app auto-reconnects when possible.
+  Future<void> _restoreConnectionInBackground() async {
+    final connectivityResults = await Connectivity().checkConnectivity();
+    final hasNetwork = connectivityResults.any((result) =>
+        result == ConnectivityResult.wifi ||
+        result == ConnectivityResult.mobile ||
+        result == ConnectivityResult.ethernet);
+
+    if (!hasNetwork) {
+      _offlineService.notifyConnectionLost();
+      return;
+    }
+
+    final restored = await _connectionService.tryRestoreConnection();
+    if (!restored) {
+      _offlineService.notifyConnectionLost();
     }
   }
 

@@ -93,6 +93,19 @@ extension _LibraryControllerLoading on LibraryController {
       }
 
       if (_connectionService.apiClient == null) {
+        // Not connected yet - most often the startup background reconnect is
+        // still in flight. If a previous sync left a catalog on disk, render it
+        // immediately from the local store (no network needed) so the user sees
+        // their library right away; the reconnect refreshes it when it lands.
+        // The local-store reads and download reconciliation in
+        // _loadLibraryFromFacade never touch the apiClient.
+        final hasLocalLibrary = await _connectionService.libraryReadFacade
+            .hasCompletedBootstrap();
+        if (hasLocalLibrary) {
+          await _loadLibraryFromFacade();
+          return;
+        }
+
         _clearDurationRetries();
         _updateState(_state.copyWith(
           isLoading: false,

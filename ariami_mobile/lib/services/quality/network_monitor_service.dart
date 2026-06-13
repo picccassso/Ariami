@@ -29,6 +29,7 @@ class NetworkMonitorService {
 
   NetworkType _currentNetworkType = NetworkType.none;
   final _networkTypeController = StreamController<NetworkType>.broadcast();
+  Future<void>? _initFuture;
 
   /// Stream of network type changes
   Stream<NetworkType> get networkTypeStream => _networkTypeController.stream;
@@ -36,8 +37,13 @@ class NetworkMonitorService {
   /// Current network type
   NetworkType get currentNetworkType => _currentNetworkType;
 
-  /// Initialize the service and start monitoring
-  Future<void> initialize() async {
+  /// Initialize the service and start monitoring.
+  ///
+  /// Idempotent: concurrent or repeat calls share a single initialization so
+  /// the connectivity subscription is never created more than once.
+  Future<void> initialize() => _initFuture ??= _initialize();
+
+  Future<void> _initialize() async {
     // Get initial connectivity state
     final results = await _connectivity.checkConnectivity();
     _updateNetworkType(results);

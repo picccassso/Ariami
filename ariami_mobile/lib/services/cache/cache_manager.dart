@@ -33,6 +33,7 @@ class CacheManager {
   final MediaRequestScheduler _mediaRequestScheduler = MediaRequestScheduler();
 
   bool _initialized = false;
+  Future<void>? _initFuture;
   String? _artworkCachePath;
   String? _songCachePath;
 
@@ -72,7 +73,13 @@ class CacheManager {
   // ============================================================================
 
   /// Initialize the cache manager
-  Future<void> initialize() async {
+  /// Initialize the cache manager.
+  ///
+  /// Idempotent: concurrent or repeat callers (the startup warm-up and the
+  /// library's lazy `_ensureInitialized`) share a single initialization.
+  Future<void> initialize() => _initFuture ??= _initializeImpl();
+
+  Future<void> _initializeImpl() async {
     if (_initialized) return;
 
     // Setup database
@@ -90,21 +97,33 @@ class CacheManager {
     await Directory(_artworkCachePath!).create(recursive: true);
     await Directory(_songCachePath!).create(recursive: true);
 
-    // Verify cache files exist, clean up orphaned entries
-    await _cleanupOrphanedEntries();
-
-    // Pre-populate memory cache with all artwork paths for instant sync lookups
-    await _prePopulateArtworkPathCache();
-
     _initialized = true;
     print('[CacheManager] Initialized');
     print('[CacheManager] Artwork cache: $_artworkCachePath');
     print('[CacheManager] Song cache: $_songCachePath');
 
-    // Repair sparse metadata in the background on migrated installs without
-    // blocking startup. This keeps thumbnail lookups resilient if legacy files
-    // exist but metadata was only partially imported.
-    unawaited(_repairArtworkMetadataFromDiskIfNeeded());
+    // Warm the in-memory caches and reconcile on-disk state in the background.
+    // These passes stat one file per cached entry, which scales with cache
+    // size, so keeping them off the await path stops a large cache from
+    // slowing startup. Sync artwork lookups fall back to the async DB path
+    // until pre-population finishes.
+    unawaited(_warmCachesInBackground());
+  }
+
+  /// Background warm-up: populate the artwork path cache, drop orphaned
+  /// entries, and reindex any on-disk artwork missing from metadata. Runs
+  /// after [initialize] returns so it never blocks the startup path.
+  Future<void> _warmCachesInBackground() async {
+    // Pre-populate memory cache with all artwork paths for instant sync lookups
+    await _prePopulateArtworkPathCache();
+
+    // Verify cache files exist, clean up orphaned entries
+    await _cleanupOrphanedEntries();
+
+    // Repair sparse metadata on migrated installs. This keeps thumbnail
+    // lookups resilient if legacy files exist but metadata was only partially
+    // imported.
+    await _repairArtworkMetadataFromDiskIfNeeded();
   }
 
   /// Ensure initialization
@@ -947,6 +966,7 @@ class CacheManager {
       await _database.close();
     }
     _initialized = false;
+    _initFuture = null;
     _artworkCachePath = null;
     _songCachePath = null;
   }

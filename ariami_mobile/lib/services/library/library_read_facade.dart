@@ -131,6 +131,12 @@ class LibraryReadFacade {
     return _libraryRepository.getServerPlaylists();
   }
 
+  /// Whether the local library store has a completed sync bootstrap, i.e. there
+  /// is a previously-synced catalog on disk that can be shown without a live
+  /// connection.
+  Future<bool> hasCompletedBootstrap() =>
+      _libraryRepository.hasCompletedBootstrap();
+
   Future<int?> getActiveLastAppliedToken() async {
     if (!await _libraryRepository.hasCompletedBootstrap()) {
       return null;
