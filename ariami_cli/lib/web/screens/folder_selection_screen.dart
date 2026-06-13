@@ -238,7 +238,9 @@ class _FolderSelectionScreenState extends State<FolderSelectionScreen> {
               child: Center(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.all(24.0),
-                  child: Column(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 600),
+                    child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Container(
@@ -261,7 +263,7 @@ class _FolderSelectionScreenState extends State<FolderSelectionScreen> {
                       ),
                       const SizedBox(height: 16),
                       const SizedBox(
-                        width: 500,
+                        width: double.infinity,
                         child: Text(
                           'Choose a common location on the server or enter an absolute path manually.',
                           style: TextStyle(
@@ -275,7 +277,7 @@ class _FolderSelectionScreenState extends State<FolderSelectionScreen> {
                       ),
                       const SizedBox(height: 40),
                       SizedBox(
-                        width: 600,
+                        width: double.infinity,
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
@@ -376,8 +378,11 @@ class _FolderSelectionScreenState extends State<FolderSelectionScreen> {
                         ),
                       ),
                       const SizedBox(height: 64),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                      Wrap(
+                        alignment: WrapAlignment.center,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: 32,
+                        runSpacing: 12,
                         children: [
                           TextButton(
                             onPressed: () {
@@ -385,7 +390,6 @@ class _FolderSelectionScreenState extends State<FolderSelectionScreen> {
                             },
                             child: const Text('BACK'),
                           ),
-                          const SizedBox(width: 32),
                           SizedBox(
                             height: 60,
                             width: 200,
@@ -404,6 +408,7 @@ class _FolderSelectionScreenState extends State<FolderSelectionScreen> {
                         ],
                       ),
                     ],
+                    ),
                   ),
                 ),
               ),

@@ -46,17 +46,19 @@ class ConnectedClientsSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            alignment: WrapAlignment.spaceBetween,
             children: [
-              const Expanded(
-                child: Text(
-                  'CONNECTED USERS & DEVICES',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                    color: AppTheme.textSecondary,
-                    letterSpacing: 1.5,
-                  ),
+              const Text(
+                'CONNECTED USERS & DEVICES',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: AppTheme.textSecondary,
+                  letterSpacing: 1.5,
                 ),
               ),
               ElevatedButton.icon(

@@ -28,7 +28,9 @@ Future<CreateUserPayload?> showCreateUserDialog(BuildContext context) async {
             backgroundColor: AppTheme.surfaceBlack,
             title: const Text('Create User'),
             content: SizedBox(
-              width: 400,
+              width: MediaQuery.of(context).size.width < 480
+                  ? double.maxFinite
+                  : 400,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [

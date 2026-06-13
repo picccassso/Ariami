@@ -40,7 +40,9 @@ Future<TranscodeSlotsEditResult?> showTranscodeSlotsDialog(
               style: TextStyle(color: Colors.white),
             ),
             content: SizedBox(
-              width: 400,
+              width: MediaQuery.of(context).size.width < 480
+                  ? double.maxFinite
+                  : 400,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,

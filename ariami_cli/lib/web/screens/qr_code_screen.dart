@@ -2,11 +2,11 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:ariami_core/models/auth_models.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../services/web_api_client.dart';
 import '../services/web_auth_service.dart';
 import '../utils/constants.dart';
+import '../utils/web_clipboard.dart';
 import '../utils/web_navigation.dart';
 import '../widgets/endpoint_display.dart';
 
@@ -160,12 +160,22 @@ class _QRCodeScreenState extends State<QRCodeScreen>
   Future<void> _copyInviteCode() async {
     final code = _inviteCode;
     if (code == null) return;
-    await Clipboard.setData(ClipboardData(text: _formatInviteCode(code)));
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Invite code copied')),
-      );
-    }
+    // Copy the raw 8-char code (no dash) so it pastes straight into the app.
+    final copied = await copyToClipboard(code);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          copied
+              ? 'Invite code copied'
+              : 'Could not copy automatically — tap the code to select it, '
+                  'then copy.',
+        ),
+        backgroundColor:
+            copied ? AppTheme.surfaceBlack : Colors.redAccent,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   void _startServerInfoPolling() {
@@ -461,9 +471,9 @@ class _QRCodeScreenState extends State<QRCodeScreen>
     if (isNarrow) {
       return Column(
         children: [
-          _buildQrPanel(qrSize: 180),
+          _buildQrPanel(qrSize: 200),
           const SizedBox(height: 24),
-          _buildServerInfoCard(),
+          _buildServerInfoCard(isNarrow: true),
         ],
       );
     }
@@ -473,7 +483,7 @@ class _QRCodeScreenState extends State<QRCodeScreen>
       children: [
         Expanded(
           flex: 3,
-          child: _buildServerInfoCard(),
+          child: _buildServerInfoCard(isNarrow: false),
         ),
         const SizedBox(width: 48),
         Expanded(
@@ -484,11 +494,11 @@ class _QRCodeScreenState extends State<QRCodeScreen>
     );
   }
 
-  Widget _buildServerInfoCard() {
+  Widget _buildServerInfoCard({required bool isNarrow}) {
     return Container(
       width: double.infinity,
       decoration: AppTheme.glassDecoration,
-      padding: const EdgeInsets.all(32.0),
+      padding: EdgeInsets.all(isNarrow ? 20.0 : 32.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -742,35 +752,48 @@ class _QRCodeScreenState extends State<QRCodeScreen>
           ),
         )
       else ...[
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: AppTheme.surfaceBlack,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppTheme.borderGrey),
-              ),
-              child: Text(
-                _formatInviteCode(code),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 24,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 3.0,
-                  fontFamily: 'monospace',
+        // Tapping anywhere on the code copies it; the text is also selectable
+        // so a manual long-press → copy works on any mobile browser.
+        InkWell(
+          onTap: _copyInviteCode,
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              color: AppTheme.surfaceBlack,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppTheme.borderGrey),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: SelectableText(
+                    _formatInviteCode(code),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 26,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 3.0,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
                 ),
-              ),
+                const SizedBox(width: 8),
+                const Icon(Icons.copy_rounded, color: Colors.white70),
+              ],
             ),
-            IconButton(
-              tooltip: 'Copy code',
-              icon: const Icon(Icons.copy_rounded, color: Colors.white),
-              onPressed: _copyInviteCode,
-            ),
-          ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          height: 48,
+          child: ElevatedButton.icon(
+            onPressed: _copyInviteCode,
+            icon: const Icon(Icons.copy_rounded, size: 18),
+            label: const Text('COPY CODE'),
+          ),
         ),
         const SizedBox(height: 8),
         Row(

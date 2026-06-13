@@ -37,6 +37,9 @@ dependencies:
   # HTTP client for web API calls
   http: ^1.1.0
 
+  # Low-level web/DOM access for the served Flutter web UI (clipboard fallback)
+  web: ^1.1.0
+
 dev_dependencies:
   lints: ^6.1.0
   flutter_test:

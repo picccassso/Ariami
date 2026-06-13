@@ -136,6 +136,24 @@ class AppTheme {
       thickness: 1,
       space: 1,
     ),
+    // Snackbars float above a near-black background, so give them a clear
+    // outline, shadow and readable text so they're always visible.
+    snackBarTheme: SnackBarThemeData(
+      behavior: SnackBarBehavior.floating,
+      backgroundColor: const Color(0xFF1E1E1E),
+      contentTextStyle: const TextStyle(
+        color: Colors.white,
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
+      ),
+      actionTextColor: Colors.white,
+      elevation: 10,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: const BorderSide(color: Colors.white24),
+      ),
+    ),
     pageTransitionsTheme: const PageTransitionsTheme(
       builders: {
         TargetPlatform.android: _NoTransitionBuilder(),

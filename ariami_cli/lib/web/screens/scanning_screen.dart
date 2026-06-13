@@ -215,7 +215,9 @@ class _ScanningScreenState extends State<ScanningScreen> with SingleTickerProvid
               child: Center(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.all(24.0),
-                  child: Column(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 600),
+                    child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       // Pulse Icon
@@ -255,7 +257,7 @@ class _ScanningScreenState extends State<ScanningScreen> with SingleTickerProvid
 
                       // Progress Bar Container
                       SizedBox(
-                        width: 600,
+                        width: double.infinity,
                         child: Column(
                           children: [
                             ClipRRect(
@@ -298,7 +300,7 @@ class _ScanningScreenState extends State<ScanningScreen> with SingleTickerProvid
 
                       // Stats Grid
                       SizedBox(
-                        width: 600,
+                        width: double.infinity,
                         child: Row(
                           children: [
                             Expanded(
@@ -322,7 +324,7 @@ class _ScanningScreenState extends State<ScanningScreen> with SingleTickerProvid
                       if (_isComplete && _skippedFileCount > 0) ...[
                         const SizedBox(height: 32),
                         SizedBox(
-                          width: 600,
+                          width: double.infinity,
                           child: Container(
                             padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
@@ -359,7 +361,7 @@ class _ScanningScreenState extends State<ScanningScreen> with SingleTickerProvid
                       if (_isComplete && _isTransitioning) ...[
                         const SizedBox(height: 64),
                         SizedBox(
-                          width: 600,
+                          width: double.infinity,
                           child: Column(
                             children: [
                               Row(
@@ -412,7 +414,7 @@ class _ScanningScreenState extends State<ScanningScreen> with SingleTickerProvid
                       if (_transitionError != null) ...[
                         const SizedBox(height: 32),
                         SizedBox(
-                          width: 600,
+                          width: double.infinity,
                           child: Container(
                             padding: const EdgeInsets.all(20),
                             decoration: BoxDecoration(
@@ -435,14 +437,15 @@ class _ScanningScreenState extends State<ScanningScreen> with SingleTickerProvid
                                   textAlign: TextAlign.center,
                                 ),
                                 const SizedBox(height: 20),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
+                                Wrap(
+                                  alignment: WrapAlignment.center,
+                                  spacing: 16,
+                                  runSpacing: 12,
                                   children: [
                                     OutlinedButton(
                                       onPressed: _retryBackgroundTransition,
                                       child: const Text('RETRY'),
                                     ),
-                                    const SizedBox(width: 16),
                                     ElevatedButton(
                                       onPressed: _continueInForeground,
                                       child: const Text('CONTINUE IN FOREGROUND'),
@@ -455,6 +458,7 @@ class _ScanningScreenState extends State<ScanningScreen> with SingleTickerProvid
                         ),
                       ],
                     ],
+                    ),
                   ),
                 ),
               ),

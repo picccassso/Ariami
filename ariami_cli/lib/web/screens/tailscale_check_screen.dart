@@ -84,7 +84,9 @@ class _TailscaleCheckScreenState extends State<TailscaleCheckScreen> with Single
               child: Center(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.all(24.0),
-                  child: Column(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 600),
+                    child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       // Pulse Status Icon
@@ -125,7 +127,7 @@ class _TailscaleCheckScreenState extends State<TailscaleCheckScreen> with Single
                       ),
                       const SizedBox(height: 16),
                       SizedBox(
-                        width: 500,
+                        width: double.infinity,
                         child: Text(
                           _isRunning
                               ? 'Tailscale is active. Your server is secured and accessible remotely.'
@@ -179,7 +181,7 @@ class _TailscaleCheckScreenState extends State<TailscaleCheckScreen> with Single
                         )
                       else if (!_isRunning)
                         const SizedBox(
-                          width: 500,
+                          width: double.infinity,
                           child: Text(
                             'Remote access will require manual port forwarding without Tailscale.',
                             style: TextStyle(
@@ -192,8 +194,11 @@ class _TailscaleCheckScreenState extends State<TailscaleCheckScreen> with Single
                         ),
 
                       const SizedBox(height: 64),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                      Wrap(
+                        alignment: WrapAlignment.center,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: 32,
+                        runSpacing: 12,
                         children: [
                           TextButton(
                             onPressed: () {
@@ -201,7 +206,6 @@ class _TailscaleCheckScreenState extends State<TailscaleCheckScreen> with Single
                             },
                             child: const Text('BACK'),
                           ),
-                          const SizedBox(width: 32),
                           SizedBox(
                             height: 60,
                             width: 200,
@@ -223,6 +227,7 @@ class _TailscaleCheckScreenState extends State<TailscaleCheckScreen> with Single
                         ),
                       ],
                     ],
+                    ),
                   ),
                 ),
               ),

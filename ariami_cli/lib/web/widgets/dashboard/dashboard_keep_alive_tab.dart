@@ -18,8 +18,12 @@ class _DashboardKeepAliveTabState extends State<DashboardKeepAliveTab>
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    final isNarrow = MediaQuery.of(context).size.width < 600;
     return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+      padding: EdgeInsets.symmetric(
+        horizontal: isNarrow ? 16 : 24,
+        vertical: isNarrow ? 20 : 32,
+      ),
       child: widget.child,
     );
   }

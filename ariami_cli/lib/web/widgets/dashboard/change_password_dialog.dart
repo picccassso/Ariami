@@ -23,7 +23,9 @@ Future<Map<String, String>?> showChangePasswordDialog(
               style: TextStyle(color: Colors.white),
             ),
             content: SizedBox(
-              width: 420,
+              width: MediaQuery.of(context).size.width < 480
+                  ? double.maxFinite
+                  : 420,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [

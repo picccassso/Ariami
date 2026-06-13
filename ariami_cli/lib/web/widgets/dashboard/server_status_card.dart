@@ -41,32 +41,34 @@ class ServerStatusCard extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 16),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'SERVER STATUS',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  color: AppTheme.textSecondary,
-                  letterSpacing: 1.5,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'SERVER STATUS',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: AppTheme.textSecondary,
+                    letterSpacing: 1.5,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                serverRunning ? 'ACTIVE & STREAMING' : 'SERVER STOPPED',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w900,
-                  color: serverRunning ? Colors.white : Colors.redAccent,
+                const SizedBox(height: 4),
+                Text(
+                  serverRunning ? 'ACTIVE & STREAMING' : 'SERVER STOPPED',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    color: serverRunning ? Colors.white : Colors.redAccent,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-          const Spacer(),
           if (isScanning)
             Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
                 const SizedBox(
                   width: 16,

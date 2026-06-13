@@ -23,6 +23,7 @@ class ServerInfoCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final hasEndpoints = (lanServer != null && lanServer!.isNotEmpty) ||
         (tailscaleServer != null && tailscaleServer!.isNotEmpty);
+    final isNarrow = MediaQuery.of(context).size.width < 600;
 
     return Container(
       decoration: BoxDecoration(
@@ -30,7 +31,7 @@ class ServerInfoCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppTheme.borderGrey),
       ),
-      padding: const EdgeInsets.all(32.0),
+      padding: EdgeInsets.all(isNarrow ? 20.0 : 32.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
