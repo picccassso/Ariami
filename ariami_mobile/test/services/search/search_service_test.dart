@@ -238,5 +238,42 @@ void main() {
       expect(results.albums, hasLength(1));
       expect(results.albums.single.id, 'album-1');
     });
+
+    test('typo-tolerant query matches song title', () {
+      final songs = [
+        song(id: 'song-a', title: 'Mirrors', artist: 'Justin Timberlake'),
+      ];
+
+      final results = service.search('mirrirs', songs, const []);
+
+      expect(results.songs, hasLength(1));
+      expect(results.songs.single.id, 'song-a');
+    });
+
+    test('typo-tolerant matches rank below exact and substring matches', () {
+      final songs = [
+        song(id: 'song-fuzzy', title: 'Mirrors', artist: 'Artist'),
+        song(id: 'song-exact', title: 'Mirrirs', artist: 'Artist'),
+        song(id: 'song-substring', title: 'Big Mirrirs Song', artist: 'Artist'),
+      ];
+
+      final results = service.search('mirrirs', songs, const []);
+
+      expect(
+        results.songs.map((song) => song.id),
+        ['song-exact', 'song-substring', 'song-fuzzy'],
+      );
+    });
+
+    test('typo-tolerant query matches album title', () {
+      final albums = [
+        album(id: 'album-1', title: 'Mirrors'),
+      ];
+
+      final results = service.search('mirrirs', const [], albums);
+
+      expect(results.albums, hasLength(1));
+      expect(results.albums.single.id, 'album-1');
+    });
   });
 }

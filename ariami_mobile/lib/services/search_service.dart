@@ -109,9 +109,10 @@ class SearchService {
     return orderedFingerprints.map((key) => byFingerprint[key]!).toList();
   }
 
-  static const int _exactTier = 3;
-  static const int _prefixTier = 2;
-  static const int _substringTier = 1;
+  static const int _exactTier = 4;
+  static const int _prefixTier = 3;
+  static const int _substringTier = 2;
+  static const int _fuzzyTier = 1;
 
   List<String> _tokenize(String query) {
     return query
@@ -127,6 +128,7 @@ class SearchService {
     if (field == token) return _exactTier;
     if (field.startsWith(token)) return _prefixTier;
     if (field.contains(token)) return _substringTier;
+    if (_fuzzyTokenMatchesField(token, field)) return _fuzzyTier;
     return 0;
   }
 
@@ -141,7 +143,8 @@ class SearchService {
     return best;
   }
 
-  /// Returns bucket index: 0 exact, 1 prefix, 2 substring; null if no match.
+  /// Returns bucket index: 0 exact, 1 prefix, 2 substring, 3 fuzzy;
+  /// null if no match.
   int? _matchBucketForFields(List<String> tokens, List<String> fields) {
     if (tokens.isEmpty) return null;
 
@@ -150,6 +153,7 @@ class SearchService {
       if (tier == _exactTier) return 0;
       if (tier == _prefixTier) return 1;
       if (tier == _substringTier) return 2;
+      if (tier == _fuzzyTier) return 3;
       return null;
     }
 
@@ -161,7 +165,73 @@ class SearchService {
     final minTier = tiers.reduce((a, b) => a < b ? a : b);
     if (minTier == _exactTier) return 0;
     if (minTier >= _prefixTier) return 1;
-    return 2;
+    if (minTier >= _substringTier) return 2;
+    return 3;
+  }
+
+  bool _fuzzyTokenMatchesField(String token, String field) {
+    if (token.length < 4) return false;
+
+    final maxDistance = _maxFuzzyDistance(token.length);
+    for (final word in _searchWords(field)) {
+      if (word.length < 4) continue;
+
+      if ((word.length - token.length).abs() <= maxDistance &&
+          _editDistanceAtMost(token, word, maxDistance)) {
+        return true;
+      }
+
+      if (word.length > token.length) {
+        final wordPrefix = word.substring(0, token.length);
+        if (_editDistanceAtMost(token, wordPrefix, maxDistance)) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
+  int _maxFuzzyDistance(int tokenLength) {
+    if (tokenLength >= 9) return 2;
+    return 1;
+  }
+
+  List<String> _searchWords(String field) {
+    return field
+        .split(RegExp(r'[^a-z0-9]+'))
+        .where((word) => word.isNotEmpty)
+        .toList();
+  }
+
+  bool _editDistanceAtMost(String a, String b, int maxDistance) {
+    if ((a.length - b.length).abs() > maxDistance) return false;
+    if (a == b) return true;
+
+    var previous = List<int>.generate(b.length + 1, (index) => index);
+    for (var i = 1; i <= a.length; i++) {
+      final current = List<int>.filled(b.length + 1, 0);
+      current[0] = i;
+      var rowMin = current[0];
+
+      for (var j = 1; j <= b.length; j++) {
+        final substitutionCost =
+            a.codeUnitAt(i - 1) == b.codeUnitAt(j - 1) ? 0 : 1;
+        final insertion = current[j - 1] + 1;
+        final deletion = previous[j] + 1;
+        final substitution = previous[j - 1] + substitutionCost;
+        final distance = insertion < deletion
+            ? (insertion < substitution ? insertion : substitution)
+            : (deletion < substitution ? deletion : substitution);
+        current[j] = distance;
+        if (distance < rowMin) rowMin = distance;
+      }
+
+      if (rowMin > maxDistance) return false;
+      previous = current;
+    }
+
+    return previous[b.length] <= maxDistance;
   }
 
   List<String> _songSearchFields(
@@ -186,6 +256,7 @@ class SearchService {
     final exactMatches = <SongModel>[];
     final prefixMatches = <SongModel>[];
     final substringMatches = <SongModel>[];
+    final fuzzyMatches = <SongModel>[];
 
     for (final song in songs) {
       final fields = _songSearchFields(song, albumById);
@@ -197,13 +268,20 @@ class SearchService {
           prefixMatches.add(song);
         case 2:
           substringMatches.add(song);
+        case 3:
+          fuzzyMatches.add(song);
         default:
           break;
       }
     }
 
-    // Combine in ranking order: exact → prefix → substring
-    return [...exactMatches, ...prefixMatches, ...substringMatches];
+    // Combine in ranking order: exact → prefix → substring → fuzzy
+    return [
+      ...exactMatches,
+      ...prefixMatches,
+      ...substringMatches,
+      ...fuzzyMatches,
+    ];
   }
 
   /// Final display-level dedupe for ranked song results.
@@ -236,6 +314,7 @@ class SearchService {
     final exactMatches = <AlbumModel>[];
     final prefixMatches = <AlbumModel>[];
     final substringMatches = <AlbumModel>[];
+    final fuzzyMatches = <AlbumModel>[];
 
     for (final album in albums) {
       final fields = [
@@ -250,13 +329,20 @@ class SearchService {
           prefixMatches.add(album);
         case 2:
           substringMatches.add(album);
+        case 3:
+          fuzzyMatches.add(album);
         default:
           break;
       }
     }
 
-    // Combine in ranking order: exact → prefix → substring
-    return [...exactMatches, ...prefixMatches, ...substringMatches];
+    // Combine in ranking order: exact → prefix → substring → fuzzy
+    return [
+      ...exactMatches,
+      ...prefixMatches,
+      ...substringMatches,
+      ...fuzzyMatches,
+    ];
   }
 
   String _songFingerprint(SongModel song) {
