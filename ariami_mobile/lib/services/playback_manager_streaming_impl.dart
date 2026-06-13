@@ -8,6 +8,9 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
   }) async {
     print('[PlaybackManager] _playCurrentSong() called');
 
+    // Starting a fresh track resets any pending silence-pause state.
+    _pausedBySilence = false;
+
     final song = _queue.currentSong;
     if (song == null) {
       print('[PlaybackManager] ERROR: No current song in queue!');

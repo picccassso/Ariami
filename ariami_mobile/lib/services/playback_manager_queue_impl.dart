@@ -140,6 +140,8 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
   }
 
   Future<void> _togglePlayPauseImpl() async {
+    // A manual play/pause overrides silence handling: don't auto-resume later.
+    _pausedBySilence = false;
     try {
       if (_castService.isConnected) {
         if (isPlaying) {

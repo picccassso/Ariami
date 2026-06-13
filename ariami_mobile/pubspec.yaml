@@ -86,6 +86,7 @@ dependencies:
 
   # Modern icons
   lucide_icons_flutter: ^3.1.14
+  flutter_volume_controller: ^2.0.1
 
 dev_dependencies:
   flutter_test:

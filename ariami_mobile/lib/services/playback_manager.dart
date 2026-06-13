@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:collection';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_chrome_cast/flutter_chrome_cast.dart';
+import 'package:flutter_volume_controller/flutter_volume_controller.dart';
 import 'package:just_audio/just_audio.dart';
 import '../models/song.dart';
 import '../models/playback_queue.dart';
@@ -65,6 +66,12 @@ class PlaybackManager extends ChangeNotifier {
   StreamSubscription? _playerStateSubscription;
   StreamSubscription<void>? _skipNextSubscription;
   StreamSubscription<void>? _skipPreviousSubscription;
+  StreamSubscription<double>? _volumeSubscription;
+
+  // True when local playback was auto-paused because the device media volume
+  // dropped to zero ("mute when silent"). Used to auto-resume when the volume
+  // is raised again, and only then — a manual pause must not auto-resume.
+  bool _pausedBySilence = false;
 
   // Persistence
   Timer? _saveTimer;
@@ -167,6 +174,15 @@ class PlaybackManager extends ChangeNotifier {
       skipPrevious();
     });
 
+    // Mute when silent, unmute when unsilenced: pause local playback when the
+    // system media volume reaches zero and resume it when raised back up.
+    // Pass the playback category so the iOS listener keeps the audio session
+    // compatible with audio_service's background playback session.
+    _volumeSubscription = FlutterVolumeController.addListener(
+      _onSystemVolumeChanged,
+      category: AudioSessionCategory.playback,
+    );
+
     // Set up periodic save timer for position updates
     _saveTimer = Timer.periodic(_saveDebounceDuration, (_) async {
       if (currentSong != null && isPlaying) {
@@ -176,6 +192,50 @@ class PlaybackManager extends ChangeNotifier {
 
     // Restore saved state
     _restoreState();
+  }
+
+  /// React to system media-volume changes for the "mute when silent" feature.
+  ///
+  /// When the volume drops to zero we pause local playback (so the track does
+  /// not keep advancing inaudibly) and remember that we did so. When the volume
+  /// is raised again we resume — but only if the pause was ours, never after a
+  /// manual pause. Casting has its own volume control, so we leave it alone.
+  void _onSystemVolumeChanged(double volume) {
+    if (_castService.isConnected) {
+      return;
+    }
+
+    // outputVolume can report tiny non-zero values; treat near-zero as silent.
+    final isSilent = volume <= 0.0001;
+
+    if (isSilent) {
+      if (_audioPlayer.isPlaying && !_pausedBySilence) {
+        _pausedBySilence = true;
+        unawaited(() async {
+          try {
+            await _statsService.onSongStopped();
+            await _audioPlayer.pause();
+            await _saveState();
+            _notifyStateChanged();
+          } catch (e) {
+            print('[PlaybackManager] Error pausing for silence: $e');
+          }
+        }());
+      }
+    } else if (_pausedBySilence) {
+      _pausedBySilence = false;
+      if (currentSong != null && !_audioPlayer.isPlaying) {
+        unawaited(() async {
+          try {
+            _statsService.onSongStarted(currentSong!, isResume: true);
+            await _audioPlayer.resume();
+            _notifyStateChanged();
+          } catch (e) {
+            print('[PlaybackManager] Error resuming after silence: $e');
+          }
+        }());
+      }
+    }
   }
 
   void _onCastStateChanged() {
@@ -407,6 +467,8 @@ class PlaybackManager extends ChangeNotifier {
     _playerStateSubscription?.cancel();
     _skipNextSubscription?.cancel();
     _skipPreviousSubscription?.cancel();
+    _volumeSubscription?.cancel();
+    FlutterVolumeController.removeListener();
     super.dispose();
   }
 }
