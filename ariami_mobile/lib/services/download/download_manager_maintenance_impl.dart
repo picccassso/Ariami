@@ -303,6 +303,12 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
   }
 
   Future<bool> _isSongDownloadedImpl(String songId) async {
+    // Gate on initialization: downloads are loaded from disk during
+    // initialize(), which is deferred until after the first frame. Without this
+    // await an early tap (common when offline) sees an empty in-memory queue,
+    // resolves the song as not-downloaded, and playback fails until a later
+    // retry happens to run after init completes.
+    await _ensureInitialized();
     final task = _getScopedTask('song_$songId');
     return task?.status == DownloadStatus.completed;
   }

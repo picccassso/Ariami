@@ -160,6 +160,16 @@ class LibraryController extends ChangeNotifier {
   Future<void> initialize() async {
     if (_isInitialized) return;
     _isInitialized = true;
+    // Downloaded and cached content is read straight from these managers'
+    // in-memory queues (e.g. _loadDownloadedSongs reads _downloadManager.queue
+    // synchronously), so they must be loaded from disk before the first library
+    // load - otherwise an offline launch reads an empty queue and shows zero
+    // downloads. Startup also initializes them concurrently; init is idempotent,
+    // so this just awaits the shared in-flight future.
+    await Future.wait([
+      _downloadManager.initialize(),
+      _cacheManager.initialize(),
+    ]);
     await _offlineCopyService.initialize();
     await _loadUiPreferences();
     await _loadPlayedHistory();
