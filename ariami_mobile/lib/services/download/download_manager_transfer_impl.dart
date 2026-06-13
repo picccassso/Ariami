@@ -6,7 +6,7 @@ extension _DownloadManagerTransferImpl on DownloadManager {
     final userId = _getCurrentUserId();
     for (final task in _queue.queue) {
       if (task.status != DownloadStatus.pending) continue;
-      if (serverId != null && task.serverId != serverId) continue;
+      if (serverId != null && !_serverIdInCurrentScope(task.serverId)) continue;
       if (userId != null) {
         if (task.userId == userId) return task;
         continue;
@@ -479,7 +479,7 @@ extension _DownloadManagerTransferImpl on DownloadManager {
     final serverId = _getCurrentServerId();
     final userId = _getCurrentUserId();
 
-    if (serverId != null && task.serverId != serverId) {
+    if (serverId != null && !_serverIdInCurrentScope(task.serverId)) {
       return false;
     }
     if (userId != null && task.userId != userId) {

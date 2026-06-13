@@ -373,7 +373,9 @@ extension _DownloadManagerOperationsImpl on DownloadManager {
     // Remove from queue (scoped to current server when available)
     _queue.dequeueWhere((task) {
       if (task.id != taskId) return false;
-      if (serverId != null && task.serverId != serverId) return false;
+      if (serverId != null && !_serverIdInCurrentScope(task.serverId)) {
+        return false;
+      }
       if (userId != null) return task.userId == userId;
       return task.userId == null;
     });

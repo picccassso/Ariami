@@ -118,6 +118,44 @@ extension _DownloadManagerInitializationImpl on DownloadManager {
     return ConnectionService().userId;
   }
 
+  /// All API base URLs that identify the currently-connected server across
+  /// every known network route (active, LAN, Tailscale).
+  ///
+  /// Downloads are scoped by [DownloadTask.serverId], which stores the active
+  /// API base URL at download time. The same server is reachable at different
+  /// addresses depending on the route (LAN IP vs Tailscale IP), so matching a
+  /// single base URL made downloads "disappear" when the route changed — for
+  /// example after going back online over Tailscale, where the checkmark was
+  /// lost because the LAN-scoped task no longer matched the Tailscale base URL.
+  /// Matching against every known endpoint keeps a server's downloads in scope
+  /// regardless of which route is currently active.
+  Set<String> _currentServerScopeIds() {
+    final info =
+        ConnectionService().apiClient?.serverInfo ?? ConnectionService().serverInfo;
+    final ids = <String>{};
+    if (info != null) {
+      void addAddress(String? address) {
+        if (address == null || address.isEmpty) return;
+        ids.add('http://$address:${info.port}/api');
+      }
+
+      addAddress(info.server);
+      addAddress(info.lanServer);
+      addAddress(info.tailscaleServer);
+    }
+    final current = _getCurrentServerId();
+    if (current != null) ids.add(current);
+    return ids;
+  }
+
+  /// Whether [taskServerId] refers to the currently-connected server, tolerant
+  /// of which network route (LAN/Tailscale) is active. See
+  /// [_currentServerScopeIds].
+  bool _serverIdInCurrentScope(String? taskServerId) {
+    if (taskServerId == null) return false;
+    return _currentServerScopeIds().contains(taskServerId);
+  }
+
   void _ensureServerScope([List<DownloadTask>? tasks]) {
     final currentServerId = _getCurrentServerId();
     if (currentServerId == null) return;
@@ -161,7 +199,7 @@ extension _DownloadManagerInitializationImpl on DownloadManager {
       return tasks.where((task) => task.userId == currentUserId).toList();
     }
     return tasks.where((task) {
-      if (task.serverId != currentServerId) return false;
+      if (!_serverIdInCurrentScope(task.serverId)) return false;
       if (currentUserId == null) {
         return task.userId == null;
       }
@@ -351,7 +389,9 @@ extension _DownloadManagerInitializationImpl on DownloadManager {
     final currentUserId = _getCurrentUserId();
     for (final task in _queue.queue) {
       if (task.id != taskId) continue;
-      if (currentServerId != null && task.serverId != currentServerId) continue;
+      if (currentServerId != null && !_serverIdInCurrentScope(task.serverId)) {
+        continue;
+      }
       if (currentUserId != null) {
         if (task.userId == currentUserId) return task;
         continue;
