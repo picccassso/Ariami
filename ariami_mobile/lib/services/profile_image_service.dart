@@ -20,15 +20,49 @@ class ProfileImageService extends ChangeNotifier {
   String? _imagePath;
   bool _initialized = false;
 
+  /// Cached provider instance so the image is decoded once and reused across
+  /// rebuilds (e.g. every time the Settings tab is re-entered) instead of being
+  /// re-read from the device each time.
+  FileImage? _cachedProvider;
+
   /// Get the current profile image as an ImageProvider, or null if no image is set
   ImageProvider? get imageProvider {
     if (_imagePath == null) return null;
     final file = File(_imagePath!);
     if (!file.existsSync()) {
       _imagePath = null;
+      _cachedProvider = null;
       return null;
     }
-    return FileImage(file);
+    return _cachedProvider ??= FileImage(file);
+  }
+
+  /// Point the service at [imagePath] (or clear it when null), rebuild the
+  /// cached provider, and warm Flutter's global image cache so subsequent reads
+  /// resolve synchronously without touching disk.
+  void _setImagePath(String? imagePath) {
+    // Evict any previously cached bytes so a replacement photo written to the
+    // same path (e.g. same file extension) isn't served stale from the cache.
+    _cachedProvider?.evict();
+
+    _imagePath = imagePath;
+    _cachedProvider = imagePath != null ? FileImage(File(imagePath)) : null;
+    if (_cachedProvider != null) {
+      _cachedProvider!.evict();
+      _precache(_cachedProvider!);
+    }
+  }
+
+  /// Force [provider] to decode and remain in the global image cache without
+  /// needing a BuildContext.
+  void _precache(ImageProvider provider) {
+    final stream = provider.resolve(ImageConfiguration.empty);
+    late final ImageStreamListener listener;
+    listener = ImageStreamListener(
+      (_, __) => stream.removeListener(listener),
+      onError: (_, __) => stream.removeListener(listener),
+    );
+    stream.addListener(listener);
   }
 
   /// Get the current image path, or null if no image is set
@@ -53,7 +87,7 @@ class ProfileImageService extends ChangeNotifier {
     final files = await profileDir.list().toList();
     for (final file in files) {
       if (file is File && path.basenameWithoutExtension(file.path) == _profileImageFileName) {
-        _imagePath = file.path;
+        _setImagePath(file.path);
         notifyListeners();
         return;
       }
@@ -99,7 +133,7 @@ class ProfileImageService extends ChangeNotifier {
     final destPath = '${profileDir.path}/$_profileImageFileName$ext';
     await File(sourcePath).copy(destPath);
 
-    _imagePath = destPath;
+    _setImagePath(destPath);
     notifyListeners();
   }
 
@@ -124,7 +158,7 @@ class ProfileImageService extends ChangeNotifier {
       await file.delete();
     }
 
-    _imagePath = null;
+    _setImagePath(null);
     notifyListeners();
   }
 

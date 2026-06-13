@@ -15,6 +15,7 @@ import 'models/server_info.dart';
 import 'services/api/connection_service.dart';
 import 'services/audio/audio_handler.dart';
 import 'services/offline/offline_playback_service.dart';
+import 'services/profile_image_service.dart';
 import 'services/download/download_manager.dart';
 import 'widgets/download/global_download_chrome_visibility.dart';
 import 'services/cache/cache_manager.dart';
@@ -109,6 +110,7 @@ class MyApp extends StatefulWidget {
 class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   final ConnectionService _connectionService = ConnectionService();
   final OfflinePlaybackService _offlineService = OfflinePlaybackService();
+  final ProfileImageService _profileImageService = ProfileImageService();
   final DownloadManager _downloadManager = DownloadManager();
   final CacheManager _cacheManager = CacheManager();
   final StreamingStatsService _statsService = StreamingStatsService();
@@ -164,8 +166,11 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     await _networkMonitor.initialize();
     // Initialize quality settings service
     await _qualityService.initialize();
+    // Load and pre-cache the profile image so it's ready (and warm in the
+    // image cache) before the Settings tab is ever opened.
+    await _profileImageService.initialize();
     print(
-        '[Main] Auth, Offline, Download, Cache, Stats, Network, and Quality services initialized');
+        '[Main] Auth, Offline, Download, Cache, Stats, Network, Quality, and Profile services initialized');
   }
 
   @override
