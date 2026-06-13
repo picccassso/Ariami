@@ -15,6 +15,7 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
     // Reset shuffle state - new queue means fresh shuffle context
     _isShuffleEnabled = false;
     _shuffleService.reset();
+    _useRepeatAllForNewSongSelection();
 
     try {
       // Create new queue with just this song
@@ -53,6 +54,7 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
       // Reset shuffle state - new queue means fresh shuffle context
       _isShuffleEnabled = false;
       _shuffleService.reset();
+      _useRepeatAllForNewSongSelection();
 
       // Create new queue with all songs
       _queue = PlaybackQueue();
@@ -86,6 +88,7 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
 
       // Shuffle the list using shuffle service
       final shuffled = _shuffleService.enableShuffle(songs, null);
+      _useRepeatAllForNewSongSelection();
 
       // Create queue with shuffled songs
       _queue = PlaybackQueue();
@@ -269,7 +272,11 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
       }
 
       if (!_queue.hasPrevious) {
-        if (_repeatMode == RepeatMode.all && _queue.songs.length > 1) {
+        if (_queue.isNotEmpty &&
+            (_repeatMode == RepeatMode.one ||
+                (_repeatMode == RepeatMode.all && _queue.songs.length == 1))) {
+          await seek(Duration.zero);
+        } else if (_repeatMode == RepeatMode.all && _queue.songs.length > 1) {
           final previousIndex = await _findPreviousAvailableSongIndex();
           if (previousIndex == null) {
             print('[PlaybackManager] No available previous song found');
@@ -332,6 +339,7 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
 
       _queue.jumpToIndex(index);
       _consumeOneShotQueueItem(previousIndex, previousSong);
+      _useRepeatAllForNewSongSelection();
       // Clear restored position so new song starts from beginning
       _restoredPosition = null;
       _pendingUiPosition = null;

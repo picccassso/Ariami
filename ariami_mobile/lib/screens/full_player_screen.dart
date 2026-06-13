@@ -489,10 +489,7 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
           IconButton(
             icon: const Icon(LucideIcons.skipBack),
             iconSize: 48,
-            onPressed: (_playbackManager.hasPrevious ||
-                    (_playbackManager.repeatMode ==
-                            playback_repeat.RepeatMode.all &&
-                        _playbackManager.queue.length > 1))
+            onPressed: _playbackManager.hasPrevious
                 ? _skipPreviousWithArtworkAnimation
                 : null,
             tooltip: 'Previous',
@@ -545,12 +542,8 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
           IconButton(
             icon: const Icon(LucideIcons.skipForward),
             iconSize: 48,
-            onPressed: (_playbackManager.hasNext ||
-                    (_playbackManager.repeatMode ==
-                            playback_repeat.RepeatMode.all &&
-                        _playbackManager.queue.length > 1))
-                ? _skipNextWithArtworkAnimation
-                : null,
+            onPressed:
+                _playbackManager.hasNext ? _skipNextWithArtworkAnimation : null,
             tooltip: 'Next',
           ),
 

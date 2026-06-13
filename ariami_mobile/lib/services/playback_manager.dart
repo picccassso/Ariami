@@ -97,8 +97,12 @@ class PlaybackManager extends ChangeNotifier {
   bool get isShuffleEnabled => _isShuffleEnabled;
   RepeatMode get repeatMode => _repeatMode;
   PlaybackQueue get queue => _queue;
-  bool get hasNext => _queue.hasNext;
-  bool get hasPrevious => _queue.hasPrevious;
+  bool get hasNext =>
+      _queue.hasNext ||
+      (_queue.isNotEmpty && _repeatMode.allowsBoundaryRestart);
+  bool get hasPrevious =>
+      _queue.hasPrevious ||
+      (_queue.isNotEmpty && _repeatMode.allowsBoundaryRestart);
   bool get isCastTransitionInProgress => _isCastTransitionInProgress;
 
   /// Initialize the playback manager and set up listeners
@@ -371,6 +375,10 @@ class PlaybackManager extends ChangeNotifier {
 
   void _notifyStateChanged() {
     notifyListeners();
+  }
+
+  void _useRepeatAllForNewSongSelection() {
+    _repeatMode = _repeatMode.forNewSongSelection;
   }
 
   void _enterCastNotificationMode(Song song, bool isPlaying) {
