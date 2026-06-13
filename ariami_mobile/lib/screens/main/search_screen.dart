@@ -401,6 +401,7 @@ class _SearchScreenState extends State<SearchScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       body: SafeArea(
         child: Column(
           children: [
@@ -527,11 +528,14 @@ class _SearchScreenState extends State<SearchScreen> {
     }
 
     final items = _buildSearchResultItems(_searchResults!);
-    final bottomPadding = getMiniPlayerScrollBottomPadding(context);
-    return ListView.builder(
-      padding: EdgeInsets.only(bottom: bottomPadding),
-      itemCount: items.length,
-      itemBuilder: (context, index) => _buildSearchResultItem(items[index]),
+    return MiniPlayerScrollPaddingBuilder(
+      builder: (context, bottomPadding) {
+        return ListView.builder(
+          padding: EdgeInsets.only(bottom: bottomPadding),
+          itemCount: items.length,
+          itemBuilder: (context, index) => _buildSearchResultItem(items[index]),
+        );
+      },
     );
   }
 
@@ -626,57 +630,60 @@ class _SearchScreenState extends State<SearchScreen> {
       return _buildStartSearchingState();
     }
 
-    final bottomPadding = getMiniPlayerScrollBottomPadding(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Recently Played',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Theme.of(context)
-                      .colorScheme
-                      .onSurface
-                      .withValues(alpha: 0.9),
-                ),
+    return MiniPlayerScrollPaddingBuilder(
+      builder: (context, bottomPadding) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Recently Played',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context)
+                          .colorScheme
+                          .onSurface
+                          .withValues(alpha: 0.9),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: _clearRecentSongs,
+                    child: const Text('Clear All'),
+                  ),
+                ],
               ),
-              TextButton(
-                onPressed: _clearRecentSongs,
-                child: const Text('Clear All'),
-              ),
-            ],
-          ),
-        ),
-        Expanded(
-          child: ListView.builder(
-            padding: EdgeInsets.only(
-              bottom: bottomPadding,
             ),
-            itemCount: _recentSongs.length,
-            itemBuilder: (context, index) {
-              final song = _recentSongs[index];
-              return SearchResultSongItem(
-                key: ValueKey('recent_song_${song.id}'),
-                song: song,
-                searchQuery: '',
-                onTap: () => _playRecentSong(song),
-                isDownloaded: _downloadedSongIds.contains(song.id),
-                isCached: false,
-                isAvailable:
-                    !_isOffline || _downloadedSongIds.contains(song.id),
-                onRemove: () => _removeRecentSong(song, index),
-                showRemoveFromRecent: true,
-              );
-            },
-          ),
-        ),
-      ],
+            Expanded(
+              child: ListView.builder(
+                padding: EdgeInsets.only(
+                  bottom: bottomPadding,
+                ),
+                itemCount: _recentSongs.length,
+                itemBuilder: (context, index) {
+                  final song = _recentSongs[index];
+                  return SearchResultSongItem(
+                    key: ValueKey('recent_song_${song.id}'),
+                    song: song,
+                    searchQuery: '',
+                    onTap: () => _playRecentSong(song),
+                    isDownloaded: _downloadedSongIds.contains(song.id),
+                    isCached: false,
+                    isAvailable:
+                        !_isOffline || _downloadedSongIds.contains(song.id),
+                    onRemove: () => _removeRecentSong(song, index),
+                    showRemoveFromRecent: true,
+                  );
+                },
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 

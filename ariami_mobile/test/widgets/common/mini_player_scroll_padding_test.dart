@@ -70,15 +70,13 @@ void main() {
     );
 
     final textBefore = tester.widget<Text>(find.byType(Text)).data!;
-    final paddingBefore =
-        double.parse(textBefore.replaceFirst('padding:', ''));
+    final paddingBefore = double.parse(textBefore.replaceFirst('padding:', ''));
 
     MiniPlayerVisibility.pushFullPlayer();
     await tester.pump();
 
     final textDuring = tester.widget<Text>(find.byType(Text)).data!;
-    final paddingDuring =
-        double.parse(textDuring.replaceFirst('padding:', ''));
+    final paddingDuring = double.parse(textDuring.replaceFirst('padding:', ''));
 
     expect(paddingDuring, paddingBefore);
     expect(paddingBefore, greaterThanOrEqualTo(kBottomNavigationBarHeight));
@@ -112,5 +110,74 @@ void main() {
     );
 
     expect(withDownloadBar - withoutDownloadBar, kDownloadBarHeight);
+  });
+
+  testWidgets('keyboard inset hides bottom chrome from scroll padding', (
+    tester,
+  ) async {
+    late BuildContext capturedContext;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MediaQuery(
+          data: const MediaQueryData(
+            viewInsets: EdgeInsets.only(bottom: 320),
+          ),
+          child: Builder(
+            builder: (context) {
+              capturedContext = context;
+              return const SizedBox.shrink();
+            },
+          ),
+        ),
+      ),
+    );
+
+    expect(isKeyboardOpen(capturedContext), isTrue);
+    expect(
+      getBottomChromeHeight(
+        capturedContext,
+        isMiniPlayerVisible: true,
+        isDownloadBarVisible: true,
+      ),
+      0,
+    );
+  });
+
+  testWidgets('text input focus alone keeps bottom chrome padding', (
+    tester,
+  ) async {
+    late BuildContext capturedContext;
+    const textFieldKey = Key('text-input');
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MediaQuery(
+          data: const MediaQueryData(),
+          child: Builder(
+            builder: (context) {
+              capturedContext = context;
+              return const Scaffold(
+                body: TextField(key: textFieldKey),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
+    expect(isKeyboardOpen(capturedContext), isFalse);
+
+    await tester.showKeyboard(find.byKey(textFieldKey));
+    await tester.pump();
+
+    expect(
+      getBottomChromeHeight(
+        capturedContext,
+        isMiniPlayerVisible: true,
+        isDownloadBarVisible: true,
+      ),
+      greaterThan(0),
+    );
   });
 }

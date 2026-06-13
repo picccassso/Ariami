@@ -58,6 +58,15 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
   }
 
   @override
+  void didChangeMetrics() {
+    // Rebuild when window metrics (notably the keyboard inset) change. The
+    // outer Scaffold uses resizeToAvoidBottomInset: false, so it does not
+    // rebuild on keyboard toggles on its own. Without this, the mini player
+    // overlay would stay in the tree and hover above the keyboard.
+    if (mounted) setState(() {});
+  }
+
+  @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.detached) {
       unawaited(
@@ -119,45 +128,48 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
   @override
   Widget build(BuildContext context) {
     final bottomNavHeight = getBottomNavigationBarTotalHeight(context);
+    final keyboardOpen = isKeyboardOpen(context);
     return Scaffold(
       extendBody: true,
       // Don't shrink the body when the keyboard opens. The nested screens
       // (e.g. search) handle their own keyboard avoidance, while the mini
-      // player stays anchored at the bottom and is simply covered by the
-      // keyboard — like Spotify — instead of being pushed up above it.
+      // player overlay is hidden entirely so it never hovers above the
+      // keyboard.
       resizeToAvoidBottomInset: false,
       body: Stack(
         children: [
           // Main content area - can scroll behind nav bar
           _buildCurrentScreen(),
-          // Mini player and download bar - positioned above nav bar
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: bottomNavHeight,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Mini player connected to real playback
-                MiniPlayer(
-                  currentSong: _playbackManager.currentSong,
-                  isPlaying: _playbackManager.isPlaying,
-                  isVisible: _playbackManager.currentSong != null,
-                  onTap: _openFullPlayer,
-                  onPlayPause: _playbackManager.togglePlayPause,
-                  onSkipNext: _playbackManager.skipNext,
-                  onSkipPrevious: _playbackManager.skipPrevious,
-                  hasNext: _playbackManager.hasNext,
-                  hasPrevious: _playbackManager.hasPrevious,
-                  position: _playbackManager.position,
-                  duration: _playbackManager.duration ?? Duration.zero,
-                  playbackManager: _playbackManager,
-                ),
-                // Download progress bar (between mini player and bottom nav)
-                const DownloadProgressBar(),
-              ],
+          // Mini player and download bar - positioned above nav bar.
+          // Hidden while the keyboard is open so it doesn't hover above it.
+          if (!keyboardOpen)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: bottomNavHeight,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Mini player connected to real playback
+                  MiniPlayer(
+                    currentSong: _playbackManager.currentSong,
+                    isPlaying: _playbackManager.isPlaying,
+                    isVisible: _playbackManager.currentSong != null,
+                    onTap: _openFullPlayer,
+                    onPlayPause: _playbackManager.togglePlayPause,
+                    onSkipNext: _playbackManager.skipNext,
+                    onSkipPrevious: _playbackManager.skipPrevious,
+                    hasNext: _playbackManager.hasNext,
+                    hasPrevious: _playbackManager.hasPrevious,
+                    position: _playbackManager.position,
+                    duration: _playbackManager.duration ?? Duration.zero,
+                    playbackManager: _playbackManager,
+                  ),
+                  // Download progress bar (between mini player and bottom nav)
+                  const DownloadProgressBar(),
+                ],
+              ),
             ),
-          ),
         ],
       ),
       bottomNavigationBar: ClipRect(
@@ -165,7 +177,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
           filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
           child: Container(
             decoration: BoxDecoration(
-              color: Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0.85),
+              color: Theme.of(context)
+                  .scaffoldBackgroundColor
+                  .withValues(alpha: 0.85),
               border: Border(
                 top: BorderSide(
                   color: Theme.of(context).dividerColor.withValues(alpha: 0.5),

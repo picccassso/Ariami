@@ -19,24 +19,45 @@ const double kBatchDownloadBarBottomGap = 16.0;
 const double kBatchDownloadBarScrollInset =
     kBatchDownloadBarContentHeight + kBatchDownloadBarBottomGap;
 
+/// Whether the on-screen keyboard (IME) is currently open.
+///
+/// Checks both the contextual [MediaQuery] and the raw Flutter view. Nested
+/// routes can sometimes consume the contextual inset, while widget tests and
+/// focused subtrees may provide a useful contextual inset even when the raw
+/// view reports zero.
+bool isKeyboardOpen(BuildContext context) {
+  double mediaQueryInsetBottom = 0.0;
+  double rawViewInsetBottom = 0.0;
+
+  try {
+    mediaQueryInsetBottom = MediaQuery.viewInsetsOf(context).bottom;
+  } catch (_) {
+    // No MediaQuery above this context.
+  }
+
+  try {
+    rawViewInsetBottom =
+        MediaQueryData.fromView(View.of(context)).viewInsets.bottom;
+  } catch (_) {
+    // No Flutter view above this context.
+  }
+
+  return mediaQueryInsetBottom > 0 || rawViewInsetBottom > 0;
+}
+
 /// Bottom navigation bar height including device safe-area inset.
 ///
 /// When the IME (keyboard) is open, the bottom nav is obscured and the scaffold
-/// body is already laid out above the keyboard — reserve no height for the bar.
+/// body is already laid out above the keyboard, so reserve no height for the bar.
 double getBottomNavigationBarTotalHeight(BuildContext context) {
   double viewPaddingBottom = 0.0;
   try {
-    viewPaddingBottom = MediaQueryData.fromView(View.of(context)).viewPadding.bottom;
+    viewPaddingBottom =
+        MediaQueryData.fromView(View.of(context)).viewPadding.bottom;
   } catch (_) {
     viewPaddingBottom = MediaQuery.viewPaddingOf(context).bottom;
   }
-  double viewInsetsBottom = 0.0;
-  try {
-    viewInsetsBottom = MediaQueryData.fromView(View.of(context)).viewInsets.bottom;
-  } catch (_) {
-    viewInsetsBottom = MediaQuery.viewInsetsOf(context).bottom;
-  }
-  return viewInsetsBottom > 0
+  return isKeyboardOpen(context)
       ? 0.0
       : kBottomNavigationBarHeight + viewPaddingBottom;
 }
@@ -50,6 +71,12 @@ double getBottomChromeHeight(
   required bool isMiniPlayerVisible,
   required bool isDownloadBarVisible,
 }) {
+  // When the keyboard is open the bottom nav and the mini player overlay are
+  // both hidden, so scrollable content should run all the way to the keyboard
+  // rather than reserving (now-empty) chrome space beneath it.
+  if (isKeyboardOpen(context)) {
+    return 0.0;
+  }
   final bottomNavHeight = getBottomNavigationBarTotalHeight(context);
   if (!isMiniPlayerVisible) {
     return bottomNavHeight;
