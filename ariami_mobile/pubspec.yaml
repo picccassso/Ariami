@@ -150,3 +150,7 @@ flutter_launcher_icons:
   ios: true
   image_path: "assets/Ariami_icon.png"
   remove_alpha_ios: true
+  # Adaptive icon (Android 8+) and themed/Material You monochrome icon (Android 13+).
+  adaptive_icon_background: "#1b1f20"
+  adaptive_icon_foreground: "assets/Ariami_icon_foreground.png"
+  adaptive_icon_monochrome: "assets/Ariami_icon_monochrome.png"
