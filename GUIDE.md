@@ -72,6 +72,18 @@ cp build/cli-release/bundle/bin/ariami_cli ./ariami_cli
 chmod +x ./ariami_cli
 ```
 
+### Start the CLI server on boot
+
+```bash
+./ariami_cli autostart enable    # start automatically on boot
+./ariami_cli autostart disable   # stop starting on boot
+./ariami_cli autostart status    # show current setting
+```
+
+First-run setup also asks this as a y/N prompt. On Raspberry Pi/Linux this
+adds an `@reboot` crontab entry for the current user (no sudo). The desktop
+app has an equivalent "Start at Login" toggle on the Server tab.
+
 ## Troubleshooting
 
 ### Build issues

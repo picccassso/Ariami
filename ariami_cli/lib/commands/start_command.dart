@@ -5,6 +5,7 @@ import '../services/cli_state_service.dart';
 import '../services/browser_service.dart';
 import '../services/cli_tailscale_service.dart';
 import '../services/web_assets_resolver.dart';
+import '../services/autostart_service.dart';
 import '../server_runner.dart';
 
 /// Command to start the Ariami CLI server
@@ -14,6 +15,7 @@ class StartCommand {
   final BrowserService _browserService = BrowserService();
   final WebAssetsResolver _webAssetsResolver = WebAssetsResolver();
   final CliTailscaleService _tailscaleService = CliTailscaleService();
+  final AutostartService _autostartService = AutostartService();
 
   /// Execute the start command
   Future<void> execute({
@@ -42,6 +44,9 @@ class StartCommand {
     final allowPortFallback = !portExplicitlyRequested;
 
     if (!isSetupComplete) {
+      // Ask about starting on boot before anything else launches.
+      await _promptAndConfigureAutostart();
+
       _writeSetupLine('Starting Ariami setup...');
       _writeSetupLine('');
 
@@ -99,6 +104,34 @@ class StartCommand {
       print('Use "ariami_cli stop" to stop the server');
       print('');
     }
+  }
+
+  /// Ask the user whether Ariami should start automatically on boot, and apply
+  /// their choice. Runs before the setup server/browser launches.
+  Future<void> _promptAndConfigureAutostart() async {
+    if (!_autostartService.isSupported) {
+      return;
+    }
+
+    stdout.write(
+      'Start Ariami automatically on boot (after restart, etc.)? [y/N]: ',
+    );
+    final answer = stdin.readLineSync()?.trim().toLowerCase() ?? '';
+    final wantsAutostart = answer == 'y' || answer == 'yes';
+
+    if (wantsAutostart) {
+      final ok = await _autostartService.enable();
+      _writeSetupLine(
+        ok
+            ? '✓ Ariami will start automatically on boot.'
+            : 'Could not configure start-on-boot. Continuing setup.',
+      );
+    } else {
+      // Make sure any previous autostart entry is removed.
+      await _autostartService.disable();
+      _writeSetupLine('Ariami will not start automatically on boot.');
+    }
+    _writeSetupLine('');
   }
 
   Future<void> _openSetupBrowser(int port) async {

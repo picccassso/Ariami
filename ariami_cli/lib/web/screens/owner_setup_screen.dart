@@ -55,41 +55,70 @@ class _OwnerSetupScreenState extends State<OwnerSetupScreen> {
       _inlineError = null;
     });
 
-    try {
-      final serverInfoResponse = await _apiClient.get(
-        '/api/server-info',
-        includeAuth: false,
-      );
-      final serverInfo = serverInfoResponse.jsonBody ?? <String, dynamic>{};
-      final hasUsers = serverInfo['hasUsers'] as bool? ??
-          ((serverInfo['registeredUsers'] as int? ?? 0) > 0);
+    // Best-effort: figure out whether an owner already exists so we can show
+    // either the create form or the "already configured" panel. This probe is
+    // purely informational — on first-run setup there are no users yet — so a
+    // transient failure here must not surface as a hard error. The user can
+    // still create the owner below, and any real problem is reported by the
+    // create/login call itself.
+    final hasUsers = await _probeHasOwner();
+    final (hasSession, isOwnerSession) = await _probeSessionState();
 
-      var hasSession = false;
-      var isOwnerSession = false;
-      if (await _authService.hasSessionToken()) {
-        final meResponse = await _authService.me();
-        hasSession = meResponse.isSuccess;
-        if (meResponse.isAuthError) {
-          await _authService.clearSessionToken();
-          hasSession = false;
-        } else if (hasSession) {
-          isOwnerSession = meResponse.jsonBody?['isAdmin'] as bool? ?? false;
+    if (!mounted) return;
+    setState(() {
+      _hasOwner = hasUsers;
+      _hasSession = hasSession;
+      _isOwnerSession = isOwnerSession;
+      _isInitializing = false;
+    });
+  }
+
+  /// Whether the server already has an owner account. Retries a few times to
+  /// ride out the first-load race where the page renders just before the local
+  /// server is ready to answer. Defaults to `false` (show the create form) if
+  /// it can't be determined.
+  Future<bool> _probeHasOwner() async {
+    const maxAttempts = 3;
+    for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        final response = await _apiClient.get(
+          '/api/server-info',
+          includeAuth: false,
+        );
+        if (response.isSuccess) {
+          final info = response.jsonBody ?? <String, dynamic>{};
+          return info['hasUsers'] as bool? ??
+              ((info['registeredUsers'] as int? ?? 0) > 0);
         }
+      } catch (_) {
+        // Best-effort probe; fall through to retry / default.
       }
+      if (attempt < maxAttempts) {
+        await Future.delayed(const Duration(milliseconds: 400));
+      }
+    }
+    return false;
+  }
 
-      if (!mounted) return;
-      setState(() {
-        _hasOwner = hasUsers;
-        _hasSession = hasSession;
-        _isOwnerSession = isOwnerSession;
-        _isInitializing = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _inlineError = 'Failed to load owner state: $e';
-        _isInitializing = false;
-      });
+  /// Best-effort check of the current session. Returns
+  /// `(hasSession, isOwnerSession)`, defaulting to signed-out on any failure.
+  Future<(bool, bool)> _probeSessionState() async {
+    try {
+      if (!await _authService.hasSessionToken()) {
+        return (false, false);
+      }
+      final meResponse = await _authService.me();
+      if (meResponse.isAuthError) {
+        await _authService.clearSessionToken();
+        return (false, false);
+      }
+      if (!meResponse.isSuccess) {
+        return (false, false);
+      }
+      final isOwner = meResponse.jsonBody?['isAdmin'] as bool? ?? false;
+      return (true, isOwner);
+    } catch (_) {
+      return (false, false);
     }
   }
 

@@ -22,6 +22,7 @@ INSTALLATION
 FIRST RUN
 ---------
 On first run, the server will:
+- Ask whether Ariami should start automatically on boot (y/N)
 - Start in foreground mode
 - Open a browser for setup once the server is ready
 - Walk you through Tailscale (optional), music folder selection, and library scan
@@ -46,6 +47,22 @@ Stop server:
 
 Custom port:
   ./ariami_cli start --port 8081
+
+START ON BOOT
+-------------
+Make the server start automatically after a reboot/power loss:
+  ./ariami_cli autostart enable
+
+Disable it again:
+  ./ariami_cli autostart disable
+
+Check the current setting:
+  ./ariami_cli autostart status
+
+On first-time setup you are also asked this as a y/N question. Use the
+commands above to change it later, or to enable it on an install that was
+set up before this option existed. On Raspberry Pi this uses an "@reboot"
+crontab entry for the current user (no sudo required).
 
 CONFIGURATION
 -------------

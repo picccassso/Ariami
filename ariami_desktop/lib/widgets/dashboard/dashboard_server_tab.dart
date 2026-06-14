@@ -1,6 +1,7 @@
 import 'package:ariami_core/services/transcoding/transcode_slots_policy.dart';
 import 'package:flutter/material.dart';
 
+import '../autostart_card.dart';
 import '../info_card.dart';
 import '../transcode_slots_dialog.dart';
 import 'dashboard_keep_alive_tab.dart';
@@ -88,6 +89,8 @@ class DashboardServerTab extends StatelessWidget {
             icon: Icons.cloud_done_rounded,
             isActive: tailscaleIP != null,
           ),
+          const SizedBox(height: 12),
+          const AutostartCard(),
           const SizedBox(height: 12),
           Row(
             children: [

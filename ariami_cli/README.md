@@ -31,15 +31,26 @@ directory. The release archive includes a root `./ariami_cli` launcher.
 ./ariami_cli status         # Check if running
 ./ariami_cli stop           # Stop server
 ./ariami_cli start --port 8081  # Custom port
+
+./ariami_cli autostart enable   # Start the server automatically on boot
+./ariami_cli autostart disable  # Stop starting on boot
+./ariami_cli autostart status   # Show the current setting
 ```
+
+`autostart` uses the platform's native mechanism (an `@reboot` crontab entry
+on Linux/Raspberry Pi, a LaunchAgent on macOS, a `Run` registry key on
+Windows) and needs no sudo. First-time setup also asks this as a y/N prompt;
+the commands above let you change it later — including on installs set up
+before this option existed.
 
 ## First Run
 
 1. Run `./ariami_cli start` (foreground on first launch; browser opens when ready)
-2. Complete the web wizard: Tailscale (optional) → music folder → library scan
-3. **Create the owner account** (first account is server admin) and sign in as owner
-4. Server auto-transitions to background; setup is marked complete
-5. Scan the QR code with Ariami Mobile and **register** or log in
+2. On first run you're asked whether Ariami should **start on boot** (y/N)
+3. Complete the web wizard: Tailscale (optional) → music folder → library scan
+4. **Create the owner account** (first account is server admin) and sign in as owner
+5. Server auto-transitions to background; setup is marked complete
+6. Scan the QR code with Ariami Mobile and **register** or log in
 
 If the browser does not open, go to `http://localhost:8080` (or the next free port 8080–8099).
 

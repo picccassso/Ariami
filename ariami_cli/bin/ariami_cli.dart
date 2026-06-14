@@ -4,6 +4,7 @@ import 'package:ariami_cli/commands/start_command.dart';
 import 'package:ariami_cli/commands/stop_command.dart';
 import 'package:ariami_cli/commands/status_command.dart';
 import 'package:ariami_cli/commands/configure_command.dart';
+import 'package:ariami_cli/commands/autostart_command.dart';
 import 'package:ariami_cli/server_runner.dart';
 
 void main(List<String> arguments) async {
@@ -105,6 +106,10 @@ void main(List<String> arguments) async {
       case 'music-folder':
         await _executeMusicFolderCommand(results.rest);
         break;
+      case 'autostart':
+        final action = results.rest.length > 1 ? results.rest[1] : 'status';
+        await AutostartCommand().execute(action: action);
+        break;
       default:
         print('Error: Unknown command "$command"');
         print('');
@@ -166,6 +171,7 @@ void _showHelp(ArgParser parser) {
   print('  status      Show server status');
   print('  configure   Configure CLI settings');
   print('  music-folder  Manage the music library path');
+  print('  autostart   Manage starting the server on boot');
   print('');
   print('Options:');
   print(parser.usage);
@@ -177,4 +183,7 @@ void _showHelp(ArgParser parser) {
   print('  ariami_cli status             # Check server status');
   print('  ariami_cli configure --music-folder /home/user/Music');
   print('  ariami_cli music-folder set /home/user/Music');
+  print('  ariami_cli autostart enable   # Start the server on boot');
+  print('  ariami_cli autostart disable  # Stop starting on boot');
+  print('  ariami_cli autostart status   # Show current setting');
 }
