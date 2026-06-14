@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -5,6 +6,28 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 class AppTheme {
   // Modern Shape
   static const double _defaultRadius = 20.0;
+
+  /// Page transitions for the *nested* tab navigators.
+  ///
+  /// On Android 15+ predictive back is on by default, and Flutter's default
+  /// [PredictiveBackPageTransitionsBuilder] wraps every route in a back-gesture
+  /// detector. When a full-screen route (e.g. the player) is pushed on the root
+  /// navigator over a nested tab that already has a detail route, BOTH the root
+  /// route and the nested route claim the system back gesture, so a single swipe
+  /// pops both (e.g. player + album), dumping the user back at the tab root.
+  ///
+  /// Using a non-predictive builder here removes the gesture detector from
+  /// nested routes, so only the root route handles the swipe. The root navigator
+  /// keeps predictive back, so dismissing the player still shows the peek
+  /// animation. iOS/macOS keep their native Cupertino swipe-back.
+  static const PageTransitionsTheme nestedNavigatorPageTransitions =
+      PageTransitionsTheme(
+    builders: {
+      TargetPlatform.android: ZoomPageTransitionsBuilder(),
+      TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+      TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
+    },
+  );
 
   static ThemeData buildNeutralTheme({
     required Brightness brightness,

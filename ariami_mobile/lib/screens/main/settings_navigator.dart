@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../utils/constants.dart';
 import 'settings_screen.dart';
 import '../settings/connection_settings_screen.dart';
 import '../settings/downloads/downloads_screen.dart';
@@ -33,44 +34,51 @@ class SettingsNavigator extends StatelessWidget {
           onBackAtRoot?.call();
         }
       },
-      child: Navigator(
-        key: settingsNavigatorKey,
-        initialRoute: '/',
-        onGenerateRoute: (settings) {
-          Widget page;
+      child: Theme(
+        // Disable predictive back on nested routes so the system back gesture
+        // isn't double-handled when a full-screen route sits above this tab.
+        data: Theme.of(context).copyWith(
+          pageTransitionsTheme: AppTheme.nestedNavigatorPageTransitions,
+        ),
+        child: Navigator(
+          key: settingsNavigatorKey,
+          initialRoute: '/',
+          onGenerateRoute: (settings) {
+            Widget page;
 
-          switch (settings.name) {
-            case '/':
-              page = const SettingsScreen();
-              break;
-            case '/connection':
-              page = const ConnectionSettingsScreen();
-              break;
-            case '/downloads':
-              page = const DownloadsScreen();
-              break;
-            case '/stats':
-              page = const StreamingStatsScreen();
-              break;
-            case '/import-export':
-              page = const ImportExportScreen();
-              break;
-            case '/quality':
-              page = const QualitySettingsScreen();
-              break;
-            case '/profile':
-              page = const ProfileScreen();
-              break;
-            // Add more routes here as settings sub-screens are added
-            default:
-              page = const SettingsScreen();
-          }
+            switch (settings.name) {
+              case '/':
+                page = const SettingsScreen();
+                break;
+              case '/connection':
+                page = const ConnectionSettingsScreen();
+                break;
+              case '/downloads':
+                page = const DownloadsScreen();
+                break;
+              case '/stats':
+                page = const StreamingStatsScreen();
+                break;
+              case '/import-export':
+                page = const ImportExportScreen();
+                break;
+              case '/quality':
+                page = const QualitySettingsScreen();
+                break;
+              case '/profile':
+                page = const ProfileScreen();
+                break;
+              // Add more routes here as settings sub-screens are added
+              default:
+                page = const SettingsScreen();
+            }
 
-          return MaterialPageRoute(
-            builder: (context) => page,
-            settings: settings,
-          );
-        },
+            return MaterialPageRoute(
+              builder: (context) => page,
+              settings: settings,
+            );
+          },
+        ),
       ),
     );
   }

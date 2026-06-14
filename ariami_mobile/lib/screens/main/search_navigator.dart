@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../models/api_models.dart';
+import '../../utils/constants.dart';
 import '../album_detail_screen.dart';
 import '../playlist/playlist_detail_screen.dart';
 import 'search_screen.dart';
@@ -29,33 +30,40 @@ class SearchNavigator extends StatelessWidget {
           onBackAtRoot?.call();
         }
       },
-      child: Navigator(
-      key: searchNavigatorKey,
-      initialRoute: '/',
-      onGenerateRoute: (settings) {
-        Widget page;
+      child: Theme(
+        // Disable predictive back on nested routes so the system back gesture
+        // isn't double-handled when a full-screen route sits above this tab.
+        data: Theme.of(context).copyWith(
+          pageTransitionsTheme: AppTheme.nestedNavigatorPageTransitions,
+        ),
+        child: Navigator(
+          key: searchNavigatorKey,
+          initialRoute: '/',
+          onGenerateRoute: (settings) {
+            Widget page;
 
-        switch (settings.name) {
-          case '/':
-            page = const SearchScreen();
-            break;
-          case '/album':
-            final album = settings.arguments as AlbumModel;
-            page = AlbumDetailScreen(album: album);
-            break;
-          case '/playlist':
-            final playlistId = settings.arguments as String;
-            page = PlaylistDetailScreen(playlistId: playlistId);
-            break;
-          default:
-            page = const SearchScreen();
-        }
+            switch (settings.name) {
+              case '/':
+                page = const SearchScreen();
+                break;
+              case '/album':
+                final album = settings.arguments as AlbumModel;
+                page = AlbumDetailScreen(album: album);
+                break;
+              case '/playlist':
+                final playlistId = settings.arguments as String;
+                page = PlaylistDetailScreen(playlistId: playlistId);
+                break;
+              default:
+                page = const SearchScreen();
+            }
 
-        return MaterialPageRoute(
-          builder: (context) => page,
-          settings: settings,
-        );
-      },
+            return MaterialPageRoute(
+              builder: (context) => page,
+              settings: settings,
+            );
+          },
+        ),
       ),
     );
   }
