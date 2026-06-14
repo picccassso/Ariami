@@ -1,6 +1,8 @@
 /// Ariami Core Library - Platform-agnostic services and models for Ariami
 library;
 
+export 'app_version.dart';
+
 // Models
 export 'models/album.dart';
 export 'models/api_models.dart';

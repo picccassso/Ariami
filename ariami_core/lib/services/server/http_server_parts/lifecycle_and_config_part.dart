@@ -400,7 +400,7 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
       'attemptedPort': _attemptedPort ?? _port,
       'portFallbackUsed': _portFallbackUsed,
       'name': Platform.localHostname,
-      'version': '4.4.0',
+      'version': kAriamiVersion,
       'authRequired': _authRequired,
       'legacyMode': _legacyMode,
       'hasUsers': authSnapshot.hasUsers,

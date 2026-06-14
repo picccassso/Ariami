@@ -32,6 +32,7 @@ import 'package:ariami_core/services/server/metrics_service.dart';
 import 'package:ariami_core/services/server/network_endpoint_monitor.dart';
 import 'package:ariami_core/services/server/server_port_policy.dart';
 import 'package:ariami_core/services/server/v2_handlers.dart';
+import 'package:ariami_core/app_version.dart';
 import 'package:ariami_core/services/setup/music_folder_path_helper.dart';
 
 part 'http_server_limiters.dart';

@@ -166,10 +166,13 @@ Same as Pi build - a ready-to-distribute zip file containing:
 
 ### Updating Version
 
-To change the version number, edit `build-pi-release-mac.sh`:
-```bash
-VERSION="4.4.0"  # Change this line
-```
+The Pi release builder reads the version from `ariami_cli/pubspec.yaml` and refuses to build if these three sources disagree:
+
+1. `ariami_cli/pubspec.yaml`
+2. `ariami_core/pubspec.yaml`
+3. `ariami_core/lib/app_version.dart` (`kAriamiVersion`)
+
+Update all three to the same value before running `./build-pi-release-mac.sh`.
 
 ### Troubleshooting
 

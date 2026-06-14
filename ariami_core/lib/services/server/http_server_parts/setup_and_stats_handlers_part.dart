@@ -53,7 +53,7 @@ extension AriamiHttpServerSetupAndStatsHandlersMethods on AriamiHttpServer {
       'status': 'ok',
       'timestamp': DateTime.now().toIso8601String(),
       'server': Platform.localHostname,
-      'version': '4.4.0',
+      'version': kAriamiVersion,
     });
   }
 

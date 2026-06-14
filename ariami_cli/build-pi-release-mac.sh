@@ -4,10 +4,37 @@ set -euo pipefail
 # Ariami CLI - Raspberry Pi Release Builder for Mac
 # Builds ARM64 release using Docker (no Raspberry Pi needed)
 
-VERSION="4.4.0"
-RELEASE_NAME="ariami-cli-raspberry-pi-arm64-v${VERSION}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+read_pubspec_version() {
+  grep '^version:' "$1" | awk '{print $2}' | cut -d'+' -f1
+}
+
+read_app_version_constant() {
+  sed -n "s/^const String kAriamiVersion = '\(.*\)';$/\1/p" \
+    "${PARENT_DIR}/ariami_core/lib/app_version.dart"
+}
+
+CLI_VERSION="$(read_pubspec_version "${SCRIPT_DIR}/pubspec.yaml")"
+CORE_VERSION="$(read_pubspec_version "${PARENT_DIR}/ariami_core/pubspec.yaml")"
+CONST_VERSION="$(read_app_version_constant)"
+
+if [ -z "${CLI_VERSION}" ] || [ -z "${CORE_VERSION}" ] || [ -z "${CONST_VERSION}" ]; then
+  echo "ERROR: Could not read Ariami version from pubspec.yaml or app_version.dart"
+  exit 1
+fi
+
+if [ "${CLI_VERSION}" != "${CORE_VERSION}" ] || [ "${CLI_VERSION}" != "${CONST_VERSION}" ]; then
+  echo "ERROR: Ariami version mismatch — fix these before building:"
+  echo "  ariami_cli/pubspec.yaml:      ${CLI_VERSION}"
+  echo "  ariami_core/pubspec.yaml:     ${CORE_VERSION}"
+  echo "  ariami_core/app_version.dart: ${CONST_VERSION}"
+  exit 1
+fi
+
+VERSION="${CLI_VERSION}"
+RELEASE_NAME="ariami-cli-raspberry-pi-arm64-v${VERSION}"
 SONIC_DIR="${PARENT_DIR}/sonic"
 SONIC_TARGET_DIR="/workspace/ariami_cli/build/sonic_target"
 SONIC_LIB_RELATIVE_PATH="build/sonic_target/release/libsonic_transcoder.so"
