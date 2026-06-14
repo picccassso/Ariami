@@ -46,6 +46,9 @@ void main() {
     expect(find.text('Song b'), findsOneWidget);
     expect(find.text('Song c'), findsOneWidget);
 
+    final songCKeyBeforeRemove =
+        tester.widget<Dismissible>(find.byType(Dismissible).at(2)).key;
+
     tester
         .widget<Dismissible>(find.byType(Dismissible).at(1))
         .onDismissed
@@ -55,6 +58,10 @@ void main() {
     expect(queue.songs.map((song) => song.id), ['a', 'c']);
     expect(find.text('Song b'), findsNothing);
     expect(find.text('Song c'), findsOneWidget);
+    expect(
+      tester.widget<Dismissible>(find.byType(Dismissible).at(1)).key,
+      songCKeyBeforeRemove,
+    );
 
     tester
         .widget<Dismissible>(find.byType(Dismissible).at(1))

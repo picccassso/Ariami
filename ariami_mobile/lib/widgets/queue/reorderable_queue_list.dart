@@ -34,6 +34,8 @@ class _ReorderableQueueListState extends State<ReorderableQueueList> {
 
   /// Map of song ID -> availability (true = available offline or online)
   Map<String, bool> _availabilityMap = {};
+  String? _availabilitySignature;
+  int _availabilityGeneration = 0;
 
   StreamSubscription<OfflineMode>? _offlineStateSubscription;
 
@@ -44,15 +46,17 @@ class _ReorderableQueueListState extends State<ReorderableQueueList> {
 
     // Listen to offline state changes to rebuild availability
     _offlineStateSubscription = _offlineService.offlineModeStream.listen((_) {
-      _checkSongAvailability();
+      _checkSongAvailability(force: true);
     });
   }
 
   @override
   void didUpdateWidget(ReorderableQueueList oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Re-check availability when songs list changes
-    if (oldWidget.songs != widget.songs) {
+    // PlaybackQueue.songs returns a fresh list wrapper on each rebuild, so
+    // compare the actual availability inputs instead of list identity.
+    if (_availabilitySignatureFor(oldWidget.songs) !=
+        _availabilitySignatureFor(widget.songs)) {
       _checkSongAvailability();
     }
   }
@@ -64,7 +68,15 @@ class _ReorderableQueueListState extends State<ReorderableQueueList> {
   }
 
   /// Check availability for all songs in the queue
-  Future<void> _checkSongAvailability() async {
+  Future<void> _checkSongAvailability({bool force = false}) async {
+    final signature = _availabilitySignatureFor(widget.songs);
+    if (!force &&
+        _availabilitySignature == signature &&
+        _availabilityMap.isNotEmpty) {
+      return;
+    }
+
+    final generation = ++_availabilityGeneration;
     final newAvailability = <String, bool>{};
     final isOffline = _offlineService.isOffline;
 
@@ -80,11 +92,17 @@ class _ReorderableQueueListState extends State<ReorderableQueueList> {
       }
     }
 
-    if (mounted) {
+    if (mounted && generation == _availabilityGeneration) {
       setState(() {
         _availabilityMap = newAvailability;
+        _availabilitySignature = signature;
       });
     }
+  }
+
+  String _availabilitySignatureFor(List<Song> songs) {
+    final ids = songs.map((song) => song.id).toSet().toList()..sort();
+    return ids.join('\u{1f}');
   }
 
   @override
@@ -122,7 +140,7 @@ class _ReorderableQueueListState extends State<ReorderableQueueList> {
       widget.songs.length,
       widget.currentIndex,
     );
-    final currentRowKey = ValueKey('${currentSong.id}-$currentRealIndex');
+    final currentRowKey = ObjectKey(currentSong);
 
     return Column(
       children: [
@@ -159,7 +177,7 @@ class _ReorderableQueueListState extends State<ReorderableQueueList> {
               );
               // Default to available if not yet checked (avoids flicker)
               final isAvailable = _availabilityMap[song.id] ?? true;
-              final rowKey = ValueKey('${song.id}-$realIndex');
+              final rowKey = ObjectKey(song);
 
               return QueueItem(
                 key: rowKey,
