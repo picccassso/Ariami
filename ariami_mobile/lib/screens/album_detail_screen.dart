@@ -558,6 +558,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
 
     try {
       _playbackManager.addAllToQueue(allSongs);
+      showQueueActionConfirmation(context, message: 'Added to queue');
     } catch (e) {
       print('[AlbumDetailScreen] Error adding to queue: $e');
     }

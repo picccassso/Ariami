@@ -525,7 +525,7 @@ class ConnectionService {
     final response = await apiClient.connect(ConnectRequest(
       deviceId: deviceId,
       deviceName: deviceName,
-      appVersion: '4.3.0',
+      appVersion: '4.4.0',
       platform: Platform.isAndroid ? 'android' : 'ios',
     ));
 
@@ -751,7 +751,7 @@ class ConnectionService {
     final response = await apiClient.connect(ConnectRequest(
       deviceId: deviceId,
       deviceName: deviceName,
-      appVersion: '4.3.0',
+      appVersion: '4.4.0',
       platform: Platform.isAndroid ? 'android' : 'ios',
     ));
 

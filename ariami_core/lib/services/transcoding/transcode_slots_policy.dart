@@ -45,28 +45,33 @@ class TranscodeSlotsPolicy {
   /// Minimum allowed transcode slot count.
   static const int minSlots = 1;
 
+  /// Default slot count for systems that are not a recognised Raspberry Pi.
+  static const int desktopDefaultSlots = 6;
+
   /// Resolve the platform default slot count for this host.
   static Future<int> resolveDefault({
     bool? isMacOS,
     bool? isWindows,
     bool? isLinux,
     bool? isRaspberryPi,
+    bool? isRaspberryPi3,
+    bool? isRaspberryPi4,
     bool? isRaspberryPi5,
     Future<String?> Function(String path)? readFile,
   }) async {
     final macOS = isMacOS ?? Platform.isMacOS;
     if (macOS) {
-      return 2;
+      return desktopDefaultSlots;
     }
 
     final windows = isWindows ?? Platform.isWindows;
     if (windows) {
-      return 2;
+      return desktopDefaultSlots;
     }
 
     final linux = isLinux ?? Platform.isLinux;
     if (!linux) {
-      return 2;
+      return desktopDefaultSlots;
     }
 
     final onPi = isRaspberryPi ?? await _isRaspberryPi(readFile: readFile);
@@ -74,12 +79,23 @@ class TranscodeSlotsPolicy {
       final onPi5 =
           isRaspberryPi5 ?? await _isRaspberryPi5(readFile: readFile);
       if (onPi5) {
+        return 5;
+      }
+      final onPi4 =
+          isRaspberryPi4 ?? await _isRaspberryPi4(readFile: readFile);
+      if (onPi4) {
         return 4;
       }
+      final onPi3 =
+          isRaspberryPi3 ?? await _isRaspberryPi3(readFile: readFile);
+      if (onPi3) {
+        return 3;
+      }
+      // Unrecognised / older Pi: use the most conservative supported default.
       return 3;
     }
 
-    return 2;
+    return desktopDefaultSlots;
   }
 
   /// Build a snapshot from an optional override and platform default.
@@ -159,6 +175,20 @@ class TranscodeSlotsPolicy {
   }) async {
     final model = await _getRaspberryPiModel(readFile: readFile);
     return model != null && model.contains('raspberry pi 5');
+  }
+
+  static Future<bool> _isRaspberryPi4({
+    Future<String?> Function(String path)? readFile,
+  }) async {
+    final model = await _getRaspberryPiModel(readFile: readFile);
+    return model != null && model.contains('raspberry pi 4');
+  }
+
+  static Future<bool> _isRaspberryPi3({
+    Future<String?> Function(String path)? readFile,
+  }) async {
+    final model = await _getRaspberryPiModel(readFile: readFile);
+    return model != null && model.contains('raspberry pi 3');
   }
 
   static Future<String?> _getRaspberryPiModel({

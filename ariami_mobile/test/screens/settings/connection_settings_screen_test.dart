@@ -253,7 +253,7 @@ void main() {
         'tailscaleServer': '100.101.102.103',
         'port': 8080,
         'name': 'Alexs-MacBook-Pro.local',
-        'version': '4.3.0',
+        'version': '4.4.0',
         'authRequired': false,
         'legacyMode': false,
         'downloadLimits': <String, int>{

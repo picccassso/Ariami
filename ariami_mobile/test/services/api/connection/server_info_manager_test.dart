@@ -12,7 +12,7 @@ void main() {
         tailscaleServer: null,
         port: 8080,
         name: 'Ariami',
-        version: '4.3.0',
+        version: '4.4.0',
       );
       final fetched = ServerInfo(
         server: '100.64.10.20',
@@ -20,7 +20,7 @@ void main() {
         tailscaleServer: '100.64.10.20',
         port: 8080,
         name: 'Ariami',
-        version: '4.3.0',
+        version: '4.4.0',
       );
 
       manager.setServerInfo(current);
@@ -41,7 +41,7 @@ void main() {
         tailscaleServer: '100.64.10.20',
         port: 8080,
         name: 'Ariami',
-        version: '4.3.0',
+        version: '4.4.0',
       );
       final fetched = ServerInfo(
         server: '100.64.10.20',

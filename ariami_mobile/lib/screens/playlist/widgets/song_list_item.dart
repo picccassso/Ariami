@@ -3,6 +3,7 @@ import '../../../models/api_models.dart';
 import '../../../models/song.dart';
 import '../../../services/api/connection_service.dart';
 import '../../../services/playback_manager.dart';
+import '../../../widgets/common/queue_action_confirmation.dart';
 import '../../../widgets/common/song_overflow_menu.dart';
 import '../../../widgets/common/swipe_to_queue.dart';
 import '../utils/playlist_helpers.dart';
@@ -161,5 +162,8 @@ class _SongListItemState extends State<SongListItem> {
         trackNumber: widget.song.trackNumber,
       ),
     );
+    if (mounted) {
+      showQueueActionConfirmation(context, message: 'Added to queue');
+    }
   }
 }

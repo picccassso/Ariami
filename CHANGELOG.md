@@ -6,6 +6,142 @@ Thank you for those that actually support and use this project at all! :D
 
 ---
 
+## 4.4.0
+
+Ariami 4.4.0 is the biggest reliability and polish release so far, with 100+ commits focused on setup, security, Raspberry Pi performance, downloads/offline playback, queue reliability, mobile polish, CI/release builds, start-on-boot, and safe reset tools.
+
+I hope people who use this new version can feel the difference in how much work has gone into making it as good as possible! :D
+
+### Highlights
+- Easier pairing with LAN/Tailscale address handling, manual server entry, QR invite tokens, and desktop-generated invite codes.
+- Hardened auth and registration flow.
+- Major download/offline reliability improvements, including native background downloads and better resume behavior.
+- Improved queue behavior, repeat handling, swipe-to-queue, and playback controls.
+- Raspberry Pi and Sonic transcoding improvements.
+- Mobile UI polish across bottom sheets, mini-player spacing, search, downloads, and CLI mobile dashboard.
+- Added CI checks, Android APK release builds, Desktop/CLI start-on-boot, and safe reset/factory reset tools.
+
+### Full changes
+
+- Excluded the dashboard from mobile client counts and softened QR auth error messaging
+- Advertised both LAN and Tailscale addresses for mobile pairing across the dashboards and CLI web UI, fixing Tailscale being preferred on the same LAN
+- Improved mobile download resume reliability
+- Improved mobile download reliability with native background download support
+- Fixed mobile downloads and stream warmup
+- Fixed Raspberry Pi playback performance
+- Added a /docs folder and Raspberry Pi 3 performance findings from real-world usage
+- Fixed the Pi download job and catalog cleanup
+- Added Raspberry Pi optimisations
+- Updated the Sonic transcoding integration
+- Tuned transcode concurrency per platform
+- Improved full player queue and cast controls
+- Consume one-shot queue entries after playback
+- Added swipe-to-queue across song lists
+- Unified bottom sheet design with mini-player awareness
+- Grayed out the delete button in download settings when no songs are downloaded
+- Grouped the downloads screen by album and virtualized the lists
+- Fixed downloads summary percentage and active count
+- Migrated add-to-playlist sheets to bottom sheets and added undo to the confirmation toast
+- Fixed playback stats after lifecycle checkpoint
+- Fixed the queue swipe popup
+- Fixed CLI library scanning
+- Fixed download lag for singles
+- Polished startup screens
+- Stopped tracking iOS SwiftPM resolution files
+- Updated Flutter dependencies
+- Fixed macOS desktop quit and shutdown races
+- Fixed real-time download badges on album, playlist, and search screens
+- Aligned playlist download with album action row placement
+- Added a per-track overflow menu to playlist detail songs
+- Auto-refresh Tailscale/LAN endpoints when the network changes after server start
+- Added repeat-all wrap-around to the Now Playing carousel and previous skip
+- Fixed song title truncation in the marquee and metadata extraction
+- Moved playlist edit and delete actions into an action bar bottom sheet
+- Resolved cross-platform safe-area spacing and bottom sheet overlaps on iOS
+- Updated dependencies
+- Fixed the destructive server disconnect reset flow
+- Disabled the playlist download button when the playlist is empty
+- Implemented multi-select and batch downloads with a robust local fallback
+- Made the batch download bar animate smoothly when dismissed
+- Prevented a cover art scrolling loop and visual flash on queue shuffle
+- Added a disconnect server button to the login screen
+- Wipe all local data on server disconnect
+- Made full player skip controls respond to rapid taps
+- Fixed queue confirmation toast spacing above the mini player when the keyboard is open
+- Implemented library catalog integrity and sync resilience fixes
+- Improved the CLI setup flow for headless servers
+- Preserve library scroll position when closing the full player
+- Show the Disconnect Server option on Connection Status while offline
+- Added manual server address refresh across dashboards
+- Preserve library scroll position during background refreshes
+- Hardened unauthenticated server access
+- Secured mobile registration with QR invite tokens
+- Fixed macOS desktop quit hang on Cmd+Q and dock quit
+- Fixed critical mobile search UX issues
+- Fixed CLI web owner auth handoff
+- Fixed playlist duplication on backup reimport
+- Reorganized the desktop and CLI dashboards into intent-based tabs
+- Removed snackbars in favor of less intrusive confirmations
+- Stabilized the global download bar for multi-song batches
+- Handle already-downloaded items in library batch download
+- Replaced album and playlist track popup menus with bottom sheets
+- Fixed the CLI web dashboard back arrow loop after setup
+- Open the setup browser only after the HTTP server is listening
+- Improved Chromecast metadata and notification handoff
+- Moved the Now Playing overflow menu to the bottom toolbar
+- Fixed the queue reorder drop target for the now playing row
+- Added automatic port fallback when 8080 is busy
+- Reserve library scroll space for the batch download bar on mobile
+- Modularised the library controller, dashboard screen, playlist service, and server runner into focused part files
+- Updated tests for hardened auth and the current mobile UI
+- Fixed the CLI web build pulling native SQLite FFI
+- Updated the Sonic streaming transcoder
+- Fixed Pi CLI native bundle packaging
+- Publish transcoded cache files atomically
+- Added CI checks and fixed CI dependency setup and test failures
+- Added Android APK release builds
+- Clarified the setup flow and required owner account step across the docs
+- Keep the mini player anchored when the keyboard opens
+- Added a desktop-style user management dashboard to the CLI
+- Hide the Disconnect Server button when the keyboard is open
+- Preserve downloaded library items as offline copies
+- Improved streamed artwork quality
+- Added manual server entry and desktop-generated invite codes for pairing without a QR scan
+- Allow a second-device login to take over instead of being blocked
+- Fixed a song not playing after adding it to an empty queue
+- Fixed CLI connect screen overflow
+- Keep the dashboard QR page open when clients are connected
+- Fixed the search keyboard gap without hiding the mini player
+- Improved mobile search typo tolerance
+- Fixed repeat-mode track selection and boundary skips
+- Cache the profile image in memory and pre-warm it on boot to stop avatar flicker
+- Keep download checkmarks across LAN/Tailscale route switches
+- Sped up startup by deferring service init and showing the cached library first
+- Fixed downloaded songs not playing on first tap offline
+- Silence playback when media volume is muted and unsilence it when raised
+- Made the CLI web UI mobile-friendly and fixed pairing-code copy
+- Added a Material You themed (monochrome) launcher icon
+- Fixed same-name artists splitting on invisible tag characters
+- Route queue tap, remove, and clear actions through PlaybackManager
+- Reduced queue row flicker on queue updates
+- Re-link downloads when album IDs change under metadata normalization
+- Stopped queue confirmation toasts from bouncing in the mobile app
+- Repaired UTF-8 artist names mangled by truncated ID3v1 tags
+- Fixed mobile backup import/export detection
+- Fixed YouTube channel album artists in library metadata
+- Improved background streaming stats accuracy
+- Fixed Android Bluetooth media controls by configuring audio session focus
+- Fixed desktop app icons for Windows and Linux
+- Simplified Ariami CLI setup output
+- Fixed the Android back gesture popping the nested route under the full-screen player
+- Added start-on-boot to Desktop and CLI, and fixed the CLI owner-state probe error
+- Added Reset Ariami to Desktop and CLI with a safe, music-preserving deleter
+- Delete SQLite WAL sidecars during reset so the catalog can be recreated
+- Disabled the Chromecast button when offline in mobile players
+- Showed the "Added to queue" confirmation for album, playlist, and per-song add-to-queue actions that were previously silent
+
+---
+
 ## 4.3.0
 
 - Fixed artist stats double-counting after library moves and imports

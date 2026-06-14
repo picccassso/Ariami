@@ -9,6 +9,7 @@ import '../../services/playback_manager.dart';
 import '../../services/quality/quality_settings_service.dart';
 import '../../widgets/common/bottom_chrome_metrics.dart';
 import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
+import '../../widgets/common/queue_action_confirmation.dart';
 import '../playlist/create_playlist_screen.dart';
 import 'library/library.dart';
 
@@ -231,6 +232,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
         );
         _playbackManager.addToQueue(song);
       }
+      if (mounted) {
+        showQueueActionConfirmation(context, message: 'Added to queue');
+      }
     } catch (e) {
       // Silently fail, can't let em know it failed LOL
     }
@@ -260,6 +264,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
           trackNumber: song.trackNumber,
         );
         _playbackManager.addToQueue(playSong);
+      }
+      if (mounted) {
+        showQueueActionConfirmation(context, message: 'Added to queue');
       }
     } catch (e) {
       // Silently fail, can't let em know it failed LOL

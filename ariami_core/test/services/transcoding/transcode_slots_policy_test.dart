@@ -42,16 +42,31 @@ void main() {
         isRaspberryPi5: true,
       );
 
-      expect(defaultSlots, 4);
+      expect(defaultSlots, 5);
     });
 
-    test('resolveDefault returns Pi 3/4 default when model matches', () async {
+    test('resolveDefault returns Pi 4 default when model matches', () async {
       final defaultSlots = await TranscodeSlotsPolicy.resolveDefault(
         isMacOS: false,
         isWindows: false,
         isLinux: true,
         isRaspberryPi: true,
         isRaspberryPi5: false,
+        isRaspberryPi4: true,
+      );
+
+      expect(defaultSlots, 4);
+    });
+
+    test('resolveDefault returns Pi 3 default when model matches', () async {
+      final defaultSlots = await TranscodeSlotsPolicy.resolveDefault(
+        isMacOS: false,
+        isWindows: false,
+        isLinux: true,
+        isRaspberryPi: true,
+        isRaspberryPi5: false,
+        isRaspberryPi4: false,
+        isRaspberryPi3: true,
       );
 
       expect(defaultSlots, 3);
@@ -64,7 +79,18 @@ void main() {
         isLinux: false,
       );
 
-      expect(defaultSlots, 2);
+      expect(defaultSlots, 6);
+    });
+
+    test('resolveDefault returns desktop default on non-Pi Linux', () async {
+      final defaultSlots = await TranscodeSlotsPolicy.resolveDefault(
+        isMacOS: false,
+        isWindows: false,
+        isLinux: true,
+        isRaspberryPi: false,
+      );
+
+      expect(defaultSlots, 6);
     });
 
     test('toJson and fromJson round-trip', () {
