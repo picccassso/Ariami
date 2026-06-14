@@ -9,6 +9,8 @@ import '../../models/quality_settings.dart';
 import '../../models/song.dart';
 import '../api/api_client.dart';
 import '../api/connection_service.dart';
+import '../offline/offline_playback_service.dart';
+import '../quality/network_monitor_service.dart';
 import '../quality/quality_settings_service.dart';
 
 /// Provides a modular Chromecast integration layer for Ariami mobile.
@@ -27,6 +29,8 @@ class ChromeCastService extends ChangeNotifier {
   StreamSubscription<dynamic>? _sessionSubscription;
   StreamSubscription<dynamic>? _mediaStatusSubscription;
   StreamSubscription<Duration>? _positionSubscription;
+  StreamSubscription<OfflineMode>? _offlineSubscription;
+  StreamSubscription<NetworkType>? _networkSubscription;
 
   bool _isInitialized = false;
   bool _isDiscoveryActive = false;
@@ -60,6 +64,20 @@ class ChromeCastService extends ChangeNotifier {
   bool get isConnected => hasActiveSession && !_forceLocalPlayback;
 
   bool get isConnecting => connectionState == GoogleCastConnectState.connecting;
+
+  bool get isBlockedByOffline =>
+      OfflinePlaybackService().isOfflineModeEnabled ||
+      NetworkMonitorService().isOffline;
+
+  /// Whether the cast button should accept taps.
+  /// Allows disconnect when already connected.
+  bool canInteractWithCastButton({
+    required bool isConnected,
+    required bool isBusy,
+  }) =>
+      isSupportedPlatform &&
+      !isBusy &&
+      (!isBlockedByOffline || isConnected);
   double get deviceVolume =>
       GoogleCastSessionManager.instance.currentSession?.currentDeviceVolume ??
       0.0;
@@ -86,7 +104,21 @@ class ChromeCastService extends ChangeNotifier {
         state == CastMediaPlayerState.loading;
   }
 
+  void _ensureOfflineListeners() {
+    _offlineSubscription ??=
+        OfflinePlaybackService().offlineModeStream.listen((_) {
+      notifyListeners();
+    });
+    unawaited(NetworkMonitorService().initialize());
+    _networkSubscription ??=
+        NetworkMonitorService().networkTypeStream.listen((_) {
+      notifyListeners();
+    });
+  }
+
   Future<void> initialize() async {
+    _ensureOfflineListeners();
+
     if (_isInitialized || !isSupportedPlatform) {
       return;
     }

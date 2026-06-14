@@ -36,20 +36,26 @@ class _PlayerCastButtonState extends State<PlayerCastButton> {
         final isConnected = _castService.isConnected;
         final isBusy = _castService.isConnecting ||
             widget.playbackManager.isCastTransitionInProgress;
+        final canInteract = _castService.canInteractWithCastButton(
+          isConnected: isConnected,
+          isBusy: isBusy,
+        );
+        final colorScheme = Theme.of(context).colorScheme;
+        final iconAlpha = canInteract ? (isConnected ? 1.0 : 0.9) : 0.38;
 
         return IconButton(
           icon: Icon(
             isConnected ? Icons.cast_connected_rounded : LucideIcons.cast,
             color: isConnected
-                ? Theme.of(context).colorScheme.primary
-                : Theme.of(context)
-                    .colorScheme
-                    .onSurface
-                    .withValues(alpha: 0.9),
+                ? colorScheme.primary.withValues(alpha: iconAlpha)
+                : colorScheme.onSurface.withValues(alpha: iconAlpha),
           ),
-          onPressed:
-              _castService.isSupportedPlatform && !isBusy ? _onPressed : null,
-          tooltip: isConnected ? 'Disconnect Chromecast' : 'Connect Chromecast',
+          onPressed: canInteract ? _onPressed : null,
+          tooltip: isConnected
+              ? 'Disconnect Chromecast'
+              : _castService.isBlockedByOffline
+                  ? 'Cast unavailable while offline'
+                  : 'Connect Chromecast',
         );
       },
     );

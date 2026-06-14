@@ -61,6 +61,7 @@ class _MiniPlayerState extends State<MiniPlayer> {
     super.initState();
     _colorService.addListener(_onColorsChanged);
     _castService.addListener(_onColorsChanged);
+    _castService.initialize();
   }
 
   @override
@@ -438,24 +439,42 @@ class _MiniPlayerState extends State<MiniPlayer> {
                                 children: [
                                   // Cast button (only on supported platforms)
                                   if (_castService.isSupportedPlatform)
-                                    IconButton(
-                                      icon: Icon(
-                                        _castService.isConnected
-                                            ? Icons.cast_connected_rounded
-                                            : LucideIcons.cast,
-                                        color: _castService.isConnected
-                                            ? Colors.white
-                                            : Colors.white54,
-                                      ),
-                                      iconSize: 22,
-                                      onPressed: (_castService.isConnecting ||
-                                              widget.playbackManager
-                                                  .isCastTransitionInProgress)
-                                          ? null
-                                          : _onCastPressed,
-                                      tooltip: _castService.isConnected
-                                          ? 'Disconnect Chromecast'
-                                          : 'Connect Chromecast',
+                                    Builder(
+                                      builder: (context) {
+                                        final isConnected =
+                                            _castService.isConnected;
+                                        final isBusy =
+                                            _castService.isConnecting ||
+                                                widget.playbackManager
+                                                    .isCastTransitionInProgress;
+                                        final canInteract = _castService
+                                            .canInteractWithCastButton(
+                                          isConnected: isConnected,
+                                          isBusy: isBusy,
+                                        );
+                                        final iconAlpha = canInteract
+                                            ? (isConnected ? 1.0 : 0.54)
+                                            : 0.38;
+
+                                        return IconButton(
+                                          icon: Icon(
+                                            isConnected
+                                                ? Icons.cast_connected_rounded
+                                                : LucideIcons.cast,
+                                            color: Colors.white
+                                                .withValues(alpha: iconAlpha),
+                                          ),
+                                          iconSize: 22,
+                                          onPressed: canInteract
+                                              ? _onCastPressed
+                                              : null,
+                                          tooltip: isConnected
+                                              ? 'Disconnect Chromecast'
+                                              : _castService.isBlockedByOffline
+                                                  ? 'Cast unavailable while offline'
+                                                  : 'Connect Chromecast',
+                                        );
+                                      },
                                     ),
                                   // Play/Pause
                                   IconButton(
