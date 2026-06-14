@@ -51,6 +51,7 @@ dependencies:
   # Audio playback
   just_audio: ^0.10.5
   audio_service: ^0.18.15
+  audio_session: ^0.2.3
   flutter_chrome_cast: ^1.4.6
 
   # Display refresh rate

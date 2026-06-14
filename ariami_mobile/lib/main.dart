@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_displaymode/flutter_displaymode.dart';
 import 'package:audio_service/audio_service.dart';
+import 'package:audio_session/audio_session.dart';
 import 'screens/welcome_screen.dart';
 import 'screens/setup/tailscale_check_screen.dart';
 import 'screens/setup/qr_scanner_screen.dart';
@@ -69,6 +70,20 @@ void main() async {
         '[Main] audioHandler is: ${audioHandler != null ? "NOT NULL" : "NULL"}');
     print('[Main] audioHandler type: ${audioHandler.runtimeType}');
     print('[Main] audioHandler hashCode: ${audioHandler.hashCode}');
+
+    // Configure the system audio session for music playback. This establishes
+    // the correct Android audio attributes and an AUDIOFOCUS_GAIN request, which
+    // is what makes the OS route hardware/Bluetooth (AVRCP) media-key events to
+    // our MediaSession. Without it, notification controls still work (they fire
+    // PendingIntents directly) but headset play/pause/skip buttons are routed to
+    // whichever app last held audio focus instead of Ariami.
+    try {
+      final session = await AudioSession.instance;
+      await session.configure(const AudioSessionConfiguration.music());
+      print('[Main] ✅ AudioSession configured for music playback');
+    } catch (e) {
+      print('[Main] ⚠️ Failed to configure AudioSession: $e');
+    }
   } catch (e, stackTrace) {
     print('[Main] ❌ ERROR initializing AudioService!');
     print('[Main] Error type: ${e.runtimeType}');
