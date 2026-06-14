@@ -353,6 +353,57 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
     }
   }
 
+  Future<void> _removeQueueItemImpl(int index) async {
+    try {
+      if (index < 0 || index >= _queue.length) return;
+
+      final wasCurrentSong = index == _queue.currentIndex;
+      final removedSong = _queue.songs[index];
+      final shouldContinuePlayback = isPlaying;
+
+      _oneShotQueuedSongs.remove(removedSong);
+
+      if (!wasCurrentSong) {
+        _queue.removeSong(index);
+        _lastWarmupKey = null;
+        _warmNextStreamInBackground(
+            _qualityService.getCurrentStreamingQuality());
+        _notifyStateChanged();
+        unawaited(_saveState());
+        return;
+      }
+
+      _queue.removeSong(index);
+      _restoredPosition = null;
+      _pendingUiPosition = null;
+      _lastWarmupKey = null;
+      _notifyStateChanged();
+
+      await _statsService.onSongStopped();
+      if (_queue.isEmpty) {
+        if (_castService.isConnected) {
+          await _castService.stopForAppTermination(reason: 'queue-empty');
+        } else {
+          await _audioPlayer.stop();
+        }
+        await _stateManager.clearCompletePlaybackState(
+          userId: _connectionService.userId,
+        );
+        _notifyStateChanged();
+        return;
+      }
+
+      await _playCurrentSong(
+        autoPlay: shouldContinuePlayback,
+        restartStatsTracking: shouldContinuePlayback,
+      );
+      _notifyStateChanged();
+      await _saveState();
+    } catch (e) {
+      debugPrint('[PlaybackManager] Error removing queue item: $e');
+    }
+  }
+
   Future<void> _seekImpl(Duration position) async {
     try {
       // User is manually seeking - update restored position so pressing play
@@ -459,7 +510,11 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
   Future<void> _clearQueueImpl() async {
     // Stop tracking current song
     await _statsService.onSongStopped();
-    await _audioPlayer.stop();
+    if (_castService.isConnected) {
+      await _castService.stopForAppTermination(reason: 'queue-clear');
+    } else {
+      await _audioPlayer.stop();
+    }
     _queue.clear();
     _oneShotQueuedSongs.clear();
     await _stateManager.clearCompletePlaybackState(

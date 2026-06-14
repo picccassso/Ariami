@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../models/playback_queue.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -10,9 +12,9 @@ import '../widgets/queue/reorderable_queue_list.dart';
 class QueueScreen extends StatefulWidget {
   final PlaybackQueue queue;
   final Function(int oldIndex, int newIndex)? onReorder;
-  final Function(int index)? onTap;
-  final Function(int index)? onRemove;
-  final VoidCallback? onClear;
+  final FutureOr<void> Function(int index)? onTap;
+  final FutureOr<void> Function(int index)? onRemove;
+  final FutureOr<void> Function()? onClear;
 
   const QueueScreen({
     super.key,
@@ -143,8 +145,12 @@ class _QueueScreenState extends State<QueueScreen> {
                       widget.onReorder?.call(oldIndex, newIndex);
                       setState(() {});
                     },
-                    onTap: widget.onTap,
-                    onRemove: widget.onRemove,
+                    onTap: widget.onTap != null
+                        ? (index) => unawaited(_handleTap(index))
+                        : null,
+                    onRemove: widget.onRemove != null
+                        ? (index) => unawaited(_handleRemove(index))
+                        : null,
                   ),
                 ),
               ],
@@ -221,7 +227,7 @@ class _QueueScreenState extends State<QueueScreen> {
             child: ElevatedButton(
               onPressed: () {
                 Navigator.of(dialogContext).pop();
-                widget.onClear?.call();
+                unawaited(_handleClear());
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: colorScheme.onSurface,
@@ -245,5 +251,26 @@ class _QueueScreenState extends State<QueueScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _handleTap(int index) async {
+    await widget.onTap?.call(index);
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  Future<void> _handleRemove(int index) async {
+    await widget.onRemove?.call(index);
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  Future<void> _handleClear() async {
+    await widget.onClear?.call();
+    if (mounted) {
+      setState(() {});
+    }
   }
 }

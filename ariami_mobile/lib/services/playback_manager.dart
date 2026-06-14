@@ -326,6 +326,9 @@ class PlaybackManager extends ChangeNotifier {
   /// Skip to a specific queue item
   Future<void> skipToQueueItem(int index) => _skipToQueueItemImpl(index);
 
+  /// Remove a queue item and keep playback/UI state in sync.
+  Future<void> removeQueueItem(int index) => _removeQueueItemImpl(index);
+
   /// Seek to position
   Future<void> seek(Duration position) => _seekImpl(position);
 

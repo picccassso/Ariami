@@ -152,13 +152,9 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
           onReorder: (oldIndex, newIndex) {
             _playbackManager.reorderQueueFromDisplayOrder(oldIndex, newIndex);
           },
-          onTap: (index) {
-            _playbackManager.queue.jumpToIndex(index);
-          },
-          onRemove: (index) {
-            _playbackManager.queue.removeSong(index);
-          },
-          onClear: _playbackManager.queue.clear,
+          onTap: _playbackManager.skipToQueueItem,
+          onRemove: _playbackManager.removeQueueItem,
+          onClear: _playbackManager.clearQueue,
         ),
       ),
     );
