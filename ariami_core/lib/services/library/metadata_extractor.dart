@@ -7,6 +7,7 @@ import 'package:dart_tags/dart_tags.dart';
 import 'package:ariami_core/models/song_metadata.dart';
 import 'package:ariami_core/services/library/album_art_detection.dart';
 import 'package:ariami_core/services/library/mp3_duration_parser.dart';
+import 'package:ariami_core/utils/mojibake_repair.dart';
 import 'package:ariami_core/utils/text_sanitizer.dart';
 
 export 'package:ariami_core/utils/text_sanitizer.dart' show sanitizeTagText;
@@ -277,37 +278,25 @@ class MetadataExtractor {
     }
   }
 
-  /// Fixes mojibake (UTF-8 bytes misread as Latin-1)
-  /// Detects patterns like "Ã¡" (should be "á") and repairs them
-  /// This happens when ID3 tags claim Latin-1 encoding but contain UTF-8 bytes
+  /// Fixes mojibake (UTF-8 bytes misread as Latin-1) and strips invisible
+  /// control/format characters.
   ///
-  /// Handles various character sets:
-  /// - Western European (Spanish, French, etc.): Ã, Â patterns
-  /// - Korean (Hangul): ì, í, î patterns (3-byte UTF-8)
-  /// - Japanese/Chinese (CJK): Similar multi-byte patterns
+  /// Detects patterns like "Ã¡" (should be "á") or "Ð¢Ð°" (should be "Та") and
+  /// repairs them. This happens when ID3 tags claim Latin-1 encoding but contain
+  /// UTF-8 bytes — most notably legacy ID3v1 fields, which are fixed-width and
+  /// frequently truncate UTF-8 text mid-character. See [repairLatin1Mojibake],
+  /// which tolerates that truncation so the raw mojibake doesn't leak through.
   ///
-  /// Always strips invisible control/format characters (see
-  /// [sanitizeTagText]) so NUL-padded ID3v1 fields don't leak terminators
-  /// into stored metadata.
+  /// Always runs [sanitizeTagText] so NUL-padded ID3v1 fields don't leak
+  /// terminators into stored metadata.
   String? _fixEncoding(dynamic value) {
     if (value == null) return null;
     var str = value.toString();
     if (str.isEmpty) return str;
 
-    try {
-      // Always attempt to fix encoding by re-encoding as Latin-1 and decoding as UTF-8
-      // This will fix mojibake for all character sets (Western, Korean, Japanese, Chinese, etc.)
-      final latin1Bytes = latin1.encode(str);
-      final fixedStr = utf8.decode(latin1Bytes, allowMalformed: true);
-
-      // Only use the fixed version if it's different and appears to be valid
-      // Check if the fix actually changed something and produced valid UTF-8
-      // (no replacement characters, which would indicate invalid UTF-8).
-      if (fixedStr != str && fixedStr.isNotEmpty && !fixedStr.contains('�')) {
-        str = fixedStr;
-      }
-    } catch (e) {
-      // If conversion fails, keep the original string.
+    final repaired = repairLatin1Mojibake(str);
+    if (repaired != null) {
+      str = repaired;
     }
 
     return sanitizeTagText(str);

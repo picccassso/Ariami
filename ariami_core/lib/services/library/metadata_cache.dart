@@ -64,7 +64,11 @@ class MetadataCache {
   /// v3: Tag text is now sanitized at extraction (sanitizeTagText); invalidate
   ///     caches written before the fix so NUL terminators and other invisible
   ///     characters are stripped on the forced re-extraction.
-  static const int schemaVersion = 3;
+  /// v4: Mojibake repair is now truncation-tolerant (repairLatin1Mojibake);
+  ///     invalidate caches written before the fix so UTF-8 text mangled by
+  ///     fixed-width ID3v1 fields (e.g. "Ð¢Ð°ÑÑÑÐ½Ð°" -> "Татьяна") is
+  ///     re-extracted correctly.
+  static const int schemaVersion = 4;
 
   /// Maximum number of entries (sanity limit ~50MB)
   static const int maxEntries = 100000;
