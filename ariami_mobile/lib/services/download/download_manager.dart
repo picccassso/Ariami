@@ -253,6 +253,26 @@ class DownloadManager {
         libraryAlbums: libraryAlbums,
       );
 
+  /// Re-point completed downloads at their current album ID when the album
+  /// identity changed but the song itself is unchanged.
+  ///
+  /// Album IDs are derived from album title+artist, so a server-side metadata
+  /// normalization (e.g. stripping NUL terminators from tags) re-hashes every
+  /// album ID. Song IDs (path-derived) are unaffected, so we match by song and
+  /// adopt the song's current album ID — otherwise the download would be flagged
+  /// as an orphaned "offline copy" even though it is still in the library.
+  ///
+  /// Returns the exact old -> new album ID pairs that were remapped, so callers
+  /// can migrate other album-keyed state (pins, recents) consistently.
+  Future<Map<String, String>> migrateDownloadAlbumIds({
+    required List<SongModel> librarySongs,
+    required List<AlbumModel> libraryAlbums,
+  }) =>
+      _migrateDownloadAlbumIdsImpl(
+        librarySongs: librarySongs,
+        libraryAlbums: libraryAlbums,
+      );
+
   /// Refresh saved album metadata while an authoritative library snapshot is
   /// available, so offline copies retain the server's title and artist.
   Future<int> refreshDownloadAlbumMetadata({

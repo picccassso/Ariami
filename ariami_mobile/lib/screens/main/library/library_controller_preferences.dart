@@ -76,13 +76,37 @@ extension _LibraryControllerPreferences on LibraryController {
         Map<String, DateTime>.from(_state.itemLastPlayedAt)..[key] = now;
 
     _updateState(_state.copyWith(itemLastPlayedAt: updatedPlayedHistory));
+    await _persistPlayedHistory(updatedPlayedHistory);
+  }
 
+  Future<void> _persistPlayedHistory(Map<String, DateTime> history) async {
     final prefs = await SharedPreferences.getInstance();
-    final encoded = updatedPlayedHistory.map(
+    final encoded = history.map(
       (entryKey, value) => MapEntry(entryKey, value.millisecondsSinceEpoch),
     );
     await prefs.setString(
         LibraryController._lastPlayedKey, jsonEncode(encoded));
+  }
+
+  /// Re-point album-keyed pins and recents from old album IDs to the current
+  /// ones after a server-side album identity change (e.g. tag normalization
+  /// re-hashing album IDs). [oldToNew] holds exact old -> new pairs discovered
+  /// while remapping downloads; playlist keys are untouched.
+  Future<void> _remapAlbumPreferenceKeys(Map<String, String> oldToNew) async {
+    final result = remapAlbumKeys(
+      pins: _state.pinnedItemIds,
+      recents: _state.itemLastPlayedAt,
+      oldToNew: oldToNew,
+    );
+    if (!result.hasChanges) return;
+
+    _updateState(_state.copyWith(
+      pinnedItemIds: result.pinsChanged ? result.pins : null,
+      itemLastPlayedAt: result.recentsChanged ? result.recents : null,
+    ));
+
+    if (result.pinsChanged) await _savePinnedItems();
+    if (result.recentsChanged) await _persistPlayedHistory(result.recents);
   }
 
   Future<void> _loadPinnedItems() async {

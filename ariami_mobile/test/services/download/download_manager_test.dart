@@ -342,6 +342,71 @@ void main() {
       expect(task.albumArt, 'https://example.com/correct-art.jpg');
     });
 
+    test('migrates album IDs when album identity changes but song is unchanged',
+        () async {
+      // Precondition: the completed download is linked to 'album-1'.
+      final before =
+          manager.queue.firstWhere((task) => task.songId == 'song-complete');
+      expect(before.albumId, 'album-1');
+
+      // The server re-hashed the album ID (e.g. tag normalization) but the
+      // song itself (path-derived id) is unchanged.
+      const newAlbumId = 'album-1-clean';
+      final migrated = await manager.migrateDownloadAlbumIds(
+        librarySongs: [
+          SongModel(
+            id: 'song-complete',
+            title: 'Complete',
+            artist: 'Test Artist',
+            albumId: newAlbumId,
+            duration: 0,
+          ),
+        ],
+        libraryAlbums: [
+          AlbumModel(
+            id: newAlbumId,
+            title: 'These Things Happen',
+            artist: 'G-Eazy',
+            coverArt: 'https://example.com/clean-art.jpg',
+            songCount: 1,
+            duration: 0,
+          ),
+        ],
+      );
+
+      expect(migrated, {'album-1': newAlbumId});
+      final after =
+          manager.queue.firstWhere((task) => task.songId == 'song-complete');
+      expect(after.albumId, newAlbumId);
+      expect(after.albumName, 'These Things Happen');
+      expect(after.albumArtist, 'G-Eazy');
+      // The download itself is untouched - still present under its stable songId.
+      expect(await manager.isSongDownloaded('song-complete'), isTrue);
+
+      // A second pass with the now-current album ID is a no-op.
+      final again = await manager.migrateDownloadAlbumIds(
+        librarySongs: [
+          SongModel(
+            id: 'song-complete',
+            title: 'Complete',
+            artist: 'Test Artist',
+            albumId: newAlbumId,
+            duration: 0,
+          ),
+        ],
+        libraryAlbums: [
+          AlbumModel(
+            id: newAlbumId,
+            title: 'These Things Happen',
+            artist: 'G-Eazy',
+            songCount: 1,
+            duration: 0,
+          ),
+        ],
+      );
+      expect(again, isEmpty);
+    });
+
     test('resume, prune, and clear operations preserve behavior', () async {
       final resumedCount = await manager.resumeInterruptedDownloads();
       expect(resumedCount, 2);

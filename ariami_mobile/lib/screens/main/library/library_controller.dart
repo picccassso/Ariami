@@ -20,6 +20,7 @@ import '../../../services/playlist_service.dart';
 import '../../../services/stats/streaming_stats_service.dart';
 import '../../../utils/artwork_url.dart';
 import '../../../utils/downloaded_album_metadata.dart';
+import 'library_album_remap.dart';
 import 'library_state.dart';
 
 part 'library_controller_loading.dart';

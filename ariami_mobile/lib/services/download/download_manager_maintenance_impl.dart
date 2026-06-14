@@ -438,6 +438,55 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
     return relinkedCount;
   }
 
+  Future<Map<String, String>> _migrateDownloadAlbumIdsImpl({
+    required List<SongModel> librarySongs,
+    required List<AlbumModel> libraryAlbums,
+  }) async {
+    await _ensureInitialized();
+    if (librarySongs.isEmpty) return const {};
+
+    final songsById = {for (final song in librarySongs) song.id: song};
+    final albumsById = {for (final album in libraryAlbums) album.id: album};
+    final tasks = _getScopedQueue()
+        .where((task) => task.status == DownloadStatus.completed)
+        .toList();
+    var migratedCount = 0;
+    // Exact old -> new album ID pairs observed while remapping, so callers can
+    // migrate other album-keyed state (pins, recents) without guessing.
+    final albumIdRemap = <String, String>{};
+
+    _queue.beginBatch();
+    try {
+      for (final task in tasks) {
+        // Only remap downloads whose song still exists in the library; songs
+        // that genuinely vanished are handled by the orphan-relink pass.
+        final song = songsById[task.songId];
+        if (song == null) continue;
+        if (song.albumId == task.albumId) continue;
+
+        final album =
+            song.albumId == null ? null : albumsById[song.albumId];
+        final replacement =
+            _buildAlbumIdMigratedTask(task, song.albumId, album);
+        if (_queue.replaceTask(task.id, replacement)) {
+          migratedCount++;
+          if (task.albumId != null && song.albumId != null) {
+            albumIdRemap[task.albumId!] = song.albumId!;
+          }
+        }
+      }
+    } finally {
+      _queue.endBatch();
+    }
+
+    if (migratedCount > 0) {
+      _invalidateScopedQueueCache();
+      print('[DownloadManager] Migrated album IDs for $migratedCount '
+          'completed download(s)');
+    }
+    return albumIdRemap;
+  }
+
   Future<int> _refreshDownloadAlbumMetadataImpl({
     required List<AlbumModel> libraryAlbums,
   }) async {
@@ -582,6 +631,38 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
       duration: song.duration,
       trackNumber: song.trackNumber,
       status: DownloadStatus.completed,
+      progress: task.progress,
+      bytesDownloaded: task.bytesDownloaded,
+      totalBytes: task.totalBytes,
+      errorMessage: task.errorMessage,
+      retryCount: task.retryCount,
+      nativeBackend: task.nativeBackend,
+      nativeTaskId: task.nativeTaskId,
+    );
+  }
+
+  DownloadTask _buildAlbumIdMigratedTask(
+    DownloadTask task,
+    String? newAlbumId,
+    AlbumModel? album,
+  ) {
+    return DownloadTask(
+      id: task.id,
+      songId: task.songId,
+      serverId: task.serverId,
+      userId: task.userId,
+      title: task.title,
+      artist: task.artist,
+      albumId: newAlbumId,
+      albumName: album?.title ?? task.albumName,
+      albumArtist: album?.artist ?? task.albumArtist,
+      albumArt: album?.coverArt ?? task.albumArt,
+      downloadUrl: task.downloadUrl,
+      downloadQuality: task.downloadQuality,
+      downloadOriginal: task.downloadOriginal,
+      duration: task.duration,
+      trackNumber: task.trackNumber,
+      status: task.status,
       progress: task.progress,
       bytesDownloaded: task.bytesDownloaded,
       totalBytes: task.totalBytes,

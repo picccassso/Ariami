@@ -209,6 +209,15 @@ extension _LibraryControllerLoading on LibraryController {
       librarySongs: library.songs,
       libraryAlbums: library.albums,
     );
+    // Re-point downloads whose album ID changed (e.g. after a server-side tag
+    // normalization re-hashed album identities) so they aren't mistaken for
+    // orphaned offline copies. Reuse the discovered old -> new album ID pairs to
+    // migrate album-keyed pins and recents to match.
+    final albumIdRemap = await _downloadManager.migrateDownloadAlbumIds(
+      librarySongs: library.songs,
+      libraryAlbums: library.albums,
+    );
+    await _remapAlbumPreferenceKeys(albumIdRemap);
     await _downloadManager.refreshDownloadAlbumMetadata(
       libraryAlbums: [
         ..._state.albums.where(
