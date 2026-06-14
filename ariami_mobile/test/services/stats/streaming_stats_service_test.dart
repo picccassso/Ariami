@@ -470,6 +470,79 @@ void main() {
       expect(service.getSongStats('still_valid')!.playCount, 1);
     });
 
+    // ------------------------------------------------------------------------
+    // Artist name normalization (grouping across sources)
+    // ------------------------------------------------------------------------
+    test(
+        'groups artists whose names differ only by case, whitespace or dash '
+        'into a single entry', () async {
+      // Same artist arriving from different sources with cosmetically different
+      // names: proper case, trailing whitespace, lowercase, and a unicode
+      // en-dash instead of a plain hyphen. All should collapse to one artist.
+      final variants = <String, String>{
+        'a1': 'G-Eazy',
+        'a2': 'G-Eazy ', // trailing whitespace
+        'a3': 'g-eazy', // lowercase
+        'a4': 'G–Eazy', // en-dash instead of hyphen
+        'a5': 'G-Eazy ', // trailing NUL terminator from a tag reader
+        'a6': 'G-Eazy​', // trailing zero-width space
+      };
+
+      for (final entry in variants.entries) {
+        final song = _testSong(
+          id: entry.key,
+          title: 'Song ${entry.key}',
+          duration: const Duration(minutes: 3),
+          artist: entry.value,
+        );
+        service.onSongStarted(song);
+        for (int i = 0; i <= 35; i++) {
+          service.updatePosition(Duration(seconds: i));
+        }
+        await service.onSongStopped();
+      }
+
+      final artists = service.getTopArtists();
+      expect(artists.length, 1,
+          reason: 'all name variants should fold into one artist');
+
+      final geazy = artists.single;
+      expect(geazy.playCount, 6);
+      expect(geazy.uniqueSongsCount, 6);
+      // The display name keeps a clean, properly-cased variant.
+      expect(geazy.artistName, 'G-Eazy');
+    });
+
+    test('keeps genuinely different artists separate', () async {
+      final song1 = _testSong(
+        id: 'b1',
+        title: 'Song B1',
+        duration: const Duration(minutes: 3),
+        artist: 'G-Eazy',
+      );
+      final song2 = _testSong(
+        id: 'b2',
+        title: 'Song B2',
+        duration: const Duration(minutes: 3),
+        artist: 'Halsey',
+      );
+
+      for (final song in [song1, song2]) {
+        service.onSongStarted(song);
+        for (int i = 0; i <= 35; i++) {
+          service.updatePosition(Duration(seconds: i));
+        }
+        await service.onSongStopped();
+      }
+
+      final artists = service.getTopArtists();
+      expect(artists.length, 2);
+      expect(
+        artists.map((a) => a.artistName).toSet(),
+        {'G-Eazy', 'Halsey'},
+      );
+    });
+
     test('debounced writes batch multiple updates', () async {
       final song = _testSong(
         id: 's12',

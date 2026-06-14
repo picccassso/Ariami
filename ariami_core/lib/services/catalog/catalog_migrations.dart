@@ -1,8 +1,13 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:sqlite3/sqlite3.dart';
+
+import 'package:ariami_core/utils/text_sanitizer.dart';
 
 /// Forward-only schema migrations for the catalog database.
 class CatalogMigrations {
-  static const int currentVersion = 4;
+  static const int currentVersion = 5;
 
   static void migrate(Database database) {
     final existingVersion = database.userVersion;
@@ -35,6 +40,10 @@ class CatalogMigrations {
       if (existingVersion < 4) {
         _applyVersion4(database);
         database.userVersion = 4;
+      }
+      if (existingVersion < 5) {
+        _applyVersion5(database);
+        database.userVersion = 5;
       }
 
       database.execute('COMMIT;');
@@ -228,5 +237,67 @@ ADD COLUMN duration_seconds INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE songs
 ADD COLUMN bitrate_kbps INTEGER NULL;
 ''');
+  }
+
+  /// Scrubs invisible characters (NUL terminators from NUL-padded ID3v1 fields,
+  /// zero-width and BOM chars, stray control codes) from text columns that were
+  /// written by earlier scans before [sanitizeTagText] was applied at extraction
+  /// time. Without this, otherwise-identical artist/album names compare as
+  /// different and fragment downstream grouping (e.g. two "G-Eazy" entries).
+  ///
+  /// Done in Dart rather than SQL because SQLite's string functions treat an
+  /// embedded NUL as a terminator, so a pure `REPLACE(...)` cannot remove it.
+  ///
+  /// The columns are read back via `CAST(... AS BLOB)` so the driver returns the
+  /// full raw bytes (including the NUL): a plain text read is itself truncated at
+  /// the first NUL, which would hide the very characters we need to strip.
+  static void _applyVersion5(Database database) {
+    _scrubTextColumn(database, table: 'songs', columns: ['title', 'artist']);
+    _scrubTextColumn(database, table: 'albums', columns: ['title', 'artist']);
+    _scrubTextColumn(database, table: 'playlists', columns: ['name']);
+  }
+
+  static void _scrubTextColumn(
+    Database database, {
+    required String table,
+    required List<String> columns,
+  }) {
+    // Read each text column as a BLOB so embedded NULs survive the round-trip;
+    // a TEXT read would be truncated at the first NUL byte.
+    final selectCols = [
+      'id',
+      ...columns.map((c) => 'CAST($c AS BLOB) AS $c'),
+    ].join(', ');
+    final rows = database.select('SELECT $selectCols FROM $table;');
+
+    final setClause = columns.map((c) => '$c = ?').join(', ');
+    final update =
+        database.prepare('UPDATE $table SET $setClause WHERE id = ?;');
+    try {
+      for (final row in rows) {
+        final cleaned = <Object?>[];
+        var changed = false;
+        for (final c in columns) {
+          final value = row[c];
+          final original = value is Uint8List
+              ? utf8.decode(value, allowMalformed: true)
+              : value is String
+                  ? value
+                  : null;
+          if (original != null) {
+            final sanitized = sanitizeTagText(original);
+            if (sanitized != original) changed = true;
+            cleaned.add(sanitized);
+          } else {
+            cleaned.add(value);
+          }
+        }
+        if (changed) {
+          update.execute([...cleaned, row['id']]);
+        }
+      }
+    } finally {
+      update.close();
+    }
   }
 }

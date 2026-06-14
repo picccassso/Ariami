@@ -61,7 +61,10 @@ class CachedMetadataEntry {
 class MetadataCache {
   /// Cache schema version - bump to invalidate all caches on breaking changes
   /// v2: Added partialHash field for duplicate detection caching
-  static const int schemaVersion = 2;
+  /// v3: Tag text is now sanitized at extraction (sanitizeTagText); invalidate
+  ///     caches written before the fix so NUL terminators and other invisible
+  ///     characters are stripped on the forced re-extraction.
+  static const int schemaVersion = 3;
 
   /// Maximum number of entries (sanity limit ~50MB)
   static const int maxEntries = 100000;

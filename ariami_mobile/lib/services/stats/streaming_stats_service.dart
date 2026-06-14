@@ -470,21 +470,38 @@ class StreamingStatsService extends ChangeNotifier
     return allStats.take(limit).toList();
   }
 
-  /// Get top artists (default 20) aggregated from in-memory cache
+  /// Get top artists (default 20) aggregated from in-memory cache.
+  ///
+  /// Artists are grouped by a normalized key (see [_normalizeArtistKey]) so the
+  /// same artist coming from different sources — e.g. a standalone single and an
+  /// album, which may store the name with different casing, whitespace or dash
+  /// characters — collapses into a single entry instead of appearing twice.
   List<ArtistStats> getTopArtists({int limit = 20}) {
     final allStats = getAllStats();
     final Map<String, ArtistStats> artistMap = {};
+    // Tracks the best display name (highest contributing play count) per key so
+    // we show a properly-cased label rather than whichever variant arrived first.
+    final Map<String, int> displayNamePlayCount = {};
 
     for (final songStat in allStats) {
-      final artistName =
-          songStat.albumArtist ?? songStat.songArtist ?? 'Unknown Artist';
+      final rawName = _cleanArtistName(
+          songStat.albumArtist ?? songStat.songArtist ?? 'Unknown Artist');
+      final key = _normalizeArtistKey(rawName);
 
-      if (artistMap.containsKey(artistName)) {
-        final existing = artistMap[artistName]!;
+      if (artistMap.containsKey(key)) {
+        final existing = artistMap[key]!;
         final newRandomAlbumId = existing.randomAlbumId ?? songStat.albumId;
         final newRandomSongId = existing.randomSongId ??
             (songStat.albumId == null ? songStat.songId : null);
-        artistMap[artistName] = existing.copyWith(
+        // Prefer the name variant with the most plays for display.
+        final keepName = songStat.playCount > (displayNamePlayCount[key] ?? 0)
+            ? rawName
+            : existing.artistName;
+        if (songStat.playCount > (displayNamePlayCount[key] ?? 0)) {
+          displayNamePlayCount[key] = songStat.playCount;
+        }
+        artistMap[key] = existing.copyWith(
+          artistName: keepName,
           playCount: existing.playCount + songStat.playCount,
           totalTime: Duration(
               seconds:
@@ -496,8 +513,9 @@ class StreamingStatsService extends ChangeNotifier
           uniqueSongsCount: existing.uniqueSongsCount + 1,
         );
       } else {
-        artistMap[artistName] = ArtistStats(
-          artistName: artistName,
+        displayNamePlayCount[key] = songStat.playCount;
+        artistMap[key] = ArtistStats(
+          artistName: rawName,
           playCount: songStat.playCount,
           totalTime: songStat.totalTime,
           firstPlayed: songStat.firstPlayed,
@@ -512,6 +530,32 @@ class StreamingStatsService extends ChangeNotifier
     final artistList = artistMap.values.toList();
     artistList.sort((a, b) => b.totalTime.compareTo(a.totalTime));
     return artistList.take(limit).toList();
+  }
+
+  /// Matches invisible characters that should never affect artist identity:
+  /// C0/C1 control codes (including the stray NUL terminators some server-side
+  /// tag readers leave on strings read from file metadata), plus zero-width and
+  /// BOM format characters.
+  static final RegExp _invisibleChars =
+      RegExp('[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028\u2029\u2060\ufeff]');
+
+  /// Strip invisible characters and surrounding whitespace from an artist name,
+  /// preserving its original casing/spacing for display.
+  String _cleanArtistName(String name) =>
+      name.replaceAll(_invisibleChars, '').trim();
+
+  /// Normalize an artist name into a stable grouping key so visually-identical
+  /// names from different sources match. Removes invisible characters,
+  /// lowercases, trims, collapses internal whitespace, and unifies the various
+  /// unicode hyphen/dash characters to a plain hyphen.
+  String _normalizeArtistKey(String name) {
+    var s = name.replaceAll(_invisibleChars, '').trim().toLowerCase();
+    // Map unicode hyphen/dash variants (hyphen, non-breaking hyphen, figure
+    // dash, en/em dash, minus sign) to a plain ASCII hyphen.
+    s = s.replaceAll(RegExp('[\u2010-\u2015\u2212]'), '-');
+    // Collapse any run of whitespace to a single space.
+    s = s.replaceAll(RegExp(r'\s+'), ' ');
+    return s;
   }
 
   /// Get top albums (default 20) aggregated from in-memory cache

@@ -5,6 +5,34 @@ import 'package:ariami_core/services/library/mp3_duration_parser.dart';
 import 'package:test/test.dart';
 
 void main() {
+  group('sanitizeTagText', () {
+    test('strips trailing NUL terminators from NUL-padded ID3v1 fields', () {
+      expect(sanitizeTagText('G-Eazy\u0000'), equals('G-Eazy'));
+      expect(sanitizeTagText('These Things Happen\u0000\u0000'),
+          equals('These Things Happen'));
+    });
+
+    test('strips zero-width and BOM format characters', () {
+      expect(sanitizeTagText('G-Eazy\u200b'), equals('G-Eazy'));
+      expect(sanitizeTagText('\ufeffG-Eazy'), equals('G-Eazy'));
+    });
+
+    test('trims surrounding whitespace', () {
+      expect(sanitizeTagText('  G-Eazy  '), equals('G-Eazy'));
+    });
+
+    test('leaves clean names untouched', () {
+      expect(sanitizeTagText('G-Eazy'), equals('G-Eazy'));
+      expect(sanitizeTagText('Beyoncé'), equals('Beyoncé'));
+    });
+
+    test('a NUL-padded and a clean variant normalize to the same value', () {
+      // This is the exact case that fragmented the artist stats: the album
+      // track carried a NUL terminator while the standalone single did not.
+      expect(sanitizeTagText('G-Eazy\u0000'), equals(sanitizeTagText('G-Eazy')));
+    });
+  });
+
   group('MetadataExtractor.extractDuration', () {
     test('prefers Dart MP3 parser before ffprobe for mp3 files', () async {
       var ffprobeCalls = 0;

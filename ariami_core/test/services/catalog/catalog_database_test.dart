@@ -129,6 +129,82 @@ INSERT INTO albums (
       expect(db.select('PRAGMA cache_size;').first['cache_size'], -8192);
     });
 
+    test('migration scrubs invisible characters from existing text rows', () {
+      // Build a v4 database directly and seed it with NUL-tainted values,
+      // mimicking rows written by older scans before sanitization existed.
+      final rawDb = sqlite.sqlite3.open(databasePath);
+      CatalogMigrations.migrate(rawDb);
+      // Force the version back to 4 so the v5 scrub runs on reopen.
+      rawDb.userVersion = 4;
+      rawDb.execute(
+        '''
+INSERT INTO albums (
+  id, title, artist, year, cover_art_key, song_count, duration_seconds,
+  updated_token, is_deleted
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+''',
+        <Object?>['al-1', 'These Things Happen\u0000', 'G-Eazy\u0000', 2014,
+            null, 1, 180, 1, 0],
+      );
+      rawDb.execute(
+        '''
+INSERT INTO songs (
+  id, file_path, title, artist, album_id, duration_seconds, track_number,
+  file_size_bytes, modified_epoch_ms, bitrate_kbps, artwork_key,
+  updated_token, is_deleted
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+''',
+        <Object?>['s-1', '/m/a.mp3', 'Opportunity Cost\u0000', 'G-Eazy\u0000',
+            'al-1', 180, 5, 1000, 1, 320, null, 1, 0],
+      );
+      // A clean standalone single, as the remix arrived.
+      rawDb.execute(
+        '''
+INSERT INTO songs (
+  id, file_path, title, artist, album_id, duration_seconds, track_number,
+  file_size_bytes, modified_epoch_ms, bitrate_kbps, artwork_key,
+  updated_token, is_deleted
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+''',
+        <Object?>['s-2', '/m/b.mp3', 'Last Night (Remix)', 'G-Eazy', null, 200,
+            null, 1000, 1, 320, null, 2, 0],
+      );
+      rawDb.dispose();
+
+      // Reopen through CatalogDatabase, which runs migrations up to current.
+      final database = CatalogDatabase(databasePath: databasePath);
+      database.initialize();
+      addTearDown(database.close);
+      final db = database.database;
+
+      expect(db.userVersion, equals(CatalogMigrations.currentVersion));
+
+      // Assert on the raw stored bytes via BLOB, not a plain text read: SQLite
+      // truncates a TEXT value at its first NUL, so a text read would look clean
+      // even if the NUL were still in the database.
+      final album = db
+          .select(
+            'SELECT artist, instr(CAST(artist AS BLOB), X\'00\') AS nul, '
+            'length(CAST(artist AS BLOB)) AS blen FROM albums;',
+          )
+          .first;
+      expect(album['artist'], equals('G-Eazy'));
+      expect(album['nul'], equals(0), reason: 'no NUL byte should remain');
+      expect(album['blen'], equals(6), reason: 'clean "G-Eazy" is 6 bytes');
+
+      // Every song artist is now NUL-free, so the album track and the standalone
+      // single share an identical value and no longer fragment into two groups.
+      final songs = db.select(
+        'SELECT artist, instr(CAST(artist AS BLOB), X\'00\') AS nul '
+        'FROM songs ORDER BY id;',
+      );
+      for (final row in songs) {
+        expect(row['nul'], equals(0), reason: 'no NUL byte should remain');
+      }
+      final artists = songs.map((r) => r['artist'] as String).toSet();
+      expect(artists, equals(<String>{'G-Eazy'}));
+    });
+
     test('initialize fails for forward-incompatible schema versions', () {
       final rawDb = sqlite.sqlite3.open(databasePath);
       rawDb.userVersion = CatalogMigrations.currentVersion + 1;

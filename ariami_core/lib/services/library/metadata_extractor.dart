@@ -7,6 +7,9 @@ import 'package:dart_tags/dart_tags.dart';
 import 'package:ariami_core/models/song_metadata.dart';
 import 'package:ariami_core/services/library/album_art_detection.dart';
 import 'package:ariami_core/services/library/mp3_duration_parser.dart';
+import 'package:ariami_core/utils/text_sanitizer.dart';
+
+export 'package:ariami_core/utils/text_sanitizer.dart' show sanitizeTagText;
 
 typedef ProcessRunner = Future<ProcessResult> Function(
   String executable,
@@ -282,9 +285,13 @@ class MetadataExtractor {
   /// - Western European (Spanish, French, etc.): Ã, Â patterns
   /// - Korean (Hangul): ì, í, î patterns (3-byte UTF-8)
   /// - Japanese/Chinese (CJK): Similar multi-byte patterns
+  ///
+  /// Always strips invisible control/format characters (see
+  /// [sanitizeTagText]) so NUL-padded ID3v1 fields don't leak terminators
+  /// into stored metadata.
   String? _fixEncoding(dynamic value) {
     if (value == null) return null;
-    final str = value.toString();
+    var str = value.toString();
     if (str.isEmpty) return str;
 
     try {
@@ -295,19 +302,15 @@ class MetadataExtractor {
 
       // Only use the fixed version if it's different and appears to be valid
       // Check if the fix actually changed something and produced valid UTF-8
-      if (fixedStr != str && fixedStr.isNotEmpty) {
-        // Verify the fixed string doesn't contain replacement characters
-        // which would indicate invalid UTF-8
-        if (!fixedStr.contains('�')) {
-          return fixedStr;
-        }
+      // (no replacement characters, which would indicate invalid UTF-8).
+      if (fixedStr != str && fixedStr.isNotEmpty && !fixedStr.contains('�')) {
+        str = fixedStr;
       }
-
-      return str;
     } catch (e) {
-      // If conversion fails, return original
-      return str;
+      // If conversion fails, keep the original string.
     }
+
+    return sanitizeTagText(str);
   }
 
   /// Extracts metadata and duration from a single audio file in one call
