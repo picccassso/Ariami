@@ -88,14 +88,16 @@ class ResetCommand {
     ];
     final directories = <String>[];
 
+    final sqliteDatabases = <String>[];
+
     if (scope == ResetScope.factoryReset) {
       files.addAll([
         CliStateService.getUsersFilePath(),
         CliStateService.getSessionsFilePath(),
         CliStateService.getMetadataCacheFilePath(),
-        CliStateService.getCatalogDbFilePath(),
         CliStateService.getAutostartLogFilePath(),
       ]);
+      sqliteDatabases.add(CliStateService.getCatalogDbFilePath());
       directories.addAll([
         CliStateService.getArtworkCacheDirPath(),
         CliStateService.getTranscodedCacheDirPath(),
@@ -105,6 +107,7 @@ class ResetCommand {
     return ResetPlan(
       files: files,
       directories: directories,
+      sqliteDatabases: sqliteDatabases,
       musicFolderPathGuard: musicFolderGuard,
     );
   }

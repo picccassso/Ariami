@@ -118,6 +118,39 @@ void main() {
     });
   });
 
+  test('removes SQLite sidecar files alongside the database', () async {
+    final db = await createFile('catalog.db');
+    final wal = await createFile('catalog.db-wal');
+    final shm = await createFile('catalog.db-shm');
+    final journal = await createFile('catalog.db-journal');
+    final unrelated = await createFile('catalog.db.backup');
+
+    final result = await service.execute(ResetPlan(
+      sqliteDatabases: [db.path],
+    ));
+
+    expect(result.hasFailures, isFalse);
+    expect(await db.exists(), isFalse);
+    expect(await wal.exists(), isFalse);
+    expect(await shm.exists(), isFalse);
+    expect(await journal.exists(), isFalse);
+    // A file that merely shares the prefix (not a sidecar) is left alone.
+    expect(await unrelated.exists(), isTrue);
+  });
+
+  test('honours the music guard for sqlite databases', () async {
+    final music = await createDir('Music');
+    final db = await createFile('Music/catalog.db');
+
+    final result = await service.execute(ResetPlan(
+      sqliteDatabases: [db.path],
+      musicFolderPathGuard: music.path,
+    ));
+
+    expect(result.blocked, isNotEmpty);
+    expect(await db.exists(), isTrue);
+  });
+
   test('deletes a symlink without following it to the target', () async {
     final target = await createDir('real_target');
     final link = Link(path('link_to_target'));

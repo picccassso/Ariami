@@ -45,10 +45,12 @@ class DesktopResetService {
 
     final plan = ResetPlan(
       files: [
-        await _stateService.getCatalogDbFilePath(),
         await _stateService.getMetadataCacheFilePath(),
         await _stateService.getUsersFilePath(),
         await _stateService.getSessionsFilePath(),
+      ],
+      sqliteDatabases: [
+        await _stateService.getCatalogDbFilePath(),
       ],
       directories: [
         await _stateService.getArtworkCacheDirPath(),

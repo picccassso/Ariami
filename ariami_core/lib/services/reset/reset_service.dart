@@ -49,19 +49,28 @@ class ResetPlan {
   const ResetPlan({
     this.files = const [],
     this.directories = const [],
+    this.sqliteDatabases = const [],
     this.musicFolderPathGuard,
   });
 
-  /// Individual files to remove (e.g. `config.json`, `catalog.db`).
+  /// Individual files to remove (e.g. `config.json`).
   final List<String> files;
 
   /// Directories to remove recursively (e.g. `artwork_cache/`).
   final List<String> directories;
 
+  /// SQLite database files to remove (e.g. `catalog.db`). For each entry the
+  /// `-wal`, `-shm` and `-journal` sidecar files are removed too, so a stale
+  /// shared-memory index can never corrupt a freshly recreated database.
+  final List<String> sqliteDatabases;
+
   /// The configured music library path, if known. Used as a safety guard:
   /// any target equal to, containing, or contained by this path is refused.
   final String? musicFolderPathGuard;
 }
+
+/// SQLite WAL-mode sidecar suffixes that live next to a database file.
+const _sqliteSidecarSuffixes = ['-wal', '-shm', '-journal'];
 
 /// Aggregate result of a reset run.
 class ResetResult {
@@ -97,7 +106,17 @@ class ResetService {
   Future<ResetResult> execute(ResetPlan plan) async {
     final guard = _canonicalGuard(plan.musicFolderPathGuard);
     final results = <ResetEntryResult>[];
-    for (final path in [...plan.files, ...plan.directories]) {
+
+    final paths = <String>[...plan.files];
+    for (final database in plan.sqliteDatabases) {
+      paths.add(database);
+      for (final suffix in _sqliteSidecarSuffixes) {
+        paths.add('$database$suffix');
+      }
+    }
+    paths.addAll(plan.directories);
+
+    for (final path in paths) {
       results.add(await _deleteEntry(path, guard));
     }
     return ResetResult(results);
