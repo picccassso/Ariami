@@ -33,8 +33,23 @@ class _ImportExportScreenState extends State<ImportExportScreen> {
 
   String _formatDateTime(DateTime? dateTime) {
     if (dateTime == null) return 'Never';
-    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    final hour = dateTime.hour > 12 ? dateTime.hour - 12 : (dateTime.hour == 0 ? 12 : dateTime.hour);
+    final months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec'
+    ];
+    final hour = dateTime.hour > 12
+        ? dateTime.hour - 12
+        : (dateTime.hour == 0 ? 12 : dateTime.hour);
     final period = dateTime.hour >= 12 ? 'PM' : 'AM';
     final minute = dateTime.minute.toString().padLeft(2, '0');
     return '${dateTime.day} ${months[dateTime.month - 1]} ${dateTime.year}, $hour:$minute $period';
@@ -210,20 +225,20 @@ class _ImportExportScreenState extends State<ImportExportScreen> {
                     shape: const StadiumBorder(),
                     elevation: 0,
                   ),
-                  child: _isLoading 
-                    ? const SizedBox(
-                        height: 20, 
-                        width: 20, 
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black)
-                      )
-                    : const Text(
-                        'EXPORT DATA',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 1.2,
+                  child: _isLoading
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.black))
+                      : const Text(
+                          'EXPORT DATA',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1.2,
+                          ),
                         ),
-                      ),
                 ),
               ),
               const SizedBox(height: 12),
@@ -236,7 +251,9 @@ class _ImportExportScreenState extends State<ImportExportScreen> {
                   onPressed: _isLoading ? null : _import,
                   style: OutlinedButton.styleFrom(
                     side: BorderSide(
-                      color: isDark ? const Color(0xFF222222) : const Color(0xFFEEEEEE),
+                      color: isDark
+                          ? const Color(0xFF222222)
+                          : const Color(0xFFEEEEEE),
                       width: 1.5,
                     ),
                     shape: const StadiumBorder(),

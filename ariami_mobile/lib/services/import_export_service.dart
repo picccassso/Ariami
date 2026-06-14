@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/api_models.dart';
@@ -59,6 +59,10 @@ class ImportExportService {
   final PlaylistService _playlistService = PlaylistService();
   final StreamingStatsService _statsService = StreamingStatsService();
   final ConnectionService _connectionService = ConnectionService();
+  static const MethodChannel _filePickerChannel = MethodChannel(
+    'miguelruivo.flutter.plugins.filepicker',
+    StandardMethodCodec(),
+  );
   late StatsDatabase _statsDatabase;
   bool _initialized = false;
 
@@ -96,7 +100,7 @@ class ImportExportService {
     _initialized = true;
   }
 
-  /// Export playlists and stats to a JSON file and open share sheet
+  /// Export playlists and stats to a JSON file with the system document saver.
   Future<ExportResult> exportData() async {
     try {
       await initialize();
@@ -116,15 +120,10 @@ class ImportExportService {
       final jsonString = const JsonEncoder.withIndent('  ').convert(exportData);
       final bytes = utf8.encode(jsonString);
 
-      // Use file picker to let user choose save location
-      final savedPath = await FilePicker.saveFile(
-        dialogTitle: 'Save Ariami Backup',
-        fileName: filename,
-        type: FileType.custom,
-        allowedExtensions: ['json'],
+      final savedPath = await _saveBackupFile(
+        filename: filename,
         bytes: Uint8List.fromList(bytes),
       );
-
       if (savedPath == null) {
         return ExportResult(
           success: false,
@@ -164,6 +163,12 @@ class ImportExportService {
       final result = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['json'],
+        // The backup JSON is tiny and path may be null for document-provider
+        // picks, so eager bytes are the reliable import signal here.
+        // ignore: deprecated_member_use
+        allowMultiple: false,
+        // ignore: deprecated_member_use
+        withData: true,
       );
 
       if (result == null || result.files.isEmpty) {
@@ -173,8 +178,7 @@ class ImportExportService {
         );
       }
 
-      final file = File(result.files.single.path!);
-      final jsonString = await file.readAsString();
+      final jsonString = await _readPickedBackup(result.files.single);
 
       final Map<String, dynamic> data;
       try {
@@ -194,6 +198,40 @@ class ImportExportService {
         error: e.toString(),
       );
     }
+  }
+
+  Future<String?> _saveBackupFile({
+    required String filename,
+    required Uint8List bytes,
+  }) {
+    // Use the native file-picker save method directly. FilePicker.saveFile()
+    // opens the same system document picker, but its Dart wrapper may try to
+    // write again through Android's returned document URI path after the native
+    // side has already saved the bytes.
+    return _filePickerChannel.invokeMethod<String>('save', {
+      'fileName': filename,
+      'fileType': FileType.custom.name,
+      'initialDirectory': null,
+      'allowedExtensions': ['json'],
+      'bytes': bytes,
+    });
+  }
+
+  Future<String> _readPickedBackup(PlatformFile pickedFile) async {
+    // ignore: deprecated_member_use
+    final bytes = pickedFile.bytes;
+    if (bytes != null) {
+      return utf8.decode(bytes);
+    }
+
+    final path = pickedFile.path;
+    if (path != null) {
+      return File(path).readAsString();
+    }
+
+    throw const FileSystemException(
+      'Selected backup could not be read',
+    );
   }
 
   /// Build backup payload for export or testing.
@@ -289,22 +327,23 @@ class ImportExportService {
         final libraryRepo = LibraryRepository();
         librarySongs = await libraryRepo.getSongs();
       } catch (e) {
-        print('[ImportExportService] Could not load local library for remapping: $e');
+        print(
+            '[ImportExportService] Could not load local library for remapping: $e');
         try {
           if (_connectionService.apiClient != null) {
             librarySongs =
                 await _connectionService.libraryReadFacade.getSongs();
           }
         } catch (e2) {
-          print('[ImportExportService] Could not fetch library from server for remapping: $e2');
+          print(
+              '[ImportExportService] Could not fetch library from server for remapping: $e2');
         }
       }
 
       final remappingService = SongIdRemappingService();
       final remappedPlaylists =
           remappingService.remapPlaylists(playlists, librarySongs);
-      final remappedStats =
-          remappingService.remapStats(stats, librarySongs);
+      final remappedStats = remappingService.remapStats(stats, librarySongs);
 
       // -----------------------------------------------------------------------
       // Import based on mode
