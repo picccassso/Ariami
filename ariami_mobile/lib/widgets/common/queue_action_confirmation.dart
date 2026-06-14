@@ -41,9 +41,22 @@ void showQueueActionConfirmation(
 
   _dismissQueueConfirmation();
 
+  // Snapshot the resting position ONCE, from the caller's context, and freeze
+  // it for the toast's lifetime. The toast must not chase live UI changes
+  // (mini player appearing, download bar toggling, playback ticks, list
+  // reflows): reacting to those is exactly what made it "bounce". A fixed
+  // offset means the only motion is the intentional slide-in entrance.
+  final bottomOffset = getMiniPlayerAwareBottomPadding(context) + 24;
+
+  // Note: the widget below is intentionally created without a per-build key.
+  // An OverlayEntry's builder re-runs whenever the root Overlay rebuilds (e.g.
+  // on any MediaQuery change such as the keyboard animating). Minting a new
+  // UniqueKey() inside the builder would tear down and recreate the state on
+  // every such rebuild, replaying the entrance animation and causing the
+  // toast to "bounce" repeatedly. Reusing a single instance keeps its state.
   _queueConfirmationEntry = OverlayEntry(
     builder: (context) => _QueueActionConfirmation(
-      key: UniqueKey(),
+      bottomOffset: bottomOffset,
       message: message,
       actionLabel: actionLabel,
       onAction: onAction == null
@@ -60,12 +73,13 @@ void showQueueActionConfirmation(
 }
 
 class _QueueActionConfirmation extends StatefulWidget {
+  final double bottomOffset;
   final String message;
   final String? actionLabel;
   final VoidCallback? onAction;
 
   const _QueueActionConfirmation({
-    super.key,
+    required this.bottomOffset,
     required this.message,
     this.actionLabel,
     this.onAction,
@@ -93,7 +107,6 @@ class _QueueActionConfirmationState extends State<_QueueActionConfirmation> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final bottom = getMiniPlayerAwareBottomPadding(context) + 24;
     final hasAction =
         widget.actionLabel != null && widget.onAction != null;
 
@@ -152,10 +165,13 @@ class _QueueActionConfirmationState extends State<_QueueActionConfirmation> {
       ),
     );
 
+    // Fixed position for the toast's lifetime (snapshotted at show-time). Only
+    // the entrance slide/fade animates; the anchor never moves, so live UI
+    // changes around it can never make it bounce.
     return Positioned(
       left: 20,
       right: 20,
-      bottom: bottom,
+      bottom: widget.bottomOffset,
       child: AnimatedSlide(
         offset: _isVisible ? Offset.zero : const Offset(0, 1.2),
         duration: const Duration(milliseconds: 220),
