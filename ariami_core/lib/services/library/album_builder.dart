@@ -28,6 +28,7 @@ class AlbumBuilder {
       : _metadataExtractor = metadataExtractor ?? MetadataExtractor();
 
   final MetadataExtractor _metadataExtractor;
+
   /// Groups songs into albums based on metadata
   ///
   /// Uses [albumGroupingKey] (album + album artist, or normalized track artist).
@@ -118,8 +119,7 @@ class AlbumBuilder {
     // Extract album info from first song
     final firstSong = songs.first;
     final albumTitle = normalizeAlbumTitle(firstSong.album) ?? 'Unknown Album';
-    final albumArtist =
-        firstSong.albumArtist ?? firstSong.artist ?? 'Unknown Artist';
+    final albumArtist = albumGroupingArtist(firstSong) ?? 'Unknown Artist';
 
     // Determine if it's a compilation
     final isCompilation = _isCompilation(songs, albumArtist);
@@ -211,5 +211,4 @@ class AlbumBuilder {
     // Return the year with the highest count
     return yearCounts.entries.reduce((a, b) => a.value > b.value ? a : b).key;
   }
-
 }

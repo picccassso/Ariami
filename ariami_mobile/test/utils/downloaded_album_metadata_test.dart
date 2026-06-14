@@ -31,6 +31,25 @@ void main() {
       'Various Artists',
     );
   });
+
+  test('uses track artist when stored album artist is a YouTube channel name',
+      () {
+    expect(
+      resolveDownloadedAlbumArtist([
+        _task(artist: 'Steve Berman', albumArtist: 'EminemMusic'),
+        _task(artist: 'Eminem', albumArtist: 'EminemMusic'),
+        _task(artist: 'Eminem', albumArtist: 'EminemMusic'),
+      ]),
+      'Eminem',
+    );
+    expect(
+      resolveDownloadedAlbumArtist([
+        _task(artist: 'NF', albumArtist: 'NFrealmusic'),
+        _task(artist: 'NF', albumArtist: 'NFrealmusic'),
+      ]),
+      'NF',
+    );
+  });
 }
 
 DownloadTask _task({

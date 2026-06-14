@@ -36,6 +36,27 @@ void main() {
       );
     });
 
+    test('uses track artist when album artist is a YouTube channel name', () {
+      expect(
+        albumGroupingArtist(_song(
+          path: '/eminem.mp3',
+          album: 'The Marshall Mathers LP',
+          artist: 'Eminem',
+          albumArtist: 'EminemMusic',
+        )),
+        'Eminem',
+      );
+      expect(
+        albumGroupingArtist(_song(
+          path: '/nf.mp3',
+          album: 'The Search',
+          artist: 'NF',
+          albumArtist: 'NFrealmusic',
+        )),
+        'NF',
+      );
+    });
+
     test('normalizes Eminem vs Eminem, Jessie Reyez to Eminem', () {
       final solo = albumGroupingArtist(
           _song(path: '/1.mp3', album: 'K', artist: 'Eminem'));
@@ -124,6 +145,65 @@ void main() {
       expect(library.albums.values.first.songs.length, 3);
     });
 
+    test('displays track artist instead of YouTube channel album artist', () {
+      final songs = [
+        _song(
+          path: '/mm1.mp3',
+          album: 'The Marshall Mathers LP',
+          title: 'Public Service Announcement',
+          artist: 'Eminem',
+          albumArtist: 'EminemMusic',
+          trackNumber: 1,
+        ),
+        _song(
+          path: '/mm2.mp3',
+          album: 'The Marshall Mathers LP',
+          title: 'Kill You',
+          artist: 'Eminem',
+          albumArtist: 'EminemMusic',
+          trackNumber: 2,
+        ),
+        _song(
+          path: '/mm3.mp3',
+          album: 'The Marshall Mathers LP',
+          title: 'Steve Berman',
+          artist: 'Steve Berman',
+          albumArtist: 'EminemMusic',
+          trackNumber: 3,
+        ),
+      ];
+
+      final library = AlbumBuilder().buildLibrary(songs);
+      final album = library.albums.values.single;
+
+      expect(album.artist, 'Eminem');
+      expect(album.id, generateAlbumId(album.title, 'Eminem'));
+      expect(album.songs, hasLength(3));
+    });
+
+    test('keeps legitimate shared album artist labels', () {
+      final songs = [
+        _song(
+          path: '/label1.mp3',
+          album: 'Shared Hits',
+          title: 'First',
+          artist: 'Artist One',
+          albumArtist: 'Shared Label',
+        ),
+        _song(
+          path: '/label2.mp3',
+          album: 'Shared Hits',
+          title: 'Second',
+          artist: 'Artist Two',
+          albumArtist: 'Shared Label',
+        ),
+      ];
+
+      final library = AlbumBuilder().buildLibrary(songs);
+
+      expect(library.albums.values.single.artist, 'Shared Label');
+    });
+
     test('keeps legitimate album even if title contains playlist word', () {
       final songs = [
         _song(
@@ -150,7 +230,8 @@ void main() {
   });
 
   group('generateAlbumId parity', () {
-    test('matches AlbumBuilder id for multi-artist album below compilation threshold',
+    test(
+        'matches AlbumBuilder id for multi-artist album below compilation threshold',
         () {
       final songs = [
         _song(
@@ -186,7 +267,8 @@ void main() {
       expect(album.id, generateAlbumId(album.title, album.artist));
     });
 
-    test('matches AlbumBuilder id for five track artists with shared album artist',
+    test(
+        'matches AlbumBuilder id for five track artists with shared album artist',
         () {
       final songs = [
         _song(
