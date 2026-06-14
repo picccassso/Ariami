@@ -297,6 +297,74 @@ extension _DashboardServerActions on _DashboardScreenState {
     }
   }
 
+  Future<void> _resetAriami() async {
+    final scope = await showResetAriamiDialog(context);
+    if (scope == null || !mounted) {
+      return;
+    }
+
+    // Stop background work that could restart the server mid-reset.
+    _cancelRefreshTimers();
+    _adminApi.clearAdminSessionToken();
+
+    final resetService = DesktopResetService(
+      httpServer: _httpServer,
+      stateService: _stateService,
+    );
+
+    ResetResult? result;
+    String? error;
+    try {
+      result = await resetService.reset(scope);
+    } catch (e) {
+      error = e.toString();
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    final isFactory = scope == ResetScope.factoryReset;
+    final title = error != null ? 'Reset failed' : 'Reset complete';
+    final message = error != null
+        ? 'Something went wrong while resetting Ariami:\n\n$error'
+        : isFactory
+            ? 'Ariami has been factory reset. Your music files were not '
+                'touched.\n\nAriami will now close — reopen it to start fresh.'
+            : 'Ariami setup has been reset. Your music files and library were '
+                'not touched.\n\nAriami will now close — reopen it to run setup '
+                'again.';
+
+    final failures = result?.failures.toList() ?? const [];
+    final hadFailures = failures.isNotEmpty;
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(title),
+        content: Text(
+          hadFailures
+              ? '$message\n\nSome items could not be removed:\n'
+                  '${failures.map((f) => '• ${f.path}').join('\n')}'
+              : message,
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: Text(error != null ? 'OK' : 'Quit Ariami'),
+          ),
+        ],
+      ),
+    );
+
+    // Quit so the app relaunches into a clean state (no stale in-memory
+    // catalog or open database handle).
+    if (error == null) {
+      await SystemTrayService().quitApp();
+    }
+  }
+
   Future<void> _toggleServer() async {
     if (_httpServer.isRunning) {
       await _httpServer.stop();

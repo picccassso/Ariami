@@ -35,7 +35,18 @@ directory. The release archive includes a root `./ariami_cli` launcher.
 ./ariami_cli autostart enable   # Start the server automatically on boot
 ./ariami_cli autostart disable  # Stop starting on boot
 ./ariami_cli autostart status   # Show the current setting
+
+./ariami_cli reset              # Interactive reset menu
+./ariami_cli reset --setup      # Reset setup/config only (keep library + accounts)
+./ariami_cli reset --factory -y # Factory reset all Ariami data, no prompts
 ```
+
+`reset` clears Ariami's local state so you can start over. **Setup/config only**
+removes setup progress, server config and pairing state but keeps the catalog
+database and accounts. **Factory reset** removes everything Ariami owns under
+`~/.ariami_cli` (database, accounts, sessions, caches) and disables start-on-boot.
+Both require typing `RESET` to confirm (unless `-y` is passed), stop the server
+first if it is running, and **never touch your music folder**.
 
 `autostart` uses the platform's native mechanism (an `@reboot` crontab entry
 on Linux/Raspberry Pi, a LaunchAgent on macOS, a `Run` registry key on

@@ -14,6 +14,8 @@ class DesktopStateService {
   static const String _setupCompleteKey = 'setup_completed';
   static const String _ownerSetupSkippedKey = 'owner_setup_skipped';
   static const String _serverPortKey = 'server_port';
+  static const String _musicFolderPathKey = 'music_folder_path';
+  static const String _transcodeSlotsKey = 'transcode_slots';
 
   /// Check if initial setup has been completed
   Future<bool> isSetupComplete() async {
@@ -31,6 +33,26 @@ class DesktopStateService {
   Future<void> clearSetupState() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_setupCompleteKey);
+  }
+
+  /// Clear setup/config preferences only (the "Reset setup" path).
+  ///
+  /// Removes setup progress, the remembered music folder, the saved server
+  /// port and the transcode-slots override so onboarding runs again. Keeps the
+  /// catalog database, accounts and caches intact.
+  Future<void> clearSetupPreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_setupCompleteKey);
+    await prefs.remove(_ownerSetupSkippedKey);
+    await prefs.remove(_serverPortKey);
+    await prefs.remove(_musicFolderPathKey);
+    await prefs.remove(_transcodeSlotsKey);
+  }
+
+  /// Clear every Ariami preference (the "Factory reset" path).
+  Future<void> clearAllPreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.clear();
   }
 
   /// Whether the user explicitly skipped owner setup during onboarding.
@@ -83,6 +105,26 @@ class DesktopStateService {
   Future<String> getSessionsFilePath() async {
     final configDir = await getAuthConfigDir();
     return path.join(configDir, 'sessions.json');
+  }
+
+  /// Catalog database file (mirrors LibraryManager.setCachePath derivation).
+  Future<String> getCatalogDbFilePath() async {
+    return path.join(await getAuthConfigDir(), 'catalog.db');
+  }
+
+  /// Persistent library metadata cache file.
+  Future<String> getMetadataCacheFilePath() async {
+    return path.join(await getAuthConfigDir(), 'metadata_cache.json');
+  }
+
+  /// Processed artwork cache directory.
+  Future<String> getArtworkCacheDirPath() async {
+    return path.join(await getAuthConfigDir(), 'artwork_cache');
+  }
+
+  /// Transcoded audio cache directory.
+  Future<String> getTranscodedCacheDirPath() async {
+    return path.join(await getAuthConfigDir(), 'transcoded_cache');
   }
 
   /// Ensure auth config directory exists

@@ -54,7 +54,7 @@ In the browser wizard:
 3. **Create the owner account** and sign in as owner.
 4. **Scan the QR code** with the mobile app and **register** or log in.
 
-Day-to-day: `./ariami_cli start` | `./ariami_cli status` | `./ariami_cli stop`. To start the server automatically after a reboot, use `./ariami_cli autostart enable` (and `disable`/`status` to manage it); first-run setup also asks this as a y/N prompt. See `ariami_cli/SETUP.txt` in the release zip for more detail.
+Day-to-day: `./ariami_cli start` | `./ariami_cli status` | `./ariami_cli stop`. To start the server automatically after a reboot, use `./ariami_cli autostart enable` (and `disable`/`status` to manage it); first-run setup also asks this as a y/N prompt. To start over, `./ariami_cli reset` offers a setup-only reset or a full factory reset (the desktop app has the same under **Server tab → Danger Zone**); neither ever deletes your music folder. See `ariami_cli/SETUP.txt` in the release zip for more detail.
 
 ### Mobile app
 
@@ -136,8 +136,8 @@ It is cross-platform so you can run this on your Mac/Windows/Linux machine, and 
 
 **Apps and platforms**
 - Native apps for Android, iOS (build from source), macOS, Windows, and Linux.
-- Desktop server app with system tray support (minimize to tray instead of quitting), a first-run onboarding wizard, an admin dashboard, and a "Start at Login" option to launch automatically on boot.
-- CLI headless server for Raspberry Pi and Linux with `start`, `stop`, `status`, and `autostart` (start on boot) commands, a background daemon after setup, optional custom port, and a web UI for setup and administration.
+- Desktop server app with system tray support (minimize to tray instead of quitting), a first-run onboarding wizard, an admin dashboard, a "Start at Login" option to launch automatically on boot, and a "Reset Ariami" option (setup-only or factory reset) that never deletes your music.
+- CLI headless server for Raspberry Pi and Linux with `start`, `stop`, `status`, `autostart` (start on boot), and `reset` (setup-only or factory reset) commands, a background daemon after setup, optional custom port, and a web UI for setup and administration.
 
 **Connection, dashboard, and QR**
 - No port forwarding: Tailscale gives you a private path to the server over the internet.

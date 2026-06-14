@@ -10,16 +10,19 @@ import '../models/connected_client_row.dart';
 import '../models/server_user_row.dart';
 import '../services/dashboard_admin_api_service.dart';
 import '../services/dashboard_data_service.dart';
+import '../services/desktop_reset_service.dart';
 import '../services/desktop_server_lifecycle_service.dart';
 import '../services/desktop_state_service.dart';
 import '../services/desktop_tailscale_service.dart';
 import '../services/desktop_transcode_slots_service.dart';
 import '../services/server_initialization_service.dart';
+import '../services/system_tray_service.dart';
 import '../widgets/admin_credentials_dialog.dart';
 import '../widgets/change_password_dialog.dart';
 import '../widgets/create_user_dialog.dart';
 import '../widgets/dashboard/dashboard_content.dart';
 import '../widgets/delete_user_dialog.dart';
+import '../widgets/reset_ariami_dialog.dart';
 import '../widgets/transcode_slots_dialog.dart';
 import 'owner_setup_screen.dart';
 import 'scanning_screen.dart';
@@ -221,6 +224,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       onRescanLibrary: _musicFolderPath != null && _musicFolderPath!.isNotEmpty
           ? _rescanLibrary
           : null,
+      onResetAriami: _resetAriami,
     );
   }
 }

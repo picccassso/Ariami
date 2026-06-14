@@ -84,6 +84,24 @@ First-run setup also asks this as a y/N prompt. On Raspberry Pi/Linux this
 adds an `@reboot` crontab entry for the current user (no sudo). The desktop
 app has an equivalent "Start at Login" toggle on the Server tab.
 
+### Reset Ariami
+
+Start over without losing your music files:
+
+```bash
+./ariami_cli reset              # interactive: setup-only or factory reset
+./ariami_cli reset --setup -y   # setup/config only (keeps library + accounts)
+./ariami_cli reset --factory -y # factory reset all Ariami data
+```
+
+**Setup/config only** clears setup, server config and pairing state but keeps
+the catalog database and accounts. **Factory reset** removes everything Ariami
+owns (database, accounts, sessions, caches) and disables start-on-boot. Both
+require typing `RESET` to confirm, stop the server first if it is running, and
+**never delete your music folder**. The desktop app has the same two options
+under **Server tab → Danger Zone → Reset Ariami**; after a desktop reset the
+app closes so you can reopen it fresh.
+
 ## Troubleshooting
 
 ### Build issues

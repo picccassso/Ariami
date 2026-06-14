@@ -48,6 +48,7 @@ class DashboardContent extends StatelessWidget {
     required this.onChangeFolder,
     required this.onShowQr,
     required this.onRescanLibrary,
+    required this.onResetAriami,
   });
 
   final TabController tabController;
@@ -86,6 +87,7 @@ class DashboardContent extends StatelessWidget {
   final VoidCallback onChangeFolder;
   final VoidCallback onShowQr;
   final VoidCallback? onRescanLibrary;
+  final VoidCallback onResetAriami;
 
   @override
   Widget build(BuildContext context) {
@@ -153,6 +155,7 @@ class DashboardContent extends StatelessWidget {
                   onChangeFolder: onChangeFolder,
                   onShowQr: onShowQr,
                   onRescanLibrary: onRescanLibrary,
+                  onResetAriami: onResetAriami,
                 ),
               ],
             ),

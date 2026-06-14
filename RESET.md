@@ -1,6 +1,38 @@
-# Local reset (Ariami)
+# Reset Ariami
 
-This file is a **quick reference** for developers and power users who want to wipe **local app preferences and server auth state** on a machine (for example after renaming the app, debugging onboarding, or clearing logins). It does **not** remove your music library folder from disk; it only affects preferences, optional auth JSON, and anything else you explicitly delete using the commands below.
+The easiest way to reset Ariami is the **built-in reset** in the app. It never
+deletes your music folder, stops the server first, and asks you to type `RESET`
+to confirm. The manual commands further down are a fallback for developers and
+edge cases.
+
+## Built-in reset (recommended)
+
+Two scopes are offered everywhere:
+
+- **Reset setup only** — clears server config, pairing state, remembered
+  addresses and setup progress. Keeps the catalog database and accounts.
+- **Factory reset** — clears the Ariami database, users, sessions, stats,
+  playlists, cache and setup state. Also disables start-on-boot.
+
+Neither deletes your original music files.
+
+**Desktop:** open the dashboard → **Server** tab → **Danger Zone** →
+**Reset Ariami**, pick a scope, type `RESET`, confirm. The app closes when
+done — reopen it to start fresh.
+
+**CLI:**
+
+```bash
+./ariami_cli reset              # interactive menu (setup-only / factory / cancel)
+./ariami_cli reset --setup -y   # setup/config only, no prompts
+./ariami_cli reset --factory -y # factory reset, no prompts
+```
+
+---
+
+## Manual reset (fallback)
+
+The rest of this file is a **quick reference** for developers and power users who want to wipe **local app preferences and server auth state** on a machine (for example after renaming the app, debugging onboarding, or clearing logins). It does **not** remove your music library folder from disk; it only affects preferences, optional auth JSON, and anything else you explicitly delete using the commands below.
 
 **Quit Ariami** (desktop app and/or CLI server) before running file-deletion commands so nothing overwrites the files while you edit them.
 

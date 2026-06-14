@@ -46,6 +46,31 @@ class CliStateService {
     return path.join(getConfigDir(), 'sessions.json');
   }
 
+  /// Get the persistent library metadata cache file path.
+  static String getMetadataCacheFilePath() {
+    return path.join(getConfigDir(), 'metadata_cache.json');
+  }
+
+  /// Get the catalog database file path (mirrors LibraryManager derivation).
+  static String getCatalogDbFilePath() {
+    return path.join(getConfigDir(), 'catalog.db');
+  }
+
+  /// Get the processed-artwork cache directory path.
+  static String getArtworkCacheDirPath() {
+    return path.join(getConfigDir(), 'artwork_cache');
+  }
+
+  /// Get the transcoded-audio cache directory path.
+  static String getTranscodedCacheDirPath() {
+    return path.join(getConfigDir(), 'transcoded_cache');
+  }
+
+  /// Get the autostart log file path.
+  static String getAutostartLogFilePath() {
+    return path.join(getConfigDir(), 'autostart.log');
+  }
+
   /// Ensure config directory exists
   Future<void> ensureConfigDir() async {
     final configDir = Directory(getConfigDir());

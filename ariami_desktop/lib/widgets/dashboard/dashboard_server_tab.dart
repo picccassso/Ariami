@@ -21,6 +21,7 @@ class DashboardServerTab extends StatelessWidget {
     required this.onChangeFolder,
     required this.onShowQr,
     required this.onRescanLibrary,
+    required this.onResetAriami,
   });
 
   final String? musicFolderPath;
@@ -35,6 +36,7 @@ class DashboardServerTab extends StatelessWidget {
   final VoidCallback onChangeFolder;
   final VoidCallback onShowQr;
   final VoidCallback? onRescanLibrary;
+  final VoidCallback onResetAriami;
 
   static const _sectionTitleStyle = TextStyle(
     fontSize: 20,
@@ -169,6 +171,34 @@ class DashboardServerTab extends StatelessWidget {
                 shape: const StadiumBorder(),
                 padding: const EdgeInsets.symmetric(vertical: 20),
               ),
+            ),
+          ),
+          const SizedBox(height: 32),
+          const Text('Danger Zone', style: _sectionTitleStyle),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: onResetAriami,
+              icon: const Icon(Icons.restart_alt_rounded, size: 20),
+              label: const Text('Reset Ariami'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.redAccent,
+                side: const BorderSide(color: Colors.redAccent),
+                shape: const StadiumBorder(),
+                padding: const EdgeInsets.symmetric(vertical: 20),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Ariami will never delete your music folder.',
+            style: TextStyle(
+              color: Theme.of(context)
+                  .colorScheme
+                  .onSurface
+                  .withValues(alpha: 0.55),
+              fontSize: 13,
             ),
           ),
         ],

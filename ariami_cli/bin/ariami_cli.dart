@@ -5,7 +5,9 @@ import 'package:ariami_cli/commands/stop_command.dart';
 import 'package:ariami_cli/commands/status_command.dart';
 import 'package:ariami_cli/commands/configure_command.dart';
 import 'package:ariami_cli/commands/autostart_command.dart';
+import 'package:ariami_cli/commands/reset_command.dart';
 import 'package:ariami_cli/server_runner.dart';
+import 'package:ariami_core/ariami_core.dart';
 
 void main(List<String> arguments) async {
   // Check if running in server mode (background process)
@@ -56,7 +58,10 @@ void main(List<String> arguments) async {
   final parser = ArgParser()
     ..addFlag('help', abbr: 'h', negatable: false, help: 'Show help message')
     ..addFlag('version', abbr: 'v', negatable: false, help: 'Show version')
-    ..addOption('port', abbr: 'p', help: 'Server port (default: 8080)', defaultsTo: '8080');
+    ..addOption('port', abbr: 'p', help: 'Server port (default: 8080)', defaultsTo: '8080')
+    ..addFlag('setup', negatable: false, help: 'reset: setup/config only')
+    ..addFlag('factory', negatable: false, help: 'reset: factory reset all data')
+    ..addFlag('yes', abbr: 'y', negatable: false, help: 'reset: skip confirmation prompt');
 
   try {
     // Parse arguments
@@ -110,6 +115,13 @@ void main(List<String> arguments) async {
         final action = results.rest.length > 1 ? results.rest[1] : 'status';
         await AutostartCommand().execute(action: action);
         break;
+      case 'reset':
+        await _executeResetCommand(
+          wantsSetup: results['setup'] as bool,
+          wantsFactory: results['factory'] as bool,
+          skipConfirmation: results['yes'] as bool,
+        );
+        break;
       default:
         print('Error: Unknown command "$command"');
         print('');
@@ -160,6 +172,28 @@ Future<void> _executeMusicFolderCommand(List<String> args) async {
   await ConfigureCommand().execute(musicFolder: args[2]);
 }
 
+Future<void> _executeResetCommand({
+  required bool wantsSetup,
+  required bool wantsFactory,
+  required bool skipConfirmation,
+}) async {
+  if (wantsSetup && wantsFactory) {
+    print('Error: choose only one of --setup or --factory.');
+    exit(1);
+  }
+
+  final scope = wantsSetup
+      ? ResetScope.setupOnly
+      : wantsFactory
+          ? ResetScope.factoryReset
+          : null;
+
+  await ResetCommand().execute(
+    scope: scope,
+    skipConfirmation: skipConfirmation,
+  );
+}
+
 void _showHelp(ArgParser parser) {
   print('Ariami CLI - Music streaming server for headless servers');
   print('');
@@ -172,6 +206,7 @@ void _showHelp(ArgParser parser) {
   print('  configure   Configure CLI settings');
   print('  music-folder  Manage the music library path');
   print('  autostart   Manage starting the server on boot');
+  print('  reset       Reset setup or factory reset Ariami');
   print('');
   print('Options:');
   print(parser.usage);
@@ -186,4 +221,7 @@ void _showHelp(ArgParser parser) {
   print('  ariami_cli autostart enable   # Start the server on boot');
   print('  ariami_cli autostart disable  # Stop starting on boot');
   print('  ariami_cli autostart status   # Show current setting');
+  print('  ariami_cli reset              # Interactive reset menu');
+  print('  ariami_cli reset --setup      # Reset setup/config only');
+  print('  ariami_cli reset --factory -y # Factory reset without prompts');
 }

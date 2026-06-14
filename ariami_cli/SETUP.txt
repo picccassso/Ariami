@@ -64,6 +64,22 @@ commands above to change it later, or to enable it on an install that was
 set up before this option existed. On Raspberry Pi this uses an "@reboot"
 crontab entry for the current user (no sudo required).
 
+RESET
+-----
+Start over without deleting your music files:
+  ./ariami_cli reset
+
+You will be asked to choose:
+  1. Setup/config only   (keeps your library database and accounts)
+  2. Factory reset Ariami data   (removes database, accounts, sessions, cache)
+  3. Cancel
+
+Then type RESET to confirm. If the server is running it is stopped first.
+A factory reset also disables start-on-boot. Your music folder is never
+deleted. Non-interactive forms are available for scripts:
+  ./ariami_cli reset --setup -y
+  ./ariami_cli reset --factory -y
+
 CONFIGURATION
 -------------
 Configuration files are stored in:
