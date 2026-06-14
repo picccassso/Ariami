@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import '../services/daemon_service.dart';
 import '../services/cli_state_service.dart';
@@ -22,7 +23,9 @@ class StartCommand {
     // Check if already running
     if (await _daemonService.isRunning()) {
       print('Ariami CLI server is already running.');
-      print('Use "ariami_cli status" to check status or "ariami_cli stop" to stop it.');
+      print(
+        'Use "ariami_cli status" to check status or "ariami_cli stop" to stop it.',
+      );
       return;
     }
 
@@ -35,30 +38,29 @@ class StartCommand {
     // Check if this is first-time setup
     final isSetupComplete = await _stateService.isSetupComplete();
     final savedPort = await _stateService.getServerPort();
-    final preferredPort =
-        portExplicitlyRequested ? port : (savedPort ?? port);
+    final preferredPort = portExplicitlyRequested ? port : (savedPort ?? port);
     final allowPortFallback = !portExplicitlyRequested;
 
     if (!isSetupComplete) {
-      print('Starting Ariami CLI server for first-time setup...');
-      if (allowPortFallback) {
-        print('Setup URL: http://localhost:$preferredPort (or next free port 8080–8099)');
-      } else {
-        print('Setup URL: http://localhost:$preferredPort');
-      }
-      print('The browser will open automatically when the server is ready.');
-      print('');
-      print('Note: The server will run in the foreground during setup.');
-      print('After completing setup, you can run the server in the background.');
-      print('');
+      _writeSetupLine('Starting Ariami setup...');
+      _writeSetupLine('');
 
       // Run server in foreground (setup mode)
       final runner = ServerRunner();
-      await runner.run(
-        port: preferredPort,
-        isSetupMode: true,
-        allowPortFallback: allowPortFallback,
-        onHttpServerReady: _openSetupBrowser,
+      await runZoned(
+        () => runner.run(
+          port: preferredPort,
+          isSetupMode: true,
+          allowPortFallback: allowPortFallback,
+          onHttpServerReady: _openSetupBrowser,
+        ),
+        zoneSpecification: ZoneSpecification(
+          print: (self, parent, zone, line) {
+            if (_shouldShowQuietSetupLog(line)) {
+              parent.print(zone, line);
+            }
+          },
+        ),
       );
     } else {
       print('Starting Ariami CLI server in background...');
@@ -69,7 +71,8 @@ class StartCommand {
       // Start server in background with --server-mode flag
       final pid = await _daemonService.startServerInBackground([
         '--server-mode',
-        '--port', daemonPort.toString(),
+        '--port',
+        daemonPort.toString(),
       ]);
 
       if (pid == null) {
@@ -99,26 +102,54 @@ class StartCommand {
   }
 
   Future<void> _openSetupBrowser(int port) async {
+    await _printSetupReadyUrls(port);
+
     final opened = await _browserService.openAriamiInterface(port: port);
     if (!opened) {
-      await _printBrowserOpenFailureUrls(port);
+      _writeSetupLine('');
+      _writeSetupLine('Your browser did not open automatically.');
+      _writeSetupLine('Open one of the addresses above to continue setup.');
     }
   }
 
-  Future<void> _printBrowserOpenFailureUrls(int port) async {
-    print('Could not open a browser automatically.');
-    print('Open this from your machine: http://localhost:$port');
-
+  Future<void> _printSetupReadyUrls(int port) async {
     final lanIp = await _tailscaleService.getLanIp();
-    if (lanIp != null) {
-      print('Local network: http://$lanIp:$port');
-    }
-
     final tailscaleIp = await _tailscaleService.getTailscaleIp();
-    if (tailscaleIp != null) {
-      print('Tailscale: http://$tailscaleIp:$port');
+
+    _writeSetupLine('Ariami setup is ready.');
+    _writeSetupLine('');
+    _writeSetupLine('Open setup:');
+    _writeSetupLine('  This machine:  http://localhost:$port');
+
+    if (lanIp != null) {
+      _writeSetupLine('  Same network:  http://$lanIp:$port');
     }
 
-    print('');
+    if (tailscaleIp != null) {
+      _writeSetupLine('  Tailscale:     http://$tailscaleIp:$port');
+      _writeSetupLine('');
+      _writeSetupLine(
+        'Use the Tailscale address from devices signed into Tailscale.',
+      );
+    } else {
+      _writeSetupLine('');
+      _writeSetupLine(
+        'No Tailscale address was detected. You can enable it later for remote access.',
+      );
+    }
+
+    _writeSetupLine('Keep this terminal open until setup finishes.');
+    _writeSetupLine('');
+  }
+
+  bool _shouldShowQuietSetupLog(String line) {
+    return line.startsWith('ERROR:') ||
+        line.startsWith('Error:') ||
+        line.startsWith('Failed to start server:') ||
+        line.startsWith('Warning: Error during shutdown:');
+  }
+
+  void _writeSetupLine(String line) {
+    stdout.writeln(line);
   }
 }

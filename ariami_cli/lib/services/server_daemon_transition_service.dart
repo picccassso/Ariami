@@ -22,12 +22,8 @@ class ServerDaemonTransitionService {
   Future<Map<String, dynamic>> transitionToBackground({
     required int serverPort,
   }) async {
-    print('[ServerRunner] Transitioning to background mode...');
-
     try {
-      print('[ServerRunner] Stopping HTTP server to release port...');
       await _httpServer.stop();
-      print('[ServerRunner] Port released');
 
       final pid = await _daemonService.startServerInBackground([
         '--server-mode',
@@ -36,7 +32,7 @@ class ServerDaemonTransitionService {
       ]);
 
       if (pid == null) {
-        print('[ServerRunner] ERROR: Failed to spawn background process');
+        print('ERROR: Failed to start Ariami in the background.');
         await _lifecycleService.cancelSignalHandlers();
         exit(1);
       }
@@ -47,22 +43,19 @@ class ServerDaemonTransitionService {
         'started_at': DateTime.now().toIso8601String(),
       });
 
-      print('[ServerRunner] Background process spawned with PID: $pid');
-      print('');
-      print('═══════════════════════════════════════════════════════');
-      print('  Setup complete! Server is now running in background.');
-      print('');
-      print('  You can safely close this terminal window.');
-      print('');
-      print('  To check status:  ./ariami_cli status');
-      print('  To stop server:   ./ariami_cli stop');
-      print('═══════════════════════════════════════════════════════');
-      print('');
+      stdout.writeln('');
+      stdout.writeln('Setup complete. Ariami is running in the background.');
+      stdout.writeln('You can safely close this terminal window.');
+      stdout.writeln('');
+      stdout.writeln('Useful commands:');
+      stdout.writeln('  ./ariami_cli status');
+      stdout.writeln('  ./ariami_cli stop');
+      stdout.writeln('');
 
       await _lifecycleService.cancelSignalHandlers();
       exit(0);
     } catch (e) {
-      print('[ServerRunner] Transition error: $e');
+      print('ERROR: Failed to move Ariami into the background: $e');
       await _lifecycleService.cancelSignalHandlers();
       exit(1);
     }
