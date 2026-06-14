@@ -413,6 +413,7 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
       _notifyStateChanged(); // Notify immediately so UI updates before async seek
 
       if (_castService.isConnected) {
+        _statsService.markPositionDiscontinuity();
         await _castService.seek(position, playAfterSeek: isPlaying);
         // Clear restored position after successful cast seek
         _restoredPosition = null;

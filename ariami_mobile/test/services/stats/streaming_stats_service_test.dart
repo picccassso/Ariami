@@ -164,6 +164,66 @@ void main() {
       expect(stats.totalTime.inSeconds, 360);
     });
 
+    test('counts coalesced background position jumps while playback is active',
+        () async {
+      final song = _testSong(
+        id: 's4_background_jump',
+        title: 'Background Jump Song',
+        duration: const Duration(minutes: 3),
+      );
+
+      service.onSongStarted(song);
+      service.updatePosition(Duration.zero);
+      service.updatePosition(const Duration(seconds: 45));
+      await service.onSongStopped();
+
+      final stats = service.getSongStats('s4_background_jump');
+      expect(stats!.playCount, 1);
+      expect(stats.totalTime.inSeconds, 45);
+    });
+
+    test('does not count explicit forward seeks as listening time', () async {
+      final song = _testSong(
+        id: 's4_seek',
+        title: 'Seek Song',
+        duration: const Duration(minutes: 3),
+      );
+
+      service.onSongStarted(song);
+      service.updatePosition(Duration.zero);
+      service.updatePosition(const Duration(seconds: 1));
+      service.markPositionDiscontinuity();
+      service.updatePosition(const Duration(seconds: 80));
+      service.updatePosition(const Duration(seconds: 81));
+      await service.onSongStopped();
+
+      final stats = service.getSongStats('s4_seek');
+      expect(stats!.playCount, 0);
+      expect(stats.totalTime.inSeconds, 2);
+    });
+
+    test('checkpoints active listening before the song stops', () async {
+      final song = _testSong(
+        id: 's4_checkpoint',
+        title: 'Checkpoint Song',
+        duration: const Duration(minutes: 3),
+      );
+
+      service.onSongStarted(song);
+      for (int i = 0; i <= 31; i++) {
+        service.updatePosition(Duration(seconds: i));
+      }
+
+      await service.flushForTests();
+      service.resetForTests();
+      await service.reloadFromDatabase();
+
+      final stats = service.getSongStats('s4_checkpoint');
+      expect(stats, isNotNull);
+      expect(stats!.playCount, 1);
+      expect(stats.totalTime.inSeconds, 30);
+    });
+
     // ------------------------------------------------------------------------
     // Short-song rule
     // ------------------------------------------------------------------------
@@ -180,7 +240,7 @@ void main() {
       }
 
       // 15s < 30s, so no play recorded yet
-      expect(service.getSongStats('s5'), isNull);
+      expect(service.getSongStats('s5')?.playCount ?? 0, 0);
 
       await service.onSongStopped(completedNaturally: true);
 
@@ -222,9 +282,11 @@ void main() {
       service.onSongStarted(song);
       service.updatePosition(Duration.zero); // baseline
       service.updatePosition(const Duration(seconds: 1)); // +1s
+      service.markPositionDiscontinuity();
       service
           .updatePosition(const Duration(seconds: 5)); // +4s -> seek, ignored
       service.updatePosition(const Duration(seconds: 6)); // +1s
+      service.markPositionDiscontinuity();
       service
           .updatePosition(const Duration(seconds: 31)); // +25s -> seek, ignored
 
@@ -247,6 +309,7 @@ void main() {
       service.updatePosition(Duration.zero);
       service.updatePosition(const Duration(seconds: 1)); // +1s
       service.updatePosition(const Duration(seconds: 2)); // +1s
+      service.markPositionDiscontinuity();
       service
           .updatePosition(const Duration(seconds: 10)); // +8s -> seek, ignored
       service.updatePosition(const Duration(seconds: 5)); // backward -> ignored

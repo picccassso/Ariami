@@ -66,6 +66,7 @@ class PlaybackManager extends ChangeNotifier {
   StreamSubscription? _playerStateSubscription;
   StreamSubscription<void>? _skipNextSubscription;
   StreamSubscription<void>? _skipPreviousSubscription;
+  StreamSubscription<Duration>? _seekSubscription;
   StreamSubscription<double>? _volumeSubscription;
 
   // True when local playback was auto-paused because the device media volume
@@ -148,6 +149,11 @@ class PlaybackManager extends ChangeNotifier {
 
     // Listen to player state changes
     _playerStateSubscription = _audioPlayer.playerStateStream.listen((state) {
+      if (!_castService.isConnected) {
+        _statsService.setPlaybackActive(
+          state.playing && state.processingState == ProcessingState.ready,
+        );
+      }
       notifyListeners();
 
       // Auto-advance when song completes
@@ -172,6 +178,10 @@ class PlaybackManager extends ChangeNotifier {
     _skipPreviousSubscription = audioHandler?.onSkipPrevious.listen((_) {
       print('[PlaybackManager] Skip Previous pressed from notification');
       skipPrevious();
+    });
+
+    _seekSubscription = _audioPlayer.seekStream.listen((_) {
+      _statsService.markPositionDiscontinuity();
     });
 
     // Mute when silent, unmute when unsilenced: pause local playback when the
@@ -258,9 +268,14 @@ class PlaybackManager extends ChangeNotifier {
       _lastObservedCastPlayerState = null;
       _castStatsForwardTimer?.cancel();
       _castStatsForwardTimer = null;
+      _statsService.setPlaybackActive(false);
       notifyListeners();
       return;
     }
+
+    _statsService.setPlaybackActive(
+      _castService.isRemotePlaying && !_castService.isRemoteBuffering,
+    );
 
     audioHandler?.updateCastPlaybackState(
       position: _castService.remotePosition,
@@ -470,6 +485,7 @@ class PlaybackManager extends ChangeNotifier {
     _playerStateSubscription?.cancel();
     _skipNextSubscription?.cancel();
     _skipPreviousSubscription?.cancel();
+    _seekSubscription?.cancel();
     _volumeSubscription?.cancel();
     FlutterVolumeController.removeListener();
     super.dispose();

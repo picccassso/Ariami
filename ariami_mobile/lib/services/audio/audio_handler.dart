@@ -19,6 +19,7 @@ class AriamiAudioHandler extends BaseAudioHandler
   // Stream controllers for skip events
   final _skipNextController = StreamController<void>.broadcast();
   final _skipPreviousController = StreamController<void>.broadcast();
+  final _seekController = StreamController<Duration>.broadcast();
   final ChromeCastService _castService = ChromeCastService();
 
   bool _isCastMode = false;
@@ -26,6 +27,7 @@ class AriamiAudioHandler extends BaseAudioHandler
   // Expose streams for PlaybackManager to listen to
   Stream<void> get onSkipNext => _skipNextController.stream;
   Stream<void> get onSkipPrevious => _skipPreviousController.stream;
+  Stream<Duration> get onSeek => _seekController.stream;
 
   AriamiAudioHandler() {
     _init();
@@ -379,6 +381,7 @@ class AriamiAudioHandler extends BaseAudioHandler
   @override
   Future<void> seek(Duration position) async {
     print('[AriamiAudioHandler] seek() called: $position');
+    _seekController.add(position);
     if (_isCastMode) {
       await _castService.seek(
         position,
@@ -433,9 +436,8 @@ class AriamiAudioHandler extends BaseAudioHandler
   // ============================================================================
 
   /// Check if currently playing
-  bool get isPlaying => _isCastMode
-      ? _castService.isRemotePlaying
-      : _player.playing;
+  bool get isPlaying =>
+      _isCastMode ? _castService.isRemotePlaying : _player.playing;
 
   /// Check if loading/buffering
   bool get isLoading => _isCastMode
@@ -478,6 +480,7 @@ class AriamiAudioHandler extends BaseAudioHandler
   Future<void> dispose() async {
     await _skipNextController.close();
     await _skipPreviousController.close();
+    await _seekController.close();
     await _player.dispose();
     await super.stop();
   }

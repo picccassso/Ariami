@@ -57,6 +57,11 @@ class StreamingStatsService extends ChangeNotifier
   bool _sessionPlayRecorded = false;
 
   Duration? _lastPosition;
+  bool _isPlaybackActive = false;
+
+  static const Duration _foregroundPositionJumpTolerance = Duration(seconds: 2);
+  static const Duration _activePlaybackCheckpointInterval =
+      Duration(seconds: 15);
 
   // ============================================================================
   // DEBOUNCED PERSISTENCE
@@ -144,6 +149,7 @@ class StreamingStatsService extends ChangeNotifier
 
     _currentSong = song;
     _lastPosition = null;
+    _isPlaybackActive = true;
 
     if (!isResume) {
       _sessionListenedTime = Duration.zero;
@@ -176,6 +182,7 @@ class StreamingStatsService extends ChangeNotifier
     final listenedTime = _sessionListenedTime;
     final playRecorded = _sessionPlayRecorded;
     _sessionListenedTime = Duration.zero;
+    _isPlaybackActive = false;
 
     await _finalizeSessionForSong(
       song,
@@ -203,11 +210,19 @@ class StreamingStatsService extends ChangeNotifier
 
     if (_lastPosition != null && position > _lastPosition!) {
       final delta = position - _lastPosition!;
-      // Only count forward progress if the jump is small enough to be
-      // normal playback. Larger jumps are treated as seeks.
-      if (delta <= const Duration(seconds: 2)) {
-        _sessionListenedTime += delta;
+      // Foreground ticks are frequent, but mobile platforms may coalesce
+      // position updates while the app is backgrounded. If playback is known
+      // to be active, count the elapsed audio position even when the jump is
+      // larger than a normal UI tick. Explicit seeks reset [_lastPosition].
+      if (delta <= _foregroundPositionJumpTolerance || _isPlaybackActive) {
+        final trackableDelta = _trackableDelta(delta, position);
+        if (trackableDelta > Duration.zero) {
+          _sessionListenedTime += trackableDelta;
+        }
         _maybeRecordPlay();
+        if (_sessionListenedTime >= _activePlaybackCheckpointInterval) {
+          unawaited(_checkpointListeningTime());
+        }
       } else {
         print(
             '[StreamingStatsService] Ignored seek jump of ${delta.inSeconds}s');
@@ -215,6 +230,39 @@ class StreamingStatsService extends ChangeNotifier
     }
 
     _lastPosition = position;
+  }
+
+  /// Update whether the player is actively advancing audio.
+  ///
+  /// This catches play/pause changes from lock-screen/notification controls,
+  /// where PlaybackManager may not receive the original button event.
+  void setPlaybackActive(bool isActive) {
+    if (_isPlaybackActive == isActive) return;
+    _isPlaybackActive = isActive;
+
+    if (!isActive) {
+      unawaited(_checkpointListeningTime(flush: true));
+    }
+  }
+
+  /// Reset the stats baseline after a seek or other explicit position jump.
+  void markPositionDiscontinuity() {
+    _lastPosition = null;
+  }
+
+  Duration _trackableDelta(Duration delta, Duration currentPosition) {
+    final songDuration = _currentSong?.duration ?? Duration.zero;
+    if (songDuration <= Duration.zero) {
+      return delta;
+    }
+
+    final previousPosition = currentPosition - delta;
+    final cappedCurrent =
+        currentPosition > songDuration ? songDuration : currentPosition;
+    if (cappedCurrent <= previousPosition) {
+      return Duration.zero;
+    }
+    return cappedCurrent - previousPosition;
   }
 
   /// Internal: Check if cumulative listening time has crossed the 30s
@@ -257,6 +305,26 @@ class StreamingStatsService extends ChangeNotifier
     }
 
     await _flushPendingStats();
+  }
+
+  Future<void> _checkpointListeningTime({bool flush = false}) async {
+    if (_currentSong == null || _sessionListenedTime <= Duration.zero) {
+      if (flush) {
+        await _flushPendingStats();
+      }
+      return;
+    }
+
+    final song = _currentSong!;
+    final listenedTime = _sessionListenedTime;
+    _sessionListenedTime = Duration.zero;
+    _sessionTimeAlreadyCached += listenedTime;
+
+    await _updateStreamingTimeForSong(song, listenedTime);
+
+    if (flush) {
+      await _flushPendingStats();
+    }
   }
 
   // ============================================================================
@@ -388,17 +456,7 @@ class StreamingStatsService extends ChangeNotifier
       // updates, and clearing the current song here would drop the rest of the
       // listen until playback is explicitly restarted.
       if (_currentSong != null) {
-        final song = _currentSong!;
-        final listenedTime = _sessionListenedTime;
-        final playRecorded = _sessionPlayRecorded;
-        _sessionListenedTime = Duration.zero;
-        _sessionTimeAlreadyCached += listenedTime;
-        unawaited(_finalizeSessionForSong(
-          song,
-          listenedTime: listenedTime,
-          playRecorded: playRecorded,
-          completedNaturally: false,
-        ));
+        unawaited(_checkpointListeningTime(flush: true));
       }
       // Also flush any already-queued dirty stats.
       unawaited(_flushPendingStats());
@@ -536,8 +594,8 @@ class StreamingStatsService extends ChangeNotifier
   /// C0/C1 control codes (including the stray NUL terminators some server-side
   /// tag readers leave on strings read from file metadata), plus zero-width and
   /// BOM format characters.
-  static final RegExp _invisibleChars =
-      RegExp('[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028\u2029\u2060\ufeff]');
+  static final RegExp _invisibleChars = RegExp(
+      '[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028\u2029\u2060\ufeff]');
 
   /// Strip invisible characters and surrounding whitespace from an artist name,
   /// preserving its original casing/spacing for display.
@@ -839,6 +897,7 @@ class StreamingStatsService extends ChangeNotifier
     _sessionTimeAlreadyCached = Duration.zero;
     _sessionPlayRecorded = false;
     _lastPosition = null;
+    _isPlaybackActive = false;
     _dirtyStats.clear();
     _isFlushing = false;
     _statsCache.clear();

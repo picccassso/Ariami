@@ -155,6 +155,12 @@ class AudioPlayerService {
         Stream.value(PlayerState(false, ProcessingState.idle));
   }
 
+  /// Stream of explicit seek requests, including lock-screen controls.
+  Stream<Duration> get seekStream {
+    final handler = audioHandler;
+    return handler?.onSeek ?? const Stream<Duration>.empty();
+  }
+
   /// Stream of playback positions
   Stream<Duration> get positionStream {
     final handler = audioHandler;
