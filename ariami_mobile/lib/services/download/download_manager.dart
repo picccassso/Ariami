@@ -69,6 +69,17 @@ class DownloadManager {
   /// Get current queue
   List<DownloadTask> get queue => _getScopedQueue();
 
+  /// Re-compute and re-broadcast the scoped queue on [queueStream].
+  ///
+  /// The scoped queue depends on the current connection scope (server + user),
+  /// which the queue itself does not emit on when it changes. A background
+  /// reconnect attempt transiently sets the API client (and therefore the
+  /// scope) before it fails, so the one-shot startup queue broadcast can be
+  /// computed under the wrong scope and leave downloads looking unavailable
+  /// until the next queue change or an app restart. Call this when the scope
+  /// settles (connect/disconnect) so consumers refresh against the final scope.
+  void refreshScopedQueueBroadcast() => _refreshScopedQueueBroadcastImpl();
+
   /// Authoritative count of downloads currently occupying a concurrency slot.
   int get activeDownloadCount => _activeDownloadCount;
 

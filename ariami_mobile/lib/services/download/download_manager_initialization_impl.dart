@@ -231,6 +231,12 @@ extension _DownloadManagerInitializationImpl on DownloadManager {
     _scopedQueueCacheUserId = null;
   }
 
+  void _refreshScopedQueueBroadcastImpl() {
+    if (!_initialized) return;
+    _invalidateScopedQueueCache();
+    _queueController.add(_getScopedQueue());
+  }
+
   void _scheduleQueuePersistence(List<DownloadTask> tasks) {
     _pendingPersistenceSnapshot = List<DownloadTask>.from(tasks);
     if (_persistenceInFlight) return;

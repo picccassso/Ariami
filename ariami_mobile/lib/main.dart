@@ -435,12 +435,17 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
     if (!hasNetwork) {
       _offlineService.notifyConnectionLost();
+      // The first connect never happened, so the heartbeat/auto-reconnect loop
+      // was never started. Start it explicitly so the app recovers on its own
+      // instead of staying stuck offline until a network change or restart.
+      _connectionService.ensureReconnectLoopRunning();
       return;
     }
 
     final restored = await _connectionService.tryRestoreConnection();
     if (!restored) {
       _offlineService.notifyConnectionLost();
+      _connectionService.ensureReconnectLoopRunning();
     }
   }
 

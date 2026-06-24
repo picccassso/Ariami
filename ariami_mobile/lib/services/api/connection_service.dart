@@ -510,6 +510,27 @@ class ConnectionService {
     await _lifecycleManager.loadServerInfoFromStorage();
   }
 
+  /// Ensure the auto-reconnect loop is running while in auto-offline mode.
+  ///
+  /// The heartbeat timer doubles as the auto-reconnect poller: while
+  /// disconnected, each tick retries [tryRestoreConnection]. It is normally
+  /// started by [_onConnected], so a cold launch that never managed to connect
+  /// (server briefly unreachable, slow Tailscale, a transient network hiccup,
+  /// or the aggressive restore timeouts) would drop into auto-offline without
+  /// the poller ever running. The app then stayed stuck offline until a network
+  /// change, an app resume, or a restart. Calling this when we enter
+  /// auto-offline keeps the poller alive so the connection recovers on its own.
+  ///
+  /// Safe to call repeatedly: it no-ops when already connected, when there is no
+  /// saved server, in manual offline mode, or when the loop is already running.
+  void ensureReconnectLoopRunning() {
+    if (_stateManager.isConnected) return;
+    if (!_stateManager.hasServerInfo) return;
+    if (OfflinePlaybackService().isManualOfflineModeEnabled) return;
+    if (_heartbeatManager.isRunning) return;
+    _heartbeatManager.start();
+  }
+
   // ============================================================================
   // PRIVATE METHODS - Connection Lifecycle
   // ============================================================================
@@ -568,6 +589,10 @@ class ConnectionService {
 
     // Notify offline service
     await OfflinePlaybackService().notifyConnectionRestored();
+
+    // The download scope (server + user) just became fully resolved. Re-broadcast
+    // the scoped queue so offline-availability views reflect the settled scope.
+    DownloadManager().refreshScopedQueueBroadcast();
 
     // Start heartbeat
     _heartbeatManager.start();
@@ -648,6 +673,12 @@ class ConnectionService {
 
     // Notify offline service
     await OfflinePlaybackService().notifyConnectionLost();
+
+    // A reconnect attempt can transiently set the API client (and therefore the
+    // download scope) before failing back to offline. Re-broadcast the scoped
+    // queue now that the scope has settled to offline, so a startup snapshot
+    // computed mid-attempt doesn't leave downloads stuck looking unavailable.
+    DownloadManager().refreshScopedQueueBroadcast();
   }
 
   // ============================================================================
