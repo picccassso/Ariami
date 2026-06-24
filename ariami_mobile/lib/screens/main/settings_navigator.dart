@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../utils/constants.dart';
 import 'settings_screen.dart';
 import '../settings/connection_settings_screen.dart';
 import '../settings/downloads/downloads_screen.dart';
@@ -7,6 +6,7 @@ import '../settings/import_export_screen.dart';
 import '../settings/quality_settings_screen.dart';
 import '../settings/streaming_stats_screen.dart';
 import '../settings/profile_screen.dart';
+import 'nested_tab_navigator.dart';
 
 /// A navigator key for the settings tab's nested navigation
 final GlobalKey<NavigatorState> settingsNavigatorKey =
@@ -23,63 +23,44 @@ class SettingsNavigator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, result) {
-        if (didPop) return;
-        final navigator = settingsNavigatorKey.currentState;
-        if (navigator != null && navigator.canPop()) {
-          navigator.pop();
-        } else {
-          onBackAtRoot?.call();
+    return NestedTabNavigator(
+      navigatorKey: settingsNavigatorKey,
+      onBackAtRoot: onBackAtRoot,
+      onGenerateRoute: (settings) {
+        Widget page;
+
+        switch (settings.name) {
+          case '/':
+            page = const SettingsScreen();
+            break;
+          case '/connection':
+            page = const ConnectionSettingsScreen();
+            break;
+          case '/downloads':
+            page = const DownloadsScreen();
+            break;
+          case '/stats':
+            page = const StreamingStatsScreen();
+            break;
+          case '/import-export':
+            page = const ImportExportScreen();
+            break;
+          case '/quality':
+            page = const QualitySettingsScreen();
+            break;
+          case '/profile':
+            page = const ProfileScreen();
+            break;
+          // Add more routes here as settings sub-screens are added
+          default:
+            page = const SettingsScreen();
         }
+
+        return MaterialPageRoute(
+          builder: (context) => page,
+          settings: settings,
+        );
       },
-      child: Theme(
-        // Disable predictive back on nested routes so the system back gesture
-        // isn't double-handled when a full-screen route sits above this tab.
-        data: Theme.of(context).copyWith(
-          pageTransitionsTheme: AppTheme.nestedNavigatorPageTransitions,
-        ),
-        child: Navigator(
-          key: settingsNavigatorKey,
-          initialRoute: '/',
-          onGenerateRoute: (settings) {
-            Widget page;
-
-            switch (settings.name) {
-              case '/':
-                page = const SettingsScreen();
-                break;
-              case '/connection':
-                page = const ConnectionSettingsScreen();
-                break;
-              case '/downloads':
-                page = const DownloadsScreen();
-                break;
-              case '/stats':
-                page = const StreamingStatsScreen();
-                break;
-              case '/import-export':
-                page = const ImportExportScreen();
-                break;
-              case '/quality':
-                page = const QualitySettingsScreen();
-                break;
-              case '/profile':
-                page = const ProfileScreen();
-                break;
-              // Add more routes here as settings sub-screens are added
-              default:
-                page = const SettingsScreen();
-            }
-
-            return MaterialPageRoute(
-              builder: (context) => page,
-              settings: settings,
-            );
-          },
-        ),
-      ),
     );
   }
 }

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../models/api_models.dart';
-import '../../utils/constants.dart';
 import '../album_detail_screen.dart';
 import '../playlist/playlist_detail_screen.dart';
 import 'search_screen.dart';
+import 'nested_tab_navigator.dart';
 
 /// A navigator key for the search tab's nested navigation
 final GlobalKey<NavigatorState> searchNavigatorKey = GlobalKey<NavigatorState>();
@@ -19,52 +19,33 @@ class SearchNavigator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, result) {
-        if (didPop) return;
-        final navigator = searchNavigatorKey.currentState;
-        if (navigator != null && navigator.canPop()) {
-          navigator.pop();
-        } else {
-          onBackAtRoot?.call();
+    return NestedTabNavigator(
+      navigatorKey: searchNavigatorKey,
+      onBackAtRoot: onBackAtRoot,
+      onGenerateRoute: (settings) {
+        Widget page;
+
+        switch (settings.name) {
+          case '/':
+            page = const SearchScreen();
+            break;
+          case '/album':
+            final album = settings.arguments as AlbumModel;
+            page = AlbumDetailScreen(album: album);
+            break;
+          case '/playlist':
+            final playlistId = settings.arguments as String;
+            page = PlaylistDetailScreen(playlistId: playlistId);
+            break;
+          default:
+            page = const SearchScreen();
         }
+
+        return MaterialPageRoute(
+          builder: (context) => page,
+          settings: settings,
+        );
       },
-      child: Theme(
-        // Disable predictive back on nested routes so the system back gesture
-        // isn't double-handled when a full-screen route sits above this tab.
-        data: Theme.of(context).copyWith(
-          pageTransitionsTheme: AppTheme.nestedNavigatorPageTransitions,
-        ),
-        child: Navigator(
-          key: searchNavigatorKey,
-          initialRoute: '/',
-          onGenerateRoute: (settings) {
-            Widget page;
-
-            switch (settings.name) {
-              case '/':
-                page = const SearchScreen();
-                break;
-              case '/album':
-                final album = settings.arguments as AlbumModel;
-                page = AlbumDetailScreen(album: album);
-                break;
-              case '/playlist':
-                final playlistId = settings.arguments as String;
-                page = PlaylistDetailScreen(playlistId: playlistId);
-                break;
-              default:
-                page = const SearchScreen();
-            }
-
-            return MaterialPageRoute(
-              builder: (context) => page,
-              settings: settings,
-            );
-          },
-        ),
-      ),
     );
   }
 }
