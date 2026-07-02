@@ -40,7 +40,7 @@ extension _LibraryControllerLoading on LibraryController {
         _connectionService.isConnected &&
         _connectionService.apiClient != null) {
       try {
-        await _connectionService.librarySyncEngine.syncNow();
+        await _connectionService.librarySyncEngine.rebuildFromServer();
       } catch (_) {
         // Sync errors are recorded in the engine; keep serving local data.
       }
@@ -99,8 +99,8 @@ extension _LibraryControllerLoading on LibraryController {
         // their library right away; the reconnect refreshes it when it lands.
         // The local-store reads and download reconciliation in
         // _loadLibraryFromFacade never touch the apiClient.
-        final hasLocalLibrary = await _connectionService.libraryReadFacade
-            .hasCompletedBootstrap();
+        final hasLocalLibrary =
+            await _connectionService.libraryReadFacade.hasCompletedBootstrap();
         if (hasLocalLibrary) {
           await _loadLibraryFromFacade();
           return;

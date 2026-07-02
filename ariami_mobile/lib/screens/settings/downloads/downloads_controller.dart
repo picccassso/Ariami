@@ -15,6 +15,46 @@ import '../../../services/quality/quality_settings_service.dart';
 import 'downloads_state.dart';
 import 'utils/download_helpers.dart';
 
+/// Ensures download-library reference data is read only after the local v2
+/// catalog has caught up with the server notification that triggered it.
+class DownloadsLibraryRefreshCoordinator {
+  DownloadsLibraryRefreshCoordinator({
+    required bool Function() canSync,
+    required Future<void> Function() syncNow,
+    required Future<void> Function(int targetToken) syncUntil,
+  })  : _canSync = canSync,
+        _syncNow = syncNow,
+        _syncUntil = syncUntil;
+
+  final bool Function() _canSync;
+  final Future<void> Function() _syncNow;
+  final Future<void> Function(int targetToken) _syncUntil;
+
+  Future<void> synchronize({int? targetToken}) async {
+    if (!_canSync()) return;
+
+    if (targetToken != null && targetToken > 0) {
+      await _syncUntil(targetToken);
+      return;
+    }
+
+    await _syncNow();
+  }
+
+  Future<void> synchronizeAndRefresh({
+    int? targetToken,
+    required Future<void> Function() refresh,
+  }) async {
+    try {
+      await synchronize(targetToken: targetToken);
+    } catch (_) {
+      // The sync engine records its own error. Refresh the last good local
+      // snapshot so the Downloads screen remains usable while offline.
+    }
+    await refresh();
+  }
+}
+
 /// Business logic and subscriptions for [DownloadsScreen].
 ///
 /// Two output channels:
@@ -30,15 +70,26 @@ class DownloadsController extends ChangeNotifier {
     DownloadManager? downloadManager,
     CacheManager? cacheManager,
     QualitySettingsService? qualityService,
+    DownloadsLibraryRefreshCoordinator? libraryRefreshCoordinator,
   })  : _connectionService = connectionService ?? ConnectionService(),
         _downloadManager = downloadManager ?? DownloadManager(),
         _cacheManager = cacheManager ?? CacheManager(),
-        _qualityService = qualityService ?? QualitySettingsService();
+        _qualityService = qualityService ?? QualitySettingsService() {
+    _libraryRefreshCoordinator = libraryRefreshCoordinator ??
+        DownloadsLibraryRefreshCoordinator(
+          canSync: () =>
+              _connectionService.isConnected &&
+              _connectionService.apiClient != null,
+          syncNow: _connectionService.librarySyncEngine.syncNow,
+          syncUntil: _connectionService.librarySyncEngine.syncUntil,
+        );
+  }
 
   final ConnectionService _connectionService;
   final DownloadManager _downloadManager;
   final CacheManager _cacheManager;
   final QualitySettingsService _qualityService;
+  late final DownloadsLibraryRefreshCoordinator _libraryRefreshCoordinator;
 
   DownloadsState _state = const DownloadsState();
   DownloadsState get state => _state;
@@ -160,8 +211,7 @@ class DownloadsController extends ChangeNotifier {
       await playlistService.loadPlaylists();
     }
 
-    await _refreshLibraryReferenceData();
-    _recomputeDownloadAllCounts();
+    await _synchronizeAndRefreshLibraryReferenceData();
   }
 
   // ---- Public listenables -----------------------------------------------
@@ -315,11 +365,33 @@ class DownloadsController extends ChangeNotifier {
       return;
     }
 
+    final targetToken = message.type == WsMessageType.syncTokenAdvanced
+        ? _parseLatestToken(message.data?['latestToken'])
+        : null;
+
     _countRefreshTimer?.cancel();
     _countRefreshTimer = Timer(const Duration(milliseconds: 300), () async {
-      await _refreshLibraryReferenceData();
-      _recomputeDownloadAllCounts();
+      await _synchronizeAndRefreshLibraryReferenceData(
+        targetToken: targetToken,
+      );
     });
+  }
+
+  int? _parseLatestToken(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value);
+    return null;
+  }
+
+  Future<void> _synchronizeAndRefreshLibraryReferenceData({
+    int? targetToken,
+  }) async {
+    await _libraryRefreshCoordinator.synchronizeAndRefresh(
+      targetToken: targetToken,
+      refresh: _refreshLibraryReferenceData,
+    );
+    _recomputeDownloadAllCounts();
   }
 
   Future<void> _refreshLibraryReferenceData() async {
@@ -456,6 +528,7 @@ class DownloadsController extends ChangeNotifier {
     notifyListeners();
 
     try {
+      await _libraryRefreshCoordinator.synchronize();
       final downloadQuality = _qualityService.getDownloadQuality();
       final downloadOriginal = _qualityService.getDownloadOriginal();
       final songs = await _connectionService.libraryReadFacade.getSongs();
@@ -483,6 +556,7 @@ class DownloadsController extends ChangeNotifier {
     notifyListeners();
 
     try {
+      await _libraryRefreshCoordinator.synchronize();
       final downloadQuality = _qualityService.getDownloadQuality();
       final downloadOriginal = _qualityService.getDownloadOriginal();
       final albums = await _connectionService.libraryReadFacade.getAlbums();
@@ -512,6 +586,7 @@ class DownloadsController extends ChangeNotifier {
     notifyListeners();
 
     try {
+      await _libraryRefreshCoordinator.synchronize();
       final downloadQuality = _qualityService.getDownloadQuality();
       final downloadOriginal = _qualityService.getDownloadOriginal();
       if (!playlistService.isLoaded) {
@@ -878,4 +953,3 @@ class DownloadsController extends ChangeNotifier {
     super.dispose();
   }
 }
-

@@ -34,6 +34,7 @@ class LibrarySyncEngine {
     this.onBootstrapCompleted,
     this.bootstrapPageLimit = 200,
     this.changesPageLimit = 500,
+    this.maxDeltaTokenGapBeforeBootstrap = 5000,
     this.pollInterval = const Duration(seconds: 30),
   })  : _apiClientProvider = apiClientProvider,
         _libraryRepository = libraryRepository ?? LibraryRepository(),
@@ -46,6 +47,7 @@ class LibrarySyncEngine {
 
   final int bootstrapPageLimit;
   final int changesPageLimit;
+  final int maxDeltaTokenGapBeforeBootstrap;
   final Duration pollInterval;
   static const List<int> _bootstrapRetryScheduleSeconds = <int>[
     30,
@@ -114,6 +116,22 @@ class LibrarySyncEngine {
 
   Future<void> syncUntil(int targetToken) {
     return _enqueueSync(() => _syncInternal(targetToken: targetToken));
+  }
+
+  /// Replaces the local catalog with a fresh authoritative server snapshot.
+  ///
+  /// This is intentionally reserved for explicit user refresh/recovery. The
+  /// normal background path continues to use efficient delta synchronization.
+  Future<void> rebuildFromServer() {
+    return _enqueueSync(() async {
+      _clearBootstrapRetryBackoff();
+      final bootstrapReady = await _runBootstrapSync();
+      if (bootstrapReady) {
+        _clearBootstrapRetryBackoff();
+      } else {
+        _scheduleBootstrapRetryBackoff();
+      }
+    });
   }
 
   Future<void> _syncInternal({int? targetToken}) async {
@@ -241,10 +259,11 @@ class LibrarySyncEngine {
         'events=${response.events.length} hasMore=${response.hasMore}',
       );
 
-      if (_requiresBootstrapRefresh(response)) {
+      if (_requiresBootstrapRefresh(response) ||
+          _deltaBacklogRequiresBootstrap(response, since)) {
         debugPrint(
           '[LibrarySyncEngine][_applyDeltaChanges] bootstrap refresh required '
-          'because at least one upsert payload was null',
+          'since=$since syncToken=${response.syncToken}',
         );
         final readyAfterBootstrap = await _runBootstrapSync();
         if (!readyAfterBootstrap) {
@@ -296,6 +315,17 @@ class LibrarySyncEngine {
       }
     }
     return false;
+  }
+
+  bool _deltaBacklogRequiresBootstrap(
+    V2ChangesResponse response,
+    int since,
+  ) {
+    if (maxDeltaTokenGapBeforeBootstrap <= 0) return false;
+    final latestToken = response.syncToken > response.toToken
+        ? response.syncToken
+        : response.toToken;
+    return latestToken - since > maxDeltaTokenGapBeforeBootstrap;
   }
 
   bool _isBootstrapRetryDeferred() {

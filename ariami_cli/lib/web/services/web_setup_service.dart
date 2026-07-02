@@ -131,11 +131,15 @@ class WebSetupService {
       if (response.isSuccess) {
         final data = response.jsonBody ?? <String, dynamic>{};
         return {
+          'statusAvailable': true,
           'isScanning': data['isScanning'] ?? false,
           'progress': (data['progress'] as num?)?.toDouble() ?? 0.0,
           'songsFound': data['songsFound'] ?? 0,
           'albumsFound': data['albumsFound'] ?? 0,
           'currentStatus': data['currentStatus'] ?? 'Initializing...',
+          'scanError': data['scanError'],
+          'skippedFileCount': data['skippedFileCount'] ?? 0,
+          'failedFiles': data['failedFiles'] ?? const <dynamic>[],
         };
       }
     } catch (e) {
@@ -143,11 +147,15 @@ class WebSetupService {
     }
 
     return {
+      'statusAvailable': false,
       'isScanning': false,
       'progress': 0.0,
       'songsFound': 0,
       'albumsFound': 0,
       'currentStatus': 'Not scanning',
+      'scanError': null,
+      'skippedFileCount': 0,
+      'failedFiles': const <dynamic>[],
     };
   }
 

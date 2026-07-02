@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:ariami_core/ariami_core.dart';
 
 import 'cli_state_service.dart';
@@ -7,15 +9,22 @@ class ServerSetupCallbacks {
   ServerSetupCallbacks({
     required AriamiHttpServer httpServer,
     required CliStateService stateService,
+    Future<String?> Function()? getMusicFolderPath,
   })  : _httpServer = httpServer,
-        _stateService = stateService;
+        _stateService = stateService,
+        _getMusicFolderPath =
+            getMusicFolderPath ?? stateService.getMusicFolderPath;
 
   final AriamiHttpServer _httpServer;
   final CliStateService _stateService;
+  final Future<String?> Function() _getMusicFolderPath;
+
+  Future<void>? _activeScan;
+  String? _lastScanError;
 
   void register() {
     _httpServer.setSetupCallbacks(
-      getConfiguredMusicFolderPath: _stateService.getMusicFolderPath,
+      getConfiguredMusicFolderPath: _getMusicFolderPath,
       setMusicFolder: _handleSetMusicFolder,
       startScan: _handleStartScan,
       getScanStatus: _handleGetScanStatus,
@@ -30,14 +39,19 @@ class ServerSetupCallbacks {
   }
 
   Future<void> startInitialScanIfConfigured() async {
-    final musicPath = await _stateService.getMusicFolderPath();
+    final musicPath = await _getMusicFolderPath();
 
     if (musicPath == null || musicPath.isEmpty) {
       return;
     }
 
     try {
-      _httpServer.libraryManager.scanMusicFolder(musicPath);
+      final validation = await MusicFolderPathHelper.validate(musicPath);
+      if (!validation.isValid) {
+        print('Warning: ${validation.message}');
+        return;
+      }
+      _startScan(validation.path);
     } catch (e) {
       print('Warning: Failed to start library scan: $e');
     }
@@ -65,36 +79,78 @@ class ServerSetupCallbacks {
 
   Future<bool> _handleStartScan() async {
     try {
-      final musicPath = await _stateService.getMusicFolderPath();
+      final musicPath = await _getMusicFolderPath();
       if (musicPath == null || musicPath.isEmpty) {
+        _lastScanError = 'No music folder is configured.';
         return false;
       }
 
-      _httpServer.libraryManager.scanMusicFolder(musicPath);
+      final validation = await MusicFolderPathHelper.validate(musicPath);
+      if (!validation.isValid) {
+        _lastScanError = validation.message;
+        return false;
+      }
 
-      return true;
-    } catch (_) {
+      return _startScan(validation.path);
+    } catch (e) {
+      _lastScanError = e.toString();
       return false;
     }
   }
 
+  bool _startScan(String musicPath) {
+    final manager = _httpServer.libraryManager;
+    if (manager.isScanning || _activeScan != null) {
+      return false;
+    }
+
+    _lastScanError = null;
+    final previousScanTime = manager.lastScanTime;
+    final scan = manager.scanMusicFolder(musicPath);
+    _activeScan = scan;
+    unawaited(_observeScan(scan, previousScanTime));
+    return true;
+  }
+
+  Future<void> _observeScan(
+    Future<void> scan,
+    DateTime? previousScanTime,
+  ) async {
+    try {
+      await scan;
+      if (_httpServer.libraryManager.lastScanTime == previousScanTime) {
+        _lastScanError = 'The library scan did not complete successfully.';
+      }
+    } catch (e) {
+      _lastScanError = e.toString();
+    } finally {
+      _activeScan = null;
+    }
+  }
+
   Future<Map<String, dynamic>> _handleGetScanStatus() async {
-    final isScanning = _httpServer.libraryManager.isScanning;
-    final library = _httpServer.libraryManager.library;
+    final manager = _httpServer.libraryManager;
+    final isScanning = manager.isScanning || _activeScan != null;
+    final library = manager.library;
+    final diagnostics = manager.latestScanDiagnostics;
 
     double progress = 0.0;
     int songsFound = 0;
     int albumsFound = 0;
     String currentStatus = 'Initializing...';
 
-    if (library != null) {
+    if (isScanning) {
+      progress = 0.5;
+      currentStatus = 'Scanning music library...';
+    } else if (_lastScanError != null) {
+      currentStatus = 'Scan failed: $_lastScanError';
+    } else if (library != null) {
       progress = 1.0;
       songsFound = library.totalSongs;
       albumsFound = library.totalAlbums;
-      currentStatus = 'Scan complete!';
-    } else if (isScanning) {
-      progress = 0.5;
-      currentStatus = 'Scanning music library...';
+      currentStatus = diagnostics.skippedFileCount > 0
+          ? 'Scan complete with ${diagnostics.skippedFileCount} skipped file(s)'
+          : 'Scan complete!';
     }
 
     return {
@@ -103,6 +159,11 @@ class ServerSetupCallbacks {
       'songsFound': songsFound,
       'albumsFound': albumsFound,
       'currentStatus': currentStatus,
+      'scanError': _lastScanError,
+      'skippedFileCount': isScanning ? 0 : diagnostics.skippedFileCount,
+      'failedFiles': isScanning
+          ? const <Map<String, dynamic>>[]
+          : diagnostics.failedFiles.map((file) => file.toJson()).toList(),
     };
   }
 

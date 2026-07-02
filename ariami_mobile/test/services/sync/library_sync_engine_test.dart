@@ -70,6 +70,42 @@ void main() {
       expect(completedToken, equals(6));
     });
 
+    test('explicit rebuild replaces an already-bootstrapped local catalog',
+        () async {
+      final repository = _FakeLibraryRepository(
+        initialState: const LibrarySyncState(
+          lastAppliedToken: 18076,
+          bootstrapComplete: true,
+          lastSyncEpochMs: 0,
+        ),
+      );
+      final apiClient = _FakeApiClient(
+        bootstrapResponses: <V2BootstrapResponse>[
+          _bootstrapPage(
+            syncToken: 60667,
+            hasMore: false,
+            cursor: null,
+            nextCursor: null,
+          ),
+        ],
+      );
+
+      final engine = LibrarySyncEngine(
+        apiClientProvider: () => apiClient,
+        libraryRepository: repository,
+      );
+
+      await engine.rebuildFromServer();
+
+      final state = await repository.getSyncState();
+      expect(state.lastAppliedToken, 60667);
+      expect(state.bootstrapComplete, isTrue);
+      expect(repository.resetCount, 1);
+      expect(repository.bootstrapPagesApplied, 1);
+      expect(apiClient.bootstrapCallCount, 1);
+      expect(apiClient.changesCallCount, 0);
+    });
+
     test('suppresses bootstrap completion callback when readiness is pending',
         () async {
       final repository = _AlwaysBackfillPendingLibraryRepository();
@@ -149,6 +185,51 @@ void main() {
       final state = await repository.getSyncState();
       expect(state.bootstrapComplete, isTrue);
       expect(state.lastAppliedToken, 9);
+      expect(repository.resetCount, 1);
+      expect(repository.bootstrapPagesApplied, 1);
+      expect(apiClient.changesCallCount, 1);
+      expect(apiClient.bootstrapCallCount, 1);
+    });
+
+    test('bootstraps instead of replaying an excessive delta backlog',
+        () async {
+      final repository = _FakeLibraryRepository(
+        initialState: const LibrarySyncState(
+          lastAppliedToken: 18076,
+          bootstrapComplete: true,
+          lastSyncEpochMs: 0,
+        ),
+      );
+      final apiClient = _FakeApiClient(
+        bootstrapResponses: <V2BootstrapResponse>[
+          _bootstrapPage(
+            syncToken: 60667,
+            hasMore: false,
+            cursor: null,
+            nextCursor: null,
+          ),
+        ],
+        changesResponses: const <V2ChangesResponse>[
+          V2ChangesResponse(
+            fromToken: 18076,
+            toToken: 18576,
+            events: <V2ChangeEvent>[],
+            hasMore: true,
+            syncToken: 60667,
+          ),
+        ],
+      );
+
+      final engine = LibrarySyncEngine(
+        apiClientProvider: () => apiClient,
+        libraryRepository: repository,
+      );
+
+      await engine.syncNow();
+
+      final state = await repository.getSyncState();
+      expect(state.lastAppliedToken, 60667);
+      expect(state.bootstrapComplete, isTrue);
       expect(repository.resetCount, 1);
       expect(repository.bootstrapPagesApplied, 1);
       expect(apiClient.changesCallCount, 1);
@@ -445,8 +526,7 @@ class _FakeApiClient extends ApiClient {
   _FakeApiClient({
     List<V2BootstrapResponse>? bootstrapResponses,
     List<V2ChangesResponse>? changesResponses,
-  })  : _bootstrapResponses =
-            bootstrapResponses ?? <V2BootstrapResponse>[],
+  })  : _bootstrapResponses = bootstrapResponses ?? <V2BootstrapResponse>[],
         _changesResponses = changesResponses != null
             ? List<V2ChangesResponse>.from(changesResponses)
             : <V2ChangesResponse>[],

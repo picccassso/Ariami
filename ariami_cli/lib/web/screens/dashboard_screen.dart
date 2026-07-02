@@ -419,6 +419,12 @@ class _DashboardScreenState extends State<DashboardScreen>
       'Owner privileges required to manage registered users.';
 
   Future<void> _rescanLibrary() async {
+    if (_isScanning) return;
+
+    setState(() {
+      _isScanning = true;
+    });
+
     try {
       final success = await _setupService.startScan();
 
@@ -432,11 +438,21 @@ class _DashboardScreenState extends State<DashboardScreen>
             behavior: SnackBarBehavior.floating,
           ),
         );
-        _loadServerStats();
+        await _monitorLibraryRescan();
       } else {
+        setState(() {
+          _isScanning = false;
+        });
+        final status = await _setupService.getScanStatus();
+        if (!mounted) return;
+        final scanError = status['scanError'] as String?;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to start library rescan'),
+          SnackBar(
+            content: Text(
+              scanError == null || scanError.isEmpty
+                  ? 'Failed to start library rescan'
+                  : 'Failed to start library rescan: $scanError',
+            ),
             backgroundColor: Colors.redAccent,
             behavior: SnackBarBehavior.floating,
           ),
@@ -444,14 +460,132 @@ class _DashboardScreenState extends State<DashboardScreen>
       }
     } catch (e) {
       if (!mounted) return;
+      setState(() {
+        _isScanning = false;
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error starting rescan: $e'),
+          content: Text('Library rescan error: $e'),
           backgroundColor: Colors.redAccent,
           behavior: SnackBarBehavior.floating,
         ),
       );
     }
+  }
+
+  Future<void> _monitorLibraryRescan() async {
+    var consecutiveStatusFailures = 0;
+
+    while (mounted) {
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      final status = await _setupService.getScanStatus();
+
+      if (status['statusAvailable'] != true) {
+        consecutiveStatusFailures++;
+        if (consecutiveStatusFailures < 5) {
+          continue;
+        }
+        throw StateError('Lost contact with the server while scanning.');
+      }
+      consecutiveStatusFailures = 0;
+
+      if (status['isScanning'] == true) {
+        continue;
+      }
+
+      final scanError = status['scanError'] as String?;
+      final skippedFileCount = status['skippedFileCount'] as int? ?? 0;
+      final failedFiles = (status['failedFiles'] as List<dynamic>? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .toList(growable: false);
+
+      await _loadServerStats();
+      if (!mounted) return;
+
+      setState(() {
+        _isScanning = false;
+      });
+
+      if (scanError != null && scanError.isNotEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Library rescan failed: $scanError'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+
+      final songsFound = status['songsFound'] as int? ?? _songCount;
+      final message = skippedFileCount > 0
+          ? 'Rescan complete: $songsFound songs, '
+              '$skippedFileCount file(s) skipped'
+          : 'Library rescan complete: $songsFound songs found';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: skippedFileCount > 0
+              ? Colors.amber.shade800
+              : AppTheme.surfaceBlack,
+          behavior: SnackBarBehavior.floating,
+          action: failedFiles.isEmpty
+              ? null
+              : SnackBarAction(
+                  label: 'VIEW ISSUES',
+                  textColor: Colors.white,
+                  onPressed: () => _showScanIssues(
+                    skippedFileCount,
+                    failedFiles,
+                  ),
+                ),
+        ),
+      );
+      return;
+    }
+  }
+
+  Future<void> _showScanIssues(
+    int skippedFileCount,
+    List<Map<String, dynamic>> failedFiles,
+  ) async {
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('$skippedFileCount skipped file(s)'),
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(
+            maxWidth: 600,
+            maxHeight: 400,
+          ),
+          child: ListView.separated(
+            shrinkWrap: true,
+            itemCount: failedFiles.length,
+            separatorBuilder: (_, __) => const Divider(),
+            itemBuilder: (_, index) {
+              final issue = failedFiles[index];
+              return ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(issue['path'] as String? ?? 'Unknown file'),
+                subtitle:
+                    Text(issue['reason'] as String? ?? 'Could not read file'),
+                leading: const Icon(
+                  Icons.warning_amber_rounded,
+                  color: Colors.amber,
+                ),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('CLOSE'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _viewQRCode() async {
