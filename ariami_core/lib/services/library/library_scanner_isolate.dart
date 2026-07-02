@@ -353,9 +353,16 @@ class LibraryScannerIsolate {
       }
 
       final duplicateDetector = DuplicateDetector();
+      final playlistFolderSongPaths =
+          playlistFolders.values.expand((paths) => paths).toSet();
+      final albumCandidateSongPaths = songs
+          .where((song) => !playlistFolderSongPaths.contains(song.filePath))
+          .map((song) => song.filePath)
+          .toSet();
       final duplicateGroups = await duplicateDetector.detectDuplicates(
         songs,
         cachedHashes: cachedHashes,
+        preferredPaths: albumCandidateSongPaths,
       );
       final uniqueSongs =
           duplicateDetector.filterDuplicates(songs, duplicateGroups);
@@ -373,8 +380,6 @@ class LibraryScannerIsolate {
 
       // Songs under [PLAYLIST] folders should not create albums.
       // They still remain available for playback via standalone songs/playlist IDs.
-      final playlistFolderSongPaths =
-          playlistFolders.values.expand((paths) => paths).toSet();
       final albumCandidateSongs = uniqueSongs
           .where((song) => !playlistFolderSongPaths.contains(song.filePath))
           .toList();

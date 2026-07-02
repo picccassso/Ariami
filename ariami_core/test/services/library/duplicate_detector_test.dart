@@ -27,7 +27,8 @@ void main() {
   group('DuplicateDetector metadata matching', () {
     final detector = DuplicateDetector();
 
-    test('does not merge songs with empty artist and different albums', () async {
+    test('does not merge songs with empty artist and different albums',
+        () async {
       final songs = [
         _song(
           path: '/a.mp3',
@@ -74,6 +75,150 @@ void main() {
 
       expect(groups, hasLength(1));
       expect(groups.first.duplicates, hasLength(1));
+    });
+
+    test('does not merge matching tracks from different albums', () async {
+      final songs = [
+        _song(
+          path: '/base/song.mp3',
+          title: 'Song',
+          artist: 'Artist',
+          album: 'Album',
+          duration: 180,
+        ),
+        _song(
+          path: '/deluxe/song.mp3',
+          title: 'Song',
+          artist: 'Artist',
+          album: 'Album - Deluxe',
+          duration: 180,
+        ),
+      ];
+
+      final groups = await detector.detectDuplicates(
+        songs,
+        useHashMatching: false,
+      );
+
+      expect(groups, isEmpty);
+    });
+
+    test('keeps preferred album path over playlist copy', () async {
+      final songs = [
+        _song(
+          path: '/music/album/song.mp3',
+          title: 'Song',
+          artist: 'Artist',
+          album: 'Album',
+          duration: 180,
+          fileSize: 100,
+        ),
+        _song(
+          path: '/music/[PLAYLIST] Mix/song.mp3',
+          title: 'Song',
+          artist: 'Artist',
+          album: 'Album',
+          duration: 180,
+          fileSize: 200,
+        ),
+      ];
+
+      final groups = await detector.detectDuplicates(
+        songs,
+        useHashMatching: false,
+        preferredPaths: {'/music/album/song.mp3'},
+      );
+
+      expect(groups, hasLength(1));
+      expect(groups.first.original.filePath, '/music/album/song.mp3');
+      expect(
+        groups.first.duplicates.single.filePath,
+        '/music/[PLAYLIST] Mix/song.mp3',
+      );
+    });
+
+    test('merges playlist copy with a different embedded album tag', () async {
+      final songs = [
+        _song(
+          path: '/music/album/song.mp3',
+          title: 'Song',
+          artist: 'Artist',
+          album: 'Canonical Album',
+          duration: 180,
+          fileSize: 100,
+        ),
+        _song(
+          path: '/music/[PLAYLIST] Mix/song.mp3',
+          title: 'Song',
+          artist: 'Artist',
+          album: 'Playlist Export',
+          duration: 180,
+          fileSize: 200,
+        ),
+      ];
+
+      final groups = await detector.detectDuplicates(
+        songs,
+        useHashMatching: false,
+        preferredPaths: {'/music/album/song.mp3'},
+      );
+
+      expect(groups, hasLength(1));
+      expect(groups.first.original.filePath, '/music/album/song.mp3');
+      expect(
+        groups.first.duplicates.single.filePath,
+        '/music/[PLAYLIST] Mix/song.mp3',
+      );
+    });
+
+    test('playlist copy cannot bridge tracks from distinct albums', () async {
+      final songs = [
+        _song(
+          path: '/music/[PLAYLIST] Mix/song.mp3',
+          title: 'Song',
+          artist: 'Artist',
+          album: 'Playlist Export',
+          duration: 180,
+          fileSize: 300,
+        ),
+        _song(
+          path: '/music/base/song.mp3',
+          title: 'Song',
+          artist: 'Artist',
+          album: 'Album',
+          duration: 180,
+          fileSize: 100,
+        ),
+        _song(
+          path: '/music/deluxe/song.mp3',
+          title: 'Song',
+          artist: 'Artist',
+          album: 'Album - Deluxe',
+          duration: 180,
+          fileSize: 200,
+        ),
+      ];
+      final preferredPaths = {
+        '/music/base/song.mp3',
+        '/music/deluxe/song.mp3',
+      };
+
+      final groups = await detector.detectDuplicates(
+        songs,
+        useHashMatching: false,
+        preferredPaths: preferredPaths,
+      );
+      final uniqueSongs = detector.filterDuplicates(songs, groups);
+
+      expect(groups, hasLength(1));
+      expect(
+        uniqueSongs.map((song) => song.filePath),
+        containsAll(preferredPaths),
+      );
+      expect(
+        uniqueSongs.map((song) => song.filePath),
+        isNot(contains('/music/[PLAYLIST] Mix/song.mp3')),
+      );
     });
 
     test('merges empty-artist songs with same album and duration', () async {

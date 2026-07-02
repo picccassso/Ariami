@@ -48,6 +48,7 @@ class DuplicateDetector {
   /// Detects all duplicates in a list of songs
   ///
   /// Pass [cachedHashes] to use previously computed hashes (keyed by file path).
+  /// Pass [preferredPaths] to keep canonical files ahead of generated copies.
   /// After calling, use [computedHashes] to get newly computed hashes for caching.
   /// Returns a list of duplicate groups found.
   Future<List<DuplicateGroup>> detectDuplicates(
@@ -55,13 +56,18 @@ class DuplicateDetector {
     bool useHashMatching = true,
     bool useMetadataMatching = true,
     Map<String, String>? cachedHashes,
+    Set<String> preferredPaths = const <String>{},
   }) async {
     _computedHashes.clear();
     final duplicateGroups = <DuplicateGroup>[];
 
     // Level 1: Exact hash matching
     if (useHashMatching) {
-      final hashGroups = await _findHashDuplicates(songs, cachedHashes ?? {});
+      final hashGroups = await _findHashDuplicates(
+        songs,
+        cachedHashes ?? {},
+        preferredPaths,
+      );
       duplicateGroups.addAll(hashGroups);
     }
 
@@ -71,7 +77,8 @@ class DuplicateDetector {
       final remainingSongs =
           songs.where((s) => !processedPaths.contains(s.filePath)).toList();
 
-      final metadataGroups = _findMetadataDuplicates(remainingSongs);
+      final metadataGroups =
+          _findMetadataDuplicates(remainingSongs, preferredPaths);
       duplicateGroups.addAll(metadataGroups);
     }
 
@@ -88,6 +95,7 @@ class DuplicateDetector {
   Future<List<DuplicateGroup>> _findHashDuplicates(
     List<SongMetadata> songs,
     Map<String, String> cachedHashes,
+    Set<String> preferredPaths,
   ) async {
     // Step 1: Group by file size (O(n), no I/O)
     // Identical files must have identical sizes, so we only need to hash
@@ -107,8 +115,11 @@ class DuplicateDetector {
       }
 
       // Hash only this small group
-      final hashGroups =
-          await _hashGroupAndFindDuplicates(candidates, cachedHashes);
+      final hashGroups = await _hashGroupAndFindDuplicates(
+        candidates,
+        cachedHashes,
+        preferredPaths,
+      );
       groups.addAll(hashGroups);
     }
 
@@ -120,6 +131,7 @@ class DuplicateDetector {
   Future<List<DuplicateGroup>> _hashGroupAndFindDuplicates(
     List<SongMetadata> songs,
     Map<String, String> cachedHashes,
+    Set<String> preferredPaths,
   ) async {
     final hashMap = <String, List<SongMetadata>>{};
 
@@ -173,7 +185,7 @@ class DuplicateDetector {
           continue;
         }
 
-        final sorted = _sortByQuality(confirmed);
+        final sorted = _sortByQuality(confirmed, preferredPaths);
         // #region agent log
         agentDebugLog(
           location: 'duplicate_detector.dart:_hashGroupAndFindDuplicates',
@@ -227,7 +239,10 @@ class DuplicateDetector {
   ///
   /// Requires non-empty title and either non-empty artist or corroborating
   /// album+duration match via [_isDetailedMetadataMatch].
-  List<DuplicateGroup> _findMetadataDuplicates(List<SongMetadata> songs) {
+  List<DuplicateGroup> _findMetadataDuplicates(
+    List<SongMetadata> songs,
+    Set<String> preferredPaths,
+  ) {
     final groups = <DuplicateGroup>[];
 
     // Step 1: Group songs by normalized artist+title key (O(n))
@@ -241,7 +256,17 @@ class DuplicateDetector {
 
     // Step 2: Process only groups with potential duplicates (O(k²) per small group)
     final processed = <String>{};
-    for (final candidates in candidateGroups.values) {
+    for (final unsortedCandidates in candidateGroups.values) {
+      // Canonical files must be considered before generated copies. Otherwise
+      // one playlist file can bridge matching tracks from two distinct albums
+      // into a single duplicate group.
+      final candidates = List<SongMetadata>.from(unsortedCandidates)
+        ..sort((a, b) {
+          final aPreferred = preferredPaths.contains(a.filePath);
+          final bPreferred = preferredPaths.contains(b.filePath);
+          if (aPreferred == bPreferred) return 0;
+          return aPreferred ? -1 : 1;
+        });
       if (candidates.length < 2) continue; // No duplicates possible
 
       // Within this small group, do detailed matching (album + duration tolerance)
@@ -252,7 +277,11 @@ class DuplicateDetector {
         for (var j = i + 1; j < candidates.length; j++) {
           if (processed.contains(candidates[j].filePath)) continue;
 
-          if (_isDetailedMetadataMatch(candidates[i], candidates[j])) {
+          if (_isDetailedMetadataMatch(
+            candidates[i],
+            candidates[j],
+            preferredPaths,
+          )) {
             matches.add(candidates[j]);
             processed.add(candidates[j].filePath);
           }
@@ -260,7 +289,7 @@ class DuplicateDetector {
 
         if (matches.isNotEmpty) {
           final allMatches = [candidates[i], ...matches];
-          final sorted = _sortByQuality(allMatches);
+          final sorted = _sortByQuality(allMatches, preferredPaths);
 
           // #region agent log
           agentDebugLog(
@@ -306,7 +335,11 @@ class DuplicateDetector {
   ///
   /// Requires non-empty title and either matching non-empty artists or the
   /// same non-empty album with matching duration.
-  bool _isDetailedMetadataMatch(SongMetadata a, SongMetadata b) {
+  bool _isDetailedMetadataMatch(
+    SongMetadata a,
+    SongMetadata b,
+    Set<String> preferredPaths,
+  ) {
     final titleA = _normalizeString(a.title ?? '');
     final titleB = _normalizeString(b.title ?? '');
     if (titleA.isEmpty || titleB.isEmpty || titleA != titleB) {
@@ -318,6 +351,22 @@ class DuplicateDetector {
 
     if (artistA.isNotEmpty && artistB.isNotEmpty) {
       if (artistA != artistB) return false;
+
+      // Different releases may legitimately contain the same performance
+      // (for example, a base album and its deluxe edition). Metadata alone
+      // must not remove a track from either album.
+      final albumA = _normalizeString(a.album ?? '');
+      final albumB = _normalizeString(b.album ?? '');
+      final bothAreCanonical = preferredPaths.isEmpty ||
+          (preferredPaths.contains(a.filePath) &&
+              preferredPaths.contains(b.filePath));
+      if (bothAreCanonical &&
+          albumA.isNotEmpty &&
+          albumB.isNotEmpty &&
+          albumA != albumB) {
+        return false;
+      }
+
       if (a.duration != null && b.duration != null) {
         return (a.duration! - b.duration!).abs() <= 2;
       }
@@ -367,10 +416,20 @@ class DuplicateDetector {
   /// 1. Lossless formats (.flac, .wav, .aiff)
   /// 2. Complete metadata
   /// 3. Larger file size (usually higher quality)
-  List<SongMetadata> _sortByQuality(List<SongMetadata> songs) {
+  List<SongMetadata> _sortByQuality(
+    List<SongMetadata> songs,
+    Set<String> preferredPaths,
+  ) {
     final sorted = List<SongMetadata>.from(songs);
 
     sorted.sort((a, b) {
+      // Callers can keep canonical library files when the same recording is
+      // also present in a generated playlist folder.
+      final aPreferred = preferredPaths.contains(a.filePath);
+      final bPreferred = preferredPaths.contains(b.filePath);
+      if (aPreferred && !bPreferred) return -1;
+      if (!aPreferred && bPreferred) return 1;
+
       // Check for lossless format
       final aLossless = _isLosslessFormat(a.filePath);
       final bLossless = _isLosslessFormat(b.filePath);
