@@ -176,9 +176,15 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
       }
 
       // If we have a restored position, load without playing, seek, then play
+      final upcoming = await _resolveNextGaplessItem(song);
       if (_restoredPosition != null) {
         // Load the song WITHOUT starting playback
-        await _audioPlayer.loadSong(song, audioUrl, artworkUri: artworkUri);
+        await _audioPlayer.loadSong(
+          song,
+          audioUrl,
+          artworkUri: artworkUri,
+          upcoming: upcoming,
+        );
 
         // Wait for the audio player to be fully ready before seeking
         await Future.delayed(const Duration(milliseconds: 500));
@@ -198,9 +204,19 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
       } else {
         if (autoPlay) {
           // No restored position - play normally from the beginning
-          await _audioPlayer.playSong(song, audioUrl, artworkUri: artworkUri);
+          await _audioPlayer.playSong(
+            song,
+            audioUrl,
+            artworkUri: artworkUri,
+            upcoming: upcoming,
+          );
         } else {
-          await _audioPlayer.loadSong(song, audioUrl, artworkUri: artworkUri);
+          await _audioPlayer.loadSong(
+            song,
+            audioUrl,
+            artworkUri: artworkUri,
+            upcoming: upcoming,
+          );
         }
       }
 
@@ -218,6 +234,160 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
       print('[PlaybackManager] ERROR in _playCurrentSong: $e');
       print('[PlaybackManager] Stack trace: $stackTrace');
       rethrow;
+    }
+  }
+
+  Future<GaplessPlaybackItem?> _resolveNextGaplessItem(
+    Song expectedCurrentSong,
+  ) async {
+    if (!_gaplessPlayback.isEnabled ||
+        _castService.isConnected ||
+        _repeatMode == RepeatMode.one ||
+        _queue.currentSong?.id != expectedCurrentSong.id) {
+      return null;
+    }
+
+    int? nextIndex;
+    if (_queue.hasNext) {
+      nextIndex = await _findNextAvailableSongIndex();
+    } else if (_repeatMode == RepeatMode.all && _queue.length > 1) {
+      nextIndex = await _findNextAvailableSongIndexFrom(0);
+    }
+    if (nextIndex == null ||
+        _queue.currentSong?.id != expectedCurrentSong.id ||
+        nextIndex < 0 ||
+        nextIndex >= _queue.length) {
+      return null;
+    }
+
+    return _resolveGaplessItem(_queue.songs[nextIndex]);
+  }
+
+  Future<GaplessPlaybackItem?> _resolveGaplessItem(Song song) async {
+    try {
+      final source = await _offlineService.getPlaybackSource(song.id);
+      String streamUrl;
+      Uri? artworkUri;
+
+      switch (source) {
+        case PlaybackSource.local:
+          final path = _offlineService.getLocalFilePath(song.id);
+          if (path == null) return null;
+          streamUrl = 'file://$path';
+          break;
+        case PlaybackSource.cached:
+          final path = await _offlineService.getCachedFilePath(song.id);
+          if (path == null) return null;
+          streamUrl = 'file://$path';
+          break;
+        case PlaybackSource.stream:
+          if (_connectionService.apiClient == null) return null;
+          final quality = _qualityService.getCurrentStreamingQuality();
+          streamUrl = await _getStreamUrlWithRetry(song, quality);
+
+          final baseUrl = _connectionService.apiClient!.baseUrl;
+          artworkUri = song.albumId != null
+              ? Uri.parse('$baseUrl/artwork/${song.albumId}')
+              : Uri.parse('$baseUrl/song-artwork/${song.id}');
+          if (_connectionService.isAuthenticated) {
+            final token = _extractStreamToken(streamUrl);
+            if (token != null && token.isNotEmpty) {
+              artworkUri = artworkUri.replace(
+                queryParameters: {'streamToken': token},
+              );
+            }
+          }
+          break;
+        case PlaybackSource.unavailable:
+          return null;
+      }
+
+      if (source == PlaybackSource.local || source == PlaybackSource.cached) {
+        final primaryKey = song.albumId ?? 'song_${song.id}';
+        final fallbackKey =
+            song.albumId != null ? '${song.albumId}_thumb' : null;
+        final artworkPath = await _cacheManager.getArtworkPathWithFallback(
+          primaryKey,
+          fallbackKey,
+        );
+        if (artworkPath != null) artworkUri = Uri.file(artworkPath);
+      }
+
+      return GaplessPlaybackItem(
+        song: song,
+        streamUrl: streamUrl,
+        artworkUri: artworkUri,
+      );
+    } catch (e) {
+      debugPrint(
+        '[PlaybackManager] Could not prepare gapless source for ${song.title}: $e',
+      );
+      return null;
+    }
+  }
+
+  Future<void> _refreshGaplessQueueImpl() async {
+    final generation = ++_gaplessRefreshGeneration;
+    final current = _queue.currentSong;
+    if (current == null || _castService.isConnected) return;
+
+    final upcoming = await _resolveNextGaplessItem(current);
+    if (generation != _gaplessRefreshGeneration ||
+        _queue.currentSong?.id != current.id) {
+      return;
+    }
+    await _audioPlayer.setUpcomingGaplessItem(current, upcoming);
+  }
+
+  Future<void> _handleGaplessTransitionImpl(
+    GaplessPlaybackTransition transition,
+  ) async {
+    if (_isHandlingGaplessTransition ||
+        !_gaplessPlayback.isEnabled ||
+        _castService.isConnected ||
+        _queue.currentSong?.id != transition.previousSong.id) {
+      return;
+    }
+
+    int? nextIndex;
+    if (_queue.hasNext) {
+      nextIndex = await _findNextAvailableSongIndex();
+    } else if (_repeatMode == RepeatMode.all && _queue.length > 1) {
+      nextIndex = await _findNextAvailableSongIndexFrom(0);
+    }
+    if (nextIndex == null ||
+        nextIndex < 0 ||
+        nextIndex >= _queue.length ||
+        _queue.songs[nextIndex].id != transition.currentSong.id) {
+      // The queue changed while an old source was crossing the boundary.
+      // Load the queue's actual next item instead of publishing stale state.
+      if (_queue.currentSong?.id == transition.previousSong.id) {
+        await _skipNextImpl(completedNaturally: true);
+      }
+      return;
+    }
+
+    _isHandlingGaplessTransition = true;
+    try {
+      final previousIndex = _queue.currentIndex;
+      final previousSong = _queue.currentSong;
+      final stopStats = _statsService.onSongStopped(completedNaturally: true);
+      _queue.jumpToIndex(nextIndex);
+      _consumeOneShotQueueItem(previousIndex, previousSong);
+      _restoredPosition = null;
+      _pendingUiPosition = null;
+      _notifyStateChanged();
+
+      await stopStats;
+      _statsService.onSongStarted(transition.currentSong);
+      ColorExtractionService().extractColorsForSong(transition.currentSong);
+      await _saveState();
+      await _refreshGaplessQueue();
+    } catch (e, stackTrace) {
+      debugPrint('[PlaybackManager] Gapless transition failed: $e');
+      debugPrintStack(stackTrace: stackTrace);
+    } finally {
+      _isHandlingGaplessTransition = false;
     }
   }
 

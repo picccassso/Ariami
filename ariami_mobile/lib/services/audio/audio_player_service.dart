@@ -1,6 +1,7 @@
 import 'package:just_audio/just_audio.dart';
 import '../../main.dart' show audioHandler;
 import '../../models/song.dart';
+import 'audio_handler.dart';
 
 /// Service for managing audio playback
 /// Now uses the AudioHandler which provides background playback through a foreground service
@@ -21,7 +22,12 @@ class AudioPlayerService {
   }
 
   /// Load a song without starting playback (for seeking before play)
-  Future<void> loadSong(Song song, String streamUrl, {Uri? artworkUri}) async {
+  Future<void> loadSong(
+    Song song,
+    String streamUrl, {
+    Uri? artworkUri,
+    GaplessPlaybackItem? upcoming,
+  }) async {
     print('[AudioPlayerService] loadSong() called');
 
     // Check if audioHandler is initialized
@@ -33,7 +39,12 @@ class AudioPlayerService {
     }
 
     try {
-      await audioHandler!.loadSong(song, streamUrl, artworkUri: artworkUri);
+      await audioHandler!.loadSong(
+        song,
+        streamUrl,
+        artworkUri: artworkUri,
+        upcoming: upcoming,
+      );
     } catch (e) {
       print('[AudioPlayerService] Error loading song: $e');
       rethrow;
@@ -42,7 +53,12 @@ class AudioPlayerService {
 
   /// Play audio from URL with song metadata
   /// This is the NEW method that should be used - it provides metadata for the notification
-  Future<void> playSong(Song song, String streamUrl, {Uri? artworkUri}) async {
+  Future<void> playSong(
+    Song song,
+    String streamUrl, {
+    Uri? artworkUri,
+    GaplessPlaybackItem? upcoming,
+  }) async {
     print('[AudioPlayerService] ========================================');
     print('[AudioPlayerService] playSong() called');
     print('[AudioPlayerService] Checking audioHandler status...');
@@ -64,7 +80,12 @@ class AudioPlayerService {
 
     try {
       print('[AudioPlayerService] playSong() - routing to audioHandler');
-      await audioHandler!.playSong(song, streamUrl, artworkUri: artworkUri);
+      await audioHandler!.playSong(
+        song,
+        streamUrl,
+        artworkUri: artworkUri,
+        upcoming: upcoming,
+      );
     } catch (e) {
       print('[AudioPlayerService] Error playing song: $e');
       rethrow;
@@ -159,6 +180,22 @@ class AudioPlayerService {
   Stream<Duration> get seekStream {
     final handler = audioHandler;
     return handler?.onSeek ?? const Stream<Duration>.empty();
+  }
+
+  Stream<GaplessPlaybackTransition> get gaplessTransitionStream {
+    final handler = audioHandler;
+    return handler?.onGaplessTransition ??
+        const Stream<GaplessPlaybackTransition>.empty();
+  }
+
+  Future<void> setUpcomingGaplessItem(
+    Song expectedCurrentSong,
+    GaplessPlaybackItem? upcoming,
+  ) async {
+    await audioHandler?.setUpcomingGaplessItem(
+      expectedCurrentSong,
+      upcoming,
+    );
   }
 
   /// Stream of playback positions

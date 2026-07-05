@@ -6,6 +6,27 @@ import '../../models/song.dart';
 import '../cast/chrome_cast_service.dart';
 import 'equalizer_service.dart';
 
+/// A resolved queue item ready to be handed to just_audio.
+class GaplessPlaybackItem {
+  final Song song;
+  final String streamUrl;
+  final Uri? artworkUri;
+
+  const GaplessPlaybackItem({
+    required this.song,
+    required this.streamUrl,
+    this.artworkUri,
+  });
+}
+
+/// Emitted after just_audio has already advanced to a preloaded track.
+class GaplessPlaybackTransition {
+  final Song previousSong;
+  final Song currentSong;
+
+  const GaplessPlaybackTransition(this.previousSong, this.currentSong);
+}
+
 /// AudioHandler implementation for Ariami
 /// This creates a foreground service that keeps the app alive during music playback
 /// and provides media controls in the notification and lock screen.
@@ -17,6 +38,10 @@ class AriamiAudioHandler extends BaseAudioHandler
   // AndroidEqualizer on iOS calls an Android-only channel method that
   // aborts every load (playback spins forever).
   final AudioPlayer _player = AudioPlayer(
+    // Gapless mode keeps one upcoming item in the native playlist. Preparing
+    // it eagerly guarantees the decoder and authenticated URL are ready before
+    // the current item reaches its final sample.
+    useLazyPreparation: false,
     audioPipeline: AudioPipeline(
       androidAudioEffects: EqualizerService.isAndroidPlatform
           ? [EqualizerService().androidEqualizer]
@@ -34,7 +59,12 @@ class AriamiAudioHandler extends BaseAudioHandler
   final _skipNextController = StreamController<void>.broadcast();
   final _skipPreviousController = StreamController<void>.broadcast();
   final _seekController = StreamController<Duration>.broadcast();
+  final _gaplessTransitionController =
+      StreamController<GaplessPlaybackTransition>.broadcast();
   final ChromeCastService _castService = ChromeCastService();
+
+  List<GaplessPlaybackItem> _playlistItems = const [];
+  int? _activePlaylistIndex;
 
   bool _isCastMode = false;
 
@@ -42,6 +72,8 @@ class AriamiAudioHandler extends BaseAudioHandler
   Stream<void> get onSkipNext => _skipNextController.stream;
   Stream<void> get onSkipPrevious => _skipPreviousController.stream;
   Stream<Duration> get onSeek => _seekController.stream;
+  Stream<GaplessPlaybackTransition> get onGaplessTransition =>
+      _gaplessTransitionController.stream;
 
   AriamiAudioHandler() {
     _init();
@@ -59,6 +91,37 @@ class AriamiAudioHandler extends BaseAudioHandler
         // Broadcast completion through the audio service
         _broadcastState(_player.playbackEvent);
       }
+    });
+
+    // A playlist item changes before ProcessingState.completed, which is what
+    // lets the native player cross the boundary without returning to Dart to
+    // load the next URL. Keep app metadata and queue state aligned with it.
+    _player.currentIndexStream.listen((currentIndex) {
+      final previousIndex = _activePlaylistIndex;
+      if (currentIndex == null ||
+          previousIndex == null ||
+          currentIndex == previousIndex) {
+        return;
+      }
+      _activePlaylistIndex = currentIndex;
+      if (previousIndex < 0 ||
+          currentIndex < 0 ||
+          previousIndex >= _playlistItems.length ||
+          currentIndex >= _playlistItems.length ||
+          previousIndex == currentIndex) {
+        return;
+      }
+
+      final previous = _playlistItems[previousIndex];
+      final current = _playlistItems[currentIndex];
+      debugPrint(
+        '[AriamiAudioHandler] Native playlist advanced: '
+        '${previous.song.title} -> ${current.song.title}',
+      );
+      _activatePlaylistItem(current);
+      _gaplessTransitionController.add(
+        GaplessPlaybackTransition(previous.song, current.song),
+      );
     });
 
     // Listen to player errors
@@ -141,24 +204,43 @@ class AriamiAudioHandler extends BaseAudioHandler
   }
 
   /// Load a song without starting playback (for seeking before play)
-  Future<void> loadSong(Song song, String streamUrl, {Uri? artworkUri}) async {
+  Future<void> loadSong(
+    Song song,
+    String streamUrl, {
+    Uri? artworkUri,
+    GaplessPlaybackItem? upcoming,
+  }) async {
     print('[AriamiAudioHandler] loadSong() called');
     print('[AriamiAudioHandler] Song: ${song.title} by ${song.artist}');
     print('[AriamiAudioHandler] Stream URL: $streamUrl');
     print('[AriamiAudioHandler] Artwork URI: $artworkUri');
 
     try {
-      _currentSong = song;
+      final current = GaplessPlaybackItem(
+        song: song,
+        streamUrl: streamUrl,
+        artworkUri: artworkUri,
+      );
+      _playlistItems = [current, if (upcoming != null) upcoming];
+      // Set this before setAudioSources so its initial index event cannot be
+      // mistaken for an automatic track transition.
+      _activePlaylistIndex = 0;
+      _activatePlaylistItem(current);
 
-      // Create MediaItem for the song
-      final mediaItem =
-          _songToMediaItem(song, streamUrl, artworkUri: artworkUri);
-
-      // Update the media item in the notification
-      this.mediaItem.add(mediaItem);
-
-      // Set the audio source WITHOUT starting playback
-      await _player.setUrl(streamUrl);
+      // Loading current and next into one native playlist is the key to a
+      // genuinely gapless boundary: no Dart callback is needed between them.
+      await _player.setAudioSources(
+        _playlistItems
+            .map(
+              (item) => AudioSource.uri(
+                Uri.parse(item.streamUrl),
+                tag: item.song.id,
+              ),
+            )
+            .toList(growable: false),
+        initialIndex: 0,
+        initialPosition: Duration.zero,
+      );
 
       print('[AriamiAudioHandler] Song loaded successfully (not playing)');
     } catch (e, stackTrace) {
@@ -169,7 +251,12 @@ class AriamiAudioHandler extends BaseAudioHandler
   }
 
   /// Play a song from a stream URL
-  Future<void> playSong(Song song, String streamUrl, {Uri? artworkUri}) async {
+  Future<void> playSong(
+    Song song,
+    String streamUrl, {
+    Uri? artworkUri,
+    GaplessPlaybackItem? upcoming,
+  }) async {
     print('[AriamiAudioHandler] playSong() called');
     print('[AriamiAudioHandler] Song: ${song.title} by ${song.artist}');
     print('[AriamiAudioHandler] Stream URL: $streamUrl');
@@ -177,7 +264,12 @@ class AriamiAudioHandler extends BaseAudioHandler
 
     try {
       // Load the song first
-      await loadSong(song, streamUrl, artworkUri: artworkUri);
+      await loadSong(
+        song,
+        streamUrl,
+        artworkUri: artworkUri,
+        upcoming: upcoming,
+      );
 
       // Start playback (don't await - let it complete asynchronously)
       // The play() Future may not complete immediately, but playback will start
@@ -190,6 +282,68 @@ class AriamiAudioHandler extends BaseAudioHandler
       print('[AriamiAudioHandler] Stack trace: $stackTrace');
       rethrow;
     }
+  }
+
+  /// Replaces only the unplayed tail, leaving the active native source and
+  /// its position untouched. Used after queue edits and every auto-advance.
+  Future<void> setUpcomingGaplessItem(
+    Song expectedCurrentSong,
+    GaplessPlaybackItem? upcoming,
+  ) async {
+    if (_isCastMode || _currentSong?.id != expectedCurrentSong.id) return;
+
+    final currentIndex = _player.currentIndex;
+    if (currentIndex == null ||
+        currentIndex < 0 ||
+        currentIndex >= _playlistItems.length) {
+      return;
+    }
+
+    final removeStart = currentIndex + 1;
+    if (removeStart < _playlistItems.length) {
+      await _player.removeAudioSourceRange(
+        removeStart,
+        _playlistItems.length,
+      );
+      _playlistItems = _playlistItems.sublist(0, removeStart);
+    }
+
+    if (upcoming != null && _currentSong?.id == expectedCurrentSong.id) {
+      await _player.addAudioSource(
+        AudioSource.uri(
+          Uri.parse(upcoming.streamUrl),
+          tag: upcoming.song.id,
+        ),
+      );
+      _playlistItems = [..._playlistItems, upcoming];
+    }
+    _broadcastPlaylistQueue();
+  }
+
+  void _activatePlaylistItem(GaplessPlaybackItem item) {
+    _currentSong = item.song;
+    mediaItem.add(
+      _songToMediaItem(
+        item.song,
+        item.streamUrl,
+        artworkUri: item.artworkUri,
+      ),
+    );
+    _broadcastPlaylistQueue();
+  }
+
+  void _broadcastPlaylistQueue() {
+    queue.add(
+      _playlistItems
+          .map(
+            (playlistItem) => _songToMediaItem(
+              playlistItem.song,
+              playlistItem.streamUrl,
+              artworkUri: playlistItem.artworkUri,
+            ),
+          )
+          .toList(growable: false),
+    );
   }
 
   /// Broadcast the current playback state to the system
@@ -226,7 +380,7 @@ class AriamiAudioHandler extends BaseAudioHandler
         updatePosition: _player.position,
         bufferedPosition: _player.bufferedPosition,
         speed: _player.speed,
-        queueIndex: 0, // Will be updated when we implement queue support
+        queueIndex: _player.currentIndex ?? 0,
       ),
     );
   }
@@ -383,6 +537,9 @@ class AriamiAudioHandler extends BaseAudioHandler
     // Clear the current media item
     mediaItem.add(null);
     _currentSong = null;
+    _playlistItems = const [];
+    _activePlaylistIndex = null;
+    queue.add(const []);
 
     // Update state to stopped
     playbackState.add(playbackState.value.copyWith(
@@ -497,6 +654,7 @@ class AriamiAudioHandler extends BaseAudioHandler
     await _skipNextController.close();
     await _skipPreviousController.close();
     await _seekController.close();
+    await _gaplessTransitionController.close();
     await _player.dispose();
     await super.stop();
   }

@@ -113,6 +113,7 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
     _oneShotQueuedSongs.add(queuedSong);
     _lastWarmupKey = null;
     _warmNextStreamInBackground(_qualityService.getCurrentStreamingQuality());
+    unawaited(_refreshGaplessQueue());
     _notifyStateChanged();
     unawaited(_saveState());
   }
@@ -125,6 +126,7 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
     }
     _lastWarmupKey = null;
     _warmNextStreamInBackground(_qualityService.getCurrentStreamingQuality());
+    unawaited(_refreshGaplessQueue());
     _notifyStateChanged();
     unawaited(_saveState());
   }
@@ -135,6 +137,7 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
     _oneShotQueuedSongs.add(queuedSong);
     _lastWarmupKey = null;
     _warmNextStreamInBackground(_qualityService.getCurrentStreamingQuality());
+    unawaited(_refreshGaplessQueue());
     _notifyStateChanged();
     unawaited(_saveState());
   }
@@ -375,6 +378,7 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
         _lastWarmupKey = null;
         _warmNextStreamInBackground(
             _qualityService.getCurrentStreamingQuality());
+        unawaited(_refreshGaplessQueue());
         _notifyStateChanged();
         unawaited(_saveState());
         return;
@@ -470,6 +474,7 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
     }
 
     _notifyStateChanged();
+    unawaited(_refreshGaplessQueue());
     await _saveState(); // Save state after shuffle toggle
   }
 
@@ -505,12 +510,14 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
     }
 
     _queue.setQueue([...songs.sublist(0, c), ...displayed], currentIndex: c);
+    unawaited(_refreshGaplessQueue());
     _notifyStateChanged();
     unawaited(_saveState());
   }
 
   void _toggleRepeatImpl() async {
     _repeatMode = _repeatMode.next;
+    unawaited(_refreshGaplessQueue());
     _notifyStateChanged();
     await _saveState(); // Save state after repeat toggle
   }

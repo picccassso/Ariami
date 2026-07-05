@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../../services/api/connection_service.dart';
+import '../../services/audio/gapless_playback_service.dart';
 import '../../services/offline/offline_manual_reconnect.dart';
 import '../../services/offline/offline_playback_service.dart';
 import '../../services/profile_image_service.dart';
@@ -22,6 +23,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final OfflinePlaybackService _offlineService = OfflinePlaybackService();
   final ConnectionService _connectionService = ConnectionService();
   final ProfileImageService _profileImageService = ProfileImageService();
+  final GaplessPlaybackService _gaplessPlaybackService =
+      GaplessPlaybackService();
   bool _isOfflineModeEnabled = false;
   bool _isReconnecting = false;
   StreamSubscription<OfflineMode>? _offlineSubscription;
@@ -31,6 +34,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     super.initState();
     _loadVersion();
     _initOfflineService();
+    _gaplessPlaybackService.initialize();
     unawaited(_profileImageService.initialize());
   }
 
@@ -222,7 +226,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         elevation: 0,
       ),
       body: ListenableBuilder(
-        listenable: _profileImageService,
+        listenable: Listenable.merge([
+          _profileImageService,
+          _gaplessPlaybackService,
+        ]),
         builder: (context, _) {
           return ListView(
             padding: EdgeInsets.only(
@@ -272,6 +279,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
               SettingsSection(
                 title: 'AUDIO',
                 tiles: [
+                  SettingsTile(
+                    icon: Icons.playlist_play_rounded,
+                    title: 'Gapless Playback',
+                    subtitle: 'Play consecutive tracks without pauses',
+                    onTap: () => _gaplessPlaybackService.setEnabled(
+                      !_gaplessPlaybackService.isEnabled,
+                    ),
+                    trailing: Switch(
+                      value: _gaplessPlaybackService.isEnabled,
+                      activeThumbColor: colorScheme.onPrimary,
+                      activeTrackColor: colorScheme.primary,
+                      inactiveThumbColor: colorScheme.onSurfaceVariant,
+                      inactiveTrackColor: colorScheme.surfaceContainerHighest,
+                      onChanged: _gaplessPlaybackService.setEnabled,
+                    ),
+                  ),
                   SettingsTile(
                     icon: Icons.equalizer_rounded,
                     title: 'Equalizer',

@@ -13,6 +13,8 @@ import '../models/repeat_mode.dart';
 import '../models/api_models.dart';
 import '../models/download_task.dart';
 import 'audio/audio_player_service.dart';
+import 'audio/audio_handler.dart';
+import 'audio/gapless_playback_service.dart';
 import 'audio/shuffle_service.dart';
 import 'audio/playback_state_manager.dart';
 import 'api/connection_service.dart';
@@ -45,6 +47,7 @@ class PlaybackManager extends ChangeNotifier {
 
   // Dependencies
   final AudioPlayerService _audioPlayer = AudioPlayerService();
+  final GaplessPlaybackService _gaplessPlayback = GaplessPlaybackService();
   final ShuffleService<Song> _shuffleService = ShuffleService<Song>();
   final ConnectionService _connectionService = ConnectionService();
   final PlaybackStateManager _stateManager = PlaybackStateManager();
@@ -69,6 +72,7 @@ class PlaybackManager extends ChangeNotifier {
   StreamSubscription<void>? _skipNextSubscription;
   StreamSubscription<void>? _skipPreviousSubscription;
   StreamSubscription<Duration>? _seekSubscription;
+  StreamSubscription<GaplessPlaybackTransition>? _gaplessTransitionSubscription;
   StreamSubscription<double>? _volumeSubscription;
 
   // True when local playback was auto-paused because the device media volume
@@ -89,6 +93,8 @@ class PlaybackManager extends ChangeNotifier {
   bool _isHandlingCastCompletion = false;
   Timer? _castStatsForwardTimer;
   String? _lastWarmupKey;
+  int _gaplessRefreshGeneration = 0;
+  bool _isHandlingGaplessTransition = false;
 
   // Getters
   //
@@ -456,6 +462,8 @@ class PlaybackManager extends ChangeNotifier {
     _shuffleService.reset();
     _restoredPosition = null;
     _pendingUiPosition = null;
+    _gaplessPlayback.initialize();
+    _gaplessPlayback.addListener(_onGaplessPreferenceChanged);
 
     _castService.initialize();
     _castService.addListener(_onCastStateChanged);
@@ -471,7 +479,9 @@ class PlaybackManager extends ChangeNotifier {
 
     // Listen to duration updates
     _durationSubscription = _audioPlayer.durationStream.listen((duration) {
-      if (duration != null && duration > Duration.zero) {
+      if (duration != null &&
+          duration > Duration.zero &&
+          _audioPlayer.currentSong?.id == _queue.currentSong?.id) {
         _updateCurrentSongDuration(duration);
       }
       notifyListeners();
@@ -512,6 +522,11 @@ class PlaybackManager extends ChangeNotifier {
 
     _seekSubscription = _audioPlayer.seekStream.listen((_) {
       _statsService.markPositionDiscontinuity();
+    });
+
+    _gaplessTransitionSubscription =
+        _audioPlayer.gaplessTransitionStream.listen((transition) {
+      unawaited(_handleGaplessTransition(transition));
     });
 
     // Mute when silent, unmute when unsilenced: pause local playback when the
@@ -839,6 +854,17 @@ class PlaybackManager extends ChangeNotifier {
   /// Internal: Handle song completion
   Future<void> _onSongCompleted() => _onSongCompletedImpl();
 
+  void _onGaplessPreferenceChanged() {
+    unawaited(_refreshGaplessQueue());
+  }
+
+  Future<void> _refreshGaplessQueue() => _refreshGaplessQueueImpl();
+
+  Future<void> _handleGaplessTransition(
+    GaplessPlaybackTransition transition,
+  ) =>
+      _handleGaplessTransitionImpl(transition);
+
   /// Save current playback state to device storage
   Future<void> _saveState() => _saveStateImpl();
 
@@ -905,6 +931,8 @@ class PlaybackManager extends ChangeNotifier {
     _skipNextSubscription?.cancel();
     _skipPreviousSubscription?.cancel();
     _seekSubscription?.cancel();
+    _gaplessTransitionSubscription?.cancel();
+    _gaplessPlayback.removeListener(_onGaplessPreferenceChanged);
     _volumeSubscription?.cancel();
     FlutterVolumeController.removeListener();
     super.dispose();
