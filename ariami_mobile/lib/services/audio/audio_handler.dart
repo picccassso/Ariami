@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 import '../../models/song.dart';
 import '../cast/chrome_cast_service.dart';
+import 'equalizer_service.dart';
 
 /// AudioHandler implementation for Ariami
 /// This creates a foreground service that keeps the app alive during music playback
@@ -11,7 +12,12 @@ import '../cast/chrome_cast_service.dart';
 class AriamiAudioHandler extends BaseAudioHandler
     with QueueHandler, SeekHandler {
   // The underlying audio player
-  final AudioPlayer _player = AudioPlayer();
+  final AudioPlayer _player = AudioPlayer(
+    audioPipeline: AudioPipeline(
+      androidAudioEffects: [EqualizerService().androidEqualizer],
+      darwinAudioEffects: [EqualizerService().darwinEqualizer],
+    ),
+  );
 
   // Current song being played
   Song? _currentSong;

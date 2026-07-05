@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'settings_screen.dart';
 import '../settings/connection_settings_screen.dart';
 import '../settings/downloads/downloads_screen.dart';
+import '../settings/equalizer_screen.dart';
 import '../settings/import_export_screen.dart';
 import '../settings/quality_settings_screen.dart';
 import '../settings/streaming_stats_screen.dart';
@@ -47,6 +48,9 @@ class SettingsNavigator extends StatelessWidget {
             break;
           case '/quality':
             page = const QualitySettingsScreen();
+            break;
+          case '/equalizer':
+            page = const EqualizerScreen();
             break;
           case '/profile':
             page = const ProfileScreen();

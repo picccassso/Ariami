@@ -91,6 +91,12 @@ dependencies:
   lucide_icons_flutter: ^3.1.14
   flutter_volume_controller: ^2.0.1
 
+# Vendored fork of just_audio that adds a native iOS/macOS equalizer
+# (DarwinEqualizer via MTAudioProcessingTap) — see third_party/just_audio.
+dependency_overrides:
+  just_audio:
+    path: third_party/just_audio
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

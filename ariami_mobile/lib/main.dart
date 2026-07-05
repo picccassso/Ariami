@@ -15,6 +15,7 @@ import 'screens/register_screen.dart';
 import 'models/server_info.dart';
 import 'services/api/connection_service.dart';
 import 'services/audio/audio_handler.dart';
+import 'services/audio/equalizer_service.dart';
 import 'services/offline/offline_playback_service.dart';
 import 'services/profile_image_service.dart';
 import 'services/download/download_manager.dart';
@@ -85,6 +86,11 @@ void main() async {
     } catch (e) {
       print('[Main] ⚠️ Failed to configure AudioSession: $e');
     }
+
+    // Initialize equalizer settings in the background after audio is ready.
+    // ignore: avoid_print
+    print('[Main] Starting EqualizerService initialization...');
+    unawaited(EqualizerService().initialize());
   } catch (e, stackTrace) {
     print('[Main] ❌ ERROR initializing AudioService!');
     print('[Main] Error type: ${e.runtimeType}');

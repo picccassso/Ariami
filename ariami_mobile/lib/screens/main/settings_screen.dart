@@ -225,127 +225,144 @@ class _SettingsScreenState extends State<SettingsScreen> {
         listenable: _profileImageService,
         builder: (context, _) {
           return ListView(
-        padding: EdgeInsets.only(
-          bottom: getMiniPlayerScrollBottomPadding(context),
-        ),
-        children: [
-          _buildUserProfileHeader(),
-          // Connection section
-          SettingsSection(
-            title: 'CONNECTION',
-            tiles: [
-              SettingsTile(
-                icon: Icons.cloud_done_rounded,
-                title: 'Connection Status',
-                subtitle: 'View server connection details',
-                onTap: () {
-                  Navigator.of(context).pushNamed('/connection');
-                },
+            padding: EdgeInsets.only(
+              bottom: getMiniPlayerScrollBottomPadding(context),
+            ),
+            children: [
+              _buildUserProfileHeader(),
+              // Connection section
+              SettingsSection(
+                title: 'CONNECTION',
+                tiles: [
+                  SettingsTile(
+                    icon: Icons.cloud_done_rounded,
+                    title: 'Connection Status',
+                    subtitle: 'View server connection details',
+                    onTap: () {
+                      Navigator.of(context).pushNamed('/connection');
+                    },
+                  ),
+                  SettingsTile(
+                    icon: Icons.wifi_off_rounded,
+                    title: 'Offline Mode',
+                    subtitle: _isReconnecting
+                        ? 'Reconnecting...'
+                        : _getOfflineModeSubtitle(),
+                    trailing: _isReconnecting
+                        ? const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Switch(
+                            value: _isOfflineModeEnabled,
+                            activeThumbColor: colorScheme.onPrimary,
+                            activeTrackColor: colorScheme.primary,
+                            inactiveThumbColor: colorScheme.onSurfaceVariant,
+                            inactiveTrackColor:
+                                colorScheme.surfaceContainerHighest,
+                            onChanged: (value) =>
+                                _handleOfflineModeToggle(value),
+                          ),
+                  ),
+                ],
               ),
-              SettingsTile(
-                icon: Icons.wifi_off_rounded,
-                title: 'Offline Mode',
-                subtitle: _isReconnecting
-                    ? 'Reconnecting...'
-                    : _getOfflineModeSubtitle(),
-                trailing: _isReconnecting
-                    ? const SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : Switch(
-                        value: _isOfflineModeEnabled,
-                        activeThumbColor: colorScheme.onPrimary,
-                        activeTrackColor: colorScheme.primary,
-                        inactiveThumbColor: colorScheme.onSurfaceVariant,
-                        inactiveTrackColor: colorScheme.surfaceContainerHighest,
-                        onChanged: (value) => _handleOfflineModeToggle(value),
-                      ),
-              ),
-            ],
-          ),
 
-          // Downloads section
-          SettingsSection(
-            title: 'DOWNLOADS',
-            tiles: [
-              SettingsTile(
-                icon: Icons.download_rounded,
-                title: 'Manage Downloads',
-                subtitle: 'View storage and downloaded songs',
-                onTap: () {
-                  Navigator.of(context).pushNamed('/downloads');
-                },
+              // Audio section
+              SettingsSection(
+                title: 'AUDIO',
+                tiles: [
+                  SettingsTile(
+                    icon: Icons.equalizer_rounded,
+                    title: 'Equalizer',
+                    subtitle: 'Presets and frequency bands',
+                    onTap: () {
+                      Navigator.of(context).pushNamed('/equalizer');
+                    },
+                  ),
+                  SettingsTile(
+                    icon: Icons.high_quality_rounded,
+                    title: 'Streaming Quality',
+                    subtitle: 'Configure audio quality settings',
+                    onTap: () {
+                      Navigator.of(context).pushNamed('/quality');
+                    },
+                  ),
+                ],
               ),
-              SettingsTile(
-                icon: Icons.high_quality_rounded,
-                title: 'Streaming Quality',
-                subtitle: 'Configure audio quality settings',
-                onTap: () {
-                  Navigator.of(context).pushNamed('/quality');
-                },
-              ),
-              SettingsTile(
-                icon: Icons.import_export_rounded,
-                title: 'Import / Export',
-                subtitle: 'Import or Export Stats & Playlists',
-                onTap: () {
-                  Navigator.of(context).pushNamed('/import-export');
-                },
-              ),
-            ],
-          ),
 
-          // Statistics section
-          SettingsSection(
-            title: 'STREAMING STATS',
-            tiles: [
-              SettingsTile(
-                icon: Icons.bar_chart_rounded,
-                title: 'Listening Statistics',
-                subtitle: 'View your listening habits',
-                onTap: () {
-                  Navigator.of(context).pushNamed('/stats');
-                },
+              // Downloads section
+              SettingsSection(
+                title: 'DOWNLOADS',
+                tiles: [
+                  SettingsTile(
+                    icon: Icons.download_rounded,
+                    title: 'Manage Downloads',
+                    subtitle: 'View storage and downloaded songs',
+                    onTap: () {
+                      Navigator.of(context).pushNamed('/downloads');
+                    },
+                  ),
+                  SettingsTile(
+                    icon: Icons.import_export_rounded,
+                    title: 'Import / Export',
+                    subtitle: 'Import or Export Stats & Playlists',
+                    onTap: () {
+                      Navigator.of(context).pushNamed('/import-export');
+                    },
+                  ),
+                ],
               ),
-              SettingsTile(
-                icon: Icons.refresh_rounded,
-                title: 'Reset Statistics',
-                subtitle: 'Clear all play counts and data',
-                onTap: () {
-                  _showResetStatsDialog();
-                },
-              ),
-            ],
-          ),
 
-          // About section
-          SettingsSection(
-            title: 'ABOUT',
-            tiles: [
-              SettingsTile(
-                icon: Icons.info_outline_rounded,
-                title: 'Version',
-                subtitle: _version,
-                onTap: () {
-                  _showAboutDialog();
-                },
+              // Statistics section
+              SettingsSection(
+                title: 'STREAMING STATS',
+                tiles: [
+                  SettingsTile(
+                    icon: Icons.bar_chart_rounded,
+                    title: 'Listening Statistics',
+                    subtitle: 'View your listening habits',
+                    onTap: () {
+                      Navigator.of(context).pushNamed('/stats');
+                    },
+                  ),
+                  SettingsTile(
+                    icon: Icons.refresh_rounded,
+                    title: 'Reset Statistics',
+                    subtitle: 'Clear all play counts and data',
+                    onTap: () {
+                      _showResetStatsDialog();
+                    },
+                  ),
+                ],
               ),
-              SettingsTile(
-                icon: Icons.description_outlined,
-                title: 'Licenses',
-                subtitle: 'Third-party licenses',
-                onTap: () {
-                  showLicensePage(context: context);
-                },
-              ),
-            ],
-          ),
 
-          const SizedBox(height: 32),
-        ],
-      );
+              // About section
+              SettingsSection(
+                title: 'ABOUT',
+                tiles: [
+                  SettingsTile(
+                    icon: Icons.info_outline_rounded,
+                    title: 'Version',
+                    subtitle: _version,
+                    onTap: () {
+                      _showAboutDialog();
+                    },
+                  ),
+                  SettingsTile(
+                    icon: Icons.description_outlined,
+                    title: 'Licenses',
+                    subtitle: 'Third-party licenses',
+                    onTap: () {
+                      showLicensePage(context: context);
+                    },
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 32),
+            ],
+          );
         },
       ),
     );
