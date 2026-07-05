@@ -6,6 +6,54 @@ Thank you for those that actually support and use this project at all! :D
 
 ---
 
+## Unreleased
+
+This update makes Ariami feel much more connected across devices, with shared playback, listening stats, pins, profile pictures, and playlist edits, while also making the CLI far easier to run headlessly, in Docker, and across more platforms. There is a lot packed into this one, and I hope it makes both listening and self-hosting feel better than ever! :D
+
+### Highlights
+
+- Added Ariami Connect for transferring, mirroring, and controlling playback across signed-in clients, with more reliable handoffs and disconnect recovery.
+- Synced listening statistics, pinned albums and playlists, and profile pictures across each account's devices.
+- Added non-destructive cross-client playlist editing with mobile offline support and live updates.
+- Added complete CLI Docker packaging with a multi-stage image, Docker Compose, Linux host networking, and container-friendly setup.
+- Overhauled the headless CLI experience with clearer startup details, new server flags, a real health-checking status command, and better diagnostics.
+- Added automated CLI release archives for Linux x64, Raspberry Pi arm64, macOS arm64, and Windows x64, including a Windows launcher and startup coverage.
+- Unified Ariami Connect and Google Cast into one responsive playback-output chooser across the mobile full player and mini player.
+
+### Full changes
+
+- Added Ariami Connect playback transfers, remote queue selection, and playback control across signed-in clients
+- Added live remote playback mirroring for the current song, queue, progress, play state, shuffle, and repeat controls
+- Fixed Connect state recovery after reconnects and server restarts so clients no longer remained stuck on stale playback
+- Fixed repeated Connect handoffs drifting in position or missing the first playback update after a transfer
+- Added automatic Connect playback failover to the most recent controller when the active player disconnects, while allowing quick reconnects to reclaim the session safely
+- Fixed repeat-one carrying across explicit Connect skips, queue selections, and remote play requests
+- Unified Ariami Connect and Google Cast into one mobile playback-output chooser and removed duplicated player and settings controls
+- Allowed an account to remain signed in on multiple distinct devices while replacing stale sessions from the same installation
+- Bound stream tickets to their requested quality so concurrent clients could not reuse a ticket for a different stream profile
+- Added account-wide listening statistics with durable offline event queues, idempotent server rollups, live refreshes, account isolation, and backup import compatibility
+- Synced pinned albums and playlists per account with live updates while preserving offline fallback data
+- Added server-synced JPEG and PNG profile pictures that can be uploaded, changed, or removed from the mobile profile screen
+- Added per-account server playlist renaming, reordering, adding, and removing as non-destructive edits that survive library rescans
+- Synced imported mobile playlist copies with server edits in both directions and queued offline changes for replay after reconnecting
+- Fixed mobile playlist edits loading during startup, reconnects, manual refreshes, and live update notifications
+- Added Remove from Playlist to each playlist song's overflow menu as an alternative to swiping
+- Added a unified CLI startup summary with dashboard and network addresses, data and music paths, authentication state, and security guidance
+- Added `--no-browser`, `--verbose`, and persisted `--host` CLI start options plus `ARIAMI_DATA_DIR` for relocating server data
+- Upgraded `ariami_cli status` into a health check with PID, uptime, live reachability, build mismatch detection, and data and backup details
+- Fixed headless first-run prompts at end-of-input, graceful shutdowns that could leave the process alive, and hidden shutdown messages during setup
+- Improved CLI startup and usage errors with actionable stderr output, optional stack traces, and correct usage exit codes
+- Added a headless-server guide covering SSH setup, backups, updates, systemd, security, and manual checks
+- Added a release workflow that builds and verifies CLI archives for Linux x64, Raspberry Pi arm64, macOS arm64, and Windows x64
+- Added a Windows CLI launcher and expanded setup instructions for each supported platform
+- Fixed the CLI crashing at startup on Windows when it tried to watch an unsupported termination signal
+- Added a multi-stage CLI Docker image, Docker Compose configuration, persistent data volume, health check, and server-mode process handling
+- Added zero-configuration host networking for CLI containers on Linux
+- Added `ARIAMI_ADVERTISED_HOST`, `ARIAMI_ADVERTISED_LAN_HOST`, and `ARIAMI_ADVERTISED_TAILSCALE_HOST` overrides so container pairing advertises reachable addresses
+- Made the setup wizard detect containers, complete setup without an unavailable background transition, and explain container networking on the Tailscale step
+
+---
+
 ## 4.4.0
 
 Ariami 4.4.0 is the biggest reliability and polish release so far, with 100+ commits focused on setup, security, Raspberry Pi performance, downloads/offline playback, queue reliability, mobile polish, CI/release builds, start-on-boot, and safe reset tools.
