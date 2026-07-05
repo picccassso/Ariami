@@ -84,7 +84,7 @@ class EqualizerService extends ChangeNotifier {
   List<double> _currentBandGains = [];
   Timer? _persistTimer;
 
-  static bool get _isAndroid {
+  static bool get isAndroidPlatform {
     if (kIsWeb) return false;
     try {
       return Platform.isAndroid;
@@ -93,7 +93,7 @@ class EqualizerService extends ChangeNotifier {
     }
   }
 
-  static bool get _isDarwin {
+  static bool get isDarwinPlatform {
     if (kIsWeb) return false;
     try {
       return Platform.isIOS || Platform.isMacOS;
@@ -102,7 +102,7 @@ class EqualizerService extends ChangeNotifier {
     }
   }
 
-  bool get isSupported => _isAndroid || _isDarwin;
+  bool get isSupported => isAndroidPlatform || isDarwinPlatform;
 
   bool get isEnabled => _isEnabled;
   String get selectedPresetName => _selectedPresetName;
@@ -256,7 +256,7 @@ class EqualizerService extends ChangeNotifier {
       } catch (e) {
         debugPrint('[EqualizerService] Error applying enabled state: $e');
       }
-      if (_isDarwin) {
+      if (isDarwinPlatform) {
         // The fork's DarwinEqualizer has a fixed band layout known upfront.
         final darwinParams = darwinEqualizer.parameters;
         _parameters = EqParameters(
@@ -366,19 +366,19 @@ class EqualizerService extends ChangeNotifier {
   }
 
   Future<void> _applyEnabled() async {
-    if (_isAndroid) {
+    if (isAndroidPlatform) {
       await androidEqualizer.setEnabled(_isEnabled);
-    } else if (_isDarwin) {
+    } else if (isDarwinPlatform) {
       await darwinEqualizer.setEnabled(_isEnabled);
     }
   }
 
   Future<void> _setDeviceBandGain(int bandIndex, double gainDb) async {
-    if (_isAndroid) {
+    if (isAndroidPlatform) {
       final params = _androidParameters;
       if (params == null) return;
       await params.bands[bandIndex].setGain(gainDb);
-    } else if (_isDarwin) {
+    } else if (isDarwinPlatform) {
       await darwinEqualizer.parameters.bands[bandIndex].setGain(gainDb);
     }
   }

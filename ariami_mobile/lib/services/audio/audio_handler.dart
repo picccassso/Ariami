@@ -12,10 +12,18 @@ import 'equalizer_service.dart';
 class AriamiAudioHandler extends BaseAudioHandler
     with QueueHandler, SeekHandler {
   // The underlying audio player
+  // Each platform must only receive its own equalizer: just_audio activates
+  // every effect in the pipeline regardless of platform, and activating
+  // AndroidEqualizer on iOS calls an Android-only channel method that
+  // aborts every load (playback spins forever).
   final AudioPlayer _player = AudioPlayer(
     audioPipeline: AudioPipeline(
-      androidAudioEffects: [EqualizerService().androidEqualizer],
-      darwinAudioEffects: [EqualizerService().darwinEqualizer],
+      androidAudioEffects: EqualizerService.isAndroidPlatform
+          ? [EqualizerService().androidEqualizer]
+          : const [],
+      darwinAudioEffects: EqualizerService.isDarwinPlatform
+          ? [EqualizerService().darwinEqualizer]
+          : const [],
     ),
   );
 

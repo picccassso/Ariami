@@ -1,6 +1,10 @@
 #import "./include/just_audio/JAEqualizer.h"
 #import <MediaToolbox/MediaToolbox.h>
+#import <objc/runtime.h>
 #import <stdatomic.h>
+
+// Associated-object key marking items whose tap attach is already underway.
+static char kJAEqAttachRequestedKey;
 #import <math.h>
 #import <stdlib.h>
 #import <string.h>
@@ -207,7 +211,37 @@ static void ja_eq_tap_process(MTAudioProcessingTapRef tap, CMItemCount numberFra
 
 - (void)attachToPlayerItem:(AVPlayerItem *)item {
     if (item.audioMix) return;
-    NSArray<AVAssetTrack *> *tracks = [item.asset tracksWithMediaType:AVMediaTypeAudio];
+    if (objc_getAssociatedObject(item, &kJAEqAttachRequestedKey)) return;
+    objc_setAssociatedObject(item, &kJAEqAttachRequestedKey, @YES,
+                             OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+
+    // Synchronous asset-property access throws on modern iOS, and any
+    // exception here would abort the caller's status handling and hang
+    // playback — load the tracks asynchronously and never let a failure
+    // escape: worst case the tap silently isn't attached and audio plays
+    // unequalized.
+    AVAsset *asset = item.asset;
+    [asset loadValuesAsynchronouslyForKeys:@[@"tracks"] completionHandler:^{
+        dispatch_async(dispatch_get_main_queue(), ^{
+            @try {
+                NSError *error = nil;
+                if ([asset statusOfValueForKey:@"tracks" error:&error] !=
+                    AVKeyValueStatusLoaded) {
+                    NSLog(@"[JAEqualizer] tracks failed to load: %@", error);
+                    return;
+                }
+                [self attachLoadedTracksOfItem:item];
+            } @catch (NSException *exception) {
+                NSLog(@"[JAEqualizer] attach failed: %@", exception);
+            }
+        });
+    }];
+}
+
+- (void)attachLoadedTracksOfItem:(AVPlayerItem *)item {
+    if (item.audioMix) return;
+    NSArray<AVAssetTrack *> *tracks =
+        [item.asset tracksWithMediaType:AVMediaTypeAudio];
     if (tracks.count == 0) return;
 
     MTAudioProcessingTapCallbacks callbacks;
