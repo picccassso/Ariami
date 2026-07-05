@@ -76,6 +76,16 @@ extension _DownloadManagerInitializationImpl on DownloadManager {
     _initialized = true;
     print('DownloadManager initialized');
 
+    // The saved queue was enqueued before the internal queue listener was
+    // attached, so that load never reached [queueStream] (broadcast streams
+    // drop events with no listeners) and never invalidated the scoped-queue
+    // cache. A screen opened during initialization has therefore read — and
+    // cached — an empty queue, and on an offline cold launch no later
+    // connect/disconnect event arrives to correct it, leaving downloads
+    // looking absent until the queue next changes. Broadcast the restored
+    // scoped queue now so early-built consumers converge on the real state.
+    _refreshScopedQueueBroadcastImpl();
+
     // Remove stale local files that no longer have queue metadata.
     unawaited(_cleanupStaleDownloadFiles());
 
