@@ -392,6 +392,43 @@ class ServerPlaylist {
   }
 }
 
+/// Per-account edit overlay for a server-side playlist.
+class ServerPlaylistEdit {
+  final String playlistId;
+  final String? name;
+  final List<String> songIds;
+  final List<String> baseSnapshot;
+
+  ServerPlaylistEdit({
+    required this.playlistId,
+    required this.name,
+    required this.songIds,
+    required this.baseSnapshot,
+  });
+
+  factory ServerPlaylistEdit.fromJson(Map<String, dynamic> json) {
+    final rawName = json['name'] as String?;
+    return ServerPlaylistEdit(
+      playlistId: json['playlistId'] as String,
+      name: rawName == null ? null : EncodingUtils.fixEncoding(rawName),
+      songIds: (json['songIds'] as List<dynamic>? ?? const <dynamic>[])
+          .cast<String>(),
+      baseSnapshot:
+          (json['baseSnapshot'] as List<dynamic>? ?? const <dynamic>[])
+              .cast<String>(),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'playlistId': playlistId,
+      'name': name,
+      'songIds': songIds,
+      'baseSnapshot': baseSnapshot,
+    };
+  }
+}
+
 /// Complete library response
 class LibraryResponse {
   final List<AlbumModel> albums;

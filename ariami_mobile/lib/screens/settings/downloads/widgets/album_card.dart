@@ -116,7 +116,7 @@ class AlbumCard extends StatelessWidget {
                         child: IconButton(
                           icon: Icon(
                             Icons.delete_outline_rounded,
-                            color: const Color(0xFFFF4B4B).withOpacity(0.8),
+                            color: const Color(0xFFFF4B4B).withValues(alpha: 0.8),
                             size: 20,
                           ),
                           onPressed: onDeleteAlbum,
@@ -144,7 +144,7 @@ class AlbumCard extends StatelessWidget {
               if (isExpanded)
                 Container(
                   color:
-                      isDark ? Colors.black.withOpacity(0.3) : Colors.grey[50],
+                      isDark ? Colors.black.withValues(alpha: 0.3) : Colors.grey[50],
                   child: Column(
                     children: songs.asMap().entries.map((entry) {
                       final index = entry.key;

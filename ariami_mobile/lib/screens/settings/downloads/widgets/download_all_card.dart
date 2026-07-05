@@ -224,8 +224,8 @@ class DownloadAllRow extends StatelessWidget {
                       size: 24,
                       color: effectivelyDisabled
                           ? (isDark
-                              ? Colors.white.withOpacity(0.1)
-                              : Colors.black.withOpacity(0.1))
+                              ? Colors.white.withValues(alpha: 0.1)
+                              : Colors.black.withValues(alpha: 0.1))
                           : (isDark ? Colors.white : Colors.black),
                     ),
                     onPressed:

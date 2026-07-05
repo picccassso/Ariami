@@ -8,9 +8,12 @@ export 'models/album.dart';
 export 'models/api_models.dart';
 export 'models/artwork_size.dart';
 export 'models/auth_models.dart';
+export 'models/connect_models.dart';
 export 'models/file_change.dart';
 export 'models/folder_playlist.dart';
 export 'models/library_structure.dart';
+export 'models/listening_stats_models.dart';
+export 'models/pinned_item.dart';
 export 'models/quality_preset.dart';
 export 'models/scan_result.dart';
 export 'models/song_metadata.dart';
@@ -44,6 +47,9 @@ export 'services/server/network_endpoint_monitor.dart';
 export 'services/server/server_port_policy.dart';
 export 'services/server/stream_tracker.dart';
 export 'services/server/streaming_service.dart';
+export 'services/connect/connect_hub.dart';
+export 'services/connect/connect_client.dart';
+export 'services/connect/remote_playback.dart';
 
 // Transcoding Services
 export 'services/transcoding/transcode_slots_policy.dart';
@@ -51,6 +57,13 @@ export 'services/transcoding/transcoding_service.dart';
 
 // Artwork Services
 export 'services/artwork/artwork_service.dart';
+
+// Listening Stats Services
+export 'services/stats/listening_event_outbox.dart';
+export 'services/stats/listening_event_tracker.dart';
+export 'services/stats/listening_stats_store.dart';
+export 'services/stats/listening_stats_syncer.dart';
+export 'services/pins/pinned_item_store.dart';
 
 // Auth Services
 export 'services/auth/auth_service.dart';

@@ -1,43 +1,79 @@
-ARIAMI CLI - RASPBERRY PI SETUP
-================================
+ARIAMI CLI - HEADLESS SERVER SETUP
+==================================
 
-REQUIREMENTS
-------------
-- Raspberry Pi 3, 4, or 5 (ARM64)
-- Raspberry Pi OS (64-bit)
-- unzip utility (usually pre-installed)
+Ariami CLI runs the full Ariami music server without a desktop UI. Setup is
+completed from a web browser on any device that can reach the server.
 
-INSTALLATION
+RELEASE ZIPS
 ------------
+- ariami-cli-raspberry-pi-arm64  Raspberry Pi 3/4/5 and any ARM64 Linux box
+- ariami-cli-linux-x64           Proxmox LXC, NAS, generic x86-64 Linux
+- ariami-cli-macos-arm64         Apple Silicon Macs
+- ariami-cli-windows-x64         Windows x64
+
+Linux builds need a 64-bit OS with glibc 2.35 or newer (Ubuntu 22.04,
+Debian 12, Raspberry Pi OS Bookworm, or newer).
+
+On Windows, replace "./ariami_cli" with ".\ariami_cli.bat" in every command
+below. Everything else works the same.
+
+INSTALLATION (Linux / Raspberry Pi / macOS)
+-------------------------------------------
 1. Extract the archive:
-   unzip ariami-cli-raspberry-pi-arm64-v4.4.0.zip
-   cd ariami-cli-raspberry-pi-arm64-v4.4.0
+   unzip ariami-cli-<platform>-v4.4.0.zip
+   cd ariami-cli-<platform>-v4.4.0
 
-2. Make the binary executable:
+2. Make the launcher executable:
    chmod +x ariami_cli
 
 3. Start the server:
    ./ariami_cli start
 
+macOS note: if the zip was downloaded through a browser, clear the
+quarantine flag once before starting:
+   xattr -dr com.apple.quarantine .
+
+INSTALLATION (Windows)
+----------------------
+1. Right-click the zip and Extract All, then open PowerShell in the
+   extracted folder.
+
+2. Start the server:
+   .\ariami_cli.bat start
+
+If Windows Defender SmartScreen warns about an unrecognized app, choose
+"More info" > "Run anyway". Allow access on private networks if the
+firewall prompt appears.
+
 FIRST RUN
 ---------
 On first run, the server will:
 - Ask whether Ariami should start automatically on boot (y/N)
+- Skip that prompt in non-interactive sessions, such as some SSH scripts
 - Start in foreground mode
-- Open a browser for setup once the server is ready
+- Print setup URLs when the server is ready
+- Open a browser automatically when possible, unless you pass --no-browser
 - Walk you through Tailscale (optional), music folder selection, and library scan
 - Prompt you to create the owner account (first account = server admin)
 - Show a QR code so phones can register or log in
 
 Complete these steps in the browser before setup is finished.
 
-If the browser does not open automatically, navigate to:
-http://localhost:8080
+If the browser does not open automatically, or if the machine has no
+desktop, open one of the printed URLs from any browser that can reach this
+machine. Use the "Same network" URL from another device on your LAN, or the
+Tailscale URL from a device signed in to the same tailnet.
+
+For a no-GUI first run:
+  ./ariami_cli start --no-browser
 
 USAGE
 -----
 Start server (background):
   ./ariami_cli start
+
+Start over SSH without opening a browser:
+  ./ariami_cli start --no-browser
 
 Check status:
   ./ariami_cli status
@@ -45,8 +81,15 @@ Check status:
 Stop server:
   ./ariami_cli stop
 
-Custom port:
+Preferred setup port:
   ./ariami_cli start --port 8081
+
+Bind address:
+  ./ariami_cli start --host 0.0.0.0
+  ./ariami_cli start --host 127.0.0.1
+
+Verbose startup errors:
+  ./ariami_cli start --verbose
 
 START ON BOOT
 -------------
@@ -61,8 +104,10 @@ Check the current setting:
 
 On first-time setup you are also asked this as a y/N question. Use the
 commands above to change it later, or to enable it on an install that was
-set up before this option existed. On Raspberry Pi this uses an "@reboot"
-crontab entry for the current user (no sudo required).
+set up before this option existed. This uses the platform's native
+mechanism: an "@reboot" crontab entry on Linux/Raspberry Pi (no sudo
+required), a LaunchAgent on macOS, and the current user's Run registry key
+on Windows.
 
 RESET
 -----
@@ -82,23 +127,59 @@ deleted. Non-interactive forms are available for scripts:
 
 CONFIGURATION
 -------------
-Configuration files are stored in:
-  ~/.ariami_cli/
+Configuration files are stored in the data directory:
+  Linux/macOS:  ~/.ariami_cli/
+  Windows:      C:\Users\<you>\.ariami_cli\
+
+Set ARIAMI_DATA_DIR to use a different data directory:
+  ARIAMI_DATA_DIR=/srv/ariami-data ./ariami_cli start
+
+Use the same ARIAMI_DATA_DIR value with status, stop, reset, and other CLI
+commands that should operate on that data directory.
 
 This includes:
-- Music folder path
-- Server settings
-- Process ID file
+- config.json          setup state, music folder path, server port,
+                       bind host, and CLI settings
+- users.json           user account records
+- sessions.json        active web/mobile sessions
+- catalog.db           persistent library catalog database
+- metadata_cache.json  library metadata cache
+- artwork_cache/       generated artwork thumbnails/cache
+- transcoded_cache/    generated audio transcode cache
+- ariami.pid           running server process ID
+- server.json          saved server state such as port, PID, and start time
+- server.log           startup/runtime log file, when present
+- autostart.log        boot log file created by autostart, when present
+
+The music folder itself is separate. Ariami stores the path to it in the
+data directory but does not copy your music into the data directory.
+
+Back up the whole data directory before upgrades or migrations, especially:
+  config.json
+  users.json
+  sessions.json
+  catalog.db
+  metadata_cache.json
+  artwork_cache/
+  transcoded_cache/
+
+Do not treat ariami.pid or server.json as a backup of the server. They are
+runtime state and can be recreated.
+
+Run this to see the active data directory:
+  ./ariami_cli status
 
 TRANSCODING
 -----------
-The release package includes:
-- lib/libsonic_transcoder.so
+The release package includes the Sonic transcoder library in lib/:
+  Linux:    libsonic_transcoder.so
+  macOS:    libsonic_transcoder.dylib
+  Windows:  sonic_transcoder.dll
 
 With this file present, low/medium quality requests transcode correctly.
 If low/medium requests fall back to high quality, verify:
-- The file exists at: ./lib/libsonic_transcoder.so
-- You started the server from the extracted release directory
+- The file exists in the lib/ folder of the extracted release
+- You started the server via the launcher from the extracted directory
 
 MOBILE APP
 ----------
@@ -110,8 +191,13 @@ TROUBLESHOOTING
 ---------------
 Server not responding:
 - Check if running: ./ariami_cli status
+- Read the Reachable line. It should say:
+  Reachable: yes — dashboard responding on port <port>
+- If Reachable says NO, stop and start the server:
+  ./ariami_cli stop
+  ./ariami_cli start
 - Check firewall allows port 8080 (or the port shown by status)
-- Check logs in foreground: ./ariami_cli start (after stopping)
+- Check startup errors with: ./ariami_cli start --verbose (after stopping)
 
 Port 8080 already in use:
 - Ariami tries 8081–8099 automatically on first start
@@ -120,13 +206,18 @@ Port 8080 already in use:
 
 Reset configuration:
 - Stop server: ./ariami_cli stop
-- Remove config: rm -rf ~/.ariami_cli/
+- Remove the data directory (Linux/macOS: rm -rf ~/.ariami_cli/)
 - Restart server: ./ariami_cli start
+
+SECURITY
+--------
+Keep Ariami on your LAN, Tailscale, or another VPN. Do not port-forward it
+to the public internet. Create the owner account immediately after setup.
 
 TAILSCALE (OPTIONAL)
 --------------------
 For remote access without port forwarding, install Tailscale:
-https://tailscale.com/download/linux/rpi
+https://tailscale.com/download
 
 The server will detect and use Tailscale if installed.
 

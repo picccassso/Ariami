@@ -17,6 +17,9 @@ extension AriamiHttpServerRouterMethods on AriamiHttpServer {
 
     _registerCoreRoutes(router);
     _registerSetupAndStatsRoutes(router);
+    _registerListeningStatsRoutes(router);
+    _registerPinsRoutes(router);
+    _registerPlaylistEditRoutes(router);
     _registerAuthAndAdminRoutes(router);
     _registerLibraryAndArtworkRoutes(router);
     _registerConnectionRoutes(router);
@@ -30,11 +33,95 @@ extension AriamiHttpServerRouterMethods on AriamiHttpServer {
     return router;
   }
 
+  void _registerPinsRoutes(Router router) {
+    router.get(
+      '/api/pins',
+      (request) => _handleProtectedV2Request(request, _handlePinsGet),
+    );
+    router.post(
+      '/api/pins',
+      (request) => _handleProtectedV2Request(request, _handlePinsPost),
+    );
+    router.delete(
+      '/api/pins/<type>/<targetId>',
+      (request, type, targetId) => _handleProtectedV2Request(
+        request,
+        (securedRequest) => _handlePinsDelete(
+          securedRequest,
+          type,
+          targetId,
+        ),
+      ),
+    );
+    router.post(
+      '/api/pins/import',
+      (request) => _handleProtectedV2Request(request, _handlePinsImport),
+    );
+  }
+
+  void _registerPlaylistEditRoutes(Router router) {
+    router.get(
+      '/api/playlists/edits',
+      (request) => _handleProtectedV2Request(request, _handlePlaylistEditsGet),
+    );
+    router.put(
+      '/api/playlists/<playlistId>/edit',
+      (request, playlistId) => _handleProtectedV2Request(
+        request,
+        (securedRequest) => _handlePlaylistEditPut(
+          securedRequest,
+          playlistId,
+        ),
+      ),
+    );
+    router.delete(
+      '/api/playlists/<playlistId>/edit',
+      (request, playlistId) => _handleProtectedV2Request(
+        request,
+        (securedRequest) => _handlePlaylistEditDelete(
+          securedRequest,
+          playlistId,
+        ),
+      ),
+    );
+  }
+
   void _registerCoreRoutes(Router router) {
     router.get('/api/ping', _handlePing);
     router.get('/api/tailscale/status', _handleTailscaleStatus);
     router.get('/api/server-info', _handleGetServerInfo);
     router.post('/api/server-info/refresh', _handleRefreshServerInfo);
+  }
+
+  /// Per-account listening statistics. Registered unconditionally (not gated
+  /// on the v2 feature flag): they are session-scoped and independent of the
+  /// catalog repository.
+  void _registerListeningStatsRoutes(Router router) {
+    router.post(
+      '/api/v2/listening/events',
+      (Request request) =>
+          _handleProtectedV2Request(request, _handleListeningEventsPost),
+    );
+    router.get(
+      '/api/v2/listening/summary',
+      (Request request) =>
+          _handleProtectedV2Request(request, _handleListeningSummaryGet),
+    );
+    router.get(
+      '/api/v2/listening/daily',
+      (Request request) =>
+          _handleProtectedV2Request(request, _handleListeningDailyGet),
+    );
+    router.get(
+      '/api/v2/listening/recent',
+      (Request request) =>
+          _handleProtectedV2Request(request, _handleListeningRecentGet),
+    );
+    router.post(
+      '/api/v2/listening/reset',
+      (Request request) =>
+          _handleProtectedV2Request(request, _handleListeningResetPost),
+    );
   }
 
   void _registerSetupAndStatsRoutes(Router router) {
@@ -55,9 +142,14 @@ extension AriamiHttpServerRouterMethods on AriamiHttpServer {
 
   void _registerAuthAndAdminRoutes(Router router) {
     router.post('/api/auth/register', _handleAuthRegister);
+    router.get('/api/auth/users', _handleAuthUsers);
+    router.get('/api/auth/user-avatar/<username>', _handlePublicUserAvatar);
     router.post('/api/auth/login', _handleAuthLogin);
     router.post('/api/auth/logout', _handleAuthLogout);
     router.get('/api/me', _handleGetMe);
+    router.put('/api/me/avatar', _handlePutMeAvatar);
+    router.get('/api/me/avatar', _handleGetMeAvatar);
+    router.delete('/api/me/avatar', _handleDeleteMeAvatar);
     router.post('/api/stream-ticket', _handleStreamTicket);
     router.post('/api/stream-warmup', _handleStreamWarmup);
     router.post('/api/download-ticket', _handleDownloadTicket);

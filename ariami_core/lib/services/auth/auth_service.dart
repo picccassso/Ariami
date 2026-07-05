@@ -12,6 +12,13 @@ class AuthService {
       'Ariami Desktop Dashboard';
   static const String _cliWebDashboardDeviceName = 'Ariami CLI Web Dashboard';
 
+  // The desktop music-player client (see the desktop app's ConnectionController).
+  // It registers with this device name and a `desktop_client_` device-id
+  // prefix. The classification is used for presence reporting; authentication
+  // itself permits concurrent sessions on every distinct device.
+  static const String _desktopPlayerDeviceName = 'Ariami Desktop';
+  static const String _desktopPlayerDeviceIdPrefix = 'desktop_client_';
+
   // Singleton pattern
   static final AuthService _instance = AuthService._internal();
   factory AuthService() => _instance;
@@ -154,29 +161,13 @@ class AuthService {
     // Success - reset rate limit tracker for this login bucket.
     tracker.reset();
 
-    final isDashboardControlLogin = _isDashboardControlDevice(
-      deviceId: deviceId,
-      deviceName: deviceName,
-    );
-
-    // Enforce single active session policy:
-    // - dashboard control sessions can coexist with one real device session
-    // - same-device re-login is allowed (replace existing same-device session)
-    // - a different non-dashboard device login while an active non-dashboard
-    //   session exists is rejected, unless the caller confirms a takeover via
-    //   [allowOtherDeviceTakeover]. A takeover revokes the other device's
-    //   session(s) (it will be signed out on its next request) while leaving
-    //   any coexisting dashboard control session untouched.
-    if (!isDashboardControlLogin &&
-        _hasActiveUserDeviceSessionOnDifferentDevice(user.userId, deviceId)) {
-      if (!allowOtherDeviceTakeover) {
-        throw AuthException(
-          AuthErrorCodes.alreadyLoggedInOtherDevice,
-          'You are already signed in on another device.',
-        );
-      }
-      await _revokeOtherDeviceSessionsForUser(user.userId, deviceId);
-    }
+    // Accounts are ecosystem identities, not single-device leases. Every
+    // distinct phone, desktop player, and dashboard may remain signed in at
+    // the same time. Re-authenticating the same installation replaces only
+    // that device's previous session, preventing duplicate stale tokens.
+    //
+    // [allowOtherDeviceTakeover] remains accepted for wire compatibility with
+    // older clients, but no longer revokes sessions belonging to other devices.
     await _sessionStore.revokeSessionsForUserOnDevice(user.userId, deviceId);
 
     // Create a new session
@@ -286,39 +277,6 @@ class AuthService {
     await _sessionStore.revokeAllForUser(userId);
   }
 
-  /// Revoke the user's active sessions on devices other than [deviceId],
-  /// leaving dashboard control sessions in place so they can keep coexisting
-  /// with the new device session.
-  Future<void> _revokeOtherDeviceSessionsForUser(
-    String userId,
-    String deviceId,
-  ) async {
-    final tokens = _sessionStore
-        .getSessionsForUser(userId)
-        .where((session) => session.deviceId != deviceId)
-        .where((session) => !_isDashboardControlSession(session))
-        .map((session) => session.sessionToken)
-        .toList();
-    await _sessionStore.revokeSessionTokens(tokens);
-  }
-
-  bool _hasActiveUserDeviceSessionOnDifferentDevice(
-    String userId,
-    String deviceId,
-  ) {
-    final sessions = _sessionStore.getSessionsForUser(userId);
-    return sessions
-        .where((session) => !_isDashboardControlSession(session))
-        .any((session) => session.deviceId != deviceId);
-  }
-
-  bool _isDashboardControlSession(Session session) {
-    return isDashboardControlDevice(
-      deviceId: session.deviceId,
-      deviceName: session.deviceName,
-    );
-  }
-
   /// True when this device is the CLI web or desktop dashboard control surface.
   ///
   /// Used by the HTTP server to tag presence rows so they are not counted as
@@ -335,14 +293,18 @@ class AuthService {
         deviceName == _cliWebDashboardDeviceName;
   }
 
-  bool _isDashboardControlDevice({
+  /// True when this device is the desktop music-player client.
+  ///
+  /// Used to distinguish desktop playback clients from mobile/generic clients
+  /// in presence and activity reporting.
+  static bool isDesktopPlayerDevice({
     required String deviceId,
     required String deviceName,
   }) {
-    return isDashboardControlDevice(
-      deviceId: deviceId,
-      deviceName: deviceName,
-    );
+    if (deviceId.startsWith(_desktopPlayerDeviceIdPrefix)) {
+      return true;
+    }
+    return deviceName == _desktopPlayerDeviceName;
   }
 
   /// Revoke all sessions for a user and return the revoked sessions.

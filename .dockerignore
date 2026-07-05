@@ -1,0 +1,16 @@
+*
+
+!ariami_cli/
+!ariami_cli/**
+!ariami_core/
+!ariami_core/**
+!sonic/
+!sonic/**
+
+ariami_cli/build/
+ariami_cli/*.zip
+ariami_cli/**/*.zip
+sonic/target/
+sonic/dist/
+**/.git/
+**/.git

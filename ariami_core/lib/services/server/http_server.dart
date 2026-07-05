@@ -3,11 +3,13 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:collection';
 import 'dart:math';
+import 'dart:typed_data';
 import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_router/shelf_router.dart';
 import 'package:shelf_web_socket/shelf_web_socket.dart';
 import 'package:shelf_static/shelf_static.dart';
+import 'package:path/path.dart' as p;
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:crypto/crypto.dart';
 import 'package:ariami_core/services/server/connection_manager.dart';
@@ -20,6 +22,7 @@ import 'package:ariami_core/models/artwork_size.dart';
 import 'package:ariami_core/models/websocket_models.dart';
 import 'package:ariami_core/models/feature_flags.dart';
 import 'package:ariami_core/services/library/library_manager.dart';
+import 'package:ariami_core/services/catalog/catalog_repository.dart';
 import 'package:ariami_core/services/auth/auth_service.dart';
 import 'package:ariami_core/services/auth/user_store.dart'
     show UserExistsException;
@@ -32,8 +35,14 @@ import 'package:ariami_core/services/server/metrics_service.dart';
 import 'package:ariami_core/services/server/network_endpoint_monitor.dart';
 import 'package:ariami_core/services/server/server_port_policy.dart';
 import 'package:ariami_core/services/server/v2_handlers.dart';
+import 'package:ariami_core/services/connect/connect_hub.dart';
 import 'package:ariami_core/app_version.dart';
 import 'package:ariami_core/services/setup/music_folder_path_helper.dart';
+import 'package:ariami_core/models/listening_stats_models.dart';
+import 'package:ariami_core/services/stats/listening_stats_store.dart';
+import 'package:ariami_core/models/pinned_item.dart';
+import 'package:ariami_core/services/pins/pinned_item_store.dart';
+import 'package:ariami_core/services/playlists/playlist_edit_store.dart';
 
 part 'http_server_limiters.dart';
 part 'http_server_parts/lifecycle_and_config_part.dart';
@@ -46,6 +55,9 @@ part 'http_server_parts/download_jobs_handlers_part.dart';
 part 'http_server_parts/library_and_artwork_handlers_part.dart';
 part 'http_server_parts/stream_and_download_handlers_part.dart';
 part 'http_server_parts/websocket_and_static_part.dart';
+part 'http_server_parts/listening_stats_handlers_part.dart';
+part 'http_server_parts/pins_handlers_part.dart';
+part 'http_server_parts/playlist_edits_handlers_part.dart';
 
 /// HTTP server for Ariami desktop application (Singleton)
 class AriamiHttpServer {
@@ -77,6 +89,23 @@ class AriamiHttpServer {
   bool _portFallbackUsed = false;
   final List<WebSocketChannel> _webSocketClients = [];
   final Map<WebSocketChannel, String> _webSocketDeviceIds = {};
+  final AriamiConnectHub _connectHub = AriamiConnectHub();
+
+  /// Per-account listening statistics (event log + rollups). Initialized in
+  /// [initializeAuth] next to the auth stores; stays open for the process
+  /// lifetime so server restarts within one run don't churn the database.
+  ListeningStatsStore? _listeningStatsStore;
+
+  /// Account-scoped album/playlist shortcuts. This database is deliberately
+  /// separate from the catalog so a library rescan cannot remove user data.
+  PinnedItemStore? _pinnedItemStore;
+
+  /// Account-scoped server playlist edits. This database is deliberately
+  /// separate from the catalog so a library rescan cannot remove user data.
+  PlaylistEditStore? _playlistEditStore;
+
+  /// User profile pictures stored beside auth/account data.
+  String? _userAvatarsDirectoryPath;
 
   // Download concurrency controls (multi-user fairness)
   static const int _defaultMaxConcurrentDownloads = 4;

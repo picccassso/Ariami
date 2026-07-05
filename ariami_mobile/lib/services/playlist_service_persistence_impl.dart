@@ -31,6 +31,13 @@ extension _PlaylistServicePersistenceImpl on PlaylistService {
             importedMap.map((key, value) => MapEntry(key, value as String));
       }
 
+      final pendingJson =
+          prefs.getString(PlaylistService._pendingImportedEditPushesKey);
+      if (pendingJson != null && pendingJson.isNotEmpty) {
+        final List<dynamic> pendingList = json.decode(pendingJson);
+        _pendingImportedEditPushes = pendingList.cast<String>().toSet();
+      }
+
       _isLoaded = true;
       _notifyListeners();
     } catch (error) {
@@ -60,6 +67,20 @@ extension _PlaylistServicePersistenceImpl on PlaylistService {
       );
     } catch (error) {
       print('[PlaylistService] Error saving hidden server playlists: $error');
+    }
+  }
+
+  Future<void> _savePendingImportedEditPushes() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        PlaylistService._pendingImportedEditPushesKey,
+        json.encode(_pendingImportedEditPushes.toList()),
+      );
+    } catch (error) {
+      print(
+        '[PlaylistService] Error saving pending imported edit pushes: $error',
+      );
     }
   }
 

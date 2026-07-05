@@ -4,21 +4,25 @@ import 'package:flutter/material.dart';
 class AlbumActionButtons extends StatelessWidget {
   final bool isAlbumFullyDownloaded;
   final bool hasSongs;
+  final bool isPinned;
   final VoidCallback? onDownloadAlbum;
   final VoidCallback onAddToPlaylist;
   final VoidCallback onAddToQueue;
   final VoidCallback onShuffleAll;
   final VoidCallback onPlayAll;
+  final VoidCallback onTogglePin;
 
   const AlbumActionButtons({
     super.key,
     required this.isAlbumFullyDownloaded,
     required this.hasSongs,
+    required this.isPinned,
     required this.onDownloadAlbum,
     required this.onAddToPlaylist,
     required this.onAddToQueue,
     required this.onShuffleAll,
     required this.onPlayAll,
+    required this.onTogglePin,
   });
 
   @override
@@ -49,6 +53,16 @@ class AlbumActionButtons extends StatelessWidget {
                 icon: const Icon(Icons.queue_music_rounded),
                 onPressed: onAddToQueue,
                 iconSize: 28,
+              ),
+              IconButton(
+                icon: Icon(
+                  isPinned ? Icons.push_pin : Icons.push_pin_outlined,
+                  color:
+                      isPinned ? Theme.of(context).colorScheme.primary : null,
+                ),
+                onPressed: onTogglePin,
+                iconSize: 28,
+                tooltip: isPinned ? 'Unpin album' : 'Pin album',
               ),
             ],
           ),

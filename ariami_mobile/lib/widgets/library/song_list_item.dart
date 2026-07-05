@@ -58,7 +58,7 @@ class SongListItem extends StatelessWidget {
             borderRadius: BorderRadius.circular(0),
             child: Container(
               color: isSelected
-                  ? Colors.white.withOpacity(0.05)
+                  ? Colors.white.withValues(alpha: 0.05)
                   : Colors.transparent,
               child: Padding(
                 padding:
@@ -82,7 +82,7 @@ class SongListItem extends StatelessWidget {
                                 : Theme.of(context)
                                     .colorScheme
                                     .onSurface
-                                    .withOpacity(0.4),
+                                    .withValues(alpha: 0.4),
                             width: 1.5,
                           ),
                         ),
@@ -138,7 +138,7 @@ class SongListItem extends StatelessWidget {
                                       : Theme.of(context)
                                           .colorScheme
                                           .onSurface
-                                          .withOpacity(0.6),
+                                          .withValues(alpha: 0.6),
                                 ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -158,7 +158,7 @@ class SongListItem extends StatelessWidget {
                                     color: Theme.of(context)
                                         .colorScheme
                                         .onSurface
-                                        .withOpacity(0.4),
+                                        .withValues(alpha: 0.4),
                                   ),
                         ),
                         if (!isSelectionMode) ...[
@@ -169,7 +169,7 @@ class SongListItem extends StatelessWidget {
                               color: Theme.of(context)
                                   .colorScheme
                                   .onSurface
-                                  .withOpacity(0.5),
+                                  .withValues(alpha: 0.5),
                               size: 20,
                             ),
                             onPressed: () => _showSongMenu(context),
@@ -199,7 +199,7 @@ class SongListItem extends StatelessWidget {
         borderRadius: BorderRadius.circular(0), // Smoother corners
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.2),
+            color: Colors.black.withValues(alpha: 0.2),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),

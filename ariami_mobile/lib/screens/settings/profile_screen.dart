@@ -1,6 +1,9 @@
 import 'dart:async';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../models/api_models.dart';
+import '../../services/api/api_client.dart';
 import '../../services/api/connection_service.dart';
 import '../../services/offline/offline_playback_service.dart';
 import '../../services/profile_image_service.dart';
@@ -19,21 +22,29 @@ class ProfileScreen extends StatefulWidget {
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
+enum _AvatarAction { choose, remove }
+
 class _ProfileScreenState extends State<ProfileScreen> {
+  static const int _maxAvatarBytes = 5 * 1024 * 1024;
+
   final ConnectionService _connectionService = ConnectionService();
   final OfflinePlaybackService _offlineService = OfflinePlaybackService();
-  final ProfileImageService _profileImageService = ProfileImageService();
   final StreamingStatsService _statsService = StreamingStatsService();
 
   StreamSubscription<OfflineMode>? _offlineSubscription;
   bool _isOfflineModeEnabled = false;
   bool _isLoadingProfile = true;
   bool _isLoggingOut = false;
+  bool _isAvatarLoading = false;
+  bool _isAvatarUpdating = false;
   String? _profileError;
 
   String? _username;
   String? _userId;
   String? _deviceName;
+  bool _hasAvatar = false;
+  int? _avatarUpdatedAt;
+  Uint8List? _avatarBytes;
 
   @override
   void initState() {
@@ -42,7 +53,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _username = _connectionService.username;
     _userId = _connectionService.userId;
 
-    unawaited(_profileImageService.initialize());
     unawaited(_initializeOfflineMode());
     unawaited(_loadProfileSnapshot());
 
@@ -79,6 +89,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     String? username = _connectionService.username;
     String? userId = _connectionService.userId;
     String? deviceName;
+    var hasAvatar = _hasAvatar;
+    int? avatarUpdatedAt = _avatarUpdatedAt;
+    Uint8List? avatarBytes = _avatarBytes;
 
     try {
       deviceName = await _connectionService.getCurrentDeviceName();
@@ -89,6 +102,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
         final me = await apiClient.getCurrentUser(token);
         username = (me['username'] as String?) ?? username;
         userId = (me['userId'] as String?) ?? userId;
+        hasAvatar = me['hasAvatar'] == true;
+        avatarUpdatedAt = (me['avatarUpdatedAt'] as num?)?.toInt();
+
+        if (hasAvatar) {
+          final shouldFetchAvatar =
+              avatarBytes == null || avatarUpdatedAt != _avatarUpdatedAt;
+          if (shouldFetchAvatar) {
+            if (mounted) {
+              setState(() {
+                _isAvatarLoading = true;
+              });
+            }
+            avatarBytes = await apiClient.getCurrentUserAvatar(token);
+            hasAvatar = avatarBytes != null;
+            if (!hasAvatar) {
+              avatarUpdatedAt = null;
+            }
+            if (avatarBytes != null) {
+              unawaited(_mirrorAvatarLocally(avatarBytes));
+            }
+          }
+        } else {
+          avatarBytes = null;
+          avatarUpdatedAt = null;
+          unawaited(_mirrorAvatarLocally(null));
+        }
 
         final serverDeviceName = (me['deviceName'] as String?)?.trim();
         if (serverDeviceName != null && serverDeviceName.isNotEmpty) {
@@ -101,6 +140,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _username = username;
         _userId = userId;
         _deviceName = deviceName;
+        _hasAvatar = hasAvatar;
+        _avatarUpdatedAt = avatarUpdatedAt;
+        _avatarBytes = avatarBytes;
+        _isAvatarLoading = false;
         _isLoadingProfile = false;
       });
     } catch (_) {
@@ -109,6 +152,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _username = username;
         _userId = userId;
         _deviceName = deviceName;
+        _isAvatarLoading = false;
         _profileError = 'Could not refresh profile details.';
         _isLoadingProfile = false;
       });
@@ -201,7 +245,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     try {
       await _connectionService.logout();
-      await _profileImageService.clear();
       await ThemeService().setThemeSource(ThemeSource.systemNeutral);
       if (!mounted) return;
 
@@ -232,26 +275,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildHeader({required bool isDark, required String username}) {
     final colorScheme = Theme.of(context).colorScheme;
     final initial = username.isNotEmpty ? username[0].toUpperCase() : '?';
-    final imageProvider = _profileImageService.imageProvider;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
       child: Row(
         children: [
-          CircleAvatar(
-            radius: 36,
-            backgroundImage: imageProvider,
-            backgroundColor: colorScheme.surfaceContainerHighest,
-            child: imageProvider == null
-                ? Text(
-                    initial,
-                    style: TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      color: colorScheme.onSurface,
-                    ),
-                  )
-                : null,
+          _buildProfileAvatar(
+            colorScheme: colorScheme,
+            initial: initial,
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -285,152 +316,330 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildProfileImageSection() {
-    final colorScheme = Theme.of(context).colorScheme;
-    final hasImage = _profileImageService.hasImage;
+  Widget _buildProfileAvatar({
+    required ColorScheme colorScheme,
+    required String initial,
+  }) {
+    final imageProvider =
+        _avatarBytes == null ? null : MemoryImage(_avatarBytes!);
+    final isBusy = _isAvatarLoading || _isAvatarUpdating;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Row(
-          children: [
-            // Icon
-            Container(
-              padding: const EdgeInsets.all(8),
-              child: Icon(
-                Icons.account_circle_rounded,
-                color: colorScheme.onSurface,
-                size: 24,
-              ),
-            ),
-            const SizedBox(width: 16),
-            // Text content
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Profile Photo',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: colorScheme.onSurface,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    hasImage
-                        ? 'Tap to change or remove'
-                        : 'Add a custom profile photo',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w400,
-                      color: colorScheme.onSurface.withValues(alpha: 0.7),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            // Action buttons
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  onPressed: _handlePickImage,
-                  icon: Icon(
-                    hasImage ? Icons.edit_rounded : Icons.add_photo_alternate_rounded,
-                    color: colorScheme.primary,
-                  ),
-                  tooltip: hasImage ? 'Change photo' : 'Add photo',
+    return Semantics(
+      button: true,
+      label: _hasAvatar ? 'Change profile photo' : 'Add profile photo',
+      child: InkWell(
+        onTap: isBusy ? null : _showAvatarActions,
+        customBorder: const CircleBorder(),
+        child: SizedBox(
+          width: 80,
+          height: 80,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Positioned.fill(
+                child: CircleAvatar(
+                  radius: 36,
+                  backgroundImage: imageProvider,
+                  backgroundColor: colorScheme.surfaceContainerHighest,
+                  child: imageProvider == null
+                      ? Text(
+                          initial,
+                          style: TextStyle(
+                            fontSize: 32,
+                            fontWeight: FontWeight.bold,
+                            color: colorScheme.onSurface,
+                          ),
+                        )
+                      : null,
                 ),
-                if (hasImage)
-                  IconButton(
-                    onPressed: _handleRemoveImage,
-                    icon: Icon(
-                      Icons.delete_outline_rounded,
-                      color: colorScheme.error,
+              ),
+              if (isBusy)
+                Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.35),
+                      shape: BoxShape.circle,
                     ),
-                    tooltip: 'Remove photo',
+                    child: const Center(
+                      child: SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(strokeWidth: 2.5),
+                      ),
+                    ),
                   ),
-              ],
-            ),
-          ],
+                ),
+              Positioned(
+                right: -1,
+                bottom: -1,
+                child: Container(
+                  width: 30,
+                  height: 30,
+                  decoration: BoxDecoration(
+                    color: colorScheme.primary,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: colorScheme.surface,
+                      width: 3,
+                    ),
+                  ),
+                  child: Icon(
+                    _hasAvatar
+                        ? Icons.edit_rounded
+                        : Icons.add_photo_alternate_rounded,
+                    color: colorScheme.onPrimary,
+                    size: 16,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Future<void> _handlePickImage() async {
-    final success = await _profileImageService.pickImage();
-    if (success && mounted) {
-      setState(() {});
+  Future<void> _showAvatarActions() async {
+    if (_isAvatarUpdating) return;
+
+    final action = await showAriamiSheet<_AvatarAction>(
+      context: context,
+      header: const AriamiSheetHeader(
+        title: 'Profile photo',
+      ),
+      items: [
+        ListTile(
+          leading: const Icon(Icons.photo_library_rounded),
+          title: const Text('Choose photo'),
+          onTap: () => Navigator.of(context).pop(_AvatarAction.choose),
+        ),
+        if (_hasAvatar)
+          ListTile(
+            leading: Icon(
+              Icons.delete_outline_rounded,
+              color: Theme.of(context).colorScheme.error,
+            ),
+            title: Text(
+              'Remove photo',
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+            onTap: () => Navigator.of(context).pop(_AvatarAction.remove),
+          ),
+      ],
+    );
+
+    if (!mounted || action == null) return;
+
+    switch (action) {
+      case _AvatarAction.choose:
+        await _handleChooseAvatar();
+        break;
+      case _AvatarAction.remove:
+        await _handleRemoveAvatar();
+        break;
     }
   }
 
-  Future<void> _handleRemoveImage() async {
-    final colorScheme = Theme.of(context).colorScheme;
+  Future<void> _handleChooseAvatar() async {
+    final apiClient = _connectionService.apiClient;
+    final token = _connectionService.sessionToken;
+    if (apiClient == null || token == null) {
+      _showProfileSnackBar('Connect to Ariami to update your photo.');
+      return;
+    }
 
-    final shouldRemove = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(
-          'REMOVE PHOTO',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 1.5,
-            color: colorScheme.onSurface,
-          ),
-        ),
-        content: Text(
-          'Are you sure you want to remove your profile photo?',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-            color: colorScheme.onSurface.withValues(alpha: 0.75),
-          ),
-        ),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text(
-              'CANCEL',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 1.0,
-                color: colorScheme.onSurface.withValues(alpha: 0.7),
-              ),
-            ),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text(
-              'REMOVE',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 1.0,
-                color: colorScheme.error,
-              ),
-            ),
-          ),
-        ],
-      ),
+    PlatformFile? file;
+    try {
+      file = await FilePicker.pickFile(
+        type: FileType.image,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      _showProfileSnackBar('Could not open the photo picker.');
+      return;
+    }
+
+    if (!mounted || file == null) return;
+
+    if (file.size > _maxAvatarBytes) {
+      _showProfileSnackBar('Choose an image under 5 MB.');
+      return;
+    }
+
+    final bytes = await _readPickedFileBytes(file);
+    if (!mounted || bytes == null) {
+      _showProfileSnackBar('Could not read that photo.');
+      return;
+    }
+
+    if (bytes.lengthInBytes > _maxAvatarBytes) {
+      _showProfileSnackBar('Choose an image under 5 MB.');
+      return;
+    }
+
+    final contentType = _detectAvatarContentType(
+      bytes,
+      file.name.isNotEmpty ? file.name : file.path,
     );
+    if (contentType == null) {
+      _showProfileSnackBar('Choose a JPG or PNG image.');
+      return;
+    }
 
-    if (shouldRemove == true) {
-      await _profileImageService.removeImage();
-      if (mounted) {
-        setState(() {});
+    setState(() {
+      _isAvatarUpdating = true;
+    });
+
+    try {
+      final response = await apiClient.uploadCurrentUserAvatar(
+        token,
+        bytes: bytes,
+        contentType: contentType,
+      );
+      Uint8List? freshBytes;
+      try {
+        freshBytes = await apiClient.getCurrentUserAvatar(token);
+      } catch (_) {
+        freshBytes = null;
+      }
+      if (!mounted) return;
+
+      setState(() {
+        _hasAvatar = true;
+        _avatarBytes = freshBytes ?? bytes;
+        _avatarUpdatedAt = (response['avatarUpdatedAt'] as num?)?.toInt() ??
+            DateTime.now().millisecondsSinceEpoch;
+        _isAvatarUpdating = false;
+        _profileError = null;
+      });
+      unawaited(_mirrorAvatarLocally(freshBytes ?? bytes));
+      _showProfileSnackBar('Profile photo updated.');
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isAvatarUpdating = false;
+      });
+      _showProfileSnackBar(_friendlyAvatarError(
+        e,
+        fallback: 'Could not update your profile photo.',
+      ));
+    }
+  }
+
+  Future<void> _handleRemoveAvatar() async {
+    final apiClient = _connectionService.apiClient;
+    final token = _connectionService.sessionToken;
+    if (apiClient == null || token == null) {
+      _showProfileSnackBar('Connect to Ariami to remove your photo.');
+      return;
+    }
+
+    setState(() {
+      _isAvatarUpdating = true;
+    });
+
+    try {
+      await apiClient.deleteCurrentUserAvatar(token);
+      if (!mounted) return;
+      setState(() {
+        _hasAvatar = false;
+        _avatarUpdatedAt = null;
+        _avatarBytes = null;
+        _isAvatarUpdating = false;
+        _profileError = null;
+      });
+      unawaited(_mirrorAvatarLocally(null));
+      _showProfileSnackBar('Profile photo removed.');
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isAvatarUpdating = false;
+      });
+      _showProfileSnackBar(_friendlyAvatarError(
+        e,
+        fallback: 'Could not remove your profile photo.',
+      ));
+    }
+  }
+
+  /// Keeps the legacy local profile photo (shown in the Settings header via
+  /// [ProfileImageService]) in step with the account's server-side avatar.
+  Future<void> _mirrorAvatarLocally(Uint8List? bytes) async {
+    try {
+      final service = ProfileImageService();
+      if (bytes == null) {
+        await service.removeImage();
+      } else {
+        final extension = _hasPngSignature(bytes) ? 'png' : 'jpg';
+        await service.setImageBytes(bytes, extension: extension);
+      }
+    } catch (_) {
+      // The mirror is cosmetic; never let it break the avatar flow.
+    }
+  }
+
+  Future<Uint8List?> _readPickedFileBytes(PlatformFile file) async {
+    try {
+      return await file.readAsBytes();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String? _detectAvatarContentType(Uint8List bytes, String? fileName) {
+    if (_hasJpegSignature(bytes)) return 'image/jpeg';
+    if (_hasPngSignature(bytes)) return 'image/png';
+
+    final extension = _fileExtension(fileName);
+    if (extension == 'jpg' || extension == 'jpeg') return 'image/jpeg';
+    if (extension == 'png') return 'image/png';
+    return null;
+  }
+
+  bool _hasJpegSignature(Uint8List bytes) {
+    return bytes.length >= 3 &&
+        bytes[0] == 0xFF &&
+        bytes[1] == 0xD8 &&
+        bytes[2] == 0xFF;
+  }
+
+  bool _hasPngSignature(Uint8List bytes) {
+    const pngSignature = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+    if (bytes.length < pngSignature.length) return false;
+    for (var i = 0; i < pngSignature.length; i++) {
+      if (bytes[i] != pngSignature[i]) return false;
+    }
+    return true;
+  }
+
+  String? _fileExtension(String? fileName) {
+    if (fileName == null) return null;
+    final dotIndex = fileName.lastIndexOf('.');
+    if (dotIndex == -1 || dotIndex == fileName.length - 1) return null;
+    return fileName.substring(dotIndex + 1).toLowerCase();
+  }
+
+  String _friendlyAvatarError(Object error, {required String fallback}) {
+    if (error is ApiException) {
+      final message = error.message.toLowerCase();
+      if (error.code == ApiErrorCodes.invalidRequest) {
+        return 'Choose a JPG or PNG image.';
+      }
+      if (message.contains('large') || message.contains('size')) {
+        return 'Choose an image under 5 MB.';
+      }
+      if (error.message.trim().isNotEmpty) {
+        return error.message;
       }
     }
+    return fallback;
+  }
+
+  void _showProfileSnackBar(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
   }
 
   Widget _buildProfileSnapshotSection() {
@@ -600,34 +809,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ],
       ),
-      body: ListenableBuilder(
-        listenable: _profileImageService,
-        builder: (context, _) {
-          return ListView(
-            padding: EdgeInsets.only(
-              bottom: getMiniPlayerScrollBottomPadding(context),
-            ),
-            children: [
-              _buildHeader(isDark: isDark, username: username),
-              if (_profileError != null)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-                  child: Text(
-                    _profileError!,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: isDark ? Colors.orange[300] : const Color(0xFFB26A00),
-                    ),
-                  ),
+      body: ListView(
+        padding: EdgeInsets.only(
+          bottom: getMiniPlayerScrollBottomPadding(context),
+        ),
+        children: [
+          _buildHeader(isDark: isDark, username: username),
+          if (_profileError != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+              child: Text(
+                _profileError!,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: isDark ? Colors.orange[300] : const Color(0xFFB26A00),
                 ),
-              _buildProfileImageSection(),
-              _buildProfileSnapshotSection(),
-              _buildListeningSnapshotSection(),
-              _buildQuickActionsSection(),
-              const SizedBox(height: 24),
-            ],
-          );
-        },
+              ),
+            ),
+          _buildProfileSnapshotSection(),
+          _buildListeningSnapshotSection(),
+          _buildQuickActionsSection(),
+          const SizedBox(height: 24),
+        ],
       ),
     );
   }

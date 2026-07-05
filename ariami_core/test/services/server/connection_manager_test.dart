@@ -19,5 +19,21 @@ void main() {
       expect(cm.mobileClientCount, 0);
       expect(cm.getClient('d1')?.clientType, 'dashboard');
     });
+
+    test('listeners may remove themselves during notification', () {
+      final cm = ConnectionManager();
+      var calls = 0;
+      late void Function() listener;
+      listener = () {
+        calls++;
+        cm.removeListener(listener);
+      };
+      cm.addListener(listener);
+
+      cm.registerClient('d1', 'Some Device');
+      cm.registerClient('d2', 'Another Device');
+
+      expect(calls, 1);
+    });
   });
 }

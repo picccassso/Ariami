@@ -302,6 +302,23 @@ void main() {
           contains('does not match requested song'),
         );
 
+        final qualityMismatch = await _sendJsonRequest(
+          method: 'GET',
+          url: Uri.parse(
+            'http://127.0.0.1:$port/api/stream/song-a?streamToken=$streamToken&quality=low',
+          ),
+        );
+        expect(qualityMismatch.statusCode, 403);
+        expect(
+          (qualityMismatch.jsonBody['error'] as Map<String, dynamic>)['code'],
+          AuthErrorCodes.streamTokenExpired,
+        );
+        expect(
+          (qualityMismatch.jsonBody['error']
+              as Map<String, dynamic>)['message'],
+          contains('does not match requested quality'),
+        );
+
         final downloadMismatch = await _sendJsonRequest(
           method: 'GET',
           url: Uri.parse(
@@ -740,6 +757,48 @@ void main() {
       },
       timeout: const Timeout(Duration(seconds: 30)),
     );
+
+    test('server stop safely closes active websocket clients', () async {
+      await server.initializeAuth(
+        usersFilePath: p.join(testDir.path, 'users_stop_ws.json'),
+        sessionsFilePath: p.join(testDir.path, 'sessions_stop_ws.json'),
+        forceReinitialize: true,
+      );
+
+      final port = await _findFreePort();
+      await server.start(
+        advertisedIp: '127.0.0.1',
+        bindAddress: '127.0.0.1',
+        port: port,
+      );
+
+      final sockets = await Future.wait([
+        WebSocket.connect('ws://127.0.0.1:$port/api/ws'),
+        WebSocket.connect('ws://127.0.0.1:$port/api/ws'),
+      ]);
+      for (var index = 0; index < sockets.length; index++) {
+        sockets[index].add(
+          jsonEncode({
+            'type': 'identify',
+            'data': {
+              'deviceId': 'stop-ws-$index',
+              'deviceName': 'Stop WS $index',
+            },
+            'timestamp': DateTime.now().toIso8601String(),
+          }),
+        );
+      }
+
+      final deadline = DateTime.now().add(const Duration(seconds: 5));
+      while (server.connectionManager.clientCount < sockets.length &&
+          DateTime.now().isBefore(deadline)) {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      }
+      expect(server.connectionManager.clientCount, sockets.length);
+
+      await expectLater(server.stop(), completes);
+      expect(server.connectionManager.clientCount, 0);
+    });
 
     test(
       'PF-5: invalid flag combo enableDownloadJobs=true with enableV2Api=false is rejected',

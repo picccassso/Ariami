@@ -1,5 +1,21 @@
 part of '../http_server.dart';
 
+const int _maxAvatarBytes = 5 * 1024 * 1024;
+const String _avatarContentTypeJpeg = 'image/jpeg';
+const String _avatarContentTypePng = 'image/png';
+
+class _AvatarRecord {
+  const _AvatarRecord({
+    required this.file,
+    required this.contentType,
+    required this.updatedAt,
+  });
+
+  final File file;
+  final String contentType;
+  final int updatedAt;
+}
+
 extension AriamiHttpServerAuthAndAdminHandlersMethods on AriamiHttpServer {
   /// Handle user registration
   Future<Response> _handleAuthRegister(Request request) async {
@@ -71,6 +87,40 @@ extension AriamiHttpServerAuthAndAdminHandlersMethods on AriamiHttpServer {
     }
   }
 
+  /// Public: list registered usernames for login user-pickers.
+  Response _handleAuthUsers(Request request) {
+    final users = _authService.getUsers().toList()
+      ..sort((a, b) =>
+          a.username.toLowerCase().compareTo(b.username.toLowerCase()));
+
+    final rows = users
+        .map((user) => <String, dynamic>{
+              'username': user.username,
+              ..._avatarSummaryForUser(user.userId),
+            })
+        .toList(growable: false);
+
+    return _jsonOk({'users': rows});
+  }
+
+  /// Public: serve a login-picker avatar for a registered username.
+  Response _handlePublicUserAvatar(Request request, String username) {
+    final decodedUsername = Uri.decodeComponent(username);
+    User? user;
+    for (final candidate in _authService.getUsers()) {
+      if (candidate.username == decodedUsername) {
+        user = candidate;
+        break;
+      }
+    }
+
+    if (user == null) {
+      return Response.notFound('');
+    }
+
+    return _avatarImageResponseForUser(user.userId) ?? Response.notFound('');
+  }
+
   /// Handle user login
   Future<Response> _handleAuthLogin(Request request) async {
     try {
@@ -81,8 +131,7 @@ extension AriamiHttpServerAuthAndAdminHandlersMethods on AriamiHttpServer {
       final password = data['password'] as String?;
       final deviceId = data['deviceId'] as String?;
       final deviceName = data['deviceName'] as String?;
-      final allowOtherDeviceTakeover =
-          data['allowOtherDeviceTakeover'] == true;
+      final allowOtherDeviceTakeover = data['allowOtherDeviceTakeover'] == true;
 
       if (username == null ||
           password == null ||
@@ -236,9 +285,232 @@ extension AriamiHttpServerAuthAndAdminHandlersMethods on AriamiHttpServer {
         'deviceId': session.deviceId,
         'deviceName': session.deviceName,
         'isAdmin': _authService.isAdminUser(session.userId),
+        ..._avatarSummaryForUser(user.userId),
       }),
       headers: {'Content-Type': 'application/json; charset=utf-8'},
     );
+  }
+
+  Future<Response> _handlePutMeAvatar(Request request) async {
+    final session = request.context['session'] as Session?;
+    if (session == null) {
+      return _authRequiredResponse();
+    }
+
+    final contentType = request.mimeType;
+    if (contentType != _avatarContentTypeJpeg &&
+        contentType != _avatarContentTypePng) {
+      return _badAvatarResponse();
+    }
+
+    final declaredLength = request.contentLength;
+    if (declaredLength != null && declaredLength > _maxAvatarBytes) {
+      await request.read().drain<void>();
+      return _avatarTooLargeResponse();
+    }
+
+    // On overflow the rest of the body is drained without buffering;
+    // responding mid-upload severs the connection before the client can
+    // read the 413.
+    final bytesBuilder = BytesBuilder(copy: false);
+    var totalBytes = 0;
+    var tooLarge = false;
+    await for (final chunk in request.read()) {
+      if (tooLarge) continue;
+      totalBytes += chunk.length;
+      if (totalBytes > _maxAvatarBytes) {
+        tooLarge = true;
+        bytesBuilder.clear();
+        continue;
+      }
+      bytesBuilder.add(chunk);
+    }
+    if (tooLarge) {
+      return _avatarTooLargeResponse();
+    }
+
+    final bytes = bytesBuilder.takeBytes();
+    if (!_avatarMagicMatches(bytes, contentType)) {
+      return _badAvatarResponse();
+    }
+
+    final avatarUpdatedAt = await _writeAvatarBytes(
+      userId: session.userId,
+      bytes: bytes,
+      contentType: contentType!,
+    );
+    return _jsonOk({'avatarUpdatedAt': avatarUpdatedAt});
+  }
+
+  Response _handleGetMeAvatar(Request request) {
+    final session = request.context['session'] as Session?;
+    if (session == null) {
+      return _authRequiredResponse();
+    }
+
+    return _avatarImageResponseForUser(session.userId) ?? Response.notFound('');
+  }
+
+  Future<Response> _handleDeleteMeAvatar(Request request) async {
+    final session = request.context['session'] as Session?;
+    if (session == null) {
+      return _authRequiredResponse();
+    }
+
+    await _deleteAvatarFiles(session.userId);
+    return _jsonOk({});
+  }
+
+  Response? _avatarImageResponseForUser(String userId) {
+    final avatar = _avatarRecordForUser(userId);
+    if (avatar == null) {
+      return null;
+    }
+
+    return Response.ok(
+      avatar.file.openRead(),
+      headers: {
+        'Content-Type': avatar.contentType,
+        'Content-Length': avatar.file.lengthSync().toString(),
+      },
+    );
+  }
+
+  Map<String, dynamic> _avatarSummaryForUser(String userId) {
+    final avatar = _avatarRecordForUser(userId);
+    return {
+      'hasAvatar': avatar != null,
+      'avatarUpdatedAt': avatar?.updatedAt,
+    };
+  }
+
+  _AvatarRecord? _avatarRecordForUser(String userId) {
+    final directoryPath = _userAvatarsDirectoryPath;
+    if (directoryPath == null) {
+      return null;
+    }
+
+    final jpgFile = File(p.join(directoryPath, '$userId.jpg'));
+    if (jpgFile.existsSync()) {
+      return _recordFromAvatarFile(jpgFile, _avatarContentTypeJpeg);
+    }
+
+    final pngFile = File(p.join(directoryPath, '$userId.png'));
+    if (pngFile.existsSync()) {
+      return _recordFromAvatarFile(pngFile, _avatarContentTypePng);
+    }
+
+    return null;
+  }
+
+  _AvatarRecord _recordFromAvatarFile(File file, String contentType) {
+    return _AvatarRecord(
+      file: file,
+      contentType: contentType,
+      updatedAt: file.lastModifiedSync().millisecondsSinceEpoch,
+    );
+  }
+
+  Future<int> _writeAvatarBytes({
+    required String userId,
+    required List<int> bytes,
+    required String contentType,
+  }) async {
+    final directoryPath = _userAvatarsDirectoryPath;
+    if (directoryPath == null) {
+      throw StateError('Avatar storage is not initialized.');
+    }
+
+    final existingUpdatedAt = _avatarRecordForUser(userId)?.updatedAt;
+    final directory = Directory(directoryPath);
+    if (!await directory.exists()) {
+      await directory.create(recursive: true);
+    }
+
+    final extension = contentType == _avatarContentTypeJpeg ? 'jpg' : 'png';
+    final target = File(p.join(directory.path, '$userId.$extension'));
+    final temp = File(p.join(
+      directory.path,
+      '$userId.$extension.${DateTime.now().microsecondsSinceEpoch}.tmp',
+    ));
+
+    await temp.writeAsBytes(bytes, flush: true);
+    if (await target.exists()) {
+      await target.delete();
+    }
+    await temp.rename(target.path);
+
+    // File mtimes only reliably round-trip whole seconds, and this value is
+    // re-read from the mtime later (_recordFromAvatarFile), so it must be
+    // second-aligned or the PUT response and subsequent reads disagree.
+    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000 * 1000;
+    final avatarUpdatedAt = existingUpdatedAt == null
+        ? now
+        : max(now, existingUpdatedAt + 1000);
+    await target.setLastModified(
+      DateTime.fromMillisecondsSinceEpoch(avatarUpdatedAt),
+    );
+
+    for (final staleExtension in const ['jpg', 'png']) {
+      if (staleExtension == extension) continue;
+      final staleFile = File(p.join(directory.path, '$userId.$staleExtension'));
+      if (await staleFile.exists()) {
+        await staleFile.delete();
+      }
+    }
+
+    return avatarUpdatedAt;
+  }
+
+  Future<void> _deleteAvatarFiles(String userId) async {
+    final directoryPath = _userAvatarsDirectoryPath;
+    if (directoryPath == null) {
+      return;
+    }
+
+    for (final extension in const ['jpg', 'png']) {
+      final file = File(p.join(directoryPath, '$userId.$extension'));
+      if (await file.exists()) {
+        await file.delete();
+      }
+    }
+  }
+
+  bool _avatarMagicMatches(List<int> bytes, String? contentType) {
+    if (contentType == _avatarContentTypeJpeg) {
+      return bytes.length >= 3 &&
+          bytes[0] == 0xFF &&
+          bytes[1] == 0xD8 &&
+          bytes[2] == 0xFF;
+    }
+
+    if (contentType == _avatarContentTypePng) {
+      return bytes.length >= 4 &&
+          bytes[0] == 0x89 &&
+          bytes[1] == 0x50 &&
+          bytes[2] == 0x4E &&
+          bytes[3] == 0x47;
+    }
+
+    return false;
+  }
+
+  Response _badAvatarResponse() {
+    return _jsonBadRequest({
+      'error': {
+        'code': 'INVALID_AVATAR',
+        'message': 'Avatar must be JPEG or PNG image bytes',
+      },
+    });
+  }
+
+  Response _avatarTooLargeResponse() {
+    return _jsonResponse(HttpStatus.requestEntityTooLarge, {
+      'error': {
+        'code': 'AVATAR_TOO_LARGE',
+        'message': 'Avatar image exceeds the 5 MB limit',
+      },
+    });
   }
 
   Response? _authorizeAdminRequest(Request request) {
@@ -857,7 +1129,7 @@ extension AriamiHttpServerAuthAndAdminHandlersMethods on AriamiHttpServer {
       final data = jsonDecode(body) as Map<String, dynamic>;
 
       final songId = data['songId'] as String?;
-      final quality = data['quality'] as String?;
+      final quality = QualityPreset.fromString(data['quality'] as String?).name;
 
       if (songId == null) {
         return Response.badRequest(

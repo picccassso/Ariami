@@ -95,9 +95,9 @@ class ConnectedClientsSection extends StatelessWidget {
                     width: double.infinity,
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.red.withOpacity(0.15),
+                      color: Colors.red.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.red.withOpacity(0.3)),
+                      border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
                     ),
                     child: Text(
                       error!,
@@ -112,7 +112,7 @@ class ConnectedClientsSection extends StatelessWidget {
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 12),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.04),
+                color: Colors.white.withValues(alpha: 0.04),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: const Text(

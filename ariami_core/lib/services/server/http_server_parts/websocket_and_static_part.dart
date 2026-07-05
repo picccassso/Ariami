@@ -30,10 +30,9 @@ extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
       },
       onDone: () {
         _webSocketClients.remove(webSocket);
-        final deviceId = _webSocketDeviceIds.remove(webSocket);
-        if (deviceId != null) {
-          _connectionManager.unregisterClient(deviceId);
-        } else {
+        _connectHub.unregister(webSocket);
+        final deviceId = _untrackWebSocketDevice(webSocket);
+        if (deviceId == null) {
           print(
               'WebSocket disconnected without identify - no client to unregister');
         }
@@ -42,10 +41,9 @@ extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
       },
       onError: (error) {
         _webSocketClients.remove(webSocket);
-        final deviceId = _webSocketDeviceIds.remove(webSocket);
-        if (deviceId != null) {
-          _connectionManager.unregisterClient(deviceId);
-        } else {
+        _connectHub.unregister(webSocket);
+        final deviceId = _untrackWebSocketDevice(webSocket);
+        if (deviceId == null) {
           print('WebSocket error without identify - no client to unregister');
         }
         print('WebSocket error: $error');
@@ -57,6 +55,16 @@ extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
     if (!_webSocketClients.contains(webSocket)) {
       _webSocketClients.add(webSocket);
     }
+  }
+
+  /// A playback client may own both the library-sync and Connect sockets.
+  /// Presence is removed only after its final socket closes.
+  String? _untrackWebSocketDevice(WebSocketChannel webSocket) {
+    final deviceId = _webSocketDeviceIds.remove(webSocket);
+    if (deviceId != null && !_webSocketDeviceIds.containsValue(deviceId)) {
+      _connectionManager.unregisterClient(deviceId);
+    }
+    return deviceId;
   }
 
   /// Handle incoming WebSocket message
@@ -107,6 +115,15 @@ extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
                 userId: session.userId,
                 clientType: effectiveType,
               );
+              if (const {'desktop', 'mobile', 'tv'}.contains(clientType)) {
+                _connectHub.register(
+                  webSocket,
+                  userId: session.userId,
+                  deviceId: deviceId,
+                  deviceName: deviceName ?? 'Unknown Device',
+                  clientType: clientType!,
+                );
+              }
             }
           });
           return;
@@ -126,6 +143,15 @@ extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
             deviceName ?? 'Unknown Device',
             clientType: effectiveType,
           );
+          if (const {'desktop', 'mobile', 'tv'}.contains(clientType)) {
+            _connectHub.register(
+              webSocket,
+              userId: 'legacy',
+              deviceId: deviceId,
+              deviceName: deviceName ?? 'Unknown Device',
+              clientType: clientType!,
+            );
+          }
         }
         return;
       }
@@ -137,6 +163,10 @@ extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
           _connectionManager.refreshHeartbeatIfRegistered(deviceId);
         }
         _sendWebSocketMessage(webSocket, PongMessage());
+        return;
+      }
+
+      if (_connectHub.handle(webSocket, message)) {
         return;
       }
 

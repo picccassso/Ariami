@@ -449,7 +449,7 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w500,
-                      color: isSelected ? colorScheme.onPrimary.withOpacity(0.7) : colorScheme.onSurfaceVariant,
+                      color: isSelected ? colorScheme.onPrimary.withValues(alpha: 0.7) : colorScheme.onSurfaceVariant,
                     ),
                   ),
                   trailing: isSelected

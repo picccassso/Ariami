@@ -1,11 +1,63 @@
 #!/bin/bash
 set -euo pipefail
 
-# Ariami CLI - Raspberry Pi Release Builder for Mac
-# Builds ARM64 release using Docker (no Raspberry Pi needed)
+# Ariami CLI - Linux Release Builder for Mac
+# Builds ARM64 Raspberry Pi or AMD64/x64 Linux releases using Docker
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+ARCH="arm64"
+if [ "$#" -gt 0 ]; then
+  case "$1" in
+    --arch)
+      if [ "$#" -ne 2 ]; then
+        echo "ERROR: --arch requires one value: arm64 or amd64"
+        exit 1
+      fi
+      ARCH="$2"
+      ;;
+    --arch=*)
+      if [ "$#" -ne 1 ]; then
+        echo "ERROR: Unexpected arguments; use arm64, amd64, --arch arm64, or --arch amd64"
+        exit 1
+      fi
+      ARCH="${1#--arch=}"
+      ;;
+    *)
+      if [ "$#" -ne 1 ]; then
+        echo "ERROR: Unexpected arguments; use arm64, amd64, --arch arm64, or --arch amd64"
+        exit 1
+      fi
+      ARCH="$1"
+      ;;
+  esac
+fi
+
+case "${ARCH}" in
+  arm64)
+    RELEASE_ARCH_NAME="raspberry-pi-arm64"
+    TARGET_LABEL="ARM64 (aarch64) Linux"
+    DOCKER_PLATFORM="linux/arm64"
+    CLI_BUNDLE_RELATIVE_DIR="build/pi-cli-bundle"
+    SONIC_TARGET_DIR="/workspace/ariami_cli/build/sonic_target"
+    BUILD_OUTPUT_DIR="/tmp/ariami-pi-cli"
+    EXPECTED_FILE_ARCH="aarch64"
+    ;;
+  amd64)
+    RELEASE_ARCH_NAME="linux-x64"
+    TARGET_LABEL="AMD64/x64 (x86-64) Linux"
+    DOCKER_PLATFORM="linux/amd64"
+    CLI_BUNDLE_RELATIVE_DIR="build/x64-cli-bundle"
+    SONIC_TARGET_DIR="/workspace/ariami_cli/build/x64-sonic_target"
+    BUILD_OUTPUT_DIR="/tmp/ariami-x64-cli"
+    EXPECTED_FILE_ARCH="x86-64"
+    ;;
+  *)
+    echo "ERROR: Unknown arch '${ARCH}'; expected arm64 or amd64"
+    exit 1
+    ;;
+esac
 
 read_pubspec_version() {
   grep '^version:' "$1" | awk '{print $2}' | cut -d'+' -f1
@@ -34,20 +86,22 @@ if [ "${CLI_VERSION}" != "${CORE_VERSION}" ] || [ "${CLI_VERSION}" != "${CONST_V
 fi
 
 VERSION="${CLI_VERSION}"
-RELEASE_NAME="ariami-cli-raspberry-pi-arm64-v${VERSION}"
+RELEASE_NAME="ariami-cli-${RELEASE_ARCH_NAME}-v${VERSION}"
 SONIC_DIR="${PARENT_DIR}/sonic"
-SONIC_TARGET_DIR="/workspace/ariami_cli/build/sonic_target"
-SONIC_LIB_RELATIVE_PATH="build/sonic_target/release/libsonic_transcoder.so"
+SONIC_LIB_RELATIVE_PATH="${SONIC_TARGET_DIR#/workspace/ariami_cli/}/release/libsonic_transcoder.so"
 SONIC_LIB_LOCAL_PATH="${SCRIPT_DIR}/${SONIC_LIB_RELATIVE_PATH}"
-CLI_BUNDLE_RELATIVE_DIR="build/pi-cli-bundle"
 CLI_BINARY_RELATIVE_PATH="${CLI_BUNDLE_RELATIVE_DIR}/bin/ariami_cli"
 SQLITE_LIB_RELATIVE_PATH="${CLI_BUNDLE_RELATIVE_DIR}/lib/libsqlite3.so"
 LAUNCHER_PATH="${SCRIPT_DIR}/ariami_cli-launcher.sh"
 
-echo "=== Ariami CLI - Raspberry Pi Release Builder (Mac) ==="
+echo "=== Ariami CLI - Linux Release Builder (Mac) ==="
 echo "Version: ${VERSION}"
-echo "Target: ARM64 (aarch64) Linux"
+echo "Target: ${TARGET_LABEL}"
 echo "Platform: macOS with Docker"
+echo "Release: ${RELEASE_NAME}.zip"
+if [ "${ARCH}" = "amd64" ]; then
+    echo "Note: linux/amd64 builds on Apple Silicon use Rosetta emulation and are slower than the native arm64 build."
+fi
 echo ""
 
 # Check Docker is installed
@@ -94,15 +148,15 @@ flutter pub get
 echo "[3/7] Building web UI on Mac..."
 flutter build web -t lib/web/main.dart
 
-# Step 4: Compile ARM64 binary using Docker
-echo "[4/7] Compiling ARM64 binary in Docker (this may take a minute)..."
+# Step 4: Compile Linux binary using Docker
+echo "[4/7] Compiling ${TARGET_LABEL} binary in Docker (this may take a minute)..."
 
 docker run --rm \
   -v "${PARENT_DIR}:/workspace" \
   -w /workspace/ariami_cli \
-  --platform linux/arm64 \
+  --platform "${DOCKER_PLATFORM}" \
   ghcr.io/cirruslabs/flutter:stable \
-  sh -c "flutter pub get && dart build cli -o /tmp/ariami-pi-cli && rm -rf ./${CLI_BUNDLE_RELATIVE_DIR} && cp -R /tmp/ariami-pi-cli/bundle ./${CLI_BUNDLE_RELATIVE_DIR} && chmod +x ./${CLI_BINARY_RELATIVE_PATH}"
+  sh -c "flutter pub get && dart build cli -o ${BUILD_OUTPUT_DIR} && rm -rf ./${CLI_BUNDLE_RELATIVE_DIR} && cp -R ${BUILD_OUTPUT_DIR}/bundle ./${CLI_BUNDLE_RELATIVE_DIR} && chmod +x ./${CLI_BINARY_RELATIVE_PATH}"
 
 if [ ! -f "${SCRIPT_DIR}/${CLI_BINARY_RELATIVE_PATH}" ]; then
     echo "ERROR: CLI binary was not produced at ${SCRIPT_DIR}/${CLI_BINARY_RELATIVE_PATH}"
@@ -114,14 +168,14 @@ if [ ! -f "${SCRIPT_DIR}/${SQLITE_LIB_RELATIVE_PATH}" ]; then
     exit 1
 fi
 
-echo "✓ ARM64 binary compiled successfully"
+echo "✓ ${TARGET_LABEL} binary compiled successfully"
 
-# Step 5: Build Sonic ARM64 library in Docker
-echo "[5/7] Building Sonic ARM64 library in Docker..."
+# Step 5: Build Sonic Linux library in Docker
+echo "[5/7] Building Sonic ${TARGET_LABEL} library in Docker..."
 docker run --rm \
   -v "${PARENT_DIR}:/workspace" \
   -w /workspace/sonic \
-  --platform linux/arm64 \
+  --platform "${DOCKER_PLATFORM}" \
   rust:1-bookworm \
   sh -c "CARGO_TARGET_DIR=${SONIC_TARGET_DIR} cargo build --release --features aac-fdk --lib"
 
@@ -129,7 +183,7 @@ if [ ! -f "${SONIC_LIB_LOCAL_PATH}" ]; then
     echo "ERROR: Sonic library was not produced at ${SONIC_LIB_LOCAL_PATH}"
     exit 1
 fi
-echo "✓ Sonic ARM64 library built successfully"
+echo "✓ Sonic ${TARGET_LABEL} library built successfully"
 
 # Step 6: Create release directory structure
 echo "[6/7] Creating release directory structure..."
@@ -162,6 +216,18 @@ SQLITE_INFO=$(file "${RELEASE_NAME}/lib/libsqlite3.so" 2>/dev/null || echo "unkn
 echo "SQLite info: ${SQLITE_INFO}"
 SONIC_INFO=$(file "${RELEASE_NAME}/lib/libsonic_transcoder.so" 2>/dev/null || echo "unknown")
 echo "Sonic info: ${SONIC_INFO}"
+if ! echo "${ARCH_INFO}" | grep -qi "${EXPECTED_FILE_ARCH}"; then
+    echo "ERROR: CLI binary architecture mismatch; expected ${EXPECTED_FILE_ARCH}"
+    exit 1
+fi
+if ! echo "${SQLITE_INFO}" | grep -qi "${EXPECTED_FILE_ARCH}"; then
+    echo "ERROR: SQLite library architecture mismatch; expected ${EXPECTED_FILE_ARCH}"
+    exit 1
+fi
+if ! echo "${SONIC_INFO}" | grep -qi "${EXPECTED_FILE_ARCH}"; then
+    echo "ERROR: Sonic library architecture mismatch; expected ${EXPECTED_FILE_ARCH}"
+    exit 1
+fi
 rm -rf "${RELEASE_NAME}"
 
 # Summary
@@ -171,9 +237,17 @@ echo "Output: ${RELEASE_NAME}.zip"
 echo "Size: $(du -h ${RELEASE_NAME}.zip | cut -f1)"
 echo ""
 echo "Next steps:"
-echo "1. (Optional) Test on your Raspberry Pi"
+if [ "${ARCH}" = "arm64" ]; then
+    echo "1. (Optional) Test on your Raspberry Pi"
+else
+    echo "1. (Optional) Test on your linux amd64 server"
+fi
 echo "2. Upload ${RELEASE_NAME}.zip to GitHub releases"
 echo "3. Users can download with:"
 echo "   curl -L https://github.com/picccassso/Ariami/releases/download/v${VERSION}/${RELEASE_NAME}.zip -o ariami-cli.zip"
 echo ""
-echo "Note: Built on M2 Pro (ARM64) - no emulation needed!"
+if [ "${ARCH}" = "arm64" ]; then
+    echo "Note: Built on M2 Pro (ARM64) - no emulation needed!"
+else
+    echo "Note: Built for linux/amd64 via emulation; this is slower than the native arm64 build."
+fi

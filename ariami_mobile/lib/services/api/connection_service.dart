@@ -214,6 +214,9 @@ class ConnectionService {
   /// Resolve the current device display name used for server connections
   Future<String> getCurrentDeviceName() => _deviceInfoManager.getDeviceName();
 
+  /// Stable identity used by the dedicated Ariami Connect socket.
+  Future<String> getCurrentDeviceId() => _deviceInfoManager.getDeviceId();
+
   /// Resolve a server-relative media URL (for example `/api/artwork/...`)
   /// into an absolute URL using the current connected server.
   String? resolveServerUrl(String? url) {
@@ -546,7 +549,7 @@ class ConnectionService {
     final response = await apiClient.connect(ConnectRequest(
       deviceId: deviceId,
       deviceName: deviceName,
-      appVersion: '4.4.0',
+      appVersion: '5.0 Preview',
       platform: Platform.isAndroid ? 'android' : 'ios',
     ));
 
@@ -782,7 +785,7 @@ class ConnectionService {
     final response = await apiClient.connect(ConnectRequest(
       deviceId: deviceId,
       deviceName: deviceName,
-      appVersion: '4.4.0',
+      appVersion: '5.0 Preview',
       platform: Platform.isAndroid ? 'android' : 'ios',
     ));
 

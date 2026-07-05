@@ -193,6 +193,9 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
 
   Future<void> _skipNextImpl({bool completedNaturally = false}) async {
     try {
+      if (!completedNaturally) {
+        _useRepeatAllForNewSongSelection();
+      }
       final previousIndex = _queue.currentIndex;
       final previousSong = _queue.currentSong;
 
@@ -267,8 +270,12 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
 
   Future<void> _skipPreviousImpl() async {
     try {
+      final wasRepeatOne = _repeatMode == RepeatMode.one;
+      if (wasRepeatOne) {
+        _useRepeatAllForNewSongSelection();
+      }
       // If more than 3 seconds into song, restart it
-      if (position.inSeconds > 3) {
+      if (!wasRepeatOne && position.inSeconds > 3) {
         await seek(Duration.zero);
         return;
       }

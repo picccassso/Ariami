@@ -231,10 +231,10 @@ class _ReconnectScreenState extends State<ReconnectScreen> {
                     padding: const EdgeInsets.all(16),
                     margin: const EdgeInsets.only(bottom: 24),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFF4B4B).withOpacity(0.1),
+                      color: const Color(0xFFFF4B4B).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: const Color(0xFFFF4B4B).withOpacity(0.2),
+                        color: const Color(0xFFFF4B4B).withValues(alpha: 0.2),
                       ),
                     ),
                     child: Row(
@@ -263,7 +263,7 @@ class _ReconnectScreenState extends State<ReconnectScreen> {
                     color: const Color(0xFF111111),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                      color: Colors.white.withOpacity(0.05),
+                      color: Colors.white.withValues(alpha: 0.05),
                       width: 1,
                     ),
                   ),
@@ -350,7 +350,7 @@ class _ReconnectScreenState extends State<ReconnectScreen> {
                     ),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: Colors.white,
-                      side: BorderSide(color: Colors.white.withOpacity(0.1)),
+                      side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
                       shape: const StadiumBorder(),
                     ),
                   ),

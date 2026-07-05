@@ -11,6 +11,7 @@ import '../../widgets/common/bottom_chrome_metrics.dart';
 import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
 import '../../widgets/common/queue_action_confirmation.dart';
 import '../playlist/create_playlist_screen.dart';
+import '../playlist/server_playlist_detail_screen.dart';
 import 'library/library.dart';
 
 /// Main library screen with collapsible sections for Playlists, Albums, and Songs.
@@ -152,6 +153,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
     showServerPlaylistsSheet(
       context: context,
       playlistService: _controller.playlistService,
+      onOpenPlaylist: _openServerPlaylist,
       onImportPlaylist: _importServerPlaylist,
       onImportAll: () => _importAllServerPlaylists(
         _controller.playlistService.visibleServerPlaylists,
@@ -160,6 +162,17 @@ class _LibraryScreenState extends State<LibraryScreen> {
   }
 
   // Server Playlist Import
+
+  void _openServerPlaylist(ServerPlaylist serverPlaylist) {
+    Navigator.pop(context);
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => ServerPlaylistDetailScreen(
+          playlistId: serverPlaylist.id,
+        ),
+      ),
+    );
+  }
 
   Future<void> _importServerPlaylist(ServerPlaylist serverPlaylist) async {
     Navigator.pop(context);
@@ -430,7 +443,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
                   if (isOffline) ...[
                     const SizedBox(width: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: 0.05),
                         borderRadius: BorderRadius.circular(12),
@@ -586,16 +600,18 @@ class _LibraryScreenState extends State<LibraryScreen> {
               );
             },
           ),
-          
+
           // Premium Floating Glassmorphic Batch Action Bar
           MiniPlayerScrollPaddingBuilder(
             builder: (context, bottomPadding) {
               return AnimatedBuilder(
                 animation: _controller,
                 builder: (context, child) {
-                  final isVisible = _controller.isSelectionModeActive && _controller.totalSelectedCount > 0;
+                  final isVisible = _controller.isSelectionModeActive &&
+                      _controller.totalSelectedCount > 0;
                   final batchSummary = _controller.batchDownloadSummary;
-                  final hasItemsToDownload = _controller.hasBatchItemsToDownload;
+                  final hasItemsToDownload =
+                      _controller.hasBatchItemsToDownload;
                   final subtitle = batchSummary.allSaved
                       ? 'Already downloaded'
                       : batchSummary.hasPartialSkip
@@ -609,114 +625,139 @@ class _LibraryScreenState extends State<LibraryScreen> {
                     bottom: isVisible
                         ? bottomPadding + kBatchDownloadBarBottomGap
                         : -150,
-                child: AnimatedOpacity(
-                  duration: const Duration(milliseconds: 200),
-                  opacity: isVisible ? 1.0 : 0.0,
-                  child: IgnorePointer(
-                    ignoring: !isVisible,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.4),
-                            blurRadius: 16,
-                            offset: const Offset(0, 8),
-                          ),
-                        ],
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(24),
-                        child: BackdropFilter(
-                          filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: Theme.of(context).colorScheme.surface.withOpacity(0.85),
-                              borderRadius: BorderRadius.circular(24),
-                              border: Border.all(
-                                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.12),
-                                width: 1,
+                    child: AnimatedOpacity(
+                      duration: const Duration(milliseconds: 200),
+                      opacity: isVisible ? 1.0 : 0.0,
+                      child: IgnorePointer(
+                        ignoring: !isVisible,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.4),
+                                blurRadius: 16,
+                                offset: const Offset(0, 8),
                               ),
-                            ),
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  mainAxisSize: MainAxisSize.min,
+                            ],
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(24),
+                            child: BackdropFilter(
+                              filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .surface
+                                      .withValues(alpha: 0.85),
+                                  borderRadius: BorderRadius.circular(24),
+                                  border: Border.all(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurface
+                                        .withValues(alpha: 0.12),
+                                    width: 1,
+                                  ),
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 20, vertical: 14),
+                                child: Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
                                   children: [
-                                    Text(
-                                      'Batch Download',
-                                      style: TextStyle(
-                                        color: Theme.of(context).colorScheme.onSurface,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 14,
-                                      ),
+                                    Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          'Batch Download',
+                                          style: TextStyle(
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .onSurface,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          subtitle,
+                                          style: TextStyle(
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .onSurface
+                                                .withValues(alpha: 0.7),
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      subtitle,
-                                      style: TextStyle(
-                                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
-                                        fontSize: 12,
+                                    ElevatedButton.icon(
+                                      onPressed: hasItemsToDownload
+                                          ? () async {
+                                              await _controller
+                                                  .downloadSelectedItems();
+                                            }
+                                          : null,
+                                      icon: Icon(
+                                        hasItemsToDownload
+                                            ? Icons.download_rounded
+                                            : Icons.download_done,
+                                        color: hasItemsToDownload
+                                            ? null
+                                            : Colors.green,
+                                      ),
+                                      label: Text(
+                                        hasItemsToDownload
+                                            ? 'Download'
+                                            : 'Downloaded',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: hasItemsToDownload
+                                            ? Theme.of(context)
+                                                .colorScheme
+                                                .primary
+                                            : Theme.of(context)
+                                                .colorScheme
+                                                .surfaceContainerHighest,
+                                        foregroundColor: hasItemsToDownload
+                                            ? Theme.of(context)
+                                                .colorScheme
+                                                .onPrimary
+                                            : Theme.of(context)
+                                                .colorScheme
+                                                .onSurface
+                                                .withValues(alpha: 0.6),
+                                        disabledBackgroundColor:
+                                            Theme.of(context)
+                                                .colorScheme
+                                                .surfaceContainerHighest,
+                                        disabledForegroundColor:
+                                            Theme.of(context)
+                                                .colorScheme
+                                                .onSurface
+                                                .withValues(alpha: 0.6),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(20),
+                                        ),
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 16, vertical: 10),
                                       ),
                                     ),
                                   ],
                                 ),
-                                ElevatedButton.icon(
-                                  onPressed: hasItemsToDownload
-                                      ? () async {
-                                          await _controller.downloadSelectedItems();
-                                        }
-                                      : null,
-                                  icon: Icon(
-                                    hasItemsToDownload
-                                        ? Icons.download_rounded
-                                        : Icons.download_done,
-                                    color: hasItemsToDownload
-                                        ? null
-                                        : Colors.green,
-                                  ),
-                                  label: Text(
-                                    hasItemsToDownload ? 'Download' : 'Downloaded',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: hasItemsToDownload
-                                        ? Theme.of(context).colorScheme.primary
-                                        : Theme.of(context)
-                                            .colorScheme
-                                            .surfaceContainerHighest,
-                                    foregroundColor: hasItemsToDownload
-                                        ? Theme.of(context).colorScheme.onPrimary
-                                        : Theme.of(context)
-                                            .colorScheme
-                                            .onSurface
-                                            .withOpacity(0.6),
-                                    disabledBackgroundColor: Theme.of(context)
-                                        .colorScheme
-                                        .surfaceContainerHighest,
-                                    disabledForegroundColor: Theme.of(context)
-                                        .colorScheme
-                                        .onSurface
-                                        .withOpacity(0.6),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(20),
-                                    ),
-                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                                  ),
-                                ),
-                              ],
+                              ),
                             ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                ),
-              );
+                  );
                 },
               );
             },

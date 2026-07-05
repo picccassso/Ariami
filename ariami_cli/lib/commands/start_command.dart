@@ -2,11 +2,14 @@ import 'dart:async';
 import 'dart:io';
 import '../services/daemon_service.dart';
 import '../services/cli_state_service.dart';
+import '../services/cli_status_info.dart';
 import '../services/browser_service.dart';
 import '../services/cli_tailscale_service.dart';
 import '../services/web_assets_resolver.dart';
 import '../services/autostart_service.dart';
+import '../services/startup_summary.dart';
 import '../server_runner.dart';
+import 'package:ariami_core/ariami_core.dart';
 
 /// Command to start the Ariami CLI server
 class StartCommand {
@@ -21,7 +24,15 @@ class StartCommand {
   Future<void> execute({
     int port = 8080,
     bool portExplicitlyRequested = false,
+    String bindHost = '0.0.0.0',
+    bool bindHostExplicitlyRequested = false,
+    bool noBrowser = false,
+    bool verbose = false,
   }) async {
+    if (bindHostExplicitlyRequested) {
+      await _stateService.setBindHost(bindHost);
+    }
+
     // Check if already running
     if (await _daemonService.isRunning()) {
       print('Ariami CLI server is already running.');
@@ -42,6 +53,7 @@ class StartCommand {
     final savedPort = await _stateService.getServerPort();
     final preferredPort = portExplicitlyRequested ? port : (savedPort ?? port);
     final allowPortFallback = !portExplicitlyRequested;
+    final activeBindHost = await _stateService.getBindHost();
 
     if (!isSetupComplete) {
       // Ask about starting on boot before anything else launches.
@@ -52,21 +64,36 @@ class StartCommand {
 
       // Run server in foreground (setup mode)
       final runner = ServerRunner();
-      await runZoned(
-        () => runner.run(
-          port: preferredPort,
-          isSetupMode: true,
-          allowPortFallback: allowPortFallback,
-          onHttpServerReady: _openSetupBrowser,
-        ),
-        zoneSpecification: ZoneSpecification(
-          print: (self, parent, zone, line) {
-            if (_shouldShowQuietSetupLog(line)) {
-              parent.print(zone, line);
-            }
-          },
-        ),
-      );
+      try {
+        await runZoned(
+          () => runner.run(
+            port: preferredPort,
+            isSetupMode: true,
+            allowPortFallback: allowPortFallback,
+            verbose: verbose,
+            onHttpServerReady: (readyPort) => _openSetupBrowser(
+              readyPort,
+              noBrowser: noBrowser,
+            ),
+          ),
+          zoneSpecification: ZoneSpecification(
+            print: (self, parent, zone, line) {
+              if (_shouldShowQuietSetupLog(line, verbose: verbose)) {
+                parent.print(zone, line);
+              }
+            },
+          ),
+        );
+      } catch (_) {
+        // ServerRunner already reported the failure to stderr.
+        exit(1);
+      }
+
+      // Reaching here means the setup server shut down gracefully (signal)
+      // without transitioning to the background daemon. Native resources
+      // (sqlite, FFI isolates) can keep the VM alive, so exit explicitly
+      // now that cleanup has completed.
+      exit(0);
     } else {
       print('Starting Ariami CLI server in background...');
       print('');
@@ -78,6 +105,9 @@ class StartCommand {
         '--server-mode',
         '--port',
         daemonPort.toString(),
+        '--host',
+        activeBindHost,
+        if (verbose) '--verbose',
       ]);
 
       if (pid == null) {
@@ -90,15 +120,17 @@ class StartCommand {
       await _daemonService.saveServerState({
         'port': daemonPort,
         'pid': pid,
+        'host': activeBindHost,
         'started_at': DateTime.now().toIso8601String(),
       });
 
       print('✓ Ariami CLI server started successfully!');
       print('');
-      print('Server details:');
-      print('  PID: $pid');
-      print('  Port: $daemonPort');
-      print('  URL: http://localhost:$daemonPort');
+      await _printBackgroundStartSummary(
+        port: daemonPort,
+        pid: pid,
+        bindHost: activeBindHost,
+      );
       print('');
       print('Use "ariami_cli status" to check server status');
       print('Use "ariami_cli stop" to stop the server');
@@ -109,6 +141,15 @@ class StartCommand {
   /// Ask the user whether Ariami should start automatically on boot, and apply
   /// their choice. Runs before the setup server/browser launches.
   Future<void> _promptAndConfigureAutostart() async {
+    if (!stdin.hasTerminal) {
+      _writeSetupLine(
+        'Non-interactive session: skipping the start-on-boot prompt. Use '
+        '"ariami_cli autostart enable" to turn it on.',
+      );
+      _writeSetupLine('');
+      return;
+    }
+
     if (!_autostartService.isSupported) {
       return;
     }
@@ -116,7 +157,20 @@ class StartCommand {
     stdout.write(
       'Start Ariami automatically on boot (after restart, etc.)? [y/N]: ',
     );
-    final answer = stdin.readLineSync()?.trim().toLowerCase() ?? '';
+    // On macOS stdin.hasTerminal can report true for /dev/null, so a null
+    // read (EOF) is the reliable non-interactive signal: skip without
+    // touching the existing autostart setting.
+    final rawAnswer = stdin.readLineSync();
+    if (rawAnswer == null) {
+      _writeSetupLine('');
+      _writeSetupLine(
+        'Non-interactive session: skipping the start-on-boot prompt. Use '
+        '"ariami_cli autostart enable" to turn it on.',
+      );
+      _writeSetupLine('');
+      return;
+    }
+    final answer = rawAnswer.trim().toLowerCase();
     final wantsAutostart = answer == 'y' || answer == 'yes';
 
     if (wantsAutostart) {
@@ -134,8 +188,15 @@ class StartCommand {
     _writeSetupLine('');
   }
 
-  Future<void> _openSetupBrowser(int port) async {
+  Future<void> _openSetupBrowser(int port, {required bool noBrowser}) async {
     await _printSetupReadyUrls(port);
+
+    if (noBrowser) {
+      _writeSetupLine('Browser auto-open is disabled.');
+      _writeSetupLine(
+          'Open one of the addresses above manually to continue setup.');
+      return;
+    }
 
     final opened = await _browserService.openAriamiInterface(port: port);
     if (!opened) {
@@ -172,13 +233,53 @@ class StartCommand {
     }
 
     _writeSetupLine('Keep this terminal open until setup finishes.');
+    _writeSetupLine(
+      'Network:   keep Ariami on LAN/Tailscale/VPN. Do not expose this port to the public internet.',
+    );
     _writeSetupLine('');
   }
 
-  bool _shouldShowQuietSetupLog(String line) {
-    return line.startsWith('ERROR:') ||
+  Future<void> _printBackgroundStartSummary({
+    required int port,
+    required int pid,
+    required String bindHost,
+  }) async {
+    final lanIp = await _tailscaleService.getLanIp();
+    final tailscaleIp = await _tailscaleService.getTailscaleIp();
+    final musicDir = await _stateService.getMusicFolderPath();
+    final musicDirExists = musicDir != null &&
+        musicDir.isNotEmpty &&
+        await Directory(musicDir).exists();
+    final auth = await readAuthSummary();
+    final setupComplete = await _stateService.isSetupComplete();
+
+    for (final line in StartupSummary.buildBanner(
+      version: kAriamiVersion,
+      modeLabel: 'background',
+      port: port,
+      bindHost: bindHost,
+      lanIp: lanIp,
+      tailscaleIp: tailscaleIp,
+      dataDir: CliStateService.getConfigDir(),
+      musicDir: musicDir,
+      musicDirExists: musicDirExists,
+      accountCount: auth.accountCount,
+      hasOwnerAccount: auth.hasOwnerAccount,
+      setupComplete: setupComplete,
+      pid: pid,
+    )) {
+      print(line);
+    }
+  }
+
+  bool _shouldShowQuietSetupLog(String line, {required bool verbose}) {
+    return verbose ||
+        line.startsWith('ERROR:') ||
         line.startsWith('Error:') ||
         line.startsWith('Failed to start server:') ||
+        line.startsWith('Received SIG') ||
+        line.startsWith('Shutting down Ariami server') ||
+        line.startsWith('✓ Server shutdown complete') ||
         line.startsWith('Warning: Error during shutdown:');
   }
 

@@ -18,6 +18,9 @@ class WsMessageType {
   static const String pong = 'pong';
   static const String clientConnected = 'client_connected';
   static const String clientDisconnected = 'client_disconnected';
+  static const String listeningStatsUpdated = 'listening_stats_updated';
+  static const String pinsChanged = 'pins_changed';
+  static const String playlistEditsChanged = 'playlist_edits_changed';
 }
 
 // ============================================================================

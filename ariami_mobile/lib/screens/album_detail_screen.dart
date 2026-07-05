@@ -311,6 +311,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
                 _albumDetail!.songs
                     .every((song) => _downloadedSongIds.contains(song.id)),
             hasSongs: (_albumDetail?.songs ?? []).isNotEmpty,
+            isPinned: _libraryController.state.isAlbumPinned(widget.album.id),
             onDownloadAlbum: _albumDetail != null &&
                     !_albumDetail!.songs
                         .every((song) => _downloadedSongIds.contains(song.id))
@@ -320,6 +321,10 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
             onAddToQueue: _addToQueue,
             onShuffleAll: _shuffleAll,
             onPlayAll: _playAll,
+            onTogglePin: () async {
+              await _libraryController.togglePinAlbum(widget.album.id);
+              if (mounted) setState(() {});
+            },
           ),
         ),
 

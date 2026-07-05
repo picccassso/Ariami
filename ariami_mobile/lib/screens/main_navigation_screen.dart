@@ -11,6 +11,7 @@ import '../widgets/common/bottom_chrome_metrics.dart';
 import '../screens/full_player_screen.dart';
 import '../services/cast/chrome_cast_service.dart';
 import '../services/playback_manager.dart';
+import '../services/ariami_connect_controller.dart';
 
 class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({super.key});
@@ -24,6 +25,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
   int _currentIndex = 0;
   final PlaybackManager _playbackManager = PlaybackManager();
   final ChromeCastService _castService = ChromeCastService();
+  final AriamiConnectController _connect = AriamiConnectController();
 
   void _goToLibrary() {
     setState(() {
@@ -41,6 +43,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
     WidgetsBinding.instance.addObserver(this);
     // Initialize playback manager and listen to changes
     _playbackManager.initialize();
+    unawaited(_connect.start(_playbackManager));
     _playbackManager.addListener(_onPlaybackStateChanged);
   }
 
@@ -48,6 +51,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _playbackManager.removeListener(_onPlaybackStateChanged);
+    unawaited(_connect.stop());
     _playbackManager.dispose();
     super.dispose();
   }

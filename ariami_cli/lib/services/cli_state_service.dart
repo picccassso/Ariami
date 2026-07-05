@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:path/path.dart' as path;
 
 /// Service for managing CLI configuration and state
-/// Stores config in ~/.ariami_cli/ directory (separate from ariami_desktop)
+/// Stores config in ~/.ariami_cli/ directory (separate from the desktop apps)
 class CliStateService {
   // Singleton pattern
   static final CliStateService _instance = CliStateService._internal();
@@ -12,7 +12,14 @@ class CliStateService {
 
   /// Get the config directory path
   static String getConfigDir() {
-    final home = Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'] ?? '.';
+    final dataDir = Platform.environment['ARIAMI_DATA_DIR'];
+    if (dataDir != null && dataDir.isNotEmpty) {
+      return dataDir;
+    }
+
+    final home = Platform.environment['HOME'] ??
+        Platform.environment['USERPROFILE'] ??
+        '.';
     return path.join(home, '.ariami_cli');
   }
 
@@ -162,6 +169,21 @@ class CliStateService {
   /// Persist the server port used for future starts.
   Future<void> setServerPort(int port) async {
     await _updateConfigField('server_port', port);
+  }
+
+  /// Get HTTP bind host from config.
+  Future<String> getBindHost() async {
+    final config = await _readConfig();
+    final value = config['bind_host'];
+    if (value is String && value.trim().isNotEmpty) {
+      return value.trim();
+    }
+    return '0.0.0.0';
+  }
+
+  /// Persist the HTTP bind host used for future starts.
+  Future<void> setBindHost(String host) async {
+    await _updateConfigField('bind_host', host);
   }
 
   /// Get optional transcode slots override from config.

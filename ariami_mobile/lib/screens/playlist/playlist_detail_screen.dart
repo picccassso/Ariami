@@ -710,6 +710,23 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
       ),
       items: [
         ListTile(
+          leading: Icon(
+            _libraryController.state.isPlaylistPinned(_playlist!.id)
+                ? Icons.push_pin
+                : Icons.push_pin_outlined,
+          ),
+          title: Text(
+            _libraryController.state.isPlaylistPinned(_playlist!.id)
+                ? 'Unpin Playlist'
+                : 'Pin Playlist',
+          ),
+          onTap: () async {
+            Navigator.pop(context);
+            await _libraryController.togglePinPlaylist(_playlist!.id);
+            if (mounted) setState(() {});
+          },
+        ),
+        ListTile(
           leading: const Icon(Icons.edit_outlined),
           title: const Text('Edit Playlist'),
           onTap: () {

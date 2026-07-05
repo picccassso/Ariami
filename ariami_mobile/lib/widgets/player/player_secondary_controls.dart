@@ -3,9 +3,9 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../common/mini_player_aware_bottom_sheet.dart';
 
-/// Secondary controls row (Cast, Queue, Add to Playlist)
+/// Secondary controls row (Playback output, Queue, Add to Playlist)
 class PlayerSecondaryControls extends StatelessWidget {
-  final Widget? castButton;
+  final Widget? outputButton;
   final VoidCallback? onOpenQueue;
   final VoidCallback? onAddToPlaylist;
   final VoidCallback? onPlayNext;
@@ -13,7 +13,7 @@ class PlayerSecondaryControls extends StatelessWidget {
 
   const PlayerSecondaryControls({
     super.key,
-    this.castButton,
+    this.outputButton,
     this.onOpenQueue,
     this.onAddToPlaylist,
     this.onPlayNext,
@@ -25,40 +25,34 @@ class PlayerSecondaryControls extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (onPlayNext != null || onAddToQueue != null) ...[
-                IconButton(
-                  icon: const Icon(Icons.more_vert_rounded),
-                  onPressed: () => _showOptionsSheet(context),
-                  tooltip: 'More options',
-                  iconSize: 24,
-                ),
-                const SizedBox(width: 8),
-              ],
-              castButton ?? const SizedBox(width: 48, height: 48),
-            ],
+          if (onPlayNext != null || onAddToQueue != null) ...[
+            IconButton(
+              icon: const Icon(Icons.more_vert_rounded),
+              onPressed: () => _showOptionsSheet(context),
+              tooltip: 'More options',
+              iconSize: 24,
+            ),
+            const SizedBox(width: 8),
+          ],
+          Expanded(
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: outputButton ?? const SizedBox(width: 48, height: 48),
+            ),
           ),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              IconButton(
-                icon: const Icon(LucideIcons.listPlus),
-                onPressed: onAddToPlaylist ?? () {},
-                tooltip: 'Add to playlist',
-                iconSize: 24,
-              ),
-              const SizedBox(width: 8),
-              IconButton(
-                icon: const Icon(LucideIcons.listMusic),
-                onPressed: onOpenQueue,
-                tooltip: 'View queue',
-                iconSize: 24,
-              ),
-            ],
+          IconButton(
+            icon: const Icon(LucideIcons.listPlus),
+            onPressed: onAddToPlaylist ?? () {},
+            tooltip: 'Add to playlist',
+            iconSize: 24,
+          ),
+          const SizedBox(width: 8),
+          IconButton(
+            icon: const Icon(LucideIcons.listMusic),
+            onPressed: onOpenQueue,
+            tooltip: 'View queue',
+            iconSize: 24,
           ),
         ],
       ),

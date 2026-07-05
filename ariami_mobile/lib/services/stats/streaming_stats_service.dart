@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:math';
 import 'dart:ui' show AppExitResponse, ViewFocusEvent;
 
+import 'package:ariami_core/ariami_core.dart' show ListeningEvent;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import '../../models/api_models.dart';
@@ -38,6 +40,24 @@ class StreamingStatsService extends ChangeNotifier
 
   // In-memory cache for instant UI updates
   final Map<String, SongStats> _statsCache = {};
+
+  /// Account-wide stats overlay (server rollups merged with this device's
+  /// pending uploads), maintained by AccountStatsService. When present, read
+  /// queries and streams show the whole account across devices; the local
+  /// per-device tracking underneath is unaffected and keeps recording.
+  Map<String, SongStats>? _accountOverlay;
+
+  /// Sink for cross-device listening events (wired by AccountStatsService).
+  /// Every credited play and time segment is mirrored here so it can be
+  /// queued for idempotent upload to the server.
+  void Function(ListeningEvent event)? onListeningEvent;
+
+  static final Random _eventRandom = Random();
+  int _eventCounter = 0;
+
+  /// Identifies the current play-action, so the server can guarantee at most
+  /// one counted play per action even across upload retries.
+  String? _sessionPlayId;
 
   // ============================================================================
   // SESSION STATE
@@ -144,6 +164,7 @@ class StreamingStatsService extends ChangeNotifier
         listenedTime: listenedTime,
         playRecorded: playRecorded,
         completedNaturally: false,
+        playId: _sessionPlayId,
       ));
     }
 
@@ -155,6 +176,7 @@ class StreamingStatsService extends ChangeNotifier
       _sessionListenedTime = Duration.zero;
       _sessionTimeAlreadyCached = Duration.zero;
       _sessionPlayRecorded = false;
+      _sessionPlayId = _newListeningId('play');
       print('[StreamingStatsService] New session, reset counters');
     } else {
       print(
@@ -189,6 +211,7 @@ class StreamingStatsService extends ChangeNotifier
       listenedTime: listenedTime,
       playRecorded: playRecorded,
       completedNaturally: completedNaturally,
+      playId: _sessionPlayId,
     );
 
     _sessionTimeAlreadyCached += listenedTime;
@@ -265,13 +288,24 @@ class StreamingStatsService extends ChangeNotifier
     return cappedCurrent - previousPosition;
   }
 
-  /// Internal: Check if cumulative listening time has crossed the 30s
-  /// threshold and record a play if so.
+  /// The play-count threshold for the current song: 30 seconds, or half the
+  /// track when that is shorter, so short songs can still earn plays.
+  Duration get _playThreshold {
+    const standard = Duration(seconds: 30);
+    final duration = _currentSong?.duration ?? Duration.zero;
+    if (duration > Duration.zero) {
+      final half = Duration(milliseconds: duration.inMilliseconds ~/ 2);
+      if (half < standard) return half;
+    }
+    return standard;
+  }
+
+  /// Internal: Check if cumulative listening time has crossed the play
+  /// threshold (30s or 50% of the track) and record a play if so.
   void _maybeRecordPlay() {
     if (!_sessionPlayRecorded &&
-        (_sessionTimeAlreadyCached + _sessionListenedTime) >=
-            const Duration(seconds: 30)) {
-      print('[StreamingStatsService] 30s threshold reached, recording play');
+        (_sessionTimeAlreadyCached + _sessionListenedTime) >= _playThreshold) {
+      print('[StreamingStatsService] Play threshold reached, recording play');
       unawaited(_recordPlay());
     }
   }
@@ -287,6 +321,7 @@ class StreamingStatsService extends ChangeNotifier
     required Duration listenedTime,
     required bool playRecorded,
     required bool completedNaturally,
+    String? playId,
   }) async {
     // Short-song rule: any song that completes naturally and is < 30s
     // always counts as 1 play (Spotify-style behaviour).
@@ -295,13 +330,13 @@ class StreamingStatsService extends ChangeNotifier
         !playRecorded) {
       print(
           '[StreamingStatsService] Short song completed naturally (${song.duration.inSeconds}s < 30s), recording play');
-      await _recordPlayForSong(song);
+      await _recordPlayForSong(song, playId: playId);
       playRecorded = true;
     }
 
     // Persist any accumulated listening time.
     if (listenedTime > Duration.zero) {
-      await _updateStreamingTimeForSong(song, listenedTime);
+      await _updateStreamingTimeForSong(song, listenedTime, playId: playId);
     }
 
     await _flushPendingStats();
@@ -320,7 +355,8 @@ class StreamingStatsService extends ChangeNotifier
     _sessionListenedTime = Duration.zero;
     _sessionTimeAlreadyCached += listenedTime;
 
-    await _updateStreamingTimeForSong(song, listenedTime);
+    await _updateStreamingTimeForSong(song, listenedTime,
+        playId: _sessionPlayId);
 
     if (flush) {
       await _flushPendingStats();
@@ -336,11 +372,11 @@ class StreamingStatsService extends ChangeNotifier
     if (_currentSong == null || _sessionPlayRecorded) return;
     _sessionPlayRecorded = true;
     final song = _currentSong!;
-    await _recordPlayForSong(song);
+    await _recordPlayForSong(song, playId: _sessionPlayId);
   }
 
   /// Record a play for a specific song (idempotent within a session).
-  Future<void> _recordPlayForSong(Song song) async {
+  Future<void> _recordPlayForSong(Song song, {String? playId}) async {
     final songId = song.id;
     final existingStats = _statsCache[songId] ??
         SongStats(
@@ -362,6 +398,7 @@ class StreamingStatsService extends ChangeNotifier
 
     _statsCache[songId] = updatedStats;
     _queueDbWrite(songId, updatedStats);
+    _emitListeningEvent(song, listenedMs: 0, plays: 1, playId: playId);
 
     _emitTopSongs();
     print(
@@ -369,7 +406,8 @@ class StreamingStatsService extends ChangeNotifier
   }
 
   /// Update total streaming time for a specific song.
-  Future<void> _updateStreamingTimeForSong(Song song, Duration elapsed) async {
+  Future<void> _updateStreamingTimeForSong(Song song, Duration elapsed,
+      {String? playId}) async {
     final songId = song.id;
     final existingStats = _statsCache[songId] ??
         SongStats(
@@ -398,7 +436,55 @@ class StreamingStatsService extends ChangeNotifier
 
     _statsCache[songId] = updatedStats;
     _queueDbWrite(songId, updatedStats);
+    _emitListeningEvent(
+      song,
+      listenedMs: elapsed.inMilliseconds,
+      plays: 0,
+      playId: playId,
+    );
     _emitTopSongs();
+  }
+
+  // ============================================================================
+  // CROSS-DEVICE LISTENING EVENTS
+  // ============================================================================
+
+  String _newListeningId(String kind) {
+    _eventCounter++;
+    final ts = DateTime.now().toUtc().microsecondsSinceEpoch;
+    final rand = _eventRandom.nextInt(0xffffff).toRadixString(36);
+    return '$kind-m$ts-$_eventCounter-$rand';
+  }
+
+  /// Mirrors a credited play or time segment to the account-stats pipeline.
+  /// No-op until AccountStatsService wires [onListeningEvent].
+  void _emitListeningEvent(
+    Song song, {
+    required int listenedMs,
+    required int plays,
+    String? playId,
+  }) {
+    final sink = onListeningEvent;
+    if (sink == null) return;
+    if (listenedMs <= 0 && plays <= 0) return;
+    final now = DateTime.now();
+    sink(ListeningEvent(
+      eventId: _newListeningId(plays > 0 ? 'p' : 's'),
+      songId: song.id,
+      playId: playId,
+      listenedMs: listenedMs,
+      plays: plays,
+      occurredAtMs: now.toUtc().millisecondsSinceEpoch,
+      tzOffsetMinutes: now.timeZoneOffset.inMinutes,
+      songTitle: song.title,
+      songArtist: song.artist,
+      albumId: song.albumId,
+      album: song.album,
+      albumArtist: song.albumArtist,
+      songDurationMs: song.duration.inMilliseconds > 0
+          ? song.duration.inMilliseconds
+          : null,
+    ));
   }
 
   // ============================================================================
@@ -516,9 +602,37 @@ class StreamingStatsService extends ChangeNotifier
   // QUERIES & AGGREGATION
   // ============================================================================
 
-  /// Get all stats (from in-memory cache for instant access)
+  /// Get all stats for display. When the account overlay is active this is
+  /// the whole account across devices; otherwise this device's local stats.
   List<SongStats> getAllStats() {
+    final overlay = _accountOverlay;
+    if (overlay != null) {
+      return overlay.values.where((stat) => stat.playCount > 0).toList();
+    }
     return _statsCache.values.where((stat) => stat.playCount > 0).toList();
+  }
+
+  /// This device's own tracked stats, ignoring the account overlay. Used for
+  /// the one-time baseline import and for export.
+  List<SongStats> getLocalDeviceStats() {
+    return _statsCache.values.where((stat) => stat.playCount > 0).toList();
+  }
+
+  /// Whether queries currently reflect the whole account (all devices).
+  bool get isShowingAccountStats => _accountOverlay != null;
+
+  /// Sets (or clears, with null) the account-wide stats overlay and refreshes
+  /// every stream/listener. Called by AccountStatsService whenever the server
+  /// summary or the pending-upload queue changes.
+  void setAccountStatsOverlay(List<SongStats>? stats) {
+    if (stats == null) {
+      if (_accountOverlay == null) return;
+      _accountOverlay = null;
+    } else {
+      _accountOverlay = {for (final stat in stats) stat.songId: stat};
+    }
+    _emitTopSongs();
+    notifyListeners();
   }
 
   /// Get top songs (default 20) from in-memory cache
@@ -847,9 +961,9 @@ class StreamingStatsService extends ChangeNotifier
         '[StreamingStatsService] Reloaded ${_statsCache.length} songs from database');
   }
 
-  /// Get stats for a specific song from in-memory cache
+  /// Get stats for a specific song (account-wide when the overlay is active)
   SongStats? getSongStats(String songId) {
-    return _statsCache[songId];
+    return _accountOverlay?[songId] ?? _statsCache[songId];
   }
 
   /// Emit updated top songs to stream
@@ -901,6 +1015,9 @@ class StreamingStatsService extends ChangeNotifier
     _dirtyStats.clear();
     _isFlushing = false;
     _statsCache.clear();
+    _sessionPlayId = null;
+    _accountOverlay = null;
+    onListeningEvent = null;
   }
 
   /// Flush pending stats immediately for unit tests.

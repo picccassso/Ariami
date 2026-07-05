@@ -16,11 +16,15 @@ class ServerLifecycleService {
   StreamSubscription<ProcessSignal>? _sigintSubscription;
 
   void setupSignalHandlers() {
-    _sigtermSubscription = ProcessSignal.sigterm.watch().listen((signal) {
-      print('');
-      print('Received SIGTERM signal, shutting down gracefully...');
-      _triggerShutdown();
-    });
+    // Windows cannot watch SIGTERM (SignalException, OS error 50); only
+    // SIGINT/Ctrl+C is supported there.
+    if (!Platform.isWindows) {
+      _sigtermSubscription = ProcessSignal.sigterm.watch().listen((signal) {
+        print('');
+        print('Received SIGTERM signal, shutting down gracefully...');
+        _triggerShutdown();
+      });
+    }
 
     _sigintSubscription = ProcessSignal.sigint.watch().listen((signal) {
       print('');
@@ -58,6 +62,10 @@ class ServerLifecycleService {
     } catch (e) {
       print('Warning: Error during shutdown: $e');
     }
+
+    // Release the signal watchers so the VM event loop can drain and the
+    // process actually exits after a graceful shutdown.
+    await cancelSignalHandlers();
   }
 
   void _triggerShutdown() {

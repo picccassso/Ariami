@@ -133,6 +133,7 @@ class _SongListItemState extends State<SongListItem> {
                         isDownloaded: widget.isDownloaded,
                         albumName: widget.albumName,
                         albumArtist: widget.albumArtist,
+                        onRemoveFromPlaylist: widget.onRemove,
                       ),
                     ] else
                       const SizedBox(width: 48),

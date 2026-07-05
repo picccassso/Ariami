@@ -6,7 +6,7 @@ import '../../services/api/connection_service.dart';
 import '../../services/offline/offline_manual_reconnect.dart';
 import '../../services/offline/offline_playback_service.dart';
 import '../../services/profile_image_service.dart';
-import '../../services/stats/streaming_stats_service.dart';
+import '../../services/stats/account_stats_service.dart';
 import '../../widgets/settings/settings_section.dart';
 import '../../widgets/settings/settings_tile.dart';
 
@@ -22,7 +22,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final OfflinePlaybackService _offlineService = OfflinePlaybackService();
   final ConnectionService _connectionService = ConnectionService();
   final ProfileImageService _profileImageService = ProfileImageService();
-  final StreamingStatsService _statsService = StreamingStatsService();
   bool _isOfflineModeEnabled = false;
   bool _isReconnecting = false;
   StreamSubscription<OfflineMode>? _offlineSubscription;
@@ -392,7 +391,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           TextButton(
             onPressed: () async {
               final navigator = Navigator.of(context);
-              await _statsService.resetAllStats();
+              await AccountStatsService().resetEverywhere();
               if (!mounted) return;
               navigator.pop();
             },

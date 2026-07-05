@@ -129,41 +129,37 @@ void main() {
     });
   });
 
-  group('AuthService Single-Session Enforcement', () {
-    test(
-        'rejects login from different device when user already has active session',
-        () async {
-      final username = unique('single_session_block');
+  group('AuthService Multi-Device Sessions', () {
+    test('allows the same account on different devices', () async {
+      final username = unique('multi_device');
       const password = 'strongpassword';
       await authService.register(username, password);
 
       final firstDeviceId = unique('device');
-      await authService.login(
-          username, password, firstDeviceId, 'First Device');
+      final firstLogin = await authService.login(
+        username,
+        password,
+        firstDeviceId,
+        'First Device',
+      );
 
       final secondDeviceId = unique('device');
-      try {
-        await authService.login(
-            username, password, secondDeviceId, 'Second Device');
-        fail('Expected ALREADY_LOGGED_IN_OTHER_DEVICE');
-      } catch (e) {
-        expect(e, isA<AuthException>());
-        final authError = e as AuthException;
-        expect(
-          authError.code,
-          equals(AuthErrorCodes.alreadyLoggedInOtherDevice),
-        );
-        expect(
-          authError.message,
-          equals('You are already signed in on another device.'),
-        );
-      }
+      final secondLogin = await authService.login(
+        username,
+        password,
+        secondDeviceId,
+        'Second Device',
+      );
+
+      expect(await authService.validateSession(firstLogin.sessionToken),
+          isNotNull);
+      expect(await authService.validateSession(secondLogin.sessionToken),
+          isNotNull);
+      expect(authService.getSessionsForUser(secondLogin.userId), hasLength(2));
     });
 
-    test(
-        'allowOtherDeviceTakeover signs the other device out and takes over',
-        () async {
-      final username = unique('single_session_takeover');
+    test('legacy takeover flag does not revoke another device', () async {
+      final username = unique('legacy_takeover');
       const password = 'strongpassword';
       await authService.register(username, password);
 
@@ -185,22 +181,18 @@ void main() {
       );
 
       expect(secondLogin.sessionToken, isNotEmpty);
-
-      // The other device's session is revoked (it is signed out).
-      final firstSession =
-          await authService.validateSession(firstLogin.sessionToken);
-      expect(firstSession, isNull);
-
-      // Only the new device's session remains active.
+      expect(await authService.validateSession(firstLogin.sessionToken),
+          isNotNull);
+      expect(await authService.validateSession(secondLogin.sessionToken),
+          isNotNull);
       final sessions = authService.getSessionsForUser(secondLogin.userId);
-      expect(sessions.length, equals(1));
-      expect(sessions.first.deviceId, equals(secondDeviceId));
+      expect(sessions, hasLength(2));
+      expect(sessions.map((session) => session.deviceId),
+          containsAll(<String>[firstDeviceId, secondDeviceId]));
     });
 
-    test(
-        'takeover from a new device leaves a coexisting dashboard session intact',
-        () async {
-      final username = unique('takeover_keeps_dashboard');
+    test('phones and dashboards all coexist on one account', () async {
+      final username = unique('multi_surface');
       const password = 'strongpassword';
       await authService.register(username, password);
 
@@ -225,10 +217,9 @@ void main() {
         allowOtherDeviceTakeover: true,
       );
 
-      // The other phone is signed out, the dashboard session survives.
       expect(
         await authService.validateSession(firstPhone.sessionToken),
-        isNull,
+        isNotNull,
       );
       expect(
         await authService.validateSession(dashboardLogin.sessionToken),
@@ -240,7 +231,7 @@ void main() {
       );
 
       final sessions = authService.getSessionsForUser(secondPhone.userId);
-      expect(sessions.length, equals(2));
+      expect(sessions.length, equals(3));
     });
 
     test('allows re-login from same device and replaces prior device session',
@@ -283,10 +274,8 @@ void main() {
           sessionsForUser.first.sessionToken, equals(secondLogin.sessionToken));
     });
 
-    test(
-        'allows login from a different device after current device sessions are revoked',
-        () async {
-      final username = unique('single_session_after_revoke');
+    test('revoking one device leaves another device signed in', () async {
+      final username = unique('device_revoke');
       const password = 'strongpassword';
       await authService.register(username, password);
 
@@ -299,37 +288,22 @@ void main() {
       );
 
       final secondDeviceId = unique('device');
-      await expectLater(
-        () => authService.login(
-          username,
-          password,
-          secondDeviceId,
-          'Second Device',
-        ),
-        throwsA(
-          isA<AuthException>().having(
-            (e) => e.code,
-            'code',
-            AuthErrorCodes.alreadyLoggedInOtherDevice,
-          ),
-        ),
-      );
-
-      final revoked = await authService.revokeSessionsForDevice(firstDeviceId);
-      expect(revoked.length, equals(1));
-      expect(revoked.first.sessionToken, equals(firstLogin.sessionToken));
-
       final secondLogin = await authService.login(
         username,
         password,
         secondDeviceId,
         'Second Device',
       );
-      expect(secondLogin.sessionToken, isNotEmpty);
+
+      final revoked = await authService.revokeSessionsForDevice(firstDeviceId);
+      expect(revoked.length, equals(1));
+      expect(revoked.first.sessionToken, equals(firstLogin.sessionToken));
 
       final firstSession =
           await authService.validateSession(firstLogin.sessionToken);
       expect(firstSession, isNull);
+      expect(await authService.validateSession(secondLogin.sessionToken),
+          isNotNull);
 
       final activeSessions = authService.getSessionsForUser(secondLogin.userId);
       expect(activeSessions.length, equals(1));
@@ -400,6 +374,141 @@ void main() {
 
       final sessions = authService.getSessionsForUser(dashboardLogin.userId);
       expect(sessions.length, equals(2));
+    });
+
+    test('allows the desktop player to coexist with an active mobile session',
+        () async {
+      final username = unique('mobile_then_desktop');
+      const password = 'strongpassword';
+      await authService.register(username, password);
+
+      final mobileLogin = await authService.login(
+        username,
+        password,
+        unique('phone'),
+        'Alex iPhone',
+      );
+
+      // The desktop player uses a `desktop_client_` device-id prefix.
+      final desktopLogin = await authService.login(
+        username,
+        password,
+        'desktop_client_${unique('desk')}',
+        'Ariami Desktop',
+      );
+
+      expect(
+        await authService.validateSession(mobileLogin.sessionToken),
+        isNotNull,
+      );
+      expect(
+        await authService.validateSession(desktopLogin.sessionToken),
+        isNotNull,
+      );
+
+      final sessions = authService.getSessionsForUser(desktopLogin.userId);
+      expect(sessions.length, equals(2));
+    });
+
+    test('allows a mobile login while the desktop player session is active',
+        () async {
+      final username = unique('desktop_then_mobile');
+      const password = 'strongpassword';
+      await authService.register(username, password);
+
+      final desktopLogin = await authService.login(
+        username,
+        password,
+        'desktop_client_${unique('desk')}',
+        'Ariami Desktop',
+      );
+
+      final mobileLogin = await authService.login(
+        username,
+        password,
+        unique('phone'),
+        'Alex iPhone',
+      );
+
+      expect(
+        await authService.validateSession(desktopLogin.sessionToken),
+        isNotNull,
+      );
+      expect(
+        await authService.validateSession(mobileLogin.sessionToken),
+        isNotNull,
+      );
+      expect(
+          authService.getSessionsForUser(mobileLogin.userId).length, equals(2));
+    });
+
+    test('allows two desktop players on different devices', () async {
+      final username = unique('two_desktops');
+      const password = 'strongpassword';
+      await authService.register(username, password);
+
+      final firstDesktop = await authService.login(
+        username,
+        password,
+        'desktop_client_${unique('desk')}',
+        'Ariami Desktop',
+      );
+
+      final secondDesktop = await authService.login(
+        username,
+        password,
+        'desktop_client_${unique('desk')}',
+        'Ariami Desktop',
+      );
+
+      expect(await authService.validateSession(firstDesktop.sessionToken),
+          isNotNull);
+      expect(await authService.validateSession(secondDesktop.sessionToken),
+          isNotNull);
+      expect(
+          authService.getSessionsForUser(secondDesktop.userId), hasLength(2));
+    });
+
+    test('two desktops and a mobile remain active together', () async {
+      final username = unique('desktop_ecosystem');
+      const password = 'strongpassword';
+      await authService.register(username, password);
+
+      final mobileLogin = await authService.login(
+        username,
+        password,
+        unique('phone'),
+        'Alex iPhone',
+      );
+      final firstDesktop = await authService.login(
+        username,
+        password,
+        'desktop_client_${unique('desk')}',
+        'Ariami Desktop',
+      );
+
+      final secondDesktop = await authService.login(
+        username,
+        password,
+        'desktop_client_${unique('desk')}',
+        'Ariami Desktop',
+        allowOtherDeviceTakeover: true,
+      );
+
+      expect(
+        await authService.validateSession(firstDesktop.sessionToken),
+        isNotNull,
+      );
+      expect(
+        await authService.validateSession(mobileLogin.sessionToken),
+        isNotNull,
+      );
+      expect(
+        await authService.validateSession(secondDesktop.sessionToken),
+        isNotNull,
+      );
+      expect(authService.getSessionsForUser(secondDesktop.userId).length,
+          equals(3));
     });
   });
 
@@ -596,6 +705,40 @@ void main() {
         AuthService.isDashboardControlDevice(
           deviceId: 'mobile-1',
           deviceName: 'Alex iPhone',
+        ),
+        isFalse,
+      );
+    });
+  });
+
+  group('AuthService.isDesktopPlayerDevice', () {
+    test('recognizes the desktop player by device-id prefix or name', () {
+      expect(
+        AuthService.isDesktopPlayerDevice(
+          deviceId: 'desktop_client_abc123',
+          deviceName: 'Whatever',
+        ),
+        isTrue,
+      );
+      expect(
+        AuthService.isDesktopPlayerDevice(
+          deviceId: 'any-id',
+          deviceName: 'Ariami Desktop',
+        ),
+        isTrue,
+      );
+      expect(
+        AuthService.isDesktopPlayerDevice(
+          deviceId: 'mobile-1',
+          deviceName: 'Alex iPhone',
+        ),
+        isFalse,
+      );
+      // The desktop *dashboard* is a separate control surface, not the player.
+      expect(
+        AuthService.isDesktopPlayerDevice(
+          deviceId: 'desktop_dashboard_admin',
+          deviceName: 'Ariami Desktop Dashboard',
         ),
         isFalse,
       );

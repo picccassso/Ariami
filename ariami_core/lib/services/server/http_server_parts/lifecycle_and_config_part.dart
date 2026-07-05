@@ -173,10 +173,56 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
   }) async {
     if (forceReinitialize) {
       _authService.resetForTesting();
+      _pinnedItemStore?.close();
+      _pinnedItemStore = null;
+      _playlistEditStore?.close();
+      _playlistEditStore = null;
+      _userAvatarsDirectoryPath = null;
     }
 
     // Initialize AuthService with storage paths
     await _authService.initialize(usersFilePath, sessionsFilePath);
+    _userAvatarsDirectoryPath =
+        p.join(File(usersFilePath).parent.path, 'user_avatars');
+
+    // Listening stats live next to the auth stores, keyed per user account.
+    // Failure here must never block auth/startup: stats endpoints will report
+    // 503 until the store becomes available.
+    try {
+      final statsDbPath =
+          '${File(usersFilePath).parent.path}/listening_stats.db';
+      final store = _listeningStatsStore ??
+          ListeningStatsStore(databasePath: statsDbPath);
+      store.initialize();
+      _listeningStatsStore = store;
+    } catch (e) {
+      print('[HttpServer] Listening stats store unavailable: $e');
+    }
+
+    // Pins are durable account data and live beside the auth stores. A schema
+    // creation here is the migration for existing Ariami installations.
+    try {
+      final pinsDbPath = '${File(usersFilePath).parent.path}/pinned_items.db';
+      final store =
+          _pinnedItemStore ?? PinnedItemStore(databasePath: pinsDbPath);
+      store.initialize();
+      _pinnedItemStore = store;
+    } catch (e) {
+      print('[HttpServer] Pinned items store unavailable: $e');
+    }
+
+    // Playlist edits are durable account data and live beside the auth stores.
+    // They overlay folder-derived playlists without mutating the catalog.
+    try {
+      final playlistEditsDbPath =
+          '${File(usersFilePath).parent.path}/playlist_edits.db';
+      final store = _playlistEditStore ??
+          PlaylistEditStore(databasePath: playlistEditsDbPath);
+      store.initialize();
+      _playlistEditStore = store;
+    } catch (e) {
+      print('[HttpServer] Playlist edit store unavailable: $e');
+    }
 
     // Initialize StreamTracker (starts cleanup timer)
     _streamTracker.initialize();
@@ -368,7 +414,10 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
     _connectionManager.clearAll();
 
     // Close all WebSocket connections
-    for (final client in _webSocketClients) {
+    // Closing a socket synchronously triggers its onDone callback, which
+    // removes it from _webSocketClients. Iterate over a snapshot so shutdown
+    // cannot mutate the list currently being traversed.
+    for (final client in List<WebSocketChannel>.of(_webSocketClients)) {
       try {
         await client.sink.close();
       } catch (e) {

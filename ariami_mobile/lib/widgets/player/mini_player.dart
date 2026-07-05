@@ -1,15 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_chrome_cast/flutter_chrome_cast.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../models/song.dart';
 import '../../services/api/connection_service.dart';
-import '../../services/cast/chrome_cast_service.dart';
 import '../../services/color_extraction_service.dart';
 import '../../utils/constants.dart';
 import '../../services/playback_manager.dart';
 import '../common/adaptive_marquee_text.dart';
 import '../common/cached_artwork.dart';
-import '../common/mini_player_aware_bottom_sheet.dart';
+import 'player_output_button.dart';
 
 /// Mini player widget that appears at the bottom during playback
 class MiniPlayer extends StatefulWidget {
@@ -50,7 +47,6 @@ class _MiniPlayerState extends State<MiniPlayer> {
   static const double _kHorizontalSwipeEdgeGuard = 24.0;
   static const double _kSkipSwipeMinDistance = 60.0;
   final ColorExtractionService _colorService = ColorExtractionService();
-  final ChromeCastService _castService = ChromeCastService();
   bool _isSkipTransitioning = false;
   double _skipOffsetX = 0.0;
   bool _horizontalSwipeArmed = false;
@@ -60,160 +56,16 @@ class _MiniPlayerState extends State<MiniPlayer> {
   void initState() {
     super.initState();
     _colorService.addListener(_onColorsChanged);
-    _castService.addListener(_onColorsChanged);
-    _castService.initialize();
   }
 
   @override
   void dispose() {
     _colorService.removeListener(_onColorsChanged);
-    _castService.removeListener(_onColorsChanged);
     super.dispose();
   }
 
   void _onColorsChanged() {
     setState(() {});
-  }
-
-  Future<void> _onCastPressed() async {
-    if (_castService.isConnected) {
-      await _showConnectedActions();
-    } else {
-      await _showDevicePicker();
-    }
-  }
-
-  Future<void> _showDevicePicker() async {
-    await _castService.startDiscovery();
-    if (!mounted) return;
-
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      builder: (sheetContext) {
-        final maxSheetHeight = MediaQuery.sizeOf(sheetContext).height * 0.9;
-        return ConstrainedBox(
-          constraints: BoxConstraints(maxHeight: maxSheetHeight),
-          child: SafeArea(
-            minimum: EdgeInsets.only(
-              bottom: getMiniPlayerAwareBottomPadding(sheetContext),
-            ),
-            child: AnimatedBuilder(
-              animation: _castService,
-              builder: (context, _) {
-                final devices = _castService.devices;
-                return SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const SizedBox(height: 12),
-                      Text(
-                        'Cast To Device',
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: 8),
-                      if (devices.isEmpty)
-                        const Padding(
-                          padding: EdgeInsets.fromLTRB(20, 20, 20, 28),
-                          child: Row(
-                            children: [
-                              SizedBox(
-                                width: 20,
-                                height: 20,
-                                child:
-                                    CircularProgressIndicator(strokeWidth: 2.5),
-                              ),
-                              SizedBox(width: 12),
-                              Expanded(
-                                child:
-                                    Text('Searching for Chromecast devices...'),
-                              ),
-                            ],
-                          ),
-                        )
-                      else
-                        ConstrainedBox(
-                          constraints: const BoxConstraints(maxHeight: 320),
-                          child: ListView.separated(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            itemCount: devices.length,
-                            separatorBuilder: (_, __) =>
-                                const Divider(height: 1),
-                            itemBuilder: (context, index) {
-                              final device = devices[index];
-                              return ListTile(
-                                leading: const Icon(LucideIcons.speaker),
-                                title: Text(device.friendlyName),
-                                onTap: () async {
-                                  Navigator.of(sheetContext).pop();
-                                  await _connectAndSync(device);
-                                },
-                              );
-                            },
-                          ),
-                        ),
-                      const SizedBox(height: 8),
-                    ],
-                  ),
-                );
-              },
-            ),
-          ),
-        );
-      },
-    );
-
-    await _castService.stopDiscovery();
-  }
-
-  Future<void> _connectAndSync(GoogleCastDevice device) async {
-    try {
-      await widget.playbackManager.startCastingToDevice(device);
-    } catch (_) {
-      // Chromecast connection failed silently.
-    }
-  }
-
-  Future<void> _showConnectedActions() async {
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      builder: (sheetContext) {
-        final maxSheetHeight = MediaQuery.sizeOf(sheetContext).height * 0.9;
-        return ConstrainedBox(
-          constraints: BoxConstraints(maxHeight: maxSheetHeight),
-          child: SafeArea(
-            minimum: EdgeInsets.only(
-              bottom: getMiniPlayerAwareBottomPadding(sheetContext),
-            ),
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  ListTile(
-                    leading: const Icon(LucideIcons.cast),
-                    title: Text(
-                      _castService.connectedDeviceName ??
-                          'Chromecast connected',
-                    ),
-                    subtitle: const Text('Audio is being cast from Ariami'),
-                  ),
-                  ListTile(
-                    leading: const Icon(LucideIcons.cast),
-                    title: const Text('Disconnect'),
-                    onTap: () async {
-                      Navigator.of(sheetContext).pop();
-                      await widget.playbackManager.stopCastingAndResumeLocal();
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
   }
 
   void _onHorizontalSwipeStart(DragStartDetails details) {
@@ -437,45 +289,14 @@ class _MiniPlayerState extends State<MiniPlayer> {
                               Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  // Cast button (only on supported platforms)
-                                  if (_castService.isSupportedPlatform)
-                                    Builder(
-                                      builder: (context) {
-                                        final isConnected =
-                                            _castService.isConnected;
-                                        final isBusy =
-                                            _castService.isConnecting ||
-                                                widget.playbackManager
-                                                    .isCastTransitionInProgress;
-                                        final canInteract = _castService
-                                            .canInteractWithCastButton(
-                                          isConnected: isConnected,
-                                          isBusy: isBusy,
-                                        );
-                                        final iconAlpha = canInteract
-                                            ? (isConnected ? 1.0 : 0.54)
-                                            : 0.38;
-
-                                        return IconButton(
-                                          icon: Icon(
-                                            isConnected
-                                                ? Icons.cast_connected_rounded
-                                                : LucideIcons.cast,
-                                            color: Colors.white
-                                                .withValues(alpha: iconAlpha),
-                                          ),
-                                          iconSize: 22,
-                                          onPressed: canInteract
-                                              ? _onCastPressed
-                                              : null,
-                                          tooltip: isConnected
-                                              ? 'Disconnect Chromecast'
-                                              : _castService.isBlockedByOffline
-                                                  ? 'Cast unavailable while offline'
-                                                  : 'Connect Chromecast',
-                                        );
-                                      },
-                                    ),
+                                  PlayerOutputButton(
+                                    playbackManager: widget.playbackManager,
+                                    showDeviceName: false,
+                                    connectedColor: Colors.white,
+                                    disconnectedColor:
+                                        Colors.white.withValues(alpha: 0.54),
+                                    iconSize: 22,
+                                  ),
                                   // Play/Pause
                                   IconButton(
                                     icon: Icon(widget.isPlaying

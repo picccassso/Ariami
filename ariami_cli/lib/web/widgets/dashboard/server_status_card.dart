@@ -32,7 +32,7 @@ class ServerStatusCard extends StatelessWidget {
                 boxShadow: [
                   BoxShadow(
                     color: (serverRunning ? Colors.white : Colors.redAccent)
-                        .withOpacity(0.5),
+                        .withValues(alpha: 0.5),
                     blurRadius: 10,
                     spreadRadius: 2,
                   ),
@@ -84,7 +84,7 @@ class ServerStatusCard extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
-                    color: Colors.white.withOpacity(0.7),
+                    color: Colors.white.withValues(alpha: 0.7),
                   ),
                 ),
               ],

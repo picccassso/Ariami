@@ -17,6 +17,9 @@ class SongOverflowMenu extends StatelessWidget {
   final String? albumName;
   final String? albumArtist;
 
+  /// When provided, shows a "Remove from Playlist" action.
+  final VoidCallback? onRemoveFromPlaylist;
+
   const SongOverflowMenu({
     super.key,
     required this.song,
@@ -25,6 +28,7 @@ class SongOverflowMenu extends StatelessWidget {
     this.onPlay,
     this.albumName,
     this.albumArtist,
+    this.onRemoveFromPlaylist,
   });
 
   @override
@@ -108,6 +112,18 @@ class SongOverflowMenu extends StatelessWidget {
                   _handleDownload(context);
                 },
         ),
+        if (onRemoveFromPlaylist != null)
+          ListTile(
+            leading: const Icon(Icons.playlist_remove, color: Colors.red),
+            title: const Text(
+              'Remove from Playlist',
+              style: TextStyle(color: Colors.red),
+            ),
+            onTap: () {
+              Navigator.pop(context);
+              onRemoveFromPlaylist?.call();
+            },
+          ),
       ],
     );
   }

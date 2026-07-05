@@ -7,65 +7,38 @@ import 'package:ariami_cli/commands/configure_command.dart';
 import 'package:ariami_cli/commands/autostart_command.dart';
 import 'package:ariami_cli/commands/reset_command.dart';
 import 'package:ariami_cli/server_runner.dart';
+import 'package:ariami_cli/services/cli_state_service.dart';
 import 'package:ariami_core/ariami_core.dart';
 
 void main(List<String> arguments) async {
-  // Check if running in server mode (background process)
-  if (arguments.contains('--server-mode')) {
-    // Extract port from arguments
-    int port = 8080; // default
-    final portIndex = arguments.indexOf('--port');
-    if (portIndex != -1 && portIndex + 1 < arguments.length) {
-      port = int.tryParse(arguments[portIndex + 1]) ?? 8080;
-    }
-
-    // Run server directly (background mode)
-    // Retry binding with exponential backoff if port is busy
-    // (handles race condition during transition from foreground to background)
-    final runner = ServerRunner();
-    const maxRetries = 10;
-    const initialDelayMs = 100;
-
-    for (int attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        await runner.run(
-          port: port,
-          isSetupMode: false,
-          isServerMode: true,
-          allowPortFallback: false,
-        );
-        break; // Success - exit the loop
-      } catch (e) {
-        final isAddressInUse = e.toString().contains('Address already in use') ||
-            e.toString().contains('SocketException');
-
-        if (isAddressInUse && attempt < maxRetries) {
-          // Exponential backoff: 100ms, 200ms, 400ms, 800ms, ...
-          final delayMs = initialDelayMs * (1 << (attempt - 1));
-          print('Port $port in use, retrying in ${delayMs}ms (attempt $attempt/$maxRetries)...');
-          await Future.delayed(Duration(milliseconds: delayMs));
-        } else {
-          // Either not a port-in-use error, or we've exhausted retries
-          print('Failed to start server: $e');
-          exit(1);
-        }
-      }
-    }
-    return;
-  }
-
   // Normal CLI mode - parse commands
-  final parser = ArgParser()
+  final parser = ArgParser(allowTrailingOptions: false)
     ..addFlag('help', abbr: 'h', negatable: false, help: 'Show help message')
     ..addFlag('version', abbr: 'v', negatable: false, help: 'Show version')
-    ..addOption('port', abbr: 'p', help: 'Server port (default: 8080)', defaultsTo: '8080')
+    ..addOption('port',
+        abbr: 'p', help: 'Server port (default: 8080)', defaultsTo: '8080')
+    ..addOption('host',
+        help: 'HTTP bind address (default: 0.0.0.0)', defaultsTo: '0.0.0.0')
+    ..addFlag('no-browser',
+        negatable: false,
+        help: 'During setup, print URLs and never auto-open a browser')
+    ..addFlag('verbose',
+        negatable: false, help: 'Show stack traces and extra debug output')
+    ..addFlag('server-mode', negatable: false, hide: true)
     ..addFlag('setup', negatable: false, help: 'reset: setup/config only')
-    ..addFlag('factory', negatable: false, help: 'reset: factory reset all data')
-    ..addFlag('yes', abbr: 'y', negatable: false, help: 'reset: skip confirmation prompt');
+    ..addFlag('factory',
+        negatable: false, help: 'reset: factory reset all data')
+    ..addFlag('yes',
+        abbr: 'y', negatable: false, help: 'reset: skip confirmation prompt');
 
   try {
     // Parse arguments
     final results = parser.parse(arguments);
+
+    if (results['server-mode'] as bool) {
+      await _executeServerMode(results);
+      return;
+    }
 
     // Show help
     if (results['help'] as bool) {
@@ -81,28 +54,21 @@ void main(List<String> arguments) async {
 
     // Get command
     if (results.rest.isEmpty) {
-      print('Error: No command specified.');
-      print('');
-      _showHelp(parser);
-      exit(1);
+      _usageError(parser, 'No command specified.');
     }
 
     final command = results.rest[0];
-    final port = int.tryParse(results['port'] as String) ?? 8080;
-    final portExplicitlyRequested = results.wasParsed('port');
-
     // Execute command
     switch (command) {
       case 'start':
-        await StartCommand().execute(
-          port: port,
-          portExplicitlyRequested: portExplicitlyRequested,
-        );
+        await _executeStartCommand(results);
         break;
       case 'stop':
+        _rejectTrailingFlags(parser, results);
         await StopCommand().execute();
         break;
       case 'status':
+        _rejectTrailingFlags(parser, results);
         await StatusCommand().execute();
         break;
       case 'configure':
@@ -112,26 +78,115 @@ void main(List<String> arguments) async {
         await _executeMusicFolderCommand(results.rest);
         break;
       case 'autostart':
+        _rejectTrailingFlags(parser, results);
         final action = results.rest.length > 1 ? results.rest[1] : 'status';
         await AutostartCommand().execute(action: action);
         break;
       case 'reset':
-        await _executeResetCommand(
-          wantsSetup: results['setup'] as bool,
-          wantsFactory: results['factory'] as bool,
-          skipConfirmation: results['yes'] as bool,
-        );
+        await _executeResetCommand(results);
         break;
       default:
-        print('Error: Unknown command "$command"');
-        print('');
-        _showHelp(parser);
-        exit(1);
+        _usageError(parser, 'Unknown command "$command"');
     }
-  } catch (e) {
-    print('Error: $e');
+  } on FormatException catch (e) {
+    stderr.writeln('Error: ${e.message}');
+    stderr.writeln('');
+    _showHelp(parser, output: stderr);
+    exit(2);
+  } catch (e, stackTrace) {
+    stderr.writeln('ERROR: $e');
+    if (arguments.contains('--verbose')) {
+      stderr.writeln('Stack trace: $stackTrace');
+    }
     exit(1);
   }
+}
+
+Future<void> _executeStartCommand(ArgResults globalResults) async {
+  final startParser = ArgParser()
+    ..addOption(
+      'port',
+      abbr: 'p',
+      help: 'Server port (default: 8080)',
+      defaultsTo: globalResults['port'] as String,
+    )
+    ..addOption(
+      'host',
+      help: 'HTTP bind address (default: 0.0.0.0)',
+      defaultsTo: globalResults['host'] as String,
+    )
+    ..addFlag(
+      'no-browser',
+      negatable: false,
+      help: 'During setup, print URLs and never auto-open a browser',
+    )
+    ..addFlag(
+      'verbose',
+      negatable: false,
+      help: 'Show stack traces and extra debug output',
+    );
+  final startResults = startParser.parse(globalResults.rest.skip(1));
+  final port = int.tryParse(startResults['port'] as String) ?? 8080;
+
+  await StartCommand().execute(
+    port: port,
+    portExplicitlyRequested:
+        globalResults.wasParsed('port') || startResults.wasParsed('port'),
+    bindHost: startResults['host'] as String,
+    bindHostExplicitlyRequested:
+        globalResults.wasParsed('host') || startResults.wasParsed('host'),
+    noBrowser: (globalResults['no-browser'] as bool) ||
+        (startResults['no-browser'] as bool),
+    verbose:
+        (globalResults['verbose'] as bool) || (startResults['verbose'] as bool),
+  );
+}
+
+Future<void> _executeServerMode(ArgResults results) async {
+  final port = int.tryParse(results['port'] as String) ?? 8080;
+  final verbose = results['verbose'] as bool;
+
+  if (results.wasParsed('host')) {
+    await CliStateService().setBindHost(results['host'] as String);
+  }
+
+  // Run server directly (background mode)
+  // Retry binding with exponential backoff if port is busy
+  // (handles race condition during transition from foreground to background)
+  final runner = ServerRunner();
+  const maxRetries = 10;
+  const initialDelayMs = 100;
+
+  for (int attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      await runner.run(
+        port: port,
+        isSetupMode: false,
+        isServerMode: true,
+        allowPortFallback: false,
+        verbose: verbose,
+      );
+      break; // Success - exit the loop
+    } catch (e) {
+      if (ServerPortPolicy.isAddressInUseError(e) && attempt < maxRetries) {
+        // Exponential backoff: 100ms, 200ms, 400ms, 800ms, ...
+        final delayMs = initialDelayMs * (1 << (attempt - 1));
+        print(
+          'Port $port in use, retrying in ${delayMs}ms '
+          '(attempt $attempt/$maxRetries)...',
+        );
+        await Future.delayed(Duration(milliseconds: delayMs));
+      } else {
+        // ServerRunner already reported the failure to stderr.
+        exit(1);
+      }
+    }
+  }
+
+  // The server loop returned after a graceful shutdown. Native resources
+  // (sqlite, FFI isolates) can keep the VM alive, so exit explicitly now
+  // that cleanup has completed.
+  exit(0);
 }
 
 Future<void> _executeConfigureCommand(List<String> args) async {
@@ -145,10 +200,10 @@ Future<void> _executeConfigureCommand(List<String> args) async {
   final musicFolder = parsed['music-folder'] as String?;
 
   if (musicFolder == null) {
-    print('Error: configure requires at least one option.');
-    print('');
-    print('Usage: ariami_cli configure --music-folder <path>');
-    exit(1);
+    stderr.writeln('Error: configure requires at least one option.');
+    stderr.writeln('');
+    stderr.writeln('Usage: ariami_cli configure --music-folder <path>');
+    exit(2);
   }
 
   await ConfigureCommand().execute(musicFolder: musicFolder);
@@ -156,30 +211,44 @@ Future<void> _executeConfigureCommand(List<String> args) async {
 
 Future<void> _executeMusicFolderCommand(List<String> args) async {
   if (args.length < 2 || args[1] != 'set') {
-    print('Error: unknown music-folder subcommand.');
-    print('');
-    print('Usage: ariami_cli music-folder set <path>');
-    exit(1);
+    stderr.writeln('Error: unknown music-folder subcommand.');
+    stderr.writeln('');
+    stderr.writeln('Usage: ariami_cli music-folder set <path>');
+    exit(2);
   }
 
   if (args.length < 3 || args[2].trim().isEmpty) {
-    print('Error: music-folder set requires a path.');
-    print('');
-    print('Usage: ariami_cli music-folder set <path>');
-    exit(1);
+    stderr.writeln('Error: music-folder set requires a path.');
+    stderr.writeln('');
+    stderr.writeln('Usage: ariami_cli music-folder set <path>');
+    exit(2);
   }
 
   await ConfigureCommand().execute(musicFolder: args[2]);
 }
 
-Future<void> _executeResetCommand({
-  required bool wantsSetup,
-  required bool wantsFactory,
-  required bool skipConfirmation,
-}) async {
+Future<void> _executeResetCommand(ArgResults globalResults) async {
+  final resetParser = ArgParser()
+    ..addFlag('setup', negatable: false, help: 'reset: setup/config only')
+    ..addFlag('factory',
+        negatable: false, help: 'reset: factory reset all data')
+    ..addFlag(
+      'yes',
+      abbr: 'y',
+      negatable: false,
+      help: 'reset: skip confirmation prompt',
+    );
+  final resetResults = resetParser.parse(globalResults.rest.skip(1));
+  final wantsSetup =
+      (globalResults['setup'] as bool) || (resetResults['setup'] as bool);
+  final wantsFactory =
+      (globalResults['factory'] as bool) || (resetResults['factory'] as bool);
+  final skipConfirmation =
+      (globalResults['yes'] as bool) || (resetResults['yes'] as bool);
+
   if (wantsSetup && wantsFactory) {
-    print('Error: choose only one of --setup or --factory.');
-    exit(1);
+    stderr.writeln('Error: choose only one of --setup or --factory.');
+    exit(2);
   }
 
   final scope = wantsSetup
@@ -194,34 +263,56 @@ Future<void> _executeResetCommand({
   );
 }
 
-void _showHelp(ArgParser parser) {
-  print('Ariami CLI - Music streaming server for headless servers');
-  print('');
-  print('Usage: ariami_cli <command> [options]');
-  print('');
-  print('Commands:');
-  print('  start       Start the Ariami server');
-  print('  stop        Stop the Ariami server');
-  print('  status      Show server status');
-  print('  configure   Configure CLI settings');
-  print('  music-folder  Manage the music library path');
-  print('  autostart   Manage starting the server on boot');
-  print('  reset       Reset setup or factory reset Ariami');
-  print('');
-  print('Options:');
-  print(parser.usage);
-  print('');
-  print('Examples:');
-  print('  ariami_cli start              # Start server on default port 8080');
-  print('  ariami_cli start --port 9000  # Start server on custom port');
-  print('  ariami_cli stop               # Stop the running server');
-  print('  ariami_cli status             # Check server status');
-  print('  ariami_cli configure --music-folder /home/user/Music');
-  print('  ariami_cli music-folder set /home/user/Music');
-  print('  ariami_cli autostart enable   # Start the server on boot');
-  print('  ariami_cli autostart disable  # Stop starting on boot');
-  print('  ariami_cli autostart status   # Show current setting');
-  print('  ariami_cli reset              # Interactive reset menu');
-  print('  ariami_cli reset --setup      # Reset setup/config only');
-  print('  ariami_cli reset --factory -y # Factory reset without prompts');
+void _usageError(ArgParser parser, String message) {
+  stderr.writeln('Error: $message');
+  stderr.writeln('');
+  _showHelp(parser, output: stderr);
+  exit(2);
+}
+
+void _rejectTrailingFlags(ArgParser parser, ArgResults results) {
+  for (final arg in results.rest.skip(1)) {
+    if (arg.startsWith('-')) {
+      _usageError(
+          parser, 'Unknown option "$arg" for command "${results.rest[0]}"');
+    }
+  }
+}
+
+void _showHelp(ArgParser parser, {IOSink? output}) {
+  final out = output ?? stdout;
+  out.writeln('Ariami CLI - Music streaming server for headless servers');
+  out.writeln('');
+  out.writeln('Usage: ariami_cli <command> [options]');
+  out.writeln('');
+  out.writeln('Commands:');
+  out.writeln('  start       Start the Ariami server');
+  out.writeln('  stop        Stop the Ariami server');
+  out.writeln('  status      Show server status');
+  out.writeln('  configure   Configure CLI settings');
+  out.writeln('  music-folder  Manage the music library path');
+  out.writeln('  autostart   Manage starting the server on boot');
+  out.writeln('  reset       Reset setup or factory reset Ariami');
+  out.writeln('');
+  out.writeln('Options:');
+  out.writeln(parser.usage);
+  out.writeln('');
+  out.writeln('Examples:');
+  out.writeln(
+      '  ariami_cli start              # Start server on default port 8080');
+  out.writeln('  ariami_cli start --port 9000  # Start server on custom port');
+  out.writeln(
+      '  ariami_cli start --no-browser # Print setup URLs without opening a browser');
+  out.writeln('  ariami_cli start --host 127.0.0.1');
+  out.writeln('  ariami_cli stop               # Stop the running server');
+  out.writeln('  ariami_cli status             # Check server status');
+  out.writeln('  ariami_cli configure --music-folder /home/user/Music');
+  out.writeln('  ariami_cli music-folder set /home/user/Music');
+  out.writeln('  ariami_cli autostart enable   # Start the server on boot');
+  out.writeln('  ariami_cli autostart disable  # Stop starting on boot');
+  out.writeln('  ariami_cli autostart status   # Show current setting');
+  out.writeln('  ariami_cli reset              # Interactive reset menu');
+  out.writeln('  ariami_cli reset --setup      # Reset setup/config only');
+  out.writeln(
+      '  ariami_cli reset --factory -y # Factory reset without prompts');
 }

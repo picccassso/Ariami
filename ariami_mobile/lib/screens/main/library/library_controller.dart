@@ -174,13 +174,17 @@ class LibraryController extends ChangeNotifier {
     await _offlineCopyService.initialize();
     await _loadUiPreferences();
     await _loadPlayedHistory();
+    await _playlistService.loadPlaylists();
     await _loadPinnedItems();
     await _loadLibrary();
-    await _playlistService.loadPlaylists();
     _playlistService.addListener(_onPlaylistsChanged);
     await _loadDownloadedSongs();
     await _loadCachedSongs();
     _setupStreamListeners();
+    // Startup intentionally reconnects in the background. Check once after
+    // subscribing so a connection completed during initialization cannot fall
+    // into the gap between the initial load and the connection-state stream.
+    await _loadServerPlaylistEditsIfConnected();
   }
 
   /// Returns true once when the UI should restore scroll after a library update.

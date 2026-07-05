@@ -106,7 +106,7 @@ class AlbumSongItem extends StatelessWidget {
                 child: IconButton(
                   icon: Icon(
                     Icons.close_rounded,
-                    color: const Color(0xFFFF4B4B).withOpacity(0.8),
+                    color: const Color(0xFFFF4B4B).withValues(alpha: 0.8),
                     size: 16,
                   ),
                   onPressed: onRemove,
@@ -130,7 +130,7 @@ class AlbumSongItem extends StatelessWidget {
               height: 1,
               thickness: 0.5,
               color: isDark
-                  ? const Color(0xFF1A1A1A).withOpacity(0.5)
+                  ? const Color(0xFF1A1A1A).withValues(alpha: 0.5)
                   : const Color(0xFFEEEEEE),
             ),
           ),

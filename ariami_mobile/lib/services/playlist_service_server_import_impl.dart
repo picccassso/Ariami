@@ -134,6 +134,153 @@ extension _PlaylistServiceServerImportImpl on PlaylistService {
     return imported;
   }
 
+  /// Mirror imported local playlists from the effective server state.
+  ///
+  /// Only playlists whose server counterpart has an account edit overlay are
+  /// touched: an imported copy that was never edited on any client stays a
+  /// local fork, and a missing overlay during startup (edits not loaded yet)
+  /// cannot clobber local state. [revertedServerPlaylistIds] forces specific
+  /// playlists back to the base server order after an overlay was discarded.
+  Future<void> _syncImportedPlaylistsFromServerImpl({
+    Set<String> revertedServerPlaylistIds = const <String>{},
+  }) async {
+    if (_importedFromServer.isEmpty || _serverPlaylists.isEmpty) return;
+
+    var changed = false;
+    for (final entry in _importedFromServer.entries.toList()) {
+      // A queued offline edit is this device's latest intent for the
+      // playlist; keep it until the replay pushes it to the server.
+      if (_pendingImportedEditPushes.contains(entry.key)) continue;
+
+      final localIndex =
+          _playlists.indexWhere((playlist) => playlist.id == entry.key);
+      if (localIndex == -1) continue;
+
+      final resolved = _resolveServerPlaylistImpl(entry.value);
+      if (resolved == null) continue;
+      if (!resolved.hasEdit &&
+          !revertedServerPlaylistIds.contains(entry.value)) {
+        continue;
+      }
+
+      final playlist = _playlists[localIndex];
+      if (playlist.name == resolved.name &&
+          listEquals(playlist.songIds, resolved.songIds)) {
+        continue;
+      }
+
+      var updated = playlist.copyWith(
+        name: resolved.name,
+        songIds: List<String>.from(resolved.songIds),
+        modifiedAt: DateTime.now(),
+      );
+
+      final missingMetadataIds = resolved.songIds
+          .where((id) => !playlist.songTitles.containsKey(id))
+          .toList();
+      if (missingMetadataIds.isNotEmpty) {
+        final metadata = await _buildPlaylistSongMetadata(
+          missingMetadataIds,
+          allSongs: const <SongModel>[],
+        );
+        updated = updated.copyWith(
+          songAlbumIds: {...playlist.songAlbumIds, ...metadata.songAlbumIds},
+          songTitles: {...playlist.songTitles, ...metadata.songTitles},
+          songArtists: {...playlist.songArtists, ...metadata.songArtists},
+          songDurations: {
+            ...playlist.songDurations,
+            ...metadata.songDurations,
+          },
+        );
+      }
+
+      _playlists[localIndex] = updated;
+      changed = true;
+    }
+
+    if (changed) {
+      await _savePlaylists();
+      _notifyListeners();
+    }
+  }
+
+  /// Push a locally edited imported playlist to the account's server edit
+  /// overlay so the change syncs to the other clients.
+  ///
+  /// When the push cannot reach the server (offline, logged out, base
+  /// playlist not loaded yet, request failure) the playlist is queued and
+  /// replayed by [_replayPendingImportedEditPushesImpl] on the next
+  /// connection; until then inbound sync leaves it untouched.
+  Future<void> _pushImportedPlaylistEditImpl(String localPlaylistId) async {
+    final serverPlaylistId = _importedFromServer[localPlaylistId];
+    final playlist = _getPlaylistImpl(localPlaylistId);
+    if (serverPlaylistId == null || playlist == null) return;
+
+    final base = _getServerPlaylistImpl(serverPlaylistId);
+    if (base == null) {
+      await _markImportedEditPushPending(localPlaylistId);
+      return;
+    }
+
+    try {
+      final pushed = await _saveServerPlaylistEdit(
+        playlistId: serverPlaylistId,
+        songIds: List<String>.from(playlist.songIds),
+        name: playlist.name == base.name ? null : playlist.name,
+      );
+      if (pushed) {
+        await _clearImportedEditPushPending(localPlaylistId);
+      } else {
+        await _markImportedEditPushPending(localPlaylistId);
+      }
+    } catch (error) {
+      await _markImportedEditPushPending(localPlaylistId);
+      debugPrint(
+        '[PlaylistService] Queued imported playlist edit after failed push: '
+        '$error',
+      );
+    }
+  }
+
+  /// Replay queued offline edits of imported playlists to the server.
+  ///
+  /// Last writer wins: a queued edit overwrites an overlay another client
+  /// saved while this device was offline.
+  Future<void> _replayPendingImportedEditPushesImpl() async {
+    if (_pendingImportedEditPushes.isEmpty || _isReplayingPendingEditPushes) {
+      return;
+    }
+    final connection = ConnectionService();
+    if (connection.apiClient == null || !connection.isAuthenticated) return;
+
+    _isReplayingPendingEditPushes = true;
+    try {
+      for (final localId in _pendingImportedEditPushes.toList()) {
+        if (!_importedFromServer.containsKey(localId) ||
+            _getPlaylistImpl(localId) == null) {
+          // The playlist was deleted or unlinked while the push was queued.
+          await _clearImportedEditPushPending(localId);
+          continue;
+        }
+        await _pushImportedPlaylistEditImpl(localId);
+      }
+    } finally {
+      _isReplayingPendingEditPushes = false;
+    }
+  }
+
+  Future<void> _markImportedEditPushPending(String localPlaylistId) async {
+    if (_pendingImportedEditPushes.add(localPlaylistId)) {
+      await _savePendingImportedEditPushes();
+    }
+  }
+
+  Future<void> _clearImportedEditPushPending(String localPlaylistId) async {
+    if (_pendingImportedEditPushes.remove(localPlaylistId)) {
+      await _savePendingImportedEditPushes();
+    }
+  }
+
   void _markRecentlyImported(String localId) {
     _recentlyImportedIds.add(localId);
     Timer(const Duration(seconds: 5), () {

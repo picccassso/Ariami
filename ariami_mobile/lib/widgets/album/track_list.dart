@@ -85,7 +85,7 @@ class TrackListItem extends StatelessWidget {
                                     .textTheme
                                     .bodyMedium
                                     ?.color
-                                    ?.withOpacity(0.7) ??
+                                    ?.withValues(alpha: 0.7) ??
                                 Colors.grey[600],
                           ),
                           maxLines: 1,
@@ -103,7 +103,7 @@ class TrackListItem extends StatelessWidget {
                           .textTheme
                           .bodySmall
                           ?.color
-                          ?.withOpacity(0.5),
+                          ?.withValues(alpha: 0.5),
                     ),
                   ),
                   if (isAvailable) ...[

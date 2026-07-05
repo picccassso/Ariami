@@ -3,6 +3,7 @@ import '../../models/song_stats.dart';
 import '../../models/artist_stats.dart';
 import '../../models/album_stats.dart';
 import '../../services/stats/streaming_stats_service.dart';
+import '../../services/stats/account_stats_service.dart';
 import '../../services/api/connection_service.dart';
 import '../../widgets/common/cached_artwork.dart';
 
@@ -31,8 +32,10 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
         _currentTabIndex = _tabController.index;
       });
     });
-    // Request fresh data when screen loads
+    // Request fresh data when screen loads (local instantly, account-wide
+    // refresh in the background).
     _statsService.refreshTopSongs();
+    AccountStatsService().refreshSummary();
   }
 
   @override
@@ -86,6 +89,7 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
         color: isDark ? Colors.white : Colors.black,
         backgroundColor: isDark ? const Color(0xFF111111) : Colors.white,
         onRefresh: () async {
+          await AccountStatsService().refreshSummary();
           setState(() {});
         },
         child: Column(
@@ -734,7 +738,7 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
           ),
         ),
         content: Text(
-          'This will permanently delete all your streaming statistics. This action cannot be undone.',
+          'This will permanently delete your streaming statistics for this account across all your devices. This action cannot be undone.',
           style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w500,
@@ -757,7 +761,7 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
           ),
           TextButton(
             onPressed: () async {
-              await _statsService.resetAllStats();
+              await AccountStatsService().resetEverywhere();
               if (mounted) {
                 Navigator.pop(context);
                 setState(() {});

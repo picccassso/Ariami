@@ -16,6 +16,7 @@ import '../services/playback_manager.dart';
 import '../services/playlist_service.dart';
 import '../services/profile_image_service.dart';
 import '../services/quality/quality_settings_service.dart';
+import '../services/stats/account_stats_service.dart';
 import '../services/stats/streaming_stats_service.dart';
 import '../services/theme_service.dart';
 import 'shared_preferences_cache.dart';
@@ -33,6 +34,8 @@ Future<void> clearAllLocalUserData({String? userId}) async {
   await SyncService().clearPendingActions();
 
   await StreamingStatsService().resetAllStats();
+  // Local wipe only: the account's stats stay on the server for other devices.
+  await AccountStatsService().clearLocalOnly();
   await ProfileImageService().clear();
   await _deletePlaylistImagesDirectory();
 

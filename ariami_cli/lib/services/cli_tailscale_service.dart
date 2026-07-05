@@ -1,7 +1,14 @@
 import 'dart:io';
 
+import 'container_environment.dart';
+
 /// Service for managing Tailscale detection and IP address resolution on CLI (cross-platform)
 class CliTailscaleService {
+  CliTailscaleService({ContainerEnvironment? environment})
+      : _environment = environment ?? ContainerEnvironment();
+
+  final ContainerEnvironment _environment;
+
   /// Single advertised IP (Tailscale > LAN > localhost).
   ///
   /// For HTTP server startup and QR payloads, prefer [getTailscaleIp] plus [getLanIp]
@@ -228,6 +235,10 @@ class CliTailscaleService {
       'isInstalled': isInstalled,
       'isRunning': isRunning,
       'ip': ip,
+      'containerized': _environment.isContainerized,
+      'advertisedHost': _environment.advertisedHostOverride,
+      'advertisedLanHost': _environment.advertisedLanHostOverride,
+      'advertisedTailscaleHost': _environment.advertisedTailscaleHostOverride,
     };
   }
 }

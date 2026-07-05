@@ -52,7 +52,10 @@ extension _PlaylistServiceServerImpl on PlaylistService {
     _serverPlaylists = playlists;
     print('[PlaylistService] Updated server playlists: ${playlists.length}');
 
-    _autoHideMatchingServerPlaylists().then((_) {
+    _autoHideMatchingServerPlaylists().then((_) async {
+      // Edits queued while the base playlist was unknown can be pushed now.
+      await _replayPendingImportedEditPushesImpl();
+      await _syncImportedPlaylistsFromServerImpl();
       _notifyListeners();
     });
   }

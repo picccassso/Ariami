@@ -128,7 +128,7 @@ class ConnectionLifecycleManager {
     final connectRequest = ConnectRequest(
       deviceId: deviceId,
       deviceName: deviceName,
-      appVersion: '4.4.0',
+      appVersion: '5.0 Preview',
       platform: Platform.isAndroid ? 'android' : 'ios',
     );
 
@@ -233,7 +233,7 @@ class ConnectionLifecycleManager {
       final connectRequest = ConnectRequest(
         deviceId: deviceId,
         deviceName: deviceName,
-        appVersion: '4.4.0',
+        appVersion: '5.0 Preview',
         platform: Platform.isAndroid ? 'android' : 'ios',
       );
 

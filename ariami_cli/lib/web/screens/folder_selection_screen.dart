@@ -159,8 +159,8 @@ class _FolderSelectionScreenState extends State<FolderSelectionScreen> {
 
     return Material(
       color: isSelected
-          ? Colors.white.withOpacity(0.12)
-          : Colors.white.withOpacity(0.05),
+          ? Colors.white.withValues(alpha: 0.12)
+          : Colors.white.withValues(alpha: 0.05),
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
@@ -173,7 +173,7 @@ class _FolderSelectionScreenState extends State<FolderSelectionScreen> {
             border: Border.all(
               color: isSelected
                   ? Colors.white
-                  : Colors.white.withOpacity(0.12),
+                  : Colors.white.withValues(alpha: 0.12),
             ),
           ),
           child: Row(
@@ -246,9 +246,9 @@ class _FolderSelectionScreenState extends State<FolderSelectionScreen> {
                       Container(
                         padding: const EdgeInsets.all(24),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.05),
+                          color: Colors.white.withValues(alpha: 0.05),
                           shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white.withOpacity(0.1)),
+                          border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
                         ),
                         child: const Icon(
                           Icons.folder_open_rounded,
@@ -303,7 +303,7 @@ class _FolderSelectionScreenState extends State<FolderSelectionScreen> {
                               Text(
                                 'No suggestions available. Enter a path manually below.',
                                 style: TextStyle(
-                                  color: AppTheme.textSecondary.withOpacity(0.9),
+                                  color: AppTheme.textSecondary.withValues(alpha: 0.9),
                                 ),
                               )
                             else

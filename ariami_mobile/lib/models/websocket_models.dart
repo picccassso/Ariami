@@ -16,6 +16,8 @@ class WsMessageType {
   static const String serverShutdown = 'server_shutdown';
   static const String ping = 'ping';
   static const String pong = 'pong';
+  static const String pinsChanged = 'pins_changed';
+  static const String playlistEditsChanged = 'playlist_edits_changed';
 }
 
 // ============================================================================

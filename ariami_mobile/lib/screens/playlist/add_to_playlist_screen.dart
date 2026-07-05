@@ -24,12 +24,20 @@ class AddToPlaylistScreen extends StatefulWidget {
   /// List of songs to choose from when adding to a specific playlist
   final List<SongModel>? availableSongs;
 
+  /// Optional override for screens that use this picker with non-local playlists.
+  final Future<void> Function(SongModel song)? onAddSong;
+
+  /// Optional override for screens that use this picker with non-local playlists.
+  final Future<void> Function(SongModel song)? onRemoveSong;
+
   const AddToPlaylistScreen({
     super.key,
     this.songId,
     this.playlistId,
     this.playlistName,
     this.availableSongs,
+    this.onAddSong,
+    this.onRemoveSong,
   });
 
   /// Show as a bottom sheet for adding a song to playlists
@@ -125,7 +133,8 @@ class _AddToPlaylistScreenState extends State<AddToPlaylistScreen> {
 
       if (titleLower == query || artistLower == query) {
         exactMatches.add(song);
-      } else if (titleLower.startsWith(query) || artistLower.startsWith(query)) {
+      } else if (titleLower.startsWith(query) ||
+          artistLower.startsWith(query)) {
         prefixMatches.add(song);
       } else if (titleLower.contains(query) || artistLower.contains(query)) {
         substringMatches.add(song);
@@ -149,7 +158,8 @@ class _AddToPlaylistScreenState extends State<AddToPlaylistScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final hasNoSongs = widget.availableSongs == null || widget.availableSongs!.isEmpty;
+    final hasNoSongs =
+        widget.availableSongs == null || widget.availableSongs!.isEmpty;
 
     return Scaffold(
       appBar: AppBar(
@@ -164,7 +174,8 @@ class _AddToPlaylistScreenState extends State<AddToPlaylistScreen> {
                   child: Container(
                     height: 44,
                     decoration: BoxDecoration(
-                      color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                      color: theme.colorScheme.surfaceContainerHighest
+                          .withValues(alpha: 0.5),
                       borderRadius: BorderRadius.circular(22),
                       border: Border.all(
                         color: theme.colorScheme.outline.withValues(alpha: 0.1),
@@ -179,7 +190,8 @@ class _AddToPlaylistScreenState extends State<AddToPlaylistScreen> {
                         decoration: InputDecoration(
                           hintText: 'Search songs...',
                           hintStyle: TextStyle(
-                            color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+                            color: theme.colorScheme.onSurfaceVariant
+                                .withValues(alpha: 0.7),
                           ),
                           prefixIcon: Icon(
                             Icons.search_rounded,
@@ -194,7 +206,8 @@ class _AddToPlaylistScreenState extends State<AddToPlaylistScreen> {
                               : null,
                           border: InputBorder.none,
                           isCollapsed: true,
-                          contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                          contentPadding:
+                              const EdgeInsets.symmetric(vertical: 0),
                         ),
                       ),
                     ),
@@ -346,16 +359,20 @@ class _AddToPlaylistScreenState extends State<AddToPlaylistScreen> {
   }
 
   Future<void> _addSongToPlaylist(SongModel song) async {
-    if (widget.playlistId == null) return;
+    if (widget.onAddSong != null) {
+      await widget.onAddSong!(song);
+    } else {
+      if (widget.playlistId == null) return;
 
-    await _playlistService.addSongToPlaylist(
-      playlistId: widget.playlistId!,
-      songId: song.id,
-      albumId: song.albumId,
-      title: song.title,
-      artist: song.artist,
-      duration: song.duration,
-    );
+      await _playlistService.addSongToPlaylist(
+        playlistId: widget.playlistId!,
+        songId: song.id,
+        albumId: song.albumId,
+        title: song.title,
+        artist: song.artist,
+        duration: song.duration,
+      );
+    }
 
     if (mounted) {
       setState(() {
@@ -378,16 +395,20 @@ class _AddToPlaylistScreenState extends State<AddToPlaylistScreen> {
   }
 
   Future<void> _removeSongFromPlaylist(SongModel song) async {
-    if (widget.playlistId == null) return;
-
     // Cancel any pending transition timer
     _transitionTimers[song.id]?.cancel();
     _transitionTimers.remove(song.id);
 
-    await _playlistService.removeSongFromPlaylist(
-      playlistId: widget.playlistId!,
-      songId: song.id,
-    );
+    if (widget.onRemoveSong != null) {
+      await widget.onRemoveSong!(song);
+    } else {
+      if (widget.playlistId == null) return;
+
+      await _playlistService.removeSongFromPlaylist(
+        playlistId: widget.playlistId!,
+        songId: song.id,
+      );
+    }
 
     if (mounted) {
       setState(() {

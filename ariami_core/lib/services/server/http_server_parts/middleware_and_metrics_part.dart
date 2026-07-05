@@ -193,6 +193,8 @@ extension AriamiHttpServerMiddlewareAndMetricsMethods on AriamiHttpServer {
             path == '/api/ws' ||
             path == '/api/auth/login' ||
             path == '/api/auth/register' ||
+            path == '/api/auth/users' ||
+            path.startsWith('/api/auth/user-avatar/') ||
             path.startsWith('/api/tailscale/') ||
             isBootstrapAuthPath ||
             isBootstrapSetupPath ||
@@ -458,6 +460,9 @@ extension AriamiHttpServerMiddlewareAndMetricsMethods on AriamiHttpServer {
     }
     if (path.startsWith('/api/song-artwork/')) {
       return '/api/song-artwork/:songId';
+    }
+    if (path.startsWith('/api/auth/user-avatar/')) {
+      return '/api/auth/user-avatar/:username';
     }
     if (path.startsWith('/api/albums/') && path != '/api/albums') {
       return '/api/albums/:albumId';

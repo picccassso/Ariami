@@ -110,15 +110,47 @@ extension _LibraryControllerPreferences on LibraryController {
   }
 
   Future<void> _loadPinnedItems() async {
-    final pinnedItemIds =
-        await LibraryPinStorage.loadForUser(_connectionService.userId);
+    Set<String> pinnedItemIds;
+    final client = _connectionService.apiClient;
+    if (client != null && _connectionService.isAuthenticated) {
+      final pins = await client.getPins();
+      pinnedItemIds = pins
+          .where((pin) => pin['type'] is String && pin['targetId'] is String)
+          .map((pin) => '${pin['type']}:${pin['targetId']}')
+          .toSet();
+      await LibraryPinStorage.saveForUser(
+        _connectionService.userId,
+        pinnedItemIds,
+      );
+    } else {
+      pinnedItemIds =
+          await LibraryPinStorage.loadForUser(_connectionService.userId);
+    }
+    // Imported server playlists have a local editable id. Mirror the
+    // canonical server pin under that id for UI lookup only; the persisted
+    // cache and all writes retain the stable server id.
+    for (final entry in _playlistService.importedFromServer.entries) {
+      if (pinnedItemIds.contains('playlist:${entry.value}')) {
+        pinnedItemIds.add('playlist:${entry.key}');
+      }
+    }
     _updateState(_state.copyWith(pinnedItemIds: pinnedItemIds));
   }
 
   Future<void> _savePinnedItems() async {
+    final canonical = <String>{};
+    for (final key in _state.pinnedItemIds) {
+      if (!key.startsWith('playlist:')) {
+        canonical.add(key);
+        continue;
+      }
+      final localId = key.substring('playlist:'.length);
+      final stableId = _playlistService.getServerPlaylistId(localId) ?? localId;
+      canonical.add('playlist:$stableId');
+    }
     await LibraryPinStorage.saveForUser(
       _connectionService.userId,
-      _state.pinnedItemIds,
+      canonical,
     );
   }
 
@@ -127,16 +159,31 @@ extension _LibraryControllerPreferences on LibraryController {
   }
 
   Future<void> _togglePinPlaylist(String playlistId) async {
-    await _togglePin('playlist:$playlistId');
+    final stableId =
+        _playlistService.getServerPlaylistId(playlistId) ?? playlistId;
+    await _togglePin('playlist:$stableId');
   }
 
   Future<void> _togglePin(String key) async {
-    final updated = Set<String>.from(_state.pinnedItemIds);
-    if (updated.contains(key)) {
-      updated.remove(key);
-    } else {
-      updated.add(key);
+    final separator = key.indexOf(':');
+    if (separator <= 0 || separator >= key.length - 1) return;
+    final client = _connectionService.apiClient;
+    if (client != null && _connectionService.isAuthenticated) {
+      final type = key.substring(0, separator);
+      final targetId = key.substring(separator + 1);
+      if (_state.pinnedItemIds.contains(key)) {
+        await client.unpinItem(type, targetId);
+      } else {
+        await client.pinItem(type, targetId);
+      }
+      await _loadPinnedItems();
+      return;
     }
+
+    // Offline cache is only a convenience; the next successful server fetch
+    // replaces it so stale local state can never beat the account truth.
+    final updated = Set<String>.from(_state.pinnedItemIds);
+    if (!updated.remove(key)) updated.add(key);
     _updateState(_state.copyWith(pinnedItemIds: updated));
     await _savePinnedItems();
   }

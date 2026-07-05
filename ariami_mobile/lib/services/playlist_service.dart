@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import '../models/api_models.dart';
+import '../utils/encoding_utils.dart';
+import 'api/connection_service.dart';
 import 'library/library_repository.dart';
 import 'song_id_remapping_service.dart';
 
@@ -13,7 +15,22 @@ part 'playlist_service_backup_impl.dart';
 part 'playlist_service_metadata_impl.dart';
 part 'playlist_service_persistence_impl.dart';
 part 'playlist_service_server_impl.dart';
+part 'playlist_service_server_edits_impl.dart';
 part 'playlist_service_server_import_impl.dart';
+
+class ServerPlaylistEffectiveState {
+  final ServerPlaylist base;
+  final String name;
+  final List<String> songIds;
+  final bool hasEdit;
+
+  const ServerPlaylistEffectiveState({
+    required this.base,
+    required this.name,
+    required this.songIds,
+    required this.hasEdit,
+  });
+}
 
 /// Service for managing playlists locally.
 ///
@@ -24,6 +41,8 @@ class PlaylistService extends ChangeNotifier {
   static const String _hiddenServerPlaylistsKey =
       'ariami_hidden_server_playlists';
   static const String _importedFromServerKey = 'ariami_imported_from_server';
+  static const String _pendingImportedEditPushesKey =
+      'ariami_pending_imported_edit_pushes';
   static const String likedSongsId = '__LIKED_SONGS__';
   static final PlaylistService _instance = PlaylistService._internal();
 
@@ -37,9 +56,15 @@ class PlaylistService extends ChangeNotifier {
 
   // Server playlists (from API)
   List<ServerPlaylist> _serverPlaylists = [];
+  Map<String, ServerPlaylistEdit> _serverPlaylistEdits = {};
+  Future<void>? _serverPlaylistEditsLoad;
   Set<String> _hiddenServerPlaylistIds = {};
   // Track which local playlists were imported from server (localId -> serverId)
   Map<String, String> _importedFromServer = {};
+  // Imported playlists edited while the server was unreachable; their edits
+  // are replayed on the next connection and shield them from inbound sync.
+  Set<String> _pendingImportedEditPushes = {};
+  bool _isReplayingPendingEditPushes = false;
   // Track recently imported playlists for temporary UI indicator.
   final Set<String> _recentlyImportedIds = {};
 
@@ -50,10 +75,20 @@ class PlaylistService extends ChangeNotifier {
   List<ServerPlaylist> get serverPlaylists =>
       List.unmodifiable(_serverPlaylists);
 
+  /// Current edit overlays for server playlists.
+  Map<String, ServerPlaylistEdit> get serverPlaylistEdits =>
+      Map.unmodifiable(_serverPlaylistEdits);
+
   /// Get visible server playlists (not hidden/imported).
-  List<ServerPlaylist> get visibleServerPlaylists => _serverPlaylists
-      .where((playlist) => !_hiddenServerPlaylistIds.contains(playlist.id))
-      .toList();
+  ///
+  /// Account edits are applied here so every mobile surface (including the
+  /// server-playlist sheet and imports) sees the same name, membership, and
+  /// ordering as the detail screen and the other clients.
+  List<ServerPlaylist> get visibleServerPlaylists => <ServerPlaylist>[
+        for (final playlist in _serverPlaylists)
+          if (!_hiddenServerPlaylistIds.contains(playlist.id))
+            _effectiveServerPlaylist(playlist),
+      ];
 
   /// Get hidden server playlists (for recovery).
   List<ServerPlaylist> get hiddenServerPlaylists => _serverPlaylists
@@ -92,6 +127,10 @@ class PlaylistService extends ChangeNotifier {
   /// Local-to-server playlist mapping (for backup serialization).
   Map<String, String> get importedFromServer =>
       Map.unmodifiable(_importedFromServer);
+
+  /// Local IDs of imported playlists with edits not yet pushed to the server.
+  Set<String> get pendingImportedEditPushIds =>
+      Set.unmodifiable(_pendingImportedEditPushes);
 
   /// Check if service has loaded data.
   bool get isLoaded => _isLoaded;
@@ -143,6 +182,97 @@ class PlaylistService extends ChangeNotifier {
 
   /// Get a server playlist by ID.
   ServerPlaylist? getServerPlaylist(String id) => _getServerPlaylistImpl(id);
+
+  /// Load account-level edit overlays for server playlists.
+  Future<void> loadServerPlaylistEdits() {
+    final inFlight = _serverPlaylistEditsLoad;
+    if (inFlight != null) return inFlight;
+
+    final load = _loadServerPlaylistEditsImpl();
+    _serverPlaylistEditsLoad = load;
+    return load.whenComplete(() {
+      if (identical(_serverPlaylistEditsLoad, load)) {
+        _serverPlaylistEditsLoad = null;
+      }
+    });
+  }
+
+  /// Mirror imported local playlists from the effective server state.
+  ///
+  /// Runs automatically whenever server playlists or edit overlays change;
+  /// exposed for callers (and tests) that need an explicit reconcile.
+  Future<void> syncImportedPlaylistsFromServer({
+    Set<String> revertedServerPlaylistIds = const <String>{},
+  }) =>
+      _syncImportedPlaylistsFromServerImpl(
+        revertedServerPlaylistIds: revertedServerPlaylistIds,
+      );
+
+  /// Get an edit overlay for a server playlist, if present.
+  ServerPlaylistEdit? getServerPlaylistEdit(String id) =>
+      _serverPlaylistEdits[id];
+
+  /// Resolve a server playlist with the account edit overlay applied.
+  ServerPlaylistEffectiveState? resolveServerPlaylist(
+    String id, {
+    Set<String>? liveSongIds,
+  }) =>
+      _resolveServerPlaylistImpl(id, liveSongIds: liveSongIds);
+
+  ServerPlaylist _effectiveServerPlaylist(ServerPlaylist playlist) {
+    final resolved = resolveServerPlaylist(playlist.id);
+    if (resolved == null || !resolved.hasEdit) return playlist;
+    return ServerPlaylist(
+      id: playlist.id,
+      name: resolved.name,
+      songIds: resolved.songIds,
+      songCount: resolved.songIds.length,
+    );
+  }
+
+  @visibleForTesting
+  void setServerPlaylistEditsForTest(List<ServerPlaylistEdit> edits) {
+    _serverPlaylistEdits = <String, ServerPlaylistEdit>{
+      for (final edit in edits) edit.playlistId: edit,
+    };
+  }
+
+  /// Reorder songs in a server playlist edit overlay.
+  Future<void> reorderServerPlaylist({
+    required String playlistId,
+    required int oldIndex,
+    required int newIndex,
+  }) =>
+      _reorderServerPlaylistImpl(
+        playlistId: playlistId,
+        oldIndex: oldIndex,
+        newIndex: newIndex,
+      );
+
+  /// Add a song to a server playlist edit overlay.
+  Future<void> addSongToServerPlaylist({
+    required String playlistId,
+    required String songId,
+  }) =>
+      _addSongToServerPlaylistImpl(playlistId: playlistId, songId: songId);
+
+  /// Remove a song from a server playlist edit overlay.
+  Future<void> removeSongFromServerPlaylist({
+    required String playlistId,
+    required String songId,
+  }) =>
+      _removeSongFromServerPlaylistImpl(playlistId: playlistId, songId: songId);
+
+  /// Rename a server playlist through its edit overlay.
+  Future<void> renameServerPlaylist({
+    required String playlistId,
+    required String name,
+  }) =>
+      _renameServerPlaylistImpl(playlistId: playlistId, name: name);
+
+  /// Delete a server playlist edit overlay and return to the base playlist.
+  Future<void> resetServerPlaylistEdit(String playlistId) =>
+      _resetServerPlaylistEditImpl(playlistId);
 
   /// Create a new playlist.
   Future<PlaylistModel> createPlaylist({

@@ -30,6 +30,10 @@ class WebTailscaleService {
           'isInstalled': data['isInstalled'] ?? false,
           'isRunning': data['isRunning'] ?? false,
           'ip': data['ip'],
+          'containerized': data['containerized'] ?? false,
+          'advertisedHost': data['advertisedHost'],
+          'advertisedLanHost': data['advertisedLanHost'],
+          'advertisedTailscaleHost': data['advertisedTailscaleHost'],
         };
       } else {
         // API error - assume not available
@@ -37,6 +41,10 @@ class WebTailscaleService {
           'isInstalled': false,
           'isRunning': false,
           'ip': null,
+          'containerized': false,
+          'advertisedHost': null,
+          'advertisedLanHost': null,
+          'advertisedTailscaleHost': null,
         };
       }
     } catch (e) {
@@ -45,6 +53,10 @@ class WebTailscaleService {
         'isInstalled': false,
         'isRunning': false,
         'ip': null,
+        'containerized': false,
+        'advertisedHost': null,
+        'advertisedLanHost': null,
+        'advertisedTailscaleHost': null,
       };
     }
   }

@@ -35,9 +35,9 @@ class _PlayerSeekBarState extends State<PlayerSeekBar> {
             overlayShape: const RoundSliderOverlayShape(overlayRadius: 16.0),
             activeTrackColor: Theme.of(context).colorScheme.primary,
             inactiveTrackColor:
-                Theme.of(context).colorScheme.onSurface.withOpacity(0.2),
+                Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.2),
             thumbColor: Theme.of(context).colorScheme.primary,
-            overlayColor: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+            overlayColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
           ),
           child: Slider(
             min: 0.0,

@@ -151,7 +151,7 @@ class LibraryReadFacade {
 
     final localBundle = await _libraryRepository.getLibraryBundle();
     final syncHealth = _syncHealthProvider != null
-        ? await _syncHealthProvider!()
+        ? await _syncHealthProvider()
         : await _defaultSyncHealth(decision);
     final isPartialRead = !decision.reason.contains('bootstrap is complete') ||
         syncHealth.isPartialRead;

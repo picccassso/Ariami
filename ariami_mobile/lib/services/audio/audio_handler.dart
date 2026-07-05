@@ -336,7 +336,9 @@ class AriamiAudioHandler extends BaseAudioHandler
       );
       return;
     }
-    await _player.play();
+    // just_audio resolves play() only when playback later completes, pauses,
+    // or stops. Connect needs this handler to finish once playback is started.
+    unawaited(_player.play());
   }
 
   @override

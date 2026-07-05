@@ -1,0 +1,29 @@
+services:
+  ariami:
+    build:
+      context: ../..
+      dockerfile: ariami_cli/docker/Dockerfile
+
+    # --- Linux servers (Pi, NAS, homelab): zero-config networking ---
+    # Host networking lets Ariami detect your real LAN and Tailscale
+    # addresses automatically, exactly like a native install. Uncomment
+    # the next line and delete the "ports" and "environment" sections.
+    # network_mode: host
+
+    # --- Docker Desktop on Mac/Windows: port mapping + explicit hosts ---
+    # Containers there cannot see your machine's real network, so tell
+    # Ariami what addresses to advertise (QR code / setup URLs).
+    ports:
+      - "8080:8080"
+    # environment:
+    #   ARIAMI_ADVERTISED_LAN_HOST: "192.168.1.50"       # this machine's LAN IP
+    #   ARIAMI_ADVERTISED_TAILSCALE_HOST: "100.x.y.z"    # this machine's Tailscale IP
+
+    volumes:
+      - ariami-data:/data
+      # Point this bind mount at your real music folder.
+      - ./music:/music:ro
+    restart: unless-stopped
+
+volumes:
+  ariami-data:

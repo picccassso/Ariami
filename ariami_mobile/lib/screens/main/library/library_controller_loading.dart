@@ -7,7 +7,10 @@ extension _LibraryControllerLoading on LibraryController {
         offline: _offlineService,
         connection: _connectionService,
       );
-      await _loadLibrary(background: true);
+      await Future.wait<void>([
+        _loadLibrary(background: true),
+        _loadServerPlaylistEditsIfConnected(),
+      ]);
       switch (outcome) {
         case ManualOfflineReconnectOutcome.success:
           return LibraryRefreshOutcome.ok;
@@ -40,13 +43,16 @@ extension _LibraryControllerLoading on LibraryController {
         _connectionService.isConnected &&
         _connectionService.apiClient != null) {
       try {
-        await _connectionService.librarySyncEngine.rebuildFromServer();
+        await _connectionService.librarySyncEngine.syncNow();
       } catch (_) {
         // Sync errors are recorded in the engine; keep serving local data.
       }
     }
 
-    await _loadLibrary(background: true);
+    await Future.wait<void>([
+      _loadLibrary(background: true),
+      _loadServerPlaylistEditsIfConnected(),
+    ]);
 
     if (!_offlineService.isOfflineModeEnabled &&
         _connectionService.isConnected) {
@@ -99,8 +105,8 @@ extension _LibraryControllerLoading on LibraryController {
         // their library right away; the reconnect refreshes it when it lands.
         // The local-store reads and download reconciliation in
         // _loadLibraryFromFacade never touch the apiClient.
-        final hasLocalLibrary =
-            await _connectionService.libraryReadFacade.hasCompletedBootstrap();
+        final hasLocalLibrary = await _connectionService.libraryReadFacade
+            .hasCompletedBootstrap();
         if (hasLocalLibrary) {
           await _loadLibraryFromFacade();
           return;

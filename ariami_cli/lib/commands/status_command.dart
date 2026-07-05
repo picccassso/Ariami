@@ -1,54 +1,21 @@
-import '../services/daemon_service.dart';
-import '../services/cli_state_service.dart';
+import 'dart:io';
 
-/// Command to check the Ariami CLI server status
+import '../services/server_status_service.dart';
+
+/// Command to check the Ariami CLI server status.
 class StatusCommand {
-  final DaemonService _daemonService = DaemonService();
-  final CliStateService _stateService = CliStateService();
+  final ServerStatusService _statusService = ServerStatusService();
 
-  /// Execute the status command
+  /// Execute the status command.
   Future<void> execute() async {
-    print('Ariami CLI Server Status');
-    print('========================');
-    print('');
-
-    // Check if running
-    final isRunning = await _daemonService.isRunning();
-    print('Status: ${isRunning ? "Running" : "Stopped"}');
-
-    if (isRunning) {
-      // Show PID
-      final pid = await _daemonService.getServerPid();
-      if (pid != null) {
-        print('PID: $pid');
+    try {
+      final snapshot = await _statusService.collectSnapshot();
+      for (final line in ServerStatusService.formatStatus(snapshot)) {
+        stdout.writeln(line);
       }
-
-      // Show server state
-      final state = await _daemonService.getServerState();
-      if (state != null) {
-        if (state['port'] != null) {
-          print('Port: ${state['port']}');
-        }
-        if (state['tailscale_ip'] != null) {
-          print('Tailscale IP: ${state['tailscale_ip']}');
-        }
-        if (state['music_folder_path'] != null) {
-          print('Music Folder: ${state['music_folder_path']}');
-        }
-      }
+    } catch (_) {
+      stdout.writeln('Ariami CLI ${ServerStatusService.cliVersion}');
+      stdout.writeln('Server:    status unavailable');
     }
-
-    // Check setup status
-    final isSetupComplete = await _stateService.isSetupComplete();
-    print('Setup Complete: ${isSetupComplete ? "Yes" : "No"}');
-
-    // Show music folder path
-    final musicFolderPath = await _stateService.getMusicFolderPath();
-    if (musicFolderPath != null) {
-      print('Music Library: $musicFolderPath');
-    }
-
-    print('');
-    print('Configuration Directory: ${CliStateService.getConfigDir()}');
   }
 }

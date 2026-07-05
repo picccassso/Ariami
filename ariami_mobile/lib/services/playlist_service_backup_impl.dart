@@ -10,14 +10,17 @@ extension _PlaylistServiceBackupImpl on PlaylistService {
   Future<void> _clearAllPlaylistDataImpl() async {
     _playlists.clear();
     _serverPlaylists.clear();
+    _serverPlaylistEdits.clear();
     _hiddenServerPlaylistIds.clear();
     _importedFromServer.clear();
     _recentlyImportedIds.clear();
+    _pendingImportedEditPushes.clear();
     _isLoaded = true;
 
     await _savePlaylists();
     await _saveHiddenServerPlaylists();
     await _saveImportedFromServer();
+    await _savePendingImportedEditPushes();
     _notifyListeners();
   }
 

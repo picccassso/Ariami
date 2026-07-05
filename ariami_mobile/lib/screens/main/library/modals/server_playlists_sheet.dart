@@ -7,6 +7,7 @@ import '../../../../widgets/common/mini_player_aware_bottom_sheet.dart';
 class ServerPlaylistsSheet extends StatelessWidget {
   final PlaylistService playlistService;
   final List<ServerPlaylist> visiblePlaylists;
+  final Function(ServerPlaylist) onOpenPlaylist;
   final Function(ServerPlaylist) onImportPlaylist;
   final VoidCallback onImportAll;
 
@@ -14,6 +15,7 @@ class ServerPlaylistsSheet extends StatelessWidget {
     super.key,
     required this.playlistService,
     required this.visiblePlaylists,
+    required this.onOpenPlaylist,
     required this.onImportPlaylist,
     required this.onImportAll,
   });
@@ -51,7 +53,7 @@ class ServerPlaylistsSheet extends StatelessWidget {
                     const SizedBox(width: 8),
                     const Expanded(
                       child: Text(
-                        'Import from Server',
+                        'Server Playlists',
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -71,7 +73,7 @@ class ServerPlaylistsSheet extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Text(
-                  'Folder playlists found on your server. Tap to import as a local playlist.',
+                  'Folder playlists found on your server. Tap to edit in place, or use the download button to import a local copy.',
                   style: TextStyle(
                     fontSize: 14,
                     color: Colors.grey[600],
@@ -125,8 +127,12 @@ class ServerPlaylistsSheet extends StatelessWidget {
                             ),
                             title: Text(serverPlaylist.name),
                             subtitle: Text('${serverPlaylist.songCount} songs'),
-                            trailing: const Icon(Icons.download),
-                            onTap: () => onImportPlaylist(serverPlaylist),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.download),
+                              tooltip: 'Import',
+                              onPressed: () => onImportPlaylist(serverPlaylist),
+                            ),
+                            onTap: () => onOpenPlaylist(serverPlaylist),
                           );
                         },
                       ),
@@ -143,6 +149,7 @@ class ServerPlaylistsSheet extends StatelessWidget {
 Future<void> showServerPlaylistsSheet({
   required BuildContext context,
   required PlaylistService playlistService,
+  required Function(ServerPlaylist) onOpenPlaylist,
   required Function(ServerPlaylist) onImportPlaylist,
   required VoidCallback onImportAll,
 }) {
@@ -153,6 +160,7 @@ Future<void> showServerPlaylistsSheet({
       return ServerPlaylistsSheet(
         playlistService: playlistService,
         visiblePlaylists: playlistService.visibleServerPlaylists,
+        onOpenPlaylist: onOpenPlaylist,
         onImportPlaylist: onImportPlaylist,
         onImportAll: onImportAll,
       );

@@ -59,7 +59,7 @@ class SearchResultAlbumItem extends StatelessWidget {
                     Text(
                       '${album.artist} • ${album.songCount} song${album.songCount != 1 ? 's' : ''}',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                         fontSize: 14,
                       ),
                       maxLines: 1,

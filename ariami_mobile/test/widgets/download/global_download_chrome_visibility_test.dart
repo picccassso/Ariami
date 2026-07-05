@@ -1,5 +1,4 @@
 import 'package:ariami_mobile/models/download_task.dart';
-import 'package:ariami_mobile/services/download/download_helpers.dart';
 import 'package:ariami_mobile/services/download/download_manager.dart';
 import 'package:ariami_mobile/widgets/download/global_download_chrome_visibility.dart';
 import 'package:flutter_test/flutter_test.dart';

@@ -225,9 +225,10 @@ void main() {
     });
 
     // ------------------------------------------------------------------------
-    // Short-song rule
+    // Short-song rule (play threshold is 30s or 50% of the track, whichever
+    // is smaller)
     // ------------------------------------------------------------------------
-    test('short song that completes naturally counts as 1 play', () async {
+    test('short song counts a play at 50% of its duration', () async {
       final song = _testSong(
         id: 's5',
         title: 'Short Song',
@@ -235,22 +236,29 @@ void main() {
       );
 
       service.onSongStarted(song);
-      for (int i = 0; i <= 15; i++) {
+      for (int i = 0; i <= 7; i++) {
         service.updatePosition(Duration(seconds: i));
       }
 
-      // 15s < 30s, so no play recorded yet
+      // 7s < 7.5s (50% of 15s): no play yet.
       expect(service.getSongStats('s5')?.playCount ?? 0, 0);
+
+      for (int i = 8; i <= 15; i++) {
+        service.updatePosition(Duration(seconds: i));
+      }
+      // Crossed 50%: exactly one play, even before natural completion.
+      expect(service.getSongStats('s5')!.playCount, 1);
 
       await service.onSongStopped(completedNaturally: true);
 
       final stats = service.getSongStats('s5');
       expect(stats, isNotNull);
+      // Natural completion of a short song must not double-count the play.
       expect(stats!.playCount, 1);
       expect(stats.totalTime.inSeconds, 15);
     });
 
-    test('short song that is skipped does not count', () async {
+    test('short song skipped before 50% does not count', () async {
       final song = _testSong(
         id: 's6',
         title: 'Short Skipped',
@@ -258,7 +266,7 @@ void main() {
       );
 
       service.onSongStarted(song);
-      for (int i = 0; i <= 10; i++) {
+      for (int i = 0; i <= 5; i++) {
         service.updatePosition(Duration(seconds: i));
       }
 
@@ -266,7 +274,7 @@ void main() {
 
       final stats = service.getSongStats('s6');
       expect(stats!.playCount, 0);
-      expect(stats.totalTime.inSeconds, 10);
+      expect(stats.totalTime.inSeconds, 5);
     });
 
     // ------------------------------------------------------------------------

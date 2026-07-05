@@ -81,6 +81,18 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
       );
     }
 
+    // Quality is part of the ticket's authority. Keeping it bound to the
+    // request prevents one device from reusing a ticket for a different
+    // transcode profile and keeps concurrent clients fully isolated.
+    final qualityParam = request.url.queryParameters['quality'];
+    final quality = QualityPreset.fromString(qualityParam);
+    final ticketQuality = ticket.quality ?? QualityPreset.high.name;
+    if (ticketQuality != quality.name) {
+      return _streamTokenForbiddenResponse(
+        'Stream token does not match requested quality',
+      );
+    }
+
     // Mark stream as active for stats tracking
     _streamTracker.startStream(streamToken);
 
@@ -89,10 +101,6 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
         _streamTracker.endStream(streamToken);
       }
     }
-
-    // Parse quality parameter
-    final qualityParam = request.url.queryParameters['quality'];
-    final quality = QualityPreset.fromString(qualityParam);
 
     // Look up file path from library by song ID
     final filePath = _libraryManager.getSongFilePath(path);

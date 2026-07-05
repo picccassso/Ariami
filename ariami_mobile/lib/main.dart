@@ -21,6 +21,7 @@ import 'services/download/download_manager.dart';
 import 'widgets/download/global_download_chrome_visibility.dart';
 import 'services/cache/cache_manager.dart';
 import 'services/stats/streaming_stats_service.dart';
+import 'services/stats/account_stats_service.dart';
 import 'services/quality/quality_settings_service.dart';
 import 'services/quality/network_monitor_service.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
@@ -190,6 +191,10 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       _profileImageService.initialize(),
     ]);
 
+    // Cross-device stats sync builds on the stats service, so it starts once
+    // that is ready. Fire-and-forget: it manages its own connectivity.
+    unawaited(AccountStatsService().initialize());
+
     GlobalDownloadChromeVisibility.instance.startListening();
 
     _startupInterruptedDownloadCount =
@@ -223,6 +228,11 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Persist any queued listening events before the OS may kill the app.
+    if (state != AppLifecycleState.resumed) {
+      unawaited(AccountStatsService().flush());
+    }
+
     // Swiping the app away transitions to detached on supported platforms.
     if (state == AppLifecycleState.detached) {
       _downloadManager.setAppInForeground(false);

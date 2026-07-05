@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import '../../models/api_models.dart';
 import '../../models/auth_models.dart';
@@ -82,6 +83,86 @@ class ApiClient {
   Future<Map<String, dynamic>> getCurrentUser(String sessionToken) async {
     final response = await _getWithAuth('/me', sessionToken);
     return response;
+  }
+
+  /// Fetch the current user's avatar bytes, or null if no avatar is set.
+  Future<Uint8List?> getCurrentUserAvatar(String sessionToken) async {
+    try {
+      final uri = _withDeviceParams(Uri.parse('$baseUrl/me/avatar'));
+      final response = await http.get(
+        uri,
+        headers: {'Authorization': 'Bearer $sessionToken'},
+      ).timeout(timeout);
+
+      if (response.statusCode == 404) return null;
+      _throwIfByteResponseFailed(response);
+      return response.bodyBytes;
+    } catch (e) {
+      if (e is ApiException) rethrow;
+      throw ApiException(
+        code: ApiErrorCodes.serverError,
+        message: 'Network error: $e',
+      );
+    }
+  }
+
+  /// URL and headers for authenticated avatar image requests.
+  ({String url, Map<String, String> headers}) getCurrentUserAvatarRequest(
+    String sessionToken,
+  ) {
+    final uri = _withDeviceParams(Uri.parse('$baseUrl/me/avatar'));
+    return (
+      url: uri.toString(),
+      headers: {'Authorization': 'Bearer $sessionToken'},
+    );
+  }
+
+  /// Upload/replace the current user's avatar.
+  Future<Map<String, dynamic>> uploadCurrentUserAvatar(
+    String sessionToken, {
+    required Uint8List bytes,
+    required String contentType,
+  }) async {
+    try {
+      final uri = _withDeviceParams(Uri.parse('$baseUrl/me/avatar'));
+      final response = await http
+          .put(
+            uri,
+            headers: {
+              'Authorization': 'Bearer $sessionToken',
+              'Content-Type': contentType,
+            },
+            body: bytes,
+          )
+          .timeout(timeout);
+
+      return _handleResponse(response);
+    } catch (e) {
+      if (e is ApiException) rethrow;
+      throw ApiException(
+        code: ApiErrorCodes.serverError,
+        message: 'Network error: $e',
+      );
+    }
+  }
+
+  /// Remove the current user's avatar.
+  Future<void> deleteCurrentUserAvatar(String sessionToken) async {
+    try {
+      final uri = _withDeviceParams(Uri.parse('$baseUrl/me/avatar'));
+      final response = await http.delete(
+        uri,
+        headers: {'Authorization': 'Bearer $sessionToken'},
+      ).timeout(timeout);
+
+      _throwIfByteResponseFailed(response);
+    } catch (e) {
+      if (e is ApiException) rethrow;
+      throw ApiException(
+        code: ApiErrorCodes.serverError,
+        message: 'Network error: $e',
+      );
+    }
   }
 
   /// Get server metadata, including all advertised endpoints.
@@ -237,6 +318,98 @@ class ApiClient {
     final encodedJobId = Uri.encodeComponent(jobId);
     final response = await _post('/v2/download-jobs/$encodedJobId/cancel', {});
     return DownloadJobCancelResponse.fromJson(response);
+  }
+
+  // ============================================================================
+  // LISTENING STATS ENDPOINTS
+  // ============================================================================
+
+  /// Upload a batch of listening events (idempotent by eventId).
+  Future<Map<String, dynamic>> postListeningEvents(
+    List<Map<String, dynamic>> events,
+  ) async {
+    return _post('/v2/listening/events', {'events': events});
+  }
+
+  /// Fetch the account-wide listening summary (per-song rollups).
+  Future<Map<String, dynamic>> getListeningSummary() async {
+    return _get('/v2/listening/summary');
+  }
+
+  /// Wipe the account's listening history on the server.
+  Future<Map<String, dynamic>> postListeningReset() async {
+    return _post('/v2/listening/reset', {});
+  }
+
+  // ============================================================================
+  // ACCOUNT PINS
+  // ============================================================================
+
+  Future<List<Map<String, dynamic>>> getPins() async {
+    final response = await _get('/pins');
+    return (response['pins'] as List<dynamic>? ?? const <dynamic>[])
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList(growable: false);
+  }
+
+  Future<void> pinItem(String type, String targetId) async {
+    await _post('/pins', <String, dynamic>{
+      'type': type,
+      'targetId': targetId,
+    });
+  }
+
+  Future<void> unpinItem(String type, String targetId) async {
+    await _delete(
+      '/pins/${Uri.encodeComponent(type)}/${Uri.encodeComponent(targetId)}',
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> importPins(
+    List<dynamic> pins, {
+    required bool replace,
+  }) async {
+    final response = await _post('/pins/import', <String, dynamic>{
+      'pins': pins,
+      'replace': replace,
+    });
+    return (response['pins'] as List<dynamic>? ?? const <dynamic>[])
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList(growable: false);
+  }
+
+  // ============================================================================
+  // PLAYLIST EDITS
+  // ============================================================================
+
+  Future<List<Map<String, dynamic>>> getPlaylistEdits() async {
+    final response = await _get('/playlists/edits');
+    return (response['edits'] as List<dynamic>? ?? const <dynamic>[])
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList(growable: false);
+  }
+
+  Future<void> putPlaylistEdit(
+    String playlistId, {
+    required List<String> songIds,
+    String? name,
+    required List<String> baseSnapshot,
+  }) async {
+    await _put(
+      '/playlists/${Uri.encodeComponent(playlistId)}/edit',
+      <String, dynamic>{
+        'songIds': songIds,
+        'name': name,
+        'baseSnapshot': baseSnapshot,
+      },
+    );
+  }
+
+  Future<void> deletePlaylistEdit(String playlistId) async {
+    await _delete('/playlists/${Uri.encodeComponent(playlistId)}/edit');
   }
 
   // ============================================================================
@@ -422,6 +595,56 @@ class ApiClient {
     }
   }
 
+  /// Perform PUT request (includes Authorization header if sessionToken is set)
+  Future<Map<String, dynamic>> _put(
+    String endpoint,
+    Map<String, dynamic> body,
+  ) async {
+    try {
+      final uri = _withDeviceParams(Uri.parse('$baseUrl$endpoint'));
+      final headers = <String, String>{
+        'Content-Type': 'application/json',
+      };
+      if (sessionToken != null) {
+        headers['Authorization'] = 'Bearer $sessionToken';
+      }
+      final response = await http
+          .put(
+            uri,
+            headers: headers,
+            body: jsonEncode(body),
+          )
+          .timeout(timeout);
+
+      return _handleResponse(response);
+    } catch (e) {
+      if (e is ApiException) rethrow;
+      throw ApiException(
+        code: ApiErrorCodes.serverError,
+        message: 'Network error: $e',
+      );
+    }
+  }
+
+  Future<Map<String, dynamic>> _delete(String endpoint) async {
+    try {
+      final uri = _withDeviceParams(Uri.parse('$baseUrl$endpoint'));
+      final headers = <String, String>{};
+      if (sessionToken != null) {
+        headers['Authorization'] = 'Bearer $sessionToken';
+      }
+      final response =
+          await http.delete(uri, headers: headers).timeout(timeout);
+      return _handleResponse(response);
+    } catch (e) {
+      if (e is ApiException) rethrow;
+      throw ApiException(
+        code: ApiErrorCodes.serverError,
+        message: 'Network error: $e',
+      );
+    }
+  }
+
   /// Perform GET request with Authorization header
   Future<Map<String, dynamic>> _getWithAuth(
     String endpoint,
@@ -539,6 +762,39 @@ class ApiClient {
           message: 'HTTP ${response.statusCode}: ${response.reasonPhrase}',
         );
       }
+    }
+  }
+
+  void _throwIfByteResponseFailed(http.Response response) {
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return;
+    }
+
+    try {
+      final body = utf8.decode(response.bodyBytes);
+      final errorJson = jsonDecode(body) as Map<String, dynamic>;
+      final errorResponse = ErrorResponse.fromJson(errorJson);
+
+      if (response.statusCode == 401 &&
+          (errorResponse.error.code == ApiErrorCodes.sessionExpired ||
+              errorResponse.error.code == ApiErrorCodes.authRequired)) {
+        if (onSessionExpired != null && sessionToken != null) {
+          onSessionExpired!();
+        }
+      }
+
+      throw ApiException(
+        code: errorResponse.error.code,
+        message: errorResponse.error.message,
+        details: errorResponse.error.details,
+      );
+    } catch (e) {
+      if (e is ApiException) rethrow;
+
+      throw ApiException(
+        code: ApiErrorCodes.serverError,
+        message: 'HTTP ${response.statusCode}: ${response.reasonPhrase}',
+      );
     }
   }
 }

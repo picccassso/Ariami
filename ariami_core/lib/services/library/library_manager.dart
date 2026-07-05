@@ -292,8 +292,11 @@ class LibraryManager {
   ///
   /// This runs in a background isolate to prevent UI blocking.
   /// Progress updates are logged and the scan complete callback is fired when done.
-  Future<void> scanMusicFolder(String folderPath) =>
-      _scanMusicFolderImpl(folderPath);
+  Future<void> scanMusicFolder(
+    String folderPath, {
+    void Function(String stage, String message, double percentage)? onProgress,
+  }) =>
+      _scanMusicFolderImpl(folderPath, onProgress: onProgress);
 
   /// Convert library to API JSON format for mobile app
   Map<String, dynamic> toApiJson(String baseUrl) => _toApiJsonImpl(baseUrl);

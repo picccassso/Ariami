@@ -1,6 +1,6 @@
 # Ariami Core
 
-Platform-agnostic core library for Ariami. Contains shared business logic and services used by both ariami_desktop and ariami_cli.
+Platform-agnostic core library for Ariami. Contains shared business logic and services used by the desktop, mobile, TV, and CLI apps.
 
 ## Overview
 
@@ -8,7 +8,7 @@ Ariami Core is a pure Dart package (no Flutter dependencies) that provides music
 
 ## Architecture Role
 
-- Shared by `ariami_desktop` and `ariami_cli` via path dependency
+- Shared by the Ariami apps via path dependency
 - Pure Dart implementation (no Flutter runtime required)
 - Enables headless server deployment on minimal hardware
 - Provides consistent API and behavior across all server types

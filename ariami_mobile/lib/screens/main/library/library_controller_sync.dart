@@ -11,6 +11,7 @@ extension _LibraryControllerSync on LibraryController {
       if (isConnected) {
         unawaited(_loadLibrary(background: true));
         unawaited(_loadDownloadedSongs());
+        unawaited(_loadServerPlaylistEditsIfConnected());
       }
     });
 
@@ -29,6 +30,14 @@ extension _LibraryControllerSync on LibraryController {
   }
 
   void _handleWebSocketMessage(WsMessage message) {
+    if (message.type == WsMessageType.pinsChanged) {
+      unawaited(_loadPinnedItems());
+      return;
+    }
+    if (message.type == WsMessageType.playlistEditsChanged) {
+      unawaited(_loadServerPlaylistEditsIfConnected());
+      return;
+    }
     if (message.type == WsMessageType.syncTokenAdvanced) {
       final latestToken = _parseLatestToken(message.data?['latestToken']);
       unawaited(_handleSyncTokenAdvanced(latestToken));
@@ -37,6 +46,23 @@ extension _LibraryControllerSync on LibraryController {
 
     if (message.type == WsMessageType.libraryUpdated) {
       unawaited(_handleLibraryUpdatedMessage());
+    }
+  }
+
+  Future<void> _loadServerPlaylistEditsIfConnected() async {
+    if (!_connectionService.isConnected ||
+        !_connectionService.isAuthenticated ||
+        _connectionService.apiClient == null) {
+      return;
+    }
+
+    try {
+      await _playlistService.loadServerPlaylistEdits();
+    } catch (error) {
+      // Library/catalog refreshes can still succeed if this account-scoped
+      // overlay request hits a transient network failure. A reconnect, manual
+      // refresh, or the next WebSocket notification retries it.
+      debugPrint('[LibraryController] Failed to load playlist edits: $error');
     }
   }
 

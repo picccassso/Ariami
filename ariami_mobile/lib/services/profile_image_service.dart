@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
@@ -94,49 +93,6 @@ class ProfileImageService extends ChangeNotifier {
     }
   }
 
-  /// Pick a new profile image using the file picker
-  /// Returns true if an image was selected, false otherwise
-  Future<bool> pickImage() async {
-    final result = await FilePicker.pickFiles(
-      type: FileType.image,
-      allowMultiple: false,
-    );
-
-    if (result == null || result.files.isEmpty) {
-      return false;
-    }
-
-    final pickedPath = result.files.first.path;
-    if (pickedPath == null) {
-      return false;
-    }
-
-    await _saveImage(pickedPath);
-    return true;
-  }
-
-  /// Save an image from a given path as the profile image
-  Future<void> _saveImage(String sourcePath) async {
-    final appDir = await getApplicationDocumentsDirectory();
-    final profileDir = Directory('${appDir.path}/profile');
-
-    // Create profile directory if it doesn't exist
-    if (!await profileDir.exists()) {
-      await profileDir.create(recursive: true);
-    }
-
-    // Delete existing profile image if any
-    await _deleteExistingImage(profileDir);
-
-    // Copy the new image
-    final ext = path.extension(sourcePath);
-    final destPath = '${profileDir.path}/$_profileImageFileName$ext';
-    await File(sourcePath).copy(destPath);
-
-    _setImagePath(destPath);
-    notifyListeners();
-  }
-
   /// Delete existing profile image files
   Future<void> _deleteExistingImage(Directory profileDir) async {
     if (!await profileDir.exists()) return;
@@ -147,6 +103,26 @@ class ProfileImageService extends ChangeNotifier {
         await file.delete();
       }
     }
+  }
+
+  /// Save raw [bytes] as the profile image. Used to mirror the account's
+  /// server-side avatar so screens that show the local photo (e.g. the
+  /// Settings header) stay in sync with it.
+  Future<void> setImageBytes(List<int> bytes, {required String extension}) async {
+    final appDir = await getApplicationDocumentsDirectory();
+    final profileDir = Directory('${appDir.path}/profile');
+
+    if (!await profileDir.exists()) {
+      await profileDir.create(recursive: true);
+    }
+
+    await _deleteExistingImage(profileDir);
+
+    final destPath = '${profileDir.path}/$_profileImageFileName.$extension';
+    await File(destPath).writeAsBytes(bytes, flush: true);
+
+    _setImagePath(destPath);
+    notifyListeners();
   }
 
   /// Remove the current profile image

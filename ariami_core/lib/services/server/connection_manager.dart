@@ -15,7 +15,10 @@ class ConnectionManager {
 
   /// Notify all listeners of changes
   void _notifyListeners() {
-    for (final listener in _listeners) {
+    // A listener may detach itself while handling the notification (for
+    // example when server shutdown disposes its screen). Use a snapshot to
+    // keep that lifecycle change from invalidating this iteration.
+    for (final listener in List<void Function()>.of(_listeners)) {
       listener();
     }
   }

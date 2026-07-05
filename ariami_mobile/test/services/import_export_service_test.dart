@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:ariami_mobile/models/api_models.dart';
 import 'package:ariami_mobile/services/import_export_service.dart';
+import 'package:ariami_mobile/services/library/library_pin_storage.dart';
 import 'package:ariami_mobile/services/playlist_service.dart';
 import 'package:ariami_mobile/services/stats/streaming_stats_service.dart';
 import 'package:flutter/services.dart';
@@ -66,7 +67,7 @@ void main() {
       setMockMethodCallHandler(filePickerChannel, null);
     });
 
-    test('v3 backup roundtrip restores server-import state without duplicates',
+    test('v4 backup roundtrip restores server-import state without duplicates',
         () async {
       final imported = await playlistService.importServerPlaylist(
         ServerPlaylist(
@@ -80,7 +81,9 @@ void main() {
 
       final backup = await importExportService.buildBackupData();
 
-      expect(backup['dataVersion'], 3);
+      expect(backup['dataVersion'], 4);
+      expect(backup['schemaVersion'], 4);
+      expect(backup['exportVersion'], 4);
       expect(backup['hiddenServerPlaylistIds'], ['server-1']);
       expect(
         backup['importedFromServer'],
@@ -142,6 +145,32 @@ void main() {
       expect(playlistService.hiddenServerPlaylistIds, contains('server-1'));
     });
 
+    test('pins export and repeated import remain idempotent', () async {
+      await LibraryPinStorage.saveForUser(
+        null,
+        <String>{'album:album-a', 'playlist:playlist-a'},
+      );
+      final backup = await importExportService.buildBackupData();
+      expect(backup['pinnedItems'], hasLength(2));
+
+      await LibraryPinStorage.saveForUser(null, <String>{});
+      final first = await importExportService.importBackupData(
+        backup,
+        ImportMode.merge,
+      );
+      final second = await importExportService.importBackupData(
+        backup,
+        ImportMode.merge,
+      );
+
+      expect(first.success, isTrue);
+      expect(second.success, isTrue);
+      expect(
+        await LibraryPinStorage.loadForUser(null),
+        <String>{'album:album-a', 'playlist:playlist-a'},
+      );
+    });
+
     test('importData reads picker bytes when no filesystem path is available',
         () async {
       final backup = <String, dynamic>{
@@ -177,6 +206,47 @@ void main() {
       expect(pickerCalls.single.arguments, containsPair('withData', true));
     });
 
+    test('legacy v1 backup restores matching listening stats', () async {
+      final statsService = StreamingStatsService();
+      addTearDown(statsService.resetAllStats);
+      await statsService.resetAllStats();
+
+      final legacyBackup = <String, dynamic>{
+        // v1 backups did not include dataVersion or server-import fields.
+        'playlists': <dynamic>[],
+        'stats': <dynamic>[
+          <String, dynamic>{
+            'songId': 'matching-song-id',
+            'playCount': 42,
+            'totalSeconds': 7200,
+            'firstPlayed': '2025-01-02T03:04:05.000Z',
+            'lastPlayed': '2025-06-07T08:09:10.000Z',
+            'songTitle': 'Still Here',
+            'songArtist': 'The Backups',
+            'albumId': 'matching-album-id',
+            'album': 'Old Saves',
+            'albumArtist': 'The Backups',
+          },
+        ],
+      };
+
+      final result = await importExportService.importBackupData(
+        legacyBackup,
+        ImportMode.replace,
+      );
+
+      expect(result.success, isTrue);
+      expect(result.statsImported, 1);
+
+      final restored = statsService.getLocalDeviceStats();
+      expect(restored, hasLength(1));
+      expect(restored.single.songId, 'matching-song-id');
+      expect(restored.single.playCount, 42);
+      expect(restored.single.totalTime, const Duration(hours: 2));
+      expect(restored.single.songTitle, 'Still Here');
+      expect(restored.single.songArtist, 'The Backups');
+    });
+
     test('exportData records last export after native save completes',
         () async {
       final pickerCalls = <MethodCall>[];
@@ -203,7 +273,7 @@ void main() {
       final exportedBytes = arguments['bytes']! as Uint8List;
       final exportedJson =
           jsonDecode(utf8.decode(exportedBytes)) as Map<String, dynamic>;
-      expect(exportedJson['dataVersion'], 3);
+      expect(exportedJson['dataVersion'], 4);
     });
   });
 }

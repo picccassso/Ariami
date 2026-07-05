@@ -116,7 +116,7 @@ class _PlaylistCardState extends State<PlaylistCard> {
                             width: 1.5),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.2),
+                            color: Colors.black.withValues(alpha: 0.2),
                             blurRadius: 4,
                           )
                         ],
@@ -137,11 +137,11 @@ class _PlaylistCardState extends State<PlaylistCard> {
                     child: Container(
                       padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.85),
+                        color: Colors.white.withValues(alpha: 0.85),
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.2),
+                            color: Colors.black.withValues(alpha: 0.2),
                             blurRadius: 4,
                           )
                         ],
@@ -164,7 +164,7 @@ class _PlaylistCardState extends State<PlaylistCard> {
                       decoration: BoxDecoration(
                         color: widget.isSelected
                             ? Theme.of(context).colorScheme.primary
-                            : Colors.black.withOpacity(0.4),
+                            : Colors.black.withValues(alpha: 0.4),
                         shape: BoxShape.circle,
                         border: Border.all(
                           color: Colors.white,
@@ -229,7 +229,7 @@ class _PlaylistCardState extends State<PlaylistCard> {
                               : Theme.of(context)
                                   .colorScheme
                                   .onSurface
-                                  .withOpacity(0.6),
+                                  .withValues(alpha: 0.6),
                         ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -464,7 +464,7 @@ class CreatePlaylistCard extends StatelessWidget {
                 color: Theme.of(context)
                     .colorScheme
                     .surfaceContainerHighest
-                    .withOpacity(0.5),
+                    .withValues(alpha: 0.5),
               ),
               child: Center(
                 child: Container(
@@ -542,7 +542,7 @@ class ImportFromServerCard extends StatelessWidget {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
+                      color: Colors.white.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
@@ -582,7 +582,7 @@ class ImportFromServerCard extends StatelessWidget {
                         color: Theme.of(context)
                             .colorScheme
                             .onSurface
-                            .withOpacity(0.6),
+                            .withValues(alpha: 0.6),
                       ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,

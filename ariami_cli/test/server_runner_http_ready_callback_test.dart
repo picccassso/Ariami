@@ -20,4 +20,15 @@ void main() {
       await notifyHttpServerReady(null, 8080);
     });
   });
+
+  group('buildServerModeTransitionResponse', () {
+    test('reports foreground server-mode setup can continue', () async {
+      final response = await buildServerModeTransitionResponse();
+
+      expect(response['success'], isTrue);
+      expect(response['alreadyInForeground'], isTrue);
+      expect(response['message'], contains('foreground'));
+      expect(response['message'], contains('Setup can continue'));
+    });
+  });
 }

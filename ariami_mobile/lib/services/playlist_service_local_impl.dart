@@ -51,6 +51,7 @@ extension _PlaylistServiceLocalImpl on PlaylistService {
     if (index == -1) return;
 
     final playlist = _playlists[index];
+    final renamed = name != null && name != playlist.name;
     _playlists[index] = playlist.copyWith(
       name: name ?? playlist.name,
       description: description,
@@ -61,6 +62,9 @@ extension _PlaylistServiceLocalImpl on PlaylistService {
 
     await _savePlaylists();
     _notifyListeners();
+    if (renamed) {
+      unawaited(_pushImportedPlaylistEditImpl(id));
+    }
   }
 
   Future<void> _deletePlaylistImpl(String id) async {
@@ -68,6 +72,7 @@ extension _PlaylistServiceLocalImpl on PlaylistService {
     if (serverPlaylistId != null) {
       await _saveImportedFromServer();
     }
+    await _clearImportedEditPushPending(id);
 
     _playlists.removeWhere((playlist) => playlist.id == id);
     await _savePlaylists();
@@ -85,6 +90,7 @@ extension _PlaylistServiceLocalImpl on PlaylistService {
       await _saveHiddenServerPlaylists();
     }
 
+    await _clearImportedEditPushPending(id);
     await _saveImportedFromServer();
     _playlists.removeWhere((playlist) => playlist.id == id);
     await _savePlaylists();
@@ -136,6 +142,7 @@ extension _PlaylistServiceLocalImpl on PlaylistService {
 
     await _savePlaylists();
     _notifyListeners();
+    unawaited(_pushImportedPlaylistEditImpl(playlistId));
   }
 
   Future<void> _removeSongFromPlaylistImpl({
@@ -155,6 +162,7 @@ extension _PlaylistServiceLocalImpl on PlaylistService {
 
     await _savePlaylists();
     _notifyListeners();
+    unawaited(_pushImportedPlaylistEditImpl(playlistId));
   }
 
   Future<void> _reorderSongsImpl({
@@ -183,5 +191,6 @@ extension _PlaylistServiceLocalImpl on PlaylistService {
 
     await _savePlaylists();
     _notifyListeners();
+    unawaited(_pushImportedPlaylistEditImpl(playlistId));
   }
 }

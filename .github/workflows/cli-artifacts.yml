@@ -1,0 +1,595 @@
+name: CLI Artifacts
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cli-artifacts-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux-x64:
+    name: Linux x64
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            binutils \
+            clang \
+            cmake \
+            file \
+            pkg-config \
+            zip
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.0'
+          cache: true
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Read version
+        id: version
+        shell: bash
+        run: |
+          read_pubspec_version() {
+            awk '/^version:/ { print $2; exit }' "$1" | cut -d'+' -f1
+          }
+
+          read_app_version_constant() {
+            sed -n "s/^const String kAriamiVersion = '\(.*\)';$/\1/p" \
+              ariami_core/lib/app_version.dart
+          }
+
+          CLI_VERSION="$(read_pubspec_version ariami_cli/pubspec.yaml)"
+          CORE_VERSION="$(read_pubspec_version ariami_core/pubspec.yaml)"
+          CONST_VERSION="$(read_app_version_constant)"
+
+          if [ -z "${CLI_VERSION}" ] || [ -z "${CORE_VERSION}" ] || [ -z "${CONST_VERSION}" ]; then
+            echo "::error::Could not read Ariami version from pubspec.yaml or app_version.dart"
+            exit 1
+          fi
+
+          if [ "${CLI_VERSION}" != "${CORE_VERSION}" ] || [ "${CLI_VERSION}" != "${CONST_VERSION}" ]; then
+            echo "::error::Ariami version mismatch; fix these before building"
+            echo "  ariami_cli/pubspec.yaml:      ${CLI_VERSION}"
+            echo "  ariami_core/pubspec.yaml:     ${CORE_VERSION}"
+            echo "  ariami_core/app_version.dart: ${CONST_VERSION}"
+            exit 1
+          fi
+
+          echo "VERSION=${CLI_VERSION}" >> "${GITHUB_ENV}"
+          echo "RELEASE_NAME=ariami-cli-linux-x64-v${CLI_VERSION}" >> "${GITHUB_ENV}"
+          echo "version=${CLI_VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "release_name=ariami-cli-linux-x64-v${CLI_VERSION}" >> "${GITHUB_OUTPUT}"
+
+      - name: Get dependencies
+        working-directory: ariami_cli
+        run: flutter pub get
+
+      - name: Build web
+        working-directory: ariami_cli
+        run: flutter build web -t lib/web/main.dart
+
+      - name: Build CLI
+        working-directory: ariami_cli
+        run: dart build cli -o build/cli-out
+
+      - name: Build Sonic
+        working-directory: sonic
+        run: cargo build --release --features aac-fdk --lib
+
+      - name: Assemble CLI bundle
+        run: |
+          rm -rf "${RELEASE_NAME}" "${RELEASE_NAME}.zip"
+          mkdir -p "${RELEASE_NAME}/bin" "${RELEASE_NAME}/lib" "${RELEASE_NAME}/web"
+
+          cp ariami_cli/build/cli-out/bundle/bin/ariami_cli "${RELEASE_NAME}/bin/ariami_cli"
+          cp -R ariami_cli/build/cli-out/bundle/lib/. "${RELEASE_NAME}/lib/"
+          cp -R ariami_cli/build/web/. "${RELEASE_NAME}/web/"
+          cp sonic/target/release/libsonic_transcoder.so "${RELEASE_NAME}/lib/libsonic_transcoder.so"
+          cp ariami_cli/ariami_cli-launcher.sh "${RELEASE_NAME}/ariami_cli"
+          cp ariami_cli/SETUP.txt "${RELEASE_NAME}/SETUP.txt"
+          cp ariami_cli/HEADLESS.md "${RELEASE_NAME}/HEADLESS.md"
+          chmod +x "${RELEASE_NAME}/ariami_cli" "${RELEASE_NAME}/bin/ariami_cli"
+
+      - name: Verify CLI bundle
+        run: |
+          test -f "${RELEASE_NAME}/bin/ariami_cli"
+          test -f "${RELEASE_NAME}/lib/libsonic_transcoder.so"
+
+          for artifact in "${RELEASE_NAME}/bin/ariami_cli" "${RELEASE_NAME}"/lib/*.so; do
+            file "$artifact"
+            file "$artifact" | grep -q 'x86-64'
+          done
+
+          nm -D "${RELEASE_NAME}/lib/libsonic_transcoder.so" | grep -q 'sonic_ffi_abi_version'
+
+      - name: Smoke test CLI
+        run: |
+          rm -rf "${RUNNER_TEMP}/ariami-smoke"
+          cd "${RELEASE_NAME}"
+
+          version_output="$(ARIAMI_DATA_DIR="${RUNNER_TEMP}/ariami-smoke" ./bin/ariami_cli --version)"
+          echo "$version_output"
+          if ! grep -Fq "${VERSION}" <<< "$version_output"; then
+            echo "::error::CLI --version output did not include ${VERSION}"
+            exit 1
+          fi
+
+          status_output="$(ARIAMI_DATA_DIR="${RUNNER_TEMP}/ariami-smoke" ./ariami_cli status)"
+          echo "$status_output"
+          if ! grep -Fq 'Server:    stopped' <<< "$status_output"; then
+            echo "::error::CLI status output did not include 'Server:    stopped'"
+            exit 1
+          fi
+
+      - name: Package CLI artifact
+        run: zip -r -q "${RELEASE_NAME}.zip" "${RELEASE_NAME}"
+
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ steps.version.outputs.release_name }}
+          path: ${{ steps.version.outputs.release_name }}.zip
+          if-no-files-found: error
+
+  linux-arm64:
+    name: Linux arm64
+    runs-on: ubuntu-22.04-arm
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            binutils \
+            clang \
+            cmake \
+            file \
+            pkg-config \
+            zip
+
+      # Flutter publishes no linux-arm64 SDK archives, so flutter-action
+      # cannot resolve 3.44.0 here; installing from git at the pinned tag
+      # works because the Dart SDK does ship linux-arm64 binaries.
+      - name: Setup Flutter (from git, no arm64 archives)
+        run: |
+          git clone --depth 1 --branch 3.44.0 \
+            https://github.com/flutter/flutter.git "${RUNNER_TEMP}/flutter"
+          echo "${RUNNER_TEMP}/flutter/bin" >> "${GITHUB_PATH}"
+
+      - name: Flutter version
+        run: flutter --version
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Read version
+        id: version
+        shell: bash
+        run: |
+          read_pubspec_version() {
+            awk '/^version:/ { print $2; exit }' "$1" | cut -d'+' -f1
+          }
+
+          read_app_version_constant() {
+            sed -n "s/^const String kAriamiVersion = '\(.*\)';$/\1/p" \
+              ariami_core/lib/app_version.dart
+          }
+
+          CLI_VERSION="$(read_pubspec_version ariami_cli/pubspec.yaml)"
+          CORE_VERSION="$(read_pubspec_version ariami_core/pubspec.yaml)"
+          CONST_VERSION="$(read_app_version_constant)"
+
+          if [ -z "${CLI_VERSION}" ] || [ -z "${CORE_VERSION}" ] || [ -z "${CONST_VERSION}" ]; then
+            echo "::error::Could not read Ariami version from pubspec.yaml or app_version.dart"
+            exit 1
+          fi
+
+          if [ "${CLI_VERSION}" != "${CORE_VERSION}" ] || [ "${CLI_VERSION}" != "${CONST_VERSION}" ]; then
+            echo "::error::Ariami version mismatch; fix these before building"
+            echo "  ariami_cli/pubspec.yaml:      ${CLI_VERSION}"
+            echo "  ariami_core/pubspec.yaml:     ${CORE_VERSION}"
+            echo "  ariami_core/app_version.dart: ${CONST_VERSION}"
+            exit 1
+          fi
+
+          echo "VERSION=${CLI_VERSION}" >> "${GITHUB_ENV}"
+          echo "RELEASE_NAME=ariami-cli-raspberry-pi-arm64-v${CLI_VERSION}" >> "${GITHUB_ENV}"
+          echo "version=${CLI_VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "release_name=ariami-cli-raspberry-pi-arm64-v${CLI_VERSION}" >> "${GITHUB_OUTPUT}"
+
+      - name: Get dependencies
+        working-directory: ariami_cli
+        run: flutter pub get
+
+      - name: Build web
+        working-directory: ariami_cli
+        run: flutter build web -t lib/web/main.dart
+
+      - name: Build CLI
+        working-directory: ariami_cli
+        run: dart build cli -o build/cli-out
+
+      - name: Build Sonic
+        working-directory: sonic
+        run: cargo build --release --features aac-fdk --lib
+
+      - name: Assemble CLI bundle
+        run: |
+          rm -rf "${RELEASE_NAME}" "${RELEASE_NAME}.zip"
+          mkdir -p "${RELEASE_NAME}/bin" "${RELEASE_NAME}/lib" "${RELEASE_NAME}/web"
+
+          cp ariami_cli/build/cli-out/bundle/bin/ariami_cli "${RELEASE_NAME}/bin/ariami_cli"
+          cp -R ariami_cli/build/cli-out/bundle/lib/. "${RELEASE_NAME}/lib/"
+          cp -R ariami_cli/build/web/. "${RELEASE_NAME}/web/"
+          cp sonic/target/release/libsonic_transcoder.so "${RELEASE_NAME}/lib/libsonic_transcoder.so"
+          cp ariami_cli/ariami_cli-launcher.sh "${RELEASE_NAME}/ariami_cli"
+          cp ariami_cli/SETUP.txt "${RELEASE_NAME}/SETUP.txt"
+          cp ariami_cli/HEADLESS.md "${RELEASE_NAME}/HEADLESS.md"
+          chmod +x "${RELEASE_NAME}/ariami_cli" "${RELEASE_NAME}/bin/ariami_cli"
+
+      - name: Verify CLI bundle
+        run: |
+          test -f "${RELEASE_NAME}/bin/ariami_cli"
+          test -f "${RELEASE_NAME}/lib/libsonic_transcoder.so"
+
+          for artifact in "${RELEASE_NAME}/bin/ariami_cli" "${RELEASE_NAME}"/lib/*.so; do
+            file "$artifact"
+            file "$artifact" | grep -q 'aarch64'
+          done
+
+          nm -D "${RELEASE_NAME}/lib/libsonic_transcoder.so" | grep -q 'sonic_ffi_abi_version'
+
+      - name: Smoke test CLI
+        run: |
+          rm -rf "${RUNNER_TEMP}/ariami-smoke"
+          cd "${RELEASE_NAME}"
+
+          version_output="$(ARIAMI_DATA_DIR="${RUNNER_TEMP}/ariami-smoke" ./bin/ariami_cli --version)"
+          echo "$version_output"
+          if ! grep -Fq "${VERSION}" <<< "$version_output"; then
+            echo "::error::CLI --version output did not include ${VERSION}"
+            exit 1
+          fi
+
+          status_output="$(ARIAMI_DATA_DIR="${RUNNER_TEMP}/ariami-smoke" ./ariami_cli status)"
+          echo "$status_output"
+          if ! grep -Fq 'Server:    stopped' <<< "$status_output"; then
+            echo "::error::CLI status output did not include 'Server:    stopped'"
+            exit 1
+          fi
+
+      - name: Package CLI artifact
+        run: zip -r -q "${RELEASE_NAME}.zip" "${RELEASE_NAME}"
+
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ steps.version.outputs.release_name }}
+          path: ${{ steps.version.outputs.release_name }}.zip
+          if-no-files-found: error
+
+  macos-arm64:
+    name: macOS arm64
+    runs-on: macos-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.0'
+          cache: true
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Read version
+        id: version
+        shell: bash
+        run: |
+          read_pubspec_version() {
+            awk '/^version:/ { print $2; exit }' "$1" | cut -d'+' -f1
+          }
+
+          read_app_version_constant() {
+            sed -n "s/^const String kAriamiVersion = '\(.*\)';$/\1/p" \
+              ariami_core/lib/app_version.dart
+          }
+
+          CLI_VERSION="$(read_pubspec_version ariami_cli/pubspec.yaml)"
+          CORE_VERSION="$(read_pubspec_version ariami_core/pubspec.yaml)"
+          CONST_VERSION="$(read_app_version_constant)"
+
+          if [ -z "${CLI_VERSION}" ] || [ -z "${CORE_VERSION}" ] || [ -z "${CONST_VERSION}" ]; then
+            echo "::error::Could not read Ariami version from pubspec.yaml or app_version.dart"
+            exit 1
+          fi
+
+          if [ "${CLI_VERSION}" != "${CORE_VERSION}" ] || [ "${CLI_VERSION}" != "${CONST_VERSION}" ]; then
+            echo "::error::Ariami version mismatch; fix these before building"
+            echo "  ariami_cli/pubspec.yaml:      ${CLI_VERSION}"
+            echo "  ariami_core/pubspec.yaml:     ${CORE_VERSION}"
+            echo "  ariami_core/app_version.dart: ${CONST_VERSION}"
+            exit 1
+          fi
+
+          echo "VERSION=${CLI_VERSION}" >> "${GITHUB_ENV}"
+          echo "RELEASE_NAME=ariami-cli-macos-arm64-v${CLI_VERSION}" >> "${GITHUB_ENV}"
+          echo "version=${CLI_VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "release_name=ariami-cli-macos-arm64-v${CLI_VERSION}" >> "${GITHUB_OUTPUT}"
+
+      - name: Get dependencies
+        working-directory: ariami_cli
+        run: flutter pub get
+
+      - name: Build web
+        working-directory: ariami_cli
+        run: flutter build web -t lib/web/main.dart
+
+      - name: Build CLI
+        working-directory: ariami_cli
+        run: dart build cli -o build/cli-out
+
+      - name: Build Sonic
+        working-directory: sonic
+        run: cargo build --release --features aac-fdk --lib
+
+      - name: Assemble CLI bundle
+        run: |
+          rm -rf "${RELEASE_NAME}" "${RELEASE_NAME}.zip"
+          mkdir -p "${RELEASE_NAME}/bin" "${RELEASE_NAME}/lib" "${RELEASE_NAME}/web"
+
+          cp ariami_cli/build/cli-out/bundle/bin/ariami_cli "${RELEASE_NAME}/bin/ariami_cli"
+          cp -R ariami_cli/build/cli-out/bundle/lib/. "${RELEASE_NAME}/lib/"
+          cp -R ariami_cli/build/web/. "${RELEASE_NAME}/web/"
+          cp sonic/target/release/libsonic_transcoder.dylib "${RELEASE_NAME}/lib/libsonic_transcoder.dylib"
+          cp ariami_cli/ariami_cli-launcher.sh "${RELEASE_NAME}/ariami_cli"
+          cp ariami_cli/SETUP.txt "${RELEASE_NAME}/SETUP.txt"
+          cp ariami_cli/HEADLESS.md "${RELEASE_NAME}/HEADLESS.md"
+          chmod +x "${RELEASE_NAME}/ariami_cli" "${RELEASE_NAME}/bin/ariami_cli"
+
+      - name: Verify CLI bundle
+        run: |
+          test -f "${RELEASE_NAME}/bin/ariami_cli"
+          test -f "${RELEASE_NAME}/lib/libsonic_transcoder.dylib"
+
+          lipo "${RELEASE_NAME}/bin/ariami_cli" -verify_arch arm64
+          for dylib in "${RELEASE_NAME}"/lib/*.dylib; do
+            lipo "$dylib" -verify_arch arm64
+          done
+
+          nm -gU "${RELEASE_NAME}/lib/libsonic_transcoder.dylib" | grep -q '_sonic_ffi_abi_version$'
+
+      - name: Smoke test CLI
+        run: |
+          rm -rf "${RUNNER_TEMP}/ariami-smoke"
+          cd "${RELEASE_NAME}"
+
+          version_output="$(ARIAMI_DATA_DIR="${RUNNER_TEMP}/ariami-smoke" ./bin/ariami_cli --version)"
+          echo "$version_output"
+          if ! grep -Fq "${VERSION}" <<< "$version_output"; then
+            echo "::error::CLI --version output did not include ${VERSION}"
+            exit 1
+          fi
+
+          status_output="$(ARIAMI_DATA_DIR="${RUNNER_TEMP}/ariami-smoke" ./ariami_cli status)"
+          echo "$status_output"
+          if ! grep -Fq 'Server:    stopped' <<< "$status_output"; then
+            echo "::error::CLI status output did not include 'Server:    stopped'"
+            exit 1
+          fi
+
+      - name: Package CLI artifact
+        run: ditto -c -k --sequesterRsrc --keepParent "${RELEASE_NAME}" "${RELEASE_NAME}.zip"
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ steps.version.outputs.release_name }}
+          path: ${{ steps.version.outputs.release_name }}.zip
+          if-no-files-found: error
+
+  windows-x64:
+    name: Windows x64
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.0'
+          cache: true
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Read version
+        id: version
+        shell: bash
+        run: |
+          read_pubspec_version() {
+            awk '/^version:/ { print $2; exit }' "$1" | cut -d'+' -f1
+          }
+
+          read_app_version_constant() {
+            sed -n "s/^const String kAriamiVersion = '\(.*\)';$/\1/p" \
+              ariami_core/lib/app_version.dart
+          }
+
+          CLI_VERSION="$(read_pubspec_version ariami_cli/pubspec.yaml)"
+          CORE_VERSION="$(read_pubspec_version ariami_core/pubspec.yaml)"
+          CONST_VERSION="$(read_app_version_constant)"
+
+          if [ -z "${CLI_VERSION}" ] || [ -z "${CORE_VERSION}" ] || [ -z "${CONST_VERSION}" ]; then
+            echo "::error::Could not read Ariami version from pubspec.yaml or app_version.dart"
+            exit 1
+          fi
+
+          if [ "${CLI_VERSION}" != "${CORE_VERSION}" ] || [ "${CLI_VERSION}" != "${CONST_VERSION}" ]; then
+            echo "::error::Ariami version mismatch; fix these before building"
+            echo "  ariami_cli/pubspec.yaml:      ${CLI_VERSION}"
+            echo "  ariami_core/pubspec.yaml:     ${CORE_VERSION}"
+            echo "  ariami_core/app_version.dart: ${CONST_VERSION}"
+            exit 1
+          fi
+
+          echo "VERSION=${CLI_VERSION}" >> "${GITHUB_ENV}"
+          echo "RELEASE_NAME=ariami-cli-windows-x64-v${CLI_VERSION}" >> "${GITHUB_ENV}"
+          echo "version=${CLI_VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "release_name=ariami-cli-windows-x64-v${CLI_VERSION}" >> "${GITHUB_OUTPUT}"
+
+      - name: Get dependencies
+        working-directory: ariami_cli
+        run: flutter pub get
+
+      - name: Build web
+        working-directory: ariami_cli
+        run: flutter build web -t lib/web/main.dart
+
+      - name: Build CLI
+        working-directory: ariami_cli
+        run: dart build cli -o build/cli-out
+
+      - name: Build Sonic
+        working-directory: sonic
+        run: cargo build --release --features aac-fdk --lib
+
+      - name: Assemble CLI bundle
+        shell: pwsh
+        run: |
+          $release = $env:RELEASE_NAME
+          Remove-Item -Recurse -Force $release, "$release.zip" -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force "$release/bin", "$release/lib", "$release/web" | Out-Null
+
+          Copy-Item 'ariami_cli/build/cli-out/bundle/bin/ariami_cli.exe' "$release/bin/ariami_cli.exe"
+          Copy-Item 'ariami_cli/build/cli-out/bundle/lib/*' "$release/lib/" -Recurse
+          Copy-Item 'ariami_cli/build/web/*' "$release/web/" -Recurse
+          Copy-Item 'sonic/target/release/sonic_transcoder.dll' "$release/lib/sonic_transcoder.dll"
+          Copy-Item 'ariami_cli/ariami_cli-launcher.bat' "$release/ariami_cli.bat"
+          Copy-Item 'ariami_cli/SETUP.txt' "$release/SETUP.txt"
+          Copy-Item 'ariami_cli/HEADLESS.md' "$release/HEADLESS.md"
+
+      - name: Verify CLI bundle
+        shell: pwsh
+        run: |
+          function Assert-X64Pe($path) {
+            if (-not (Test-Path $path)) {
+              throw "Missing PE file: $path"
+            }
+
+            $stream = [System.IO.File]::OpenRead($path)
+            $reader = [System.IO.BinaryReader]::new($stream)
+            try {
+              $stream.Position = 0x3c
+              $peOffset = $reader.ReadInt32()
+              $stream.Position = $peOffset + 4
+              $machine = $reader.ReadUInt16()
+              if ($machine -ne 0x8664) {
+                throw ('{0} is not x64 (PE machine 0x{1:X4})' -f $path, $machine)
+              }
+            } finally {
+              $reader.Dispose()
+              $stream.Dispose()
+            }
+          }
+
+          $release = $env:RELEASE_NAME
+          Assert-X64Pe "$release/bin/ariami_cli.exe"
+          Assert-X64Pe "$release/lib/sonic_transcoder.dll"
+          Assert-X64Pe "$release/lib/sqlite3.dll"
+
+      - name: Smoke test CLI
+        shell: pwsh
+        run: |
+          $release = $env:RELEASE_NAME
+          $env:ARIAMI_DATA_DIR = "$env:RUNNER_TEMP\ariami-smoke"
+          Remove-Item -Recurse -Force $env:ARIAMI_DATA_DIR -ErrorAction SilentlyContinue
+          Push-Location $release
+          try {
+            $versionOutput = & .\bin\ariami_cli.exe --version
+            $versionExit = $LASTEXITCODE
+            $versionOutput
+            if ($versionExit -ne 0) {
+              throw "CLI --version exited with code $versionExit"
+            }
+            if (($versionOutput -join "`n") -notlike "*$env:VERSION*") {
+              throw "CLI --version output did not include $env:VERSION"
+            }
+
+            $statusOutput = & .\ariami_cli.bat status
+            $statusExit = $LASTEXITCODE
+            $statusOutput
+            if ($statusExit -ne 0) {
+              throw "CLI status exited with code $statusExit"
+            }
+            if (($statusOutput -join "`n") -notlike "*Server:    stopped*") {
+              throw "CLI status output did not include 'Server:    stopped'"
+            }
+
+            # Regression guard: actually start the server (signal handlers,
+            # HTTP bind) — watching SIGTERM crashed on Windows once.
+            $env:ARIAMI_DATA_DIR = "$env:RUNNER_TEMP\ariami-smoke-server"
+            $outLog = "$env:RUNNER_TEMP\server-out.log"
+            $errLog = "$env:RUNNER_TEMP\server-err.log"
+            $proc = Start-Process -FilePath '.\bin\ariami_cli.exe' `
+              -ArgumentList 'start', '--no-browser', '--port', '8090' `
+              -RedirectStandardOutput $outLog -RedirectStandardError $errLog `
+              -PassThru -NoNewWindow
+            $ok = $false
+            foreach ($i in 1..30) {
+              if ($proc.HasExited) { break }
+              try {
+                $r = Invoke-WebRequest -Uri 'http://127.0.0.1:8090/api/ping' -UseBasicParsing -TimeoutSec 2
+                if ($r.StatusCode -eq 200) { $ok = $true; break }
+              } catch {}
+              Start-Sleep -Seconds 2
+            }
+            Get-Content $outLog -ErrorAction SilentlyContinue | Select-Object -First 40
+            Get-Content $errLog -ErrorAction SilentlyContinue | Select-Object -First 20
+            if (-not $ok) {
+              throw "Server did not respond on port 8090 (process exited: $($proc.HasExited))"
+            }
+            Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+          } finally {
+            Pop-Location
+          }
+
+      - name: Package CLI artifact
+        shell: pwsh
+        run: Compress-Archive -Path $env:RELEASE_NAME -DestinationPath "$env:RELEASE_NAME.zip"
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ steps.version.outputs.release_name }}
+          path: ${{ steps.version.outputs.release_name }}.zip
+          if-no-files-found: error

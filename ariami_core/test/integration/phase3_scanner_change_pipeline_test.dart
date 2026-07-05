@@ -47,11 +47,30 @@ void main() {
             p.join(musicDir.path, 'Artist Two - Track 03.mp3'));
 
         final startingToken = libraryManager.latestToken;
+        final progressUpdates = <({
+          String stage,
+          String message,
+          double percentage,
+        })>[];
 
-        await libraryManager.scanMusicFolder(musicDir.path);
+        await libraryManager.scanMusicFolder(
+          musicDir.path,
+          onProgress: (stage, message, percentage) {
+            progressUpdates.add((
+              stage: stage,
+              message: message,
+              percentage: percentage,
+            ));
+          },
+        );
 
         final library = libraryManager.library;
         expect(library, isNotNull);
+        expect(progressUpdates, isNotEmpty);
+        expect(progressUpdates.first.stage, 'collecting');
+        expect(progressUpdates.last.stage, 'complete');
+        expect(progressUpdates.last.percentage, 100);
+        expect(progressUpdates.last.message, contains('Scan complete'));
 
         final db =
             CatalogDatabase(databasePath: p.join(testDir.path, 'catalog.db'));

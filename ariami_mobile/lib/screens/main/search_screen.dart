@@ -417,13 +417,13 @@ class _SearchScreenState extends State<SearchScreen> {
                         color: Theme.of(context)
                             .colorScheme
                             .surfaceContainerHighest
-                            .withOpacity(0.5),
+                            .withValues(alpha: 0.5),
                         borderRadius: BorderRadius.circular(25),
                         border: Border.all(
                           color: Theme.of(context)
                               .colorScheme
                               .outline
-                              .withOpacity(0.1),
+                              .withValues(alpha: 0.1),
                         ),
                       ),
                       child: TextField(
@@ -438,7 +438,7 @@ class _SearchScreenState extends State<SearchScreen> {
                             color: Theme.of(context)
                                 .colorScheme
                                 .onSurfaceVariant
-                                .withOpacity(0.7),
+                                .withValues(alpha: 0.7),
                           ),
                           prefixIcon: Icon(
                             Icons.search_rounded,
@@ -466,10 +466,10 @@ class _SearchScreenState extends State<SearchScreen> {
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.05),
+                        color: Colors.white.withValues(alpha: 0.05),
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: Colors.white.withOpacity(0.1),
+                          color: Colors.white.withValues(alpha: 0.1),
                           width: 1,
                         ),
                       ),
@@ -570,7 +570,7 @@ class _SearchScreenState extends State<SearchScreen> {
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.9),
+              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.9),
             ),
           ),
         );
@@ -586,7 +586,7 @@ class _SearchScreenState extends State<SearchScreen> {
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.9),
+              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.9),
             ),
           ),
         );
@@ -696,7 +696,7 @@ class _SearchScreenState extends State<SearchScreen> {
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: Icon(
@@ -738,7 +738,7 @@ class _SearchScreenState extends State<SearchScreen> {
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.error.withOpacity(0.1),
+              color: Theme.of(context).colorScheme.error.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: Icon(
@@ -780,7 +780,7 @@ class _SearchScreenState extends State<SearchScreen> {
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.secondary.withOpacity(0.1),
+              color: Theme.of(context).colorScheme.secondary.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: Icon(

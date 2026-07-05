@@ -13,6 +13,7 @@ import 'library/library_pin_storage.dart';
 import 'library/library_repository.dart';
 import 'playlist_service.dart';
 import 'song_id_remapping_service.dart';
+import 'stats/account_stats_service.dart';
 import 'stats/streaming_stats_service.dart';
 
 /// Mode for importing data
@@ -66,8 +67,8 @@ class ImportExportService {
   late StatsDatabase _statsDatabase;
   bool _initialized = false;
 
-  /// Data version for future compatibility (v2 adds pinnedItems, v3 adds server-import state)
-  static const int _dataVersion = 3;
+  /// v4 moves pins to the authenticated account on the server.
+  static const int _dataVersion = 4;
 
   /// Keys for SharedPreferences
   static const String _lastExportKey = 'import_export_last_export';
@@ -242,16 +243,19 @@ class ImportExportService {
 
     final playlists = _playlistService.playlists;
     final stats = await _statsDatabase.getAllStats();
-    final pinnedItems = (await LibraryPinStorage.loadForUser(
-      _connectionService.userId,
-    ))
-        .toList();
+    final client = _connectionService.apiClient;
+    final pinnedItems = client != null && _connectionService.isAuthenticated
+        ? await client.getPins()
+        : (await LibraryPinStorage.loadForUser(_connectionService.userId))
+            .toList();
     final packageInfo = await PackageInfo.fromPlatform();
 
     return {
       'exportDate': DateTime.now().toIso8601String(),
       'appVersion': packageInfo.version,
       'dataVersion': _dataVersion,
+      'schemaVersion': _dataVersion,
+      'exportVersion': _dataVersion,
       'playlists': playlists.map((p) => p.toJson()).toList(),
       'stats': stats.map((s) => s.toJson()).toList(),
       'pinnedItems': pinnedItems,
@@ -301,9 +305,25 @@ class ImportExportService {
           .toList();
 
       // Parse pinned items (v2+, empty for v1 backups)
-      final importedPinnedItems =
-          (data['pinnedItems'] as List<dynamic>?)?.cast<String>().toSet() ??
-              <String>{};
+      final importedPinsRaw =
+          data['pinnedItems'] as List<dynamic>? ?? const <dynamic>[];
+      final importedPinnedItems = <String>{};
+      final importedPinObjects = <dynamic>[];
+      for (final raw in importedPinsRaw) {
+        if (raw is String) {
+          final separator = raw.indexOf(':');
+          if (separator <= 0 || separator >= raw.length - 1) continue;
+          importedPinnedItems.add(raw);
+          importedPinObjects.add(raw);
+        } else if (raw is Map) {
+          final pin = Map<String, dynamic>.from(raw);
+          final type = pin['type'];
+          final targetId = pin['targetId'];
+          if (type is! String || targetId is! String) continue;
+          importedPinnedItems.add('$type:$targetId');
+          importedPinObjects.add(pin);
+        }
+      }
 
       // Parse server-import state (v3+, empty for older backups)
       final importedHiddenServerPlaylistIds =
@@ -393,6 +413,24 @@ class ImportExportService {
         replace: mode == ImportMode.replace,
       );
 
+      // Restore pins to the authenticated account. The server owns identity,
+      // validates types, preserves sortOrder, and deduplicates repeated files.
+      final client = _connectionService.apiClient;
+      if (client != null && _connectionService.isAuthenticated) {
+        final serverPins = await client.importPins(
+          importedPinObjects,
+          replace: mode == ImportMode.replace,
+        );
+        final serverKeys = serverPins
+            .where((pin) => pin['type'] is String && pin['targetId'] is String)
+            .map((pin) => '${pin['type']}:${pin['targetId']}')
+            .toSet();
+        await LibraryPinStorage.saveForUser(
+          _connectionService.userId,
+          serverKeys,
+        );
+      }
+
       // Refresh stats service cache
       await _statsService.reloadFromDatabase();
 
@@ -405,6 +443,12 @@ class ImportExportService {
       if (librarySongs.isNotEmpty) {
         await _statsService.remapStaleStatIdsFromLibrary(librarySongs);
       }
+
+      // The imported history must also reach the account on the server: show
+      // the local view immediately and re-upload this device's baseline (the
+      // server replaces the previous baseline per song, so re-imports never
+      // stack). Offline imports upload on the next connection.
+      await AccountStatsService().resyncBaselineAfterImport();
 
       // Save import timestamp
       _lastImportTime = DateTime.now();

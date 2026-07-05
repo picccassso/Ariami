@@ -335,8 +335,7 @@ void main() {
       );
     });
 
-    test(
-        'second-device login returns 409, then takeover signs the first device out',
+    test('multiple devices stay signed in and legacy takeover is device-local',
         () async {
       final port = await _findFreePort();
       await server.start(
@@ -369,8 +368,7 @@ void main() {
       expect(firstLogin.statusCode, 200);
       final firstToken = firstLogin.jsonBody['sessionToken'] as String;
 
-      // A second device is told the account is signed in elsewhere (409).
-      final blocked = await _sendJsonRequest(
+      final secondLogin = await _sendJsonRequest(
         method: 'POST',
         url: loginUrl,
         jsonBody: <String, dynamic>{
@@ -380,13 +378,11 @@ void main() {
           'deviceName': 'Second Device',
         },
       );
-      expect(blocked.statusCode, 409);
-      expect(
-        (blocked.jsonBody['error'] as Map<String, dynamic>)['code'],
-        AuthErrorCodes.alreadyLoggedInOtherDevice,
-      );
+      expect(secondLogin.statusCode, 200);
+      final secondToken = secondLogin.jsonBody['sessionToken'] as String;
 
-      // Confirming the takeover succeeds.
+      // Older clients may still retry with the former takeover flag. The retry
+      // replaces only this same device's token, not any other device session.
       final takeover = await _sendJsonRequest(
         method: 'POST',
         url: loginUrl,
@@ -399,14 +395,28 @@ void main() {
         },
       );
       expect(takeover.statusCode, 200);
+      final replacementToken = takeover.jsonBody['sessionToken'] as String;
 
-      // The first device's session is now revoked: /api/me rejects its token.
       final firstDeviceMe = await _sendJsonRequest(
         method: 'GET',
         url: Uri.parse('http://127.0.0.1:$port/api/me'),
         headers: <String, String>{'Authorization': 'Bearer $firstToken'},
       );
-      expect(firstDeviceMe.statusCode, 401);
+      expect(firstDeviceMe.statusCode, 200);
+
+      final replacedSecondDeviceMe = await _sendJsonRequest(
+        method: 'GET',
+        url: Uri.parse('http://127.0.0.1:$port/api/me'),
+        headers: <String, String>{'Authorization': 'Bearer $secondToken'},
+      );
+      expect(replacedSecondDeviceMe.statusCode, 401);
+
+      final replacementDeviceMe = await _sendJsonRequest(
+        method: 'GET',
+        url: Uri.parse('http://127.0.0.1:$port/api/me'),
+        headers: <String, String>{'Authorization': 'Bearer $replacementToken'},
+      );
+      expect(replacementDeviceMe.statusCode, 200);
     });
   });
 

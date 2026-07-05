@@ -40,8 +40,7 @@ void main() {
         duration: 0,
       );
 
-      final updatedCount =
-          await playlistService.rehydrateSongMetadataFromLibrary(
+      final updatedCount = await playlistService.rehydrateSongMetadataFromLibrary(
         <SongModel>[
           SongModel(
             id: 'song-1',
@@ -119,7 +118,8 @@ void main() {
         duration: 210,
       );
 
-      final updatedCount = await playlistService.rehydrateSongMetadataFromLibrary(
+      final updatedCount =
+          await playlistService.rehydrateSongMetadataFromLibrary(
         <SongModel>[
           SongModel(
             id: 'song-1',
@@ -161,6 +161,58 @@ void main() {
       await Future<void>.delayed(Duration.zero);
 
       expect(notifyCount, 1);
+    });
+
+    test('visible server playlists apply the account edit overlay', () {
+      playlistService.updateServerPlaylists(<ServerPlaylist>[
+        ServerPlaylist(
+          id: 'playlist-1',
+          name: 'Base name',
+          songIds: const <String>['song-1', 'song-2', 'song-3'],
+          songCount: 3,
+        ),
+      ]);
+      playlistService.setServerPlaylistEditsForTest(<ServerPlaylistEdit>[
+        ServerPlaylistEdit(
+          playlistId: 'playlist-1',
+          name: 'Synced name',
+          songIds: const <String>['song-2', 'song-1'],
+          baseSnapshot: const <String>['song-1', 'song-2', 'song-3'],
+        ),
+      ]);
+
+      final visible = playlistService.visibleServerPlaylists.single;
+
+      expect(visible.name, 'Synced name');
+      expect(visible.songIds, const <String>['song-2', 'song-1']);
+      expect(visible.songCount, 2);
+    });
+
+    test('effective server playlist appends songs added to the base later', () {
+      playlistService.updateServerPlaylists(<ServerPlaylist>[
+        ServerPlaylist(
+          id: 'playlist-1',
+          name: 'Base name',
+          songIds: const <String>['song-1', 'song-2', 'song-new'],
+          songCount: 3,
+        ),
+      ]);
+      playlistService.setServerPlaylistEditsForTest(<ServerPlaylistEdit>[
+        ServerPlaylistEdit(
+          playlistId: 'playlist-1',
+          name: null,
+          songIds: const <String>['song-2', 'song-1'],
+          baseSnapshot: const <String>['song-1', 'song-2'],
+        ),
+      ]);
+
+      final visible = playlistService.visibleServerPlaylists.single;
+
+      expect(
+        visible.songIds,
+        const <String>['song-2', 'song-1', 'song-new'],
+      );
+      expect(visible.songCount, 3);
     });
 
     test('imports server playlist using fresher repository song durations',
@@ -213,6 +265,168 @@ void main() {
       expect(playlist.songTitles['song-1'], 'Canonical Song');
       expect(playlist.songArtists['song-1'], 'Canonical Artist');
       expect(playlist.songDurations['song-1'], 245);
+    });
+  });
+
+  group('PlaylistService imported playlist sync', () {
+    late PlaylistService playlistService;
+
+    setUpAll(() {
+      sqfliteFfiInit();
+      databaseFactory = databaseFactoryFfi;
+    });
+
+    setUp(() async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      playlistService = PlaylistService();
+      await playlistService.clearAllPlaylistData();
+    });
+
+    tearDown(() async {
+      final dbPath = p.join(await getDatabasesPath(), 'library_sync.db');
+      await deleteDatabase(dbPath);
+    });
+
+    Future<PlaylistModel> importBasePlaylist() async {
+      playlistService.updateServerPlaylists(<ServerPlaylist>[
+        ServerPlaylist(
+          id: 'server-1',
+          name: 'Base name',
+          songIds: const <String>['song-1', 'song-2', 'song-3'],
+          songCount: 3,
+        ),
+      ]);
+      await Future<void>.delayed(Duration.zero);
+
+      return playlistService.importServerPlaylist(
+        playlistService.visibleServerPlaylists.single,
+        allSongs: <SongModel>[
+          SongModel(id: 'song-1', title: 'One', artist: 'A', duration: 60),
+          SongModel(id: 'song-2', title: 'Two', artist: 'B', duration: 60),
+          SongModel(id: 'song-3', title: 'Three', artist: 'C', duration: 60),
+        ],
+      );
+    }
+
+    test('imported copy mirrors the account edit overlay', () async {
+      final imported = await importBasePlaylist();
+
+      playlistService.setServerPlaylistEditsForTest(<ServerPlaylistEdit>[
+        ServerPlaylistEdit(
+          playlistId: 'server-1',
+          name: 'Synced name',
+          songIds: const <String>['song-3', 'song-1'],
+          baseSnapshot: const <String>['song-1', 'song-2', 'song-3'],
+        ),
+      ]);
+      await playlistService.syncImportedPlaylistsFromServer();
+
+      final local = playlistService.getPlaylist(imported.id)!;
+      expect(local.name, 'Synced name');
+      expect(local.songIds, const <String>['song-3', 'song-1']);
+    });
+
+    test('imported copy without an edit overlay stays a local fork', () async {
+      final imported = await importBasePlaylist();
+
+      await playlistService.reorderSongs(
+        playlistId: imported.id,
+        oldIndex: 2,
+        newIndex: 0,
+      );
+      await playlistService.syncImportedPlaylistsFromServer();
+
+      final local = playlistService.getPlaylist(imported.id)!;
+      expect(local.songIds, const <String>['song-3', 'song-1', 'song-2']);
+      expect(local.name, 'Base name');
+    });
+
+    test('edit made without a connection is queued for a later push',
+        () async {
+      final imported = await importBasePlaylist();
+
+      await playlistService.reorderSongs(
+        playlistId: imported.id,
+        oldIndex: 2,
+        newIndex: 0,
+      );
+      // The push runs unawaited after the local mutation.
+      await Future<void>.delayed(Duration.zero);
+
+      expect(playlistService.pendingImportedEditPushIds, {imported.id});
+      final prefs = await SharedPreferences.getInstance();
+      expect(
+        prefs.getString('ariami_pending_imported_edit_pushes'),
+        contains(imported.id),
+      );
+    });
+
+    test('inbound sync leaves playlists with queued offline edits untouched',
+        () async {
+      final imported = await importBasePlaylist();
+
+      await playlistService.reorderSongs(
+        playlistId: imported.id,
+        oldIndex: 2,
+        newIndex: 0,
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      playlistService.setServerPlaylistEditsForTest(<ServerPlaylistEdit>[
+        ServerPlaylistEdit(
+          playlistId: 'server-1',
+          name: 'Synced name',
+          songIds: const <String>['song-2', 'song-1', 'song-3'],
+          baseSnapshot: const <String>['song-1', 'song-2', 'song-3'],
+        ),
+      ]);
+      await playlistService.syncImportedPlaylistsFromServer();
+
+      final local = playlistService.getPlaylist(imported.id)!;
+      expect(local.songIds, const <String>['song-3', 'song-1', 'song-2']);
+      expect(local.name, 'Base name');
+    });
+
+    test('deleting an imported playlist drops its queued push', () async {
+      final imported = await importBasePlaylist();
+
+      await playlistService.reorderSongs(
+        playlistId: imported.id,
+        oldIndex: 2,
+        newIndex: 0,
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(playlistService.pendingImportedEditPushIds, {imported.id});
+
+      await playlistService.deleteImportedPlaylist(
+        imported.id,
+        restoreServerVersion: true,
+      );
+
+      expect(playlistService.pendingImportedEditPushIds, isEmpty);
+    });
+
+    test('discarded edit overlay reverts the imported copy to base', () async {
+      final imported = await importBasePlaylist();
+
+      playlistService.setServerPlaylistEditsForTest(<ServerPlaylistEdit>[
+        ServerPlaylistEdit(
+          playlistId: 'server-1',
+          name: 'Synced name',
+          songIds: const <String>['song-3', 'song-1'],
+          baseSnapshot: const <String>['song-1', 'song-2', 'song-3'],
+        ),
+      ]);
+      await playlistService.syncImportedPlaylistsFromServer();
+
+      playlistService.setServerPlaylistEditsForTest(const []);
+      await playlistService.syncImportedPlaylistsFromServer(
+        revertedServerPlaylistIds: {'server-1'},
+      );
+
+      final local = playlistService.getPlaylist(imported.id)!;
+      expect(local.name, 'Base name');
+      expect(local.songIds, const <String>['song-1', 'song-2', 'song-3']);
     });
   });
 

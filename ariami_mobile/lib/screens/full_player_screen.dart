@@ -13,7 +13,7 @@ import '../widgets/player/player_artwork.dart';
 import '../widgets/player/player_info.dart';
 import '../widgets/player/player_seek_bar.dart';
 import '../widgets/player/player_secondary_controls.dart';
-import '../widgets/player/player_cast_button.dart';
+import '../widgets/player/player_output_button.dart';
 import '../widgets/common/mini_player_aware_bottom_sheet.dart';
 import '../widgets/common/queue_action_confirmation.dart';
 import 'playlist/add_to_playlist_screen.dart';
@@ -352,7 +352,8 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
             _buildMainControls(themedContext),
             const SizedBox(height: 16),
             PlayerSecondaryControls(
-              castButton: PlayerCastButton(playbackManager: _playbackManager),
+              outputButton:
+                  PlayerOutputButton(playbackManager: _playbackManager),
               onPlayNext: _playCurrentSongNext,
               onAddToQueue: _addCurrentSongToQueue,
               onOpenQueue: _openQueue,

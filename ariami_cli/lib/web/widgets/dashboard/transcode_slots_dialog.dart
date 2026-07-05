@@ -50,7 +50,7 @@ Future<TranscodeSlotsEditResult?> showTranscodeSlotsDialog(
                   Text(
                     'Controls how many Sonic transcodes can run at once.',
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.7),
+                      color: Colors.white.withValues(alpha: 0.7),
                       fontSize: 13,
                     ),
                   ),
@@ -63,7 +63,7 @@ Future<TranscodeSlotsEditResult?> showTranscodeSlotsDialog(
                     decoration: InputDecoration(
                       labelText: 'Transcode slots',
                       labelStyle: TextStyle(
-                        color: Colors.white.withOpacity(0.7),
+                        color: Colors.white.withValues(alpha: 0.7),
                       ),
                       helperText:
                           'Default for this device: ${snapshot.defaultSlots}',

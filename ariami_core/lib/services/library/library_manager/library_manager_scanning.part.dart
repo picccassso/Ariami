@@ -92,7 +92,10 @@ extension _LibraryManagerScanningPart on LibraryManager {
     }
   }
 
-  Future<void> _scanMusicFolderImpl(String folderPath) async {
+  Future<void> _scanMusicFolderImpl(
+    String folderPath, {
+    void Function(String stage, String message, double percentage)? onProgress,
+  }) async {
     if (_isScanning) {
       print('[LibraryManager] Scan already in progress');
       return;
@@ -115,9 +118,11 @@ extension _LibraryManagerScanningPart on LibraryManager {
       final result = await LibraryScannerIsolate.scan(
         folderPath,
         onProgress: (progress) {
+          final message = progress.message ?? 'Scanning media library...';
           // Log progress updates from the isolate
-          print('[LibraryManager] [${progress.stage}] ${progress.message} '
+          print('[LibraryManager] [${progress.stage}] $message '
               '(${progress.percentage.toStringAsFixed(1)}%)');
+          onProgress?.call(progress.stage, message, progress.percentage);
         },
         cacheData: cacheData,
       );

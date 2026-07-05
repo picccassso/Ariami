@@ -146,7 +146,7 @@ class FailedAlbumCard extends StatelessWidget {
           ),
           if (isExpanded)
             Container(
-              color: isDark ? Colors.black.withOpacity(0.3) : Colors.grey[50],
+              color: isDark ? Colors.black.withValues(alpha: 0.3) : Colors.grey[50],
               child: Column(
                 children: [
                   for (var i = 0; i < album.songs.length; i++)
@@ -268,7 +268,7 @@ class _FailedSongRow extends StatelessWidget {
               height: 1,
               thickness: 0.5,
               color: isDark
-                  ? const Color(0xFF1A1A1A).withOpacity(0.5)
+                  ? const Color(0xFF1A1A1A).withValues(alpha: 0.5)
                   : const Color(0xFFEEEEEE),
             ),
           ),
@@ -303,7 +303,7 @@ class _MiniIconButton extends StatelessWidget {
           icon,
           size: 16,
           color:
-              tint ?? (isDark ? Colors.white : Colors.black).withOpacity(0.85),
+              tint ?? (isDark ? Colors.white : Colors.black).withValues(alpha: 0.85),
         ),
         onPressed: onPressed,
         tooltip: tooltip,

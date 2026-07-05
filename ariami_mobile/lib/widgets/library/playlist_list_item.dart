@@ -76,7 +76,7 @@ class _PlaylistListItemState extends State<PlaylistListItem> {
         borderRadius: BorderRadius.circular(0),
         child: Container(
           color: widget.isSelected
-              ? Colors.white.withOpacity(0.05)
+              ? Colors.white.withValues(alpha: 0.05)
               : Colors.transparent,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -99,7 +99,7 @@ class _PlaylistListItemState extends State<PlaylistListItem> {
                             : Theme.of(context)
                                 .colorScheme
                                 .onSurface
-                                .withOpacity(0.4),
+                                .withValues(alpha: 0.4),
                         width: 1.5,
                       ),
                     ),
