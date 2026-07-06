@@ -29,6 +29,7 @@ import 'package:ariami_core/services/auth/user_store.dart'
 import 'package:ariami_core/models/auth_models.dart';
 import 'package:ariami_core/models/download_job_models.dart';
 import 'package:ariami_core/models/user_activity_row.dart';
+import 'package:ariami_core/services/discovery/discovery_responder.dart';
 import 'package:ariami_core/services/server/stream_tracker.dart';
 import 'package:ariami_core/services/server/download_job_service.dart';
 import 'package:ariami_core/services/server/metrics_service.dart';
@@ -161,6 +162,13 @@ class AriamiHttpServer {
   // Network endpoint discovery and change notifications
   Future<NetworkEndpoints> Function()? _endpointDiscoveryCallback;
   NetworkEndpointMonitor? _endpointMonitor;
+
+  // Answers LAN discovery probes (UDP beacon + mDNS) while the server runs,
+  // so client apps find this server without scanning. Best-effort:
+  // its failures never affect the HTTP server. Hosts may opt out before
+  // start() via [setDiscoveryResponderEnabled].
+  final DiscoveryResponder _discoveryResponder = DiscoveryResponder();
+  bool _discoveryResponderEnabled = true;
   final StreamController<Map<String, dynamic>> _endpointsChangedController =
       StreamController<Map<String, dynamic>>.broadcast();
 

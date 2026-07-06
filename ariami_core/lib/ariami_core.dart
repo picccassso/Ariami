@@ -40,6 +40,12 @@ export 'services/reset/reset_service.dart';
 // Setup Services
 export 'services/setup/music_folder_path_helper.dart';
 
+// Discovery Services
+export 'services/discovery/discovery_browser.dart';
+export 'services/discovery/discovery_protocol.dart';
+export 'services/discovery/discovery_responder.dart';
+export 'services/discovery/dns_wire.dart';
+
 // Server Services
 export 'services/server/connection_manager.dart';
 export 'services/server/http_server.dart';

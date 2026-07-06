@@ -302,6 +302,7 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
       // Start cleanup timer for stale connections
       _startCleanupTimer();
       _ensureEndpointMonitor();
+      unawaited(_startDiscoveryResponder());
     } catch (e) {
       print('Failed to start server: $e');
       rethrow;
@@ -404,9 +405,35 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
     }
   }
 
+  /// Opt out of the LAN discovery responder (UDP beacon + mDNS). Call
+  /// before [start]; discovery is on by default for every server host.
+  void setDiscoveryResponderEnabled(bool enabled) {
+    _discoveryResponderEnabled = enabled;
+  }
+
+  /// Starts the discovery responder for the port the server bound. Never
+  /// throws: discovery is strictly best-effort.
+  Future<void> _startDiscoveryResponder() async {
+    if (!_discoveryResponderEnabled) return;
+    try {
+      await _discoveryResponder.start(
+        httpPort: _port,
+        serviceName: Platform.localHostname,
+        version: kAriamiVersion,
+      );
+    } catch (e) {
+      print('[Discovery] Responder failed to start: $e');
+    }
+  }
+
   /// Stop the HTTP server
   Future<void> stop() async {
     _stopEndpointMonitor();
+    try {
+      await _discoveryResponder.stop();
+    } catch (e) {
+      print('[Discovery] Responder failed to stop: $e');
+    }
     await _server?.close(force: true);
     _server = null;
 
