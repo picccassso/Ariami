@@ -33,6 +33,80 @@ void main() {
     });
   });
 
+  group('MetadataExtractor ffprobe tag fallback', () {
+    late Directory tempDir;
+
+    setUp(() async {
+      tempDir = await Directory.systemTemp.createTemp('ariami_meta_');
+    });
+
+    tearDown(() async {
+      if (await tempDir.exists()) {
+        await tempDir.delete(recursive: true);
+      }
+    });
+
+    test('fills tags from ffprobe for formats dart_tags cannot parse',
+        () async {
+      // A FLAC-like file with no ID3 tags: dart_tags finds nothing.
+      final file = File('${tempDir.path}/mystery.flac');
+      await file.writeAsBytes(List<int>.filled(4096, 0x42));
+
+      final extractor = MetadataExtractor(
+        processRunner: (executable, arguments) async {
+          if (arguments.length == 1 && arguments.first == '-version') {
+            return ProcessResult(1, 0, 'ffprobe version test', '');
+          }
+          if (arguments.any((a) => a.startsWith('format_tags'))) {
+            return ProcessResult(
+              1,
+              0,
+              '{"format":{"duration":"245.3","bit_rate":"965000",'
+                  '"tags":{"TITLE":"Real Title","ARTIST":"Real Artist",'
+                  '"ALBUM":"Real Album","date":"2019-04-01","track":"3/12",'
+                  '"disc":"1/2","GENRE":"Jazz","album_artist":"Real Band"}}}',
+              '',
+            );
+          }
+          // Bitrate/duration probes: return nothing useful.
+          return ProcessResult(1, 0, '{}', '');
+        },
+      );
+
+      final metadata = await extractor.extractMetadata(file.path);
+
+      expect(metadata.title, equals('Real Title'));
+      expect(metadata.artist, equals('Real Artist'));
+      expect(metadata.album, equals('Real Album'));
+      expect(metadata.albumArtist, equals('Real Band'));
+      expect(metadata.genre, equals('Jazz'));
+      expect(metadata.year, equals(2019));
+      expect(metadata.trackNumber, equals(3));
+      expect(metadata.discNumber, equals(1));
+      expect(metadata.duration, equals(245),
+          reason: 'duration should come from the same combined probe');
+      expect(metadata.bitrate, equals(965));
+    });
+
+    test('falls back to filename parsing when ffprobe is unavailable',
+        () async {
+      final file = File('${tempDir.path}/01 - Some Artist - Some Song.flac');
+      await file.writeAsBytes(List<int>.filled(4096, 0x42));
+
+      final extractor = MetadataExtractor(
+        processRunner: (executable, arguments) async {
+          throw ProcessException(executable, arguments, 'not found', 127);
+        },
+      );
+
+      final metadata = await extractor.extractMetadata(file.path);
+
+      expect(metadata.title, equals('Some Song'));
+      expect(metadata.artist, equals('Some Artist'));
+      expect(metadata.trackNumber, equals(1));
+    });
+  });
+
   group('MetadataExtractor.extractDuration', () {
     test('prefers Dart MP3 parser before ffprobe for mp3 files', () async {
       var ffprobeCalls = 0;

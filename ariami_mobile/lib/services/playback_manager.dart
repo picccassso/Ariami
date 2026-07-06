@@ -29,7 +29,6 @@ import 'stats/streaming_stats_service.dart';
 import 'color_extraction_service.dart';
 import 'quality/quality_settings_service.dart';
 import '../main.dart' show audioHandler;
-import '../debug/agent_debug_log.dart';
 
 part 'playback_manager_queue_impl.dart';
 part 'playback_manager_casting_impl.dart';

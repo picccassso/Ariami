@@ -15,7 +15,6 @@ import '../../utils/download_state_watcher.dart';
 import '../../utils/downloaded_album_metadata.dart';
 import '../../widgets/search/search_result_song_item.dart';
 import '../../widgets/search/search_result_album_item.dart';
-import '../../debug/agent_debug_log.dart';
 
 enum _SearchListItemKind { headerSongs, song, spacer, headerAlbums, album }
 
@@ -163,12 +162,6 @@ class _SearchScreenState extends State<SearchScreen> {
         _isLoading = false;
       });
       _refreshSearchIfNeeded();
-      _logSongIdCollisions('online_bundle', rawSongs);
-      _logSongDeduplication(
-        'online_bundle',
-        before: rawSongs.length,
-        after: allSongs.length,
-      );
     } catch (e) {
       setState(() {
         _isLoading = false;
@@ -233,54 +226,6 @@ class _SearchScreenState extends State<SearchScreen> {
       _isLoading = false;
     });
     _refreshSearchIfNeeded();
-    _logSongIdCollisions('offline_downloads', songs);
-    _logSongDeduplication(
-      'offline_downloads',
-      before: songs.length,
-      after: deduplicatedSongs.length,
-    );
-  }
-
-  void _logSongIdCollisions(String source, List<SongModel> songs) {
-    final idCounts = <String, int>{};
-    for (final s in songs) {
-      idCounts[s.id] = (idCounts[s.id] ?? 0) + 1;
-    }
-    final dups = idCounts.entries.where((e) => e.value > 1).toList();
-    if (dups.isEmpty) return;
-    // #region agent log
-    agentDebugLog(
-      location: 'search_screen.dart:_logSongIdCollisions',
-      message: 'duplicate song ids in search library list',
-      hypothesisId: 'H4',
-      data: {
-        'source': source,
-        'duplicateSummaries':
-            dups.map((e) => {'id': e.key, 'count': e.value}).toList(),
-      },
-    );
-    // #endregion
-  }
-
-  void _logSongDeduplication(
-    String source, {
-    required int before,
-    required int after,
-  }) {
-    if (before <= after) return;
-    // #region agent log
-    agentDebugLog(
-      location: 'search_screen.dart:_logSongDeduplication',
-      message: 'search source deduplicated',
-      hypothesisId: 'H4',
-      data: {
-        'source': source,
-        'before': before,
-        'after': after,
-        'removed': before - after,
-      },
-    );
-    // #endregion
   }
 
   /// Load recent songs from storage
@@ -864,18 +809,6 @@ class _SearchScreenState extends State<SearchScreen> {
   // ============================================================================
 
   Future<void> _playSong(SongModel song) async {
-    // #region agent log
-    agentDebugLog(
-      location: 'search_screen.dart:_playSong',
-      message: 'search play tap',
-      hypothesisId: 'H5',
-      data: {
-        'songId': song.id,
-        'title': song.title,
-        'durationSec': song.duration,
-      },
-    );
-    // #endregion
     // Convert SongModel to Song and play
     final playSong = Song(
       id: song.id,

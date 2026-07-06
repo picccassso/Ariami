@@ -2,7 +2,6 @@ import 'dart:io';
 import 'dart:math' show min;
 import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
-import 'package:ariami_core/debug/agent_debug_log.dart';
 import 'package:ariami_core/models/song_metadata.dart';
 
 /// Represents a group of duplicate songs
@@ -180,30 +179,18 @@ class DuplicateDetector {
     final groups = <DuplicateGroup>[];
     for (final entry in hashMap.entries) {
       if (entry.value.length > 1) {
-        final confirmed = await _confirmPartialHashDuplicateGroup(entry.value);
-        if (confirmed.length < 2) {
-          continue;
-        }
+        final confirmedGroups =
+            await _confirmPartialHashDuplicateGroups(entry.value);
 
-        final sorted = _sortByQuality(confirmed, preferredPaths);
-        // #region agent log
-        agentDebugLog(
-          location: 'duplicate_detector.dart:_hashGroupAndFindDuplicates',
-          message: 'exact partial-hash duplicate group',
-          hypothesisId: 'H3',
-          data: {
-            'originalPath': sorted.first.filePath,
-            'duplicatePaths': sorted.sublist(1).map((s) => s.filePath).toList(),
-            'fileSizes': sorted.map((s) => s.fileSize).toList(),
-          },
-        );
-        // #endregion
-        groups.add(DuplicateGroup(
-          original: sorted.first,
-          duplicates: sorted.sublist(1),
-          matchType: DuplicateMatchType.exactHash,
-          confidence: 1.0, // Exact match
-        ));
+        for (final confirmed in confirmedGroups) {
+          final sorted = _sortByQuality(confirmed, preferredPaths);
+          groups.add(DuplicateGroup(
+            original: sorted.first,
+            duplicates: sorted.sublist(1),
+            matchType: DuplicateMatchType.exactHash,
+            confidence: 1.0, // Exact match
+          ));
+        }
       }
     }
 
@@ -211,7 +198,11 @@ class DuplicateDetector {
   }
 
   /// Confirms partial-hash candidates with a full-file hash before merging.
-  Future<List<SongMetadata>> _confirmPartialHashDuplicateGroup(
+  ///
+  /// Returns every confirmed cluster (2+ files with identical full hash) —
+  /// one partial-hash bucket can legitimately contain several distinct
+  /// duplicate pairs.
+  Future<List<List<SongMetadata>>> _confirmPartialHashDuplicateGroups(
     List<SongMetadata> candidates,
   ) async {
     final fullHashMap = <String, List<SongMetadata>>{};
@@ -226,13 +217,10 @@ class DuplicateDetector {
       }
     }
 
-    for (final sameHashSongs in fullHashMap.values) {
-      if (sameHashSongs.length > 1) {
-        return sameHashSongs;
-      }
-    }
-
-    return const [];
+    return [
+      for (final sameHashSongs in fullHashMap.values)
+        if (sameHashSongs.length > 1) sameHashSongs,
+    ];
   }
 
   /// Finds duplicates by comparing metadata
@@ -291,22 +279,6 @@ class DuplicateDetector {
           final allMatches = [candidates[i], ...matches];
           final sorted = _sortByQuality(allMatches, preferredPaths);
 
-          // #region agent log
-          agentDebugLog(
-            location: 'duplicate_detector.dart:_findMetadataDuplicates',
-            message: 'metadata duplicate group',
-            hypothesisId: 'H1',
-            data: {
-              'originalPath': sorted.first.filePath,
-              'duplicatePaths':
-                  sorted.sublist(1).map((s) => s.filePath).toList(),
-              'title': sorted.first.title,
-              'artist': sorted.first.artist,
-              'durationsSec': sorted.map((s) => s.duration).toList(),
-              'albums': sorted.map((s) => s.album).toList(),
-            },
-          );
-          // #endregion
           groups.add(DuplicateGroup(
             original: sorted.first,
             duplicates: sorted.sublist(1),
@@ -497,9 +469,12 @@ class DuplicateDetector {
   }
 
   /// Calculates a full-file MD5 hash for confirming partial-hash matches.
+  ///
+  /// Streams the file through the hasher so confirming large lossless files
+  /// (hundreds of MB) doesn't load them into memory all at once.
   Future<String> _calculateFullFileHash(String filePath) async {
-    final bytes = await File(filePath).readAsBytes();
-    return md5.convert(bytes).toString();
+    final digest = await md5.bind(File(filePath).openRead()).first;
+    return digest.toString();
   }
 
   /// Gets all file paths that have been processed in duplicate groups

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
@@ -10,7 +11,6 @@ import 'package:ariami_core/models/song_metadata.dart';
 import 'package:ariami_core/services/library/file_scanner.dart';
 import 'package:ariami_core/services/library/metadata_extractor.dart';
 import 'package:ariami_core/services/library/album_builder.dart';
-import 'package:ariami_core/debug/agent_debug_log.dart';
 import 'package:ariami_core/services/library/duplicate_detector.dart';
 
 /// Message types for isolate communication
@@ -129,9 +129,13 @@ class LibraryScannerIsolate {
     Map<String, Map<String, dynamic>>? cacheData,
   }) async {
     final receivePort = ReceivePort();
+    final errorPort = ReceivePort();
+    final exitPort = ReceivePort();
 
     try {
-      // Spawn the isolate
+      // Spawn the isolate. onError/onExit ports guarantee this method
+      // completes even if the isolate dies without sending a result
+      // (otherwise the scan would hang forever with _isScanning stuck).
       await Isolate.spawn(
         _isolateEntryPoint,
         ScanParams(
@@ -139,6 +143,8 @@ class LibraryScannerIsolate {
           sendPort: receivePort.sendPort,
           cacheData: cacheData,
         ),
+        onError: errorPort.sendPort,
+        onExit: exitPort.sendPort,
       );
 
       // Listen for messages from the isolate
@@ -149,7 +155,28 @@ class LibraryScannerIsolate {
       ScanDiagnostics scanDiagnostics = const ScanDiagnostics();
       String? errorMessage;
 
-      await for (final message in receivePort) {
+      final done = Completer<void>();
+
+      errorPort.listen((message) {
+        // Uncaught isolate errors arrive as [error, stackTrace].
+        errorMessage ??= (message is List && message.isNotEmpty)
+            ? message.first?.toString()
+            : message?.toString();
+        if (!done.isCompleted) done.complete();
+      });
+
+      exitPort.listen((_) {
+        // Exit is enqueued after any result the isolate sent, so if we get
+        // here without a result the isolate died silently.
+        if (!done.isCompleted) {
+          if (result == null) {
+            errorMessage ??= 'Scanner isolate exited without sending a result';
+          }
+          done.complete();
+        }
+      });
+
+      receivePort.listen((message) {
         if (message is ScanProgressMessage) {
           onProgress?.call(message);
         } else if (message is ScanResultMessage) {
@@ -165,9 +192,11 @@ class LibraryScannerIsolate {
           } else if (message.type == ScanMessageType.error) {
             errorMessage = message.error;
           }
-          break; // Done - exit the loop
+          if (!done.isCompleted) done.complete();
         }
-      }
+      });
+
+      await done.future;
 
       if (errorMessage != null) {
         print('[LibraryScannerIsolate] Scan failed: $errorMessage');
@@ -198,6 +227,8 @@ class LibraryScannerIsolate {
       );
     } finally {
       receivePort.close();
+      errorPort.close();
+      exitPort.close();
     }
   }
 
@@ -233,6 +264,12 @@ class LibraryScannerIsolate {
       final playlistFolders = scanResult.playlistFolders;
       final totalFiles = audioFiles.length;
 
+      // Surface subtrees the traversal had to skip (permissions, dead
+      // mounts, I/O errors) in scan diagnostics instead of failing silently.
+      for (final failure in scanResult.unreadableDirectories) {
+        recordFailure(failure.path, 'directory unreadable: ${failure.reason}');
+      }
+
       final playlistInfo = playlistFolders.isNotEmpty
           ? ', ${playlistFolders.length} playlist folder(s)'
           : '';
@@ -264,6 +301,7 @@ class LibraryScannerIsolate {
 
       final extractor = MetadataExtractor();
       final songs = <SongMetadata>[];
+      final cacheHitPaths = <String>{};
 
       final batchSize = _calculateBatchSize();
       for (var i = 0; i < totalFiles; i += batchSize) {
@@ -286,16 +324,26 @@ class LibraryScannerIsolate {
           if (result != null) {
             songs.add(result.metadata);
             // Store in updated cache
-            updatedCache[result.metadata.filePath] = {
+            final cacheEntry = <String, dynamic>{
               'mtime': result.mtime,
               'size': result.size,
               'metadata': result.metadata.toJson(),
             };
             if (result.fromCache) {
               cacheHits++;
+              cacheHitPaths.add(result.metadata.filePath);
+              // The file is unchanged, so its previously computed
+              // duplicate-detection hash is still valid — carry it forward
+              // instead of forcing a re-hash on the next scan.
+              final previousHash =
+                  existingCache[result.metadata.filePath]?['partialHash'];
+              if (previousHash is String) {
+                cacheEntry['partialHash'] = previousHash;
+              }
             } else {
               cacheMisses++;
             }
+            updatedCache[result.metadata.filePath] = cacheEntry;
           } else {
             recordFailure(batch[i], 'metadata extraction failed');
           }
@@ -317,35 +365,16 @@ class LibraryScannerIsolate {
 
       await extractor.dispose();
 
-      // #region agent log
-      final idToPaths = <String, List<String>>{};
-      for (final s in songs) {
-        final sid = _generateSongId(s.filePath);
-        idToPaths.putIfAbsent(sid, () => []).add(s.filePath);
-      }
-      for (final e in idToPaths.entries) {
-        if (e.value.length > 1) {
-          agentDebugLog(
-            location: 'library_scanner_isolate.dart:scan',
-            message: 'song id collision (same 12-char id for different paths)',
-            hypothesisId: 'H2',
-            data: {
-              'songId': e.key,
-              'paths': e.value,
-              'count': e.value.length,
-            },
-          );
-        }
-      }
-      // #endregion
-
       // Step 3: Detect duplicates
       _sendProgress(sendPort, 'duplicates', 0, songs.length, 70.0,
           'Detecting duplicates...');
 
-      // Extract cached hashes for duplicate detection
+      // Extract cached hashes for duplicate detection. Only trust hashes for
+      // files that validated against the cache this scan (unchanged mtime and
+      // size) — a stale hash for a modified file would corrupt grouping.
       final cachedHashes = <String, String>{};
       for (final entry in existingCache.entries) {
+        if (!cacheHitPaths.contains(entry.key)) continue;
         final hash = entry.value['partialHash'] as String?;
         if (hash != null) {
           cachedHashes[entry.key] = hash;
@@ -556,70 +585,93 @@ class LibraryScannerIsolate {
     ));
   }
 
-  /// Checks if a path contains hidden or system directories
-  ///
-  /// Returns true if any path component starts with '.' (e.g., .DS_Store, .Spotlight-V100)
-  static bool _isHiddenOrSystem(String filePath) {
-    final parts = filePath.split(Platform.pathSeparator);
-    for (final part in parts) {
-      if (part.startsWith('.') && part.length > 1) {
-        return true;
-      }
-    }
-    return false;
+  /// Checks if an entry name is hidden or system (e.g., .DS_Store, ._AppleDouble)
+  static bool _isHiddenName(String name) {
+    return name.startsWith('.') && name.length > 1;
   }
 
   /// Collect audio files from directory and detect [PLAYLIST] folders
   ///
-  /// Uses single-pass traversal for efficiency - handles both directory
-  /// detection and file collection in one loop.
-  /// Filters out hidden/system paths (e.g., .DS_Store, .Spotlight-V100).
+  /// Uses an explicit directory stack instead of `list(recursive: true)` so a
+  /// single unreadable directory (permissions, dead mount, I/O error) skips
+  /// only that subtree instead of aborting the entire scan. Listing each
+  /// directory ourselves also guarantees parents are seen before children, so
+  /// [PLAYLIST] folder membership no longer depends on OS listing order.
+  ///
+  /// Hidden entries (dot-prefixed names) are skipped and not descended into.
+  /// Only entry names below the root are checked, so a library that itself
+  /// lives under a dotted directory (e.g. ~/.local/music) still scans.
   static Future<
-          ({List<String> files, Map<String, List<String>> playlistFolders})>
-      _collectAudioFiles(String folderPath) async {
+      ({
+        List<String> files,
+        Map<String, List<String>> playlistFolders,
+        List<({String path, String reason})> unreadableDirectories,
+      })> _collectAudioFiles(String folderPath) async {
     final files = <String>[];
     final playlistFolders = <String, List<String>>{};
     final playlistPaths = <String>{};
+    final unreadableDirectories = <({String path, String reason})>[];
     final rootDir = Directory(folderPath);
 
     if (!await rootDir.exists()) {
-      return (files: files, playlistFolders: playlistFolders);
+      return (
+        files: files,
+        playlistFolders: playlistFolders,
+        unreadableDirectories: unreadableDirectories,
+      );
     }
 
-    // Single-pass traversal: detect playlist folders and collect audio files together
-    await for (final entity
-        in rootDir.list(recursive: true, followLinks: false)) {
-      // Skip hidden/system paths
-      if (_isHiddenOrSystem(entity.path)) continue;
+    final pending = <Directory>[rootDir];
+    while (pending.isNotEmpty) {
+      final dir = pending.removeLast();
 
-      if (entity is Directory) {
-        final folderName = path.basename(entity.path);
-        if (FolderPlaylist.isPlaylistFolder(folderName)) {
-          // Check this isn't nested inside another playlist folder
-          final isNested = playlistPaths
-              .any((p) => entity.path.startsWith('$p${path.separator}'));
-          if (!isNested) {
-            playlistPaths.add(entity.path);
-            playlistFolders[entity.path] = [];
-          }
+      final entries = <FileSystemEntity>[];
+      try {
+        await for (final entity in dir.list(followLinks: false)) {
+          entries.add(entity);
         }
-      } else if (entity is File) {
-        final ext = path.extension(entity.path).toLowerCase();
-        if (FileScanner.supportedExtensions.contains(ext)) {
-          files.add(entity.path);
+      } catch (e) {
+        unreadableDirectories.add((path: dir.path, reason: e.toString()));
+        continue;
+      }
 
-          // Check if this file belongs to a playlist folder
-          for (final playlistPath in playlistPaths) {
-            if (entity.path.startsWith('$playlistPath${path.separator}')) {
-              playlistFolders[playlistPath]!.add(entity.path);
-              break; // A file can only belong to one playlist
+      for (final entity in entries) {
+        if (_isHiddenName(path.basename(entity.path))) continue;
+
+        if (entity is Directory) {
+          final folderName = path.basename(entity.path);
+          if (FolderPlaylist.isPlaylistFolder(folderName)) {
+            // Check this isn't nested inside another playlist folder
+            final isNested = playlistPaths
+                .any((p) => entity.path.startsWith('$p${path.separator}'));
+            if (!isNested) {
+              playlistPaths.add(entity.path);
+              playlistFolders[entity.path] = [];
+            }
+          }
+          pending.add(entity);
+        } else if (entity is File) {
+          final ext = path.extension(entity.path).toLowerCase();
+          if (FileScanner.supportedExtensions.contains(ext)) {
+            files.add(entity.path);
+
+            // Check if this file belongs to a playlist folder
+            for (final playlistPath in playlistPaths) {
+              if (entity.path.startsWith('$playlistPath${path.separator}')) {
+                playlistFolders[playlistPath]!.add(entity.path);
+                break; // A file can only belong to one playlist
+              }
             }
           }
         }
       }
     }
 
-    return (files: files, playlistFolders: playlistFolders);
+    return (
+      files: files,
+      playlistFolders: playlistFolders,
+      unreadableDirectories: unreadableDirectories,
+    );
   }
 
   /// Generate a unique song ID from file path (must match LibraryManager)

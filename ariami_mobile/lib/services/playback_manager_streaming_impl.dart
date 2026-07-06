@@ -59,18 +59,6 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
           if (localPath == null) {
             throw Exception('Local file path not found for downloaded song');
           }
-          // #region agent log
-          agentDebugLog(
-            location: 'playback_manager.dart:_playCurrentSong',
-            message: 'local playback path',
-            hypothesisId: 'H5',
-            data: {
-              'songId': song.id,
-              'title': song.title,
-              'localPath': localPath,
-            },
-          );
-          // #endregion
           audioUrl = 'file://$localPath';
           print('[PlaybackManager] Playing from downloaded file: $audioUrl');
 

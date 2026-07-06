@@ -115,7 +115,57 @@ class MetadataExtractor {
         // Skip duration and album art extraction during scan - done lazily on demand
       }
 
-      bitrate = await _extractBitrate(filePath);
+      // dart_tags only parses ID3 (MP3). For FLAC/M4A/OGG/etc — or MP3s with
+      // stripped ID3 tags — fall back to ffprobe's container tags before
+      // resorting to filename parsing. The single probe also returns duration
+      // and bitrate, saving the separate spawns those would otherwise need.
+      if (title == null && artist == null && album == null) {
+        final probed = await _probeWithFfprobe(filePath);
+        if (probed != null) {
+          String? probe(List<String> keys) {
+            for (final key in keys) {
+              final value = probed.tags[key];
+              if (value != null) return value;
+            }
+            return null;
+          }
+
+          title ??= _fixEncoding(probe(['title']));
+          artist ??= _fixEncoding(probe(['artist']));
+          album ??= _fixEncoding(probe(['album']));
+          albumArtist ??= _fixEncoding(probe(['album_artist', 'albumartist']));
+          genre ??= _fixEncoding(probe(['genre']));
+
+          if (year == null) {
+            final dateStr = probe(['date', 'year', 'originaldate']);
+            if (dateStr != null) {
+              final yearMatch = RegExp(r'\d{4}').firstMatch(dateStr);
+              if (yearMatch != null) {
+                year = int.tryParse(yearMatch.group(0)!);
+              }
+            }
+          }
+
+          if (trackNumber == null) {
+            final trackStr = probe(['track', 'tracknumber']);
+            if (trackStr != null) {
+              trackNumber = int.tryParse(trackStr.split('/').first.trim());
+            }
+          }
+
+          if (discNumber == null) {
+            final discStr = probe(['disc', 'discnumber']);
+            if (discStr != null) {
+              discNumber = int.tryParse(discStr.split('/').first.trim());
+            }
+          }
+
+          duration ??= probed.durationSeconds;
+          bitrate ??= probed.bitrateKbps;
+        }
+      }
+
+      bitrate ??= await _extractBitrate(filePath);
 
       // Fallback: infer track number from filename prefix when tag is missing.
       // Example: "01 - Song Title.mp3" => 1
@@ -158,6 +208,82 @@ class MetadataExtractor {
           modifiedTime: fileStat.modified,
         ),
       );
+    }
+  }
+
+  /// Reads container/stream tags (plus duration and bitrate) via ffprobe for
+  /// formats dart_tags can't parse (FLAC/Vorbis comments, MP4 atoms, etc).
+  ///
+  /// Returns lowercased tag keys, or null when ffprobe is unavailable, fails,
+  /// or finds no tags. Format-level tags win over stream-level ones.
+  Future<
+      ({
+        Map<String, String> tags,
+        int? durationSeconds,
+        int? bitrateKbps,
+      })?> _probeWithFfprobe(String filePath) async {
+    if (!await _isFFprobeAvailable()) return null;
+
+    try {
+      final result = await _processRunner('ffprobe', [
+        '-v',
+        'quiet',
+        '-show_entries',
+        'format_tags:stream_tags:format=duration,bit_rate:stream=bit_rate',
+        '-of',
+        'json',
+        filePath,
+      ]).timeout(const Duration(seconds: 5));
+      if (result.exitCode != 0) return null;
+
+      final decoded =
+          jsonDecode(result.stdout as String) as Map<String, dynamic>;
+
+      final tags = <String, String>{};
+      void collect(dynamic tagMap) {
+        if (tagMap is! Map) return;
+        for (final entry in tagMap.entries) {
+          final key = entry.key.toString().toLowerCase().trim();
+          final value = entry.value?.toString().trim();
+          if (key.isEmpty || value == null || value.isEmpty) continue;
+          tags.putIfAbsent(key, () => value);
+        }
+      }
+
+      int? durationSeconds;
+      int? bitrateBps;
+
+      final format = decoded['format'];
+      if (format is Map) {
+        collect(format['tags']);
+        final durationValue = double.tryParse('${format['duration'] ?? ''}');
+        if (durationValue != null && durationValue > 0) {
+          durationSeconds = durationValue.round();
+        }
+        bitrateBps = int.tryParse('${format['bit_rate'] ?? ''}');
+      }
+
+      final streams = decoded['streams'];
+      if (streams is List) {
+        for (final stream in streams) {
+          if (stream is Map) {
+            collect(stream['tags']);
+            bitrateBps ??= int.tryParse('${stream['bit_rate'] ?? ''}');
+          }
+        }
+      }
+
+      if (tags.isEmpty) return null;
+
+      return (
+        tags: tags,
+        durationSeconds: durationSeconds,
+        bitrateKbps: (bitrateBps != null && bitrateBps > 0)
+            ? (bitrateBps / 1000).round()
+            : null,
+      );
+    } catch (_) {
+      return null;
     }
   }
 
@@ -309,6 +435,11 @@ class MetadataExtractor {
   /// potential future optimizations like shared file reads.
   Future<SongMetadata> extractMetadataWithDuration(String filePath) async {
     var metadata = await extractMetadata(filePath);
+    if (metadata.duration != null && metadata.duration! > 0) {
+      // Already resolved (e.g. by the ffprobe tag fallback) — skip the
+      // separate duration probe.
+      return metadata;
+    }
     final duration = await extractDuration(filePath);
     if (duration != null) {
       metadata = metadata.copyWith(duration: duration);

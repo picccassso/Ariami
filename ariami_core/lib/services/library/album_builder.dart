@@ -146,12 +146,8 @@ class AlbumBuilder {
 
   /// Determines if an album is a compilation (Various Artists)
   bool _isCompilation(List<SongMetadata> songs, String albumArtist) {
-    final albumTitle = normalizeAlbumTitle(songs.first.album) ?? 'Unknown';
-
     // Check if album artist is "Various Artists"
     if (albumArtist.toLowerCase().contains('various')) {
-      print(
-          '[AlbumBuilder] "$albumTitle" -> Various Artists (albumArtist tag)');
       return true;
     }
 
@@ -167,8 +163,6 @@ class AlbumBuilder {
 
     // If all songs have the same album artist, it's not a compilation
     if (albumArtists.length == 1) {
-      print(
-          '[AlbumBuilder] "$albumTitle" -> $albumArtist (consistent albumArtist)');
       return false;
     }
 
@@ -182,18 +176,7 @@ class AlbumBuilder {
       }
     }
 
-    final isCompilation =
-        artists.length >= 5; // Increased threshold from 3 to 5
-    if (isCompilation) {
-      print(
-          '[AlbumBuilder] "$albumTitle" -> Various Artists (${artists.length} different track artists)');
-      print('[AlbumBuilder]   Artists: $artists');
-    } else {
-      print(
-          '[AlbumBuilder] "$albumTitle" -> $albumArtist (${artists.length} track artists, not a compilation)');
-    }
-
-    return isCompilation;
+    return artists.length >= 5;
   }
 
   /// Finds the most common year among songs

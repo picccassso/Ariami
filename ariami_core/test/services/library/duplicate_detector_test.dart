@@ -328,5 +328,51 @@ void main() {
       expect(groups.first.matchType.name, 'exactHash');
       expect(md5.convert(bytes).toString(), isNotEmpty);
     });
+
+    test('dedupes multiple distinct pairs sharing one partial-hash bucket',
+        () async {
+      // All four files share size + first/last 64KB (identical partial hash)
+      // but form two distinct identical pairs differing in the middle bytes.
+      List<int> buildBytes(int middleByte) {
+        final bytes = List<int>.filled(200000, 0);
+        for (var i = 65536; i < 134464; i++) {
+          bytes[i] = middleByte;
+        }
+        return bytes;
+      }
+
+      final pairABytes = buildBytes(1);
+      final pairBBytes = buildBytes(2);
+
+      final fileA1 = File('${tempDir.path}/pair-a1.bin');
+      final fileA2 = File('${tempDir.path}/pair-a2.bin');
+      final fileB1 = File('${tempDir.path}/pair-b1.bin');
+      final fileB2 = File('${tempDir.path}/pair-b2.bin');
+      await fileA1.writeAsBytes(pairABytes);
+      await fileA2.writeAsBytes(pairABytes);
+      await fileB1.writeAsBytes(pairBBytes);
+      await fileB2.writeAsBytes(pairBBytes);
+
+      final size = await fileA1.length();
+      final songs = [
+        _song(path: fileA1.path, title: 'A1', artist: 'X', fileSize: size),
+        _song(path: fileA2.path, title: 'A2', artist: 'X', fileSize: size),
+        _song(path: fileB1.path, title: 'B1', artist: 'Y', fileSize: size),
+        _song(path: fileB2.path, title: 'B2', artist: 'Y', fileSize: size),
+      ];
+
+      final detector = DuplicateDetector();
+      final groups = await detector.detectDuplicates(
+        songs,
+        useMetadataMatching: false,
+      );
+
+      expect(groups, hasLength(2));
+      final groupedPaths = groups
+          .map((g) => {g.original.filePath, ...g.duplicates.map((d) => d.filePath)})
+          .toList();
+      expect(groupedPaths, contains(equals({fileA1.path, fileA2.path})));
+      expect(groupedPaths, contains(equals({fileB1.path, fileB2.path})));
+    });
   });
 }

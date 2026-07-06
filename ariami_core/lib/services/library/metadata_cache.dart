@@ -68,7 +68,10 @@ class MetadataCache {
   ///     invalidate caches written before the fix so UTF-8 text mangled by
   ///     fixed-width ID3v1 fields (e.g. "Ð¢Ð°ÑÑÑÐ½Ð°" -> "Татьяна") is
   ///     re-extracted correctly.
-  static const int schemaVersion = 4;
+  /// v5: Non-MP3 formats now fall back to ffprobe container tags when ID3
+  ///     parsing yields nothing; invalidate caches so FLAC/M4A/OGG files
+  ///     extracted with filename-only metadata get their real tags.
+  static const int schemaVersion = 5;
 
   /// Maximum number of entries (sanity limit ~50MB)
   static const int maxEntries = 100000;
