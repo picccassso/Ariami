@@ -177,6 +177,8 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
       _pinnedItemStore = null;
       _playlistEditStore?.close();
       _playlistEditStore = null;
+      _playlistImageStore?.close();
+      _playlistImageStore = null;
       _userAvatarsDirectoryPath = null;
     }
 
@@ -222,6 +224,20 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
       _playlistEditStore = store;
     } catch (e) {
       print('[HttpServer] Playlist edit store unavailable: $e');
+    }
+
+    // Custom playlist cover images are durable account data too; they overlay
+    // the folder-derived playlists (and created playlists) with a per-user
+    // picture without touching the catalog.
+    try {
+      final playlistImagesDbPath =
+          '${File(usersFilePath).parent.path}/playlist_images.db';
+      final store = _playlistImageStore ??
+          PlaylistImageStore(databasePath: playlistImagesDbPath);
+      store.initialize();
+      _playlistImageStore = store;
+    } catch (e) {
+      print('[HttpServer] Playlist image store unavailable: $e');
     }
 
     // Initialize StreamTracker (starts cleanup timer)

@@ -12,7 +12,7 @@ extension _PlaylistServiceServerEditsImpl on PlaylistService {
       return;
     }
 
-    final edits = await client.getPlaylistEdits();
+    final payload = await client.getPlaylistEditsAndImages();
     // A request started for one account or endpoint must never overwrite the
     // singleton service after logout, account switch, or endpoint failover.
     if (!identical(client, connection.apiClient) ||
@@ -21,20 +21,112 @@ extension _PlaylistServiceServerEditsImpl on PlaylistService {
       return;
     }
     final previousEditIds = _serverPlaylistEdits.keys.toSet();
-    final parsedEdits = edits.map(ServerPlaylistEdit.fromJson);
+    final parsedEdits = payload.edits.map(ServerPlaylistEdit.fromJson);
     _serverPlaylistEdits = <String, ServerPlaylistEdit>{
       for (final edit in parsedEdits) edit.playlistId: edit,
     };
+    _serverPlaylistImages = payload.images
+        .map(ServerPlaylistImage.fromJson)
+        .whereType<ServerPlaylistImage>()
+        .toList(growable: false);
     _notifyListeners();
     // Queued offline edits are replayed first so they win over overlays
     // fetched above (and are not clobbered by the inbound sync below).
     await _replayPendingImportedEditPushesImpl();
     // Overlays that disappeared were discarded on another client; imported
     // copies of those playlists must fall back to the base server order.
+    final removedEditIds =
+        previousEditIds.difference(_serverPlaylistEdits.keys.toSet());
     await _syncImportedPlaylistsFromServerImpl(
-      revertedServerPlaylistIds:
-          previousEditIds.difference(_serverPlaylistEdits.keys.toSet()),
+      revertedServerPlaylistIds: removedEditIds,
     );
+    // Standalone created playlists (no server folder) are materialized as
+    // local copies here so they show up alongside imported playlists.
+    await _syncCreatedPlaylistsFromEditsImpl(
+      removedCreatedPlaylistIds:
+          removedEditIds.where(isCreatedPlaylistId).toSet(),
+    );
+    // Photos follow the same order as edits: queued local changes are
+    // replayed first so they win, then the server's image manifest is
+    // mirrored onto the local playlist copies.
+    await _replayPendingPlaylistImagePushesImpl();
+    await _applyServerPlaylistImagesImpl();
+  }
+
+  /// Materializes/updates/removes client-created playlists from the account
+  /// edit store. A created playlist has no server folder base, so it lives as a
+  /// local [PlaylistModel] keyed by the edit's (`created:`) playlist id — the
+  /// same id used for its pin, so pins resolve locally on every device.
+  Future<void> _syncCreatedPlaylistsFromEditsImpl({
+    Set<String> removedCreatedPlaylistIds = const <String>{},
+  }) async {
+    var changed = false;
+
+    // Remove created playlists deleted on another device (seen in a previous
+    // sync, absent now). A playlist created locally but not yet synced never
+    // appeared in a prior snapshot, so it is untouched by this path.
+    for (final id in removedCreatedPlaylistIds) {
+      if (_pendingImportedEditPushes.contains(id)) continue;
+      final before = _playlists.length;
+      _playlists.removeWhere((playlist) => playlist.id == id);
+      if (_playlists.length != before) changed = true;
+    }
+
+    for (final entry in _serverPlaylistEdits.entries) {
+      final id = entry.key;
+      if (!isCreatedPlaylistId(id)) continue;
+      // A queued local edit is this device's newest intent; don't clobber it.
+      if (_pendingImportedEditPushes.contains(id)) continue;
+
+      final edit = entry.value;
+      final name = (edit.name != null && edit.name!.trim().isNotEmpty)
+          ? edit.name!.trim()
+          : 'Playlist';
+      final songIds = List<String>.from(edit.songIds);
+      final index = _playlists.indexWhere((playlist) => playlist.id == id);
+
+      if (index == -1) {
+        final metadata =
+            await _buildPlaylistSongMetadata(songIds, allSongs: const []);
+        final now = DateTime.now();
+        _playlists.insert(
+          0,
+          PlaylistModel(
+            id: id,
+            name: name,
+            songIds: songIds,
+            songAlbumIds: metadata.songAlbumIds,
+            songTitles: metadata.songTitles,
+            songArtists: metadata.songArtists,
+            songDurations: metadata.songDurations,
+            createdAt: now,
+            modifiedAt: now,
+          ),
+        );
+        changed = true;
+      } else {
+        final existing = _playlists[index];
+        if (existing.name != name || !listEquals(existing.songIds, songIds)) {
+          final metadata =
+              await _buildPlaylistSongMetadata(songIds, allSongs: const []);
+          _playlists[index] = existing.copyWith(
+            name: name,
+            songIds: songIds,
+            songAlbumIds: metadata.songAlbumIds,
+            songTitles: metadata.songTitles,
+            songArtists: metadata.songArtists,
+            songDurations: metadata.songDurations,
+            modifiedAt: DateTime.now(),
+          );
+          changed = true;
+        }
+      }
+    }
+
+    if (changed) {
+      await _savePlaylists();
+      _notifyListeners();
+    }
   }
 
   ServerPlaylistEffectiveState? _resolveServerPlaylistImpl(
@@ -224,6 +316,38 @@ extension _PlaylistServiceServerEditsImpl on PlaylistService {
       _notifyListeners();
       rethrow;
     }
+    return true;
+  }
+
+  /// Pushes a created playlist's authoritative state to the account edit store
+  /// (empty base snapshot, no required server base). Returns true when it
+  /// reached the server, false when preconditions (connection, auth) weren't
+  /// met. Throws on a network/server failure so the caller can queue a retry.
+  Future<bool> _saveCreatedPlaylistEdit({
+    required String playlistId,
+    required List<String> songIds,
+    required String? name,
+  }) async {
+    final client = ConnectionService().apiClient;
+    if (client == null || !ConnectionService().isAuthenticated) {
+      return false;
+    }
+
+    final trimmed = name?.trim();
+    final edit = ServerPlaylistEdit(
+      playlistId: playlistId,
+      name: (trimmed == null || trimmed.isEmpty) ? null : trimmed,
+      songIds: List<String>.from(songIds),
+      baseSnapshot: const <String>[],
+    );
+
+    _serverPlaylistEdits[playlistId] = edit;
+    await client.putPlaylistEdit(
+      playlistId,
+      songIds: edit.songIds,
+      name: edit.name,
+      baseSnapshot: edit.baseSnapshot,
+    );
     return true;
   }
 

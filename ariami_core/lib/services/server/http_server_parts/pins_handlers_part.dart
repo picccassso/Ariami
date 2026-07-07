@@ -32,6 +32,13 @@ extension AriamiHttpServerPinsMethods on AriamiHttpServer {
         .where((pin) => pin.type == PinnedItem.playlistType)
         .map((pin) => pin.targetId)
         .toList(growable: false);
+    final playlistEditStore = _playlistEditStoreIfReady;
+    final playlistEdits = playlistEditStore == null
+        ? const <String, PlaylistEdit>{}
+        : <String, PlaylistEdit>{
+            for (final edit in playlistEditStore.list(session.userId))
+              edit.playlistId: edit,
+          };
     final albums = repository == null
         ? const <String, CatalogAlbumRecord>{}
         : <String, CatalogAlbumRecord>{
@@ -64,6 +71,23 @@ extension AriamiHttpServerPinsMethods on AriamiHttpServer {
           };
         }
         final playlist = playlists[pin.targetId];
+        final createdEdit =
+            playlist == null && isCreatedPlaylistId(pin.targetId)
+                ? playlistEdits[pin.targetId]
+                : null;
+        if (createdEdit != null) {
+          final name = _createdPlaylistPinName(createdEdit);
+          final songCount = createdEdit.songIds?.length ?? 0;
+          return <String, dynamic>{
+            ...json,
+            'title': name,
+            'name': name,
+            'subtitle': '$songCount ${songCount == 1 ? 'song' : 'songs'}',
+            'artwork': null,
+            'missing': false,
+            'unavailable': false,
+          };
+        }
         return <String, dynamic>{
           ...json,
           'title': playlist?.name ?? 'Unavailable playlist',
@@ -78,6 +102,11 @@ extension AriamiHttpServerPinsMethods on AriamiHttpServer {
         };
       }).toList(growable: false),
     });
+  }
+
+  String _createdPlaylistPinName(PlaylistEdit edit) {
+    final name = edit.name?.trim();
+    return name == null || name.isEmpty ? 'Playlist' : name;
   }
 
   Future<Response> _handlePinsPost(Request request) async {
@@ -116,15 +145,17 @@ extension AriamiHttpServerPinsMethods on AriamiHttpServer {
     String type,
     String targetId,
   ) async {
+    final decodedType = Uri.decodeComponent(type);
+    final decodedTargetId = Uri.decodeComponent(targetId);
     final session = request.context['session'] as Session?;
     if (session == null) return _authRequiredResponse();
     final store = _pinsStoreIfReady;
     if (store == null) return _pinsUnavailable();
-    if (!PinnedItem.supportedTypes.contains(type)) {
+    if (!PinnedItem.supportedTypes.contains(decodedType)) {
       return _invalidPinsRequest('type must be album or playlist');
     }
     try {
-      final removed = store.unpin(session.userId, type, targetId);
+      final removed = store.unpin(session.userId, decodedType, decodedTargetId);
       if (removed) _broadcastPinsChanged(session, reason: 'unpinned');
       return _jsonOk({'removed': removed});
     } on ArgumentError catch (error) {

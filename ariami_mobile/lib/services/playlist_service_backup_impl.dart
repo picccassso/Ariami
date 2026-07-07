@@ -15,12 +15,17 @@ extension _PlaylistServiceBackupImpl on PlaylistService {
     _importedFromServer.clear();
     _recentlyImportedIds.clear();
     _pendingImportedEditPushes.clear();
+    _serverPlaylistImages = [];
+    _syncedPlaylistImageVersions.clear();
+    _pendingPlaylistImagePushes.clear();
     _isLoaded = true;
 
     await _savePlaylists();
     await _saveHiddenServerPlaylists();
     await _saveImportedFromServer();
     await _savePendingImportedEditPushes();
+    await _saveSyncedPlaylistImageVersions();
+    await _savePendingPlaylistImagePushes();
     _notifyListeners();
   }
 

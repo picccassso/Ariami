@@ -38,6 +38,23 @@ extension _PlaylistServicePersistenceImpl on PlaylistService {
         _pendingImportedEditPushes = pendingList.cast<String>().toSet();
       }
 
+      final imageVersionsJson =
+          prefs.getString(PlaylistService._syncedPlaylistImageVersionsKey);
+      if (imageVersionsJson != null && imageVersionsJson.isNotEmpty) {
+        final Map<String, dynamic> versionsMap =
+            json.decode(imageVersionsJson);
+        _syncedPlaylistImageVersions = versionsMap
+            .map((key, value) => MapEntry(key, (value as num).toInt()));
+      }
+
+      final pendingImagesJson =
+          prefs.getString(PlaylistService._pendingPlaylistImagePushesKey);
+      if (pendingImagesJson != null && pendingImagesJson.isNotEmpty) {
+        final Map<String, dynamic> pendingMap = json.decode(pendingImagesJson);
+        _pendingPlaylistImagePushes =
+            pendingMap.map((key, value) => MapEntry(key, value as String));
+      }
+
       _isLoaded = true;
       _notifyListeners();
     } catch (error) {
@@ -80,6 +97,32 @@ extension _PlaylistServicePersistenceImpl on PlaylistService {
     } catch (error) {
       print(
         '[PlaylistService] Error saving pending imported edit pushes: $error',
+      );
+    }
+  }
+
+  Future<void> _saveSyncedPlaylistImageVersions() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        PlaylistService._syncedPlaylistImageVersionsKey,
+        json.encode(_syncedPlaylistImageVersions),
+      );
+    } catch (error) {
+      print('[PlaylistService] Error saving playlist image versions: $error');
+    }
+  }
+
+  Future<void> _savePendingPlaylistImagePushes() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        PlaylistService._pendingPlaylistImagePushesKey,
+        json.encode(_pendingPlaylistImagePushes),
+      );
+    } catch (error) {
+      print(
+        '[PlaylistService] Error saving pending playlist image pushes: $error',
       );
     }
   }

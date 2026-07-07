@@ -1,6 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
+import 'package:ariami_core/services/playlists/created_playlist_id.dart';
 import 'package:flutter/foundation.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import '../models/api_models.dart';
@@ -17,6 +20,7 @@ part 'playlist_service_persistence_impl.dart';
 part 'playlist_service_server_impl.dart';
 part 'playlist_service_server_edits_impl.dart';
 part 'playlist_service_server_import_impl.dart';
+part 'playlist_service_image_sync_impl.dart';
 
 class ServerPlaylistEffectiveState {
   final ServerPlaylist base;
@@ -43,6 +47,10 @@ class PlaylistService extends ChangeNotifier {
   static const String _importedFromServerKey = 'ariami_imported_from_server';
   static const String _pendingImportedEditPushesKey =
       'ariami_pending_imported_edit_pushes';
+  static const String _syncedPlaylistImageVersionsKey =
+      'ariami_playlist_image_versions';
+  static const String _pendingPlaylistImagePushesKey =
+      'ariami_pending_playlist_image_pushes';
   static const String likedSongsId = '__LIKED_SONGS__';
   static final PlaylistService _instance = PlaylistService._internal();
 
@@ -65,6 +73,15 @@ class PlaylistService extends ChangeNotifier {
   // are replayed on the next connection and shield them from inbound sync.
   Set<String> _pendingImportedEditPushes = {};
   bool _isReplayingPendingEditPushes = false;
+  // Custom cover photo sync state. The manifest is the server's last-known
+  // image list; versions record which image updatedAt each synced photo file
+  // came from (keyed by server-side sync id); pending pushes (localId ->
+  // 'put'|'delete') replay offline photo changes and shield those playlists
+  // from inbound photo sync.
+  List<ServerPlaylistImage> _serverPlaylistImages = [];
+  Map<String, int> _syncedPlaylistImageVersions = {};
+  Map<String, String> _pendingPlaylistImagePushes = {};
+  bool _isReplayingPendingImagePushes = false;
   // Track recently imported playlists for temporary UI indicator.
   final Set<String> _recentlyImportedIds = {};
 

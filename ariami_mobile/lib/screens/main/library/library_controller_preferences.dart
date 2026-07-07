@@ -118,6 +118,11 @@ extension _LibraryControllerPreferences on LibraryController {
           .where((pin) => pin['type'] is String && pin['targetId'] is String)
           .map((pin) => '${pin['type']}:${pin['targetId']}')
           .toSet();
+      if (pinnedItemIds.any((key) =>
+          key.startsWith('playlist:') &&
+          isCreatedPlaylistId(key.substring('playlist:'.length)))) {
+        await _playlistService.loadServerPlaylistEdits();
+      }
       await LibraryPinStorage.saveForUser(
         _connectionService.userId,
         pinnedItemIds,

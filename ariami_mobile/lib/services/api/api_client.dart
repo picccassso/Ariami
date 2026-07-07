@@ -386,11 +386,25 @@ class ApiClient {
 
   Future<List<Map<String, dynamic>>> getPlaylistEdits() async {
     final response = await _get('/playlists/edits');
-    return (response['edits'] as List<dynamic>? ?? const <dynamic>[])
-        .whereType<Map>()
-        .map((item) => Map<String, dynamic>.from(item))
-        .toList(growable: false);
+    return _mapList(response['edits']);
   }
+
+  /// Fetch playlist edits together with the custom cover-image manifest the
+  /// server returns on the same endpoint.
+  Future<({List<Map<String, dynamic>> edits, List<Map<String, dynamic>> images})>
+      getPlaylistEditsAndImages() async {
+    final response = await _get('/playlists/edits');
+    return (
+      edits: _mapList(response['edits']),
+      images: _mapList(response['images']),
+    );
+  }
+
+  List<Map<String, dynamic>> _mapList(dynamic value) =>
+      (value as List<dynamic>? ?? const <dynamic>[])
+          .whereType<Map>()
+          .map((item) => Map<String, dynamic>.from(item))
+          .toList(growable: false);
 
   Future<void> putPlaylistEdit(
     String playlistId, {
@@ -410,6 +424,65 @@ class ApiClient {
 
   Future<void> deletePlaylistEdit(String playlistId) async {
     await _delete('/playlists/${Uri.encodeComponent(playlistId)}/edit');
+  }
+
+  /// Upload/replace a playlist's custom cover image. Returns the server's new
+  /// image version (updatedAt milliseconds), or null if the response omitted
+  /// it.
+  Future<int?> putPlaylistImage(
+    String playlistId, {
+    required Uint8List bytes,
+    required String contentType,
+  }) async {
+    try {
+      final uri = _withDeviceParams(Uri.parse(
+        '$baseUrl/playlists/${Uri.encodeComponent(playlistId)}/image',
+      ));
+      final headers = <String, String>{'Content-Type': contentType};
+      if (sessionToken != null) {
+        headers['Authorization'] = 'Bearer $sessionToken';
+      }
+      final response =
+          await http.put(uri, headers: headers, body: bytes).timeout(timeout);
+      final json = _handleResponse(response);
+      final image = json['image'];
+      if (image is! Map) return null;
+      return (image['updatedAt'] as num?)?.toInt();
+    } catch (e) {
+      if (e is ApiException) rethrow;
+      throw ApiException(
+        code: ApiErrorCodes.serverError,
+        message: 'Network error: $e',
+      );
+    }
+  }
+
+  /// Fetch a playlist's custom cover image bytes, or null if none is set.
+  Future<Uint8List?> getPlaylistImage(String playlistId) async {
+    try {
+      final uri = _withDeviceParams(Uri.parse(
+        '$baseUrl/playlists/${Uri.encodeComponent(playlistId)}/image',
+      ));
+      final headers = <String, String>{};
+      if (sessionToken != null) {
+        headers['Authorization'] = 'Bearer $sessionToken';
+      }
+      final response = await http.get(uri, headers: headers).timeout(timeout);
+      if (response.statusCode == 404) return null;
+      _throwIfByteResponseFailed(response);
+      return response.bodyBytes;
+    } catch (e) {
+      if (e is ApiException) rethrow;
+      throw ApiException(
+        code: ApiErrorCodes.serverError,
+        message: 'Network error: $e',
+      );
+    }
+  }
+
+  /// Remove a playlist's custom cover image.
+  Future<void> deletePlaylistImage(String playlistId) async {
+    await _delete('/playlists/${Uri.encodeComponent(playlistId)}/image');
   }
 
   // ============================================================================

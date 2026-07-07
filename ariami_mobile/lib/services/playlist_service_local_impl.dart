@@ -17,7 +17,10 @@ extension _PlaylistServiceLocalImpl on PlaylistService {
   }) async {
     final now = DateTime.now();
     final playlist = PlaylistModel(
-      id: _uuid.v4(),
+      // A `created:` id marks this as a standalone playlist (no server folder
+      // base) so it syncs to the user's other clients via the account-scoped
+      // edit store, and so its pin resolves against the same id everywhere.
+      id: newCreatedPlaylistId(),
       name: name,
       description: description,
       songIds: [],
@@ -28,6 +31,10 @@ extension _PlaylistServiceLocalImpl on PlaylistService {
     _playlists.insert(0, playlist);
     await _savePlaylists();
     _notifyListeners();
+
+    // Publish the new playlist to the account edit store so other devices see
+    // it. Queues for replay if the server is unreachable.
+    unawaited(_pushCreatedPlaylistEditImpl(playlist.id));
 
     return playlist;
   }
@@ -65,6 +72,9 @@ extension _PlaylistServiceLocalImpl on PlaylistService {
     if (renamed) {
       unawaited(_pushImportedPlaylistEditImpl(id));
     }
+    if (customImagePath != null || clearCustomImage) {
+      unawaited(_pushPlaylistImageImpl(id));
+    }
   }
 
   Future<void> _deletePlaylistImpl(String id) async {
@@ -73,10 +83,28 @@ extension _PlaylistServiceLocalImpl on PlaylistService {
       await _saveImportedFromServer();
     }
     await _clearImportedEditPushPending(id);
+    await _forgetPlaylistImageSync(
+      id,
+      serverPlaylistId ?? (isCreatedPlaylistId(id) ? id : null),
+    );
 
     _playlists.removeWhere((playlist) => playlist.id == id);
     await _savePlaylists();
     _notifyListeners();
+
+    // A created playlist lives only in the account edit store (no folder
+    // source to fall back to), so deleting it must remove that edit for every
+    // device. Best-effort: if the server call fails the edit reappears on the
+    // next sync, matching the imported-playlist reset behaviour.
+    if (isCreatedPlaylistId(id)) {
+      _serverPlaylistEdits.remove(id);
+      final client = ConnectionService().apiClient;
+      if (client != null && ConnectionService().isAuthenticated) {
+        try {
+          await client.deletePlaylistEdit(id);
+        } catch (_) {}
+      }
+    }
   }
 
   Future<void> _deleteImportedPlaylistImpl(
@@ -91,6 +119,7 @@ extension _PlaylistServiceLocalImpl on PlaylistService {
     }
 
     await _clearImportedEditPushPending(id);
+    await _forgetPlaylistImageSync(id, serverPlaylistId);
     await _saveImportedFromServer();
     _playlists.removeWhere((playlist) => playlist.id == id);
     await _savePlaylists();

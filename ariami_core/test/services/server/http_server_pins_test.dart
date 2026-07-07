@@ -138,6 +138,56 @@ void main() {
     expect(missing['title'], 'Unavailable album');
   });
 
+  test('created playlist pins resolve from account playlist edits', () async {
+    const playlistId = 'created:123-abc';
+    final edit = await _request(
+      port,
+      'PUT',
+      '/api/playlists/${Uri.encodeComponent(playlistId)}/edit',
+      token: userAToken,
+      body: {
+        'name': 'Synced Mix',
+        'songIds': <String>['song-a', 'song-b'],
+        'baseSnapshot': <String>[],
+      },
+    );
+    expect(edit.statusCode, 200);
+    expect((edit.json['edit'] as Map)['playlistId'], playlistId);
+
+    final pinned = await _request(
+      port,
+      'POST',
+      '/api/pins',
+      token: userAToken,
+      body: {'type': 'playlist', 'targetId': playlistId},
+    );
+    expect(pinned.statusCode, 200);
+
+    final list = await _request(port, 'GET', '/api/pins', token: userAToken);
+    final created = (list.json['pins'] as List<dynamic>).single as Map;
+
+    expect(created['type'], 'playlist');
+    expect(created['targetId'], playlistId);
+    expect(created['title'], 'Synced Mix');
+    expect(created['name'], 'Synced Mix');
+    expect(created['subtitle'], '2 songs');
+    expect(created['missing'], isFalse);
+    expect(created['unavailable'], isFalse);
+
+    final removed = await _request(
+      port,
+      'DELETE',
+      '/api/pins/playlist/${Uri.encodeComponent(playlistId)}',
+      token: userAToken,
+    );
+    expect(removed.statusCode, 200);
+    expect(removed.json['removed'], isTrue);
+
+    final afterDelete =
+        await _request(port, 'GET', '/api/pins', token: userAToken);
+    expect(afterDelete.json['pins'], isEmpty);
+  });
+
   test('export shape and repeated JSON import preserve pins without duplicates',
       () async {
     final backupPins = <Map<String, dynamic>>[

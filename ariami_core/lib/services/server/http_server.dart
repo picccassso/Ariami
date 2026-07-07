@@ -43,7 +43,9 @@ import 'package:ariami_core/models/listening_stats_models.dart';
 import 'package:ariami_core/services/stats/listening_stats_store.dart';
 import 'package:ariami_core/models/pinned_item.dart';
 import 'package:ariami_core/services/pins/pinned_item_store.dart';
+import 'package:ariami_core/services/playlists/created_playlist_id.dart';
 import 'package:ariami_core/services/playlists/playlist_edit_store.dart';
+import 'package:ariami_core/services/playlists/playlist_image_store.dart';
 
 part 'http_server_limiters.dart';
 part 'http_server_parts/lifecycle_and_config_part.dart';
@@ -104,6 +106,10 @@ class AriamiHttpServer {
   /// Account-scoped server playlist edits. This database is deliberately
   /// separate from the catalog so a library rescan cannot remove user data.
   PlaylistEditStore? _playlistEditStore;
+
+  /// Account-scoped custom playlist cover images. Lives beside the edit
+  /// store so a library rescan cannot remove user data.
+  PlaylistImageStore? _playlistImageStore;
 
   /// User profile pictures stored beside auth/account data.
   String? _userAvatarsDirectoryPath;

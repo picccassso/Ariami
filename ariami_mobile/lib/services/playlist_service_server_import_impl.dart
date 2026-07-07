@@ -82,6 +82,9 @@ extension _PlaylistServiceServerImportImpl on PlaylistService {
     );
     _notifyListeners();
 
+    // Pick up the server playlist's synced cover photo, if it has one.
+    unawaited(_applyServerPlaylistImagesImpl());
+
     return playlist;
   }
 
@@ -128,6 +131,8 @@ extension _PlaylistServiceServerImportImpl on PlaylistService {
       await _saveHiddenServerPlaylists();
       await _saveImportedFromServer();
       _notifyListeners();
+      // Pick up synced cover photos for the newly imported copies.
+      unawaited(_applyServerPlaylistImagesImpl());
     }
 
     print('[PlaylistService] Imported $imported server playlists');
@@ -212,6 +217,11 @@ extension _PlaylistServiceServerImportImpl on PlaylistService {
   /// replayed by [_replayPendingImportedEditPushesImpl] on the next
   /// connection; until then inbound sync leaves it untouched.
   Future<void> _pushImportedPlaylistEditImpl(String localPlaylistId) async {
+    // Created playlists have no server folder base; they push their own edit.
+    if (isCreatedPlaylistId(localPlaylistId)) {
+      await _pushCreatedPlaylistEditImpl(localPlaylistId);
+      return;
+    }
     final serverPlaylistId = _importedFromServer[localPlaylistId];
     final playlist = _getPlaylistImpl(localPlaylistId);
     if (serverPlaylistId == null || playlist == null) return;
@@ -242,6 +252,33 @@ extension _PlaylistServiceServerImportImpl on PlaylistService {
     }
   }
 
+  /// Pushes a client-created playlist to the account edit store. Unlike
+  /// imported playlists there is no server folder base, so the edit carries an
+  /// empty base snapshot and its own name. Queues for replay on failure.
+  Future<void> _pushCreatedPlaylistEditImpl(String localPlaylistId) async {
+    final playlist = _getPlaylistImpl(localPlaylistId);
+    if (playlist == null) return;
+
+    try {
+      final pushed = await _saveCreatedPlaylistEdit(
+        playlistId: localPlaylistId,
+        songIds: List<String>.from(playlist.songIds),
+        name: playlist.name,
+      );
+      if (pushed) {
+        await _clearImportedEditPushPending(localPlaylistId);
+      } else {
+        await _markImportedEditPushPending(localPlaylistId);
+      }
+    } catch (error) {
+      await _markImportedEditPushPending(localPlaylistId);
+      debugPrint(
+        '[PlaylistService] Queued created playlist edit after failed push: '
+        '$error',
+      );
+    }
+  }
+
   /// Replay queued offline edits of imported playlists to the server.
   ///
   /// Last writer wins: a queued edit overwrites an overlay another client
@@ -256,8 +293,10 @@ extension _PlaylistServiceServerImportImpl on PlaylistService {
     _isReplayingPendingEditPushes = true;
     try {
       for (final localId in _pendingImportedEditPushes.toList()) {
-        if (!_importedFromServer.containsKey(localId) ||
-            _getPlaylistImpl(localId) == null) {
+        final stillPresent = _getPlaylistImpl(localId) != null &&
+            (isCreatedPlaylistId(localId) ||
+                _importedFromServer.containsKey(localId));
+        if (!stillPresent) {
           // The playlist was deleted or unlinked while the push was queued.
           await _clearImportedEditPushPending(localId);
           continue;

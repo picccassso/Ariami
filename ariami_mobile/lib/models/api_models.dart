@@ -429,6 +429,30 @@ class ServerPlaylistEdit {
   }
 }
 
+/// Manifest entry for a synced custom playlist cover image.
+class ServerPlaylistImage {
+  final String playlistId;
+  final String contentType;
+  final int updatedAt;
+
+  const ServerPlaylistImage({
+    required this.playlistId,
+    required this.contentType,
+    required this.updatedAt,
+  });
+
+  static ServerPlaylistImage? fromJson(Map<String, dynamic> json) {
+    final playlistId = json['playlistId'];
+    final updatedAt = json['updatedAt'];
+    if (playlistId is! String || updatedAt is! num) return null;
+    return ServerPlaylistImage(
+      playlistId: playlistId,
+      contentType: json['contentType'] as String? ?? 'image/jpeg',
+      updatedAt: updatedAt.toInt(),
+    );
+  }
+}
+
 /// Complete library response
 class LibraryResponse {
   final List<AlbumModel> albums;

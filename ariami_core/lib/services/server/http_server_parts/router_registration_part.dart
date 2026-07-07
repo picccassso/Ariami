@@ -84,6 +84,36 @@ extension AriamiHttpServerRouterMethods on AriamiHttpServer {
         ),
       ),
     );
+    router.get(
+      '/api/playlists/<playlistId>/image',
+      (request, playlistId) => _handleProtectedV2Request(
+        request,
+        (securedRequest) => _handlePlaylistImageGet(
+          securedRequest,
+          playlistId,
+        ),
+      ),
+    );
+    router.put(
+      '/api/playlists/<playlistId>/image',
+      (request, playlistId) => _handleProtectedV2Request(
+        request,
+        (securedRequest) => _handlePlaylistImagePut(
+          securedRequest,
+          playlistId,
+        ),
+      ),
+    );
+    router.delete(
+      '/api/playlists/<playlistId>/image',
+      (request, playlistId) => _handleProtectedV2Request(
+        request,
+        (securedRequest) => _handlePlaylistImageDelete(
+          securedRequest,
+          playlistId,
+        ),
+      ),
+    );
   }
 
   void _registerCoreRoutes(Router router) {
