@@ -110,10 +110,10 @@ flutter:
 flutter_launcher_icons:
   macos:
     generate: true
-    image_path: "assets/Ariami_icon.png"
+    # Padded to Apple's icon grid (824/1024) so it sits right in the Dock.
+    image_path: "assets/Ariami_icon_macos.png"
   windows:
     generate: true
     image_path: "assets/Ariami_icon.png"
-  linux:
-    generate: true
-    image_path: "assets/Ariami_icon.png"
+  # flutter_launcher_icons has no Linux support; the Linux window icon lives at
+  # linux/runner/resources/app_icon.png and must be replaced by hand.

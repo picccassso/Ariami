@@ -157,7 +157,9 @@ flutter:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/Ariami_icon.png"
+  image_path_android: "assets/Ariami_icon.png"
+  # iOS applies its own corner mask, so it gets a full-bleed square version.
+  image_path_ios: "assets/Ariami_icon_ios.png"
   remove_alpha_ios: true
   # Adaptive icon (Android 8+) and themed/Material You monochrome icon (Android 13+).
   adaptive_icon_background: "#1b1f20"
