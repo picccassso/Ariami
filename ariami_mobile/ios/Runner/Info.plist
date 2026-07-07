@@ -60,5 +60,17 @@
 	<array>
 		<string>audio</string>
 	</array>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<!--
+		Ariami servers are self-hosted and speak plain HTTP. ATS exempts
+		private LAN addresses (192.168.x.x) but not Tailscale's CGNAT range
+		(100.64.0.0/10) or MagicDNS hostnames, so without this AVPlayer
+		refuses stream URLs over Tailscale (error -1022) even though the
+		Dart HTTP client (login/library/artwork) works — songs never start.
+		-->
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
 </dict>
 </plist>
