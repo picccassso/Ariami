@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:args/args.dart';
 import 'package:ariami_cli/commands/start_command.dart';
@@ -10,7 +11,43 @@ import 'package:ariami_cli/server_runner.dart';
 import 'package:ariami_cli/services/cli_state_service.dart';
 import 'package:ariami_core/ariami_core.dart';
 
-void main(List<String> arguments) async {
+void main(List<String> arguments) {
+  // The Dart VM ignores SIGPIPE, so when a downstream pipe reader such as
+  // `head` exits early, stdout writes fail with an EPIPE FileSystemException
+  // delivered as an *uncaught async* error — no try/catch around the write
+  // sees it. Treat that as the normal end of a pipeline, not a crash, so
+  // `ariami_cli status | head` composes cleanly in scripts.
+  runZonedGuarded(
+    () => _run(arguments),
+    (error, stackTrace) {
+      if (_isBrokenPipe(error)) exit(0);
+      _reportFatal(error, stackTrace,
+          verbose: arguments.contains('--verbose'));
+    },
+  );
+}
+
+bool _isBrokenPipe(Object error) {
+  if (error is! FileSystemException) return false;
+  final code = error.osError?.errorCode;
+  // POSIX EPIPE; Windows ERROR_BROKEN_PIPE / ERROR_NO_DATA.
+  return code == 32 || code == 109 || code == 232;
+}
+
+Never _reportFatal(Object error, StackTrace stackTrace,
+    {required bool verbose}) {
+  try {
+    stderr.writeln('ERROR: $error');
+    if (verbose) {
+      stderr.writeln('Stack trace: $stackTrace');
+    }
+  } catch (_) {
+    // stderr may be a broken pipe too; the exit code still reports failure.
+  }
+  exit(1);
+}
+
+Future<void> _run(List<String> arguments) async {
   // Normal CLI mode - parse commands
   final parser = ArgParser(allowTrailingOptions: false)
     ..addFlag('help', abbr: 'h', negatable: false, help: 'Show help message')
@@ -94,11 +131,8 @@ void main(List<String> arguments) async {
     _showHelp(parser, output: stderr);
     exit(2);
   } catch (e, stackTrace) {
-    stderr.writeln('ERROR: $e');
-    if (arguments.contains('--verbose')) {
-      stderr.writeln('Stack trace: $stackTrace');
-    }
-    exit(1);
+    if (_isBrokenPipe(e)) exit(0);
+    _reportFatal(e, stackTrace, verbose: arguments.contains('--verbose'));
   }
 }
 
