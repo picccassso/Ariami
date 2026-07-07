@@ -294,7 +294,17 @@ extension AriamiHttpServerRouterMethods on AriamiHttpServer {
   }
 
   void _registerWebSocketRoutes(Router router) {
-    // WebSocket endpoint
-    router.get('/api/ws', webSocketHandler(_handleWebSocket));
+    // WebSocket endpoint. The protocol-level ping detects dead TCP
+    // connections (a TV losing power, a device dropping off the network)
+    // that never send a close frame; without it those peers stay in the
+    // Connect device list indefinitely. A missed pong closes the socket,
+    // which runs the normal onDone unregister path.
+    router.get(
+      '/api/ws',
+      webSocketHandler(
+        _handleWebSocket,
+        pingInterval: const Duration(seconds: 30),
+      ),
+    );
   }
 }

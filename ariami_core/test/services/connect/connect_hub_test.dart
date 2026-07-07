@@ -259,6 +259,83 @@ void main() {
     );
   });
 
+  test('an unanswered command reports the active device as offline', () async {
+    final hub = AriamiConnectHub(
+      commandTimeout: const Duration(milliseconds: 20),
+    );
+    final phone = _FakeChannel();
+    final tv = _FakeChannel();
+    hub.register(phone,
+        userId: 'user',
+        deviceId: 'phone',
+        deviceName: 'Phone',
+        clientType: 'mobile');
+    hub.register(tv,
+        userId: 'user', deviceId: 'tv', deviceName: 'TV', clientType: 'tv');
+    hub.handle(tv, _stateMessage(activate: true));
+
+    // The TV's socket is a ghost: it accepts the command but never answers.
+    hub.handle(
+      phone,
+      WsMessage(
+        type: AriamiConnectMessageType.command,
+        data: <String, dynamic>{
+          'commandId': 'command-lost',
+          'command': AriamiConnectCommand.play,
+        },
+      ),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    final error = phone.messages
+        .lastWhere((message) => message.type == AriamiConnectMessageType.error);
+    expect(error.data?['code'], 'DEVICE_OFFLINE');
+  });
+
+  test('a command result cancels the offline timeout', () async {
+    final hub = AriamiConnectHub(
+      commandTimeout: const Duration(milliseconds: 20),
+    );
+    final phone = _FakeChannel();
+    final tv = _FakeChannel();
+    hub.register(phone,
+        userId: 'user',
+        deviceId: 'phone',
+        deviceName: 'Phone',
+        clientType: 'mobile');
+    hub.register(tv,
+        userId: 'user', deviceId: 'tv', deviceName: 'TV', clientType: 'tv');
+    hub.handle(tv, _stateMessage(activate: true));
+
+    hub.handle(
+      phone,
+      WsMessage(
+        type: AriamiConnectMessageType.command,
+        data: <String, dynamic>{
+          'commandId': 'command-ok',
+          'command': AriamiConnectCommand.play,
+        },
+      ),
+    );
+    hub.handle(
+      tv,
+      WsMessage(
+        type: AriamiConnectMessageType.commandResult,
+        data: <String, dynamic>{'commandId': 'command-ok', 'ok': true},
+      ),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    final result = phone.messages.lastWhere(
+        (message) => message.type == AriamiConnectMessageType.commandResult);
+    expect(result.data?['ok'], isTrue);
+    expect(
+      phone.messages
+          .where((message) => message.type == AriamiConnectMessageType.error),
+      isEmpty,
+    );
+  });
+
   test('active player reconnect cancels automatic failover', () async {
     final hub = AriamiConnectHub(
       disconnectGracePeriod: const Duration(milliseconds: 30),

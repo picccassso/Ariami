@@ -12,11 +12,18 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 class AriamiConnectHub {
   AriamiConnectHub({
     this.disconnectGracePeriod = const Duration(seconds: 3),
+    this.commandTimeout = const Duration(seconds: 10),
   });
 
   /// Gives a playback client enough time to reconnect after a transient
   /// WebSocket drop before its controller takes over the session.
   final Duration disconnectGracePeriod;
+
+  /// How long a relayed command may wait for the active device's result
+  /// before the requester is told the device is unreachable. Long enough for
+  /// a slow track load, short enough that tapping play on a dead device does
+  /// not fail silently.
+  final Duration commandTimeout;
 
   final Map<WebSocketChannel, _ConnectPeer> _peers = {};
   final Map<String, _ConnectSession> _sessions = {};
@@ -235,7 +242,15 @@ class AriamiConnectHub {
     if (peer.deviceId != session!.activeDeviceId) {
       session.lastControllerDeviceId = peer.deviceId;
     }
-    session.pendingCommands[commandId] = socket;
+    final pending = _PendingCommand(requester: socket);
+    session.pendingCommands[commandId] = pending;
+    pending.timeout = Timer(commandTimeout, () {
+      final timedOut = session.pendingCommands.remove(commandId);
+      if (timedOut != null) {
+        _sendError(timedOut.requester, 'DEVICE_OFFLINE',
+            'The active playback device is not responding.');
+      }
+    });
     _send(target.socket, AriamiConnectMessageType.command, <String, dynamic>{
       'commandId': commandId,
       'command': command,
@@ -249,9 +264,10 @@ class AriamiConnectHub {
   void _handleCommandResult(_ConnectPeer peer, Map<String, dynamic> data) {
     final commandId = data['commandId'] as String?;
     if (commandId == null) return;
-    final requester = _sessions[peer.userId]?.pendingCommands.remove(commandId);
-    if (requester != null) {
-      _send(requester, AriamiConnectMessageType.commandResult, data);
+    final pending = _sessions[peer.userId]?.pendingCommands.remove(commandId);
+    if (pending != null) {
+      pending.timeout?.cancel();
+      _send(pending.requester, AriamiConnectMessageType.commandResult, data);
     }
   }
 
@@ -476,8 +492,14 @@ class _ConnectSession {
   AriamiPlaybackSnapshot? snapshot;
   int revision = 0;
   Timer? disconnectTimer;
-  final Map<String, WebSocketChannel> pendingCommands = {};
+  final Map<String, _PendingCommand> pendingCommands = {};
   final Map<String, _PendingTransfer> pendingTransfers = {};
+}
+
+class _PendingCommand {
+  _PendingCommand({required this.requester});
+  final WebSocketChannel requester;
+  Timer? timeout;
 }
 
 class _PendingTransfer {
