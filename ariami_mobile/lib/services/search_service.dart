@@ -1,39 +1,76 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:ariami_core/services/search/search.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/api_models.dart';
 
-/// Search service with ranking algorithm and recent songs
+/// Search service backed by the shared engine in ariami_core (tokenized,
+/// tiered ranking with transliteration and keyboard-layout correction, so
+/// the same query behaves identically on desktop and TV). This class keeps
+/// the mobile-specific parts: result deduplication and recent songs.
 class SearchService {
   static const String _recentSongsKey = 'recent_songs';
   static const int _maxRecentSongs = 30;
 
-  /// Search songs and albums with ranking algorithm
-  /// Returns SearchResults with songs first, then albums
+  /// Search songs, albums and playlists with the shared ranking engine.
   SearchResults search(
-      String query, List<SongModel> songs, List<AlbumModel> albums) {
-    final normalizedQuery = query.trim();
-    if (normalizedQuery.isEmpty) {
+    String query,
+    List<SongModel> songs,
+    List<AlbumModel> albums, {
+    List<PlaylistModel> playlists = const <PlaylistModel>[],
+  }) {
+    final parsed = SearchQuery.parse(query);
+    if (parsed.isEmpty) {
       return SearchResults(songs: [], albums: []);
     }
 
-    final tokens = _tokenize(normalizedQuery);
     final uniqueSongs = deduplicateSongs(songs);
     final uniqueAlbums = deduplicateAlbums(albums);
     final albumById = {for (final album in uniqueAlbums) album.id: album};
 
-    // Search and rank songs
-    final rankedSongs = _searchAndRankSongs(tokens, uniqueSongs, albumById);
+    final rankedSongs = LibrarySearchEngine.rank(
+      parsed,
+      uniqueSongs,
+      (song) => _songSearchFields(song, albumById),
+    );
     final displayUniqueRankedSongs = _deduplicateDisplaySongs(rankedSongs);
 
-    // Search and rank albums
-    final rankedAlbums = _searchAndRankAlbums(tokens, uniqueAlbums);
+    final rankedAlbums = LibrarySearchEngine.rank(
+      parsed,
+      uniqueAlbums,
+      _albumSearchFields,
+    );
+
+    final rankedPlaylists = LibrarySearchEngine.rank(
+      parsed,
+      playlists,
+      (playlist) => [SearchField(playlist.name, isPrimary: true)],
+    );
 
     return SearchResults(
       songs: displayUniqueRankedSongs,
       albums: rankedAlbums,
+      playlists: rankedPlaylists,
     );
   }
+
+  List<SearchField> _songSearchFields(
+    SongModel song,
+    Map<String, AlbumModel> albumById,
+  ) {
+    final album = albumById[song.albumId ?? ''];
+    return [
+      SearchField(song.title, isPrimary: true),
+      SearchField(song.artist),
+      if (album != null) SearchField(album.title),
+      if (album != null) SearchField(album.artist),
+    ];
+  }
+
+  List<SearchField> _albumSearchFields(AlbumModel album) => [
+        SearchField(album.title, isPrimary: true),
+        SearchField(album.artist),
+      ];
 
   /// Remove duplicate songs while preserving stable ordering.
   ///
@@ -109,181 +146,6 @@ class SearchService {
     return orderedFingerprints.map((key) => byFingerprint[key]!).toList();
   }
 
-  static const int _exactTier = 4;
-  static const int _prefixTier = 3;
-  static const int _substringTier = 2;
-  static const int _fuzzyTier = 1;
-
-  List<String> _tokenize(String query) {
-    return query
-        .trim()
-        .toLowerCase()
-        .split(RegExp(r'\s+'))
-        .where((token) => token.isNotEmpty)
-        .toList();
-  }
-
-  int _tokenMatchTier(String token, String field) {
-    if (field.isEmpty) return 0;
-    if (field == token) return _exactTier;
-    if (field.startsWith(token)) return _prefixTier;
-    if (field.contains(token)) return _substringTier;
-    if (_fuzzyTokenMatchesField(token, field)) return _fuzzyTier;
-    return 0;
-  }
-
-  int _bestTokenTierAcrossFields(String token, List<String> fields) {
-    var best = 0;
-    for (final field in fields) {
-      final tier = _tokenMatchTier(token, field);
-      if (tier > best) {
-        best = tier;
-      }
-    }
-    return best;
-  }
-
-  /// Returns bucket index: 0 exact, 1 prefix, 2 substring, 3 fuzzy;
-  /// null if no match.
-  int? _matchBucketForFields(List<String> tokens, List<String> fields) {
-    if (tokens.isEmpty) return null;
-
-    if (tokens.length == 1) {
-      final tier = _bestTokenTierAcrossFields(tokens.single, fields);
-      if (tier == _exactTier) return 0;
-      if (tier == _prefixTier) return 1;
-      if (tier == _substringTier) return 2;
-      if (tier == _fuzzyTier) return 3;
-      return null;
-    }
-
-    final tiers = tokens
-        .map((token) => _bestTokenTierAcrossFields(token, fields))
-        .toList();
-    if (tiers.any((tier) => tier == 0)) return null;
-
-    final minTier = tiers.reduce((a, b) => a < b ? a : b);
-    if (minTier == _exactTier) return 0;
-    if (minTier >= _prefixTier) return 1;
-    if (minTier >= _substringTier) return 2;
-    return 3;
-  }
-
-  bool _fuzzyTokenMatchesField(String token, String field) {
-    if (token.length < 4) return false;
-
-    final maxDistance = _maxFuzzyDistance(token.length);
-    for (final word in _searchWords(field)) {
-      if (word.length < 4) continue;
-
-      if ((word.length - token.length).abs() <= maxDistance &&
-          _editDistanceAtMost(token, word, maxDistance)) {
-        return true;
-      }
-
-      if (word.length > token.length) {
-        final wordPrefix = word.substring(0, token.length);
-        if (_editDistanceAtMost(token, wordPrefix, maxDistance)) {
-          return true;
-        }
-      }
-    }
-
-    return false;
-  }
-
-  int _maxFuzzyDistance(int tokenLength) {
-    if (tokenLength >= 9) return 2;
-    return 1;
-  }
-
-  List<String> _searchWords(String field) {
-    return field
-        .split(RegExp(r'[^a-z0-9]+'))
-        .where((word) => word.isNotEmpty)
-        .toList();
-  }
-
-  bool _editDistanceAtMost(String a, String b, int maxDistance) {
-    if ((a.length - b.length).abs() > maxDistance) return false;
-    if (a == b) return true;
-
-    var previous = List<int>.generate(b.length + 1, (index) => index);
-    for (var i = 1; i <= a.length; i++) {
-      final current = List<int>.filled(b.length + 1, 0);
-      current[0] = i;
-      var rowMin = current[0];
-
-      for (var j = 1; j <= b.length; j++) {
-        final substitutionCost =
-            a.codeUnitAt(i - 1) == b.codeUnitAt(j - 1) ? 0 : 1;
-        final insertion = current[j - 1] + 1;
-        final deletion = previous[j] + 1;
-        final substitution = previous[j - 1] + substitutionCost;
-        final distance = insertion < deletion
-            ? (insertion < substitution ? insertion : substitution)
-            : (deletion < substitution ? deletion : substitution);
-        current[j] = distance;
-        if (distance < rowMin) rowMin = distance;
-      }
-
-      if (rowMin > maxDistance) return false;
-      previous = current;
-    }
-
-    return previous[b.length] <= maxDistance;
-  }
-
-  List<String> _songSearchFields(
-    SongModel song,
-    Map<String, AlbumModel> albumById,
-  ) {
-    final album = albumById[song.albumId ?? ''];
-    return [
-      song.title.toLowerCase(),
-      song.artist.toLowerCase(),
-      album?.title.toLowerCase() ?? '',
-      album?.artist.toLowerCase() ?? '',
-    ];
-  }
-
-  /// Search and rank songs by relevance
-  List<SongModel> _searchAndRankSongs(
-    List<String> tokens,
-    List<SongModel> songs,
-    Map<String, AlbumModel> albumById,
-  ) {
-    final exactMatches = <SongModel>[];
-    final prefixMatches = <SongModel>[];
-    final substringMatches = <SongModel>[];
-    final fuzzyMatches = <SongModel>[];
-
-    for (final song in songs) {
-      final fields = _songSearchFields(song, albumById);
-      final bucket = _matchBucketForFields(tokens, fields);
-      switch (bucket) {
-        case 0:
-          exactMatches.add(song);
-        case 1:
-          prefixMatches.add(song);
-        case 2:
-          substringMatches.add(song);
-        case 3:
-          fuzzyMatches.add(song);
-        default:
-          break;
-      }
-    }
-
-    // Combine in ranking order: exact → prefix → substring → fuzzy
-    return [
-      ...exactMatches,
-      ...prefixMatches,
-      ...substringMatches,
-      ...fuzzyMatches,
-    ];
-  }
-
   /// Final display-level dedupe for ranked song results.
   ///
   /// This intentionally ignores album/track IDs so the same audible track
@@ -304,45 +166,6 @@ class SearchService {
     }
 
     return orderedKeys.map((key) => unique[key]!).toList();
-  }
-
-  /// Search and rank albums by relevance
-  List<AlbumModel> _searchAndRankAlbums(
-    List<String> tokens,
-    List<AlbumModel> albums,
-  ) {
-    final exactMatches = <AlbumModel>[];
-    final prefixMatches = <AlbumModel>[];
-    final substringMatches = <AlbumModel>[];
-    final fuzzyMatches = <AlbumModel>[];
-
-    for (final album in albums) {
-      final fields = [
-        album.title.toLowerCase(),
-        album.artist.toLowerCase(),
-      ];
-      final bucket = _matchBucketForFields(tokens, fields);
-      switch (bucket) {
-        case 0:
-          exactMatches.add(album);
-        case 1:
-          prefixMatches.add(album);
-        case 2:
-          substringMatches.add(album);
-        case 3:
-          fuzzyMatches.add(album);
-        default:
-          break;
-      }
-    }
-
-    // Combine in ranking order: exact → prefix → substring → fuzzy
-    return [
-      ...exactMatches,
-      ...prefixMatches,
-      ...substringMatches,
-      ...fuzzyMatches,
-    ];
   }
 
   String _songFingerprint(SongModel song) {
@@ -500,13 +323,15 @@ class SearchService {
 class SearchResults {
   final List<SongModel> songs;
   final List<AlbumModel> albums;
+  final List<PlaylistModel> playlists;
 
   SearchResults({
     required this.songs,
     required this.albums,
+    this.playlists = const <PlaylistModel>[],
   });
 
-  bool get isEmpty => songs.isEmpty && albums.isEmpty;
+  bool get isEmpty => songs.isEmpty && albums.isEmpty && playlists.isEmpty;
   bool get isNotEmpty => !isEmpty;
 }
 

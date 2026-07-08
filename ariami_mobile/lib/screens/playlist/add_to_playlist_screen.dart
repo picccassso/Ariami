@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:ariami_core/services/search/search.dart';
 import 'package:flutter/material.dart';
 import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
 import '../../models/api_models.dart';
@@ -122,27 +123,20 @@ class _AddToPlaylistScreenState extends State<AddToPlaylistScreen> {
       return;
     }
 
-    final songs = widget.availableSongs ?? [];
-    final exactMatches = <SongModel>[];
-    final prefixMatches = <SongModel>[];
-    final substringMatches = <SongModel>[];
-
-    for (final song in songs) {
-      final titleLower = song.title.toLowerCase();
-      final artistLower = song.artist.toLowerCase();
-
-      if (titleLower == query || artistLower == query) {
-        exactMatches.add(song);
-      } else if (titleLower.startsWith(query) ||
-          artistLower.startsWith(query)) {
-        prefixMatches.add(song);
-      } else if (titleLower.contains(query) || artistLower.contains(query)) {
-        substringMatches.add(song);
-      }
-    }
+    // Shared core engine: same normalization/ranking as the main search
+    // screen (title + artist fields only — this picker has no album data).
+    final parsed = SearchQuery.parse(query);
+    final ranked = LibrarySearchEngine.rank(
+      parsed,
+      widget.availableSongs ?? const <SongModel>[],
+      (song) => [
+        SearchField(song.title, isPrimary: true),
+        SearchField(song.artist),
+      ],
+    );
 
     setState(() {
-      _filteredSongs = [...exactMatches, ...prefixMatches, ...substringMatches];
+      _filteredSongs = ranked;
       _searchQuery = query;
     });
   }

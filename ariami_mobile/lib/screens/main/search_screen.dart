@@ -13,17 +13,28 @@ import '../../services/download/download_manager.dart';
 import '../../services/offline/offline_playback_service.dart';
 import '../../utils/download_state_watcher.dart';
 import '../../utils/downloaded_album_metadata.dart';
+import '../../services/playlist_service.dart';
 import '../../widgets/search/search_result_song_item.dart';
 import '../../widgets/search/search_result_album_item.dart';
+import '../../widgets/search/search_result_playlist_item.dart';
 
-enum _SearchListItemKind { headerSongs, song, spacer, headerAlbums, album }
+enum _SearchListItemKind {
+  headerSongs,
+  song,
+  spacer,
+  headerAlbums,
+  album,
+  headerPlaylists,
+  playlist,
+}
 
 class _SearchListItem {
-  const _SearchListItem(this.kind, {this.song, this.album});
+  const _SearchListItem(this.kind, {this.song, this.album, this.playlist});
 
   final _SearchListItemKind kind;
   final SongModel? song;
   final AlbumModel? album;
+  final PlaylistModel? playlist;
 }
 
 /// Search screen with real-time search and recent searches
@@ -40,6 +51,7 @@ class _SearchScreenState extends State<SearchScreen> {
   final PlaybackManager _playbackManager = PlaybackManager();
   final OfflinePlaybackService _offlineService = OfflinePlaybackService();
   final DownloadManager _downloadManager = DownloadManager();
+  final PlaylistService _playlistService = PlaylistService();
   final DebouncedSearch _debouncer = DebouncedSearch();
   final TextEditingController _searchController = TextEditingController();
 
@@ -69,6 +81,10 @@ class _SearchScreenState extends State<SearchScreen> {
     _loadLibrary();
     _loadRecentSongs();
     _loadDownloadedSongIds();
+    // Playlists are stored locally, so they are searchable online and
+    // offline alike. loadPlaylists is a no-op when already loaded.
+    unawaited(_playlistService.loadPlaylists());
+    _playlistService.addListener(_onPlaylistsChanged);
     _searchController.addListener(_onSearchChanged);
 
     // Listen to offline state changes
@@ -91,6 +107,7 @@ class _SearchScreenState extends State<SearchScreen> {
   @override
   void dispose() {
     _downloadStateWatcher.dispose();
+    _playlistService.removeListener(_onPlaylistsChanged);
     _searchController.removeListener(_onSearchChanged);
     _searchController.dispose();
     _debouncer.cancel();
@@ -280,11 +297,21 @@ class _SearchScreenState extends State<SearchScreen> {
     if (query.trim() != _searchController.text.trim()) return;
     if (!mounted) return;
 
-    final results = _searchService.search(query, _allSongs, _allAlbums);
+    final results = _searchService.search(
+      query,
+      _allSongs,
+      _allAlbums,
+      playlists: _playlistService.playlists,
+    );
     setState(() {
       _searchResults = results;
       _isSearching = false;
     });
+  }
+
+  void _onPlaylistsChanged() {
+    if (!mounted) return;
+    _refreshSearchIfNeeded();
   }
 
   void _refreshSearchIfNeeded() {
@@ -378,7 +405,7 @@ class _SearchScreenState extends State<SearchScreen> {
                         decoration: InputDecoration(
                           hintText: _isOffline
                               ? 'Search downloaded music...'
-                              : 'Search songs, albums & artists',
+                              : 'Search songs, albums & playlists',
                           hintStyle: TextStyle(
                             color: Theme.of(context)
                                 .colorScheme
@@ -500,6 +527,18 @@ class _SearchScreenState extends State<SearchScreen> {
       for (final album in results.albums) {
         items.add(_SearchListItem(_SearchListItemKind.album, album: album));
       }
+      if (results.playlists.isNotEmpty) {
+        items.add(const _SearchListItem(_SearchListItemKind.spacer));
+      }
+    }
+
+    if (results.playlists.isNotEmpty) {
+      items.add(const _SearchListItem(_SearchListItemKind.headerPlaylists));
+      for (final playlist in results.playlists) {
+        items.add(
+          _SearchListItem(_SearchListItemKind.playlist, playlist: playlist),
+        );
+      }
     }
 
     return items;
@@ -540,6 +579,24 @@ class _SearchScreenState extends State<SearchScreen> {
           album: item.album!,
           searchQuery: _searchController.text,
           onTap: () => _openAlbum(item.album!),
+        );
+      case _SearchListItemKind.headerPlaylists:
+        return Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Text(
+            'Playlists',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.9),
+            ),
+          ),
+        );
+      case _SearchListItemKind.playlist:
+        return SearchResultPlaylistItem(
+          key: ValueKey('search_playlist_${item.playlist!.id}'),
+          playlist: item.playlist!,
+          onTap: () => _openPlaylist(item.playlist!),
         );
     }
   }
@@ -828,5 +885,9 @@ class _SearchScreenState extends State<SearchScreen> {
 
   void _openAlbum(AlbumModel album) {
     Navigator.of(context).pushNamed('/album', arguments: album);
+  }
+
+  void _openPlaylist(PlaylistModel playlist) {
+    Navigator.of(context).pushNamed('/playlist', arguments: playlist.id);
   }
 }
