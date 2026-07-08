@@ -133,6 +133,15 @@ class LibrarySearchEngine {
     return [for (final ranked in capped) ranked.item];
   }
 
+  /// Whether [fields] match [query] at any tier. For order-preserving
+  /// filters (find-in-page style surfaces) that want the engine's matching —
+  /// normalization, transliteration, layout correction, fuzz — without its
+  /// ranking.
+  static bool matches(SearchQuery query, List<SearchField> fields) {
+    if (query.isEmpty) return false;
+    return _matchItem(query, fields) != null;
+  }
+
   static _ItemMatch? _matchItem(SearchQuery query, List<SearchField> fields) {
     // Whole-phrase pass: the strongest tiers require the full query to sit
     // at the start of one field, which per-token matching can't distinguish.

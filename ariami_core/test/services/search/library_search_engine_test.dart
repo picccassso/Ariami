@@ -197,4 +197,26 @@ void main() {
       expect(_search('mirrors', items, limit: 1), ['exact']);
     });
   });
+
+  group('LibrarySearchEngine.matches (order-preserving filters)', () {
+    bool matches(String query, _Item item) => LibrarySearchEngine.matches(
+          SearchQuery.parse(query),
+          _fieldsOf(item),
+        );
+
+    test('matches at any tier, including translit/layout/fuzzy', () {
+      const kino = _Item('kino', 'Группа крови', 'Кино');
+
+      expect(matches('кино', kino), isTrue);
+      expect(matches('kino', kino), isTrue);
+      expect(matches('rbyj', kino), isTrue);
+      expect(matches('группо', kino), isTrue);
+      expect(matches('unrelated', kino), isFalse);
+    });
+
+    test('empty query matches nothing (callers treat empty as show-all)', () {
+      expect(matches('', const _Item('x', 'Halo')), isFalse);
+      expect(matches('   ', const _Item('x', 'Halo')), isFalse);
+    });
+  });
 }
