@@ -374,5 +374,48 @@ void main() {
       expect(groupedPaths, contains(equals({fileA1.path, fileA2.path})));
       expect(groupedPaths, contains(equals({fileB1.path, fileB2.path})));
     });
+
+    test(
+        'the surviving original is deterministic when duplicates tie on '
+        'quality, regardless of input order', () async {
+      // Byte-identical copies with equal metadata tie every quality
+      // criterion; the survivor must not depend on directory traversal
+      // order (it varies by filesystem — this failed on ext4 CI while
+      // passing on APFS) because the survivor's path becomes the song ID.
+      final identicalBytes = List<int>.filled(4096, 12);
+      final canonical = File('${tempDir.path}/Album/one.mp3');
+      final copy = File('${tempDir.path}/Copies/one-copy.mp3');
+      for (final file in [canonical, copy]) {
+        await file.parent.create(recursive: true);
+        await file.writeAsBytes(identicalBytes);
+      }
+
+      final size = await canonical.length();
+      SongMetadata songFor(File file) => _song(
+            path: file.path,
+            title: 'One',
+            artist: 'A',
+            album: 'X',
+            fileSize: size,
+          );
+
+      for (final songs in [
+        [songFor(canonical), songFor(copy)],
+        [songFor(copy), songFor(canonical)],
+      ]) {
+        final groups = await DuplicateDetector().detectDuplicates(
+          songs,
+          useMetadataMatching: false,
+        );
+
+        expect(groups, hasLength(1));
+        expect(
+          groups.single.original.filePath,
+          canonical.path,
+          reason: 'ties break to the lexicographically first path, '
+              'independent of input order',
+        );
+      }
+    });
   });
 }

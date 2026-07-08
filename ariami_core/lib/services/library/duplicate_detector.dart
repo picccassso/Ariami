@@ -416,7 +416,14 @@ class DuplicateDetector {
       // Compare file size (larger is usually better quality)
       final aSize = a.fileSize ?? 0;
       final bSize = b.fileSize ?? 0;
-      return bSize.compareTo(aSize);
+      final sizeCompare = bSize.compareTo(aSize);
+      if (sizeCompare != 0) return sizeCompare;
+
+      // Deterministic final tie-break: when quality is identical, the
+      // lexicographically first path survives. Without this the survivor —
+      // and therefore its song ID — depends on directory traversal order,
+      // which varies by filesystem and can flip between rescans.
+      return a.filePath.compareTo(b.filePath);
     });
 
     return sorted;
