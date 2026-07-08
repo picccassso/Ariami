@@ -584,6 +584,39 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
     }
   }
 
+  /// Prompt for confirmation, then delete this playlist's downloaded files.
+  Future<void> _confirmRemoveDownloads() async {
+    final playlistName = _playlist?.name ?? 'this playlist';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('Remove downloads for "$playlistName"?'),
+        content: const Text(
+          'This deletes the downloaded files for this playlist from your '
+          'device. You can download it again anytime.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(
+              'Remove',
+              style: TextStyle(color: Theme.of(dialogContext).colorScheme.error),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    await _downloadManager
+        .deleteSongDownloads(_songs.map((s) => s.id).toList());
+  }
+
   /// Play all songs from playlist
   Future<void> _playAll() async {
     if (_songs.isEmpty) return;
@@ -852,9 +885,11 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
             hasSongs: _songs.isNotEmpty,
             canReorder: _songs.length > 1,
             isReorderMode: _isReorderMode,
-            onDownloadPlaylist: (_songs.isEmpty || _isPlaylistFullyDownloaded)
+            onDownloadPlaylist: _songs.isEmpty
                 ? null
-                : _downloadPlaylist,
+                : (_isPlaylistFullyDownloaded
+                    ? _confirmRemoveDownloads
+                    : _downloadPlaylist),
             onPlay: _playAll,
             onShuffle: _shuffleAll,
             onToggleReorder: () =>

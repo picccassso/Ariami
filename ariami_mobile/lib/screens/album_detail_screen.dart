@@ -312,11 +312,12 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
                     .every((song) => _downloadedSongIds.contains(song.id)),
             hasSongs: (_albumDetail?.songs ?? []).isNotEmpty,
             isPinned: _libraryController.state.isAlbumPinned(widget.album.id),
-            onDownloadAlbum: _albumDetail != null &&
-                    !_albumDetail!.songs
+            onDownloadAlbum: (_albumDetail?.songs ?? []).isEmpty
+                ? null
+                : (_albumDetail!.songs
                         .every((song) => _downloadedSongIds.contains(song.id))
-                ? _downloadAlbum
-                : null,
+                    ? _confirmRemoveDownloads
+                    : _downloadAlbum),
             onAddToPlaylist: _addToPlaylist,
             onAddToQueue: _addToQueue,
             onShuffleAll: _shuffleAll,
@@ -452,6 +453,37 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
         totalBytes: 0,
       );
     }
+  }
+
+  /// Prompt for confirmation, then delete this album's downloaded files.
+  Future<void> _confirmRemoveDownloads() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('Remove downloads for "${widget.album.title}"?'),
+        content: const Text(
+          'This deletes the downloaded files for this album from your '
+          'device. You can download it again anytime.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(
+              'Remove',
+              style: TextStyle(color: Theme.of(dialogContext).colorScheme.error),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    await _downloadManager.deleteAlbumDownloads(widget.album.id);
   }
 
   void _playAll() async {
