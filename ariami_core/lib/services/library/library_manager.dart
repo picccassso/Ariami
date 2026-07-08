@@ -20,6 +20,7 @@ import 'package:ariami_core/services/library/folder_watcher.dart';
 import 'package:ariami_core/services/library/metadata_extractor.dart';
 import 'package:ariami_core/services/library/library_scanner_isolate.dart';
 import 'package:ariami_core/services/library/metadata_cache.dart';
+import 'package:ariami_core/services/library/playlist_decision_store.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 part 'library_manager/library_manager_api.part.dart';
@@ -136,6 +137,13 @@ class LibraryManager {
   /// Diagnostics from the most recent full library scan.
   ScanDiagnostics _latestScanDiagnostics = const ScanDiagnostics();
 
+  /// Persistent playlist-suggestion decisions (import/ignore per folder).
+  PlaylistDecisionStore? _playlistDecisionStore;
+
+  /// Folder path of the most recent successful full scan (for rescans
+  /// triggered outside the setup callbacks, e.g. suggestion imports).
+  String? _lastScannedFolderPath;
+
   /// Get the current library structure
   LibraryStructure? get library => _library;
 
@@ -193,6 +201,12 @@ class LibraryManager {
 
   /// Diagnostics from the most recent full library scan.
   ScanDiagnostics get latestScanDiagnostics => _latestScanDiagnostics;
+
+  /// Playlist-suggestion decision store (null until [setCachePath]).
+  PlaylistDecisionStore? get playlistDecisionStore => _playlistDecisionStore;
+
+  /// Folder path of the most recent successful full scan.
+  String? get lastScannedFolderPath => _lastScannedFolderPath;
 
   /// Latest token written to `library_changes`.
   int get latestToken => _latestCatalogToken;
@@ -266,6 +280,13 @@ class LibraryManager {
     );
     print(
         '[LibraryManager] Artwork precompute cache path set: $artworkCachePath');
+
+    final decisionsPath =
+        path.join(path.dirname(cachePath), 'playlist_decisions.json');
+    if (_playlistDecisionStore?.filePath != decisionsPath) {
+      _playlistDecisionStore = PlaylistDecisionStore(filePath: decisionsPath);
+    }
+    print('[LibraryManager] Playlist decision store path set: $decisionsPath');
 
     final catalogPath = path.join(path.dirname(cachePath), 'catalog.db');
     try {

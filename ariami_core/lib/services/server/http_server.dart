@@ -22,6 +22,7 @@ import 'package:ariami_core/models/artwork_size.dart';
 import 'package:ariami_core/models/websocket_models.dart';
 import 'package:ariami_core/models/feature_flags.dart';
 import 'package:ariami_core/services/library/library_manager.dart';
+import 'package:ariami_core/services/library/playlist_decision_store.dart';
 import 'package:ariami_core/services/catalog/catalog_repository.dart';
 import 'package:ariami_core/services/auth/auth_service.dart';
 import 'package:ariami_core/services/auth/user_store.dart'
@@ -62,6 +63,7 @@ part 'http_server_parts/websocket_and_static_part.dart';
 part 'http_server_parts/listening_stats_handlers_part.dart';
 part 'http_server_parts/pins_handlers_part.dart';
 part 'http_server_parts/playlist_edits_handlers_part.dart';
+part 'http_server_parts/playlist_suggestions_handlers_part.dart';
 
 /// HTTP server for Ariami desktop application (Singleton)
 class AriamiHttpServer {

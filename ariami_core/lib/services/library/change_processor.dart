@@ -12,6 +12,7 @@ class ChangeProcessor {
   final MetadataExtractor _metadataExtractor = MetadataExtractor();
   Set<String> _lastAddedFiles = <String>{};
   Set<String> _lastModifiedFiles = <String>{};
+  Set<String> _lastRemovedFiles = <String>{};
 
   /// Processes a batch of file changes and generates library updates
   ///
@@ -64,6 +65,7 @@ class ChangeProcessor {
 
     _lastAddedFiles = addedFiles;
     _lastModifiedFiles = modifiedFiles;
+    _lastRemovedFiles = removedFiles.toSet();
 
     // Process removals
     for (final path in removedFiles) {
@@ -159,6 +161,7 @@ class ChangeProcessor {
 
     // Add new and modified songs (re-extract metadata from changed paths)
     final changedPaths = <String>{};
+    final removedPaths = <String>{};
     if (sourceChanges != null) {
       for (final change in sourceChanges) {
         switch (change.type) {
@@ -168,14 +171,19 @@ class ChangeProcessor {
             break;
           case FileChangeType.renamed:
             changedPaths.add(change.path);
+            if (change.oldPath != null) {
+              removedPaths.add(change.oldPath!);
+            }
             break;
           case FileChangeType.removed:
+            removedPaths.add(change.path);
             break;
         }
       }
     } else {
       changedPaths.addAll(_lastAddedFiles);
       changedPaths.addAll(_lastModifiedFiles);
+      removedPaths.addAll(_lastRemovedFiles);
     }
 
     // Re-extract metadata for changed files
@@ -195,11 +203,24 @@ class ChangeProcessor {
       }
     }
 
+    // Carry the full-scan duplicate mapping forward so playlist entries whose
+    // folder copy was deduped keep pointing at the surviving song ID. Entries
+    // touched by this change batch are dropped: a removed or rewritten file
+    // can no longer be assumed to be a duplicate of its old original.
+    final duplicateToOriginalPath = <String, String>{
+      for (final entry in currentLibrary.duplicateToOriginalPath.entries)
+        if (!changedPaths.contains(entry.key) &&
+            !removedPaths.contains(entry.key) &&
+            !removedPaths.contains(entry.value))
+          entry.key: entry.value,
+    };
+
     // Rebuild library structure, preserving and updating folder playlists.
     return buildLibraryWithPlaylistsAsync(
       allSongs: allSongs,
       existingPlaylists: currentLibrary.folderPlaylists,
       generateSongId: _generateSongId,
+      duplicateToOriginalPath: duplicateToOriginalPath,
     );
   }
 

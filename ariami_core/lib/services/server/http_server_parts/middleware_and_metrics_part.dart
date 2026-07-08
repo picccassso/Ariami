@@ -182,6 +182,10 @@ extension AriamiHttpServerMiddlewareAndMetricsMethods on AriamiHttpServer {
             (path == '/api/auth/login' || path == '/api/auth/register');
         final isBootstrapSetupPath =
             !hasUsers && path.startsWith('/api/setup/');
+        // Playlist-suggestion decisions are setup-grade library actions; the
+        // handlers enforce admin once users exist (_authorizeSetupRequest).
+        final isBootstrapSuggestionsPath =
+            !hasUsers && path.startsWith('/api/playlists/suggestions');
         final isMediaTicketPath = hasUsers &&
             (path == '/api/stream' ||
                 path.startsWith('/api/stream/') ||
@@ -198,6 +202,7 @@ extension AriamiHttpServerMiddlewareAndMetricsMethods on AriamiHttpServer {
             path.startsWith('/api/tailscale/') ||
             isBootstrapAuthPath ||
             isBootstrapSetupPath ||
+            isBootstrapSuggestionsPath ||
             isMediaTicketPath;
 
         if (isPublicPath) {

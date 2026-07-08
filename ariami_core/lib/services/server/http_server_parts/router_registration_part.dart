@@ -19,6 +19,7 @@ extension AriamiHttpServerRouterMethods on AriamiHttpServer {
     _registerSetupAndStatsRoutes(router);
     _registerListeningStatsRoutes(router);
     _registerPinsRoutes(router);
+    _registerPlaylistSuggestionRoutes(router);
     _registerPlaylistEditRoutes(router);
     _registerAuthAndAdminRoutes(router);
     _registerLibraryAndArtworkRoutes(router);
@@ -56,6 +57,14 @@ extension AriamiHttpServerRouterMethods on AriamiHttpServer {
     router.post(
       '/api/pins/import',
       (request) => _handleProtectedV2Request(request, _handlePinsImport),
+    );
+  }
+
+  void _registerPlaylistSuggestionRoutes(Router router) {
+    router.get('/api/playlists/suggestions', _handlePlaylistSuggestionsGet);
+    router.post(
+      '/api/playlists/suggestions/decision',
+      _handlePlaylistSuggestionDecisionPost,
     );
   }
 

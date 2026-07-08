@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:ariami_core/models/auth_models.dart';
+import 'package:ariami_core/models/playlist_suggestion.dart';
 import 'package:ariami_core/models/websocket_models.dart';
 import 'package:ariami_core/services/transcoding/transcode_slots_policy.dart';
 import '../services/web_api_client.dart';
@@ -69,6 +70,8 @@ class _DashboardScreenState extends State<DashboardScreen>
   List<ConnectedClientRow> _connectedClientRows = const <ConnectedClientRow>[];
   List<UserActivityRow> _userActivityRows = const <UserActivityRow>[];
   List<ServerUserRow> _serverUserRows = const <ServerUserRow>[];
+  List<PlaylistSuggestion> _playlistSuggestions = const <PlaylistSuggestion>[];
+  final Set<String> _decidingSuggestionPaths = <String>{};
   final Set<String> _kickingDeviceIds = <String>{};
   final Set<String> _deletingUserIds = <String>{};
 
@@ -186,6 +189,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         await _loadUserActivity(showLoading: false);
         await _loadRegisteredUsers(showLoading: false);
         await _loadTranscodeSlots(showLoading: false);
+        await _loadPlaylistSuggestions();
       }
     } catch (e) {
       debugPrint('Error loading server stats: $e');
@@ -456,6 +460,78 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   Future<void> _viewQRCode() async {
     Navigator.pushNamed(context, '/qr-code');
+  }
+
+  Future<void> _loadPlaylistSuggestions() async {
+    final suggestions = await _setupService.getPlaylistSuggestions();
+    if (!mounted) return;
+    setState(() {
+      _playlistSuggestions = suggestions;
+    });
+  }
+
+  Future<void> _importPlaylistSuggestion(PlaylistSuggestion suggestion) =>
+      _decidePlaylistSuggestion(
+        suggestion,
+        decision: 'import',
+        successMessage:
+            'Importing "${suggestion.name}" — rescanning the library',
+      );
+
+  Future<void> _ignorePlaylistSuggestion(PlaylistSuggestion suggestion) =>
+      _decidePlaylistSuggestion(
+        suggestion,
+        decision: 'ignore',
+        successMessage: '"${suggestion.name}" will not be suggested again',
+      );
+
+  Future<void> _decidePlaylistSuggestion(
+    PlaylistSuggestion suggestion, {
+    required String decision,
+    required String successMessage,
+  }) async {
+    if (_decidingSuggestionPaths.contains(suggestion.folderPath)) return;
+    setState(() {
+      _decidingSuggestionPaths.add(suggestion.folderPath);
+    });
+
+    try {
+      final success = await _setupService.sendPlaylistSuggestionDecision(
+        suggestion.folderPath,
+        decision,
+      );
+      if (!mounted) return;
+
+      if (success) {
+        setState(() {
+          _playlistSuggestions = _playlistSuggestions
+              .where((s) => s.folderPath != suggestion.folderPath)
+              .toList(growable: false);
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(successMessage),
+            backgroundColor: AppTheme.surfaceBlack,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        _loadServerStats();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to $decision "${suggestion.name}"'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _decidingSuggestionPaths.remove(suggestion.folderPath);
+        });
+      }
+    }
   }
 
   String _formatLastScanTime() {
@@ -923,6 +999,10 @@ class _DashboardScreenState extends State<DashboardScreen>
                             connectedUsers: _connectedUsers,
                             activeSessions: _activeSessions,
                             lastScanTimeFormatted: _formatLastScanTime(),
+                            playlistSuggestions: _playlistSuggestions,
+                            decidingSuggestionPaths: _decidingSuggestionPaths,
+                            onImportSuggestion: _importPlaylistSuggestion,
+                            onIgnoreSuggestion: _ignorePlaylistSuggestion,
                             onRescanLibrary: _rescanLibrary,
                             onViewQRCode: _viewQRCode,
                           ),

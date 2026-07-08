@@ -204,6 +204,10 @@ extension AriamiHttpServerSetupAndStatsHandlersMethods on AriamiHttpServer {
               status['skippedFileCount'] ?? diagnostics.skippedFileCount,
           'failedFiles': status['failedFiles'] ??
               diagnostics.failedFiles.map((f) => f.toJson()).toList(),
+          'playlistSuggestions': status['playlistSuggestions'] ??
+              diagnostics.playlistSuggestions
+                  .map((s) => s.toJson())
+                  .toList(),
         });
       } catch (e) {
         return _setupCallbackErrorResponse('get scan status', e);
@@ -220,6 +224,8 @@ extension AriamiHttpServerSetupAndStatsHandlersMethods on AriamiHttpServer {
       'currentStatus': 'Not configured',
       'skippedFileCount': diagnostics.skippedFileCount,
       'failedFiles': diagnostics.failedFiles.map((f) => f.toJson()).toList(),
+      'playlistSuggestions':
+          diagnostics.playlistSuggestions.map((s) => s.toJson()).toList(),
     });
   }
 

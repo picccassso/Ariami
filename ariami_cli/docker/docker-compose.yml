@@ -6,8 +6,10 @@ services:
 
     # --- Linux servers (Pi, NAS, homelab): zero-config networking ---
     # Host networking lets Ariami detect your real LAN and Tailscale
-    # addresses automatically, exactly like a native install. Uncomment
-    # the next line and delete the "ports" and "environment" sections.
+    # addresses automatically, exactly like a native install, and lets it
+    # answer LAN auto-discovery (UDP beacon + mDNS) so the TV app finds it
+    # instantly. Uncomment the next line and delete the "ports" and
+    # "environment" sections.
     # network_mode: host
 
     # --- Docker Desktop on Mac/Windows: port mapping + explicit hosts ---

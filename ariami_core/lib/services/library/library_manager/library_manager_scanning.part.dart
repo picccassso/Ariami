@@ -114,6 +114,20 @@ extension _LibraryManagerScanningPart on LibraryManager {
         print('[LibraryManager] Loaded ${cacheData.length} cached entries');
       }
 
+      // Playlist-suggestion decisions cross into the isolate as plain data:
+      // approved folders scan exactly like [PLAYLIST] folders, ignored
+      // folders are never suggested again.
+      var approvedPlaylistFolders = const <String>[];
+      var ignoredSuggestionFolders = const <String>[];
+      final decisionStore = _playlistDecisionStore;
+      if (decisionStore != null) {
+        await decisionStore.ensureLoaded();
+        approvedPlaylistFolders =
+            decisionStore.importedFolderPaths.toList(growable: false);
+        ignoredSuggestionFolders =
+            decisionStore.ignoredFolderPaths.toList(growable: false);
+      }
+
       // Run the scan in a background isolate
       final result = await LibraryScannerIsolate.scan(
         folderPath,
@@ -125,11 +139,14 @@ extension _LibraryManagerScanningPart on LibraryManager {
           onProgress?.call(progress.stage, message, progress.percentage);
         },
         cacheData: cacheData,
+        approvedPlaylistFolderPaths: approvedPlaylistFolders,
+        ignoredSuggestionFolderPaths: ignoredSuggestionFolders,
       );
 
       if (result.library != null) {
         _library = result.library;
         _latestScanDiagnostics = result.scanDiagnostics;
+        _lastScannedFolderPath = folderPath;
         _rebuildSongIndexes();
         _lastScanTime = DateTime.now();
         _resetDurationsForRescan();
@@ -175,6 +192,8 @@ extension _LibraryManagerScanningPart on LibraryManager {
     _library = null;
     _rebuildSongIndexes();
     _lastScanTime = null;
+    _lastScannedFolderPath = null;
+    _latestScanDiagnostics = const ScanDiagnostics();
     _artworkCache.clear();
     _durationCache.clear();
     _songArtworkCache.clear();

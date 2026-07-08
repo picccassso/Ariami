@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 
+import 'package:ariami_core/models/playlist_suggestion.dart';
+
 import 'auth_required_banner.dart';
 import 'dashboard_keep_alive_tab.dart';
 import 'library_stats_section.dart';
 import 'quick_actions_section.dart';
 import 'server_status_card.dart';
+import 'suggested_playlists_section.dart';
 
 class DashboardOverviewTab extends StatelessWidget {
   const DashboardOverviewTab({
@@ -19,6 +22,10 @@ class DashboardOverviewTab extends StatelessWidget {
     required this.connectedUsers,
     required this.activeSessions,
     required this.lastScanTimeFormatted,
+    required this.playlistSuggestions,
+    required this.decidingSuggestionPaths,
+    required this.onImportSuggestion,
+    required this.onIgnoreSuggestion,
     required this.onRescanLibrary,
     required this.onViewQRCode,
   });
@@ -33,6 +40,10 @@ class DashboardOverviewTab extends StatelessWidget {
   final int connectedUsers;
   final int activeSessions;
   final String lastScanTimeFormatted;
+  final List<PlaylistSuggestion> playlistSuggestions;
+  final Set<String> decidingSuggestionPaths;
+  final void Function(PlaylistSuggestion suggestion) onImportSuggestion;
+  final void Function(PlaylistSuggestion suggestion) onIgnoreSuggestion;
   final VoidCallback onRescanLibrary;
   final VoidCallback onViewQRCode;
 
@@ -57,6 +68,15 @@ class DashboardOverviewTab extends StatelessWidget {
             activeSessions: activeSessions,
             lastScanTimeFormatted: lastScanTimeFormatted,
           ),
+          if (playlistSuggestions.isNotEmpty) ...[
+            const SizedBox(height: 24),
+            SuggestedPlaylistsSection(
+              suggestions: playlistSuggestions,
+              decidingFolderPaths: decidingSuggestionPaths,
+              onImport: onImportSuggestion,
+              onIgnore: onIgnoreSuggestion,
+            ),
+          ],
           const SizedBox(height: 48),
           QuickActionsSection(
             isScanning: isScanning,

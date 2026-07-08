@@ -38,19 +38,24 @@ class FolderPlaylist {
     return 'pl_${hash.toString().substring(0, 12)}';
   }
 
+  /// The playlist folder marker, matched case-insensitively at the start
+  /// of the folder name.
+  static const String _markerPrefix = '[PLAYLIST]';
+
   /// Extract display name from folder name
   /// e.g., "[PLAYLIST] Summer Vibes" -> "Summer Vibes"
   static String extractName(String folderName) {
-    const prefix = '[PLAYLIST]';
-    if (folderName.startsWith(prefix)) {
-      return folderName.substring(prefix.length).trim();
+    if (isPlaylistFolder(folderName)) {
+      return folderName.substring(_markerPrefix.length).trim();
     }
     return folderName;
   }
 
   /// Check if a folder name indicates a playlist folder
   static bool isPlaylistFolder(String folderName) {
-    return folderName.startsWith('[PLAYLIST]');
+    if (folderName.length < _markerPrefix.length) return false;
+    return folderName.substring(0, _markerPrefix.length).toUpperCase() ==
+        _markerPrefix;
   }
 
   /// Convert to JSON for API response

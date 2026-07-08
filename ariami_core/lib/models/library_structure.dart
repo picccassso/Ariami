@@ -13,10 +13,17 @@ class LibraryStructure {
   /// List of folder-based playlists (from [PLAYLIST] folders)
   final List<FolderPlaylist> folderPlaylists;
 
+  /// Maps file paths that were filtered as duplicates during the full scan
+  /// to the canonical (surviving) file path. Incremental rebuilds need this
+  /// so a playlist-folder copy that was deduped keeps its playlist entry
+  /// pointing at the surviving song ID. In-memory only; rebuilt on rescan.
+  final Map<String, String> duplicateToOriginalPath;
+
   const LibraryStructure({
     required this.albums,
     required this.standaloneSongs,
     this.folderPlaylists = const [],
+    this.duplicateToOriginalPath = const {},
   });
 
   /// Total number of songs across all albums and standalone

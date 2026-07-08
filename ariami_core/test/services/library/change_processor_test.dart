@@ -246,7 +246,8 @@ void main() {
       );
     });
 
-    test('keeps playlist songs out of album grouping', () async {
+    test('lets playlist songs join album grouping (additive membership)',
+        () async {
       const playlistFolder = '/music/[PLAYLIST] Compilations';
       const playlistSongPath = '$playlistFolder/track.mp3';
       final playlistSong = _song(
@@ -305,13 +306,207 @@ void main() {
         ],
       );
 
+      // The playlist track shares album tags with the album songs, so it now
+      // joins the album while still appearing in its folder playlist.
       expect(updatedLibrary.albums.length, 1);
-      expect(updatedLibrary.albums.values.first.songs.length, 2);
+      expect(updatedLibrary.albums.values.first.songs.length, 3);
       expect(
-        updatedLibrary.standaloneSongs.any(
-          (song) => song.filePath == playlistSongPath,
-        ),
+        updatedLibrary.albums.values.first.songs
+            .any((song) => song.filePath == playlistSongPath),
         isTrue,
+      );
+      expect(
+        updatedLibrary.standaloneSongs
+            .any((song) => song.filePath == playlistSongPath),
+        isFalse,
+      );
+      expect(updatedLibrary.folderPlaylists, hasLength(1));
+      expect(
+        updatedLibrary.folderPlaylists.first.songIds,
+        contains(_songId(playlistSongPath)),
+      );
+    });
+
+    group('deduped playlist entries', () {
+      const playlistFolder = '/music/[PLAYLIST] Summer';
+      const canonicalPath = '/music/album/one.mp3';
+      const dedupedCopyPath = '$playlistFolder/one-copy.mp3';
+
+      LibraryStructure libraryWithDedupedPlaylistCopy() {
+        final baseLibrary = AlbumBuilder().buildLibrary([
+          _song(
+            path: canonicalPath,
+            album: 'Test Album',
+            artist: 'Test Artist',
+            title: 'One',
+          ),
+          _song(
+            path: '/music/album/two.mp3',
+            album: 'Test Album',
+            artist: 'Test Artist',
+            title: 'Two',
+          ),
+        ]);
+        // Mirrors a full scan where the playlist folder held a byte-identical
+        // copy of one.mp3: the copy was filtered, the playlist entry was
+        // remapped to the canonical song ID, and the mapping was recorded.
+        return LibraryStructure(
+          albums: baseLibrary.albums,
+          standaloneSongs: const [],
+          folderPlaylists: [
+            FolderPlaylist(
+              id: FolderPlaylist.generateId(playlistFolder),
+              name: 'Summer',
+              folderPath: playlistFolder,
+              songIds: [_songId(canonicalPath)],
+            ),
+          ],
+          duplicateToOriginalPath: const {dedupedCopyPath: canonicalPath},
+        );
+      }
+
+      test('survive an unrelated incremental rebuild', () async {
+        final currentLibrary = libraryWithDedupedPlaylistCopy();
+
+        const newSongPath = '/music/standalone/new.mp3';
+        final update = LibraryUpdate(
+          addedSongIds: {_songId(newSongPath)},
+          removedSongIds: {},
+          modifiedSongIds: {},
+          affectedAlbumIds: {},
+          timestamp: DateTime.now(),
+          extractedMetadata: {
+            newSongPath: _song(path: newSongPath, title: 'New Song'),
+          },
+        );
+
+        final updatedLibrary = await processor.applyUpdates(
+          update,
+          currentLibrary,
+          sourceChanges: [
+            FileChange(
+              path: newSongPath,
+              type: FileChangeType.added,
+              timestamp: DateTime.now(),
+            ),
+          ],
+        );
+
+        expect(updatedLibrary.folderPlaylists, hasLength(1));
+        expect(
+          updatedLibrary.folderPlaylists.first.songIds,
+          [_songId(canonicalPath)],
+          reason: 'the deduped playlist copy must keep referencing the '
+              'canonical song ID after an incremental rebuild',
+        );
+        expect(
+          updatedLibrary.duplicateToOriginalPath,
+          {dedupedCopyPath: canonicalPath},
+          reason: 'the mapping must survive for subsequent rebuilds',
+        );
+      });
+
+      test('are dropped when the deduped copy file is removed', () async {
+        final currentLibrary = libraryWithDedupedPlaylistCopy();
+
+        final update = LibraryUpdate(
+          addedSongIds: {},
+          removedSongIds: {_songId(dedupedCopyPath)},
+          modifiedSongIds: {},
+          affectedAlbumIds: {},
+          timestamp: DateTime.now(),
+        );
+
+        final updatedLibrary = await processor.applyUpdates(
+          update,
+          currentLibrary,
+          sourceChanges: [
+            FileChange(
+              path: dedupedCopyPath,
+              type: FileChangeType.removed,
+              timestamp: DateTime.now(),
+            ),
+          ],
+        );
+
+        // The copy was the playlist's only entry; like a full scan, an empty
+        // playlist folder yields no playlist.
+        expect(updatedLibrary.folderPlaylists, isEmpty,
+            reason: 'deleting the folder copy removes the playlist entry');
+        expect(updatedLibrary.duplicateToOriginalPath, isEmpty);
+        // The canonical album song itself is untouched.
+        expect(updatedLibrary.albums.values.single.songs.length, 2);
+      });
+
+      test('are dropped when the canonical original is removed', () async {
+        final currentLibrary = libraryWithDedupedPlaylistCopy();
+
+        final update = LibraryUpdate(
+          addedSongIds: {},
+          removedSongIds: {_songId(canonicalPath)},
+          modifiedSongIds: {},
+          affectedAlbumIds: {},
+          timestamp: DateTime.now(),
+        );
+
+        final updatedLibrary = await processor.applyUpdates(
+          update,
+          currentLibrary,
+          sourceChanges: [
+            FileChange(
+              path: canonicalPath,
+              type: FileChangeType.removed,
+              timestamp: DateTime.now(),
+            ),
+          ],
+        );
+
+        expect(updatedLibrary.duplicateToOriginalPath, isEmpty,
+            reason: 'a mapping to a removed original must not survive');
+        // With the original gone the playlist has no resolvable entries left.
+        expect(updatedLibrary.folderPlaylists, isEmpty);
+      });
+    });
+
+    test('keeps folder playlist IDs stable across rebuilds', () async {
+      const playlistFolder = '/music/[PLAYLIST] Summer';
+      const playlistSongPath = '$playlistFolder/track1.mp3';
+      final currentLibrary = _libraryWithAlbumAndPlaylist(
+        albumSong1Path: '/music/album/one.mp3',
+        albumSong2Path: '/music/album/two.mp3',
+        playlistFolderPath: playlistFolder,
+        playlistSongPath: playlistSongPath,
+      );
+
+      const newSongPath = '/music/other/new.mp3';
+      final update = LibraryUpdate(
+        addedSongIds: {_songId(newSongPath)},
+        removedSongIds: {},
+        modifiedSongIds: {},
+        affectedAlbumIds: {},
+        timestamp: DateTime.now(),
+        extractedMetadata: {
+          newSongPath: _song(path: newSongPath, title: 'Other'),
+        },
+      );
+
+      final updatedLibrary = await processor.applyUpdates(
+        update,
+        currentLibrary,
+        sourceChanges: [
+          FileChange(
+            path: newSongPath,
+            type: FileChangeType.added,
+            timestamp: DateTime.now(),
+          ),
+        ],
+      );
+
+      // Edit-store overlays and user playlist references are keyed by this
+      // ID, so it must never drift during watcher updates.
+      expect(
+        updatedLibrary.folderPlaylists.single.id,
+        FolderPlaylist.generateId(playlistFolder),
       );
     });
   });

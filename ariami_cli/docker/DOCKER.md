@@ -30,7 +30,9 @@ docker run -d \
 ```
 
 With `--network host` the server listens on port 8080 directly; no `-p`
-mapping is needed or used.
+mapping is needed or used. Host networking also lets the server answer
+LAN auto-discovery (UDP beacon on 45420 + mDNS), so clients like the TV
+app find it instantly without scanning.
 
 ## Run on Docker Desktop (Mac/Windows)
 
@@ -59,6 +61,13 @@ reachable one.
 `ARIAMI_ADVERTISED_HOST` remains available as a single-address shorthand for
 older setups. It advertises one host only, so prefer the explicit LAN and
 Tailscale variables when you want both connection paths.
+
+Note on auto-discovery: broadcast and multicast traffic does not cross
+Docker's bridge network, so with port mapping the server cannot answer
+UDP/mDNS discovery probes. Clients still find it automatically — the TV
+app falls back to scanning ports 8080–8099 on its own subnet — as long as
+the mapped port stays within that range. On Linux, prefer host networking
+for instant discovery.
 
 ## First-run setup
 

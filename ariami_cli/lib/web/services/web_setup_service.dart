@@ -1,3 +1,5 @@
+import 'package:ariami_core/models/playlist_suggestion.dart';
+
 import '../../models/music_folder_validation_result.dart';
 import 'web_api_client.dart';
 import 'web_auth_service.dart';
@@ -149,6 +151,53 @@ class WebSetupService {
       'albumsFound': 0,
       'currentStatus': 'Not scanning',
     };
+  }
+
+  /// Fetch pending playlist-folder suggestions from the last scan.
+  ///
+  /// Returns an empty list on any failure (the dashboard card just hides).
+  Future<List<PlaylistSuggestion>> getPlaylistSuggestions() async {
+    try {
+      final response = await _apiClient.get('/api/playlists/suggestions');
+      if (!response.isSuccess) {
+        return const [];
+      }
+
+      final data = response.jsonBody ?? <String, dynamic>{};
+      final suggestions = data['suggestions'] as List<dynamic>? ?? const [];
+      return suggestions
+          .whereType<Map<String, dynamic>>()
+          .map(PlaylistSuggestion.fromJson)
+          .toList(growable: false);
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  /// Record an import/ignore decision for a suggested playlist folder.
+  ///
+  /// [decision] is 'import', 'ignore', or 'reset'. Returns true on success;
+  /// an import decision also starts a rescan server-side.
+  Future<bool> sendPlaylistSuggestionDecision(
+    String folderPath,
+    String decision,
+  ) async {
+    try {
+      final response = await _apiClient.post(
+        '/api/playlists/suggestions/decision',
+        body: <String, dynamic>{
+          'folderPath': folderPath,
+          'decision': decision,
+        },
+      );
+      if (!response.isSuccess) {
+        return false;
+      }
+      final data = response.jsonBody ?? <String, dynamic>{};
+      return data['success'] as bool? ?? false;
+    } catch (_) {
+      return false;
+    }
   }
 
   /// Mark setup as complete on the server

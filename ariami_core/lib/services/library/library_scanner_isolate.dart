@@ -6,12 +6,18 @@ import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as path;
 import 'package:ariami_core/models/folder_playlist.dart';
 import 'package:ariami_core/models/library_structure.dart';
+import 'package:ariami_core/models/playlist_suggestion.dart';
 import 'package:ariami_core/models/scan_diagnostics.dart';
 import 'package:ariami_core/models/song_metadata.dart';
 import 'package:ariami_core/services/library/file_scanner.dart';
+import 'package:ariami_core/services/library/library_playlist_builder.dart'
+    show suspiciousPlaylistAlbumTagPaths;
+import 'package:ariami_core/services/library/m3u_playlist_parser.dart';
 import 'package:ariami_core/services/library/metadata_extractor.dart';
 import 'package:ariami_core/services/library/album_builder.dart';
 import 'package:ariami_core/services/library/duplicate_detector.dart';
+import 'package:ariami_core/services/library/natural_path_order.dart';
+import 'package:ariami_core/services/library/playlist_folder_classifier.dart';
 
 /// Message types for isolate communication
 enum ScanMessageType {
@@ -59,6 +65,9 @@ class ScanResultMessage {
   /// Total skipped files (may exceed [failedFiles].length when bounded).
   final int skippedFileCount;
 
+  /// Advisory likely-playlist folders detected during the scan.
+  final List<PlaylistSuggestion> playlistSuggestions;
+
   const ScanResultMessage({
     required this.type,
     this.library,
@@ -69,6 +78,7 @@ class ScanResultMessage {
     this.cacheMisses = 0,
     this.failedFiles = const [],
     this.skippedFileCount = 0,
+    this.playlistSuggestions = const [],
   });
 }
 
@@ -81,10 +91,20 @@ class ScanParams {
   /// Passed as serializable Map for isolate communication
   final Map<String, Map<String, dynamic>>? cacheData;
 
+  /// Folders the user approved as playlists (suggestion "import" decisions).
+  /// Treated exactly like [PLAYLIST] folders; passed as plain data because
+  /// the isolate cannot read the decision store.
+  final List<String> approvedPlaylistFolderPaths;
+
+  /// Folders the user chose never to suggest again ("ignore" decisions).
+  final List<String> ignoredSuggestionFolderPaths;
+
   const ScanParams({
     required this.folderPath,
     required this.sendPort,
     this.cacheData,
+    this.approvedPlaylistFolderPaths = const [],
+    this.ignoredSuggestionFolderPaths = const [],
   });
 }
 
@@ -127,6 +147,8 @@ class LibraryScannerIsolate {
     String folderPath, {
     void Function(ScanProgressMessage)? onProgress,
     Map<String, Map<String, dynamic>>? cacheData,
+    List<String> approvedPlaylistFolderPaths = const [],
+    List<String> ignoredSuggestionFolderPaths = const [],
   }) async {
     final receivePort = ReceivePort();
     final errorPort = ReceivePort();
@@ -142,6 +164,8 @@ class LibraryScannerIsolate {
           folderPath: folderPath,
           sendPort: receivePort.sendPort,
           cacheData: cacheData,
+          approvedPlaylistFolderPaths: approvedPlaylistFolderPaths,
+          ignoredSuggestionFolderPaths: ignoredSuggestionFolderPaths,
         ),
         onError: errorPort.sendPort,
         onExit: exitPort.sendPort,
@@ -188,6 +212,7 @@ class LibraryScannerIsolate {
             scanDiagnostics = ScanDiagnostics(
               skippedFileCount: message.skippedFileCount,
               failedFiles: message.failedFiles,
+              playlistSuggestions: message.playlistSuggestions,
             );
           } else if (message.type == ScanMessageType.error) {
             errorMessage = message.error;
@@ -259,9 +284,16 @@ class LibraryScannerIsolate {
       _sendProgress(
           sendPort, 'collecting', 0, 0, 0.0, 'Scanning for audio files...');
 
-      final scanResult = await _collectAudioFiles(folderPath);
+      final approvedPlaylistFolderPaths = params.approvedPlaylistFolderPaths
+          .map(path.normalize)
+          .toSet();
+      final scanResult = await _collectAudioFiles(
+        folderPath,
+        approvedPlaylistFolderPaths: approvedPlaylistFolderPaths,
+      );
       final audioFiles = scanResult.files;
       final playlistFolders = scanResult.playlistFolders;
+      final m3uFiles = scanResult.m3uFiles;
       final totalFiles = audioFiles.length;
 
       // Surface subtrees the traversal had to skip (permissions, dead
@@ -407,18 +439,25 @@ class LibraryScannerIsolate {
       _sendProgress(sendPort, 'duplicates', uniqueSongs.length, songs.length,
           85.0, '${uniqueSongs.length} unique songs after filtering');
 
-      // Songs under [PLAYLIST] folders should not create albums.
-      // They still remain available for playback via standalone songs/playlist IDs.
-      final albumCandidateSongs = uniqueSongs
-          .where((song) => !playlistFolderSongPaths.contains(song.filePath))
-          .toList();
-      final forcedStandaloneSongs = uniqueSongs
-          .where((song) => playlistFolderSongPaths.contains(song.filePath))
-          .toList();
-
       // Step 4: Build albums
+      // Playlist membership is additive: songs under [PLAYLIST] folders join
+      // album grouping (or become standalone) like any other track, and also
+      // appear in their folder playlist. Exception: album tags that are
+      // downloader artifacts (a playlist name written into the album field)
+      // — those tracks stay standalone.
       _sendProgress(sendPort, 'albums', 0, uniqueSongs.length, 85.0,
           'Building album structure...');
+
+      final suspiciousTagPaths = suspiciousPlaylistAlbumTagPaths(
+        songs: uniqueSongs,
+        playlistFolders: playlistFolders,
+      );
+      final albumCandidateSongs = uniqueSongs
+          .where((song) => !suspiciousTagPaths.contains(song.filePath))
+          .toList();
+      final suppressedAlbumSongs = uniqueSongs
+          .where((song) => suspiciousTagPaths.contains(song.filePath))
+          .toList();
 
       final albumBuilder = AlbumBuilder(metadataExtractor: extractor);
       final baseLibrary =
@@ -442,8 +481,14 @@ class LibraryScannerIsolate {
         // Skip empty playlist folders
         if (filePaths.isEmpty) continue;
 
+        // Canonical playlist order: natural path order (numeric-aware, so
+        // "2" < "10" < "100"), matching incremental rebuilds so watcher
+        // updates never silently reorder a playlist.
+        final sortedPaths = List<String>.from(filePaths)
+          ..sort(compareNaturalPath);
+
         // Convert file paths to song IDs, mapping duplicates to their originals
-        final songIds = filePaths.map((fp) {
+        final songIds = sortedPaths.map((fp) {
           // If this file is a duplicate, use the original's path for ID generation
           final originalPath = duplicateToOriginalPath[fp] ?? fp;
           return _generateSongId(originalPath);
@@ -458,14 +503,44 @@ class LibraryScannerIsolate {
         folderPlaylistsList.add(playlist);
       }
 
+      // Step 6: Import M3U/M3U8 playlists. Explicit sources, imported
+      // automatically; a malformed file only produces a diagnostic.
+      final uniqueSongPaths =
+          uniqueSongs.map((song) => song.filePath).toSet();
+      final m3uPlaylists = await _buildM3uPlaylists(
+        m3uFiles: m3uFiles,
+        uniqueSongPaths: uniqueSongPaths,
+        duplicateToOriginalPath: duplicateToOriginalPath,
+        recordFailure: recordFailure,
+      );
+      folderPlaylistsList.addAll(m3uPlaylists);
+
+      folderPlaylistsList
+          .sort((a, b) => a.folderPath.compareTo(b.folderPath));
+
+      // Step 7: Detect likely-playlist folders (advisory only — surfaced in
+      // scan diagnostics, never auto-imported). Approved folders are already
+      // in playlistFolders, so they are excluded as explicit sources; ignored
+      // folders are filtered by decision.
+      final playlistSuggestions =
+          const PlaylistFolderClassifier().detectSuggestions(
+        songs: uniqueSongs,
+        libraryRootPath: folderPath,
+        explicitPlaylistFolderPaths: playlistFolders.keys.toSet(),
+        ignoredFolderPaths: params.ignoredSuggestionFolderPaths
+            .map(path.normalize)
+            .toSet(),
+      );
+
       // Create final library with playlists
       final library = LibraryStructure(
         albums: baseLibrary.albums,
         standaloneSongs: <SongMetadata>[
           ...baseLibrary.standaloneSongs,
-          ...forcedStandaloneSongs,
+          ...suppressedAlbumSongs,
         ],
         folderPlaylists: folderPlaylistsList,
+        duplicateToOriginalPath: duplicateToOriginalPath,
       );
 
       final cacheStats = existingCache.isNotEmpty
@@ -492,6 +567,7 @@ class LibraryScannerIsolate {
         cacheMisses: cacheMisses,
         failedFiles: failedFiles,
         skippedFileCount: skippedFileCount,
+        playlistSuggestions: playlistSuggestions,
       ));
     } catch (e, stackTrace) {
       print('[LibraryScannerIsolate] ERROR in isolate: $e');
@@ -598,6 +674,12 @@ class LibraryScannerIsolate {
   /// directory ourselves also guarantees parents are seen before children, so
   /// [PLAYLIST] folder membership no longer depends on OS listing order.
   ///
+  /// [approvedPlaylistFolderPaths] (normalized) are user-approved suggestion
+  /// folders; they join the playlist set exactly like marker folders, so
+  /// membership, nesting collapse, dedupe preference, the artifact-tag guard,
+  /// and natural ordering all apply unchanged. Their display name is the
+  /// plain basename (no marker to strip).
+  ///
   /// Hidden entries (dot-prefixed names) are skipped and not descended into.
   /// Only entry names below the root are checked, so a library that itself
   /// lives under a dotted directory (e.g. ~/.local/music) still scans.
@@ -605,11 +687,16 @@ class LibraryScannerIsolate {
       ({
         List<String> files,
         Map<String, List<String>> playlistFolders,
+        List<String> m3uFiles,
         List<({String path, String reason})> unreadableDirectories,
-      })> _collectAudioFiles(String folderPath) async {
+      })> _collectAudioFiles(
+    String folderPath, {
+    Set<String> approvedPlaylistFolderPaths = const {},
+  }) async {
     final files = <String>[];
     final playlistFolders = <String, List<String>>{};
     final playlistPaths = <String>{};
+    final m3uFiles = <String>[];
     final unreadableDirectories = <({String path, String reason})>[];
     final rootDir = Directory(folderPath);
 
@@ -617,6 +704,7 @@ class LibraryScannerIsolate {
       return (
         files: files,
         playlistFolders: playlistFolders,
+        m3uFiles: m3uFiles,
         unreadableDirectories: unreadableDirectories,
       );
     }
@@ -640,7 +728,9 @@ class LibraryScannerIsolate {
 
         if (entity is Directory) {
           final folderName = path.basename(entity.path);
-          if (FolderPlaylist.isPlaylistFolder(folderName)) {
+          if (FolderPlaylist.isPlaylistFolder(folderName) ||
+              approvedPlaylistFolderPaths
+                  .contains(path.normalize(entity.path))) {
             // Check this isn't nested inside another playlist folder
             final isNested = playlistPaths
                 .any((p) => entity.path.startsWith('$p${path.separator}'));
@@ -662,6 +752,8 @@ class LibraryScannerIsolate {
                 break; // A file can only belong to one playlist
               }
             }
+          } else if (M3uPlaylistParser.isM3uFile(entity.path)) {
+            m3uFiles.add(entity.path);
           }
         }
       }
@@ -670,8 +762,70 @@ class LibraryScannerIsolate {
     return (
       files: files,
       playlistFolders: playlistFolders,
+      m3uFiles: m3uFiles,
       unreadableDirectories: unreadableDirectories,
     );
+  }
+
+  /// Builds playlists from `.m3u`/`.m3u8` files found during the scan.
+  ///
+  /// Entries resolve against the playlist file's directory, keep file order,
+  /// map deduped copies to their canonical song, and are deduplicated so the
+  /// same song never appears twice. Entries that don't match any scanned
+  /// audio file are recorded as scan diagnostics. Malformed playlist files
+  /// never abort the scan.
+  static Future<List<FolderPlaylist>> _buildM3uPlaylists({
+    required List<String> m3uFiles,
+    required Set<String> uniqueSongPaths,
+    required Map<String, String> duplicateToOriginalPath,
+    required void Function(String filePath, String reason) recordFailure,
+  }) async {
+    const parser = M3uPlaylistParser();
+    final playlists = <FolderPlaylist>[];
+
+    for (final m3uPath in m3uFiles) {
+      final parsed = await parser.parseFile(m3uPath);
+      if (parsed.isMalformed) {
+        recordFailure(m3uPath, 'M3U playlist ${parsed.malformedReason}');
+        continue;
+      }
+
+      final songIds = <String>[];
+      final seenIds = <String>{};
+      var missingEntryCount = 0;
+      for (final entry in parsed.entries) {
+        final canonicalPath = duplicateToOriginalPath[entry] ?? entry;
+        if (!uniqueSongPaths.contains(canonicalPath)) {
+          missingEntryCount++;
+          if (missingEntryCount <= 5) {
+            recordFailure(
+                entry, 'M3U entry not found in library (${path.basename(m3uPath)})');
+          }
+          continue;
+        }
+        final songId = _generateSongId(canonicalPath);
+        if (seenIds.add(songId)) {
+          songIds.add(songId);
+        }
+      }
+      if (missingEntryCount > 5) {
+        recordFailure(
+            m3uPath,
+            'M3U playlist has $missingEntryCount entries not found in '
+            'library (first 5 listed individually)');
+      }
+
+      if (songIds.isEmpty) continue;
+
+      playlists.add(FolderPlaylist(
+        id: FolderPlaylist.generateId(m3uPath),
+        name: path.basenameWithoutExtension(m3uPath),
+        folderPath: m3uPath,
+        songIds: songIds,
+      ));
+    }
+
+    return playlists;
   }
 
   /// Generate a unique song ID from file path (must match LibraryManager)
