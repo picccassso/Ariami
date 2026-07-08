@@ -49,6 +49,7 @@ class DownloadJobService {
   static const int _quotaRetryAfterSeconds = 5;
   static const int _defaultMaxTotalJobs = 1000;
   static const Duration _defaultCancelledJobRetention = Duration(hours: 1);
+  static const Duration _readyJobRetention = Duration(hours: 24);
   static const Set<String> _supportedQualities = <String>{
     'high',
     'medium',
@@ -103,40 +104,13 @@ class DownloadJobService {
     final songRecords = repository.getSongsByIds(normalizedSongIds);
     final songsById = {for (final s in songRecords) s.id: s};
 
-    final albumRecords = repository.getAlbumsByIds(normalizedAlbumIds);
-    final albumsById = {for (final a in albumRecords) a.id: a};
-
-    final playlistRecords = repository.getPlaylistsByIds(normalizedPlaylistIds);
-    final playlistsById = {for (final p in playlistRecords) p.id: p};
-
-    final invalidSongIds = normalizedSongIds
-        .where((songId) => !songsById.containsKey(songId))
-        .toList();
-    final invalidAlbumIds = normalizedAlbumIds
-        .where((albumId) => !albumsById.containsKey(albumId))
-        .toList();
-    final invalidPlaylistIds = normalizedPlaylistIds
-        .where((playlistId) => !playlistsById.containsKey(playlistId))
-        .toList();
-
-    if (invalidSongIds.isNotEmpty ||
-        invalidAlbumIds.isNotEmpty ||
-        invalidPlaylistIds.isNotEmpty) {
-      throw DownloadJobServiceException(
-        statusCode: 400,
-        code: DownloadJobErrorCodes.invalidRequest,
-        message: 'Some requested IDs are invalid',
-        details: <String, dynamic>{
-          if (invalidSongIds.isNotEmpty) 'invalidSongIds': invalidSongIds,
-          if (invalidAlbumIds.isNotEmpty) 'invalidAlbumIds': invalidAlbumIds,
-          if (invalidPlaylistIds.isNotEmpty)
-            'invalidPlaylistIds': invalidPlaylistIds,
-        },
-      );
-    }
-
+    // Unknown IDs are filtered rather than rejected: "download everything"
+    // clients build requests from their local library snapshot, which can
+    // lag the catalog (a retagged/moved file changes its path-derived song
+    // ID). One stale ID must not fail the whole batch — the emptiness checks
+    // below still reject requests where nothing resolves at all.
     final resolvedSongIds = LinkedHashSet<String>();
-    resolvedSongIds.addAll(normalizedSongIds);
+    resolvedSongIds.addAll(normalizedSongIds.where(songsById.containsKey));
 
     final albumSongs = repository.getSongsByAlbumIds(normalizedAlbumIds);
     final songsByAlbumId = <String, List<CatalogSongRecord>>{};
@@ -442,6 +416,16 @@ class DownloadJobService {
     _jobs.removeWhere((id, job) =>
         job.status == DownloadJobStatus.cancelled &&
         job.updatedAt.isBefore(expiredDate));
+
+    // Ready jobs are enqueue orchestration only — nothing ever advances
+    // their items, so an old one is abandoned (a client that crashed or
+    // predates job cancellation). Expire them so they stop counting against
+    // per-user quotas forever; without this, repeated "Download all" clicks
+    // eventually 429 every job creation until a server restart.
+    final abandonedDate = now.subtract(_readyJobRetention);
+    _jobs.removeWhere((id, job) =>
+        job.status == DownloadJobStatus.ready &&
+        job.updatedAt.isBefore(abandonedDate));
 
     // Backstop: If we still have too many jobs, remove the oldest ones
     if (_jobs.length > _maxTotalJobs) {

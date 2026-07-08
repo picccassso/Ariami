@@ -23,6 +23,30 @@ class NativeDownloadBridge(
             "startDownload" -> startDownload(call, result)
             "queryDownload" -> queryDownload(call, result)
             "cancelDownload" -> cancelDownload(call, result)
+            "startBatchNotification" -> {
+                result.success(
+                    AriamiDownloadNotificationService.start(
+                        context,
+                        call.argument<String>("text") ?: "Downloading songs",
+                        call.argument<Int>("progressPercent") ?: -1
+                    )
+                )
+            }
+            "updateBatchNotification" -> {
+                AriamiDownloadNotificationService.update(
+                    context,
+                    call.argument<String>("text") ?: "Downloading songs",
+                    call.argument<Int>("progressPercent") ?: -1
+                )
+                result.success(null)
+            }
+            "stopBatchNotification" -> {
+                AriamiDownloadNotificationService.stop(
+                    context,
+                    call.argument<String>("completionText")
+                )
+                result.success(null)
+            }
             else -> result.notImplemented()
         }
     }

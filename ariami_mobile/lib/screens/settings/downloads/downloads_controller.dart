@@ -447,9 +447,11 @@ class DownloadsController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> downloadAllSongs() async {
+  /// Returns false when the request failed, so the screen can tell the user
+  /// instead of the button silently doing nothing.
+  Future<bool> downloadAllSongs() async {
     if (_connectionService.apiClient == null) {
-      return;
+      return false;
     }
 
     _state = _state.copyWith(isDownloadingAllSongs: true);
@@ -464,8 +466,10 @@ class DownloadsController extends ChangeNotifier {
         downloadQuality: downloadQuality,
         downloadOriginal: downloadOriginal,
       );
-    } catch (_) {
-      // Silently handle errors
+      return true;
+    } catch (e) {
+      debugPrint('[DownloadsController] Download all songs failed: $e');
+      return false;
     } finally {
       if (!_disposed) {
         _state = _state.copyWith(isDownloadingAllSongs: false);
@@ -474,9 +478,10 @@ class DownloadsController extends ChangeNotifier {
     }
   }
 
-  Future<void> downloadAllAlbums() async {
+  /// Returns false when the request failed. See [downloadAllSongs].
+  Future<bool> downloadAllAlbums() async {
     if (_connectionService.apiClient == null) {
-      return;
+      return false;
     }
 
     _state = _state.copyWith(isDownloadingAllAlbums: true);
@@ -491,8 +496,10 @@ class DownloadsController extends ChangeNotifier {
         downloadQuality: downloadQuality,
         downloadOriginal: downloadOriginal,
       );
-    } catch (_) {
-      // Silently handle errors
+      return true;
+    } catch (e) {
+      debugPrint('[DownloadsController] Download all albums failed: $e');
+      return false;
     } finally {
       if (!_disposed) {
         _state = _state.copyWith(isDownloadingAllAlbums: false);
@@ -501,11 +508,12 @@ class DownloadsController extends ChangeNotifier {
     }
   }
 
-  Future<void> downloadAllPlaylists() async {
+  /// Returns false when the request failed. See [downloadAllSongs].
+  Future<bool> downloadAllPlaylists() async {
     final playlistService = PlaylistService();
 
     if (_connectionService.apiClient == null) {
-      return;
+      return false;
     }
 
     _state = _state.copyWith(isDownloadingAllPlaylists: true);
@@ -541,8 +549,10 @@ class DownloadsController extends ChangeNotifier {
         downloadQuality: downloadQuality,
         downloadOriginal: downloadOriginal,
       );
-    } catch (_) {
-      // Silently handle errors
+      return true;
+    } catch (e) {
+      debugPrint('[DownloadsController] Download all playlists failed: $e');
+      return false;
     } finally {
       if (!_disposed) {
         _state = _state.copyWith(isDownloadingAllPlaylists: false);

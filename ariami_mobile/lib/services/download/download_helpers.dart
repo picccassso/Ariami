@@ -11,6 +11,13 @@ const String appClosedDownloadPauseMessage = 'Paused because app was closed';
 const String lifecycleDownloadPauseMessage =
     'Paused because app was interrupted';
 
+/// Transient marker used while an active Dart-side transfer is being handed
+/// off to the native background backend. Tasks carry it only for the moment
+/// between cancelling the in-app transfer and re-queueing it natively, so it
+/// is deliberately not part of [isInterruptedDownloadTask].
+const String backgroundHandoffPauseMessage =
+    'Moving download to background service';
+
 /// True while the queue has tasks that belong in the Downloads "In Progress"
 /// section (pending, downloading, or paused).
 bool queueHasActiveDownloads(Iterable<DownloadTask> queue) {

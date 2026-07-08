@@ -2,6 +2,7 @@ package com.example.ariami_mobile
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.pm.ServiceInfo
@@ -28,7 +29,17 @@ class AriamiDownloadWorker(
         val title = inputData.getString(KEY_TITLE) ?: "Downloading"
         val suppliedTotalBytes = inputData.getLong(KEY_TOTAL_BYTES, 0L)
 
-        setForeground(createForegroundInfo(title, 0, suppliedTotalBytes))
+        // While the batch notification service holds the foreground slot the
+        // worker stays a plain job — tying notifications to workers made the
+        // shared notification flicker on every song completion. Self-promote
+        // only as a fallback (e.g. WorkManager restarted us in a process
+        // where the Dart side isn't running). Android 12+ can also reject
+        // the promotion; the download still runs as a regular job then.
+        val foregroundAllowed = if (AriamiDownloadNotificationService.isForegroundActive) {
+            false
+        } else {
+            trySetForeground(title, 0, suppliedTotalBytes)
+        }
 
         val finalFile = File(destinationPath)
         val partialFile = File("$destinationPath.partial")
@@ -88,7 +99,9 @@ class AriamiDownloadWorker(
                             now - lastProgressAtMillis >= PROGRESS_UPDATE_INTERVAL_MS
                         ) {
                             setProgress(progressData(downloaded, total))
-                            setForeground(createForegroundInfo(title, downloaded, total))
+                            if (foregroundAllowed) {
+                                trySetForeground(title, downloaded, total)
+                            }
                             lastProgressBytes = downloaded
                             lastProgressAtMillis = now
                         }
@@ -159,6 +172,19 @@ class AriamiDownloadWorker(
         )
     }
 
+    private suspend fun trySetForeground(
+        title: String,
+        bytesDownloaded: Long,
+        totalBytes: Long
+    ): Boolean {
+        return try {
+            setForeground(createForegroundInfo(title, bytesDownloaded, totalBytes))
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     private fun createForegroundInfo(
         title: String,
         bytesDownloaded: Long,
@@ -171,26 +197,39 @@ class AriamiDownloadWorker(
             0
         }
 
+        val launchIntent = applicationContext.packageManager
+            .getLaunchIntentForPackage(applicationContext.packageName)
+        val contentIntent = launchIntent?.let {
+            PendingIntent.getActivity(
+                applicationContext,
+                0,
+                it,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+        }
+
         val notification = NotificationCompat.Builder(applicationContext, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle(title)
-            .setContentText("Downloading")
+            .setContentTitle("Downloading songs")
+            .setContentText(title)
+            .setContentIntent(contentIntent)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setProgress(100, progress, totalBytes <= 0L)
             .build()
 
+        // Fallback path only (batch service not running): share one ID so
+        // concurrent workers still collapse into a single notification. Kept
+        // distinct from the batch service's ID so a finishing worker can
+        // never dismiss the batch notification.
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             ForegroundInfo(
-                NOTIFICATION_ID_BASE + id.hashCode().absoluteValueCompat(),
+                FALLBACK_NOTIFICATION_ID,
                 notification,
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
             )
         } else {
-            ForegroundInfo(
-                NOTIFICATION_ID_BASE + id.hashCode().absoluteValueCompat(),
-                notification
-            )
+            ForegroundInfo(FALLBACK_NOTIFICATION_ID, notification)
         }
     }
 
@@ -207,8 +246,6 @@ class AriamiDownloadWorker(
         manager.createNotificationChannel(channel)
     }
 
-    private fun Int.absoluteValueCompat(): Int = if (this == Int.MIN_VALUE) 0 else kotlin.math.abs(this)
-
     companion object {
         const val KEY_TASK_ID = "taskId"
         const val KEY_URL = "url"
@@ -219,7 +256,7 @@ class AriamiDownloadWorker(
         const val KEY_ERROR_MESSAGE = "errorMessage"
 
         private const val CHANNEL_ID = "ariami_downloads"
-        private const val NOTIFICATION_ID_BASE = 24000
+        private const val FALLBACK_NOTIFICATION_ID = 24001
         private const val PROGRESS_UPDATE_BYTES = 512L * 1024L
         private const val PROGRESS_UPDATE_INTERVAL_MS = 1_000L
     }

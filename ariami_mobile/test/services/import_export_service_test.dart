@@ -8,7 +8,7 @@ import 'package:ariami_mobile/services/stats/streaming_stats_service.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import '../test_support/private_sqflite_ffi.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -31,8 +31,7 @@ void main() {
   setUpAll(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
     SharedPreferences.setMockInitialValues(<String, Object>{});
-    sqfliteFfiInit();
-    databaseFactory = databaseFactoryFfi;
+    await initPrivateSqfliteFfi('ariami_import_export_');
 
     setMockMethodCallHandler(packageInfoChannel, (MethodCall call) async {
       if (call.method == 'getAll') {

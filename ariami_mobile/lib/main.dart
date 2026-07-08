@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter_displaymode/flutter_displaymode.dart';
 import 'package:audio_service/audio_service.dart';
@@ -18,6 +19,7 @@ import 'services/audio/audio_handler.dart';
 import 'services/audio/equalizer_service.dart';
 import 'services/offline/offline_playback_service.dart';
 import 'services/profile_image_service.dart';
+import 'services/download/background_download_notifier.dart';
 import 'services/download/download_manager.dart';
 import 'widgets/download/global_download_chrome_visibility.dart';
 import 'services/cache/cache_manager.dart';
@@ -240,28 +242,58 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     }
 
     // Swiping the app away transitions to detached on supported platforms.
+    // When the native backend is carrying downloads, its foreground service
+    // keeps this process (and the queue loop) alive — leave the queue running
+    // instead of pausing it. Persistence is continuous, so if the OS kills
+    // the process anyway, launch reconciliation recovers the state.
     if (state == AppLifecycleState.detached) {
       _downloadManager.setAppInForeground(false);
-      unawaited(_downloadManager.pauseDownloadsForAppClosure());
+      if (_canContinueDownloadsInBackground()) {
+        unawaited(BackgroundDownloadNotifier.instance.onAppBackgrounded());
+      } else {
+        unawaited(_downloadManager.pauseDownloadsForAppClosure());
+      }
       return;
     }
 
-    if (state == AppLifecycleState.inactive ||
-        state == AppLifecycleState.paused) {
+    // `inactive` (and `hidden`) fire for transient occlusions — the
+    // notification shade, heads-up notifications, permission dialogs, app
+    // switcher peeks — where tearing down every active download only to
+    // restart it moments later causes a queue-update storm. Only a real
+    // background transition (`paused`) touches downloads.
+    if (state == AppLifecycleState.paused) {
       _downloadManager.setAppInForeground(false);
-      _downloadsPausedForLifecycle = true;
-      unawaited(_downloadManager.pauseDownloadsForLifecycleInterruption());
+      if (_canContinueDownloadsInBackground()) {
+        // Android: hand active transfers to the WorkManager backend so the
+        // queue keeps downloading in the background instead of pausing. The
+        // batch notification service starts first so workers see it holding
+        // the foreground slot and skip their own per-song notifications.
+        unawaited(() async {
+          await BackgroundDownloadNotifier.instance.onAppBackgrounded();
+          await _downloadManager.continueDownloadsInBackground();
+        }());
+      } else {
+        _downloadsPausedForLifecycle = true;
+        unawaited(_downloadManager.pauseDownloadsForLifecycleInterruption());
+      }
       return;
     }
 
     if (state == AppLifecycleState.resumed) {
       _downloadManager.setAppInForeground(true);
+      unawaited(BackgroundDownloadNotifier.instance.onAppResumed());
       _triggerResumeReconnectIfNeeded();
       if (_downloadsPausedForLifecycle) {
         _downloadsPausedForLifecycle = false;
         unawaited(_downloadManager.resumeLifecycleInterruptedDownloads());
       }
     }
+  }
+
+  /// Background download continuation rides on the Android WorkManager
+  /// backend; other platforms (and idle queues) keep the pause/resume flow.
+  bool _canContinueDownloadsInBackground() {
+    return Platform.isAndroid && _downloadManager.hasActiveOrPendingDownloads;
   }
 
   void _triggerResumeReconnectIfNeeded() {

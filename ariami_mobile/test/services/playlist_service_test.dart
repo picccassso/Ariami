@@ -8,13 +8,14 @@ import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
+import '../test_support/private_sqflite_ffi.dart';
+
 void main() {
   group('PlaylistService metadata rehydration', () {
     late PlaylistService playlistService;
 
-    setUpAll(() {
-      sqfliteFfiInit();
-      databaseFactory = databaseFactoryFfi;
+    setUpAll(() async {
+      await initPrivateSqfliteFfi('ariami_playlist_rehydration_');
     });
 
     setUp(() async {
@@ -271,9 +272,8 @@ void main() {
   group('PlaylistService imported playlist sync', () {
     late PlaylistService playlistService;
 
-    setUpAll(() {
-      sqfliteFfiInit();
-      databaseFactory = databaseFactoryFfi;
+    setUpAll(() async {
+      await initPrivateSqfliteFfi('ariami_playlist_sync_');
     });
 
     setUp(() async {

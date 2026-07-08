@@ -128,6 +128,79 @@ void main() {
       );
     });
 
+    test('filters unknown IDs instead of rejecting the whole request', () {
+      // "Download everything" clients build song-ID lists from their local
+      // library snapshot, which can lag the catalog; one stale ID must not
+      // fail the batch.
+      final created = service.createJob(
+        userScopeId: 'user-1',
+        request: const DownloadJobCreateRequest(
+          songIds: <String>['song-a', 'song-stale-id'],
+          albumIds: <String>['album-b', 'album-gone'],
+          playlistIds: <String>['playlist-missing'],
+          quality: 'high',
+        ),
+      );
+      expect(created.itemCount, equals(2));
+
+      final items = service.getJobItems(
+        userScopeId: 'user-1',
+        jobId: created.jobId,
+        limit: 10,
+      );
+      expect(
+        items.items.map((item) => item.songId).toList(),
+        equals(<String>['song-a', 'song-b']),
+      );
+
+      // A request where nothing resolves is still rejected.
+      expect(
+        () => service.createJob(
+          userScopeId: 'user-1',
+          request: const DownloadJobCreateRequest(
+            songIds: <String>['song-stale-id'],
+            quality: 'high',
+          ),
+        ),
+        throwsA(
+          isA<DownloadJobServiceException>()
+              .having((e) => e.statusCode, 'statusCode', 400),
+        ),
+      );
+    });
+
+    test('expires abandoned ready jobs so quotas recover', () {
+      var now = DateTime.utc(2026, 1, 1, 12);
+      service = DownloadJobService(
+        catalogRepositoryProvider: () => repository,
+        nowProvider: () => now,
+      );
+
+      final created = service.createJob(
+        userScopeId: 'user-1',
+        request: const DownloadJobCreateRequest(
+          songIds: <String>['song-a'],
+          quality: 'high',
+        ),
+      );
+
+      // Still present within the retention window.
+      now = now.add(const Duration(hours: 23));
+      expect(
+        service.getJob(userScopeId: 'user-1', jobId: created.jobId).status,
+        equals(DownloadJobStatus.ready),
+      );
+
+      now = now.add(const Duration(hours: 2));
+      expect(
+        () => service.getJob(userScopeId: 'user-1', jobId: created.jobId),
+        throwsA(
+          isA<DownloadJobServiceException>()
+              .having((e) => e.statusCode, 'statusCode', 404),
+        ),
+      );
+    });
+
     test('removes expired cancelled jobs before reads', () {
       var now = DateTime.utc(2026, 1, 1, 12);
       service = DownloadJobService(

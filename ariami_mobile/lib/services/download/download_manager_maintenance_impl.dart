@@ -366,9 +366,14 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
       return 0;
     }
 
-    for (final task in tasksToRemove) {
-      // Cancel active downloads and remove from queue
-      cancelDownload(task.id);
+    _queue.beginBatch();
+    try {
+      for (final task in tasksToRemove) {
+        // Cancel active downloads and remove from queue
+        cancelDownload(task.id);
+      }
+    } finally {
+      _queue.endBatch();
     }
 
     print('Pruned ${tasksToRemove.length} orphaned downloads');
@@ -385,8 +390,13 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
             task.status != DownloadStatus.completed &&
             !validSongIds.contains(task.songId))
         .toList();
-    for (final task in tasksToRemove) {
-      cancelDownload(task.id);
+    _queue.beginBatch();
+    try {
+      for (final task in tasksToRemove) {
+        cancelDownload(task.id);
+      }
+    } finally {
+      _queue.endBatch();
     }
     return tasksToRemove.length;
   }
@@ -739,8 +749,13 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
 
     // Cancel/delete each task
     final songIds = tasksToDelete.map((task) => task.songId).toSet();
-    for (final task in tasksToDelete) {
-      cancelDownload(task.id);
+    _queue.beginBatch();
+    try {
+      for (final task in tasksToDelete) {
+        cancelDownload(task.id);
+      }
+    } finally {
+      _queue.endBatch();
     }
     var deletedFileCount = 0;
     for (final songId in songIds) {
@@ -761,8 +776,13 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
         _getScopedQueue().where((task) => ids.contains(task.songId)).toList();
     if (tasksToDelete.isEmpty) return;
 
-    for (final task in tasksToDelete) {
-      cancelDownload(task.id);
+    _queue.beginBatch();
+    try {
+      for (final task in tasksToDelete) {
+        cancelDownload(task.id);
+      }
+    } finally {
+      _queue.endBatch();
     }
     for (final songId in ids) {
       await _deleteSongFileIfUnreferenced(songId);

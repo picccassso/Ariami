@@ -42,6 +42,10 @@ void main() {
 
     docsDir = await Directory.systemTemp.createTemp('ariami_cache_test_');
 
+    // Keep this file's databases out of the shared FFI default directory so
+    // concurrent test files can't lock or delete each other's databases.
+    await databaseFactory.setDatabasesPath(p.join(docsDir.path, 'databases'));
+
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(pathProviderChannel, (call) async {
       switch (call.method) {

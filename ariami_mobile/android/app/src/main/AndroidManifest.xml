@@ -46,6 +46,13 @@
             android:foregroundServiceType="dataSync"
             tools:node="merge" />
 
+        <!-- Batch download notification: holds the foreground slot for a
+             whole download batch so per-song workers stay plain jobs. -->
+        <service
+            android:name=".AriamiDownloadNotificationService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

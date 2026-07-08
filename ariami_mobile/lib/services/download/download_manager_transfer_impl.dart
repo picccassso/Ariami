@@ -1,12 +1,21 @@
 part of 'download_manager.dart';
 
+/// Minimum interval between progress events emitted per task. Byte counters on
+/// the task update every chunk; only the stream emission is throttled so the
+/// main isolate isn't flooded at network-chunk cadence.
+const Duration _progressEmitInterval = Duration(milliseconds: 150);
+
 extension _DownloadManagerTransferImpl on DownloadManager {
   DownloadTask? _getNextPendingScoped() {
     final serverId = _getCurrentServerId();
     final userId = _getCurrentUserId();
+    final scopeIds = serverId != null ? _currentServerScopeIds() : null;
     for (final task in _queue.queue) {
       if (task.status != DownloadStatus.pending) continue;
-      if (serverId != null && !_serverIdInCurrentScope(task.serverId)) continue;
+      if (scopeIds != null &&
+          (task.serverId == null || !scopeIds.contains(task.serverId))) {
+        continue;
+      }
       if (userId != null) {
         if (task.userId == userId) return task;
         continue;
@@ -121,8 +130,13 @@ extension _DownloadManagerTransferImpl on DownloadManager {
         resumeOffset = 0;
       }
 
-      final writeMode = resumeOffset > 0 ? FileMode.append : FileMode.write;
-      final sink = partialFile.openWrite(mode: writeMode);
+      final writeMode =
+          resumeOffset > 0 ? FileMode.writeOnlyAppend : FileMode.writeOnly;
+      // A RandomAccessFile with awaited writes applies backpressure: the
+      // stream is paused while a chunk is being flushed to disk, so the
+      // network can never outrun storage and balloon memory the way an
+      // unbounded IOSink buffer can with many concurrent downloads.
+      final raf = await partialFile.open(mode: writeMode);
       final contentRange =
           response.headers.value(HttpHeaders.contentRangeHeader);
       final contentLengthHeader =
@@ -135,9 +149,11 @@ extension _DownloadManagerTransferImpl on DownloadManager {
           (responseLength != null ? responseLength + resumeOffset : null);
 
       var receivedThisResponse = 0;
+      final emitStopwatch = Stopwatch()..start();
+      var lastEmitMs = -_progressEmitInterval.inMilliseconds;
       try {
         await for (final chunk in response.data!.stream) {
-          sink.add(chunk);
+          await raf.writeFrom(chunk);
           receivedThisResponse += chunk.length;
 
           final downloaded = resumeOffset + receivedThisResponse;
@@ -148,8 +164,14 @@ extension _DownloadManagerTransferImpl on DownloadManager {
           } else {
             task.progress = 0.0;
           }
-
           _activeProgress[task.id] = task.progress;
+
+          final elapsedMs = emitStopwatch.elapsedMilliseconds;
+          if (elapsedMs - lastEmitMs <
+              _progressEmitInterval.inMilliseconds) {
+            continue;
+          }
+          lastEmitMs = elapsedMs;
           _progressController.add(DownloadProgress(
             taskId: task.id,
             progress: task.progress,
@@ -158,7 +180,7 @@ extension _DownloadManagerTransferImpl on DownloadManager {
           ));
         }
       } finally {
-        await sink.close();
+        await raf.close();
       }
 
       final fileSize = await partialFile.length();
@@ -390,14 +412,88 @@ extension _DownloadManagerTransferImpl on DownloadManager {
     }
   }
 
+  /// Hand active in-app (dio) transfers to the native background backend so
+  /// downloads keep running after the app leaves the foreground.
+  ///
+  /// Android only. Each active dio transfer is paused with a transient
+  /// handoff marker (so its cancellation unwinds as expected and releases the
+  /// concurrency slot), then re-queued as pending; because the app is no
+  /// longer in the foreground, [_fillDownloadSlots] restarts it on the
+  /// WorkManager backend, resuming from the shared `.partial` file. The
+  /// worker's dataSync foreground service keeps the process — and with it
+  /// this queue loop — alive, so pending tasks keep draining too.
+  ///
+  /// Returns the number of transfers handed off; 0 when the native backend is
+  /// unavailable (callers should fall back to pausing).
+  Future<int> _continueDownloadsInBackgroundImpl() async {
+    if (!_initialized || !Platform.isAndroid) return 0;
+    if (!await _nativeDownloadService.isAvailable()) return 0;
+
+    final handedOff = <DownloadTask>[];
+    _queue.beginBatch();
+    try {
+      for (final task in _queue.queue) {
+        if (task.status != DownloadStatus.downloading) continue;
+        if (task.nativeTaskId != null) continue;
+        if (!_activeDownloads.containsKey(task.id)) continue;
+        task.status = DownloadStatus.paused;
+        task.errorMessage = backgroundHandoffPauseMessage;
+        _queue.updateTask(task);
+        handedOff.add(task);
+      }
+    } finally {
+      _queue.endBatch();
+    }
+
+    for (final task in handedOff) {
+      _activeDownloads[task.id]?.cancel('background-handoff');
+    }
+
+    if (handedOff.isEmpty) {
+      // Nothing to hand off; pending tasks start natively as slots free up.
+      _fillDownloadSlots();
+      return 0;
+    }
+
+    // Let the cancelled transfers unwind and release their slots before the
+    // tasks are re-queued for the native backend.
+    await Future.delayed(const Duration(milliseconds: 250));
+
+    _queue.beginBatch();
+    try {
+      for (final task in handedOff) {
+        if (task.status != DownloadStatus.paused ||
+            task.errorMessage != backgroundHandoffPauseMessage) {
+          continue;
+        }
+        task.status = DownloadStatus.pending;
+        task.errorMessage = null;
+        _queue.updateTask(task);
+      }
+    } finally {
+      _queue.endBatch();
+    }
+    _fillDownloadSlots();
+    print(
+        '[DownloadManager] Handed ${handedOff.length} download(s) to the native background backend');
+    return handedOff.length;
+  }
+
   void _pauseScopedDownloadsForInterruption({
     String reasonMessage = interruptedDownloadPauseMessage,
   }) {
     final taskIdsToCancel = <String>[];
     final tasksToPause = <DownloadTask>[];
+    final serverId = _getCurrentServerId();
+    final userId = _getCurrentUserId();
+    final scopeIds = serverId != null ? _currentServerScopeIds() : null;
 
     for (final task in _queue.queue) {
-      if (!_isTaskInCurrentScope(task)) continue;
+      if (scopeIds != null &&
+          (task.serverId == null || !scopeIds.contains(task.serverId))) {
+        continue;
+      }
+      if (userId != null && task.userId != userId) continue;
       if (task.status == DownloadStatus.downloading) {
         if (task.nativeTaskId != null) continue;
         taskIdsToCancel.add(task.id);
@@ -409,10 +505,15 @@ extension _DownloadManagerTransferImpl on DownloadManager {
       }
     }
 
-    for (final task in tasksToPause) {
-      task.status = DownloadStatus.paused;
-      task.errorMessage = reasonMessage;
-      _queue.updateTask(task);
+    _queue.beginBatch();
+    try {
+      for (final task in tasksToPause) {
+        task.status = DownloadStatus.paused;
+        task.errorMessage = reasonMessage;
+        _queue.updateTask(task);
+      }
+    } finally {
+      _queue.endBatch();
     }
 
     for (final taskId in taskIdsToCancel) {
@@ -473,19 +574,6 @@ extension _DownloadManagerTransferImpl on DownloadManager {
       'duration=${seconds.toStringAsFixed(2)}s '
       'speed=${mbps.toStringAsFixed(2)}MB/s',
     );
-  }
-
-  bool _isTaskInCurrentScope(DownloadTask task) {
-    final serverId = _getCurrentServerId();
-    final userId = _getCurrentUserId();
-
-    if (serverId != null && !_serverIdInCurrentScope(task.serverId)) {
-      return false;
-    }
-    if (userId != null && task.userId != userId) {
-      return false;
-    }
-    return true;
   }
 
   bool _isCancellationExpected(DownloadTask task, dynamic error) {

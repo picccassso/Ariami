@@ -1,6 +1,53 @@
 part of 'download_manager.dart';
 
 extension _DownloadManagerOperationsImpl on DownloadManager {
+  /// Re-queue existing paused/failed tasks named by a download action.
+  ///
+  /// Download entry points used to silently skip any song that already had a
+  /// queue task — so after an interruption left the whole library paused,
+  /// "Download all" became a no-op. Explicitly asking for a song again is an
+  /// instruction to get it downloaded, so stalled tasks go back to pending.
+  /// Returns the number of tasks re-queued.
+  Future<int> _requeueExistingTasksForDownload(
+    List<DownloadTask> existingTasks,
+  ) async {
+    final discardPartialSongIds = <String>[];
+    var requeuedCount = 0;
+
+    _queue.beginBatch();
+    try {
+      for (final task in existingTasks) {
+        if (task.status != DownloadStatus.paused &&
+            task.status != DownloadStatus.failed) {
+          continue;
+        }
+        final message = task.errorMessage ?? '';
+        if (task.status == DownloadStatus.failed &&
+            (message.contains('mismatch') ||
+                message.contains('Range not satisfiable'))) {
+          discardPartialSongIds.add(task.songId);
+          task.bytesDownloaded = 0;
+          task.progress = 0;
+        }
+        task.status = DownloadStatus.pending;
+        task.errorMessage = null;
+        task.retryCount = 0;
+        _queue.updateTask(task);
+        sessionTaskIds.add(task.id);
+        requeuedCount++;
+      }
+    } finally {
+      _queue.endBatch();
+    }
+
+    // Corrupt partials are discarded before slots fill so a restarting
+    // download can't append to a file that is about to be deleted.
+    for (final songId in discardPartialSongIds) {
+      await _deletePartialSongFileIfUnreferenced(songId, force: true);
+    }
+    return requeuedCount;
+  }
+
   Future<int> _enqueueDownloadJobImpl({
     List<String> songIds = const <String>[],
     List<String> albumIds = const <String>[],
@@ -57,8 +104,14 @@ extension _DownloadManagerOperationsImpl on DownloadManager {
       );
 
       final batch = <DownloadTask>[];
+      final existingTasks = <DownloadTask>[];
       for (final item in page.items) {
         if (item.status.toLowerCase() != 'pending') continue;
+        final existing = _getScopedTask('song_${item.songId}');
+        if (existing != null) {
+          existingTasks.add(existing);
+          continue;
+        }
         final task = _buildTaskFromDownloadJobItem(
           apiClient: apiClient,
           item: item,
@@ -70,10 +123,14 @@ extension _DownloadManagerOperationsImpl on DownloadManager {
         }
       }
 
+      final requeuedCount =
+          await _requeueExistingTasksForDownload(existingTasks);
       if (batch.isNotEmpty) {
         _trackSessionTasks(batch);
         _queue.enqueueBatch(batch);
-        queuedCount += batch.length;
+      }
+      queuedCount += batch.length + requeuedCount;
+      if (batch.isNotEmpty || requeuedCount > 0) {
         _fillDownloadSlots();
       }
 
@@ -82,6 +139,20 @@ extension _DownloadManagerOperationsImpl on DownloadManager {
       if (hasMore && (cursor == null || cursor.isEmpty)) {
         break;
       }
+    }
+
+    // Kick the queue even when every item already existed in an active
+    // state, in case pending tasks are sitting without a slot filler.
+    _fillDownloadSlots();
+
+    // The server job exists only to orchestrate this enqueue. Cancel it so
+    // it stops counting against the per-user job/item quotas — abandoned
+    // ready jobs otherwise pile up until job creation starts returning 429.
+    try {
+      await apiClient.cancelV2DownloadJob(createResponse.jobId);
+    } catch (e) {
+      // Best-effort: the server also expires stale ready jobs on its own.
+      print('[DownloadManager] Failed to cancel download job: $e');
     }
 
     return queuedCount;
@@ -117,10 +188,16 @@ extension _DownloadManagerOperationsImpl on DownloadManager {
         downloadOriginal ?? _qualityService.getDownloadOriginal();
     final taskId = 'song_$songId';
 
-    // Check if task already exists for this server
+    // A stalled (paused/failed) task for this song is re-queued; an actively
+    // downloading, pending, or completed one is left alone.
     final existing = _getScopedTask(taskId);
     if (existing != null) {
-      print('Song already in queue: $title (${existing.status})');
+      final requeued = await _requeueExistingTasksForDownload([existing]);
+      if (requeued > 0) {
+        _fillDownloadSlots();
+      } else {
+        print('Song already in queue: $title (${existing.status})');
+      }
       return;
     }
 
@@ -178,12 +255,17 @@ extension _DownloadManagerOperationsImpl on DownloadManager {
     final resolvedOriginal =
         downloadOriginal ?? _qualityService.getDownloadOriginal();
     final newTasks = <DownloadTask>[];
+    final existingTasks = <DownloadTask>[];
 
     for (final song in songs) {
       final taskId = 'song_${song['id']}';
 
-      // Skip if already exists for this server
-      if (_getScopedTask(taskId) != null) continue;
+      // Existing tasks are re-queued if stalled rather than skipped.
+      final existing = _getScopedTask(taskId);
+      if (existing != null) {
+        existingTasks.add(existing);
+        continue;
+      }
 
       final task = DownloadTask(
         id: taskId,
@@ -213,9 +295,12 @@ extension _DownloadManagerOperationsImpl on DownloadManager {
       newTasks.add(task);
     }
 
+    final requeuedCount = await _requeueExistingTasksForDownload(existingTasks);
     if (newTasks.isNotEmpty) {
       _trackSessionTasks(newTasks);
       _queue.enqueueBatch(newTasks);
+    }
+    if (newTasks.isNotEmpty || requeuedCount > 0) {
       _fillDownloadSlots();
     }
   }
@@ -272,12 +357,17 @@ extension _DownloadManagerOperationsImpl on DownloadManager {
 
   int _resumeInterruptedDownloadsWhere(bool Function(DownloadTask) predicate) {
     var resumedCount = 0;
-    for (final task in _getScopedQueue()) {
-      if (!predicate(task)) continue;
-      task.status = DownloadStatus.pending;
-      task.errorMessage = null;
-      _queue.updateTask(task);
-      resumedCount++;
+    _queue.beginBatch();
+    try {
+      for (final task in _getScopedQueue()) {
+        if (!predicate(task)) continue;
+        task.status = DownloadStatus.pending;
+        task.errorMessage = null;
+        _queue.updateTask(task);
+        resumedCount++;
+      }
+    } finally {
+      _queue.endBatch();
     }
 
     if (resumedCount > 0) {
@@ -294,8 +384,13 @@ extension _DownloadManagerOperationsImpl on DownloadManager {
         .map((task) => task.id)
         .toList(growable: false);
 
-    for (final taskId in interruptedTaskIds) {
-      cancelDownload(taskId);
+    _queue.beginBatch();
+    try {
+      for (final taskId in interruptedTaskIds) {
+        cancelDownload(taskId);
+      }
+    } finally {
+      _queue.endBatch();
     }
     return interruptedTaskIds.length;
   }

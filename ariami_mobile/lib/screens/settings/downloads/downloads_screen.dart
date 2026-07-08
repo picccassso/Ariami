@@ -134,6 +134,20 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
     await _controller.resumeInterruptedDownloads();
   }
 
+  /// Runs a "Download all" action and tells the user when it fails — these
+  /// used to fail silently, leaving a button that visibly did nothing.
+  Future<void> _runDownloadAll(Future<bool> Function() action) async {
+    final succeeded = await action();
+    if (succeeded || !mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          "Couldn't start downloads — check the server connection and try again",
+        ),
+      ),
+    );
+  }
+
   Future<void> _cancelInterruptedDownloads() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -279,12 +293,12 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                         isDownloadingAllPlaylists:
                             state.isDownloadingAllPlaylists,
                         isDisabled: hasActiveDownloads,
-                        onDownloadAllSongs: () =>
-                            unawaited(_controller.downloadAllSongs()),
-                        onDownloadAllAlbums: () =>
-                            unawaited(_controller.downloadAllAlbums()),
-                        onDownloadAllPlaylists: () =>
-                            unawaited(_controller.downloadAllPlaylists()),
+                        onDownloadAllSongs: () => unawaited(
+                            _runDownloadAll(_controller.downloadAllSongs)),
+                        onDownloadAllAlbums: () => unawaited(
+                            _runDownloadAll(_controller.downloadAllAlbums)),
+                        onDownloadAllPlaylists: () => unawaited(
+                            _runDownloadAll(_controller.downloadAllPlaylists)),
                       ),
                       CacheSectionCard(
                         isDark: isDark,

@@ -123,6 +123,61 @@ class NativeDownloadService {
     }
   }
 
+  /// Raise the persistent batch-download notification (foreground service).
+  /// Returns false when unavailable or the OS rejects the service start.
+  Future<bool> startBatchNotification({
+    required String text,
+    int? progressPercent,
+  }) async {
+    if (!await isAvailable()) return false;
+    try {
+      return await _channel.invokeMethod<bool>(
+            'startBatchNotification',
+            <String, dynamic>{
+              'text': text,
+              'progressPercent': progressPercent ?? -1,
+            },
+          ) ??
+          false;
+    } on PlatformException {
+      return false;
+    }
+  }
+
+  /// Update the batch notification's text and progress bar.
+  Future<void> updateBatchNotification({
+    required String text,
+    int? progressPercent,
+  }) async {
+    if (!await isAvailable()) return;
+    try {
+      await _channel.invokeMethod<void>(
+        'updateBatchNotification',
+        <String, dynamic>{
+          'text': text,
+          'progressPercent': progressPercent ?? -1,
+        },
+      );
+    } on PlatformException {
+      // Notification updates are best-effort.
+    }
+  }
+
+  /// Dismiss the batch notification and release the foreground service.
+  /// When [completionText] is given, a dismissible "Downloads complete"
+  /// notification is posted in its place.
+  Future<void> stopBatchNotification({String? completionText}) async {
+    if (!await isAvailable()) return;
+    try {
+      await _channel.invokeMethod<void>(
+        'stopBatchNotification',
+        <String, dynamic>{'completionText': completionText},
+      );
+    } on PlatformException {
+      // Service already stopped.
+    }
+  }
+
   Future<void> cancelDownload({
     required String taskId,
     required String nativeTaskId,

@@ -200,6 +200,21 @@ class DownloadManager {
   /// Number of interrupted (auto-paused) downloads in the current scope.
   int getInterruptedDownloadCount() => _getInterruptedDownloadCountImpl();
 
+  /// Hand active downloads to the native background backend (Android) so
+  /// they continue after the app leaves the foreground. Returns the number
+  /// of transfers handed off; 0 when native continuation is unavailable and
+  /// the caller should fall back to pausing.
+  Future<int> continueDownloadsInBackground() =>
+      _continueDownloadsInBackgroundImpl();
+
+  /// Whether any task in the current scope is downloading or queued.
+  bool get hasActiveOrPendingDownloads {
+    if (!_initialized) return false;
+    return _getScopedQueue().any((task) =>
+        task.status == DownloadStatus.downloading ||
+        task.status == DownloadStatus.pending);
+  }
+
   /// Pause active/pending downloads and flush queue state when app closes.
   Future<void> pauseDownloadsForAppClosure() =>
       _pauseDownloadsForAppClosureImpl();

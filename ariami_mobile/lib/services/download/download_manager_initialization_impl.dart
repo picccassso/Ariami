@@ -67,6 +67,14 @@ extension _DownloadManagerInitializationImpl on DownloadManager {
     _connectionStateSubscription =
         ConnectionService().connectionStateStream.listen((isConnected) {
       if (isConnected) {
+        // Connection-loss pauses are mechanical, not user intent: resume
+        // them on reconnect so a network blip (screen-off Wi-Fi power-save,
+        // Tailscale route change) doesn't strand a batch mid-download. Only
+        // this pause reason auto-resumes — user pauses and app-closure
+        // pauses keep their existing recovery flows.
+        _resumeInterruptedDownloadsWhere((task) =>
+            task.status == DownloadStatus.paused &&
+            task.errorMessage == interruptedDownloadPauseMessage);
         _fillDownloadSlots();
         return;
       }
@@ -208,8 +216,13 @@ extension _DownloadManagerInitializationImpl on DownloadManager {
       }
       return tasks.where((task) => task.userId == currentUserId).toList();
     }
+    // Computed once per filter pass: rebuilding this set per task made every
+    // queue event O(N^2), which stalled the UI isolate on large queues.
+    final scopeIds = _currentServerScopeIds();
     return tasks.where((task) {
-      if (!_serverIdInCurrentScope(task.serverId)) return false;
+      if (task.serverId == null || !scopeIds.contains(task.serverId)) {
+        return false;
+      }
       if (currentUserId == null) {
         return task.userId == null;
       }
@@ -278,19 +291,31 @@ extension _DownloadManagerInitializationImpl on DownloadManager {
 
   Future<void> _syncQueuePersistence(List<DownloadTask> tasks) async {
     final seenIds = <String>{};
+    final upserts = <DownloadTask>[];
+    final upsertSignatures = <String, String>{};
     for (final task in tasks) {
       seenIds.add(task.id);
       final signature = _taskSignature(task);
       if (_persistedTaskSignatures[task.id] == signature) continue;
-      await _database.upsertTask(task);
-      _persistedTaskSignatures[task.id] = signature;
+      upserts.add(task);
+      upsertSignatures[task.id] = signature;
     }
 
     final deletedTaskIds = _persistedTaskSignatures.keys
         .where((id) => !seenIds.contains(id))
         .toList(growable: false);
+
+    if (upserts.isEmpty && deletedTaskIds.isEmpty) return;
+
+    // One platform-channel round trip for the whole diff; row-by-row awaits
+    // made mass status changes (pause/resume/cancel all) crawl and left a
+    // half-written queue if the OS killed the app mid-flush.
+    await _database.applyTaskChanges(
+      upserts: upserts,
+      deletedIds: deletedTaskIds,
+    );
+    _persistedTaskSignatures.addAll(upsertSignatures);
     for (final taskId in deletedTaskIds) {
-      await _database.deleteTask(taskId);
       _persistedTaskSignatures.remove(taskId);
     }
   }

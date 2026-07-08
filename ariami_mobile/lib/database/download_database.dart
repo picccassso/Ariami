@@ -217,6 +217,27 @@ class DownloadDatabase {
     await db.delete(_tasksTable, where: 'id = ?', whereArgs: [id]);
   }
 
+  /// Apply a set of upserts and deletes in a single atomic batch.
+  Future<void> applyTaskChanges({
+    required List<DownloadTask> upserts,
+    required List<String> deletedIds,
+  }) async {
+    if (upserts.isEmpty && deletedIds.isEmpty) return;
+    final db = await _ensureDatabase();
+    final batch = db.batch();
+    for (final task in upserts) {
+      batch.insert(
+        _tasksTable,
+        _taskToRow(task),
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    }
+    for (final id in deletedIds) {
+      batch.delete(_tasksTable, where: 'id = ?', whereArgs: [id]);
+    }
+    await batch.commit(noResult: true);
+  }
+
   /// Clear all downloads from queue.
   Future<void> clearDownloadQueue() async {
     final db = await _ensureDatabase();
