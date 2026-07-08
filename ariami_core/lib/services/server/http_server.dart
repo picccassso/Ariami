@@ -30,6 +30,7 @@ import 'package:ariami_core/models/auth_models.dart';
 import 'package:ariami_core/models/download_job_models.dart';
 import 'package:ariami_core/models/user_activity_row.dart';
 import 'package:ariami_core/services/discovery/discovery_responder.dart';
+import 'package:ariami_core/services/server/device_name_store.dart';
 import 'package:ariami_core/services/server/stream_tracker.dart';
 import 'package:ariami_core/services/server/download_job_service.dart';
 import 'package:ariami_core/services/server/metrics_service.dart';
@@ -93,6 +94,10 @@ class AriamiHttpServer {
   final List<WebSocketChannel> _webSocketClients = [];
   final Map<WebSocketChannel, String> _webSocketDeviceIds = {};
   final AriamiConnectHub _connectHub = AriamiConnectHub();
+
+  /// User-chosen device display names, overlaid on the names clients report
+  /// when they identify. Initialized in [initializeAuth] beside sessions.
+  final DeviceNameStore _deviceNameStore = DeviceNameStore();
 
   /// Per-account listening statistics (event log + rollups). Initialized in
   /// [initializeAuth] next to the auth stores; stays open for the process

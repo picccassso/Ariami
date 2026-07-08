@@ -28,6 +28,11 @@ class AriamiConnectHub {
   final Map<WebSocketChannel, _ConnectPeer> _peers = {};
   final Map<String, _ConnectSession> _sessions = {};
 
+  /// Invoked after a device successfully renames itself, so the server can
+  /// persist the new name and refresh presence/session records. The hub has
+  /// already updated its own peers and broadcast the new device list.
+  void Function(String userId, String deviceId, String name)? onDeviceRenamed;
+
   void register(
     WebSocketChannel socket, {
     required String userId,
@@ -164,6 +169,8 @@ class AriamiConnectHub {
         _handleTransfer(socket, peer, data);
       case AriamiConnectMessageType.transferResult:
         _handleTransferResult(peer, data);
+      case AriamiConnectMessageType.rename:
+        _handleRename(socket, peer, data);
       default:
         _sendError(
             socket, 'UNSUPPORTED_MESSAGE', 'Unsupported Connect message.');
@@ -374,6 +381,28 @@ class AriamiConnectHub {
     _broadcastDevices(peer.userId);
   }
 
+  /// Renames the sender's own device. The new name is broadcast to every
+  /// Connect client of the account, and [onDeviceRenamed] lets the server
+  /// persist it so it survives reconnects and restarts.
+  void _handleRename(
+      WebSocketChannel socket, _ConnectPeer peer, Map<String, dynamic> data) {
+    final name = normalizeDeviceDisplayName(data['name'] as String?);
+    if (name == null) {
+      _sendError(socket, 'INVALID_NAME',
+          'Device names need 1-$kMaxDeviceDisplayNameLength visible characters.');
+      return;
+    }
+    // A device may own several sockets (library sync + Connect); keep every
+    // peer for this device consistent.
+    for (final other in _peers.values) {
+      if (other.userId == peer.userId && other.deviceId == peer.deviceId) {
+        other.deviceName = name;
+      }
+    }
+    onDeviceRenamed?.call(peer.userId, peer.deviceId, name);
+    _broadcastDevices(peer.userId);
+  }
+
   void _sendWelcome(WebSocketChannel socket, _ConnectPeer peer) {
     final session = _sessions[peer.userId];
     _send(socket, AriamiConnectMessageType.welcome, <String, dynamic>{
@@ -480,7 +509,7 @@ class _ConnectPeer {
       required this.connectedAt});
   final String userId;
   final String deviceId;
-  final String deviceName;
+  String deviceName;
   final String clientType;
   final DateTime connectedAt;
   bool canPlay = false;

@@ -32,7 +32,7 @@ extension AriamiHttpServerConnectionHandlersMethods on AriamiHttpServer {
       final rawDeviceId = data['deviceId'] as String?;
       final rawDeviceName = data['deviceName'] as String?;
 
-      final deviceName = (rawDeviceName == null || rawDeviceName.isEmpty)
+      final reportedName = (rawDeviceName == null || rawDeviceName.isEmpty)
           ? 'Unknown Device'
           : rawDeviceName;
 
@@ -43,10 +43,12 @@ extension AriamiHttpServerConnectionHandlersMethods on AriamiHttpServer {
 
       final userId = session.userId;
 
+      // Classification uses the reported name; display uses any custom name.
       final presenceClientType = AuthService.isDashboardControlDevice(
-              deviceId: deviceId, deviceName: deviceName)
+              deviceId: deviceId, deviceName: reportedName)
           ? 'dashboard'
           : null;
+      final deviceName = _effectiveDeviceName(deviceId, reportedName);
       _connectionManager.registerOrRefreshClient(
         deviceId,
         deviceName,

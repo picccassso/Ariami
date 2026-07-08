@@ -369,7 +369,8 @@ extension AriamiHttpServerMiddlewareAndMetricsMethods on AriamiHttpServer {
           _connectionManager.refreshHeartbeatIfRegistered(
             deviceId,
             userId: userId,
-            deviceName: deviceName,
+            // The reported name would silently undo a user rename here.
+            deviceName: _customOrReportedDeviceName(deviceId, deviceName),
           );
         }
         return await handler(request);

@@ -104,6 +104,14 @@ class ConnectionManager {
     );
   }
 
+  /// Update a connected client's display name (user rename), if present.
+  void renameDevice(String deviceId, String deviceName) {
+    final client = _clients[deviceId];
+    if (client == null || client.deviceName == deviceName) return;
+    _clients[deviceId] = client.copyWith(deviceName: deviceName);
+    _notifyListeners();
+  }
+
   /// Unregister a client connection
   void unregisterClient(String deviceId) {
     unregisterClientAndGet(deviceId);

@@ -1,6 +1,32 @@
 part of '../http_server.dart';
 
 extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
+  /// The display name to use for a device: a user-chosen custom name when one
+  /// is stored, else the name the client reported. Presence *classification*
+  /// deliberately keeps using the reported name — renaming a phone to
+  /// "Ariami Desktop Dashboard" must not change how it is counted.
+  String? _customOrReportedDeviceName(String deviceId, String? reported) {
+    final custom =
+        _deviceNameStore.isInitialized ? _deviceNameStore.nameFor(deviceId) : null;
+    return custom ?? reported;
+  }
+
+  /// Like [_customOrReportedDeviceName], with the registration fallback.
+  String _effectiveDeviceName(String deviceId, String? reported) {
+    final name = _customOrReportedDeviceName(deviceId, reported);
+    return (name == null || name.isEmpty) ? 'Unknown Device' : name;
+  }
+
+  /// A device renamed itself through the Connect hub: persist the new name
+  /// and refresh presence + session records so every surface agrees.
+  void _handleDeviceRenamed(String userId, String deviceId, String name) {
+    if (_deviceNameStore.isInitialized) {
+      unawaited(_deviceNameStore.setName(deviceId, name));
+    }
+    _connectionManager.renameDevice(deviceId, name);
+    unawaited(_authService.renameDeviceSessions(deviceId, name));
+  }
+
   /// Maps WebSocket identify + device metadata to a presence [clientType]
   /// so CLI/desktop dashboards are not counted as mobile in `/api/stats`.
   String? _effectivePresenceClientType({
@@ -109,9 +135,10 @@ extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
                 deviceName: deviceName,
                 wsClientType: clientType,
               );
+              final effectiveName = _effectiveDeviceName(deviceId, deviceName);
               _connectionManager.registerOrRefreshClient(
                 deviceId,
-                deviceName ?? 'Unknown Device',
+                effectiveName,
                 userId: session.userId,
                 clientType: effectiveType,
               );
@@ -120,7 +147,7 @@ extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
                   webSocket,
                   userId: session.userId,
                   deviceId: deviceId,
-                  deviceName: deviceName ?? 'Unknown Device',
+                  deviceName: effectiveName,
                   clientType: clientType!,
                 );
               }
@@ -138,9 +165,10 @@ extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
             deviceName: deviceName,
             wsClientType: clientType,
           );
+          final effectiveName = _effectiveDeviceName(deviceId, deviceName);
           _connectionManager.registerOrRefreshClient(
             deviceId,
-            deviceName ?? 'Unknown Device',
+            effectiveName,
             clientType: effectiveType,
           );
           if (const {'desktop', 'mobile', 'tv'}.contains(clientType)) {
@@ -148,7 +176,7 @@ extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
               webSocket,
               userId: 'legacy',
               deviceId: deviceId,
-              deviceName: deviceName ?? 'Unknown Device',
+              deviceName: effectiveName,
               clientType: clientType!,
             );
           }

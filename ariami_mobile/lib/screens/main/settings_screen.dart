@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'package:ariami_core/models/connect_models.dart';
 import 'package:flutter/material.dart';
 import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../../services/api/connection_service.dart';
+import '../../services/ariami_connect_controller.dart';
 import '../../services/audio/gapless_playback_service.dart';
 import '../../services/offline/offline_manual_reconnect.dart';
 import '../../services/offline/offline_playback_service.dart';
@@ -25,6 +27,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final ProfileImageService _profileImageService = ProfileImageService();
   final GaplessPlaybackService _gaplessPlaybackService =
       GaplessPlaybackService();
+  final AriamiConnectController _connectController = AriamiConnectController();
   bool _isOfflineModeEnabled = false;
   bool _isReconnecting = false;
   StreamSubscription<OfflineMode>? _offlineSubscription;
@@ -79,6 +82,45 @@ class _SettingsScreenState extends State<SettingsScreen> {
       setState(() {
         _version = 'Unknown';
       });
+    }
+  }
+
+  /// Renames this phone in Ariami Connect; the server persists the name and
+  /// every client of the account sees it immediately.
+  Future<void> _showRenameDeviceDialog() async {
+    final currentName = _connectController.thisDevice?.name ?? '';
+    final controller = TextEditingController(text: currentName);
+    final name = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Rename this device'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLength: kMaxDeviceDisplayNameLength,
+          textCapitalization: TextCapitalization.words,
+          decoration: const InputDecoration(
+            labelText: 'Device name',
+            hintText: 'e.g. Alex\'s Phone',
+          ),
+          onSubmitted: (value) => Navigator.of(dialogContext).pop(value),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(controller.text),
+            child: const Text('Rename'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    final normalized = normalizeDeviceDisplayName(name);
+    if (normalized != null && normalized != currentName) {
+      _connectController.renameThisDevice(normalized);
     }
   }
 
@@ -229,6 +271,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         listenable: Listenable.merge([
           _profileImageService,
           _gaplessPlaybackService,
+          _connectController,
         ]),
         builder: (context, _) {
           return ListView(
@@ -248,6 +291,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     onTap: () {
                       Navigator.of(context).pushNamed('/connection');
                     },
+                  ),
+                  SettingsTile(
+                    icon: Icons.badge_rounded,
+                    title: 'Device Name',
+                    subtitle: _connectController.isConnected
+                        ? (_connectController.thisDevice?.name ??
+                            'This device')
+                        : 'Connect to your server to rename this device',
+                    onTap: _connectController.isConnected
+                        ? _showRenameDeviceDialog
+                        : null,
                   ),
                   SettingsTile(
                     icon: Icons.wifi_off_rounded,

@@ -258,6 +258,33 @@ class SessionStore {
     await _persist();
   }
 
+  /// Update the display name on every session of [deviceId] (user rename),
+  /// so session listings match the device's new name.
+  Future<void> renameDevice(String deviceId, String deviceName) async {
+    _ensureInitialized();
+
+    var changed = false;
+    for (final entry in _sessions.entries.toList()) {
+      final session = entry.value;
+      if (session.deviceId != deviceId || session.deviceName == deviceName) {
+        continue;
+      }
+      _sessions[entry.key] = Session(
+        sessionToken: session.sessionToken,
+        userId: session.userId,
+        deviceId: session.deviceId,
+        deviceName: deviceName,
+        createdAt: session.createdAt,
+        expiresAt: session.expiresAt,
+      );
+      changed = true;
+    }
+
+    if (changed) {
+      await _persist();
+    }
+  }
+
   /// Get all active sessions for a device.
   List<Session> getSessionsForDevice(String deviceId) {
     _ensureInitialized();

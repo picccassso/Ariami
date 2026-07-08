@@ -320,6 +320,12 @@ class AuthService {
     return _sessionStore.revokeSessionsForDevice(deviceId);
   }
 
+  /// Update the display name on every session of a device (user rename).
+  Future<void> renameDeviceSessions(String deviceId, String deviceName) async {
+    _ensureInitialized();
+    await _sessionStore.renameDevice(deviceId, deviceName);
+  }
+
   /// Change password for an existing user.
   /// Returns updated user, or null if username does not exist.
   Future<User?> changePassword(String username, String newPassword) async {

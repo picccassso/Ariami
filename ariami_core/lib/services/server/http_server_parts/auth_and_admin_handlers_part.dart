@@ -149,11 +149,14 @@ extension AriamiHttpServerAuthAndAdminHandlersMethods on AriamiHttpServer {
         );
       }
 
+      // A user-renamed device keeps its custom display name across logins;
+      // classification below still uses the reported name.
+      final effectiveDeviceName = _effectiveDeviceName(deviceId, deviceName);
       final response = await _authService.login(
         username,
         password,
         deviceId,
-        deviceName,
+        effectiveDeviceName,
         rateLimitKey: AuthService.buildLoginRateLimitKey(
           clientIp: _clientIp(request),
           username: username,
@@ -168,7 +171,7 @@ extension AriamiHttpServerAuthAndAdminHandlersMethods on AriamiHttpServer {
           : null;
       _connectionManager.registerClient(
         deviceId,
-        deviceName,
+        effectiveDeviceName,
         userId: response.userId,
         clientType: presenceClientType,
       );
@@ -176,7 +179,7 @@ extension AriamiHttpServerAuthAndAdminHandlersMethods on AriamiHttpServer {
       // Broadcast client connection
       broadcastWebSocketMessage(ClientConnectedMessage(
         clientCount: _connectionManager.clientCount,
-        deviceName: deviceName,
+        deviceName: effectiveDeviceName,
       ));
 
       return Response.ok(

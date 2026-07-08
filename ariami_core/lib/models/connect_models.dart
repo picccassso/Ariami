@@ -18,7 +18,27 @@ class AriamiConnectMessageType {
   static const commandResult = 'connect_command_result';
   static const transfer = 'connect_transfer';
   static const transferResult = 'connect_transfer_result';
+  static const rename = 'connect_rename';
   static const error = 'connect_error';
+}
+
+/// Longest device display name accepted by the server and rename UIs.
+const int kMaxDeviceDisplayNameLength = 40;
+
+/// Normalizes a user-chosen device display name for storage and broadcast:
+/// control characters become spaces, runs of whitespace collapse, and the
+/// result is trimmed and capped at [kMaxDeviceDisplayNameLength]. Returns
+/// null when nothing visible remains, so callers can reject the input.
+String? normalizeDeviceDisplayName(String? raw) {
+  if (raw == null) return null;
+  var name = raw
+      .replaceAll(RegExp(r'[\x00-\x1f\x7f]'), ' ')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+  if (name.length > kMaxDeviceDisplayNameLength) {
+    name = name.substring(0, kMaxDeviceDisplayNameLength).trim();
+  }
+  return name.isEmpty ? null : name;
 }
 
 class AriamiConnectCommand {

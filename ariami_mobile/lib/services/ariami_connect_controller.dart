@@ -30,6 +30,7 @@ class AriamiConnectController extends ChangeNotifier {
       _client?.devices ?? const <AriamiConnectDevice>[];
   AriamiConnectDevice? get activeDevice => _client?.activeDevice;
   String? get activeDeviceId => _client?.activeDeviceId;
+  AriamiConnectDevice? get thisDevice => _client?.thisDevice;
   bool get isConnected => _client?.isConnected ?? false;
   bool get isThisDeviceActive => _client?.isThisDeviceActive ?? false;
   String? get errorMessage => _client?.errorMessage;
@@ -126,6 +127,10 @@ class AriamiConnectController extends ChangeNotifier {
       String command, Map<String, dynamic> arguments) async {
     await _playback?.handleConnectCommand(command, arguments);
   }
+
+  /// Renames this phone across the account: the server persists the name and
+  /// pushes the updated device list to every Ariami Connect client.
+  void renameThisDevice(String name) => _client?.renameThisDevice(name);
 
   void _onClientChanged() {
     _syncRemoteMirror();

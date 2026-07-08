@@ -80,6 +80,15 @@ class AriamiConnectClient {
     return null;
   }
 
+  /// This device's entry in the server's device list, which carries the
+  /// server-side display name (including any user rename).
+  AriamiConnectDevice? get thisDevice {
+    for (final device in devices) {
+      if (device.id == deviceId) return device;
+    }
+    return null;
+  }
+
   Future<void> connect({required String baseUrl, String? sessionToken}) async {
     _baseUrl = baseUrl;
     _sessionToken = sessionToken;
@@ -367,6 +376,17 @@ class AriamiConnectClient {
         'command': command,
         'arguments': arguments ?? const <String, dynamic>{},
       },
+    ));
+  }
+
+  /// Asks the server to rename this device. The server persists the name and
+  /// answers with a devices broadcast, so the UI updates via [onChanged].
+  void renameThisDevice(String name) {
+    final normalized = normalizeDeviceDisplayName(name);
+    if (normalized == null || !isConnected) return;
+    _send(WsMessage(
+      type: AriamiConnectMessageType.rename,
+      data: <String, dynamic>{'name': normalized},
     ));
   }
 

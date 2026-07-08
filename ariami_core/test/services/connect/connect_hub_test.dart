@@ -336,6 +336,69 @@ void main() {
     );
   });
 
+  test('a device rename is persisted and broadcast to the account', () {
+    final hub = AriamiConnectHub();
+    final renames = <(String, String, String)>[];
+    hub.onDeviceRenamed =
+        (userId, deviceId, name) => renames.add((userId, deviceId, name));
+    final phone = _FakeChannel();
+    final tv = _FakeChannel();
+    hub.register(phone,
+        userId: 'user',
+        deviceId: 'phone',
+        deviceName: 'Phone',
+        clientType: 'mobile');
+    hub.register(tv,
+        userId: 'user', deviceId: 'tv', deviceName: 'TV', clientType: 'tv');
+
+    hub.handle(
+      tv,
+      WsMessage(
+        type: AriamiConnectMessageType.rename,
+        data: <String, dynamic>{'name': '  Living  Room TV '},
+      ),
+    );
+
+    expect(renames, [('user', 'tv', 'Living Room TV')]);
+    for (final channel in [phone, tv]) {
+      final devices = channel.messages
+          .lastWhere(
+              (message) => message.type == AriamiConnectMessageType.devices)
+          .data!['devices'] as List<dynamic>;
+      final renamed = devices
+          .whereType<Map>()
+          .firstWhere((device) => device['id'] == 'tv');
+      expect(renamed['name'], 'Living Room TV');
+    }
+  });
+
+  test('a blank rename is rejected without touching the device', () {
+    final hub = AriamiConnectHub();
+    final renames = <String>[];
+    hub.onDeviceRenamed = (userId, deviceId, name) => renames.add(name);
+    final tv = _FakeChannel();
+    hub.register(tv,
+        userId: 'user', deviceId: 'tv', deviceName: 'TV', clientType: 'tv');
+
+    hub.handle(
+      tv,
+      WsMessage(
+        type: AriamiConnectMessageType.rename,
+        data: <String, dynamic>{'name': '   '},
+      ),
+    );
+
+    expect(renames, isEmpty);
+    final error = tv.messages
+        .lastWhere((message) => message.type == AriamiConnectMessageType.error);
+    expect(error.data?['code'], 'INVALID_NAME');
+    final devices = tv.messages
+        .lastWhere(
+            (message) => message.type == AriamiConnectMessageType.devices)
+        .data!['devices'] as List<dynamic>;
+    expect((devices.single as Map)['name'], 'TV');
+  });
+
   test('active player reconnect cancels automatic failover', () async {
     final hub = AriamiConnectHub(
       disconnectGracePeriod: const Duration(milliseconds: 30),

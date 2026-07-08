@@ -173,6 +173,7 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
   }) async {
     if (forceReinitialize) {
       _authService.resetForTesting();
+      _deviceNameStore.resetForTesting();
       _pinnedItemStore?.close();
       _pinnedItemStore = null;
       _playlistEditStore?.close();
@@ -186,6 +187,18 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
     await _authService.initialize(usersFilePath, sessionsFilePath);
     _userAvatarsDirectoryPath =
         p.join(File(usersFilePath).parent.path, 'user_avatars');
+
+    // Custom device display names live beside the auth stores. Losing them is
+    // cosmetic (devices fall back to their reported names), so failure here
+    // must never block startup.
+    try {
+      final deviceNamesPath =
+          '${File(usersFilePath).parent.path}/device_names.json';
+      await _deviceNameStore.initialize(deviceNamesPath);
+    } catch (e) {
+      print('[HttpServer] Device name store unavailable: $e');
+    }
+    _connectHub.onDeviceRenamed = _handleDeviceRenamed;
 
     // Listening stats live next to the auth stores, keyed per user account.
     // Failure here must never block auth/startup: stats endpoints will report
