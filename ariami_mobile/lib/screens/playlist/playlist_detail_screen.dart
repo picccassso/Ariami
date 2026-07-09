@@ -496,9 +496,27 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
     }).toList();
   }
 
-  bool get _isPlaylistFullyDownloaded =>
-      _songs.isNotEmpty &&
-      _songs.every((s) => _downloadedSongIds.contains(s.id));
+  /// Playlist songs that can actually be downloaded: already downloaded or
+  /// present in the library. Playlists can hold stale ids for songs that no
+  /// longer exist on the server; those can never download, so they mirror the
+  /// Downloads screen's "matched songs" rule and don't count against the
+  /// fully-downloaded state. Falls back to all songs while the library list
+  /// is still unknown.
+  List<SongModel> get _matchedSongs {
+    final librarySongs = _libraryController.state.songs;
+    if (librarySongs.isEmpty) return _songs;
+    final libraryIds = {for (final song in librarySongs) song.id};
+    return _songs
+        .where((s) =>
+            _downloadedSongIds.contains(s.id) || libraryIds.contains(s.id))
+        .toList();
+  }
+
+  bool get _isPlaylistFullyDownloaded {
+    final matched = _matchedSongs;
+    return matched.isNotEmpty &&
+        matched.every((s) => _downloadedSongIds.contains(s.id));
+  }
 
   bool get _isOfflineCopy =>
       _offlineCopyService.isRetainedPlaylist(widget.playlistId);
@@ -547,7 +565,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
     }
 
     final songsToDownload =
-        _songs.where((s) => !_downloadedSongIds.contains(s.id)).toList();
+        _matchedSongs.where((s) => !_downloadedSongIds.contains(s.id)).toList();
 
     if (songsToDownload.isEmpty) {
       return;

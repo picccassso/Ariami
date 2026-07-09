@@ -129,8 +129,17 @@ class _LibraryScreenState extends State<LibraryScreen> {
   }
 
   void _showPlaylistContextMenu(PlaylistModel playlist) {
-    final isFullyDownloaded = playlist.songIds.isNotEmpty &&
-        playlist.songIds.every((id) => _controller.state.isSongDownloaded(id));
+    // Ignore stale playlist entries with no matching library song — they can
+    // never download, so they mustn't block the fully-downloaded state.
+    final librarySongIds = {for (final song in _controller.state.songs) song.id};
+    final matchedSongIds = playlist.songIds
+        .where((id) =>
+            _controller.state.isSongDownloaded(id) ||
+            librarySongIds.isEmpty ||
+            librarySongIds.contains(id))
+        .toList();
+    final isFullyDownloaded = matchedSongIds.isNotEmpty &&
+        matchedSongIds.every(_controller.state.isSongDownloaded);
 
     showPlaylistContextMenu(
       context: context,
