@@ -72,6 +72,7 @@ class ListeningStatsStore {
       db.execute('PRAGMA synchronous=NORMAL;');
       db.execute('PRAGMA busy_timeout=5000;');
       _createSchema(db);
+      _migrateEventColumns(db);
       _backfillDerivedIfNeeded(db);
       _database = db;
     } catch (_) {
@@ -97,7 +98,10 @@ class ListeningStatsStore {
         song_artist TEXT,
         album_id TEXT,
         album TEXT,
-        album_artist TEXT
+        album_artist TEXT,
+        source_kind TEXT,
+        playlist_id TEXT,
+        client_kind TEXT
       )
     ''');
     db.execute('''
@@ -202,6 +206,22 @@ class ListeningStatsStore {
     ''');
   }
 
+  /// Adds the optional playback-context columns to a `listening_events` table
+  /// created before they existed. Purely additive: old rows keep NULLs and no
+  /// data is touched. Idempotent via a `PRAGMA table_info` check.
+  void _migrateEventColumns(Database db) {
+    final existing = db
+        .select('PRAGMA table_info(listening_events)')
+        .map((row) => row['name'] as String)
+        .toSet();
+    const contextColumns = ['source_kind', 'playlist_id', 'client_kind'];
+    for (final column in contextColumns) {
+      if (!existing.contains(column)) {
+        db.execute('ALTER TABLE listening_events ADD COLUMN $column TEXT');
+      }
+    }
+  }
+
   /// Detects a database written before the derived-rollup schema existed (or
   /// with an older rollup schema) and backfills the derived tables by
   /// replaying the raw event log. Idempotent: rebuilding is a delete +
@@ -261,8 +281,9 @@ class ListeningStatsStore {
         INSERT OR IGNORE INTO listening_events (
           event_id, user_id, device_id, song_id, play_id, listened_ms, plays,
           occurred_at, tz_offset_min, received_at,
-          song_title, song_artist, album_id, album, album_artist
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          song_title, song_artist, album_id, album, album_artist,
+          source_kind, playlist_id, client_kind
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ''');
       final findPlay = db.prepare('''
         SELECT 1 FROM listening_events
@@ -322,6 +343,9 @@ class ListeningStatsStore {
             event.albumId,
             event.album,
             event.albumArtist,
+            event.sourceKind,
+            event.playlistId,
+            event.clientKind,
           ]);
 
           if (db.updatedRows == 0) {
@@ -513,12 +537,23 @@ class ListeningStatsStore {
       album: _truncate(event.album, 512),
       albumArtist: _truncate(event.albumArtist, 512),
       songDurationMs: event.songDurationMs,
+      sourceKind: _normalizeContext(event.sourceKind, 32),
+      playlistId: _normalizeContext(event.playlistId, 256),
+      clientKind: _normalizeContext(event.clientKind, 32),
     );
   }
 
   static String? _truncate(String? value, int maxLength) {
     if (value == null || value.length <= maxLength) return value;
     return value.substring(0, maxLength);
+  }
+
+  /// Optional playback-context strings: trimmed, bounded, empty becomes null.
+  static String? _normalizeContext(String? value, int maxLength) {
+    if (value == null) return null;
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return null;
+    return _truncate(trimmed, maxLength);
   }
 
   void _applyToRollup(

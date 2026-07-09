@@ -1,8 +1,8 @@
 import 'dart:async';
-import 'dart:math';
 import 'dart:ui' show AppExitResponse, ViewFocusEvent;
 
-import 'package:ariami_core/ariami_core.dart' show ListeningEvent;
+import 'package:ariami_core/ariami_core.dart'
+    show ListeningEvent, ListeningEventTracker, ListeningTrackInfo;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import '../../models/api_models.dart';
@@ -15,9 +15,17 @@ import '../song_id_remapping_service.dart';
 
 /// Service for tracking streaming statistics across the app with SQLite persistence.
 ///
-/// Key behaviours:
+/// The play/time rules live in the shared core [ListeningEventTracker]
+/// (mobile configuration: 15s checkpoints, trusted forward jumps for
+/// coalesced background position updates, session-driven restarts). This
+/// service adapts the app's playback-session callbacks onto the tracker and
+/// consumes its honest [ListeningEvent]s twice: applied to the local
+/// per-device SQLite stats, and mirrored to the account pipeline — so the
+/// two can never disagree about what counted.
+///
+/// Key behaviours (all enforced by the shared tracker):
 /// - A "play" is counted once per play-action when cumulative listening time
-///   reaches 30s.
+///   reaches 30s or half the track, whichever is smaller.
 /// - Cumulative time persists across pause/resume within the same play-action.
 /// - Short songs (< 30s) that complete naturally always count as 1 play.
 /// - Time is tracked via audio position updates to avoid inflating stats during
@@ -52,13 +60,6 @@ class StreamingStatsService extends ChangeNotifier
   /// queued for idempotent upload to the server.
   void Function(ListeningEvent event)? onListeningEvent;
 
-  static final Random _eventRandom = Random();
-  int _eventCounter = 0;
-
-  /// Identifies the current play-action, so the server can guarantee at most
-  /// one counted play per action even across upload retries.
-  String? _sessionPlayId;
-
   // ============================================================================
   // SESSION STATE
   // ============================================================================
@@ -66,22 +67,27 @@ class StreamingStatsService extends ChangeNotifier
   /// The song currently being tracked (actively playing).
   Song? _currentSong;
 
-  /// Listening time accumulated during the current uninterrupted segment.
-  Duration _sessionListenedTime = Duration.zero;
+  /// Uncommitted listening is committed to the stats this often, so a killed
+  /// app loses at most this much credit.
+  static const int _checkpointIntervalMs = 15000;
 
-  /// Total listening time for this play-action that has already been written
-  /// to the in-memory cache. Used to compute the 30s threshold across pauses.
-  Duration _sessionTimeAlreadyCached = Duration.zero;
-
-  /// Whether a play has already been recorded for the current play-action.
-  bool _sessionPlayRecorded = false;
-
-  Duration? _lastPosition;
-  bool _isPlaybackActive = false;
-
-  static const Duration _foregroundPositionJumpTolerance = Duration(seconds: 2);
-  static const Duration _activePlaybackCheckpointInterval =
-      Duration(seconds: 15);
+  /// The shared rule engine. Every emitted event updates the local SQLite
+  /// stats and is mirrored to the account pipeline.
+  ///
+  /// Mobile configuration: background playback coalesces position updates,
+  /// so large forward jumps while playing are genuine audio (explicit seeks
+  /// arrive via [markPositionDiscontinuity]), and the playback manager drives
+  /// restarts/repeat-one itself through [onSongStarted]/[onSongStopped], so
+  /// engine-level restart detection stays off.
+  ListeningEventTracker? _engineInstance;
+  ListeningEventTracker get _engine =>
+      _engineInstance ??= ListeningEventTracker(
+        onEvent: _onEngineEvent,
+        checkpointMs: _checkpointIntervalMs,
+        trustPlayingForwardJumps: true,
+        detectRestarts: false,
+        clientKind: 'mobile',
+      );
 
   // ============================================================================
   // DEBOUNCED PERSISTENCE
@@ -154,38 +160,24 @@ class StreamingStatsService extends ChangeNotifier
     print(
         '[StreamingStatsService] Song started: ${song.title}, isResume=$isResume');
 
-    // If a different song is currently playing (or the same song is being
-    // restarted rather than resumed), finalize its session first.
-    if (_currentSong != null && (_currentSong!.id != song.id || !isResume)) {
-      print(
-          '[StreamingStatsService] Finalizing previous song: ${_currentSong!.title}');
-      final previousSong = _currentSong!;
-      final listenedTime = _sessionListenedTime;
-      final playRecorded = _sessionPlayRecorded;
-      unawaited(_finalizeSessionForSong(
-        previousSong,
-        listenedTime: listenedTime,
-        playRecorded: playRecorded,
-        completedNaturally: false,
-        playId: _sessionPlayId,
-      ));
+    // A non-resume start is a new play-action even for the same song
+    // (restart / repeat-one), so end the previous one first. Track changes
+    // finalize the old action inside the engine either way.
+    if (!isResume) {
+      _engine.stop();
     }
+    _engine.onTrackChanged(ListeningTrackInfo(
+      songId: song.id,
+      title: song.title,
+      artist: song.artist,
+      albumId: song.albumId,
+      album: song.album,
+      albumArtist: song.albumArtist,
+      durationMs: song.duration.inMilliseconds,
+    ));
+    _engine.onPlayingChanged(true);
 
     _currentSong = song;
-    _lastPosition = null;
-    _isPlaybackActive = true;
-
-    if (!isResume) {
-      _sessionListenedTime = Duration.zero;
-      _sessionTimeAlreadyCached = Duration.zero;
-      _sessionPlayRecorded = false;
-      _sessionPlayId = _newListeningId('play');
-      print('[StreamingStatsService] New session, reset counters');
-    } else {
-      print(
-          '[StreamingStatsService] Resuming session, listenedTime=${_sessionListenedTime.inSeconds}s, alreadyCached=${_sessionTimeAlreadyCached.inSeconds}s, playRecorded=$_sessionPlayRecorded');
-    }
-
     _scheduleDbFlush();
   }
 
@@ -203,23 +195,15 @@ class StreamingStatsService extends ChangeNotifier
     print(
         '[StreamingStatsService] Song stopped: ${_currentSong!.title}, completedNaturally=$completedNaturally');
 
-    final song = _currentSong!;
-    final listenedTime = _sessionListenedTime;
-    final playRecorded = _sessionPlayRecorded;
-    _sessionListenedTime = Duration.zero;
-    _isPlaybackActive = false;
+    if (completedNaturally) {
+      _engine.onTrackCompleted();
+    }
+    // Pausing commits pending listening time while keeping the play-action
+    // resumable (a following onSongStarted(isResume: true) continues it).
+    _engine.onPlayingChanged(false);
 
-    await _finalizeSessionForSong(
-      song,
-      listenedTime: listenedTime,
-      playRecorded: playRecorded,
-      completedNaturally: completedNaturally,
-      playId: _sessionPlayId,
-    );
-
-    _sessionTimeAlreadyCached += listenedTime;
     _currentSong = null;
-    _lastPosition = null;
+    await _flushPendingStats();
   }
 
   // ============================================================================
@@ -228,34 +212,11 @@ class StreamingStatsService extends ChangeNotifier
 
   /// Receive position updates from the audio player.
   ///
-  /// Call this on every position tick. The service will calculate actual
-  /// forward listening progress and ignore seek jumps (> 2s) and backward
-  /// movement.
+  /// Call this on every position tick. The engine credits genuine forward
+  /// audio progress and ignores explicit seeks and backward movement.
   void updatePosition(Duration position) {
     if (_currentSong == null) return;
-
-    if (_lastPosition != null && position > _lastPosition!) {
-      final delta = position - _lastPosition!;
-      // Foreground ticks are frequent, but mobile platforms may coalesce
-      // position updates while the app is backgrounded. If playback is known
-      // to be active, count the elapsed audio position even when the jump is
-      // larger than a normal UI tick. Explicit seeks reset [_lastPosition].
-      if (delta <= _foregroundPositionJumpTolerance || _isPlaybackActive) {
-        final trackableDelta = _trackableDelta(delta, position);
-        if (trackableDelta > Duration.zero) {
-          _sessionListenedTime += trackableDelta;
-        }
-        _maybeRecordPlay();
-        if (_sessionListenedTime >= _activePlaybackCheckpointInterval) {
-          unawaited(_checkpointListeningTime());
-        }
-      } else {
-        print(
-            '[StreamingStatsService] Ignored seek jump of ${delta.inSeconds}s');
-      }
-    }
-
-    _lastPosition = position;
+    _engine.onPositionTick(position.inMilliseconds);
   }
 
   /// Update whether the player is actively advancing audio.
@@ -263,231 +224,59 @@ class StreamingStatsService extends ChangeNotifier
   /// This catches play/pause changes from lock-screen/notification controls,
   /// where PlaybackManager may not receive the original button event.
   void setPlaybackActive(bool isActive) {
-    if (_isPlaybackActive == isActive) return;
-    _isPlaybackActive = isActive;
-
+    _engine.onPlayingChanged(isActive);
     if (!isActive) {
-      unawaited(_checkpointListeningTime(flush: true));
+      unawaited(_flushPendingStats());
     }
   }
 
   /// Reset the stats baseline after a seek or other explicit position jump.
   void markPositionDiscontinuity() {
-    _lastPosition = null;
-  }
-
-  Duration _trackableDelta(Duration delta, Duration currentPosition) {
-    final songDuration = _currentSong?.duration ?? Duration.zero;
-    if (songDuration <= Duration.zero) {
-      return delta;
-    }
-
-    final previousPosition = currentPosition - delta;
-    final cappedCurrent =
-        currentPosition > songDuration ? songDuration : currentPosition;
-    if (cappedCurrent <= previousPosition) {
-      return Duration.zero;
-    }
-    return cappedCurrent - previousPosition;
-  }
-
-  /// The play-count threshold for the current song: 30 seconds, or half the
-  /// track when that is shorter, so short songs can still earn plays.
-  Duration get _playThreshold {
-    const standard = Duration(seconds: 30);
-    final duration = _currentSong?.duration ?? Duration.zero;
-    if (duration > Duration.zero) {
-      final half = Duration(milliseconds: duration.inMilliseconds ~/ 2);
-      if (half < standard) return half;
-    }
-    return standard;
-  }
-
-  /// Internal: Check if cumulative listening time has crossed the play
-  /// threshold (30s or 50% of the track) and record a play if so.
-  void _maybeRecordPlay() {
-    if (!_sessionPlayRecorded &&
-        (_sessionTimeAlreadyCached + _sessionListenedTime) >= _playThreshold) {
-      print('[StreamingStatsService] Play threshold reached, recording play');
-      unawaited(_recordPlay());
-    }
+    _engine.onSeek();
   }
 
   // ============================================================================
-  // SESSION FINALIZATION
+  // ENGINE EVENTS → LOCAL STATS + ACCOUNT PIPELINE
   // ============================================================================
 
-  /// Finalize a specific song session, recording any pending time and
-  /// optionally applying the short-song rule.
-  Future<void> _finalizeSessionForSong(
-    Song song, {
-    required Duration listenedTime,
-    required bool playRecorded,
-    required bool completedNaturally,
-    String? playId,
-  }) async {
-    // Short-song rule: any song that completes naturally and is < 30s
-    // always counts as 1 play (Spotify-style behaviour).
-    if (completedNaturally &&
-        song.duration < const Duration(seconds: 30) &&
-        !playRecorded) {
+  /// Consumes each honest event from the shared engine: applied to the local
+  /// per-device stats and mirrored to the account pipeline (a no-op until
+  /// AccountStatsService wires [onListeningEvent]).
+  void _onEngineEvent(ListeningEvent event) {
+    _applyEventToLocalStats(event);
+    onListeningEvent?.call(event);
+  }
+
+  void _applyEventToLocalStats(ListeningEvent event) {
+    final songId = event.songId;
+    final existingStats = _statsCache[songId] ??
+        SongStats(
+          songId: songId,
+          playCount: 0,
+          totalTime: Duration.zero,
+          firstPlayed: DateTime.now(),
+        );
+
+    final updatedStats = existingStats.copyWith(
+      playCount: existingStats.playCount + event.plays,
+      totalTime: Duration(
+        seconds: existingStats.totalTime.inSeconds + event.listenedMs ~/ 1000,
+      ),
+      lastPlayed: DateTime.now(),
+      songTitle: event.songTitle,
+      songArtist: event.songArtist,
+      albumId: event.albumId,
+      album: event.album,
+      albumArtist: event.albumArtist,
+    );
+
+    _statsCache[songId] = updatedStats;
+    _queueDbWrite(songId, updatedStats);
+    _emitTopSongs();
+    if (event.plays > 0) {
       print(
-          '[StreamingStatsService] Short song completed naturally (${song.duration.inSeconds}s < 30s), recording play');
-      await _recordPlayForSong(song, playId: playId);
-      playRecorded = true;
+          '[StreamingStatsService] Play count incremented to ${updatedStats.playCount} for ${event.songTitle}');
     }
-
-    // Persist any accumulated listening time.
-    if (listenedTime > Duration.zero) {
-      await _updateStreamingTimeForSong(song, listenedTime, playId: playId);
-    }
-
-    await _flushPendingStats();
-  }
-
-  Future<void> _checkpointListeningTime({bool flush = false}) async {
-    if (_currentSong == null || _sessionListenedTime <= Duration.zero) {
-      if (flush) {
-        await _flushPendingStats();
-      }
-      return;
-    }
-
-    final song = _currentSong!;
-    final listenedTime = _sessionListenedTime;
-    _sessionListenedTime = Duration.zero;
-    _sessionTimeAlreadyCached += listenedTime;
-
-    await _updateStreamingTimeForSong(song, listenedTime,
-        playId: _sessionPlayId);
-
-    if (flush) {
-      await _flushPendingStats();
-    }
-  }
-
-  // ============================================================================
-  // STATS RECORDING
-  // ============================================================================
-
-  /// Record a play for the current song session.
-  Future<void> _recordPlay() async {
-    if (_currentSong == null || _sessionPlayRecorded) return;
-    _sessionPlayRecorded = true;
-    final song = _currentSong!;
-    await _recordPlayForSong(song, playId: _sessionPlayId);
-  }
-
-  /// Record a play for a specific song (idempotent within a session).
-  Future<void> _recordPlayForSong(Song song, {String? playId}) async {
-    final songId = song.id;
-    final existingStats = _statsCache[songId] ??
-        SongStats(
-          songId: songId,
-          playCount: 0,
-          totalTime: Duration.zero,
-          firstPlayed: DateTime.now(),
-        );
-
-    final updatedStats = existingStats.copyWith(
-      playCount: existingStats.playCount + 1,
-      lastPlayed: DateTime.now(),
-      songTitle: song.title,
-      songArtist: song.artist,
-      albumId: song.albumId,
-      album: song.album,
-      albumArtist: song.albumArtist,
-    );
-
-    _statsCache[songId] = updatedStats;
-    _queueDbWrite(songId, updatedStats);
-    _emitListeningEvent(song, listenedMs: 0, plays: 1, playId: playId);
-
-    _emitTopSongs();
-    print(
-        '[StreamingStatsService] Play count incremented to ${updatedStats.playCount} for ${song.title}');
-  }
-
-  /// Update total streaming time for a specific song.
-  Future<void> _updateStreamingTimeForSong(Song song, Duration elapsed,
-      {String? playId}) async {
-    final songId = song.id;
-    final existingStats = _statsCache[songId] ??
-        SongStats(
-          songId: songId,
-          playCount: 0,
-          totalTime: Duration.zero,
-          firstPlayed: DateTime.now(),
-        );
-
-    final newTotalTime = Duration(
-      seconds: existingStats.totalTime.inSeconds + elapsed.inSeconds,
-    );
-
-    print(
-        '[StreamingStatsService] Adding ${elapsed.inSeconds}s to ${song.title} (total: ${newTotalTime.inSeconds}s)');
-
-    final updatedStats = existingStats.copyWith(
-      totalTime: newTotalTime,
-      lastPlayed: DateTime.now(),
-      songTitle: song.title,
-      songArtist: song.artist,
-      albumId: song.albumId,
-      album: song.album,
-      albumArtist: song.albumArtist,
-    );
-
-    _statsCache[songId] = updatedStats;
-    _queueDbWrite(songId, updatedStats);
-    _emitListeningEvent(
-      song,
-      listenedMs: elapsed.inMilliseconds,
-      plays: 0,
-      playId: playId,
-    );
-    _emitTopSongs();
-  }
-
-  // ============================================================================
-  // CROSS-DEVICE LISTENING EVENTS
-  // ============================================================================
-
-  String _newListeningId(String kind) {
-    _eventCounter++;
-    final ts = DateTime.now().toUtc().microsecondsSinceEpoch;
-    final rand = _eventRandom.nextInt(0xffffff).toRadixString(36);
-    return '$kind-m$ts-$_eventCounter-$rand';
-  }
-
-  /// Mirrors a credited play or time segment to the account-stats pipeline.
-  /// No-op until AccountStatsService wires [onListeningEvent].
-  void _emitListeningEvent(
-    Song song, {
-    required int listenedMs,
-    required int plays,
-    String? playId,
-  }) {
-    final sink = onListeningEvent;
-    if (sink == null) return;
-    if (listenedMs <= 0 && plays <= 0) return;
-    final now = DateTime.now();
-    sink(ListeningEvent(
-      eventId: _newListeningId(plays > 0 ? 'p' : 's'),
-      songId: song.id,
-      playId: playId,
-      listenedMs: listenedMs,
-      plays: plays,
-      occurredAtMs: now.toUtc().millisecondsSinceEpoch,
-      tzOffsetMinutes: now.timeZoneOffset.inMinutes,
-      songTitle: song.title,
-      songArtist: song.artist,
-      albumId: song.albumId,
-      album: song.album,
-      albumArtist: song.albumArtist,
-      songDurationMs: song.duration.inMilliseconds > 0
-          ? song.duration.inMilliseconds
-          : null,
-    ));
   }
 
   // ============================================================================
@@ -539,13 +328,13 @@ class StreamingStatsService extends ChangeNotifier
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.detached ||
         state == AppLifecycleState.inactive) {
-      // If a song is currently playing, checkpoint its accumulated time
+      // If a song is currently playing, commit its accumulated time
       // immediately so data is not lost if the OS kills the app. Keep the
       // session active: background playback can continue to emit position
       // updates, and clearing the current song here would drop the rest of the
       // listen until playback is explicitly restarted.
       if (_currentSong != null) {
-        unawaited(_checkpointListeningTime(flush: true));
+        _engine.flush();
       }
       // Also flush any already-queued dirty stats.
       unawaited(_flushPendingStats());
@@ -1013,15 +802,10 @@ class StreamingStatsService extends ChangeNotifier
   void resetForTests() {
     _dbFlushTimer?.cancel();
     _currentSong = null;
-    _sessionListenedTime = Duration.zero;
-    _sessionTimeAlreadyCached = Duration.zero;
-    _sessionPlayRecorded = false;
-    _lastPosition = null;
-    _isPlaybackActive = false;
+    _engineInstance = null; // a fresh engine, so no play-action carries over
     _dirtyStats.clear();
     _isFlushing = false;
     _statsCache.clear();
-    _sessionPlayId = null;
     _accountOverlay = null;
     onListeningEvent = null;
   }

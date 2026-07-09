@@ -736,6 +736,180 @@ void main() {
     });
   });
 
+  group('playback source context', () {
+    List<Map<String, Object?>> selectEvents(String dbPath) {
+      final reader = sqlite3.open(dbPath, mode: OpenMode.readOnly);
+      try {
+        return reader
+            .select('SELECT event_id, source_kind, playlist_id, client_kind '
+                'FROM listening_events ORDER BY event_id')
+            .map((row) => <String, Object?>{
+                  'event_id': row['event_id'],
+                  'source_kind': row['source_kind'],
+                  'playlist_id': row['playlist_id'],
+                  'client_kind': row['client_kind'],
+                })
+            .toList();
+      } finally {
+        reader.dispose();
+      }
+    }
+
+    test('stores optional context fields on accepted events', () {
+      final result = store.applyEvents('user-a', 'device-1', [
+        ListeningEvent(
+          eventId: 'ctx-1',
+          songId: 'song-1',
+          listenedMs: 30000,
+          plays: 0,
+          occurredAtMs: DateTime.now().toUtc().millisecondsSinceEpoch,
+          tzOffsetMinutes: 0,
+          sourceKind: 'playlist',
+          playlistId: 'pl-1',
+          clientKind: 'desktop',
+        ),
+      ]);
+      expect(result.accepted, 1);
+
+      final rows = selectEvents('${tempDir.path}/listening_stats.db');
+      expect(rows.single['source_kind'], 'playlist');
+      expect(rows.single['playlist_id'], 'pl-1');
+      expect(rows.single['client_kind'], 'desktop');
+    });
+
+    test('old-client events without context still ingest with NULL context',
+        () {
+      final result = store.applyEvents('user-a', 'device-1', [
+        event(eventId: 'old-1', listenedMs: 30000),
+        event(eventId: 'old-2', plays: 1, playId: 'p1'),
+      ]);
+      expect(result.accepted, 2);
+      expect(result.rejected, 0);
+
+      final rows = selectEvents('${tempDir.path}/listening_stats.db');
+      expect(rows, hasLength(2));
+      for (final row in rows) {
+        expect(row['source_kind'], isNull);
+        expect(row['playlist_id'], isNull);
+        expect(row['client_kind'], isNull);
+      }
+
+      // And the context-free events roll up exactly as before.
+      final summary = store.getSummary('user-a');
+      expect(summary.totalListenedMs, 30000);
+      expect(summary.totalPlays, 1);
+    });
+
+    test('context strings are trimmed, bounded, and blank becomes NULL', () {
+      store.applyEvents('user-a', 'device-1', [
+        ListeningEvent(
+          eventId: 'ctx-sane',
+          songId: 'song-1',
+          listenedMs: 1000,
+          plays: 0,
+          occurredAtMs: DateTime.now().toUtc().millisecondsSinceEpoch,
+          tzOffsetMinutes: 0,
+          sourceKind: '   ',
+          playlistId: 'p' * 5000,
+          clientKind: '  tv  ',
+        ),
+      ]);
+
+      final rows = selectEvents('${tempDir.path}/listening_stats.db');
+      expect(rows.single['source_kind'], isNull);
+      expect((rows.single['playlist_id'] as String).length, 256);
+      expect(rows.single['client_kind'], 'tv');
+    });
+
+    test('a pre-context database gains the columns without losing data', () {
+      final path = '${tempDir.path}/pre_context.db';
+
+      // A database created by today's code, minus the context columns.
+      final raw = sqlite3.open(path);
+      raw.execute('''
+        CREATE TABLE listening_events (
+          event_id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          device_id TEXT NOT NULL,
+          song_id TEXT NOT NULL,
+          play_id TEXT,
+          listened_ms INTEGER NOT NULL DEFAULT 0,
+          plays INTEGER NOT NULL DEFAULT 0,
+          occurred_at INTEGER NOT NULL,
+          tz_offset_min INTEGER NOT NULL DEFAULT 0,
+          received_at INTEGER NOT NULL,
+          song_title TEXT,
+          song_artist TEXT,
+          album_id TEXT,
+          album TEXT,
+          album_artist TEXT
+        )
+      ''');
+      raw.execute('''
+        CREATE TABLE listening_song_rollups (
+          user_id TEXT NOT NULL,
+          song_id TEXT NOT NULL,
+          play_count INTEGER NOT NULL DEFAULT 0,
+          listened_ms INTEGER NOT NULL DEFAULT 0,
+          first_played INTEGER,
+          last_played INTEGER,
+          song_title TEXT,
+          song_artist TEXT,
+          album_id TEXT,
+          album TEXT,
+          album_artist TEXT,
+          PRIMARY KEY (user_id, song_id)
+        )
+      ''');
+      final now = DateTime.now().toUtc().millisecondsSinceEpoch;
+      raw.execute('''
+        INSERT INTO listening_events (
+          event_id, user_id, device_id, song_id, play_id, listened_ms, plays,
+          occurred_at, tz_offset_min, received_at
+        ) VALUES ('legacy-1', 'user-a', 'device-1', 'song-1', 'p1', 0, 1,
+                  $now, 0, $now)
+      ''');
+      raw.execute('''
+        INSERT INTO listening_song_rollups (
+          user_id, song_id, play_count, listened_ms, first_played, last_played
+        ) VALUES ('user-a', 'song-1', 1, 0, $now, $now)
+      ''');
+      raw.dispose();
+
+      final upgraded = ListeningStatsStore(databasePath: path);
+      upgraded.initialize();
+      addTearDown(upgraded.close);
+
+      // The legacy row survives with NULL context.
+      final rows = selectEvents(path);
+      expect(rows.single['event_id'], 'legacy-1');
+      expect(rows.single['source_kind'], isNull);
+
+      // New context-carrying events land in the migrated table.
+      final result = upgraded.applyEvents('user-a', 'device-1', [
+        ListeningEvent(
+          eventId: 'ctx-after-migration',
+          songId: 'song-1',
+          listenedMs: 5000,
+          plays: 0,
+          occurredAtMs: now,
+          tzOffsetMinutes: 0,
+          sourceKind: 'album',
+          clientKind: 'mobile',
+        ),
+      ]);
+      expect(result.accepted, 1);
+      expect(upgraded.getSummary('user-a').totalPlays, 1);
+
+      // Re-opening is idempotent — the ALTERs are guarded.
+      upgraded.close();
+      final reopened = ListeningStatsStore(databasePath: path);
+      reopened.initialize();
+      addTearDown(reopened.close);
+      expect(selectEvents(path), hasLength(2));
+    });
+  });
+
   group('migration from the pre-derivation schema', () {
     test('opening an old database with data backfills all derived tables',
         () {

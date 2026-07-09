@@ -36,6 +36,37 @@ void main() {
     expect(reloaded.peek(10).map((e) => e.eventId), ['e1', 'e2']);
   });
 
+  test('source context survives the outbox persistence round-trip', () async {
+    String? storage;
+    final outbox = ListeningEventOutbox(
+      read: () async => storage,
+      write: (contents) async => storage = contents,
+    );
+    await outbox.load();
+    outbox.add(ListeningEvent(
+      eventId: 'ctx-1',
+      songId: 'song-1',
+      listenedMs: 15000,
+      plays: 0,
+      occurredAtMs: DateTime.now().toUtc().millisecondsSinceEpoch,
+      tzOffsetMinutes: 0,
+      sourceKind: 'playlist',
+      playlistId: 'pl-1',
+      clientKind: 'desktop',
+    ));
+    await outbox.persistNow();
+
+    final reloaded = ListeningEventOutbox(
+      read: () async => storage,
+      write: (contents) async => storage = contents,
+    );
+    await reloaded.load();
+    final event = reloaded.peek(1).single;
+    expect(event.sourceKind, 'playlist');
+    expect(event.playlistId, 'pl-1');
+    expect(event.clientKind, 'desktop');
+  });
+
   test('outbox drops oldest events beyond the cap', () async {
     String? storage;
     final outbox = ListeningEventOutbox(

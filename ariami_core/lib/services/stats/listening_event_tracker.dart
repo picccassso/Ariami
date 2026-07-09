@@ -12,6 +12,14 @@ class ListeningTrackInfo {
   final String? albumArtist;
   final int durationMs;
 
+  /// Where playback of this track was started from ('album', 'playlist',
+  /// 'search', 'queue', 'download', ...). Optional context, copied onto
+  /// every emitted event.
+  final String? sourceKind;
+
+  /// The playlist the play started from, when [sourceKind] is 'playlist'.
+  final String? playlistId;
+
   const ListeningTrackInfo({
     required this.songId,
     this.title,
@@ -20,6 +28,8 @@ class ListeningTrackInfo {
     this.album,
     this.albumArtist,
     this.durationMs = 0,
+    this.sourceKind,
+    this.playlistId,
   });
 }
 
@@ -40,11 +50,33 @@ class ListeningEventTracker {
     required this.onEvent,
     String? idSalt,
     DateTime Function()? now,
+    this.checkpointMs = defaultCheckpointMs,
+    this.trustPlayingForwardJumps = false,
+    this.detectRestarts = true,
+    this.clientKind,
   })  : _now = now ?? DateTime.now,
         _idSalt = idSalt ?? _randomSalt();
 
   /// Receives finalized events, ready for the outbox.
   final void Function(ListeningEvent event) onEvent;
+
+  /// Credit forward position jumps beyond [seekToleranceMs] while playback is
+  /// active. Mobile platforms coalesce position updates in the background, so
+  /// a legitimate 45s of audio can arrive as one jump; such clients notify
+  /// explicit seeks via [onSeek] instead of relying on jump detection.
+  /// Leave false when position ticks are frequent (desktop, TV).
+  final bool trustPlayingForwardJumps;
+
+  /// Treat a large backward jump landing near the track start as a new
+  /// play-action (repeat-one wraps at the engine level). Clients whose
+  /// playback manager drives restarts explicitly — stopping and restarting
+  /// the session itself — should pass false so an un-notified backward scrub
+  /// can never split a play-action.
+  final bool detectRestarts;
+
+  /// The reporting client class ('mobile', 'desktop', 'tv'); copied onto
+  /// every emitted event.
+  final String? clientKind;
 
   final DateTime Function() _now;
   final String _idSalt;
@@ -53,9 +85,12 @@ class ListeningEventTracker {
   /// Position jumps larger than this are treated as seeks, not listening.
   static const int seekToleranceMs = 2000;
 
+  /// Default for [checkpointMs].
+  static const int defaultCheckpointMs = 30000;
+
   /// Uncommitted listening is checkpointed into an event this often, so a
   /// killed app loses at most this much credit.
-  static const int checkpointMs = 30000;
+  final int checkpointMs;
 
   /// The standard play-count threshold (Spotify-style 30 seconds).
   static const int playThresholdMs = 30000;
@@ -140,14 +175,16 @@ class ListeningEventTracker {
       // Backward movement is never credited. A large jump back to the start
       // is the track restarting (repeat-one wrap / manual restart): finalize
       // the current play-action honestly and open a new one.
-      if (delta < -seekToleranceMs && positionMs <= restartPositionMs) {
+      if (detectRestarts &&
+          delta < -seekToleranceMs &&
+          positionMs <= restartPositionMs) {
         _finalizePlayAction();
         _startPlayAction();
         _lastPositionMs = positionMs;
       }
       return;
     }
-    if (delta > seekToleranceMs) {
+    if (delta > seekToleranceMs && !trustPlayingForwardJumps) {
       // Forward scrub: skip the jumped-over audio, keep listening after it.
       return;
     }
@@ -177,6 +214,19 @@ class ListeningEventTracker {
   /// anyway). Re-anchors so the jump itself is never credited.
   void onSeek() {
     _lastPositionMs = null;
+  }
+
+  /// Call when the engine reports the track finished playing to the end.
+  ///
+  /// Short tracks whose threshold was never crossed (sparse ticks, unknown
+  /// duration) still count as one honest play on natural completion —
+  /// Spotify-style: a full listen of a track under 30 seconds is a play.
+  void onTrackCompleted() {
+    final track = _track;
+    if (track == null || _playCounted) return;
+    if (track.durationMs >= playThresholdMs) return;
+    _playCounted = true;
+    _emitPlay();
   }
 
   /// Commits any uncommitted listening as a segment event. Call before the
@@ -244,6 +294,9 @@ class ListeningEventTracker {
       album: track.album,
       albumArtist: track.albumArtist,
       songDurationMs: track.durationMs > 0 ? track.durationMs : null,
+      sourceKind: track.sourceKind,
+      playlistId: track.playlistId,
+      clientKind: clientKind,
     );
   }
 }

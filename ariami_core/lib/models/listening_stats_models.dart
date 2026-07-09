@@ -51,6 +51,20 @@ class ListeningEvent {
   /// Song duration in ms if known; lets the server sanity-cap segments.
   final int? songDurationMs;
 
+  // Optional playback context (additive; old clients simply omit these and
+  // old servers ignore them).
+
+  /// Where playback was started from: 'album', 'playlist', 'search',
+  /// 'queue', 'download', ...
+  final String? sourceKind;
+
+  /// The playlist the play-action started from, when [sourceKind] is
+  /// 'playlist'.
+  final String? playlistId;
+
+  /// The reporting client class: 'mobile', 'desktop' or 'tv'.
+  final String? clientKind;
+
   const ListeningEvent({
     required this.eventId,
     required this.songId,
@@ -65,6 +79,9 @@ class ListeningEvent {
     this.album,
     this.albumArtist,
     this.songDurationMs,
+    this.sourceKind,
+    this.playlistId,
+    this.clientKind,
   });
 
   Map<String, dynamic> toJson() => <String, dynamic>{
@@ -81,6 +98,9 @@ class ListeningEvent {
         if (album != null) 'album': album,
         if (albumArtist != null) 'albumArtist': albumArtist,
         if (songDurationMs != null) 'songDurationMs': songDurationMs,
+        if (sourceKind != null) 'sourceKind': sourceKind,
+        if (playlistId != null) 'playlistId': playlistId,
+        if (clientKind != null) 'clientKind': clientKind,
       };
 
   /// Tolerant parser; returns null when required fields are missing/invalid
@@ -114,6 +134,12 @@ class ListeningEvent {
       albumArtist:
           json['albumArtist'] is String ? json['albumArtist'] as String : null,
       songDurationMs: songDurationMs is num ? songDurationMs.toInt() : null,
+      sourceKind:
+          json['sourceKind'] is String ? json['sourceKind'] as String : null,
+      playlistId:
+          json['playlistId'] is String ? json['playlistId'] as String : null,
+      clientKind:
+          json['clientKind'] is String ? json['clientKind'] as String : null,
     );
   }
 }
