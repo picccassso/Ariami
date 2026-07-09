@@ -1,6 +1,17 @@
 import 'dart:async';
 import 'dart:math';
 
+/// How a stream's audio bytes reach the listener.
+enum StreamDelivery {
+  /// Served over HTTP via `/stream` (remote clients).
+  http,
+
+  /// Played straight from the library file on disk by the machine hosting
+  /// the server (desktop server + client mode). Direct playback registers
+  /// here so stream accounting covers every listener, not just HTTP ones.
+  direct,
+}
+
 /// Tracks stream tokens and active streams for multi-user support.
 /// Singleton pattern - use StreamTracker() to get the instance.
 class StreamTracker {
@@ -44,22 +55,20 @@ class StreamTracker {
   /// - [songId]: The song to stream
   /// - [durationSeconds]: The song duration in seconds
   /// - [quality]: Optional quality preset (high, medium, low)
+  /// - [delivery]: How the audio reaches the listener (HTTP or direct file)
   StreamTicket issueTicket({
     required String userId,
     required String sessionToken,
     required String songId,
     required int durationSeconds,
     String? quality,
+    StreamDelivery delivery = StreamDelivery.http,
   }) {
     // Generate secure random token (32 bytes = 64 hex chars)
     final token = _generateToken();
 
-    // Calculate TTL: max(trackDuration + 10min, 20min), capped at 2hrs
-    final durationMinutes = (durationSeconds / 60).ceil();
-    final ttlMinutes = min(max(durationMinutes + 10, 20), 120);
-
     final now = DateTime.now();
-    final expiresAt = now.add(Duration(minutes: ttlMinutes));
+    final expiresAt = now.add(_ticketTtl(durationSeconds));
 
     final ticket = StreamTicket(
       token: token,
@@ -67,6 +76,7 @@ class StreamTracker {
       sessionToken: sessionToken,
       songId: songId,
       quality: quality,
+      delivery: delivery,
       issuedAt: now,
       expiresAt: expiresAt,
     );
@@ -74,6 +84,12 @@ class StreamTracker {
     _tickets[token] = ticket;
 
     return ticket;
+  }
+
+  /// TTL policy: max(trackDuration + 10min, 20min), capped at 2hrs.
+  Duration _ticketTtl(int durationSeconds) {
+    final durationMinutes = (durationSeconds / 60).ceil();
+    return Duration(minutes: min(max(durationMinutes + 10, 20), 120));
   }
 
   /// Issue a long-lived download ticket for one song and quality.
@@ -137,8 +153,28 @@ class StreamTracker {
   }
 
   /// Mark a stream as ended.
-  void endStream(String streamToken) {
+  ///
+  /// [discardTicket] also removes the ticket itself. HTTP streams keep their
+  /// ticket alive until TTL (players re-use the token for range requests);
+  /// direct playback sessions have no further use for it once ended.
+  void endStream(String streamToken, {bool discardTicket = false}) {
     _activeStreams.remove(streamToken);
+    if (discardTicket) {
+      _tickets.remove(streamToken);
+    }
+  }
+
+  /// Re-applies the TTL policy to a still-valid ticket, keeping a
+  /// long-running playback session (e.g. a track on repeat) from expiring
+  /// out of the active counts while it is genuinely still playing. Expiry
+  /// stays in place as the leak guard for sessions that were never ended.
+  void extendTicket(String streamToken, {int durationSeconds = 0}) {
+    final ticket = _tickets[streamToken];
+    if (ticket == null || ticket.isExpired) return;
+    final extended = DateTime.now().add(_ticketTtl(durationSeconds));
+    if (extended.isAfter(ticket.expiresAt)) {
+      ticket.expiresAt = extended;
+    }
   }
 
   /// Revoke all tickets for a session (called on logout).
@@ -178,6 +214,17 @@ class StreamTracker {
 
   /// Get count of active streams (total, may be multiple per user).
   int get activeStreamCount => _activeStreams.length;
+
+  /// Snapshot of the tickets behind currently active streams (HTTP and
+  /// direct playback alike), for dashboards and stream-level stats.
+  List<StreamTicket> get activeStreamTickets {
+    final tickets = <StreamTicket>[];
+    for (final token in _activeStreams) {
+      final ticket = _tickets[token];
+      if (ticket != null) tickets.add(ticket);
+    }
+    return List.unmodifiable(tickets);
+  }
 
   /// Get count of valid (non-expired) tickets.
   int get ticketCount => _tickets.length;
@@ -251,8 +298,12 @@ class StreamTicket {
   final String sessionToken;
   final String songId;
   final String? quality;
+  final StreamDelivery delivery;
   final DateTime issuedAt;
-  final DateTime expiresAt;
+
+  /// Mutable: [StreamTracker.extendTicket] pushes it out for long-running
+  /// direct playback sessions.
+  DateTime expiresAt;
 
   StreamTicket({
     required this.token,
@@ -260,6 +311,7 @@ class StreamTicket {
     required this.sessionToken,
     required this.songId,
     this.quality,
+    this.delivery = StreamDelivery.http,
     required this.issuedAt,
     required this.expiresAt,
   });

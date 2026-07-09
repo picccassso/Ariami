@@ -176,6 +176,61 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
     );
   }
 
+  // ---------------------------------------------------------------------------
+  // Direct (local) playback accounting
+  //
+  // The desktop app in server + client mode plays library files straight from
+  // disk instead of requesting /stream (loopback AVPlayer streaming deadlocks
+  // the shared main thread). These methods put that playback through the same
+  // session validation and ticket accounting as remote HTTP streams, so
+  // active-stream counts and anything built on stream stats see every
+  // listener regardless of delivery.
+  // ---------------------------------------------------------------------------
+
+  /// Registers a direct-from-disk playback session for [songId].
+  ///
+  /// Validates [sessionToken] exactly like `/stream-ticket`, issues a
+  /// [StreamDelivery.direct] ticket, and marks it active. Returns the ticket
+  /// token to pass to [touchDirectPlaybackStream] / [endDirectPlaybackStream],
+  /// or null when the session is invalid, the song is unknown, or the server
+  /// is not running.
+  Future<String?> beginDirectPlaybackStream({
+    required String sessionToken,
+    required String songId,
+  }) async {
+    if (!isRunning || songId.isEmpty) return null;
+    final session = await _authService.validateSession(sessionToken);
+    if (session == null) return null;
+    if (_libraryManager.getSongFilePath(songId) == null) return null;
+
+    final durationSeconds = _libraryManager.getKnownSongDuration(songId) ?? 0;
+    final ticket = _streamTracker.issueTicket(
+      userId: session.userId,
+      sessionToken: session.sessionToken,
+      songId: songId,
+      durationSeconds: durationSeconds,
+      quality: QualityPreset.high.name,
+      delivery: StreamDelivery.direct,
+    );
+    _streamTracker.startStream(ticket.token);
+    return ticket.token;
+  }
+
+  /// Keeps a long-running direct playback session (e.g. repeat-one) from
+  /// expiring out of the active counts while it is still playing.
+  void touchDirectPlaybackStream(String token, {required String songId}) {
+    _streamTracker.extendTicket(
+      token,
+      durationSeconds: _libraryManager.getKnownSongDuration(songId) ?? 0,
+    );
+  }
+
+  /// Ends a direct playback session started by [beginDirectPlaybackStream].
+  /// Safe to call with tokens that already ended or expired.
+  void endDirectPlaybackStream(String token) {
+    _streamTracker.endStream(token, discardTicket: true);
+  }
+
   /// Handle download request (full file download)
   ///
   /// Supports quality parameter for transcoded downloads:

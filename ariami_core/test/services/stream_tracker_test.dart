@@ -452,6 +452,133 @@ void main() {
     });
   });
 
+  group('StreamTracker Direct Playback Delivery', () {
+    late StreamTracker tracker;
+
+    setUp(() {
+      tracker = StreamTracker();
+      tracker.initialize();
+    });
+
+    tearDown(() {
+      tracker.dispose();
+    });
+
+    test('tickets default to http delivery', () {
+      final ticket = tracker.issueTicket(
+        userId: 'user_123',
+        sessionToken: 'session_abc',
+        songId: 'song_456',
+        durationSeconds: 180,
+      );
+
+      expect(ticket.delivery, equals(StreamDelivery.http));
+    });
+
+    test('direct tickets count alongside http streams', () {
+      final httpTicket = tracker.issueTicket(
+        userId: 'user_1',
+        sessionToken: 'session_1',
+        songId: 'song_1',
+        durationSeconds: 180,
+      );
+      final directTicket = tracker.issueTicket(
+        userId: 'user_2',
+        sessionToken: 'session_2',
+        songId: 'song_2',
+        durationSeconds: 180,
+        delivery: StreamDelivery.direct,
+      );
+
+      tracker.startStream(httpTicket.token);
+      tracker.startStream(directTicket.token);
+
+      expect(tracker.activeStreamCount, equals(2));
+      expect(tracker.activeStreamerCount, equals(2));
+    });
+
+    test('activeStreamTickets exposes active sessions with delivery', () {
+      final directTicket = tracker.issueTicket(
+        userId: 'user_1',
+        sessionToken: 'session_1',
+        songId: 'song_1',
+        durationSeconds: 180,
+        delivery: StreamDelivery.direct,
+      );
+      // Issued but never started: must not appear as active.
+      tracker.issueTicket(
+        userId: 'user_2',
+        sessionToken: 'session_2',
+        songId: 'song_2',
+        durationSeconds: 180,
+      );
+
+      tracker.startStream(directTicket.token);
+
+      final active = tracker.activeStreamTickets;
+      expect(active, hasLength(1));
+      expect(active.single.songId, equals('song_1'));
+      expect(active.single.delivery, equals(StreamDelivery.direct));
+    });
+
+    test('endStream with discardTicket removes the ticket too', () {
+      final ticket = tracker.issueTicket(
+        userId: 'user_1',
+        sessionToken: 'session_1',
+        songId: 'song_1',
+        durationSeconds: 180,
+        delivery: StreamDelivery.direct,
+      );
+      tracker.startStream(ticket.token);
+
+      tracker.endStream(ticket.token, discardTicket: true);
+
+      expect(tracker.activeStreamCount, equals(0));
+      expect(tracker.ticketCount, equals(0));
+      expect(tracker.validateToken(ticket.token), isNull);
+    });
+
+    test('extendTicket pushes expiry forward, never backward', () {
+      final ticket = tracker.issueTicket(
+        userId: 'user_1',
+        sessionToken: 'session_1',
+        songId: 'song_1',
+        durationSeconds: 30 * 60, // 40 min TTL
+      );
+      final originalExpiry = ticket.expiresAt;
+
+      // A shorter duration yields a nearer expiry: must not shorten.
+      tracker.extendTicket(ticket.token, durationSeconds: 60);
+      expect(ticket.expiresAt, equals(originalExpiry));
+
+      // Re-applying the same policy from "now" lands later than the original
+      // issue time did.
+      tracker.extendTicket(ticket.token, durationSeconds: 60 * 60);
+      expect(ticket.expiresAt.isAfter(originalExpiry), isTrue);
+    });
+
+    test('extendTicket ignores unknown tokens', () {
+      tracker.extendTicket('missing_token');
+      expect(tracker.ticketCount, equals(0));
+    });
+
+    test('revoking a session also drops its direct tickets', () {
+      final directTicket = tracker.issueTicket(
+        userId: 'user_1',
+        sessionToken: 'session_1',
+        songId: 'song_1',
+        durationSeconds: 180,
+        delivery: StreamDelivery.direct,
+      );
+      tracker.startStream(directTicket.token);
+
+      tracker.revokeSessionTickets('session_1');
+
+      expect(tracker.activeStreamCount, equals(0));
+      expect(tracker.ticketCount, equals(0));
+    });
+  });
+
   group('StreamTracker Dispose', () {
     test('clears all state on dispose', () {
       final tracker = StreamTracker();
