@@ -156,6 +156,26 @@ extension AriamiHttpServerRouterMethods on AriamiHttpServer {
       (Request request) =>
           _handleProtectedV2Request(request, _handleListeningRecentGet),
     );
+    router.get(
+      '/api/v2/listening/day',
+      (Request request) =>
+          _handleProtectedV2Request(request, _handleListeningDayGet),
+    );
+    router.get(
+      '/api/v2/listening/period',
+      (Request request) =>
+          _handleProtectedV2Request(request, _handleListeningPeriodGet),
+    );
+    router.get(
+      '/api/v2/listening/artists',
+      (Request request) =>
+          _handleProtectedV2Request(request, _handleListeningArtistsGet),
+    );
+    router.get(
+      '/api/v2/listening/albums',
+      (Request request) =>
+          _handleProtectedV2Request(request, _handleListeningAlbumsGet),
+    );
     router.post(
       '/api/v2/listening/reset',
       (Request request) =>

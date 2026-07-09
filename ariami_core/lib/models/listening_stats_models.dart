@@ -215,3 +215,200 @@ class ListeningStatsSummary {
     generatedAtMs: 0,
   );
 }
+
+/// Per-user aggregate for one credited artist, derived from the event log by
+/// splitting raw artist strings server-side (see CreditedArtistSplitter).
+/// Every credited artist on a song receives the full play and full listened
+/// time — credit is never divided between collaborators.
+class ListeningArtistRollup {
+  /// Normalized grouping key; stable across casing/whitespace variants.
+  final String artistKey;
+
+  /// Best display label (original casing preserved).
+  final String? artistDisplay;
+
+  final int playCount;
+  final int listenedMs;
+  final int? firstPlayedMs;
+  final int? lastPlayedMs;
+
+  const ListeningArtistRollup({
+    required this.artistKey,
+    this.artistDisplay,
+    required this.playCount,
+    required this.listenedMs,
+    this.firstPlayedMs,
+    this.lastPlayedMs,
+  });
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'artistKey': artistKey,
+        if (artistDisplay != null) 'artistDisplay': artistDisplay,
+        'playCount': playCount,
+        'listenedMs': listenedMs,
+        if (firstPlayedMs != null) 'firstPlayedMs': firstPlayedMs,
+        if (lastPlayedMs != null) 'lastPlayedMs': lastPlayedMs,
+      };
+
+  factory ListeningArtistRollup.fromJson(Map<String, dynamic> json) {
+    return ListeningArtistRollup(
+      artistKey: json['artistKey'] as String? ?? '',
+      artistDisplay: json['artistDisplay'] as String?,
+      playCount: (json['playCount'] as num?)?.toInt() ?? 0,
+      listenedMs: (json['listenedMs'] as num?)?.toInt() ?? 0,
+      firstPlayedMs: (json['firstPlayedMs'] as num?)?.toInt(),
+      lastPlayedMs: (json['lastPlayedMs'] as num?)?.toInt(),
+    );
+  }
+}
+
+/// Per-user aggregate for one album, derived from the event log.
+class ListeningAlbumRollup {
+  /// Grouping key: the album id when the event carried one, otherwise a
+  /// normalized-name key so untagged libraries still group sensibly.
+  final String albumKey;
+
+  /// The catalog album id, when known.
+  final String? albumId;
+
+  final String? album;
+  final String? albumArtist;
+  final int playCount;
+  final int listenedMs;
+  final int? firstPlayedMs;
+  final int? lastPlayedMs;
+
+  const ListeningAlbumRollup({
+    required this.albumKey,
+    this.albumId,
+    this.album,
+    this.albumArtist,
+    required this.playCount,
+    required this.listenedMs,
+    this.firstPlayedMs,
+    this.lastPlayedMs,
+  });
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'albumKey': albumKey,
+        if (albumId != null) 'albumId': albumId,
+        if (album != null) 'album': album,
+        if (albumArtist != null) 'albumArtist': albumArtist,
+        'playCount': playCount,
+        'listenedMs': listenedMs,
+        if (firstPlayedMs != null) 'firstPlayedMs': firstPlayedMs,
+        if (lastPlayedMs != null) 'lastPlayedMs': lastPlayedMs,
+      };
+
+  factory ListeningAlbumRollup.fromJson(Map<String, dynamic> json) {
+    return ListeningAlbumRollup(
+      albumKey: json['albumKey'] as String? ?? '',
+      albumId: json['albumId'] as String?,
+      album: json['album'] as String?,
+      albumArtist: json['albumArtist'] as String?,
+      playCount: (json['playCount'] as num?)?.toInt() ?? 0,
+      listenedMs: (json['listenedMs'] as num?)?.toInt() ?? 0,
+      firstPlayedMs: (json['firstPlayedMs'] as num?)?.toInt(),
+      lastPlayedMs: (json['lastPlayedMs'] as num?)?.toInt(),
+    );
+  }
+}
+
+/// Plays + listened time credited to one local day.
+class ListeningDailyTotal {
+  final int playCount;
+  final int listenedMs;
+
+  const ListeningDailyTotal({
+    required this.playCount,
+    required this.listenedMs,
+  });
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'playCount': playCount,
+        'listenedMs': listenedMs,
+      };
+
+  factory ListeningDailyTotal.fromJson(Map<String, dynamic> json) {
+    return ListeningDailyTotal(
+      playCount: (json['playCount'] as num?)?.toInt() ?? 0,
+      listenedMs: (json['listenedMs'] as num?)?.toInt() ?? 0,
+    );
+  }
+}
+
+/// Aggregated stats for an arbitrary local-day range (a single day, a month,
+/// a year, ...). Derived from the daily rollups, so months/years are range
+/// queries over day rows rather than separate tables. Baseline imports never
+/// contribute (they compress years of history into one timestamp).
+class ListeningPeriodStats {
+  /// Inclusive local-day bounds, `yyyy-mm-dd`.
+  final String fromDay;
+  final String toDay;
+
+  final int totalPlays;
+  final int totalListenedMs;
+  final List<ListeningSongRollup> songs;
+  final List<ListeningArtistRollup> artists;
+  final List<ListeningAlbumRollup> albums;
+
+  /// Per-day totals within the range, keyed by local day.
+  final Map<String, ListeningDailyTotal> days;
+
+  const ListeningPeriodStats({
+    required this.fromDay,
+    required this.toDay,
+    required this.totalPlays,
+    required this.totalListenedMs,
+    required this.songs,
+    required this.artists,
+    required this.albums,
+    required this.days,
+  });
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'from': fromDay,
+        'to': toDay,
+        'totalPlays': totalPlays,
+        'totalListenedMs': totalListenedMs,
+        'songs': songs.map((s) => s.toJson()).toList(),
+        'artists': artists.map((a) => a.toJson()).toList(),
+        'albums': albums.map((a) => a.toJson()).toList(),
+        'days': days.map((day, total) => MapEntry(day, total.toJson())),
+      };
+
+  factory ListeningPeriodStats.fromJson(Map<String, dynamic> json) {
+    final days = <String, ListeningDailyTotal>{};
+    final rawDays = json['days'];
+    if (rawDays is Map<String, dynamic>) {
+      for (final entry in rawDays.entries) {
+        final value = entry.value;
+        if (value is Map<String, dynamic>) {
+          days[entry.key] = ListeningDailyTotal.fromJson(value);
+        }
+      }
+    }
+    return ListeningPeriodStats(
+      fromDay: json['from'] as String? ?? '',
+      toDay: json['to'] as String? ?? '',
+      totalPlays: (json['totalPlays'] as num?)?.toInt() ?? 0,
+      totalListenedMs: (json['totalListenedMs'] as num?)?.toInt() ?? 0,
+      songs: (json['songs'] as List<dynamic>? ?? const <dynamic>[])
+          .whereType<Map<String, dynamic>>()
+          .map(ListeningSongRollup.fromJson)
+          .where((rollup) => rollup.songId.isNotEmpty)
+          .toList(),
+      artists: (json['artists'] as List<dynamic>? ?? const <dynamic>[])
+          .whereType<Map<String, dynamic>>()
+          .map(ListeningArtistRollup.fromJson)
+          .where((rollup) => rollup.artistKey.isNotEmpty)
+          .toList(),
+      albums: (json['albums'] as List<dynamic>? ?? const <dynamic>[])
+          .whereType<Map<String, dynamic>>()
+          .map(ListeningAlbumRollup.fromJson)
+          .where((rollup) => rollup.albumKey.isNotEmpty)
+          .toList(),
+      days: days,
+    );
+  }
+}

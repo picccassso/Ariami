@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:ariami_core/models/listening_stats_models.dart';
 import 'package:ariami_core/services/stats/listening_stats_store.dart';
+import 'package:sqlite3/sqlite3.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -18,6 +19,9 @@ void main() {
     int tzOffsetMinutes = 0,
     String? title,
     String? artist,
+    String? albumId,
+    String? album,
+    String? albumArtist,
   }) {
     return ListeningEvent(
       eventId: eventId,
@@ -30,6 +34,9 @@ void main() {
       tzOffsetMinutes: tzOffsetMinutes,
       songTitle: title,
       songArtist: artist,
+      albumId: albumId,
+      album: album,
+      albumArtist: albumArtist,
     );
   }
 
@@ -331,5 +338,506 @@ void main() {
     expect(after.totalListenedMs, before.totalListenedMs);
     expect(after.totalPlays, before.totalPlays);
     expect(after.songs.length, before.songs.length);
+  });
+
+  group('credited artists', () {
+    const mercy = 'Kanye West, Big Sean, Pusha T, 2 Chainz';
+
+    test('every credited artist receives the full play and full time', () {
+      store.applyEvents('user-a', 'device-1', [
+        event(eventId: 'e1', listenedMs: 60000, title: 'Mercy', artist: mercy),
+        event(eventId: 'e2', plays: 1, playId: 'p1', artist: mercy),
+      ]);
+
+      final artists = store.getTopArtists('user-a');
+      expect(artists, hasLength(4));
+      expect(
+        artists.map((a) => a.artistDisplay),
+        containsAll(['Kanye West', 'Big Sean', 'Pusha T', '2 Chainz']),
+      );
+      for (final artist in artists) {
+        expect(artist.playCount, 1, reason: '${artist.artistDisplay}');
+        expect(artist.listenedMs, 60000, reason: '${artist.artistDisplay}');
+      }
+
+      // The raw display string on the song rollup is preserved untouched.
+      final summary = store.getSummary('user-a');
+      expect(summary.songs.single.songArtist, mercy);
+    });
+
+    test('protected artist names are never split', () {
+      store.applyEvents('user-a', 'device-1', [
+        event(
+          eventId: 'e1',
+          listenedMs: 30000,
+          plays: 0,
+          artist: 'Tyler, the Creator',
+        ),
+        event(eventId: 'e2', plays: 1, playId: 'p1',
+            artist: 'Tyler, the Creator'),
+      ]);
+
+      final artists = store.getTopArtists('user-a');
+      expect(artists, hasLength(1));
+      expect(artists.single.artistDisplay, 'Tyler, the Creator');
+      expect(artists.single.playCount, 1);
+      expect(artists.single.listenedMs, 30000);
+    });
+
+    test('an event with no artist metadata still ingests cleanly', () {
+      // Old clients send exactly this shape today; credited-artist derivation
+      // must degrade gracefully, not reject or misfile the event.
+      final result = store.applyEvents('user-a', 'device-1', [
+        event(eventId: 'e1', listenedMs: 45000),
+        event(eventId: 'e2', plays: 1, playId: 'p1'),
+      ]);
+
+      expect(result.accepted, 2);
+      expect(store.getSummary('user-a').totalListenedMs, 45000);
+      expect(store.getTopArtists('user-a'), isEmpty);
+      expect(store.getDailyTotals('user-a').values.single.listenedMs, 45000);
+    });
+
+    test('windowed top artists only count recent local days', () {
+      final now = DateTime.now().toUtc().millisecondsSinceEpoch;
+      final monthAgo = DateTime.now()
+          .toUtc()
+          .subtract(const Duration(days: 30))
+          .millisecondsSinceEpoch;
+      store.applyEvents('user-a', 'device-1', [
+        event(
+            eventId: 'old',
+            listenedMs: 60000,
+            occurredAtMs: monthAgo,
+            artist: 'Old Favourite'),
+        event(
+            eventId: 'new',
+            listenedMs: 30000,
+            occurredAtMs: now,
+            artist: 'New Obsession'),
+      ]);
+
+      final windowed = store.getTopArtists('user-a', days: 7);
+      expect(windowed, hasLength(1));
+      expect(windowed.single.artistDisplay, 'New Obsession');
+
+      final allTime = store.getTopArtists('user-a');
+      expect(allTime, hasLength(2));
+    });
+  });
+
+  group('album rollups', () {
+    test('aggregates plays and time per album', () {
+      store.applyEvents('user-a', 'device-1', [
+        event(
+            eventId: 'e1',
+            listenedMs: 60000,
+            albumId: 'alb-1',
+            album: 'MBDTF',
+            albumArtist: 'Kanye West'),
+        event(
+            eventId: 'e2',
+            plays: 1,
+            playId: 'p1',
+            songId: 'song-2',
+            albumId: 'alb-1',
+            album: 'MBDTF'),
+      ]);
+
+      final albums = store.getTopAlbums('user-a');
+      expect(albums, hasLength(1));
+      expect(albums.single.albumId, 'alb-1');
+      expect(albums.single.album, 'MBDTF');
+      expect(albums.single.albumArtist, 'Kanye West');
+      expect(albums.single.playCount, 1);
+      expect(albums.single.listenedMs, 60000);
+    });
+
+    test('falls back to a normalized name key when albumId is missing', () {
+      store.applyEvents('user-a', 'device-1', [
+        event(eventId: 'e1', listenedMs: 10000, album: 'Untagged  Album'),
+        event(
+            eventId: 'e2',
+            songId: 'song-2',
+            listenedMs: 5000,
+            album: 'untagged album'),
+      ]);
+
+      final albums = store.getTopAlbums('user-a');
+      expect(albums, hasLength(1));
+      expect(albums.single.albumId, isNull);
+      expect(albums.single.listenedMs, 15000);
+    });
+  });
+
+  group('day and period queries', () {
+    test('a specific local day returns totals and top items', () {
+      final jan2 = DateTime.utc(2026, 1, 2, 12).millisecondsSinceEpoch;
+      final jan3 = DateTime.utc(2026, 1, 3, 12).millisecondsSinceEpoch;
+      store.applyEvents('user-a', 'device-1', [
+        event(
+            eventId: 'e1',
+            listenedMs: 60000,
+            occurredAtMs: jan2,
+            title: 'Mercy',
+            artist: 'Kanye West, Big Sean',
+            albumId: 'alb-1',
+            album: 'Cruel Summer'),
+        event(
+            eventId: 'e2',
+            plays: 1,
+            playId: 'p1',
+            occurredAtMs: jan2,
+            artist: 'Kanye West, Big Sean'),
+        event(
+            eventId: 'e3',
+            songId: 'song-2',
+            listenedMs: 30000,
+            occurredAtMs: jan3,
+            artist: 'Drake'),
+      ]);
+
+      final day = store.getPeriodStats('user-a',
+          fromDay: '2026-01-02', toDay: '2026-01-02');
+      expect(day.totalListenedMs, 60000);
+      expect(day.totalPlays, 1);
+      expect(day.songs.single.songId, 'song-1');
+      expect(day.songs.single.songTitle, 'Mercy');
+      expect(day.artists, hasLength(2));
+      expect(day.albums.single.albumId, 'alb-1');
+      expect(day.days.keys, ['2026-01-02']);
+
+      // The neighbouring day only sees its own listening.
+      final nextDay = store.getPeriodStats('user-a',
+          fromDay: '2026-01-03', toDay: '2026-01-03');
+      expect(nextDay.totalListenedMs, 30000);
+      expect(nextDay.artists.single.artistDisplay, 'Drake');
+    });
+
+    test('a period aggregates across days with a per-day breakdown', () {
+      store.applyEvents('user-a', 'device-1', [
+        event(
+            eventId: 'e1',
+            listenedMs: 60000,
+            occurredAtMs: DateTime.utc(2026, 1, 2, 12).millisecondsSinceEpoch,
+            artist: 'Kanye West'),
+        event(
+            eventId: 'e2',
+            plays: 1,
+            playId: 'p1',
+            occurredAtMs: DateTime.utc(2026, 1, 20, 12).millisecondsSinceEpoch,
+            artist: 'Kanye West'),
+        event(
+            eventId: 'e3',
+            listenedMs: 5000,
+            occurredAtMs: DateTime.utc(2026, 2, 1, 12).millisecondsSinceEpoch,
+            artist: 'Kanye West'),
+      ]);
+
+      // "January 2026" is just a range query over daily rows.
+      final january = store.getPeriodStats('user-a',
+          fromDay: '2026-01-01', toDay: '2026-01-31');
+      expect(january.totalListenedMs, 60000);
+      expect(january.totalPlays, 1);
+      expect(january.days.keys, ['2026-01-02', '2026-01-20']);
+      expect(january.artists.single.playCount, 1);
+      expect(january.artists.single.listenedMs, 60000);
+
+      // The February event is outside the range.
+      final february = store.getPeriodStats('user-a',
+          fromDay: '2026-02-01', toDay: '2026-02-28');
+      expect(february.totalListenedMs, 5000);
+    });
+
+    test('local day respects tz_offset_min across midnight in both directions',
+        () {
+      store.applyEvents('user-a', 'device-1', [
+        // 23:30 UTC Jan 1st at UTC+2 → the listener's Jan 2nd.
+        event(
+            eventId: 'east',
+            listenedMs: 60000,
+            occurredAtMs:
+                DateTime.utc(2026, 1, 1, 23, 30).millisecondsSinceEpoch,
+            tzOffsetMinutes: 120),
+        // 00:30 UTC Jan 2nd at UTC-2 → still the listener's Jan 1st.
+        event(
+            eventId: 'west',
+            listenedMs: 30000,
+            occurredAtMs:
+                DateTime.utc(2026, 1, 2, 0, 30).millisecondsSinceEpoch,
+            tzOffsetMinutes: -120),
+      ]);
+
+      final jan1 = store.getPeriodStats('user-a',
+          fromDay: '2026-01-01', toDay: '2026-01-01');
+      expect(jan1.totalListenedMs, 30000);
+      final jan2 = store.getPeriodStats('user-a',
+          fromDay: '2026-01-02', toDay: '2026-01-02');
+      expect(jan2.totalListenedMs, 60000);
+    });
+
+    test('baseline imports are excluded from day/period but kept all-time',
+        () {
+      final jan2 = DateTime.utc(2026, 1, 2, 12).millisecondsSinceEpoch;
+      store.applyEvents('user-a', 'device-1', [
+        event(
+            eventId: 'baseline:device-1:song-1',
+            listenedMs: 3600000,
+            plays: 100,
+            occurredAtMs: jan2,
+            artist: 'Kanye West'),
+        event(
+            eventId: 'live',
+            listenedMs: 60000,
+            occurredAtMs: jan2,
+            artist: 'Kanye West'),
+      ]);
+
+      // Day/period views only see the live segment.
+      final day = store.getPeriodStats('user-a',
+          fromDay: '2026-01-02', toDay: '2026-01-02');
+      expect(day.totalListenedMs, 60000);
+      expect(day.totalPlays, 0);
+
+      // All-time credited-artist rollups include the baseline history.
+      final artist = store.getTopArtists('user-a').single;
+      expect(artist.playCount, 100);
+      expect(artist.listenedMs, 3600000 + 60000);
+    });
+
+    test('a replaced baseline is reflected in the derived rollups', () {
+      store.applyEvents('user-a', 'device-1', [
+        event(
+            eventId: 'baseline:device-1:song-1',
+            listenedMs: 3600000,
+            plays: 10,
+            artist: 'Kanye West'),
+      ]);
+      expect(store.getTopArtists('user-a').single.playCount, 10);
+
+      // Restoring an older backup replaces the device baseline.
+      store.applyEvents('user-a', 'device-1', [
+        event(
+            eventId: 'baseline:device-1:song-1',
+            listenedMs: 7200000,
+            plays: 25,
+            artist: 'Kanye West'),
+      ]);
+
+      final artist = store.getTopArtists('user-a').single;
+      expect(artist.playCount, 25);
+      expect(artist.listenedMs, 7200000);
+    });
+  });
+
+  group('derivation maintenance', () {
+    void seedRichHistory() {
+      store.applyEvents('user-a', 'device-1', [
+        event(
+            eventId: 'e1',
+            listenedMs: 60000,
+            occurredAtMs: DateTime.utc(2026, 1, 2, 12).millisecondsSinceEpoch,
+            title: 'Mercy',
+            artist: 'Kanye West, Big Sean, Pusha T, 2 Chainz',
+            albumId: 'alb-1',
+            album: 'Cruel Summer'),
+        event(
+            eventId: 'e2',
+            plays: 1,
+            playId: 'p1',
+            occurredAtMs: DateTime.utc(2026, 1, 2, 12).millisecondsSinceEpoch,
+            artist: 'Kanye West, Big Sean, Pusha T, 2 Chainz'),
+        event(
+            eventId: 'e3',
+            songId: 'song-2',
+            listenedMs: 30000,
+            occurredAtMs:
+                DateTime.utc(2026, 1, 3, 23, 30).millisecondsSinceEpoch,
+            tzOffsetMinutes: 120,
+            artist: 'Tyler, the Creator',
+            album: 'Igor'),
+        event(
+            eventId: 'baseline:device-1:song-3',
+            listenedMs: 1000000,
+            plays: 42,
+            artist: 'Drake'),
+      ]);
+    }
+
+    Map<String, Object?> deriveSnapshot() {
+      return {
+        'artists': store
+            .getTopArtists('user-a')
+            .map((a) => a.toJson())
+            .toList(),
+        'albums':
+            store.getTopAlbums('user-a').map((a) => a.toJson()).toList(),
+        'period': store
+            .getPeriodStats('user-a',
+                fromDay: '2026-01-01', toDay: '2026-12-31')
+            .toJson(),
+      };
+    }
+
+    test('rebuildRollups reproduces all derived tables deterministically', () {
+      seedRichHistory();
+      final before = deriveSnapshot();
+
+      store.rebuildRollups('user-a');
+      final afterOnce = deriveSnapshot();
+      store.rebuildRollups('user-a');
+      final afterTwice = deriveSnapshot();
+
+      expect(afterOnce, equals(before));
+      expect(afterTwice, equals(before));
+    });
+
+    test('reset clears every derived table', () {
+      seedRichHistory();
+      store.resetUser('user-a');
+
+      expect(store.getTopArtists('user-a'), isEmpty);
+      expect(store.getTopAlbums('user-a'), isEmpty);
+      expect(store.getDailyTotals('user-a', days: 400), isEmpty);
+      final period = store.getPeriodStats('user-a',
+          fromDay: '2026-01-01', toDay: '2026-12-31');
+      expect(period.totalListenedMs, 0);
+      expect(period.songs, isEmpty);
+      expect(period.days, isEmpty);
+
+      // Verify at the table level too: no derived rows survive.
+      final raw = sqlite3.open('${tempDir.path}/listening_stats.db');
+      try {
+        for (final table in [
+          'song_artist_credits',
+          'listening_artist_rollups',
+          'listening_album_rollups',
+          'listening_daily_rollups',
+        ]) {
+          final count = raw.select(
+            "SELECT COUNT(*) AS n FROM $table WHERE user_id = 'user-a'",
+          ).first['n'] as int;
+          expect(count, 0, reason: table);
+        }
+      } finally {
+        raw.dispose();
+      }
+    });
+
+    test('daily totals expose plays alongside listened time', () {
+      store.applyEvents('user-a', 'device-1', [
+        event(eventId: 'e1', listenedMs: 60000),
+        event(eventId: 'e2', plays: 1, playId: 'p1'),
+      ]);
+
+      final totals = store.getDailyTotals('user-a');
+      expect(totals.values.single.listenedMs, 60000);
+      expect(totals.values.single.playCount, 1);
+    });
+  });
+
+  group('migration from the pre-derivation schema', () {
+    test('opening an old database with data backfills all derived tables',
+        () {
+      final path = '${tempDir.path}/old_listening_stats.db';
+
+      // Hand-build a v1-era database: raw events + song rollups only, no
+      // derived tables and no meta/version marker.
+      final raw = sqlite3.open(path);
+      raw.execute('''
+        CREATE TABLE listening_events (
+          event_id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          device_id TEXT NOT NULL,
+          song_id TEXT NOT NULL,
+          play_id TEXT,
+          listened_ms INTEGER NOT NULL DEFAULT 0,
+          plays INTEGER NOT NULL DEFAULT 0,
+          occurred_at INTEGER NOT NULL,
+          tz_offset_min INTEGER NOT NULL DEFAULT 0,
+          received_at INTEGER NOT NULL,
+          song_title TEXT,
+          song_artist TEXT,
+          album_id TEXT,
+          album TEXT,
+          album_artist TEXT
+        )
+      ''');
+      raw.execute('''
+        CREATE TABLE listening_song_rollups (
+          user_id TEXT NOT NULL,
+          song_id TEXT NOT NULL,
+          play_count INTEGER NOT NULL DEFAULT 0,
+          listened_ms INTEGER NOT NULL DEFAULT 0,
+          first_played INTEGER,
+          last_played INTEGER,
+          song_title TEXT,
+          song_artist TEXT,
+          album_id TEXT,
+          album TEXT,
+          album_artist TEXT,
+          PRIMARY KEY (user_id, song_id)
+        )
+      ''');
+      final jan2 = DateTime.utc(2026, 1, 2, 12).millisecondsSinceEpoch;
+      raw.execute('''
+        INSERT INTO listening_events (
+          event_id, user_id, device_id, song_id, play_id, listened_ms, plays,
+          occurred_at, tz_offset_min, received_at,
+          song_title, song_artist, album_id, album, album_artist
+        ) VALUES
+          ('e1', 'user-a', 'device-1', 'song-1', NULL, 60000, 0, $jan2, 0,
+           $jan2, 'Mercy', 'Kanye West, Big Sean, Pusha T, 2 Chainz',
+           'alb-1', 'Cruel Summer', 'Kanye West'),
+          ('e2', 'user-a', 'device-1', 'song-1', 'p1', 0, 1, $jan2, 0,
+           $jan2, 'Mercy', 'Kanye West, Big Sean, Pusha T, 2 Chainz',
+           'alb-1', 'Cruel Summer', 'Kanye West'),
+          ('baseline:device-1:song-2', 'user-a', 'device-1', 'song-2', NULL,
+           500000, 12, $jan2, 0, $jan2, NULL, 'Drake', NULL, NULL, NULL)
+      ''');
+      raw.execute('''
+        INSERT INTO listening_song_rollups (
+          user_id, song_id, play_count, listened_ms, first_played,
+          last_played, song_title, song_artist, album_id, album, album_artist
+        ) VALUES
+          ('user-a', 'song-1', 1, 60000, $jan2, $jan2, 'Mercy',
+           'Kanye West, Big Sean, Pusha T, 2 Chainz', 'alb-1',
+           'Cruel Summer', 'Kanye West'),
+          ('user-a', 'song-2', 12, 500000, $jan2, $jan2, NULL, 'Drake',
+           NULL, NULL, NULL)
+      ''');
+      raw.dispose();
+
+      final upgraded = ListeningStatsStore(databasePath: path);
+      upgraded.initialize();
+      addTearDown(upgraded.close);
+
+      // Existing data is intact.
+      final summary = upgraded.getSummary('user-a');
+      expect(summary.totalPlays, 13);
+      expect(summary.totalListenedMs, 560000);
+
+      // Derived tables were backfilled from the raw log.
+      final artists = upgraded.getTopArtists('user-a');
+      expect(
+        artists.map((a) => a.artistDisplay),
+        containsAll(
+            ['Kanye West', 'Big Sean', 'Pusha T', '2 Chainz', 'Drake']),
+      );
+      expect(upgraded.getTopAlbums('user-a').single.albumId, 'alb-1');
+      final day = upgraded.getPeriodStats('user-a',
+          fromDay: '2026-01-02', toDay: '2026-01-02');
+      expect(day.totalListenedMs, 60000); // baseline excluded
+      expect(day.totalPlays, 1);
+
+      // Re-opening does not re-run the backfill (version marker persists)
+      // and converges to the same state.
+      upgraded.close();
+      final reopened = ListeningStatsStore(databasePath: path);
+      reopened.initialize();
+      addTearDown(reopened.close);
+      expect(reopened.getTopArtists('user-a'), hasLength(5));
+      expect(reopened.getSummary('user-a').totalPlays, 13);
+    });
   });
 }
