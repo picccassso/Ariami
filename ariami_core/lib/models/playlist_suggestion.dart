@@ -1,9 +1,10 @@
 /// A folder that looks like a playlist but has no explicit marker.
 ///
-/// Suggestions are advisory only: the scanner NEVER creates a playlist from
-/// one automatically. They surface in scan diagnostics so a user (or a future
-/// dashboard approval UI) can decide to import, ignore, or permanently mark
-/// the folder. See PLAYLIST_DETECTION.md for the classification rules.
+/// Medium-confidence detections surface as advisory suggestions in scan
+/// diagnostics so a user (or the dashboard approval UI) can decide to import
+/// or ignore the folder. High-confidence detections are imported
+/// automatically and reported in diagnostics with this same shape. See
+/// PLAYLIST_DETECTION.md for the classification rules.
 class PlaylistSuggestion {
   const PlaylistSuggestion({
     required this.folderPath,

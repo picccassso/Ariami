@@ -165,6 +165,12 @@ extension _LibraryManagerScanningPart on LibraryManager {
             '[LibraryManager] Standalone songs: ${_library!.standaloneSongs.length}');
         print('[LibraryManager] Folder playlists: ${_library!.totalPlaylists}');
         print('[LibraryManager] Total songs: ${_library!.totalSongs}');
+        final autoImported =
+            result.scanDiagnostics.autoImportedPlaylistFolders;
+        if (autoImported.isNotEmpty) {
+          print('[LibraryManager] Auto-imported playlist folders: '
+              '${autoImported.map((s) => s.name).join(', ')}');
+        }
 
         // Persist deterministic catalog rows + change log for v2 sync.
         await _writeCatalogSnapshot();

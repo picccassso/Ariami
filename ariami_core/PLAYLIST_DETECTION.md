@@ -11,8 +11,10 @@ what is merely *suggested* as a playlist. Implemented across
   Playlist membership is additive, never destructive.
 - Albums are built from tags only (album + album artist / normalized track
   artist). Folder paths never group albums.
-- Playlists come from **explicit sources** (imported automatically) or
-  **suggestions** (advisory, never auto-imported).
+- Playlists come from **explicit sources** (imported automatically),
+  **high-confidence detections** (unmarked mixed-song folders with strong
+  playlist evidence, also imported automatically), or **suggestions**
+  (medium confidence, advisory only).
 - Song IDs are always the MD5-prefix of the canonical file path; playlists
   reference those IDs, so listening stats, edits, and downloads are
   unaffected by playlist detection.
@@ -76,13 +78,64 @@ Imported on every full scan without user confirmation:
      manual rescan). Incremental updates carry M3U playlists through
      unchanged, dropping entries whose songs were removed.
 
+## Auto-imported (high confidence)
+
+Without this tier, a fresh install looks like playlist detection failed:
+normal folders full of mixed songs were only *suggested*, and users who
+don't know about `[PLAYLIST]` saw no playlists at all. So unmarked folders
+with **strong** playlist evidence import automatically, exactly like
+`[PLAYLIST]` folders: recursive additive membership, natural path order,
+dedupe handling, the artifact-tag guard, plain-basename display name, and
+the stable `FolderPlaylist.generateId(folderPath)` ID.
+
+A folder auto-imports only when **all** of these hold:
+
+- it directly contains at least **8** loose audio files;
+- it passes every album-protection guard below (so compilations, dominant
+  albums, and artist dumps can never auto-import);
+- tracks span **≥ 4 distinct albums** (no album above 40% of tagged
+  tracks) **and ≥ 4 distinct artists** (no artist above 50%);
+- **either** the folder name is playlist-like (see the word list below)
+  **or** diversity is very high on its own: ≥ 6 distinct albums and ≥ 6
+  distinct artists, with no album above 30% and no artist above 40% of
+  tagged tracks.
+
+So `Gym/` with 10 tracks from 5 albums auto-imports (name + diversity),
+and an unnamed dump with 50 tracks from 25 albums / 30 artists
+auto-imports (diversity alone) — but `Kanye West/808s and Heartbreak/`,
+`Various Artists/Now Album/`, and single-artist album dumps never do.
+
+If most tracks are missing album tags there is no diversity evidence, so
+only a playlist-like name counts: 8+ untagged files in a playlist-named
+folder still auto-import (those tracks would stay standalone anyway);
+fewer fall back to a flagged suggestion.
+
+Special cases:
+
+- a user **ignore** decision on the folder blocks auto-import entirely;
+- nested qualifying folders collapse into the outermost one (mirroring
+  `[PLAYLIST]` nesting);
+- a qualifying folder that *contains* an explicit playlist folder is
+  demoted to a suggestion — importing it would make incremental rebuilds
+  (which collapse nested playlist paths to the outermost) swallow the
+  inner playlist;
+- files already owned by an explicit playlist folder are never stolen.
+
+Auto-imported folders are reported in scan diagnostics
+(`autoImportedPlaylistFolders`, same shape as suggestions) and can be
+removed with an **ignore** decision (`POST
+/api/playlists/suggestions/decision`) followed by a rescan. Incremental
+(watcher) rebuilds carry auto-imported playlists through from the previous
+library snapshot; classification itself only runs on full scans.
+
 ## Suggested (advisory only)
 
 `PlaylistFolderClassifier` looks at every folder that **directly** contains
-at least 5 loose audio files and reports likely playlists in scan
-diagnostics (`playlistSuggestions` on the scan-status endpoint). Nothing is
-imported automatically; the dashboard offers *Import / Ignore* actions on
-top of this data (see "Approval workflow" below).
+at least 5 loose audio files. Folders that don't meet the auto-import bar
+but still look playlist-shaped are reported in scan diagnostics
+(`playlistSuggestions` on the scan-status endpoint) without being imported;
+the dashboard offers *Import / Ignore* actions on top of this data (see
+"Approval workflow" below).
 
 A folder is **never** suggested when any of these hold (album protection):
 
@@ -129,7 +182,8 @@ decisions exist, keyed by the folder's **absolute path**:
   marker to strip, no rename needed) and the playlist ID uses the same
   `FolderPlaylist.generateId(folderPath)` scheme, so it is stable across
   scans and restarts. Approved folders are never suggested again.
-- **ignore** — the folder is never suggested again. No other effect.
+- **ignore** — the folder is never suggested *and never auto-imported*
+  again. No other effect.
 - **reset** — clears a previous decision so the folder is re-evaluated on
   the next scan.
 
@@ -167,6 +221,7 @@ playlists arrive through the normal library API.
 - Folders with fewer than 5 loose files.
 - Poorly tagged folders without a playlist-like name.
 - Any folder already covered by an explicit playlist source.
+- Any folder with a recorded **ignore** decision.
 
 ## Deliberately left for later passes
 

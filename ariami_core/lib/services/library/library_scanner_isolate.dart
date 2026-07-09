@@ -68,6 +68,9 @@ class ScanResultMessage {
   /// Advisory likely-playlist folders detected during the scan.
   final List<PlaylistSuggestion> playlistSuggestions;
 
+  /// Unmarked folders auto-imported as playlists (high confidence).
+  final List<PlaylistSuggestion> autoImportedPlaylistFolders;
+
   const ScanResultMessage({
     required this.type,
     this.library,
@@ -79,6 +82,7 @@ class ScanResultMessage {
     this.failedFiles = const [],
     this.skippedFileCount = 0,
     this.playlistSuggestions = const [],
+    this.autoImportedPlaylistFolders = const [],
   });
 }
 
@@ -213,6 +217,7 @@ class LibraryScannerIsolate {
               skippedFileCount: message.skippedFileCount,
               failedFiles: message.failedFiles,
               playlistSuggestions: message.playlistSuggestions,
+              autoImportedPlaylistFolders: message.autoImportedPlaylistFolders,
             );
           } else if (message.type == ScanMessageType.error) {
             errorMessage = message.error;
@@ -439,6 +444,57 @@ class LibraryScannerIsolate {
       _sendProgress(sendPort, 'duplicates', uniqueSongs.length, songs.length,
           85.0, '${uniqueSongs.length} unique songs after filtering');
 
+      // Step 3.5: Classify unmarked folders. High-confidence mixed folders
+      // auto-import: they join playlistFolders here, BEFORE album building,
+      // so the artifact-tag guard, playlist building, natural ordering, and
+      // stable IDs all treat them exactly like [PLAYLIST] folders.
+      // Medium-confidence folders stay advisory suggestions. User "ignore"
+      // decisions block both.
+      final classification = const PlaylistFolderClassifier().classify(
+        songs: uniqueSongs,
+        libraryRootPath: folderPath,
+        explicitPlaylistFolderPaths: playlistFolders.keys.toSet(),
+        ignoredFolderPaths: params.ignoredSuggestionFolderPaths
+            .map(path.normalize)
+            .toSet(),
+      );
+
+      // A folder with an explicit playlist folder somewhere inside it is
+      // demoted to a suggestion: importing it would make incremental
+      // rebuilds (which collapse nested playlist paths to the outermost)
+      // swallow the inner playlist.
+      final autoImports = <PlaylistSuggestion>[];
+      final playlistSuggestions = [...classification.suggestions];
+      for (final autoImport in classification.autoImports) {
+        final prefix = '${autoImport.folderPath}${path.separator}';
+        if (playlistFolders.keys.any((p) => p.startsWith(prefix))) {
+          playlistSuggestions.add(autoImport);
+        } else {
+          autoImports.add(autoImport);
+        }
+      }
+      playlistSuggestions
+          .sort((a, b) => a.folderPath.compareTo(b.folderPath));
+
+      // Membership mirrors [PLAYLIST] collection: recursive, keeps duplicate
+      // copies (their IDs remap to the surviving song later), and never
+      // steals a file already owned by an explicit playlist folder.
+      final explicitPlaylistFilePaths =
+          playlistFolders.values.expand((paths) => paths).toSet();
+      for (final autoImport in autoImports) {
+        playlistFolders[autoImport.folderPath] = audioFiles
+            .where((filePath) =>
+                filePath.startsWith(
+                    '${autoImport.folderPath}${path.separator}') &&
+                !explicitPlaylistFilePaths.contains(filePath))
+            .toList();
+      }
+      if (autoImports.isNotEmpty) {
+        _sendProgress(sendPort, 'playlists', autoImports.length,
+            autoImports.length, 85.0,
+            'Auto-imported ${autoImports.length} playlist folder(s)');
+      }
+
       // Step 4: Build albums
       // Playlist membership is additive: songs under [PLAYLIST] folders join
       // album grouping (or become standalone) like any other track, and also
@@ -518,19 +574,8 @@ class LibraryScannerIsolate {
       folderPlaylistsList
           .sort((a, b) => a.folderPath.compareTo(b.folderPath));
 
-      // Step 7: Detect likely-playlist folders (advisory only — surfaced in
-      // scan diagnostics, never auto-imported). Approved folders are already
-      // in playlistFolders, so they are excluded as explicit sources; ignored
-      // folders are filtered by decision.
-      final playlistSuggestions =
-          const PlaylistFolderClassifier().detectSuggestions(
-        songs: uniqueSongs,
-        libraryRootPath: folderPath,
-        explicitPlaylistFolderPaths: playlistFolders.keys.toSet(),
-        ignoredFolderPaths: params.ignoredSuggestionFolderPaths
-            .map(path.normalize)
-            .toSet(),
-      );
+      // Step 7: Medium-confidence suggestions were classified in step 3.5
+      // (advisory only — surfaced in scan diagnostics for the approval UI).
 
       // Create final library with playlists
       final library = LibraryStructure(
@@ -568,6 +613,7 @@ class LibraryScannerIsolate {
         failedFiles: failedFiles,
         skippedFileCount: skippedFileCount,
         playlistSuggestions: playlistSuggestions,
+        autoImportedPlaylistFolders: autoImports,
       ));
     } catch (e, stackTrace) {
       print('[LibraryScannerIsolate] ERROR in isolate: $e');

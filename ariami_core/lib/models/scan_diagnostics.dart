@@ -25,19 +25,27 @@ class ScanDiagnostics {
     this.skippedFileCount = 0,
     this.failedFiles = const [],
     this.playlistSuggestions = const [],
+    this.autoImportedPlaylistFolders = const [],
   });
 
   final int skippedFileCount;
   final List<ScanFailedFile> failedFiles;
 
   /// Folders that look like playlists but have no explicit marker.
-  /// Advisory only — never auto-imported.
+  /// Advisory only — medium confidence, awaiting a user decision.
   final List<PlaylistSuggestion> playlistSuggestions;
+
+  /// Unmarked folders with high-confidence playlist evidence that the scan
+  /// imported automatically. Informational — the playlists themselves are
+  /// already in the library.
+  final List<PlaylistSuggestion> autoImportedPlaylistFolders;
 
   Map<String, dynamic> toJson() => {
         'skippedFileCount': skippedFileCount,
         'failedFiles': failedFiles.map((f) => f.toJson()).toList(),
         'playlistSuggestions':
             playlistSuggestions.map((s) => s.toJson()).toList(),
+        'autoImportedPlaylistFolders':
+            autoImportedPlaylistFolders.map((s) => s.toJson()).toList(),
       };
 }

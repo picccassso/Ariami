@@ -25,8 +25,7 @@ void main() {
     );
   }
 
-  /// N loose files in [folder], each from its own album/artist, with the
-  /// original (duplicated across folder members? no — distinct) tags.
+  /// N loose files in [folder], each from its own album/artist.
   List<SongMetadata> mixedFolder(String folder, int count) {
     return [
       for (var i = 0; i < count; i++)
@@ -40,107 +39,225 @@ void main() {
     ];
   }
 
-  group('suggests', () {
-    test('a mixed folder with many albums and artists', () {
-      final suggestions = classifier.detectSuggestions(
-        songs: mixedFolder('$root/Old iPod Dump', 8),
+  /// N loose files spread round-robin over [albums] albums and [artists]
+  /// artists — a realistic "collected from everywhere" playlist shape.
+  List<SongMetadata> spreadFolder(
+    String folder,
+    int count, {
+    required int albums,
+    required int artists,
+  }) {
+    return [
+      for (var i = 0; i < count; i++)
+        song(
+          '$folder/track$i.mp3',
+          title: 'Track $i',
+          artist: 'Artist ${i % artists}',
+          album: 'Album ${i % albums}',
+          trackNumber: (i % 4) + 1,
+        ),
+    ];
+  }
+
+  group('auto-imports (high confidence)', () {
+    test('a playlist-named mixed folder with enough files', () {
+      for (final name in ['Gym', 'Road Trip', 'Liked Songs', 'Car Mix',
+          'Favourites', 'Party']) {
+        final result = classifier.classify(
+          songs: spreadFolder('$root/$name', 10, albums: 5, artists: 5),
+          libraryRootPath: root,
+        );
+
+        expect(result.autoImports.map((s) => s.name), [name],
+            reason: '"$name" is playlist-named, has 10 mixed files from 5 '
+                'albums/artists — strong evidence, should auto-import');
+        expect(result.suggestions, isEmpty,
+            reason: 'auto-imported folders are not also suggested');
+      }
+    });
+
+    test('an unnamed folder with very high artist/album diversity', () {
+      final result = classifier.classify(
+        songs: spreadFolder('$root/Stuff', 50, albums: 25, artists: 30),
         libraryRootPath: root,
       );
 
-      expect(suggestions, hasLength(1));
-      final s = suggestions.single;
+      expect(result.autoImports, hasLength(1));
+      final s = result.autoImports.single;
+      expect(s.name, 'Stuff');
+      expect(s.songCount, 50);
+      expect(s.albumCount, 25);
+      expect(s.artistCount, 30);
+      expect(s.missingTags, isFalse);
+      expect(result.suggestions, isEmpty);
+    });
+
+    test('an untagged folder when playlist-named with enough files', () {
+      final result = classifier.classify(
+        songs: [
+          for (var i = 0; i < 9; i++) song('$root/Gym Mix/track$i.mp3'),
+        ],
+        libraryRootPath: root,
+      );
+
+      expect(result.autoImports, hasLength(1));
+      expect(result.autoImports.single.missingTags, isTrue,
+          reason: 'untagged playlist-named dumps import — their tracks '
+              'would stay standalone anyway');
+    });
+
+    test('never a folder the user chose to ignore', () {
+      final result = classifier.classify(
+        songs: spreadFolder('$root/Gym', 10, albums: 5, artists: 5),
+        libraryRootPath: root,
+        ignoredFolderPaths: {'$root/Gym'},
+      );
+
+      expect(result.autoImports, isEmpty);
+      expect(result.suggestions, isEmpty,
+          reason: 'an ignore decision silences the folder entirely');
+    });
+
+    test('nested auto-imports collapse into the outermost folder', () {
+      final result = classifier.classify(
+        songs: [
+          ...spreadFolder('$root/Gym', 10, albums: 5, artists: 5),
+          ...spreadFolder('$root/Gym/Warmup Mix', 10, albums: 5, artists: 5),
+        ],
+        libraryRootPath: root,
+      );
+
+      expect(result.autoImports.map((s) => s.folderPath), ['$root/Gym']);
+      expect(result.suggestions, isEmpty,
+          reason: 'the inner folder is neither imported nor suggested — '
+              'its files belong to the outer playlist');
+    });
+  });
+
+  group('suggests (medium confidence)', () {
+    test('a mixed folder below the auto-import size', () {
+      final result = classifier.classify(
+        songs: mixedFolder('$root/Old iPod Dump', 6),
+        libraryRootPath: root,
+      );
+
+      expect(result.autoImports, isEmpty,
+          reason: '6 files is below the auto-import minimum');
+      expect(result.suggestions, hasLength(1));
+      final s = result.suggestions.single;
       expect(s.folderPath, '$root/Old iPod Dump');
       expect(s.name, 'Old iPod Dump');
-      expect(s.songCount, 8);
-      expect(s.albumCount, 8);
-      expect(s.artistCount, 8);
+      expect(s.songCount, 6);
+      expect(s.albumCount, 6);
+      expect(s.artistCount, 6);
       expect(s.missingTags, isFalse);
       expect(s.reasons, isNotEmpty);
     });
 
-    test('a Road Trip style folder with many album tags', () {
-      final suggestions = classifier.detectSuggestions(
+    test('an unnamed folder with only moderate diversity', () {
+      // 12 files over 4 albums/4 artists: diverse enough to suggest, but
+      // without a playlist-like name it is not "very high diversity".
+      final result = classifier.classify(
+        songs: spreadFolder('$root/From Laptop', 12, albums: 4, artists: 4),
+        libraryRootPath: root,
+      );
+
+      expect(result.autoImports, isEmpty);
+      expect(result.suggestions, hasLength(1));
+      expect(result.suggestions.single.name, 'From Laptop');
+    });
+
+    test('a small playlist-named folder with many album tags', () {
+      final result = classifier.classify(
         songs: mixedFolder('$root/Road Trip', 6),
         libraryRootPath: root,
       );
 
-      expect(suggestions, hasLength(1));
-      expect(suggestions.single.name, 'Road Trip');
+      expect(result.autoImports, isEmpty);
+      expect(result.suggestions, hasLength(1));
+      expect(result.suggestions.single.name, 'Road Trip');
       expect(
-        suggestions.single.reasons,
+        result.suggestions.single.reasons,
         contains('folder name looks like a playlist'),
       );
     });
 
-    test('a missing-tag folder ONLY when its name is playlist-like, flagged',
-        () {
+    test('a small missing-tag folder ONLY when its name is playlist-like, '
+        'flagged for review', () {
       List<SongMetadata> untagged(String folder) => [
             for (var i = 0; i < 6; i++) song('$folder/track$i.mp3'),
           ];
 
-      final playlistLike = classifier.detectSuggestions(
+      final playlistLike = classifier.classify(
         songs: untagged('$root/Gym Mix'),
         libraryRootPath: root,
       );
-      expect(playlistLike, hasLength(1));
-      expect(playlistLike.single.missingTags, isTrue);
+      expect(playlistLike.autoImports, isEmpty,
+          reason: '6 untagged files is below the auto-import minimum');
+      expect(playlistLike.suggestions, hasLength(1));
+      expect(playlistLike.suggestions.single.missingTags, isTrue);
       expect(
-        playlistLike.single.reasons.join(' '),
+        playlistLike.suggestions.single.reasons.join(' '),
         contains('review before importing'),
       );
 
-      final anonymous = classifier.detectSuggestions(
+      final anonymous = classifier.classify(
         songs: untagged('$root/New Folder'),
         libraryRootPath: root,
       );
-      expect(anonymous, isEmpty,
+      expect(anonymous.suggestions, isEmpty,
           reason: 'untagged folders without a playlist-like name are left '
               'alone');
+      expect(anonymous.autoImports, isEmpty);
     });
   });
 
-  group('never suggests', () {
-    test('a normal album folder', () {
-      final suggestions = classifier.detectSuggestions(
-        songs: [
+  group('never touches (album protection)', () {
+    void expectUntouched(List<SongMetadata> songs, {required String reason}) {
+      final result = classifier.classify(
+        songs: songs,
+        libraryRootPath: root,
+      );
+      expect(result.autoImports, isEmpty, reason: reason);
+      expect(result.suggestions, isEmpty, reason: reason);
+    }
+
+    test('a normal Artist/Album folder', () {
+      expectUntouched(
+        [
           for (var i = 1; i <= 10; i++)
             song(
-              '$root/Arctic Monkeys/AM/$i.mp3',
+              '$root/Kanye West/808s and Heartbreak/$i.mp3',
               title: 'Song $i',
-              artist: 'Arctic Monkeys',
-              album: 'AM',
+              artist: 'Kanye West',
+              album: '808s and Heartbreak',
               trackNumber: i,
             ),
         ],
-        libraryRootPath: root,
+        reason: 'a single dominant album is an album, never a playlist',
       );
-
-      expect(suggestions, isEmpty);
     });
 
-    test('a compilation album despite many track artists', () {
-      final suggestions = classifier.detectSuggestions(
-        songs: [
+    test('a Various Artists compilation despite many track artists', () {
+      expectUntouched(
+        [
           for (var i = 1; i <= 12; i++)
             song(
-              '$root/NOW 100/$i.mp3',
+              '$root/Various Artists/Now Album/$i.mp3',
               title: 'Hit $i',
               artist: 'Pop Artist $i',
               albumArtist: 'Various Artists',
-              album: 'NOW 100',
+              album: 'Now Album',
               trackNumber: i,
             ),
         ],
-        libraryRootPath: root,
+        reason: 'Various Artists compilations are protected',
       );
-
-      expect(suggestions, isEmpty,
-          reason: 'Various Artists compilations are protected');
     });
 
     test('a compilation spread over several albums', () {
-      final suggestions = classifier.detectSuggestions(
-        songs: [
+      expectUntouched(
+        [
           for (var i = 0; i < 8; i++)
             song(
               '$root/Charts/$i.mp3',
@@ -150,36 +267,32 @@ void main() {
               album: 'NOW ${90 + i}',
             ),
         ],
-        libraryRootPath: root,
+        reason: 'compilation tagging wins even with album diversity',
       );
-
-      expect(suggestions, isEmpty);
     });
 
-    test('an artist dump dominated by one album artist', () {
-      final suggestions = classifier.detectSuggestions(
-        songs: [
-          for (var i = 0; i < 8; i++)
+    test('an artist dump with many albums from the same artist', () {
+      expectUntouched(
+        [
+          for (var i = 0; i < 12; i++)
             song(
               '$root/Metallica Everything/$i.mp3',
               title: 'Song $i',
               artist: 'Metallica',
               albumArtist: 'Metallica',
-              album: 'Album ${i % 5}',
+              album: 'Album ${i % 6}',
             ),
         ],
-        libraryRootPath: root,
+        reason: 'a single dominant album artist means an artist folder, '
+            'not a playlist',
       );
-
-      expect(suggestions, isEmpty,
-          reason: 'a single dominant album artist means an artist folder, '
-              'not a playlist');
     });
 
-    test('a folder just because it has a playlist-like name', () {
-      final suggestions = classifier.detectSuggestions(
-        songs: [
-          for (var i = 1; i <= 6; i++)
+    test('a single-album folder just because it has a playlist-like name',
+        () {
+      expectUntouched(
+        [
+          for (var i = 1; i <= 9; i++)
             song(
               '$root/Party/$i.mp3',
               title: 'Song $i',
@@ -188,77 +301,75 @@ void main() {
               trackNumber: i,
             ),
         ],
-        libraryRootPath: root,
+        reason: 'a name alone is never enough; this is one coherent album',
       );
-
-      expect(suggestions, isEmpty,
-          reason: 'a name alone is never enough; this is one coherent album');
     });
 
     test('folders with fewer than the minimum number of loose files', () {
-      final suggestions = classifier.detectSuggestions(
-        songs: mixedFolder('$root/Tiny', 4),
-        libraryRootPath: root,
+      expectUntouched(
+        mixedFolder('$root/Tiny', 4),
+        reason: 'too few loose files to classify',
       );
-
-      expect(suggestions, isEmpty);
     });
 
     test('the library root itself', () {
-      final suggestions = classifier.detectSuggestions(
-        songs: mixedFolder(root, 10),
-        libraryRootPath: root,
+      expectUntouched(
+        mixedFolder(root, 10),
+        reason: 'the scan root is never a playlist',
       );
-
-      expect(suggestions, isEmpty);
-    });
-
-    test('folders inside an explicit [PLAYLIST] folder', () {
-      final suggestions = classifier.detectSuggestions(
-        songs: mixedFolder('$root/[PLAYLIST] Gym/sub', 8),
-        libraryRootPath: root,
-        explicitPlaylistFolderPaths: {'$root/[PLAYLIST] Gym'},
-      );
-
-      expect(suggestions, isEmpty,
-          reason: 'already a playlist — nothing to suggest');
     });
 
     test('"car" keyword does not match inside words like "carnival"', () {
-      final suggestions = classifier.detectSuggestions(
-        songs: [
-          for (var i = 0; i < 6; i++)
+      expectUntouched(
+        [
+          for (var i = 0; i < 9; i++)
             song('$root/Carnival Recordings/$i.mp3'),
         ],
-        libraryRootPath: root,
+        reason: 'playlist words match on word boundaries only',
       );
-
-      expect(suggestions, isEmpty);
     });
   });
 
-  test('suggestion order is deterministic (path-sorted)', () {
+  test('folders inside an explicit [PLAYLIST] folder are never classified',
+      () {
+    final result = classifier.classify(
+      songs: spreadFolder('$root/[PLAYLIST] Gym/sub', 10,
+          albums: 5, artists: 5),
+      libraryRootPath: root,
+      explicitPlaylistFolderPaths: {'$root/[PLAYLIST] Gym'},
+    );
+
+    expect(result.autoImports, isEmpty);
+    expect(result.suggestions, isEmpty,
+        reason: 'already a playlist — nothing to classify');
+  });
+
+  test('classification order is deterministic (path-sorted)', () {
     final songs = [
       ...mixedFolder('$root/Zulu Mixes', 6),
       ...mixedFolder('$root/Alpha Dump', 6),
-      ...mixedFolder('$root/Mid Collection', 6),
+      ...spreadFolder('$root/Big Gym', 10, albums: 5, artists: 5),
+      ...spreadFolder('$root/Aa Workout', 10, albums: 5, artists: 5),
     ];
 
-    final forward = classifier.detectSuggestions(
+    final forward = classifier.classify(
       songs: songs,
       libraryRootPath: root,
     );
-    final reversed = classifier.detectSuggestions(
+    final reversed = classifier.classify(
       songs: songs.reversed.toList(),
       libraryRootPath: root,
     );
 
-    final expectedOrder = [
-      '$root/Alpha Dump',
-      '$root/Mid Collection',
-      '$root/Zulu Mixes',
-    ];
-    expect(forward.map((s) => s.folderPath).toList(), expectedOrder);
-    expect(reversed.map((s) => s.folderPath).toList(), expectedOrder);
+    const expectedSuggestions = ['$root/Alpha Dump', '$root/Zulu Mixes'];
+    const expectedAutoImports = ['$root/Aa Workout', '$root/Big Gym'];
+    expect(forward.suggestions.map((s) => s.folderPath).toList(),
+        expectedSuggestions);
+    expect(reversed.suggestions.map((s) => s.folderPath).toList(),
+        expectedSuggestions);
+    expect(forward.autoImports.map((s) => s.folderPath).toList(),
+        expectedAutoImports);
+    expect(reversed.autoImports.map((s) => s.folderPath).toList(),
+        expectedAutoImports);
   });
 }
