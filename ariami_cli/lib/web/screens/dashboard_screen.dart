@@ -61,6 +61,11 @@ class _DashboardScreenState extends State<DashboardScreen>
   bool _isSavingTranscodeSlots = false;
   String? _transcodeSlotsError;
   TranscodeSlotsSnapshot? _transcodeSlotsSnapshot;
+
+  /// null until loaded (or when not admin); the Users tab hides the toggle
+  /// while unknown.
+  bool? _userPickerEnabled;
+  bool _isSavingUserPicker = false;
   String? _connectedClientsError;
   String? _userActivityError;
   String? _serverUsersError;
@@ -189,6 +194,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         await _loadUserActivity(showLoading: false);
         await _loadRegisteredUsers(showLoading: false);
         await _loadTranscodeSlots(showLoading: false);
+        await _loadUserPicker();
         await _loadPlaylistSuggestions();
       }
     } catch (e) {
@@ -247,6 +253,85 @@ class _DashboardScreenState extends State<DashboardScreen>
         _transcodeSlotsError = 'Failed to load transcode slots.';
         _isLoadingTranscodeSlots = false;
       });
+    }
+  }
+
+  /// Loads the sign-in account-picker setting. Runs after
+  /// [_loadTranscodeSlots], which resolves [_isAdmin].
+  Future<void> _loadUserPicker() async {
+    if (!_isAdmin) {
+      if (mounted && _userPickerEnabled != null) {
+        setState(() {
+          _userPickerEnabled = null;
+        });
+      }
+      return;
+    }
+
+    try {
+      final enabled = await _apiClient.getUserPickerEnabled();
+      if (!mounted) return;
+      setState(() {
+        _userPickerEnabled = enabled;
+      });
+    } on WebApiException catch (e) {
+      if (e.isAuthError) {
+        await _redirectToLoginIfSessionCannotRecover(e.code);
+        return;
+      }
+      // Older servers don't have the endpoint; just hide the toggle.
+      if (!mounted) return;
+      setState(() {
+        _userPickerEnabled = null;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _userPickerEnabled = null;
+      });
+    }
+  }
+
+  Future<void> _toggleUserPicker(bool enabled) async {
+    if (_isSavingUserPicker) return;
+    setState(() {
+      _isSavingUserPicker = true;
+    });
+
+    try {
+      final applied = await _apiClient.setUserPickerEnabled(enabled);
+      if (!mounted) return;
+      setState(() {
+        _userPickerEnabled = applied;
+      });
+    } on WebApiException catch (e) {
+      if (e.isAuthError) {
+        await _redirectToLoginIfSessionCannotRecover(e.code);
+        return;
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.message),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to update the account picker setting.'),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSavingUserPicker = false;
+        });
+      }
     }
   }
 
@@ -1047,6 +1132,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                               initialUsername: row.username,
                             ),
                             onDeleteUser: _deleteUser,
+                            userPickerEnabled: _userPickerEnabled,
+                            isSavingUserPicker: _isSavingUserPicker,
+                            onToggleUserPicker: _toggleUserPicker,
                           ),
                           DashboardServerTab(
                             lanServer: _dashboardLanServer,

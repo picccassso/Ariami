@@ -199,6 +199,19 @@ class CliStateService {
     return null;
   }
 
+  /// Whether the pre-auth sign-in account picker (used by Ariami TV) is
+  /// enabled. On by default for the out-of-the-box TV experience; the web
+  /// dashboard's privacy switch persists an explicit off here (while enabled,
+  /// any device on the network can list this server's usernames).
+  Future<bool> getPublicUserPickerEnabled() async {
+    final config = await _readConfig();
+    return config['public_user_picker'] != false;
+  }
+
+  Future<void> setPublicUserPickerEnabled(bool enabled) async {
+    await _updateConfigField('public_user_picker', enabled);
+  }
+
   /// Set or clear the transcode slots override in config.
   Future<void> setTranscodeSlotsOverride(int? slots) async {
     final config = await _readConfig();

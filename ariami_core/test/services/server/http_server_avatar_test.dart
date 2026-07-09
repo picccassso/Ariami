@@ -32,6 +32,8 @@ void main() {
         bindAddress: '127.0.0.1',
         port: port,
       );
+      // Picker avatars rely on the account picker being enabled — the default.
+      // The disabled-state gating is covered by the auth-users tests.
     });
 
     tearDown(() async {

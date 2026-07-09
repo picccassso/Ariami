@@ -3,6 +3,7 @@ import '../models/api_models.dart';
 import '../models/server_info.dart';
 import '../services/api/api_client.dart';
 import '../services/api/connection_service.dart';
+import '../utils/setup_error_messages.dart';
 
 /// Registration screen for multi-user authentication
 class RegisterScreen extends StatefulWidget {
@@ -66,7 +67,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
       });
     } catch (e) {
       setState(() {
-        _errorMessage = e.toString().replaceFirst('Exception: ', '');
+        _errorMessage = describeSetupConnectError(
+          e,
+          address: widget.serverInfo.name,
+        );
       });
     } finally {
       if (mounted) {

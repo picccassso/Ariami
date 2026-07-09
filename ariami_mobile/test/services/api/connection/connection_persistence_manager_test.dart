@@ -85,6 +85,31 @@ void main() {
         expect(loaded, isNull);
       });
 
+      test('saveConnectionInfo never persists the registration token',
+          () async {
+        final serverInfo = ServerInfo(
+          server: '192.168.1.50',
+          port: 8080,
+          name: 'Test Server',
+          version: '1.0.0',
+          authRequired: true,
+          legacyMode: false,
+          registrationToken: 'deadbeef' * 8,
+        );
+
+        await manager.saveConnectionInfo(serverInfo, 'session-123');
+
+        final storedJson = prefs.getString('server_info')!;
+        expect(storedJson.contains('deadbeef'), isFalse);
+        expect(storedJson.contains('registrationToken'), isFalse);
+
+        final loaded = await manager.loadServerInfo();
+        expect(loaded!.registrationToken, isNull);
+        // The rest of the payload survives the strip.
+        expect(loaded.server, equals('192.168.1.50'));
+        expect(loaded.authRequired, isTrue);
+      });
+
       test('clearConnectionInfo should remove all connection data', () async {
         final serverInfo = _createTestServerInfo();
         await manager.saveConnectionInfo(serverInfo, 'session-123');

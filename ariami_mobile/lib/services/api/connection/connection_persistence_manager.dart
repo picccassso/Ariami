@@ -41,9 +41,13 @@ class ConnectionPersistenceManager {
     String sessionId,
   ) async {
     final prefs = _prefs ?? await SharedPreferences.getInstance();
+    // The QR registration token is single-use and only needed transiently to
+    // create an account; by the time a connection is being persisted it is
+    // spent. Never write it to plaintext preferences.
+    final json = serverInfo.toJson()..remove('registrationToken');
     await prefs.setString(
       _serverInfoKey,
-      const JsonEncoder().convert(serverInfo.toJson()),
+      const JsonEncoder().convert(json),
     );
     await prefs.setString(_sessionIdKey, sessionId);
   }

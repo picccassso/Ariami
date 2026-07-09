@@ -87,8 +87,22 @@ extension AriamiHttpServerAuthAndAdminHandlersMethods on AriamiHttpServer {
     }
   }
 
-  /// Public: list registered usernames for login user-pickers.
+  /// List registered usernames for login user-pickers.
+  ///
+  /// Reachable without auth, but answers only when the owner has enabled the
+  /// account picker ([AriamiHttpServer.setPublicUserPickerEnabled]); otherwise
+  /// any LAN/tailnet device could enumerate household accounts. Clients treat
+  /// the 403 as "use manual sign-in".
   Response _handleAuthUsers(Request request) {
+    if (!_publicUserPickerEnabled) {
+      return _jsonForbidden({
+        'error': {
+          'code': AuthErrorCodes.userPickerDisabled,
+          'message': 'The account picker is disabled on this server',
+        },
+      });
+    }
+
     final users = _authService.getUsers().toList()
       ..sort((a, b) =>
           a.username.toLowerCase().compareTo(b.username.toLowerCase()));
@@ -103,8 +117,15 @@ extension AriamiHttpServerAuthAndAdminHandlersMethods on AriamiHttpServer {
     return _jsonOk({'users': rows});
   }
 
-  /// Public: serve a login-picker avatar for a registered username.
+  /// Serve a login-picker avatar for a registered username.
+  ///
+  /// Gated with the account picker; 404 when disabled so the endpoint can't
+  /// be used to probe which usernames exist.
   Response _handlePublicUserAvatar(Request request, String username) {
+    if (!_publicUserPickerEnabled) {
+      return Response.notFound('');
+    }
+
     final decodedUsername = Uri.decodeComponent(username);
     User? user;
     for (final candidate in _authService.getUsers()) {
@@ -540,6 +561,68 @@ extension AriamiHttpServerAuthAndAdminHandlersMethods on AriamiHttpServer {
     if (authResponse != null) return authResponse;
 
     return _jsonOk(_createInviteCodePayload());
+  }
+
+  /// Admin-only: read the sign-in account-picker setting.
+  Response _handleAdminGetUserPicker(Request request) {
+    final authResponse = _authorizeAdminRequest(request);
+    if (authResponse != null) return authResponse;
+
+    return _jsonOk({'enabled': _publicUserPickerEnabled});
+  }
+
+  /// Admin-only: enable/disable the sign-in account picker at runtime.
+  ///
+  /// Flips the in-memory setting only; the hosting app persists the owner's
+  /// choice and re-applies it on startup.
+  Future<Response> _handleAdminSetUserPicker(Request request) async {
+    final authResponse = _authorizeAdminRequest(request);
+    if (authResponse != null) return authResponse;
+
+    try {
+      final body = await request.readAsString();
+      final data = body.trim().isEmpty
+          ? <String, dynamic>{}
+          : jsonDecode(body) as Map<String, dynamic>;
+
+      final enabled = data['enabled'];
+      if (enabled is! bool) {
+        return _jsonBadRequest({
+          'error': {
+            'code': 'INVALID_REQUEST',
+            'message': 'enabled (boolean) is required',
+          },
+        });
+      }
+
+      setPublicUserPickerEnabled(enabled);
+
+      // The runtime change is applied either way; a persist failure is
+      // surfaced so the admin knows the choice may not survive a restart.
+      final persist = _publicUserPickerPersistCallback;
+      if (persist != null) {
+        try {
+          await persist(enabled);
+        } catch (e) {
+          return _jsonInternalServerError({
+            'error': {
+              'code': 'PERSIST_FAILED',
+              'message': 'Setting applied, but saving it for future '
+                  'restarts failed: $e',
+            },
+          });
+        }
+      }
+
+      return _jsonOk({'enabled': _publicUserPickerEnabled});
+    } catch (_) {
+      return _jsonBadRequest({
+        'error': {
+          'code': 'INVALID_REQUEST',
+          'message': 'Invalid request body',
+        },
+      });
+    }
   }
 
   Response _handleAdminUsers(Request request) {

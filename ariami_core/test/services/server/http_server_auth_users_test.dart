@@ -9,6 +9,8 @@ void main() {
   group('GET /api/auth/users', () {
     late AriamiHttpServer server;
     late Directory testDir;
+    late int port;
+    Uri url(String path) => Uri.parse('http://127.0.0.1:$port$path');
 
     setUp(() async {
       server = AriamiHttpServer();
@@ -21,6 +23,13 @@ void main() {
         sessionsFilePath: p.join(testDir.path, 'sessions.json'),
         forceReinitialize: true,
       );
+
+      port = await _findFreePort();
+      await server.start(
+        advertisedIp: '127.0.0.1',
+        bindAddress: '127.0.0.1',
+        port: port,
+      );
     });
 
     tearDown(() async {
@@ -31,50 +40,78 @@ void main() {
       }
     });
 
-    test('is public and returns every account sorted by username', () async {
-      final port = await _findFreePort();
-      await server.start(
-        advertisedIp: '127.0.0.1',
-        bindAddress: '127.0.0.1',
-        port: port,
-      );
-
-      final emptyResponse = await _sendJsonRequest(
-        method: 'GET',
-        url: Uri.parse('http://127.0.0.1:$port/api/auth/users'),
-      );
-      expect(emptyResponse.statusCode, 200);
-      expect(emptyResponse.jsonBody.keys, unorderedEquals(['users']));
-      expect(emptyResponse.jsonBody['users'], isEmpty);
-
-      final adminUsername = 'zeta';
-      final registerOwner = await _sendJsonRequest(
+    Future<String> registerAndLoginOwner() async {
+      final register = await _sendJsonRequest(
         method: 'POST',
-        url: Uri.parse('http://127.0.0.1:$port/api/auth/register'),
+        url: url('/api/auth/register'),
         jsonBody: <String, dynamic>{
-          'username': adminUsername,
+          'username': 'zeta',
           'password': 'zeta-pass',
         },
       );
-      expect(registerOwner.statusCode, 200);
+      expect(register.statusCode, 200);
 
-      final ownerLogin = await _sendJsonRequest(
+      final login = await _sendJsonRequest(
         method: 'POST',
-        url: Uri.parse('http://127.0.0.1:$port/api/auth/login'),
+        url: url('/api/auth/login'),
         jsonBody: <String, dynamic>{
-          'username': adminUsername,
+          'username': 'zeta',
           'password': 'zeta-pass',
           'deviceId': 'owner-device',
           'deviceName': 'Owner Device',
         },
       );
-      expect(ownerLogin.statusCode, 200);
-      final ownerToken = ownerLogin.jsonBody['sessionToken'] as String;
+      expect(login.statusCode, 200);
+      return login.jsonBody['sessionToken'] as String;
+    }
+
+    test('is enabled by default; disabling hides accounts', () async {
+      // Default on: the endpoint answers without any host wiring.
+      final defaultEmpty = await _sendJsonRequest(
+        method: 'GET',
+        url: url('/api/auth/users'),
+      );
+      expect(defaultEmpty.statusCode, 200);
+      expect(defaultEmpty.jsonBody['users'], isEmpty);
+
+      await registerAndLoginOwner();
+
+      // Owner turned the picker off: no usernames leak.
+      server.setPublicUserPickerEnabled(false);
+      final disabledWithUsers = await _sendJsonRequest(
+        method: 'GET',
+        url: url('/api/auth/users'),
+      );
+      expect(disabledWithUsers.statusCode, 403);
+      expect(
+        (disabledWithUsers.jsonBody['error'] as Map)['code'],
+        'USER_PICKER_DISABLED',
+      );
+      expect(disabledWithUsers.jsonBody.toString(), isNot(contains('zeta')));
+
+      // The public avatar endpoint must not confirm the username exists.
+      final avatar = await _sendJsonRequest(
+        method: 'GET',
+        url: url('/api/auth/user-avatar/zeta'),
+      );
+      expect(avatar.statusCode, 404);
+    });
+
+    test('when enabled, returns every account sorted by username', () async {
+      final emptyResponse = await _sendJsonRequest(
+        method: 'GET',
+        url: url('/api/auth/users'),
+      );
+      expect(emptyResponse.statusCode, 200);
+      expect(emptyResponse.jsonBody.keys, unorderedEquals(['users']));
+      expect(emptyResponse.jsonBody['users'], isEmpty);
+
+      final ownerToken = await registerAndLoginOwner();
 
       for (final username in ['Beta', 'alpha']) {
         final createUser = await _sendJsonRequest(
           method: 'POST',
-          url: Uri.parse('http://127.0.0.1:$port/api/admin/create-user'),
+          url: url('/api/admin/create-user'),
           headers: <String, String>{'Authorization': 'Bearer $ownerToken'},
           jsonBody: <String, dynamic>{
             'username': username,
@@ -86,7 +123,7 @@ void main() {
 
       final usersResponse = await _sendJsonRequest(
         method: 'GET',
-        url: Uri.parse('http://127.0.0.1:$port/api/auth/users'),
+        url: url('/api/auth/users'),
       );
       expect(usersResponse.statusCode, 200);
       expect(usersResponse.jsonBody.keys, unorderedEquals(['users']));
@@ -95,7 +132,7 @@ void main() {
           .cast<Map<String, dynamic>>();
       expect(
         users.map((user) => user['username']).toList(),
-        equals(['alpha', 'Beta', adminUsername]),
+        equals(['alpha', 'Beta', 'zeta']),
       );
       for (final user in users) {
         expect(
@@ -105,6 +142,122 @@ void main() {
         expect(user['hasAvatar'], isFalse);
         expect(user['avatarUpdatedAt'], isNull);
       }
+    });
+
+    test('admin endpoint toggles the picker at runtime', () async {
+      final ownerToken = await registerAndLoginOwner();
+      final adminHeaders = <String, String>{
+        'Authorization': 'Bearer $ownerToken',
+      };
+
+      // Read requires admin; unauthenticated is rejected.
+      final unauthedGet = await _sendJsonRequest(
+        method: 'GET',
+        url: url('/api/admin/user-picker'),
+      );
+      expect(unauthedGet.statusCode, 401);
+
+      final initialState = await _sendJsonRequest(
+        method: 'GET',
+        url: url('/api/admin/user-picker'),
+        headers: adminHeaders,
+      );
+      expect(initialState.statusCode, 200);
+      expect(initialState.jsonBody['enabled'], isTrue);
+
+      // Unauthenticated toggle attempts are rejected and change nothing.
+      final unauthedSet = await _sendJsonRequest(
+        method: 'POST',
+        url: url('/api/admin/user-picker'),
+        jsonBody: <String, dynamic>{'enabled': false},
+      );
+      expect(unauthedSet.statusCode, 401);
+      expect(server.publicUserPickerEnabled, isTrue);
+
+      // Bad payloads are rejected.
+      final badSet = await _sendJsonRequest(
+        method: 'POST',
+        url: url('/api/admin/user-picker'),
+        headers: adminHeaders,
+        jsonBody: <String, dynamic>{'enabled': 'yes'},
+      );
+      expect(badSet.statusCode, 400);
+
+      // Disable: the public listing stops answering.
+      final disable = await _sendJsonRequest(
+        method: 'POST',
+        url: url('/api/admin/user-picker'),
+        headers: adminHeaders,
+        jsonBody: <String, dynamic>{'enabled': false},
+      );
+      expect(disable.statusCode, 200);
+      expect(disable.jsonBody['enabled'], isFalse);
+
+      final disabledList = await _sendJsonRequest(
+        method: 'GET',
+        url: url('/api/auth/users'),
+      );
+      expect(disabledList.statusCode, 403);
+
+      // Enable again: the public listing answers.
+      final enable = await _sendJsonRequest(
+        method: 'POST',
+        url: url('/api/admin/user-picker'),
+        headers: adminHeaders,
+        jsonBody: <String, dynamic>{'enabled': true},
+      );
+      expect(enable.statusCode, 200);
+      expect(enable.jsonBody['enabled'], isTrue);
+
+      final publicList = await _sendJsonRequest(
+        method: 'GET',
+        url: url('/api/auth/users'),
+      );
+      expect(publicList.statusCode, 200);
+      expect(
+        (publicList.jsonBody['users'] as List<dynamic>)
+            .cast<Map<String, dynamic>>()
+            .map((user) => user['username']),
+        contains('zeta'),
+      );
+    });
+
+    test('admin toggle invokes the host persistence callback', () async {
+      final ownerToken = await registerAndLoginOwner();
+      final adminHeaders = <String, String>{
+        'Authorization': 'Bearer $ownerToken',
+      };
+
+      final persisted = <bool>[];
+      server.setPublicUserPickerPersistCallback((enabled) async {
+        persisted.add(enabled);
+      });
+
+      for (final enabled in [true, false]) {
+        final response = await _sendJsonRequest(
+          method: 'POST',
+          url: url('/api/admin/user-picker'),
+          headers: adminHeaders,
+          jsonBody: <String, dynamic>{'enabled': enabled},
+        );
+        expect(response.statusCode, 200);
+      }
+      expect(persisted, equals([true, false]));
+
+      // A persist failure surfaces as 500, but the runtime state still
+      // applies (the admin can retry; the toggle works until restart).
+      server.setPublicUserPickerPersistCallback((_) async {
+        throw StateError('disk full');
+      });
+      final failed = await _sendJsonRequest(
+        method: 'POST',
+        url: url('/api/admin/user-picker'),
+        headers: adminHeaders,
+        jsonBody: <String, dynamic>{'enabled': true},
+      );
+      expect(failed.statusCode, 500);
+      expect((failed.jsonBody['error'] as Map)['code'], 'PERSIST_FAILED');
+      expect(server.publicUserPickerEnabled, isTrue);
     });
   });
 }
@@ -149,9 +302,15 @@ Future<_JsonResponse> _sendJsonRequest({
 
     final response = await request.close();
     final body = await response.transform(utf8.decoder).join();
-    final decodedBody = body.isEmpty
-        ? <String, dynamic>{}
-        : jsonDecode(body) as Map<String, dynamic>;
+    // Some endpoints (avatar 404s) answer with plain-text bodies.
+    Map<String, dynamic> decodedBody;
+    try {
+      decodedBody = body.isEmpty
+          ? <String, dynamic>{}
+          : jsonDecode(body) as Map<String, dynamic>;
+    } catch (_) {
+      decodedBody = <String, dynamic>{'raw': body};
+    }
 
     return _JsonResponse(
       statusCode: response.statusCode,

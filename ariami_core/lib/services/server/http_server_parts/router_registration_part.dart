@@ -197,6 +197,8 @@ extension AriamiHttpServerRouterMethods on AriamiHttpServer {
     router.get('/api/admin/user-activity', _handleAdminUserActivity);
     router.get('/api/admin/registration-token', _handleAdminRegistrationToken);
     router.get('/api/admin/invite-code', _handleAdminInviteCode);
+    router.get('/api/admin/user-picker', _handleAdminGetUserPicker);
+    router.post('/api/admin/user-picker', _handleAdminSetUserPicker);
     router.post('/api/admin/create-user', _handleAdminCreateUser);
     router.post('/api/admin/kick-client', _handleAdminKickClient);
     router.post('/api/admin/change-password', _handleAdminChangePassword);

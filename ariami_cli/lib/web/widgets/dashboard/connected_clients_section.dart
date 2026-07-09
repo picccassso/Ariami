@@ -37,6 +37,7 @@ class ConnectedClientsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      width: double.infinity,
       decoration: BoxDecoration(
         color: AppTheme.surfaceBlack,
         borderRadius: BorderRadius.circular(20),
@@ -97,7 +98,8 @@ class ConnectedClientsSection extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: Colors.red.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+                      border:
+                          Border.all(color: Colors.red.withValues(alpha: 0.3)),
                     ),
                     child: Text(
                       error!,
@@ -121,67 +123,78 @@ class ConnectedClientsSection extends StatelessWidget {
               ),
             )
           else
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: DataTable(
-                headingTextStyle: const TextStyle(
-                  color: AppTheme.textSecondary,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                ),
-                dataTextStyle: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 13,
-                ),
-                columns: const [
-                  DataColumn(label: Text('USER')),
-                  DataColumn(label: Text('DEVICE')),
-                  DataColumn(label: Text('CONNECTED')),
-                  DataColumn(label: Text('LAST HEARTBEAT')),
-                  DataColumn(label: Text('ACTIONS')),
-                ],
-                rows: clients.map((client) {
-                  final isKicking = kickingDeviceIds.contains(client.deviceId);
-                  final userLabel =
-                      client.username ?? client.userId ?? 'Unauthenticated';
-                  return DataRow(
-                    cells: [
-                      DataCell(Text(userLabel)),
-                      DataCell(Text(formatDeviceLabel(client))),
-                      DataCell(Text(formatClientTime(client.connectedAt))),
-                      DataCell(Text(formatClientTime(client.lastHeartbeat))),
-                      DataCell(
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            TextButton(
-                              onPressed:
-                                  isKicking ? null : () => onKick(client),
-                              child: isKicking
-                                  ? const SizedBox(
-                                      width: 14,
-                                      height: 14,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
-                                    )
-                                  : const Text('Kick'),
-                            ),
-                            const SizedBox(width: 8),
-                            TextButton(
-                              onPressed: isChangingPassword
-                                  ? null
-                                  : () => onChangePasswordForUser(
-                                      client.username,
-                                    ),
-                              child: const Text('Change Password'),
-                            ),
-                          ],
-                        ),
-                      ),
+            // Stretch the table to the card's full width (scrolling only when
+            // genuinely too narrow), matching the Users tab. Without the
+            // min-width constraint the card hugs the table's intrinsic width
+            // and floats in empty space on wide screens.
+            LayoutBuilder(
+              builder: (context, constraints) => SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                  child: DataTable(
+                    headingTextStyle: const TextStyle(
+                      color: AppTheme.textSecondary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    dataTextStyle: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                    ),
+                    columns: const [
+                      DataColumn(label: Text('USER')),
+                      DataColumn(label: Text('DEVICE')),
+                      DataColumn(label: Text('CONNECTED')),
+                      DataColumn(label: Text('LAST HEARTBEAT')),
+                      DataColumn(label: Text('ACTIONS')),
                     ],
-                  );
-                }).toList(),
+                    rows: clients.map((client) {
+                      final isKicking =
+                          kickingDeviceIds.contains(client.deviceId);
+                      final userLabel =
+                          client.username ?? client.userId ?? 'Unauthenticated';
+                      return DataRow(
+                        cells: [
+                          DataCell(Text(userLabel)),
+                          DataCell(Text(formatDeviceLabel(client))),
+                          DataCell(Text(formatClientTime(client.connectedAt))),
+                          DataCell(
+                              Text(formatClientTime(client.lastHeartbeat))),
+                          DataCell(
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                TextButton(
+                                  onPressed:
+                                      isKicking ? null : () => onKick(client),
+                                  child: isKicking
+                                      ? const SizedBox(
+                                          width: 14,
+                                          height: 14,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
+                                        )
+                                      : const Text('Kick'),
+                                ),
+                                const SizedBox(width: 8),
+                                TextButton(
+                                  onPressed: isChangingPassword
+                                      ? null
+                                      : () => onChangePasswordForUser(
+                                            client.username,
+                                          ),
+                                  child: const Text('Change Password'),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      );
+                    }).toList(),
+                  ),
+                ),
               ),
             ),
         ],

@@ -126,6 +126,10 @@ extension AriamiHttpServerMiddlewareAndMetricsMethods on AriamiHttpServer {
           tracker.reset();
         } else if (response.statusCode == HttpStatus.badRequest ||
             response.statusCode == HttpStatus.unauthorized ||
+            // Registration with a bad/expired invite code answers 403; count
+            // it, or invite codes could be brute-forced without tripping the
+            // limiter.
+            response.statusCode == HttpStatus.forbidden ||
             response.statusCode == HttpStatus.conflict) {
           tracker.recordFailure(
             AuthService.maxLoginAttempts,

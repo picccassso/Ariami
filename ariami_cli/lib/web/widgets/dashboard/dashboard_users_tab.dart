@@ -19,6 +19,9 @@ class DashboardUsersTab extends StatelessWidget {
     required this.onCreateUser,
     required this.onChangePassword,
     required this.onDeleteUser,
+    required this.userPickerEnabled,
+    required this.isSavingUserPicker,
+    required this.onToggleUserPicker,
   });
 
   final List<ServerUserRow> rows;
@@ -32,6 +35,11 @@ class DashboardUsersTab extends StatelessWidget {
   final VoidCallback onCreateUser;
   final ValueChanged<ServerUserRow> onChangePassword;
   final ValueChanged<ServerUserRow> onDeleteUser;
+
+  /// null hides the section (non-admin, or the setting hasn't loaded).
+  final bool? userPickerEnabled;
+  final bool isSavingUserPicker;
+  final ValueChanged<bool> onToggleUserPicker;
 
   @override
   Widget build(BuildContext context) {
@@ -79,6 +87,44 @@ class DashboardUsersTab extends StatelessWidget {
             padding: const EdgeInsets.all(16),
             child: _buildBody(),
           ),
+          if (userPickerEnabled != null) ...[
+            const SizedBox(height: 24),
+            const Text(
+              'Sign-in Privacy',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                letterSpacing: -0.5,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: AppTheme.surfaceBlack,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppTheme.borderGrey),
+              ),
+              child: SwitchListTile(
+                value: userPickerEnabled!,
+                onChanged: isSavingUserPicker ? null : onToggleUserPicker,
+                title: const Text(
+                  'Show account picker on TV sign-in',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+                subtitle: const Text(
+                  'Lets Ariami TV list this server\'s accounts on its '
+                  'sign-in screen. While enabled, any device on your network '
+                  'can see the account names and photos (passwords are '
+                  'always required). When off, TV users type their username '
+                  'instead.',
+                  style: TextStyle(color: Colors.white70, height: 1.35),
+                ),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              ),
+            ),
+          ],
         ],
       ),
     );

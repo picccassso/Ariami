@@ -90,6 +90,17 @@ class ServerRunner {
       _httpServer.setFeatureFlags(featureFlags);
 
       await _stateService.ensureConfigDir();
+
+      // Pre-auth account picker for TV sign-in. On by default; the web
+      // dashboard's privacy switch persists an explicit off in config.json,
+      // and the env flag can force it back on for such a config.
+      _httpServer.setPublicUserPickerEnabled(
+        await _stateService.getPublicUserPickerEnabled() ||
+            _featureFlagService.loadPublicUserPickerFromEnvironment(),
+      );
+      _httpServer.setPublicUserPickerPersistCallback(
+        (enabled) => _stateService.setPublicUserPickerEnabled(enabled),
+      );
       _configureMetadataCache(featureFlags);
 
       final isPi = _runtimePolicy.isRaspberryPi();

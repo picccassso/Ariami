@@ -333,6 +333,35 @@ class WebApiClient {
     );
   }
 
+  /// Whether the pre-auth sign-in account picker (TV "Who is listening?"
+  /// screen) is enabled. Admin only.
+  Future<bool> getUserPickerEnabled() async {
+    final response = await get(
+      '/api/admin/user-picker',
+      includeDeviceIdentity: true,
+    );
+    if (!response.isSuccess) {
+      throw WebApiException(response);
+    }
+
+    return response.jsonBody?['enabled'] == true;
+  }
+
+  /// Enable/disable the pre-auth sign-in account picker. The server persists
+  /// the choice via the CLI's config, so it survives restarts. Admin only.
+  Future<bool> setUserPickerEnabled(bool enabled) async {
+    final response = await post(
+      '/api/admin/user-picker',
+      body: <String, dynamic>{'enabled': enabled},
+      includeDeviceIdentity: true,
+    );
+    if (!response.isSuccess) {
+      throw WebApiException(response);
+    }
+
+    return response.jsonBody?['enabled'] == true;
+  }
+
   Future<WebApiResponse> _send({
     required String method,
     required String path,

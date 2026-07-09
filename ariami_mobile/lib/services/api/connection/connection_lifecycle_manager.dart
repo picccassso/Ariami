@@ -1,8 +1,8 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 import '../../../models/api_models.dart';
 import '../../../models/server_info.dart';
+import '../../../utils/qr_payload_parser.dart';
 import '../api_client.dart';
 import 'connection_persistence_manager.dart';
 import 'connection_state_manager.dart';
@@ -72,20 +72,18 @@ class ConnectionLifecycleManager {
     String? sessionToken,
     void Function()? onSessionExpired,
   }) async {
-    try {
-      final serverInfo = ServerInfo.fromJson(
-        Map<String, dynamic>.from(
-          const JsonDecoder().convert(qrData) as Map,
-        ),
-      );
-      await connectToServer(
-        serverInfo,
-        sessionToken: sessionToken,
-        onSessionExpired: onSessionExpired,
-      );
-    } catch (e) {
-      throw Exception('Invalid QR code format: $e');
+    // Parse strictly and separately from connecting, so a connection failure
+    // isn't mislabeled as a bad QR code. The error must never include the
+    // payload: it may carry a registration token.
+    final parsed = QrPayloadParser.parse(qrData);
+    if (!parsed.isValid) {
+      throw Exception('Invalid QR code format');
     }
+    await connectToServer(
+      parsed.serverInfo!,
+      sessionToken: sessionToken,
+      onSessionExpired: onSessionExpired,
+    );
   }
 
   /// Connect to server with ServerInfo

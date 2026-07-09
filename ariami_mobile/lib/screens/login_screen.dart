@@ -4,6 +4,7 @@ import '../models/server_info.dart';
 import '../services/api/api_client.dart';
 import '../services/api/connection_service.dart';
 import '../utils/server_disconnect.dart';
+import '../utils/setup_error_messages.dart';
 
 /// Login screen for multi-user authentication
 class LoginScreen extends StatefulWidget {
@@ -75,7 +76,10 @@ class _LoginScreenState extends State<LoginScreen> {
       });
     } catch (e) {
       setState(() {
-        _errorMessage = e.toString().replaceFirst('Exception: ', '');
+        _errorMessage = describeSetupConnectError(
+          e,
+          address: widget.serverInfo.name,
+        );
       });
     } finally {
       if (mounted) {

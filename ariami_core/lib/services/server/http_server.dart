@@ -166,6 +166,36 @@ class AriamiHttpServer {
   final Random _secureRandom = Random.secure();
   static const Duration _registrationTokenTtl = Duration(minutes: 10);
 
+  // Whether the pre-auth account picker endpoints (/api/auth/users and
+  // /api/auth/user-avatar/<username>) answer. Default ON so TV sign-in shows
+  // the picker out of the box; privacy-conscious owners can turn it off from
+  // the desktop/CLI dashboards (any LAN/tailnet device can list usernames
+  // while it is enabled). TV falls back to typed sign-in when disabled.
+  bool _publicUserPickerEnabled = true;
+
+  /// Whether the unauthenticated sign-in account picker is enabled.
+  bool get publicUserPickerEnabled => _publicUserPickerEnabled;
+
+  /// Enable/disable the unauthenticated sign-in account picker at runtime.
+  ///
+  /// Hosts own persistence: they apply their saved setting on every start
+  /// (the flag resets to off on [stop]) and register
+  /// [setPublicUserPickerPersistCallback] so changes made through the admin
+  /// endpoint survive restarts.
+  void setPublicUserPickerEnabled(bool enabled) {
+    _publicUserPickerEnabled = enabled;
+  }
+
+  Future<void> Function(bool enabled)? _publicUserPickerPersistCallback;
+
+  /// Called with the new value when `/api/admin/user-picker` changes the
+  /// setting, so the hosting app can persist the owner's choice.
+  void setPublicUserPickerPersistCallback(
+    Future<void> Function(bool enabled)? callback,
+  ) {
+    _publicUserPickerPersistCallback = callback;
+  }
+
   // Store web assets path for serving static files
   String? _webAssetsPath;
 

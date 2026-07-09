@@ -33,6 +33,23 @@ class ServerFeatureFlagService {
     );
   }
 
+  /// Env override that forces the pre-auth sign-in account picker on even
+  /// when the persisted config turned it off.
+  ///
+  /// Not part of [AriamiFeatureFlags]: it's an owner privacy setting rather
+  /// than a rollout flag. The picker itself is on by default; the persisted
+  /// config (web dashboard switch) is the normal way to control it.
+  bool loadPublicUserPickerFromEnvironment() {
+    final value = Platform.environment['ARIAMI_ENABLE_PUBLIC_USER_PICKER'];
+    if (value == null) return false;
+
+    final normalized = value.trim().toLowerCase();
+    return normalized == '1' ||
+        normalized == 'true' ||
+        normalized == 'yes' ||
+        normalized == 'on';
+  }
+
   void validateOrThrow(AriamiFeatureFlags flags) {
     if (flags.enableDownloadJobs && !flags.enableV2Api) {
       throw StateError(

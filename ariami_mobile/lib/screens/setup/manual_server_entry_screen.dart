@@ -4,6 +4,7 @@ import '../../models/server_info.dart';
 import '../../services/api/api_client.dart';
 import '../../services/api/connection_service.dart';
 import '../../utils/server_address_parser.dart';
+import '../../utils/setup_error_messages.dart';
 import 'server_connection_router.dart';
 
 /// Manual server-address entry as a fallback for QR scanning.
@@ -104,11 +105,14 @@ class _ManualServerEntryScreenState extends State<ManualServerEntryScreen> {
 
       await routeForServerInfo(context, serverInfo, _connectionService);
     } catch (e) {
+      // Entered address and invite code stay in their controllers so the user
+      // can correct and retry without retyping.
       if (mounted) {
         setState(() {
-          _errorMessage =
-              'Couldn\'t reach a server at ${_addressController.text.trim()}. '
-              'Check the address and that you\'re on the same network or VPN.';
+          _errorMessage = describeSetupConnectError(
+            e,
+            address: '${parsed.host}:${parsed.port}',
+          );
         });
       }
     } finally {

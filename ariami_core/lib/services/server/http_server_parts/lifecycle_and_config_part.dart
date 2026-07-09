@@ -485,6 +485,9 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
     _inFlightDownloadTranscodesByUser.clear();
     _authEndpointAttempts.clear();
     _registrationTokens.clear();
+    // Back to the default across restarts: hosts re-apply the owner's
+    // persisted account-picker choice on every start.
+    _publicUserPickerEnabled = true;
     _streamTracker.dispose();
 
     print('Ariami Server stopped');
