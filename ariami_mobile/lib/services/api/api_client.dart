@@ -336,6 +336,59 @@ class ApiClient {
     return _get('/v2/listening/summary');
   }
 
+  /// Fetch totals plus top songs / credited artists / albums for one local
+  /// day (`yyyy-mm-dd`). Requires a server with the stats derivation layer;
+  /// older servers respond 404 and callers must degrade gracefully.
+  Future<Map<String, dynamic>> getListeningDay(
+    String date, {
+    int limit = 50,
+  }) async {
+    final endpoint = _buildEndpointWithQuery(
+      '/v2/listening/day',
+      <String, String?>{'date': date, 'limit': '$limit'},
+    );
+    return _get(endpoint);
+  }
+
+  /// Fetch totals, per-day breakdown and top songs / credited artists /
+  /// albums for an inclusive local-day range (`yyyy-mm-dd`).
+  Future<Map<String, dynamic>> getListeningPeriod({
+    required String from,
+    required String to,
+    int limit = 50,
+  }) async {
+    final endpoint = _buildEndpointWithQuery(
+      '/v2/listening/period',
+      <String, String?>{'from': from, 'to': to, 'limit': '$limit'},
+    );
+    return _get(endpoint);
+  }
+
+  /// Fetch top credited artists (multi-artist strings split server-side),
+  /// all-time when [days] is null.
+  Future<Map<String, dynamic>> getListeningArtists({
+    int? days,
+    int limit = 50,
+  }) async {
+    final endpoint = _buildEndpointWithQuery(
+      '/v2/listening/artists',
+      <String, String?>{if (days != null) 'days': '$days', 'limit': '$limit'},
+    );
+    return _get(endpoint);
+  }
+
+  /// Fetch top albums, all-time when [days] is null.
+  Future<Map<String, dynamic>> getListeningAlbums({
+    int? days,
+    int limit = 50,
+  }) async {
+    final endpoint = _buildEndpointWithQuery(
+      '/v2/listening/albums',
+      <String, String?>{if (days != null) 'days': '$days', 'limit': '$limit'},
+    );
+    return _get(endpoint);
+  }
+
   /// Wipe the account's listening history on the server.
   Future<Map<String, dynamic>> postListeningReset() async {
     return _post('/v2/listening/reset', {});

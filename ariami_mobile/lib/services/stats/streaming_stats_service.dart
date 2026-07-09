@@ -107,16 +107,19 @@ class StreamingStatsService extends ChangeNotifier
 
   /// Initialize the service
   Future<void> initialize() async {
+    // On-listen emissions are deferred a microtask: subscriptions happen
+    // during build (StreamBuilder.initState), and emitting synchronously
+    // notifies listeners mid-build, which Flutter flags in debug mode.
     _topSongsStreamController = StreamController<List<SongStats>>.broadcast(
-      onListen: () => _emitTopSongs(),
+      onListen: () => scheduleMicrotask(_emitTopSongs),
     );
 
     _topArtistsStreamController = StreamController<List<ArtistStats>>.broadcast(
-      onListen: () => _emitTopArtists(),
+      onListen: () => scheduleMicrotask(_emitTopArtists),
     );
 
     _topAlbumsStreamController = StreamController<List<AlbumStats>>.broadcast(
-      onListen: () => _emitTopAlbums(),
+      onListen: () => scheduleMicrotask(_emitTopAlbums),
     );
 
     _database = await StatsDatabase.create();
@@ -968,6 +971,7 @@ class StreamingStatsService extends ChangeNotifier
 
   /// Emit updated top songs to stream
   void _emitTopSongs() {
+    if (_topSongsStreamController.isClosed) return;
     final topSongs = getTopSongs();
     print(
         '[StreamingStatsService] _emitTopSongs: emitting ${topSongs.length} songs to stream');
@@ -983,12 +987,14 @@ class StreamingStatsService extends ChangeNotifier
 
   /// Emit updated top artists to stream
   void _emitTopArtists() {
+    if (_topArtistsStreamController.isClosed) return;
     final topArtists = getTopArtists();
     _topArtistsStreamController.add(topArtists);
   }
 
   /// Emit updated top albums to stream
   void _emitTopAlbums() {
+    if (_topAlbumsStreamController.isClosed) return;
     final topAlbums = getTopAlbums();
     _topAlbumsStreamController.add(topAlbums);
   }

@@ -69,6 +69,7 @@ export 'services/stats/listening_event_outbox.dart';
 export 'services/stats/listening_event_tracker.dart';
 export 'services/stats/listening_stats_store.dart';
 export 'services/stats/listening_stats_syncer.dart';
+export 'services/stats/stats_range.dart';
 export 'services/pins/pinned_item_store.dart';
 
 // Auth Services
