@@ -288,6 +288,17 @@ class DownloadDatabase {
     return _prefs.getInt('download_storage_limit');
   }
 
+  /// Set cooler downloads mode (fewer concurrent downloads + rests between
+  /// files, to reduce device heat during bulk downloads).
+  Future<void> setCoolerDownloads(bool enabled) async {
+    await _prefs.setBool('download_cooler_mode', enabled);
+  }
+
+  /// Get cooler downloads mode setting.
+  bool getCoolerDownloads() {
+    return _prefs.getBool('download_cooler_mode') ?? false;
+  }
+
   /// Set whether interrupted downloads should auto-resume on app launch.
   Future<void> setAutoResumeInterruptedOnLaunch(bool enabled) async {
     await _prefs.setBool(_autoResumeInterruptedOnLaunchKey, enabled);

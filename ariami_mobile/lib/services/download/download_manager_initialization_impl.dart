@@ -6,6 +6,7 @@ extension _DownloadManagerInitializationImpl on DownloadManager {
 
     // Setup database
     _database = await DownloadDatabase.create();
+    _coolerDownloadsEnabled = _database.getCoolerDownloads();
 
     // Get download directory before queue recovery so partial-file lookups use
     // the real application path.

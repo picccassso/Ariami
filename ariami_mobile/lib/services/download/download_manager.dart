@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:math' as math;
 import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
@@ -21,6 +22,13 @@ part 'download_manager_initialization_impl.dart';
 part 'download_manager_operations_impl.dart';
 part 'download_manager_transfer_impl.dart';
 part 'download_manager_maintenance_impl.dart';
+
+/// Active-slot ceiling while cooler downloads mode is enabled.
+const int coolerModeMaxConcurrentDownloads = 2;
+
+/// Duty-cycle rest inserted after each completed transfer while cooler
+/// downloads mode is enabled.
+const Duration coolerModeSlotRefillRest = Duration(milliseconds: 1500);
 
 /// Manages all download operations
 class DownloadManager {
@@ -57,6 +65,11 @@ class DownloadManager {
   String? _lastKnownServerId;
   String? _lastKnownUserId;
   bool _isAppInForeground = true;
+  bool _coolerDownloadsEnabled = false;
+
+  /// Tail of the serialized artwork-caching worker; extraction jobs chain
+  /// onto it so at most one embedded-art parse runs at a time.
+  Future<void> _artworkWorkTail = Future.value();
   final QualitySettingsService _qualityService = QualitySettingsService();
   final NativeDownloadService _nativeDownloadService = NativeDownloadService();
 
@@ -339,6 +352,22 @@ class DownloadManager {
 
   Future<void> setAutoResumeInterruptedOnLaunch(bool enabled) =>
       _database.setAutoResumeInterruptedOnLaunch(enabled);
+
+  /// Whether cooler downloads mode (fewer slots + rests between files) is on.
+  bool getCoolerDownloads() => _coolerDownloadsEnabled;
+
+  /// Toggle cooler downloads mode. Applies immediately: enabling lets active
+  /// transfers finish and stops refilling slots above the cooler cap;
+  /// disabling refills up to the server's advertised limit.
+  Future<void> setCoolerDownloads(bool enabled) async {
+    if (_coolerDownloadsEnabled == enabled) return;
+    _coolerDownloadsEnabled = enabled;
+    await _database.setCoolerDownloads(enabled);
+    print('DownloadManager: Cooler downloads mode set to $enabled');
+    if (_initialized && !enabled) {
+      _fillDownloadSlots();
+    }
+  }
 
   /// Dispose resources
   void dispose() {

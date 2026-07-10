@@ -6,6 +6,20 @@ part of 'download_manager.dart';
 const Duration _progressEmitInterval = Duration(milliseconds: 150);
 
 extension _DownloadManagerTransferImpl on DownloadManager {
+  /// Active-slot ceiling: the server's advertised per-user limit, halved to at
+  /// most 2 when cooler downloads mode is on.
+  int get _effectiveMaxConcurrentDownloads => _coolerDownloadsEnabled
+      ? math.min(coolerModeMaxConcurrentDownloads, _maxConcurrentDownloads)
+      : _maxConcurrentDownloads;
+
+  /// Rest between a completed transfer and refilling its slot. The default
+  /// only lets state settle; cooler mode inserts a deliberate duty-cycle gap
+  /// so the radio and flash are not saturated continuously during bulk
+  /// downloads (per-file micro-delays do nothing while all slots stay busy).
+  Duration get _slotRefillRest => _coolerDownloadsEnabled
+      ? coolerModeSlotRefillRest
+      : const Duration(milliseconds: 50);
+
   DownloadTask? _getNextPendingScoped() {
     final serverId = _getCurrentServerId();
     final userId = _getCurrentUserId();
@@ -33,7 +47,7 @@ extension _DownloadManagerTransferImpl on DownloadManager {
 
     _queue.beginBatch();
     try {
-      while (_activeDownloadCount < _maxConcurrentDownloads) {
+      while (_activeDownloadCount < _effectiveMaxConcurrentDownloads) {
         final nextTask = _getNextPendingScoped();
         if (nextTask == null) {
           if (_activeDownloadCount == 0) {
@@ -225,12 +239,12 @@ extension _DownloadManagerTransferImpl on DownloadManager {
 
       // Decrement active count and fill available slots
       _activeDownloadCount--;
-      await Future.delayed(const Duration(milliseconds: 50));
+      await Future.delayed(_slotRefillRest);
       _fillDownloadSlots();
 
       // Cache artwork after completion so network/disk prefetch doesn't block
       // download throughput or queue status updates.
-      unawaited(_cacheArtworkForDownload(task));
+      _queueArtworkCaching(task);
     } on DioException catch (e) {
       _activeDownloadCount--;
       _handleDownloadError(task, e);
@@ -354,11 +368,11 @@ extension _DownloadManagerTransferImpl on DownloadManager {
     _activeDownloads.remove(task.id);
     _activeProgress.remove(task.id);
     _activeDownloadCount--;
-    await Future.delayed(const Duration(milliseconds: 50));
+    await Future.delayed(_slotRefillRest);
     _fillDownloadSlots();
 
     if (task.status == DownloadStatus.completed) {
-      unawaited(_cacheArtworkForDownload(task));
+      _queueArtworkCaching(task);
     }
   }
 

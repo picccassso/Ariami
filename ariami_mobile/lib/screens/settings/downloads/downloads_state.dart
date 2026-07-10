@@ -104,6 +104,7 @@ class DownloadsState {
     this.downloadQuality = StreamingQuality.high,
     this.downloadOriginal = false,
     this.autoResumeInterruptedOnLaunch = false,
+    this.coolerDownloads = false,
     this.interruptedDownloadCount = 0,
     this.inProgressAlbums = const <AlbumGroup>[],
     this.failedAlbums = const <AlbumGroup>[],
@@ -133,6 +134,7 @@ class DownloadsState {
   final StreamingQuality downloadQuality;
   final bool downloadOriginal;
   final bool autoResumeInterruptedOnLaunch;
+  final bool coolerDownloads;
   final int interruptedDownloadCount;
 
   final List<AlbumGroup> inProgressAlbums;
@@ -162,6 +164,7 @@ class DownloadsState {
     StreamingQuality? downloadQuality,
     bool? downloadOriginal,
     bool? autoResumeInterruptedOnLaunch,
+    bool? coolerDownloads,
     int? interruptedDownloadCount,
     List<AlbumGroup>? inProgressAlbums,
     List<AlbumGroup>? failedAlbums,
@@ -195,6 +198,7 @@ class DownloadsState {
       downloadOriginal: downloadOriginal ?? this.downloadOriginal,
       autoResumeInterruptedOnLaunch:
           autoResumeInterruptedOnLaunch ?? this.autoResumeInterruptedOnLaunch,
+      coolerDownloads: coolerDownloads ?? this.coolerDownloads,
       interruptedDownloadCount:
           interruptedDownloadCount ?? this.interruptedDownloadCount,
       inProgressAlbums: inProgressAlbums ?? this.inProgressAlbums,

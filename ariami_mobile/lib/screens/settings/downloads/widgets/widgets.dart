@@ -3,6 +3,7 @@ export 'album_song_item.dart';
 export 'cache_section_card.dart';
 export 'clear_cache_dialog.dart';
 export 'clear_downloads_dialog.dart';
+export 'cooler_downloads_card.dart';
 export 'delete_album_dialog.dart';
 export 'download_all_card.dart';
 export 'download_mode_card.dart';

@@ -268,6 +268,13 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                           );
                         },
                       ),
+                      CoolerDownloadsCard(
+                        isDark: isDark,
+                        coolerDownloads: state.coolerDownloads,
+                        onChanged: (enabled) {
+                          unawaited(_controller.setCoolerDownloads(enabled));
+                        },
+                      ),
                       if (state.interruptedDownloadCount > 0)
                         DownloadsInterruptionRecoveryCard(
                           isDark: isDark,

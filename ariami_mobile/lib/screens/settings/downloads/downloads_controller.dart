@@ -108,6 +108,7 @@ class DownloadsController extends ChangeNotifier {
       downloadOriginal: qualitySettings.downloadOriginal,
       autoResumeInterruptedOnLaunch:
           _downloadManager.getAutoResumeInterruptedOnLaunch(),
+      coolerDownloads: _downloadManager.getCoolerDownloads(),
       interruptedDownloadCount:
           _countInterruptedDownloads(_downloadManager.queue),
     );
@@ -833,6 +834,14 @@ class DownloadsController extends ChangeNotifier {
     await _downloadManager.setAutoResumeInterruptedOnLaunch(enabled);
     if (!_disposed) {
       _state = _state.copyWith(autoResumeInterruptedOnLaunch: enabled);
+      notifyListeners();
+    }
+  }
+
+  Future<void> setCoolerDownloads(bool enabled) async {
+    await _downloadManager.setCoolerDownloads(enabled);
+    if (!_disposed) {
+      _state = _state.copyWith(coolerDownloads: enabled);
       notifyListeners();
     }
   }

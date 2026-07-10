@@ -1,35 +1,64 @@
 part of 'download_manager.dart';
 
 extension _DownloadManagerMaintenanceImpl on DownloadManager {
+  /// Queue artwork caching for a completed download on the single serialized
+  /// artwork worker. Bulk downloads complete faster than tag parsing, so an
+  /// unbounded fire-and-forget job per completion piled CPU/disk work on top
+  /// of the active transfers; chaining keeps at most one extraction in flight.
+  void _queueArtworkCaching(DownloadTask task) {
+    _artworkWorkTail = _artworkWorkTail.then(
+      (_) => _extractAndCacheArtworkForSong(
+        songId: task.songId,
+        albumId: task.albumId,
+      ),
+    );
+  }
+
   /// Cache artwork for a downloaded song (for offline use) by reading embedded
   /// art from the local audio file — no extra HTTP requests to the server.
-  Future<void> _cacheArtworkForDownload(DownloadTask task) async {
+  ///
+  /// Album tracks share one album-level image (full + thumb); no per-song copy
+  /// is written because every artwork consumer resolves the album key first
+  /// and only falls back to `song_<id>` for albumless singles. The cache-key
+  /// check happens before extraction so songs of an already-cached album skip
+  /// the tag parse entirely, and the parse itself runs in a short-lived
+  /// background isolate to keep megabyte ID3 tags off the UI isolate.
+  Future<void> _extractAndCacheArtworkForSong({
+    required String songId,
+    required String? albumId,
+  }) async {
     final cacheManager = CacheManager();
-    final localPath = _getSongFilePath(task.songId);
-    final file = File(localPath);
-    if (!await file.exists()) return;
+    final localPath = _getSongFilePath(songId);
+    if (!await File(localPath).exists()) return;
 
     try {
-      final bytes = await LocalArtworkExtractor.extractArtwork(localPath);
+      final targetKeys = <String>[];
+      if (albumId != null) {
+        if (!await cacheManager.isArtworkCached(albumId)) {
+          targetKeys.add(albumId);
+        }
+        final thumbKey = '${albumId}_thumb';
+        if (!await cacheManager.isArtworkCached(thumbKey)) {
+          targetKeys.add(thumbKey);
+        }
+      } else {
+        final songKey = 'song_$songId';
+        if (!await cacheManager.isArtworkCached(songKey)) {
+          targetKeys.add(songKey);
+        }
+      }
+      if (targetKeys.isEmpty) return;
+
+      final bytes = await Isolate.run(
+        () => LocalArtworkExtractor.extractArtwork(localPath),
+      );
       if (bytes == null || bytes.isEmpty) {
-        print('[DownloadManager] No embedded artwork for song ${task.songId}');
+        print('[DownloadManager] No embedded artwork for song $songId');
         return;
       }
 
-      final songKey = 'song_${task.songId}';
-      if (!await cacheManager.isArtworkCached(songKey)) {
-        await cacheManager.cacheArtworkFromBytes(songKey, bytes);
-      }
-
-      if (task.albumId != null &&
-          !await cacheManager.isArtworkCached(task.albumId!)) {
-        await cacheManager.cacheArtworkFromBytes(task.albumId!, bytes);
-      }
-      if (task.albumId != null) {
-        final thumbKey = '${task.albumId!}_thumb';
-        if (!await cacheManager.isArtworkCached(thumbKey)) {
-          await cacheManager.cacheArtworkFromBytes(thumbKey, bytes);
-        }
+      for (final key in targetKeys) {
+        await cacheManager.cacheArtworkFromBytes(key, bytes);
       }
     } catch (e) {
       // Don't fail the download if artwork caching fails
@@ -59,41 +88,16 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
     print(
         '[DownloadManager] Starting local artwork backfill for ${completedTasks.length} downloaded songs...');
 
-    final cacheManager = CacheManager();
-    var backfilledCount = 0;
-
     for (final task in completedTasks) {
-      try {
-        final localPath = _getSongFilePath(task.songId);
-        final file = File(localPath);
-        if (!await file.exists()) continue;
-
-        final bytes = await LocalArtworkExtractor.extractArtwork(localPath);
-        if (bytes == null || bytes.isEmpty) continue;
-
-        final songKey = 'song_${task.songId}';
-        if (!await cacheManager.isArtworkCached(songKey)) {
-          await cacheManager.cacheArtworkFromBytes(songKey, bytes);
-        }
-        if (task.albumId != null &&
-            !await cacheManager.isArtworkCached(task.albumId!)) {
-          await cacheManager.cacheArtworkFromBytes(task.albumId!, bytes);
-        }
-        if (task.albumId != null) {
-          final thumbKey = '${task.albumId!}_thumb';
-          if (!await cacheManager.isArtworkCached(thumbKey)) {
-            await cacheManager.cacheArtworkFromBytes(thumbKey, bytes);
-          }
-        }
-        backfilledCount++;
-      } catch (e) {
-        print('[DownloadManager] Backfill failed for ${task.songId}: $e');
-      }
+      await _extractAndCacheArtworkForSong(
+        songId: task.songId,
+        albumId: task.albumId,
+      );
     }
 
     await prefs.setBool(backfillKey, true);
     print(
-        '[DownloadManager] Local artwork backfill complete: $backfilledCount songs processed');
+        '[DownloadManager] Local artwork backfill complete: ${completedTasks.length} songs processed');
   }
 
   /// Get file path for a downloaded song
@@ -438,7 +442,7 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
       if (sessionTaskIds.remove(task.id)) {
         sessionTaskIds.add(replacement.id);
       }
-      unawaited(_cacheArtworkForDownload(replacement));
+      _queueArtworkCaching(replacement);
       relinkedCount++;
     }
 
