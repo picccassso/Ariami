@@ -372,4 +372,5 @@ class AuthErrorCodes {
   static const String lastAdminProtected = 'LAST_ADMIN_PROTECTED';
   static const String registrationClosed = 'REGISTRATION_CLOSED';
   static const String userPickerDisabled = 'USER_PICKER_DISABLED';
+  static const String ownerBootstrapRequired = 'OWNER_BOOTSTRAP_REQUIRED';
 }

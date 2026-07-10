@@ -86,9 +86,18 @@ from `/music`; the example above mounts them read-only.
 
 ## Security notes
 
-The container currently runs as root. Keep the music mount read-only (`:ro`) as
-shown above. Keep Ariami on your LAN or VPN, and do not port-forward it to the
-public internet.
+The container runs as the unprivileged `ariami` user (uid 10001), not root.
+Only `/data` is writable; the application files and `/music` are read-only
+for it. Two consequences for mounts:
+
+- A named `/data` volume (as in the examples) inherits the right ownership
+  automatically. If you bind-mount a host directory to `/data` instead, make
+  it writable by uid 10001, e.g. `chown -R 10001 /path/to/data`.
+- The music bind mount must be readable by uid 10001 (world-readable files
+  are fine, which is the common case). Keep it read-only (`:ro`) as shown.
+
+Keep Ariami on your LAN or VPN, and do not port-forward it to the public
+internet.
 
 ## Commands
 

@@ -49,6 +49,15 @@ class AuthService {
   /// Cooldown period after max attempts reached
   static const Duration rateLimitCooldown = Duration(minutes: 15);
 
+  /// Upper bound on tracked login-attempt buckets so the map cannot grow
+  /// without limit under key churn (e.g. rotating usernames).
+  static const int maxTrackedLoginBuckets = 5000;
+
+  /// Minimum password length for new passwords. Existing shorter passwords
+  /// keep working for login; only registration and password changes enforce
+  /// this.
+  static const int minPasswordLength = 10;
+
   /// Build a rate-limit bucket from request metadata controlled by the server.
   static String buildLoginRateLimitKey({
     required String clientIp,
@@ -93,9 +102,9 @@ class AuthService {
       throw AuthException(AuthErrorCodes.invalidCredentials,
           'Username must be at least 3 characters');
     }
-    if (password.length < 4) {
+    if (password.length < minPasswordLength) {
       throw AuthException(AuthErrorCodes.invalidCredentials,
-          'Password must be at least 4 characters');
+          'Password must be at least $minPasswordLength characters');
     }
 
     // Hash password with bcrypt
@@ -132,8 +141,10 @@ class AuthService {
           clientIp: 'unknown_ip',
           username: username,
         );
+    _pruneLoginAttempts();
     final tracker =
         _loginAttempts.putIfAbsent(attemptKey, () => _LoginAttemptTracker());
+    tracker.touch();
     if (tracker.isLocked) {
       final remainingMinutes =
           (tracker.remainingLockTime.inSeconds / 60).ceil();
@@ -337,10 +348,10 @@ class AuthService {
         'Password cannot be empty',
       );
     }
-    if (newPassword.length < 4) {
+    if (newPassword.length < minPasswordLength) {
       throw AuthException(
         AuthErrorCodes.invalidCredentials,
-        'Password must be at least 4 characters',
+        'Password must be at least $minPasswordLength characters',
       );
     }
 
@@ -379,6 +390,28 @@ class AuthService {
       throw StateError('AuthService not initialized. Call initialize() first.');
     }
   }
+
+  /// Keep the login-attempt map bounded: drop trackers idle past the
+  /// cooldown (they hold no useful rate-limit state), then evict the least
+  /// recently touched buckets if the map is still oversized.
+  void _pruneLoginAttempts() {
+    final now = DateTime.now();
+    _loginAttempts.removeWhere((_, tracker) =>
+        !tracker.isLocked &&
+        now.difference(tracker.lastAttemptAt) > rateLimitCooldown);
+
+    if (_loginAttempts.length < maxTrackedLoginBuckets) {
+      return;
+    }
+    final keysByAge = _loginAttempts.keys.toList()
+      ..sort((a, b) => _loginAttempts[a]!
+          .lastAttemptAt
+          .compareTo(_loginAttempts[b]!.lastAttemptAt));
+    for (final key
+        in keysByAge.take(_loginAttempts.length - maxTrackedLoginBuckets + 1)) {
+      _loginAttempts.remove(key);
+    }
+  }
 }
 
 /// Exception thrown for authentication errors.
@@ -396,6 +429,12 @@ class AuthException implements Exception {
 class _LoginAttemptTracker {
   int failedAttempts = 0;
   DateTime? lockedUntil;
+  DateTime lastAttemptAt = DateTime.now();
+
+  /// Record activity on this bucket (for idle-based pruning).
+  void touch() {
+    lastAttemptAt = DateTime.now();
+  }
 
   /// Check if currently rate limited
   bool get isLocked {

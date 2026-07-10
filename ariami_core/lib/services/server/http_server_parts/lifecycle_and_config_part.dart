@@ -306,7 +306,8 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
         .handler;
 
     final handler = const Pipeline()
-        .addMiddleware(logRequests())
+        .addMiddleware(_redactingRequestLogger())
+        .addMiddleware(_bodyLimitMiddleware())
         .addMiddleware(_corsMiddleware())
         .addMiddleware(_authRateLimitMiddleware())
         .addMiddleware(_authMiddleware())
@@ -485,9 +486,15 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
     _inFlightDownloadTranscodesByUser.clear();
     _authEndpointAttempts.clear();
     _registrationTokens.clear();
-    // Back to the default across restarts: hosts re-apply the owner's
-    // persisted account-picker choice on every start.
-    _publicUserPickerEnabled = true;
+    _ownerBootstrapCode = null;
+    for (final pending in _pendingWebSockets.values) {
+      pending.timeout.cancel();
+    }
+    _pendingWebSockets.clear();
+    _pendingWebSocketCountByIp.clear();
+    // Back to the (privacy-preserving) default across restarts: hosts
+    // re-apply the owner's persisted account-picker choice on every start.
+    _publicUserPickerEnabled = false;
     _streamTracker.dispose();
 
     print('Ariami Server stopped');
@@ -560,6 +567,35 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
       'inviteCode': code,
       'expiresAt': expiresAt.toIso8601String(),
     };
+  }
+
+  /// One-time code that authorizes creating the first owner account from a
+  /// non-local client. Returns null once an owner exists.
+  ///
+  /// Hosts that can be administered remotely before any account exists (the
+  /// headless CLI and its web dashboard) print this on the server's own
+  /// console; possessing it proves local access to the machine. Local
+  /// (loopback/in-process) owner registration never needs it.
+  String? getOrCreateOwnerBootstrapCode() {
+    if (_hasRegisteredUsers()) {
+      _ownerBootstrapCode = null;
+      return null;
+    }
+    return _ownerBootstrapCode ??= _generateInviteCodeValue();
+  }
+
+  /// Canonicalizes a typed bootstrap/invite code: uppercase, separators
+  /// stripped, so "abcd-efgh" matches "ABCDEFGH".
+  String _canonicalizeBootstrapCode(String raw) {
+    return raw.replaceAll(RegExp(r'[\s-]'), '').toUpperCase();
+  }
+
+  bool _isValidOwnerBootstrapCode(String? code) {
+    final expected = _ownerBootstrapCode;
+    if (expected == null || code == null || code.trim().isEmpty) {
+      return false;
+    }
+    return _canonicalizeBootstrapCode(code) == expected;
   }
 
   bool _hasValidRegistrationToken(String? token) {

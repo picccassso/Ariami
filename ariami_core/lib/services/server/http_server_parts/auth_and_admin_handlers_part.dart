@@ -39,8 +39,27 @@ extension AriamiHttpServerAuthAndAdminHandlersMethods on AriamiHttpServer {
         );
       }
 
-      if (_authService.hasUsers() &&
-          !_hasValidRegistrationToken(registrationToken)) {
+      final hasUsers = _authService.hasUsers();
+      if (!hasUsers) {
+        // The first account becomes the owner/admin, so claiming it must
+        // prove local access to the server machine: a loopback/in-process
+        // request, a registration token from a locally displayed QR, or the
+        // bootstrap code printed on the server's own console.
+        final bootstrapCode = data['bootstrapCode'] as String?;
+        final authorized = _isLocalRequest(request) ||
+            _hasValidRegistrationToken(registrationToken) ||
+            _isValidOwnerBootstrapCode(bootstrapCode);
+        if (!authorized) {
+          return _jsonForbidden({
+            'error': {
+              'code': AuthErrorCodes.ownerBootstrapRequired,
+              'message':
+                  'Creating the first (owner) account from another device '
+                      'requires the setup code shown on the server console',
+            },
+          });
+        }
+      } else if (!_hasValidRegistrationToken(registrationToken)) {
         return _jsonForbidden({
           'error': {
             'code': AuthErrorCodes.registrationClosed,
@@ -54,8 +73,10 @@ extension AriamiHttpServerAuthAndAdminHandlersMethods on AriamiHttpServer {
         _consumeRegistrationToken(registrationToken);
       }
 
-      // Update auth mode after first user registration
+      // Update auth mode after first user registration; the owner bootstrap
+      // code has served its purpose once an owner exists.
       if (_authService.userCount == 1) {
+        _ownerBootstrapCode = null;
         updateAuthMode();
       }
 

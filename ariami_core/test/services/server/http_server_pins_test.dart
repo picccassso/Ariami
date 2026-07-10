@@ -28,8 +28,8 @@ void main() {
       sessionsFilePath: p.join(directory.path, 'sessions.json'),
       forceReinitialize: true,
     );
-    await AuthService().register('user-a', 'pass-a');
-    await AuthService().register('user-b', 'pass-b');
+    await AuthService().register('user-a', 'pass-a-123456');
+    await AuthService().register('user-b', 'pass-b-123456');
     _seedCatalog(server.libraryManager.createCatalogRepository()!);
     port = await _freePort();
     await server.start(
@@ -37,8 +37,8 @@ void main() {
       bindAddress: '127.0.0.1',
       port: port,
     );
-    userAToken = await _login(port, 'user-a', 'pass-a', 'device-a');
-    userBToken = await _login(port, 'user-b', 'pass-b', 'device-b');
+    userAToken = await _login(port, 'user-a', 'pass-a-123456', 'device-a');
+    userBToken = await _login(port, 'user-b', 'pass-b-123456', 'device-b');
   });
 
   tearDown(() async {

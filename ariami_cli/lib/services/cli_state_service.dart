@@ -200,12 +200,12 @@ class CliStateService {
   }
 
   /// Whether the pre-auth sign-in account picker (used by Ariami TV) is
-  /// enabled. On by default for the out-of-the-box TV experience; the web
-  /// dashboard's privacy switch persists an explicit off here (while enabled,
-  /// any device on the network can list this server's usernames).
+  /// enabled. Off by default — while enabled, any device on the network can
+  /// list this server's usernames — so owners opt in through the web
+  /// dashboard's privacy switch, which persists an explicit on here.
   Future<bool> getPublicUserPickerEnabled() async {
     final config = await _readConfig();
-    return config['public_user_picker'] != false;
+    return config['public_user_picker'] == true;
   }
 
   Future<void> setPublicUserPickerEnabled(bool enabled) async {

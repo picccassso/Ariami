@@ -225,7 +225,7 @@ void main() {
         url: Uri.parse('http://127.0.0.1:$port/api/auth/register'),
         jsonBody: <String, dynamic>{
           'username': 'qr-user',
-          'password': 'qr-pass',
+          'password': 'qr-pass-12345',
           'registrationToken': registrationToken,
         },
       );

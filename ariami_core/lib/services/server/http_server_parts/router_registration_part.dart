@@ -330,12 +330,22 @@ extension AriamiHttpServerRouterMethods on AriamiHttpServer {
     // that never send a close frame; without it those peers stay in the
     // Connect device list indefinitely. A missed pong closes the socket,
     // which runs the normal onDone unregister path.
-    router.get(
-      '/api/ws',
-      webSocketHandler(
-        _handleWebSocket,
+    //
+    // The upgrade is refused while a client IP already holds too many
+    // sockets that never identified, so an unauthenticated peer cannot pile
+    // up connections.
+    router.get('/api/ws', (Request request) {
+      final remoteIp = _clientIp(request);
+      final rejection = _rejectWebSocketUpgradeIfFlooded(remoteIp);
+      if (rejection != null) {
+        return rejection;
+      }
+      final handler = webSocketHandler(
+        (WebSocketChannel webSocket, String? subprotocol) =>
+            _handleWebSocket(webSocket, subprotocol, remoteIp: remoteIp),
         pingInterval: const Duration(seconds: 30),
-      ),
-    );
+      );
+      return handler(request);
+    });
   }
 }

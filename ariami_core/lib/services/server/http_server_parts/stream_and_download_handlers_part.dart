@@ -45,6 +45,21 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
     });
   }
 
+  /// True when [file] lies within the configured music folder (or when no
+  /// folder is configured). Segment-aware: canonical paths are compared with
+  /// [p.isWithin] so "/music-evil" cannot pass as inside "/music", and "."
+  /// or ".." components cannot escape it.
+  bool _isPathInsideMusicFolder(File file) {
+    final musicFolderPath = _musicFolderPath;
+    if (musicFolderPath == null) {
+      return true;
+    }
+    final canonicalRoot = p.canonicalize(musicFolderPath);
+    final canonicalFile = p.canonicalize(file.absolute.path);
+    return p.equals(canonicalRoot, canonicalFile) ||
+        p.isWithin(canonicalRoot, canonicalFile);
+  }
+
   /// Handle stream request
   ///
   /// Supports quality parameter for transcoded streaming:
@@ -119,12 +134,9 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
     }
 
     // Check if file is in allowed music folder (security check)
-    if (_musicFolderPath != null) {
-      final canonicalPath = originalFile.absolute.path;
-      if (!canonicalPath.startsWith(_musicFolderPath!)) {
-        endStreamTracker();
-        return _fileOutsideLibraryResponse();
-      }
+    if (!_isPathInsideMusicFolder(originalFile)) {
+      endStreamTracker();
+      return _fileOutsideLibraryResponse();
     }
 
     // Determine which file to stream
@@ -318,11 +330,8 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
     }
 
     // Check if file is in allowed music folder (security check)
-    if (_musicFolderPath != null) {
-      final canonicalPath = originalFile.absolute.path;
-      if (!canonicalPath.startsWith(_musicFolderPath!)) {
-        return _fileOutsideLibraryResponse();
-      }
+    if (!_isPathInsideMusicFolder(originalFile)) {
+      return _fileOutsideLibraryResponse();
     }
 
     // Enforce weighted-fair download limits across users.

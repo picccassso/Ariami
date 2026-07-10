@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:crypto/crypto.dart';
 import '../../models/auth_models.dart';
+import '../../utils/secure_file_permissions.dart';
 
 /// Stores and persists user accounts to JSON file.
 /// Uses in-memory maps for O(1) lookups, with atomic writes to disk.
@@ -30,6 +31,10 @@ class UserStore {
     final file = File(filePath);
 
     if (await file.exists()) {
+      // Tighten pre-existing installs where the file/dir were created with
+      // the default umask.
+      await SecureFilePermissions.restrictDirectory(file.parent.path);
+      await SecureFilePermissions.restrictFile(filePath);
       try {
         final content = await file.readAsString();
         if (content.isNotEmpty) {
@@ -182,11 +187,12 @@ class UserStore {
       final file = File(_filePath!);
       final tempFile = File('${_filePath!}.tmp');
 
-      // Ensure directory exists
+      // Ensure directory exists, readable by the owner only (auth data).
       final dir = file.parent;
       if (!await dir.exists()) {
         await dir.create(recursive: true);
       }
+      await SecureFilePermissions.restrictDirectory(dir.path);
 
       final data = {
         'users': _users.values.map((u) => u.toJson()).toList(),
@@ -195,8 +201,11 @@ class UserStore {
 
       final jsonString = const JsonEncoder.withIndent('  ').convert(data);
 
-      // Atomic write: write to temp file, then rename
+      // Atomic write: write to temp file, then rename. The temp file gets
+      // owner-only permissions before it becomes the real file (rename
+      // preserves them).
       await tempFile.writeAsString(jsonString);
+      await SecureFilePermissions.restrictFile(tempFile.path);
       await tempFile.rename(_filePath!);
     });
 

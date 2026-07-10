@@ -45,16 +45,75 @@ extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
     return wsClientType;
   }
 
+  /// Refuse WebSocket upgrades from an IP that is already holding the
+  /// maximum number of not-yet-identified sockets.
+  Response? _rejectWebSocketUpgradeIfFlooded(String remoteIp) {
+    final pending = _pendingWebSocketCountByIp[remoteIp] ?? 0;
+    if (pending < AriamiHttpServer._maxPendingWebSocketsPerIp) {
+      return null;
+    }
+    return _jsonResponse(HttpStatus.tooManyRequests, {
+      'error': {
+        'code': 'TOO_MANY_PENDING_CONNECTIONS',
+        'message': 'Too many unidentified WebSocket connections from this '
+            'address; identify or close existing ones first',
+      },
+    });
+  }
+
+  /// Track a socket that has not identified yet: count it against its IP and
+  /// close it if no identify arrives in time.
+  void _trackPendingWebSocket(WebSocketChannel webSocket, String remoteIp) {
+    _pendingWebSocketCountByIp[remoteIp] =
+        (_pendingWebSocketCountByIp[remoteIp] ?? 0) + 1;
+    _pendingWebSockets[webSocket] = _PendingWebSocketState(
+      remoteIp: remoteIp,
+      timeout: Timer(AriamiHttpServer._webSocketIdentifyTimeout, () {
+        if (_pendingWebSockets.containsKey(webSocket)) {
+          print('WebSocket closed: no identify within '
+              '${AriamiHttpServer._webSocketIdentifyTimeout.inSeconds}s');
+          try {
+            webSocket.sink.close(4008, 'Identify timeout');
+          } catch (_) {
+            // Socket already torn down; onDone cleanup handles the rest.
+          }
+        }
+      }),
+    );
+  }
+
+  /// The socket identified (or closed): stop the identify timer and release
+  /// its slot in the per-IP pending count.
+  void _resolvePendingWebSocket(WebSocketChannel webSocket) {
+    final pending = _pendingWebSockets.remove(webSocket);
+    if (pending == null) {
+      return;
+    }
+    pending.timeout.cancel();
+    final count = _pendingWebSocketCountByIp[pending.remoteIp] ?? 0;
+    if (count <= 1) {
+      _pendingWebSocketCountByIp.remove(pending.remoteIp);
+    } else {
+      _pendingWebSocketCountByIp[pending.remoteIp] = count - 1;
+    }
+  }
+
   /// Handle WebSocket connection
-  void _handleWebSocket(WebSocketChannel webSocket, String? subprotocol) {
+  void _handleWebSocket(
+    WebSocketChannel webSocket,
+    String? subprotocol, {
+    String remoteIp = 'unknown_ip',
+  }) {
     print(
         'WebSocket client connected; waiting for identify (${_webSocketClients.length} active)');
+    _trackPendingWebSocket(webSocket, remoteIp);
 
     webSocket.stream.listen(
       (message) {
         _handleWebSocketMessage(webSocket, message);
       },
       onDone: () {
+        _resolvePendingWebSocket(webSocket);
         _webSocketClients.remove(webSocket);
         _connectHub.unregister(webSocket);
         final deviceId = _untrackWebSocketDevice(webSocket);
@@ -66,6 +125,7 @@ extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
             'WebSocket client disconnected (${_webSocketClients.length} remaining)');
       },
       onError: (error) {
+        _resolvePendingWebSocket(webSocket);
         _webSocketClients.remove(webSocket);
         _connectHub.unregister(webSocket);
         final deviceId = _untrackWebSocketDevice(webSocket);
@@ -128,6 +188,7 @@ extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
 
             // Session valid - register or refresh client (upgrade clientType)
             if (deviceId.isNotEmpty) {
+              _resolvePendingWebSocket(webSocket);
               _trackWebSocketClient(webSocket);
               _webSocketDeviceIds[webSocket] = deviceId;
               final effectiveType = _effectivePresenceClientType(
@@ -158,6 +219,7 @@ extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
 
         // First-run bootstrap mode - no auth required.
         if (deviceId.isNotEmpty) {
+          _resolvePendingWebSocket(webSocket);
           _trackWebSocketClient(webSocket);
           _webSocketDeviceIds[webSocket] = deviceId;
           final effectiveType = _effectivePresenceClientType(

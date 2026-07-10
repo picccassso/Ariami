@@ -71,27 +71,75 @@ extension AriamiHttpServerMiddlewareAndMetricsMethods on AriamiHttpServer {
     );
   }
 
-  /// CORS middleware
+  /// CORS middleware.
+  ///
+  /// The dashboards Ariami serves are same-origin, and the native clients
+  /// don't send an Origin header, so no legitimate caller needs a wildcard.
+  /// Cross-origin access is only granted to the server's own origins
+  /// (matching the request Host) and to loopback origins for local
+  /// development of the web dashboard.
   Middleware _corsMiddleware() {
     return (Handler handler) {
       return (Request request) async {
+        final corsHeaders = _corsHeadersForRequest(request);
         if (request.method == 'OPTIONS') {
-          return Response.ok('', headers: _corsHeaders());
+          return Response.ok('', headers: corsHeaders);
         }
 
         final response = await handler(request);
-        return response.change(headers: _corsHeaders());
+        return response.change(headers: corsHeaders);
       };
     };
   }
 
-  /// CORS headers
-  Map<String, String> _corsHeaders() {
+  Map<String, String> _corsHeadersForRequest(Request request) {
+    final origin = request.headers['origin'];
+    if (origin == null || origin.isEmpty) {
+      return const {};
+    }
+    if (!_isAllowedCorsOrigin(origin, request.headers['host'])) {
+      return const {'Vary': 'Origin'};
+    }
     return {
-      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Origin': origin,
       'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Vary': 'Origin',
     };
+  }
+
+  bool _isAllowedCorsOrigin(String origin, String? hostHeader) {
+    final Uri originUri;
+    try {
+      originUri = Uri.parse(origin);
+    } on FormatException {
+      return false;
+    }
+    if (originUri.host.isEmpty) {
+      return false;
+    }
+
+    final originHost = originUri.host.toLowerCase();
+    // Loopback origins keep local dashboard development working.
+    if (originHost == 'localhost' ||
+        originHost == '127.0.0.1' ||
+        originHost == '::1' ||
+        originHost == '[::1]') {
+      return true;
+    }
+
+    // Same host:port as the request target = the dashboard this server
+    // itself serves (over any of its addresses).
+    if (hostHeader == null || hostHeader.isEmpty) {
+      return false;
+    }
+    final originPort = originUri.hasPort ? originUri.port : null;
+    final hostParts = hostHeader.toLowerCase().split(':');
+    final requestHost = hostParts.first;
+    final requestPort =
+        hostParts.length > 1 ? int.tryParse(hostParts.last) : null;
+    return originHost == requestHost &&
+        (originPort ?? _port) == (requestPort ?? _port);
   }
 
   /// Auth middleware - validates session tokens for protected endpoints
@@ -104,10 +152,12 @@ extension AriamiHttpServerMiddlewareAndMetricsMethods on AriamiHttpServer {
         }
 
         final key = '$path|${_clientIp(request)}';
+        _pruneAuthEndpointAttempts();
         final tracker = _authEndpointAttempts.putIfAbsent(
           key,
           () => _AuthEndpointRateLimitTracker(),
         );
+        tracker.touch();
         if (tracker.isLocked) {
           final remainingMinutes =
               (tracker.remainingLockTime.inSeconds / 60).ceil();
@@ -141,10 +191,38 @@ extension AriamiHttpServerMiddlewareAndMetricsMethods on AriamiHttpServer {
     };
   }
 
+  /// Evict stale/expired auth rate-limit trackers so the map stays bounded.
+  /// Entries idle longer than the cooldown carry no rate-limit state worth
+  /// keeping; if the map is still oversized (an attacker rotating spoofable
+  /// keys), the least recently touched entries are dropped first.
+  void _pruneAuthEndpointAttempts() {
+    const maxEntries = 5000;
+    final now = DateTime.now();
+    _authEndpointAttempts.removeWhere((_, tracker) =>
+        !tracker.isLocked &&
+        now.difference(tracker.lastAttemptAt) > AuthService.rateLimitCooldown);
+
+    if (_authEndpointAttempts.length < maxEntries) {
+      return;
+    }
+    final keysByAge = _authEndpointAttempts.keys.toList()
+      ..sort((a, b) => _authEndpointAttempts[a]!
+          .lastAttemptAt
+          .compareTo(_authEndpointAttempts[b]!.lastAttemptAt));
+    for (final key
+        in keysByAge.take(_authEndpointAttempts.length - maxEntries + 1)) {
+      _authEndpointAttempts.remove(key);
+    }
+  }
+
   String _clientIp(Request request) {
-    final forwarded = request.headers['x-forwarded-for'];
-    if (forwarded != null && forwarded.trim().isNotEmpty) {
-      return forwarded.split(',').first.trim();
+    // X-Forwarded-For is client-controlled; only honor it when the owner has
+    // explicitly said Ariami sits behind a proxy they trust.
+    if (_trustProxyHeaders) {
+      final forwarded = request.headers['x-forwarded-for'];
+      if (forwarded != null && forwarded.trim().isNotEmpty) {
+        return forwarded.split(',').first.trim();
+      }
     }
 
     final connectionInfo = request.context['shelf.io.connection_info'];
@@ -158,6 +236,23 @@ extension AriamiHttpServerMiddlewareAndMetricsMethods on AriamiHttpServer {
     }
 
     return 'unknown_ip';
+  }
+
+  /// True when the request arrives over loopback or from an in-process
+  /// caller (no socket at all, e.g. the desktop app driving its embedded
+  /// server directly or handler-level tests).
+  bool _isLocalRequest(Request request) {
+    InternetAddress? remote;
+    final connectionInfo = request.context['shelf.io.connection_info'];
+    if (connectionInfo is HttpConnectionInfo) {
+      remote = connectionInfo.remoteAddress;
+    } else {
+      final ioRequest = request.context['shelf.io.request'];
+      if (ioRequest is HttpRequest) {
+        remote = ioRequest.connectionInfo?.remoteAddress;
+      }
+    }
+    return remote == null || remote.isLoopback;
   }
 
   /// Auth middleware - validates session tokens for protected endpoints
@@ -387,7 +482,11 @@ extension AriamiHttpServerMiddlewareAndMetricsMethods on AriamiHttpServer {
     };
   }
 
-  /// Error handling middleware
+  /// Error handling middleware.
+  ///
+  /// Details (exception + stack) go to the server log only; clients get a
+  /// generic body so internals (paths, library state) never leak to the
+  /// network.
   Middleware _errorMiddleware() {
     return (Handler handler) {
       return (Request request) async {
@@ -401,11 +500,137 @@ extension AriamiHttpServerMiddlewareAndMetricsMethods on AriamiHttpServer {
           print('Stack trace: $stackTrace');
           return _jsonInternalServerError({
             'error': 'Internal server error',
-            'message': e.toString(),
+            'message': 'An unexpected error occurred',
           });
         }
       };
     };
+  }
+
+  // Request bodies are read fully into memory by most JSON handlers, so a
+  // client must not be able to send unbounded bodies. Avatar and playlist
+  // cover uploads enforce their own 5 MB limit and get slack for it here.
+  static const int _defaultMaxRequestBodyBytes = 2 * 1024 * 1024;
+  static const int _uploadMaxRequestBodyBytes = 6 * 1024 * 1024;
+
+  int _maxRequestBodyBytesForPath(String path) {
+    if (path == '/api/me/avatar' ||
+        (path.startsWith('/api/playlists/') && path.endsWith('/image'))) {
+      return _uploadMaxRequestBodyBytes;
+    }
+    return _defaultMaxRequestBodyBytes;
+  }
+
+  /// Rejects oversized request bodies with 413 before handlers buffer them.
+  ///
+  /// A declared Content-Length over the cap is rejected outright; bodies
+  /// without one (chunked uploads) are counted as they stream and cut off at
+  /// the cap.
+  Middleware _bodyLimitMiddleware() {
+    return (Handler handler) {
+      return (Request request) async {
+        final path = '/${request.url.path}';
+        // WebSocket upgrades hijack the underlying socket; leave them alone.
+        if (path == '/api/ws') {
+          return await handler(request);
+        }
+
+        final maxBytes = _maxRequestBodyBytesForPath(path);
+        final declaredLength = request.contentLength;
+        if (declaredLength != null && declaredLength > maxBytes) {
+          return _requestBodyTooLargeResponse(maxBytes);
+        }
+
+        Stream<List<int>> limitedBody() async* {
+          var total = 0;
+          await for (final chunk in request.read()) {
+            total += chunk.length;
+            if (total > maxBytes) {
+              throw const _RequestBodyTooLargeException();
+            }
+            yield chunk;
+          }
+        }
+
+        try {
+          return await handler(request.change(body: limitedBody()));
+        } on _RequestBodyTooLargeException {
+          return _requestBodyTooLargeResponse(maxBytes);
+        }
+      };
+    };
+  }
+
+  Response _requestBodyTooLargeResponse(int maxBytes) {
+    return _jsonResponse(HttpStatus.requestEntityTooLarge, {
+      'error': {
+        'code': 'REQUEST_TOO_LARGE',
+        'message':
+            'Request body exceeds the ${maxBytes ~/ (1024 * 1024)} MB limit',
+      },
+    });
+  }
+
+  // Query parameters that carry credentials and must never reach the log.
+  static const Set<String> _sensitiveQueryParams = {
+    'streamtoken',
+    'downloadtoken',
+    'registrationtoken',
+    'sessiontoken',
+    'bootstrapcode',
+    'invitecode',
+    'token',
+  };
+
+  /// Request logger replacing shelf's [logRequests]: media/artwork routes are
+  /// logged without their query string (their tokens are the credential), and
+  /// token-like query parameters are redacted everywhere else.
+  Middleware _redactingRequestLogger() {
+    return (Handler handler) {
+      return (Request request) async {
+        final stopwatch = Stopwatch()..start();
+        final path = '/${request.url.path}';
+        final query = _loggableQuery(path, request.url.queryParameters);
+
+        try {
+          final response = await handler(request);
+          stopwatch.stop();
+          print('${DateTime.now().toIso8601String()} '
+              '${stopwatch.elapsed.inMilliseconds}ms '
+              '${request.method} $path$query -> ${response.statusCode}');
+          return response;
+        } on HijackException {
+          rethrow;
+        } catch (e) {
+          stopwatch.stop();
+          print('${DateTime.now().toIso8601String()} '
+              '${stopwatch.elapsed.inMilliseconds}ms '
+              '${request.method} $path$query -> ERROR');
+          rethrow;
+        }
+      };
+    };
+  }
+
+  String _loggableQuery(String path, Map<String, String> queryParameters) {
+    if (queryParameters.isEmpty) {
+      return '';
+    }
+
+    final isMediaPath = path.startsWith('/api/stream') ||
+        path.startsWith('/api/download') ||
+        path.startsWith('/api/artwork/') ||
+        path.startsWith('/api/song-artwork/');
+    if (isMediaPath) {
+      return '';
+    }
+
+    final parts = queryParameters.entries.map((entry) {
+      final isSensitive =
+          _sensitiveQueryParams.contains(entry.key.toLowerCase());
+      return '${entry.key}=${isSensitive ? '<redacted>' : entry.value}';
+    });
+    return '?${parts.join('&')}';
   }
 
   /// Metrics middleware for endpoint latency/payload and queue/token snapshots.
@@ -512,6 +737,11 @@ extension AriamiHttpServerMiddlewareAndMetricsMethods on AriamiHttpServer {
 class _AuthEndpointRateLimitTracker {
   int failedAttempts = 0;
   DateTime? lockedUntil;
+  DateTime lastAttemptAt = DateTime.now();
+
+  void touch() {
+    lastAttemptAt = DateTime.now();
+  }
 
   bool get isLocked {
     if (lockedUntil == null) return false;
@@ -539,4 +769,8 @@ class _AuthEndpointRateLimitTracker {
     failedAttempts = 0;
     lockedUntil = null;
   }
+}
+
+class _RequestBodyTooLargeException implements Exception {
+  const _RequestBodyTooLargeException();
 }

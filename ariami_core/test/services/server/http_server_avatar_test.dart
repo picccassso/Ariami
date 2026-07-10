@@ -32,8 +32,10 @@ void main() {
         bindAddress: '127.0.0.1',
         port: port,
       );
-      // Picker avatars rely on the account picker being enabled — the default.
-      // The disabled-state gating is covered by the auth-users tests.
+      // Picker avatars rely on the account picker, which is off by default;
+      // these tests cover the opted-in behavior. The disabled-state gating
+      // is covered by the auth-users tests.
+      server.setPublicUserPickerEnabled(true);
     });
 
     tearDown(() async {

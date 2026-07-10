@@ -33,12 +33,20 @@ COPY --from=cli-builder /workspace/ariami_cli/HEADLESS.md /opt/ariami/HEADLESS.m
 
 RUN chmod +x /opt/ariami/ariami_cli /opt/ariami/bin/ariami_cli
 
+# Run as an unprivileged user: only /data (config, auth stores, caches) needs
+# to be writable; the application binaries and the /music library stay
+# read-only. Host-mounted volumes must be readable (and /data writable) by
+# uid 10001 — see DOCKER.md.
+RUN useradd --system --uid 10001 --home-dir /data --shell /usr/sbin/nologin ariami \
+    && chown -R ariami:ariami /data
+
 ENV ARIAMI_DATA_DIR=/data
 ENV ARIAMI_CONTAINER=1
 
 VOLUME ["/data", "/music"]
 EXPOSE 8080
 WORKDIR /opt/ariami
+USER ariami
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
     CMD curl -fsS http://127.0.0.1:8080/api/ping || exit 1

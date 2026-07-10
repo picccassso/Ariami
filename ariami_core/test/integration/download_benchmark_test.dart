@@ -165,7 +165,7 @@ Future<void> _runDownloadBenchmark({required int simulatedUsers}) async {
         baseUri,
         adminToken: users.isEmpty ? null : users.first.sessionToken,
         username: 'user_$i',
-        password: 'pass_$i',
+        password: 'benchpass_$i',
         deviceId: 'device_$i',
         deviceName: 'Device $i',
       ));

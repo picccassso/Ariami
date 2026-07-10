@@ -53,19 +53,19 @@ void main() {
           port: port,
         );
 
-        await _registerUser(port, 'user-a', 'pass-a');
+        await _registerUser(port, 'user-a', 'pass-a-123456');
         final userAToken = await _loginUser(
           port: port,
           username: 'user-a',
-          password: 'pass-a',
+          password: 'pass-a-123456',
           deviceId: 'phase11-device-a',
           deviceName: 'Phase11 Device A',
         );
-        await _createUser(port, userAToken, 'user-b', 'pass-b');
+        await _createUser(port, userAToken, 'user-b', 'pass-b-123456');
         final userBToken = await _loginUser(
           port: port,
           username: 'user-b',
-          password: 'pass-b',
+          password: 'pass-b-123456',
           deviceId: 'phase11-device-b',
           deviceName: 'Phase11 Device B',
         );

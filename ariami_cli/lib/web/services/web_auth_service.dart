@@ -26,6 +26,7 @@ class WebAuthService {
   Future<WebApiResponse> register({
     required String username,
     required String password,
+    String? bootstrapCode,
   }) async {
     final apiClient = WebApiClient(httpClient: _httpClient);
     return apiClient.post(
@@ -34,6 +35,10 @@ class WebAuthService {
       body: <String, dynamic>{
         'username': username,
         'password': password,
+        // One-time code from the server console; authorizes creating the
+        // first (owner) account when this dashboard is opened remotely.
+        if (bootstrapCode != null && bootstrapCode.isNotEmpty)
+          'bootstrapCode': bootstrapCode,
       },
     );
   }

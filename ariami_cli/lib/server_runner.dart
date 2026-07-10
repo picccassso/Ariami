@@ -91,15 +91,22 @@ class ServerRunner {
 
       await _stateService.ensureConfigDir();
 
-      // Pre-auth account picker for TV sign-in. On by default; the web
-      // dashboard's privacy switch persists an explicit off in config.json,
-      // and the env flag can force it back on for such a config.
+      // Pre-auth account picker for TV sign-in. Off by default (while on,
+      // any LAN/tailnet device can list usernames); the web dashboard's
+      // privacy switch persists an explicit on in config.json, and the env
+      // flag can force it on regardless.
       _httpServer.setPublicUserPickerEnabled(
         await _stateService.getPublicUserPickerEnabled() ||
             _featureFlagService.loadPublicUserPickerFromEnvironment(),
       );
       _httpServer.setPublicUserPickerPersistCallback(
         (enabled) => _stateService.setPublicUserPickerEnabled(enabled),
+      );
+
+      // X-Forwarded-For stays untrusted unless the owner explicitly says a
+      // reverse proxy they control fronts this server.
+      _httpServer.setTrustProxyHeaders(
+        _featureFlagService.loadTrustProxyHeadersFromEnvironment(),
       );
       _configureMetadataCache(featureFlags);
 
@@ -349,6 +356,25 @@ class ServerRunner {
     )) {
       print(line);
     }
+    print('');
+
+    _printOwnerBootstrapCodeIfNeeded();
+  }
+
+  /// Until an owner account exists, creating one from another device (the
+  /// web dashboard opened remotely on a headless install) requires this
+  /// one-time code. Printing it here — and only here, on the server's own
+  /// console — is what proves local access to the machine.
+  void _printOwnerBootstrapCodeIfNeeded() {
+    final code = _httpServer.getOrCreateOwnerBootstrapCode();
+    if (code == null) {
+      return;
+    }
+    final grouped = '${code.substring(0, 4)}-${code.substring(4)}';
+    print('No owner account exists yet.');
+    print('First-time setup code: $grouped');
+    print('Enter it in the dashboard when creating the owner account '
+        'from another device (not needed on this machine).');
     print('');
   }
 

@@ -21,6 +21,7 @@ class _OwnerSetupScreenState extends State<OwnerSetupScreen> {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  final _setupCodeController = TextEditingController();
 
   final WebAuthService _authService = WebAuthService();
   final WebSetupService _setupService = WebSetupService();
@@ -46,6 +47,7 @@ class _OwnerSetupScreenState extends State<OwnerSetupScreen> {
     _usernameController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _setupCodeController.dispose();
     super.dispose();
   }
 
@@ -182,11 +184,13 @@ class _OwnerSetupScreenState extends State<OwnerSetupScreen> {
 
     final username = _usernameController.text.trim();
     final password = _passwordController.text;
+    final setupCode = _setupCodeController.text.trim();
 
     try {
       final registerResponse = await _authService.register(
         username: username,
         password: password,
+        bootstrapCode: setupCode.isEmpty ? null : setupCode,
       );
       if (!registerResponse.isSuccess) {
         setState(() {
@@ -360,8 +364,8 @@ class _OwnerSetupScreenState extends State<OwnerSetupScreen> {
                                           if (v.isEmpty) {
                                             return 'Password is required.';
                                           }
-                                          if (v.length < 4) {
-                                            return 'Password must be at least 4 characters.';
+                                          if (v.length < 10) {
+                                            return 'Password must be at least 10 characters.';
                                           }
                                           return null;
                                         },
@@ -381,6 +385,20 @@ class _OwnerSetupScreenState extends State<OwnerSetupScreen> {
                                           }
                                           return null;
                                         },
+                                      ),
+                                      const SizedBox(height: 16),
+                                      TextFormField(
+                                        controller: _setupCodeController,
+                                        enabled: !_isSubmitting,
+                                        decoration: const InputDecoration(
+                                          labelText: 'SETUP CODE (IF REMOTE)',
+                                          helperText:
+                                              'Shown in the server terminal at '
+                                              'startup. Only needed when this '
+                                              'page is opened from another '
+                                              'device.',
+                                          helperMaxLines: 3,
+                                        ),
                                       ),
                                     ],
                                   ),

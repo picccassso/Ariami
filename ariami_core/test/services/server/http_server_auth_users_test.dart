@@ -46,7 +46,7 @@ void main() {
         url: url('/api/auth/register'),
         jsonBody: <String, dynamic>{
           'username': 'zeta',
-          'password': 'zeta-pass',
+          'password': 'zeta-pass-123',
         },
       );
       expect(register.statusCode, 200);
@@ -56,7 +56,7 @@ void main() {
         url: url('/api/auth/login'),
         jsonBody: <String, dynamic>{
           'username': 'zeta',
-          'password': 'zeta-pass',
+          'password': 'zeta-pass-123',
           'deviceId': 'owner-device',
           'deviceName': 'Owner Device',
         },
@@ -65,28 +65,26 @@ void main() {
       return login.jsonBody['sessionToken'] as String;
     }
 
-    test('is enabled by default; disabling hides accounts', () async {
-      // Default on: the endpoint answers without any host wiring.
-      final defaultEmpty = await _sendJsonRequest(
+    test('is disabled by default; no usernames leak pre-auth', () async {
+      // Default off: privacy-preserving without any host wiring.
+      final defaultResponse = await _sendJsonRequest(
         method: 'GET',
         url: url('/api/auth/users'),
       );
-      expect(defaultEmpty.statusCode, 200);
-      expect(defaultEmpty.jsonBody['users'], isEmpty);
+      expect(defaultResponse.statusCode, 403);
+      expect(
+        (defaultResponse.jsonBody['error'] as Map)['code'],
+        'USER_PICKER_DISABLED',
+      );
 
       await registerAndLoginOwner();
 
-      // Owner turned the picker off: no usernames leak.
-      server.setPublicUserPickerEnabled(false);
+      // Still off after accounts exist: no usernames leak.
       final disabledWithUsers = await _sendJsonRequest(
         method: 'GET',
         url: url('/api/auth/users'),
       );
       expect(disabledWithUsers.statusCode, 403);
-      expect(
-        (disabledWithUsers.jsonBody['error'] as Map)['code'],
-        'USER_PICKER_DISABLED',
-      );
       expect(disabledWithUsers.jsonBody.toString(), isNot(contains('zeta')));
 
       // The public avatar endpoint must not confirm the username exists.
@@ -95,9 +93,24 @@ void main() {
         url: url('/api/auth/user-avatar/zeta'),
       );
       expect(avatar.statusCode, 404);
+
+      // The owner opts in: the endpoint answers.
+      server.setPublicUserPickerEnabled(true);
+      final enabled = await _sendJsonRequest(
+        method: 'GET',
+        url: url('/api/auth/users'),
+      );
+      expect(enabled.statusCode, 200);
+      expect(
+        (enabled.jsonBody['users'] as List<dynamic>)
+            .cast<Map<String, dynamic>>()
+            .map((user) => user['username']),
+        contains('zeta'),
+      );
     });
 
     test('when enabled, returns every account sorted by username', () async {
+      server.setPublicUserPickerEnabled(true);
       final emptyResponse = await _sendJsonRequest(
         method: 'GET',
         url: url('/api/auth/users'),
@@ -115,7 +128,7 @@ void main() {
           headers: <String, String>{'Authorization': 'Bearer $ownerToken'},
           jsonBody: <String, dynamic>{
             'username': username,
-            'password': '$username-pass',
+            'password': '$username-pass-123',
           },
         );
         expect(createUser.statusCode, 201);
@@ -163,16 +176,16 @@ void main() {
         headers: adminHeaders,
       );
       expect(initialState.statusCode, 200);
-      expect(initialState.jsonBody['enabled'], isTrue);
+      expect(initialState.jsonBody['enabled'], isFalse);
 
       // Unauthenticated toggle attempts are rejected and change nothing.
       final unauthedSet = await _sendJsonRequest(
         method: 'POST',
         url: url('/api/admin/user-picker'),
-        jsonBody: <String, dynamic>{'enabled': false},
+        jsonBody: <String, dynamic>{'enabled': true},
       );
       expect(unauthedSet.statusCode, 401);
-      expect(server.publicUserPickerEnabled, isTrue);
+      expect(server.publicUserPickerEnabled, isFalse);
 
       // Bad payloads are rejected.
       final badSet = await _sendJsonRequest(
@@ -183,23 +196,7 @@ void main() {
       );
       expect(badSet.statusCode, 400);
 
-      // Disable: the public listing stops answering.
-      final disable = await _sendJsonRequest(
-        method: 'POST',
-        url: url('/api/admin/user-picker'),
-        headers: adminHeaders,
-        jsonBody: <String, dynamic>{'enabled': false},
-      );
-      expect(disable.statusCode, 200);
-      expect(disable.jsonBody['enabled'], isFalse);
-
-      final disabledList = await _sendJsonRequest(
-        method: 'GET',
-        url: url('/api/auth/users'),
-      );
-      expect(disabledList.statusCode, 403);
-
-      // Enable again: the public listing answers.
+      // Enable: the public listing answers.
       final enable = await _sendJsonRequest(
         method: 'POST',
         url: url('/api/admin/user-picker'),
@@ -220,6 +217,22 @@ void main() {
             .map((user) => user['username']),
         contains('zeta'),
       );
+
+      // Disable again: the public listing stops answering.
+      final disable = await _sendJsonRequest(
+        method: 'POST',
+        url: url('/api/admin/user-picker'),
+        headers: adminHeaders,
+        jsonBody: <String, dynamic>{'enabled': false},
+      );
+      expect(disable.statusCode, 200);
+      expect(disable.jsonBody['enabled'], isFalse);
+
+      final disabledList = await _sendJsonRequest(
+        method: 'GET',
+        url: url('/api/auth/users'),
+      );
+      expect(disabledList.statusCode, 403);
     });
 
     test('admin toggle invokes the host persistence callback', () async {

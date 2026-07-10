@@ -37,10 +37,22 @@ class ServerFeatureFlagService {
   /// when the persisted config turned it off.
   ///
   /// Not part of [AriamiFeatureFlags]: it's an owner privacy setting rather
-  /// than a rollout flag. The picker itself is on by default; the persisted
-  /// config (web dashboard switch) is the normal way to control it.
+  /// than a rollout flag. The picker is off by default; the persisted config
+  /// (web dashboard switch) is the normal way to enable it.
   bool loadPublicUserPickerFromEnvironment() {
-    final value = Platform.environment['ARIAMI_ENABLE_PUBLIC_USER_PICKER'];
+    return _parseBoolEnv('ARIAMI_ENABLE_PUBLIC_USER_PICKER');
+  }
+
+  /// Whether the server should trust `X-Forwarded-For` when resolving
+  /// client IPs for rate limiting. Only set this when Ariami runs behind a
+  /// reverse proxy the owner controls; otherwise clients can spoof their
+  /// address and rotate rate-limit buckets.
+  bool loadTrustProxyHeadersFromEnvironment() {
+    return _parseBoolEnv('ARIAMI_TRUST_PROXY_HEADERS');
+  }
+
+  bool _parseBoolEnv(String key) {
+    final value = Platform.environment[key];
     if (value == null) return false;
 
     final normalized = value.trim().toLowerCase();

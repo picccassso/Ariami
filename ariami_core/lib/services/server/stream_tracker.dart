@@ -92,13 +92,18 @@ class StreamTracker {
     return Duration(minutes: min(max(durationMinutes + 10, 20), 120));
   }
 
-  /// Issue a long-lived download ticket for one song and quality.
+  /// Issue a download ticket for one song and quality.
+  ///
+  /// Tickets ride in the download URL's query string, so they must stay
+  /// short-lived: clients request one per song right before transferring it
+  /// (never in advance), and 2 hours comfortably covers a single transfer
+  /// including any server-side transcode wait.
   DownloadTicket issueDownloadTicket({
     required String userId,
     required String sessionToken,
     required String songId,
     String? quality,
-    Duration ttl = const Duration(hours: 24),
+    Duration ttl = const Duration(hours: 2),
   }) {
     final now = DateTime.now();
     final ticket = DownloadTicket(

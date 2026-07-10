@@ -51,6 +51,12 @@ the dashboard QR code to connect mobile clients.
 | `ARIAMI_ADVERTISED_LAN_HOST` | environment | Overrides the LAN host Ariami advertises in setup URLs, server info, and QR codes. Useful in containers; set it to the host machine's LAN IP for same-network devices. |
 | `ARIAMI_ADVERTISED_TAILSCALE_HOST` | environment | Overrides the Tailscale host Ariami advertises in setup URLs, server info, and QR codes. Useful in containers; set it to the host machine's Tailscale IP for remote devices with Tailscale enabled. |
 | `ARIAMI_CONTAINER` | environment | Set to `1` or `true` to tell Ariami it is running in a container. Docker images set this automatically. |
+| `ARIAMI_TRUST_PROXY_HEADERS` | environment | Set to `1` only when a reverse proxy you control fronts Ariami: the server then uses `X-Forwarded-For` for login rate limiting. Leave unset otherwise — direct clients can forge the header. |
+
+Until an owner account exists, the server prints a one-time **setup code** on
+its console at startup. Creating the owner account from the web dashboard on
+another device requires that code; a browser on the server machine itself
+(`http://localhost:<port>`) does not.
 
 The CLI also has an internal `--server-mode` flag. It runs the server in the
 foreground for a supervisor. Use it only for service managers such as systemd.

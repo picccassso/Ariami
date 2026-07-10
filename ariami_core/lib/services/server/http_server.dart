@@ -167,11 +167,38 @@ class AriamiHttpServer {
   static const Duration _registrationTokenTtl = Duration(minutes: 10);
 
   // Whether the pre-auth account picker endpoints (/api/auth/users and
-  // /api/auth/user-avatar/<username>) answer. Default ON so TV sign-in shows
-  // the picker out of the box; privacy-conscious owners can turn it off from
-  // the desktop/CLI dashboards (any LAN/tailnet device can list usernames
-  // while it is enabled). TV falls back to typed sign-in when disabled.
-  bool _publicUserPickerEnabled = true;
+  // /api/auth/user-avatar/<username>) answer. Default OFF: while enabled, any
+  // LAN/tailnet device can enumerate household usernames before signing in.
+  // Owners opt in from the desktop/CLI dashboards for the TV picker
+  // experience; TV falls back to typed sign-in while disabled.
+  bool _publicUserPickerEnabled = false;
+
+  // Whether X-Forwarded-For headers are trusted when resolving client IPs
+  // for rate limiting. Off by default: a direct client can forge the header
+  // to rotate rate-limit buckets. Only enable when Ariami runs behind a
+  // reverse proxy the owner controls.
+  bool _trustProxyHeaders = false;
+
+  /// Trust `X-Forwarded-For` when resolving client IPs (rate limiting).
+  ///
+  /// Leave disabled unless Ariami is deployed behind a trusted reverse
+  /// proxy; otherwise clients can spoof their address.
+  void setTrustProxyHeaders(bool enabled) {
+    _trustProxyHeaders = enabled;
+  }
+
+  // One-time code that authorizes creating the FIRST owner account from a
+  // non-local client (e.g. the CLI web dashboard opened from another machine
+  // on a headless install). Displayed only on the server's own console;
+  // cleared as soon as an owner exists.
+  String? _ownerBootstrapCode;
+
+  // Unauthenticated WebSocket guardrails: sockets must identify promptly and
+  // each client IP may only hold a few unidentified sockets at once.
+  static const int _maxPendingWebSocketsPerIp = 8;
+  static const Duration _webSocketIdentifyTimeout = Duration(seconds: 20);
+  final Map<WebSocketChannel, _PendingWebSocketState> _pendingWebSockets = {};
+  final Map<String, int> _pendingWebSocketCountByIp = <String, int>{};
 
   /// Whether the unauthenticated sign-in account picker is enabled.
   bool get publicUserPickerEnabled => _publicUserPickerEnabled;
@@ -250,4 +277,13 @@ class AriamiHttpServer {
     }
     return buffer.toString();
   }
+}
+
+/// Tracks an unidentified WebSocket so it can be evicted if it never
+/// identifies, and so per-IP pending caps can be released on close.
+class _PendingWebSocketState {
+  _PendingWebSocketState({required this.remoteIp, required this.timeout});
+
+  final String remoteIp;
+  final Timer timeout;
 }
