@@ -23,39 +23,61 @@ import 'shared_preferences_cache.dart';
 
 /// Clears all local user data for a full disconnect / app reset.
 Future<void> clearAllLocalUserData({String? userId}) async {
-  await PlaybackManager().clearQueue();
+  Object? firstError;
+  StackTrace? firstStackTrace;
 
-  await ConnectionService().disconnectAndForgetServer();
-  await DownloadManager().clearAllDownloads();
-  await CacheManager().clearAllCache();
-  final libraryDatabase = await LibrarySyncDatabase.create();
-  await libraryDatabase.clearAllData();
-  await PlaylistService().clearAllPlaylistData();
-  await SyncService().clearPendingActions();
-
-  await StreamingStatsService().resetAllStats();
-  // Local wipe only: the account's stats stay on the server for other devices.
-  await AccountStatsService().clearLocalOnly();
-  await ProfileImageService().clear();
-  await _deletePlaylistImagesDirectory();
-
-  final playbackStateManager = PlaybackStateManager();
-  await playbackStateManager.clearState();
-  await playbackStateManager.clearCompletePlaybackState();
-  if (userId != null && userId.trim().isNotEmpty) {
-    await playbackStateManager.clearCompletePlaybackState(userId: userId);
+  Future<void> clearStep(Future<void> Function() action) async {
+    try {
+      await action();
+    } catch (error, stackTrace) {
+      firstError ??= error;
+      firstStackTrace ??= stackTrace;
+    }
   }
 
-  final prefs = await SharedPreferences.getInstance();
-  await prefs.clear();
-  await reloadSharedPrefs();
+  // Continue through every reset step if one local store is unavailable. The
+  // server unlink is first so a partial local-cleanup failure can never leave
+  // credentials or a saved endpoint behind.
+  await clearStep(() => ConnectionService().disconnectAndForgetServer());
+  await clearStep(() => PlaybackManager().clearQueue());
+  await clearStep(() => DownloadManager().clearAllDownloads());
+  await clearStep(() => CacheManager().clearAllCache());
+  await clearStep(() async {
+    final libraryDatabase = await LibrarySyncDatabase.create();
+    await libraryDatabase.clearAllData();
+  });
+  await clearStep(() => PlaylistService().clearAllPlaylistData());
+  await clearStep(() => SyncService().clearPendingActions());
+  await clearStep(() => StreamingStatsService().resetAllStats());
+  // Local wipe only: the account's stats stay on the server for other devices.
+  await clearStep(() => AccountStatsService().clearLocalOnly());
+  await clearStep(() => ProfileImageService().clear());
+  await clearStep(_deletePlaylistImagesDirectory);
+  await clearStep(() async {
+    final playbackStateManager = PlaybackStateManager();
+    await playbackStateManager.clearState();
+    await playbackStateManager.clearCompletePlaybackState();
+    if (userId != null && userId.trim().isNotEmpty) {
+      await playbackStateManager.clearCompletePlaybackState(userId: userId);
+    }
+  });
+  await clearStep(() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.clear();
+    await reloadSharedPrefs();
+  });
+  await clearStep(() async {
+    ThemeService().resetToDefaults();
+    ColorExtractionService().clearCache();
+    QualitySettingsService().resetToDefaults();
+    OfflinePlaybackService().resetToDefaults();
+    OfflineCopyService().resetToDefaults();
+    await ThemeService().setThemeSource(ThemeSource.darkNeutral);
+  });
 
-  ThemeService().resetToDefaults();
-  ColorExtractionService().clearCache();
-  QualitySettingsService().resetToDefaults();
-  OfflinePlaybackService().resetToDefaults();
-  OfflineCopyService().resetToDefaults();
-  await ThemeService().setThemeSource(ThemeSource.darkNeutral);
+  if (firstError != null) {
+    Error.throwWithStackTrace(firstError!, firstStackTrace!);
+  }
 }
 
 Future<void> _deletePlaylistImagesDirectory() async {

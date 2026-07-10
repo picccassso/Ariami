@@ -449,6 +449,12 @@ class ConnectionService {
   /// notifying offline mode that the connection was merely lost, otherwise the
   /// app would move into auto-offline and keep trying to restore the server.
   Future<void> disconnectAndForgetServer() async {
+    // Clear the in-memory server first. Disconnecting emits a disconnected
+    // connection-state event; without this ordering, listeners can still see
+    // the old server and briefly route the app as though it were recoverable.
+    _stateManager.setServerInfo(null);
+    _serverInfoManager.setServerInfo(null);
+
     await _lifecycleManager.disconnect(isManual: true);
 
     _stopServerInfoRefreshTimer();
@@ -464,9 +470,7 @@ class ConnectionService {
 
     _stateManager.setConnected(false);
     _stateManager.setManuallyDisconnected(false);
-    _stateManager.setServerInfo(null);
     _stateManager.clearRestoreFailure();
-    _serverInfoManager.setServerInfo(null);
   }
 
   /// Try to restore previous connection

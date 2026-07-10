@@ -76,11 +76,13 @@ Future<void> disconnectServerAndClearData(BuildContext context) async {
 
   try {
     await clearAllLocalUserData(userId: userId);
+  } catch (_) {
+    // Reset runs each cleanup step independently. A local-store failure should
+    // not trap the user on a stale server after it has been forgotten.
+  } finally {
     if (context.mounted) {
       navigateToWelcomeScreen(context);
     }
-  } catch (_) {
-    // Disconnect failed; user remains on current screen.
   }
 }
 

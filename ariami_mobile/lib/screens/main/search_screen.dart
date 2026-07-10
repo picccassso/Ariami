@@ -554,7 +554,10 @@ class _SearchScreenState extends State<SearchScreen> {
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.9),
+              color: Theme.of(context)
+                  .colorScheme
+                  .onSurface
+                  .withValues(alpha: 0.9),
             ),
           ),
         );
@@ -570,7 +573,10 @@ class _SearchScreenState extends State<SearchScreen> {
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.9),
+              color: Theme.of(context)
+                  .colorScheme
+                  .onSurface
+                  .withValues(alpha: 0.9),
             ),
           ),
         );
@@ -588,7 +594,10 @@ class _SearchScreenState extends State<SearchScreen> {
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.9),
+              color: Theme.of(context)
+                  .colorScheme
+                  .onSurface
+                  .withValues(alpha: 0.9),
             ),
           ),
         );
@@ -698,7 +707,8 @@ class _SearchScreenState extends State<SearchScreen> {
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+              color:
+                  Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: Icon(
@@ -782,7 +792,10 @@ class _SearchScreenState extends State<SearchScreen> {
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.secondary.withValues(alpha: 0.1),
+              color: Theme.of(context)
+                  .colorScheme
+                  .secondary
+                  .withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: Icon(
@@ -829,13 +842,12 @@ class _SearchScreenState extends State<SearchScreen> {
       // Connection restored - load library
       await _loadLibrary();
     } else {
-      // Still can't connect - navigate to reconnect screen
+      // Stay in the app's offline experience; it will retry automatically.
       if (mounted) {
-        Navigator.pushNamedAndRemoveUntil(
-          context,
-          '/reconnect',
-          (route) => false,
-        );
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'Cannot connect to the server. You are offline.';
+        });
       }
     }
   }

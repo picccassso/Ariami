@@ -28,7 +28,7 @@ extension _LibraryControllerLoading on LibraryController {
       if (!restored) {
         if (!_connectionService.hasServerInfo) {
           await _loadLibrary(background: true);
-          return LibraryRefreshOutcome.navigateToReconnectScreen;
+          return LibraryRefreshOutcome.navigateToWelcomeScreen;
         }
         if (_connectionService.didLastRestoreFailForAuth) {
           await _loadLibrary(background: true);
@@ -105,8 +105,8 @@ extension _LibraryControllerLoading on LibraryController {
         // their library right away; the reconnect refreshes it when it lands.
         // The local-store reads and download reconciliation in
         // _loadLibraryFromFacade never touch the apiClient.
-        final hasLocalLibrary = await _connectionService.libraryReadFacade
-            .hasCompletedBootstrap();
+        final hasLocalLibrary =
+            await _connectionService.libraryReadFacade.hasCompletedBootstrap();
         if (hasLocalLibrary) {
           await _loadLibraryFromFacade();
           return;

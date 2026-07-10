@@ -10,7 +10,6 @@ import 'screens/setup/qr_scanner_screen.dart';
 import 'screens/setup/manual_server_entry_screen.dart';
 import 'screens/setup/permissions_screen.dart';
 import 'screens/main_navigation_screen.dart';
-import 'screens/reconnect_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
 import 'models/server_info.dart';
@@ -143,7 +142,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
   bool _isLoading = true;
   Widget? _initialScreen;
-  StreamSubscription<bool>? _connectionSubscription;
   StreamSubscription<void>? _sessionExpiredSubscription;
   StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
   Timer? _networkDebounceTimer;
@@ -158,7 +156,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _initializeAndDetermineScreen();
-    _listenToConnectionChanges();
     _listenToSessionExpiry();
     _listenToNetworkChanges();
   }
@@ -227,7 +224,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _connectionSubscription?.cancel();
     _sessionExpiredSubscription?.cancel();
     _connectivitySubscription?.cancel();
     _networkDebounceTimer?.cancel();
@@ -343,32 +339,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         'Immediate reconnect on resume failed; automatic retries remain active',
       );
     }
-  }
-
-  /// Listen for connection state changes
-  void _listenToConnectionChanges() {
-    _connectionSubscription = _connectionService.connectionStateStream.listen(
-      (isConnected) {
-        if (!isConnected && _connectionService.hasServerInfo) {
-          // Connection lost - check offline mode state
-          if (_offlineService.isManualOfflineModeEnabled) {
-            // Manual offline mode - user chose to go offline, stay in app
-            print(
-                'Connection lost but manual offline mode enabled - staying in app');
-          } else if (_offlineService.offlineMode == OfflineMode.autoOffline) {
-            // Auto offline mode - connection lost, stay in app and auto-reconnect
-            print('Auto offline mode - staying in app, will auto-reconnect');
-          } else {
-            // Not in any offline mode - navigate to reconnect screen
-            print('Connection lost - navigating to reconnect screen');
-            _navigatorKey.currentState?.pushNamedAndRemoveUntil(
-              '/reconnect',
-              (route) => false,
-            );
-          }
-        }
-      },
-    );
   }
 
   /// Listen for session expiry events (401 from server)
@@ -580,7 +550,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             '/setup/manual': (context) => const ManualServerEntryScreen(),
             '/setup/permissions': (context) => const PermissionsScreen(),
             '/main': (context) => const MainNavigationScreen(),
-            '/reconnect': (context) => const ReconnectScreen(),
+            '/welcome': (context) => const WelcomeScreen(),
             '/auth/login': (context) {
               final serverInfo =
                   ModalRoute.of(context)!.settings.arguments as ServerInfo;

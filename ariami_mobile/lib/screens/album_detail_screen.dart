@@ -378,13 +378,12 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
       // Connection restored - load album detail
       await _loadAlbumDetail();
     } else {
-      // Still can't connect - navigate to reconnect screen
+      // Stay in the app's offline experience; it will retry automatically.
       if (mounted) {
-        Navigator.pushNamedAndRemoveUntil(
-          context,
-          '/reconnect',
-          (route) => false,
-        );
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'Cannot connect to the server. You are offline.';
+        });
       }
     }
   }
@@ -474,7 +473,8 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
             onPressed: () => Navigator.pop(dialogContext, true),
             child: Text(
               'Remove',
-              style: TextStyle(color: Theme.of(dialogContext).colorScheme.error),
+              style:
+                  TextStyle(color: Theme.of(dialogContext).colorScheme.error),
             ),
           ),
         ],

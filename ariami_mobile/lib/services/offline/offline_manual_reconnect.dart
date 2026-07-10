@@ -23,8 +23,8 @@ enum LibraryRefreshOutcome {
   /// Same message as Settings when server is unreachable after leaving manual offline.
   showManualReconnectFailedSnack,
 
-  /// No saved server info — navigate to the full reconnect flow.
-  navigateToReconnectScreen,
+  /// No saved server info — return to the welcome/setup flow.
+  navigateToWelcomeScreen,
 }
 
 /// Disables manual offline optimistically, restores connection, and on hard failure

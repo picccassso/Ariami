@@ -131,7 +131,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
   void _showPlaylistContextMenu(PlaylistModel playlist) {
     // Ignore stale playlist entries with no matching library song — they can
     // never download, so they mustn't block the fully-downloaded state.
-    final librarySongIds = {for (final song in _controller.state.songs) song.id};
+    final librarySongIds = {
+      for (final song in _controller.state.songs) song.id
+    };
     final matchedSongIds = playlist.songIds
         .where((id) =>
             _controller.state.isSongDownloaded(id) ||
@@ -404,10 +406,10 @@ class _LibraryScreenState extends State<LibraryScreen> {
   Future<void> _handleLibraryRefresh() async {
     final outcome = await _controller.refreshLibrary();
     if (!mounted) return;
-    if (outcome == LibraryRefreshOutcome.navigateToReconnectScreen) {
+    if (outcome == LibraryRefreshOutcome.navigateToWelcomeScreen) {
       Navigator.pushNamedAndRemoveUntil(
         context,
-        '/reconnect',
+        '/welcome',
         (route) => false,
       );
     }

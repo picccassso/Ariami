@@ -24,7 +24,7 @@ void main() {
           LibraryRefreshOutcome.showSyncFailedSnack,
           LibraryRefreshOutcome.showSessionExpiredSnack,
           LibraryRefreshOutcome.showManualReconnectFailedSnack,
-          LibraryRefreshOutcome.navigateToReconnectScreen,
+          LibraryRefreshOutcome.navigateToWelcomeScreen,
         ]),
       );
     });
