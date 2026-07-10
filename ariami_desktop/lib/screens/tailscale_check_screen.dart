@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
 
+import '../onboarding/onboarding_copy.dart';
+import '../onboarding/setup_scaffold.dart';
+
 class TailscaleCheckScreen extends StatefulWidget {
   const TailscaleCheckScreen({super.key});
 
@@ -95,10 +98,9 @@ class _TailscaleCheckScreenState extends State<TailscaleCheckScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Tailscale Setup'),
-      ),
+    return SetupScreenScaffold(
+      title: 'Tailscale Setup',
+      helpTopic: OnboardingCopy.tailscale,
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(32.0),

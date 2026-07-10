@@ -5,6 +5,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'package:ariami_core/ariami_core.dart';
+import '../onboarding/onboarding_copy.dart';
+import '../onboarding/setup_scaffold.dart';
 import '../services/desktop_tailscale_service.dart';
 import '../services/desktop_state_service.dart';
 import '../services/server_initialization_service.dart';
@@ -357,10 +359,9 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Connect Mobile App'),
-      ),
+    return SetupScreenScaffold(
+      title: 'Connect Mobile App',
+      helpTopic: OnboardingCopy.connectDevices,
       body: Container(
         width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 32.0),

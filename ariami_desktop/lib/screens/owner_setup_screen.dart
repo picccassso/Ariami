@@ -1,6 +1,8 @@
 import 'package:ariami_core/ariami_core.dart';
 import 'package:flutter/material.dart';
 
+import '../onboarding/onboarding_copy.dart';
+import '../onboarding/setup_scaffold.dart';
 import '../services/desktop_state_service.dart';
 import '../services/server_initialization_service.dart';
 
@@ -141,10 +143,9 @@ class _OwnerSetupScreenState extends State<OwnerSetupScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Owner Setup'),
-      ),
+    return SetupScreenScaffold(
+      title: 'Owner Setup',
+      helpTopic: OnboardingCopy.ownerAccount,
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 680),

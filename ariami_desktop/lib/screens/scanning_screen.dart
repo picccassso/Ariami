@@ -3,9 +3,13 @@ import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'package:ariami_core/ariami_core.dart';
 
+import '../onboarding/onboarding_copy.dart';
+import '../onboarding/setup_scaffold.dart';
+
 class ScanningScreen extends StatefulWidget {
   final String musicFolderPath;
-  final String? nextRoute; // If set, navigates forward to this route instead of popping
+  final String?
+      nextRoute; // If set, navigates forward to this route instead of popping
 
   const ScanningScreen({
     super.key,
@@ -87,7 +91,11 @@ class _ScanningScreenState extends State<ScanningScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    // No back affordance: the scan navigates onward (or pops with a result)
+    // by itself, and abandoning it mid-scan would leave callers waiting.
+    return SetupScreenScaffold(
+      helpTopic: OnboardingCopy.scanning,
+      allowBack: false,
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(32.0),
@@ -159,7 +167,8 @@ class _ScanningScreenState extends State<ScanningScreen> {
                     decoration: BoxDecoration(
                       color: const Color(0xFF2A1F0A),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.amber.withValues(alpha: 0.4)),
+                      border: Border.all(
+                          color: Colors.amber.withValues(alpha: 0.4)),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,

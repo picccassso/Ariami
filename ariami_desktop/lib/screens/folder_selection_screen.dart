@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../onboarding/onboarding_copy.dart';
+import '../onboarding/setup_scaffold.dart';
+
 class FolderSelectionScreen extends StatefulWidget {
   const FolderSelectionScreen({super.key});
 
@@ -61,9 +64,8 @@ class _FolderSelectionScreenState extends State<FolderSelectionScreen> {
       await prefs.setString('music_folder_path', fixedPath);
 
       print('[FolderSelection] Saved music folder path: $fixedPath');
-      
-      // Removed Snackbar per request
 
+      // Removed Snackbar per request
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -82,10 +84,9 @@ class _FolderSelectionScreenState extends State<FolderSelectionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Select Music Folder'),
-      ),
+    return SetupScreenScaffold(
+      title: 'Select Music Folder',
+      helpTopic: OnboardingCopy.musicFolder,
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(32.0),
@@ -120,7 +121,8 @@ class _FolderSelectionScreenState extends State<FolderSelectionScreen> {
               const SizedBox(height: 48),
               if (_selectedFolderPath != null) ...[
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
                   decoration: BoxDecoration(
                     color: const Color(0xFF141414),
                     borderRadius: BorderRadius.circular(16),
