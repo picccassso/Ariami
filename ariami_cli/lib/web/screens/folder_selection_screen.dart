@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/music_folder_validation_result.dart';
 import '../services/web_setup_service.dart';
+import '../onboarding/setup_help.dart';
 import '../utils/constants.dart';
 
 class FolderSelectionScreen extends StatefulWidget {
@@ -233,6 +234,10 @@ class _FolderSelectionScreenState extends State<FolderSelectionScreen> {
               backgroundColor: Colors.transparent,
               elevation: 0,
               title: const Text('SETUP'),
+              actions: const [
+                SetupHelpButton(topic: CliOnboardingCopy.musicFolder),
+                SizedBox(width: 8),
+              ],
             ),
             Expanded(
               child: Center(
@@ -265,7 +270,7 @@ class _FolderSelectionScreenState extends State<FolderSelectionScreen> {
                       const SizedBox(
                         width: double.infinity,
                         child: Text(
-                          'Choose a common location on the server or enter an absolute path manually.',
+                          'Choose the folder on this server where your music lives. Ariami reads its tags and artwork; your original files are never changed or uploaded.',
                           style: TextStyle(
                             fontSize: 16,
                             color: AppTheme.textSecondary,

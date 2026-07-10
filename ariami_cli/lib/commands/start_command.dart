@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import '../services/daemon_service.dart';
 import '../services/cli_state_service.dart';
+import '../services/cli_guidance.dart';
 import '../services/cli_status_info.dart';
 import '../services/browser_service.dart';
 import '../services/cli_tailscale_service.dart';
@@ -60,6 +61,9 @@ class StartCommand {
       await _promptAndConfigureAutostart();
 
       _writeSetupLine('Starting Ariami setup...');
+      for (final line in CliGuidance.firstRunIntro) {
+        _writeSetupLine(line);
+      }
       _writeSetupLine('');
 
       // Run server in foreground (setup mode)
@@ -233,6 +237,10 @@ class StartCommand {
     }
 
     _writeSetupLine('Keep this terminal open until setup finishes.');
+    _writeSetupLine('');
+    for (final line in CliGuidance.setupNextSteps) {
+      _writeSetupLine(line);
+    }
     _writeSetupLine(
       'Network:   keep Ariami on LAN/Tailscale/VPN. Do not expose this port to the public internet.',
     );

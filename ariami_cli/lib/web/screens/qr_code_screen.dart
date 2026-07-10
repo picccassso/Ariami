@@ -8,6 +8,7 @@ import '../services/web_auth_service.dart';
 import '../utils/constants.dart';
 import '../utils/web_clipboard.dart';
 import '../utils/web_navigation.dart';
+import '../onboarding/setup_help.dart';
 import '../widgets/endpoint_display.dart';
 
 class QRCodeScreen extends StatefulWidget {
@@ -171,8 +172,7 @@ class _QRCodeScreenState extends State<QRCodeScreen>
               : 'Could not copy automatically — tap the code to select it, '
                   'then copy.',
         ),
-        backgroundColor:
-            copied ? AppTheme.surfaceBlack : Colors.redAccent,
+        backgroundColor: copied ? AppTheme.surfaceBlack : Colors.redAccent,
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -372,6 +372,7 @@ class _QRCodeScreenState extends State<QRCodeScreen>
               automaticallyImplyLeading: false,
               title: const Text('CONNECT'),
               actions: [
+                const SetupHelpButton(topic: CliOnboardingCopy.connect),
                 IconButton(
                   tooltip: 'Close',
                   icon: const Icon(Icons.close_rounded),
@@ -554,7 +555,7 @@ class _QRCodeScreenState extends State<QRCodeScreen>
           ),
           const SizedBox(height: 12),
           const Text(
-            '1. Open Ariami Mobile App\n2. Scan the QR code\n3. Wait for connection',
+            '1. Open Ariami Mobile App\n2. Scan the QR code\n3. Register or sign in\n\nYou can skip this for now and connect devices later from the dashboard.',
             style: TextStyle(
               fontSize: 14,
               color: Colors.white70,

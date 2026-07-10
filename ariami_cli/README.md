@@ -33,6 +33,7 @@ directory. The release archive includes a root `./ariami_cli` launcher.
 ./ariami_cli start --host 127.0.0.1 # Bind to localhost only
 ./ariami_cli start --verbose        # Show stack traces and extra debug output
 ./ariami_cli status                 # Show server, reachability, auth, data, and backup status
+./ariami_cli help music-folder      # Explain a setup step in plain language
 ./ariami_cli stop                   # Stop server
 
 ./ariami_cli autostart enable   # Start the server automatically on boot
@@ -85,6 +86,11 @@ before this option existed.
 4. **Create the owner account** (first account is server admin) and sign in as owner
 5. Server auto-transitions to background; setup is marked complete
 6. Scan the QR code with Ariami Mobile and **register** or log in
+
+Use `./ariami_cli help` for a short explanation of Ariami, or add one of
+`tailscale`, `music-folder`, `scan`, `owner`, or `connect` for the relevant
+setup step. The browser wizard has the same contextual guidance under its
+information buttons.
 
 If the browser does not open, use one of the URLs printed by the server. On a
 headless machine, open the LAN or Tailscale URL from another browser that can

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/web_setup_service.dart';
+import '../onboarding/setup_help.dart';
 import '../utils/constants.dart';
 
 class ScanningScreen extends StatefulWidget {
@@ -224,6 +225,10 @@ class _ScanningScreenState extends State<ScanningScreen>
               elevation: 0,
               automaticallyImplyLeading: false,
               title: const Text('INDEXING'),
+              actions: const [
+                SetupHelpButton(topic: CliOnboardingCopy.scanning),
+                SizedBox(width: 8),
+              ],
             ),
             Expanded(
               child: Center(
@@ -365,7 +370,7 @@ class _ScanningScreenState extends State<ScanningScreen>
                                   const SizedBox(width: 12),
                                   Expanded(
                                     child: Text(
-                                      '$_skippedFileCount FILE(S) COULD NOT BE READ AND WERE SKIPPED',
+                                      '$_skippedFileCount FILE(S) WERE SKIPPED. This is usually informational; the rest of your library is unaffected.',
                                       style: TextStyle(
                                         fontSize: 11,
                                         fontWeight: FontWeight.w800,

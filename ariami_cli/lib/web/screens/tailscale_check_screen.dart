@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/web_tailscale_service.dart';
+import '../onboarding/setup_help.dart';
 import '../utils/constants.dart';
 import '../widgets/endpoint_display.dart';
 
@@ -97,6 +98,10 @@ class _TailscaleCheckScreenState extends State<TailscaleCheckScreen>
               backgroundColor: Colors.transparent,
               elevation: 0,
               title: const Text('SETUP'),
+              actions: const [
+                SetupHelpButton(topic: CliOnboardingCopy.tailscale),
+                SizedBox(width: 8),
+              ],
             ),
             Expanded(
               child: Center(
@@ -148,7 +153,7 @@ class _TailscaleCheckScreenState extends State<TailscaleCheckScreen>
                         ),
                         const SizedBox(height: 32),
                         Text(
-                          'TAILSCALE SECURITY',
+                          'OPTIONAL REMOTE ACCESS',
                           style: Theme.of(context).textTheme.headlineMedium,
                         ),
                         const SizedBox(height: 16),
@@ -207,7 +212,7 @@ class _TailscaleCheckScreenState extends State<TailscaleCheckScreen>
                           const SizedBox(
                             width: double.infinity,
                             child: Text(
-                              'Remote access will require manual port forwarding without Tailscale.',
+                              'Tailscale is optional. Continue for local-network access, or add it later for private remote access.',
                               style: TextStyle(
                                 fontSize: 14,
                                 color: AppTheme.textSecondary,
@@ -271,7 +276,7 @@ class _TailscaleCheckScreenState extends State<TailscaleCheckScreen>
       }
     }
     if (_isRunning) {
-      return 'Tailscale is active. Your server is secured and accessible remotely.';
+      return 'Tailscale is active. Devices signed in to the same Tailscale account can reach Ariami remotely.';
     }
     if (_isInstalled) {
       return 'Tailscale is installed but not currently running.';
@@ -279,6 +284,6 @@ class _TailscaleCheckScreenState extends State<TailscaleCheckScreen>
     if (_isContainerized) {
       return 'Ariami is running inside a container, so Tailscale cannot be detected here. If Tailscale runs on the host machine, use the host Tailscale address on this port.';
     }
-    return 'Tailscale was not detected on this machine.';
+    return 'Tailscale was not detected. You can continue with local-network setup and add it later.';
   }
 }

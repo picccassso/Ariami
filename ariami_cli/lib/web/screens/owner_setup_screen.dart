@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../services/web_api_client.dart';
 import '../services/web_auth_service.dart';
 import '../services/web_setup_service.dart';
+import '../onboarding/setup_help.dart';
 import '../utils/constants.dart';
 import 'qr_code_screen.dart';
 
@@ -250,6 +251,9 @@ class _OwnerSetupScreenState extends State<OwnerSetupScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      floatingActionButton:
+          const SetupHelpButton(topic: CliOnboardingCopy.owner),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endTop,
       body: Container(
         decoration: BoxDecoration(
           gradient: AppTheme.backgroundGradient,
@@ -273,10 +277,9 @@ class _OwnerSetupScreenState extends State<OwnerSetupScreen> {
                         ),
                         const SizedBox(height: 12),
                         const Text(
-                          'Create the owner account for this server. '
-                          'The first account is the admin/owner. '
-                          'Owner sign-in is required for connected-device management '
-                          'and password changes.',
+                          'This is the account you will use across your Ariami devices. '
+                          'As the first account, it is also the server owner: it can manage '
+                          'users, connected devices, and settings. Your password stays on this server.',
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             color: AppTheme.textSecondary,

@@ -9,6 +9,7 @@ import 'package:ariami_cli/commands/autostart_command.dart';
 import 'package:ariami_cli/commands/reset_command.dart';
 import 'package:ariami_cli/server_runner.dart';
 import 'package:ariami_cli/services/cli_state_service.dart';
+import 'package:ariami_cli/services/cli_guidance.dart';
 import 'package:ariami_core/ariami_core.dart';
 
 void main(List<String> arguments) {
@@ -21,8 +22,7 @@ void main(List<String> arguments) {
     () => _run(arguments),
     (error, stackTrace) {
       if (_isBrokenPipe(error)) exit(0);
-      _reportFatal(error, stackTrace,
-          verbose: arguments.contains('--verbose'));
+      _reportFatal(error, stackTrace, verbose: arguments.contains('--verbose'));
     },
   );
 }
@@ -100,6 +100,9 @@ Future<void> _run(List<String> arguments) async {
       case 'start':
         await _executeStartCommand(results);
         break;
+      case 'help':
+        _executeHelpCommand(results.rest);
+        break;
       case 'stop':
         _rejectTrailingFlags(parser, results);
         await StopCommand().execute();
@@ -174,6 +177,26 @@ Future<void> _executeStartCommand(ArgResults globalResults) async {
     verbose:
         (globalResults['verbose'] as bool) || (startResults['verbose'] as bool),
   );
+}
+
+void _executeHelpCommand(List<String> args) {
+  if (args.length > 2) {
+    stderr.writeln('Error: help accepts at most one topic.');
+    stderr.writeln(
+        'Usage: ariami_cli help [tailscale|music-folder|scan|owner|connect]');
+    exit(2);
+  }
+
+  final topic = args.length == 2 ? args[1] : null;
+  if (topic != null && !CliGuidance.isKnownTopic(topic)) {
+    stderr.writeln('Error: unknown help topic "$topic".');
+    stderr.writeln('Try "ariami_cli help" to see available topics.');
+    exit(2);
+  }
+
+  for (final line in CliGuidance.help(topic)) {
+    stdout.writeln(line);
+  }
 }
 
 Future<void> _executeServerMode(ArgResults results) async {
@@ -323,6 +346,7 @@ void _showHelp(ArgParser parser, {IOSink? output}) {
   out.writeln('  start       Start the Ariami server');
   out.writeln('  stop        Stop the Ariami server');
   out.writeln('  status      Show server status');
+  out.writeln('  help        Explain Ariami and setup steps');
   out.writeln('  configure   Configure CLI settings');
   out.writeln('  music-folder  Manage the music library path');
   out.writeln('  autostart   Manage starting the server on boot');
@@ -340,6 +364,8 @@ void _showHelp(ArgParser parser, {IOSink? output}) {
   out.writeln('  ariami_cli start --host 127.0.0.1');
   out.writeln('  ariami_cli stop               # Stop the running server');
   out.writeln('  ariami_cli status             # Check server status');
+  out.writeln(
+      '  ariami_cli help music-folder  # Learn what Ariami does with your files');
   out.writeln('  ariami_cli configure --music-folder /home/user/Music');
   out.writeln('  ariami_cli music-folder set /home/user/Music');
   out.writeln('  ariami_cli autostart enable   # Start the server on boot');
