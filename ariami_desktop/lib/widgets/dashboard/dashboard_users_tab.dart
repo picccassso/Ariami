@@ -14,10 +14,12 @@ class DashboardUsersTab extends StatelessWidget {
     required this.isCreatingUser,
     required this.isChangingPassword,
     required this.deletingUserIds,
+    required this.isTvAccountPickerEnabled,
     required this.onCreateUser,
     required this.onChangePassword,
     required this.onDeleteUser,
     required this.onOpenOwnerSetup,
+    required this.onToggleTvAccountPicker,
   });
 
   final bool isLoadingServerUsers;
@@ -27,10 +29,12 @@ class DashboardUsersTab extends StatelessWidget {
   final bool isCreatingUser;
   final bool isChangingPassword;
   final Set<String> deletingUserIds;
+  final bool isTvAccountPickerEnabled;
   final VoidCallback onCreateUser;
   final void Function(ServerUserRow row) onChangePassword;
   final void Function(ServerUserRow row) onDeleteUser;
   final VoidCallback onOpenOwnerSetup;
+  final ValueChanged<bool> onToggleTvAccountPicker;
 
   static const _sectionTitleStyle = TextStyle(
     fontSize: 20,
@@ -79,6 +83,26 @@ class DashboardUsersTab extends StatelessWidget {
                 onDeleteUser: onDeleteUser,
                 onSetUpOwner: onOpenOwnerSetup,
               ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          const Text('Sign-in Privacy', style: _sectionTitleStyle),
+          const SizedBox(height: 12),
+          Card(
+            elevation: 0,
+            margin: EdgeInsets.zero,
+            child: SwitchListTile(
+              value: isTvAccountPickerEnabled,
+              onChanged: onToggleTvAccountPicker,
+              title: const Text('Show account picker on TV sign-in'),
+              subtitle: const Text(
+                'Lets Ariami TV list this server\'s accounts on its sign-in '
+                'screen. While enabled, any device on your network can see '
+                'the account names and photos (passwords are always '
+                'required). When off, TV users type their username instead.',
+              ),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
             ),
           ),
         ],

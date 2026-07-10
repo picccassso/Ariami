@@ -16,6 +16,7 @@ class DesktopStateService {
   static const String _serverPortKey = 'server_port';
   static const String _musicFolderPathKey = 'music_folder_path';
   static const String _transcodeSlotsKey = 'transcode_slots';
+  static const String _tvAccountPickerEnabledKey = 'tv_account_picker_enabled';
 
   /// Check if initial setup has been completed
   Future<bool> isSetupComplete() async {
@@ -71,6 +72,20 @@ class DesktopStateService {
   Future<void> clearOwnerSetupSkipped() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_ownerSetupSkippedKey);
+  }
+
+  /// Whether the owner allows the pre-auth account picker (used by the TV
+  /// sign-in screen). Off by default — while enabled, any device on the
+  /// network can list this server's usernames — so the dashboard offers a
+  /// switch to opt in for the TV picker experience.
+  Future<bool> isTvAccountPickerEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_tvAccountPickerEnabledKey) ?? false;
+  }
+
+  Future<void> setTvAccountPickerEnabled(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_tvAccountPickerEnabledKey, enabled);
   }
 
   /// Persisted HTTP server port for future starts.
@@ -178,8 +193,7 @@ class DesktopStateService {
 
       return users
           .whereType<Map>()
-          .map(
-              (entry) => entry.map((key, value) => MapEntry('$key', value)))
+          .map((entry) => entry.map((key, value) => MapEntry('$key', value)))
           .toList();
     } catch (_) {
       return const [];

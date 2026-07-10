@@ -1,27 +1,15 @@
 PODS:
   - FlutterMacOS (1.0.0)
-  - screen_retriever_macos (0.0.1):
-    - FlutterMacOS
-  - tray_manager (0.0.1):
-    - FlutterMacOS
 
 DEPENDENCIES:
   - FlutterMacOS (from `Flutter/ephemeral`)
-  - screen_retriever_macos (from `Flutter/ephemeral/.symlinks/plugins/screen_retriever_macos/macos`)
-  - tray_manager (from `Flutter/ephemeral/.symlinks/plugins/tray_manager/macos`)
 
 EXTERNAL SOURCES:
   FlutterMacOS:
     :path: Flutter/ephemeral
-  screen_retriever_macos:
-    :path: Flutter/ephemeral/.symlinks/plugins/screen_retriever_macos/macos
-  tray_manager:
-    :path: Flutter/ephemeral/.symlinks/plugins/tray_manager/macos
 
 SPEC CHECKSUMS:
   FlutterMacOS: d0db08ddef1a9af05a5ec4b724367152bb0500b1
-  screen_retriever_macos: 776e0fa5d42c6163d2bf772d22478df4b302b161
-  tray_manager: 9064e219c56d75c476e46b9a21182087930baf90
 
 PODFILE CHECKSUM: 54d867c82ac51cbd61b565781b9fada492027009
 

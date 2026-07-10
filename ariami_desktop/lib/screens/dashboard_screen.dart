@@ -60,6 +60,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   bool _isLoading = true;
   bool _isRefreshingAddresses = false;
   bool _hasOwnerAccount = false;
+  bool _isTvAccountPickerEnabled = false;
   int _connectedClients = 0;
   bool _isLoadingConnectedRows = false;
   bool _isLoadingServerUsers = false;
@@ -198,6 +199,8 @@ class _DashboardScreenState extends State<DashboardScreen>
       isCreatingUser: _isCreatingUser,
       isChangingPassword: _isChangingPassword,
       deletingUserIds: _deletingUserIds,
+      isTvAccountPickerEnabled: _isTvAccountPickerEnabled,
+      onToggleTvAccountPicker: _toggleTvAccountPicker,
       musicFolderPath: _musicFolderPath,
       transcodeSlotsSnapshot: _transcodeSlotsSnapshot,
       isSavingTranscodeSlots: _isSavingTranscodeSlots,

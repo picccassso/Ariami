@@ -26,6 +26,7 @@ extension _DashboardServerActions on _DashboardScreenState {
 
     await _updateServerStatus();
     await _refreshOwnerState();
+    _isTvAccountPickerEnabled = await _stateService.isTvAccountPickerEnabled();
     await _refreshConnectedClientRows(showLoading: true);
     await _refreshServerUsers(showLoading: true);
     await _refreshUserActivity(showLoading: true);
@@ -194,6 +195,18 @@ extension _DashboardServerActions on _DashboardScreenState {
         ),
       );
     }
+  }
+
+  /// Owner privacy switch: whether the TV sign-in screen may list this
+  /// server's accounts pre-auth. Applies to the running server immediately and
+  /// persists so server restarts keep the choice.
+  Future<void> _toggleTvAccountPicker(bool enabled) async {
+    _httpServer.setPublicUserPickerEnabled(enabled);
+    await _stateService.setTvAccountPickerEnabled(enabled);
+    if (!mounted) return;
+    _setDashboardState(() {
+      _isTvAccountPickerEnabled = enabled;
+    });
   }
 
   Future<void> _promptEditTranscodeSlots() async {

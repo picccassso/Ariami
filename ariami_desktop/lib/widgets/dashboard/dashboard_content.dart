@@ -30,6 +30,8 @@ class DashboardContent extends StatelessWidget {
     required this.isCreatingUser,
     required this.isChangingPassword,
     required this.deletingUserIds,
+    required this.isTvAccountPickerEnabled,
+    required this.onToggleTvAccountPicker,
     required this.musicFolderPath,
     required this.transcodeSlotsSnapshot,
     required this.isSavingTranscodeSlots,
@@ -69,6 +71,8 @@ class DashboardContent extends StatelessWidget {
   final bool isCreatingUser;
   final bool isChangingPassword;
   final Set<String> deletingUserIds;
+  final bool isTvAccountPickerEnabled;
+  final ValueChanged<bool> onToggleTvAccountPicker;
   final String? musicFolderPath;
   final TranscodeSlotsSnapshot? transcodeSlotsSnapshot;
   final bool isSavingTranscodeSlots;
@@ -137,10 +141,12 @@ class DashboardContent extends StatelessWidget {
                   isCreatingUser: isCreatingUser,
                   isChangingPassword: isChangingPassword,
                   deletingUserIds: deletingUserIds,
+                  isTvAccountPickerEnabled: isTvAccountPickerEnabled,
                   onCreateUser: onCreateUser,
                   onChangePassword: onChangePassword,
                   onDeleteUser: onDeleteUser,
                   onOpenOwnerSetup: onOpenOwnerSetup,
+                  onToggleTvAccountPicker: onToggleTvAccountPicker,
                 ),
                 DashboardServerTab(
                   musicFolderPath: musicFolderPath,

@@ -127,6 +127,16 @@ class ServerInitializationService {
       usersFilePath: usersFilePath,
       sessionsFilePath: sessionsFilePath,
     );
+
+    // Re-apply the owner's saved account-picker choice; the server-side
+    // setting is runtime-only and defaults to private. Changes made through
+    // the admin endpoint persist through the same preference.
+    httpServer.setPublicUserPickerEnabled(
+      await stateService.isTvAccountPickerEnabled(),
+    );
+    httpServer.setPublicUserPickerPersistCallback(
+      (enabled) => stateService.setTvAccountPickerEnabled(enabled),
+    );
   }
 
   static Future<void> applyDesktopDownloadLimits(
