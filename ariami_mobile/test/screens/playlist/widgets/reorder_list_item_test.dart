@@ -70,6 +70,8 @@ void main() {
       );
 
       expect(find.byIcon(Icons.drag_handle), findsOneWidget);
+      expect(find.byType(ReorderableDragStartListener), findsOneWidget);
+      expect(find.byType(ReorderableDelayedDragStartListener), findsNothing);
     });
 
     testWidgets('should render remove button', (tester) async {

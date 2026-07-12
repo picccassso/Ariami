@@ -22,7 +22,6 @@ class ReorderListItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      key: ValueKey('reorder_${song.id}'),
       child: ListTile(
         leading: Row(
           mainAxisSize: MainAxisSize.min,

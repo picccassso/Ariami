@@ -388,14 +388,11 @@ class _ServerPlaylistDetailScreenState
             onReorderItem: _onReorderItem,
             itemBuilder: (context, index) {
               final song = _songs[index];
-              return ReorderableDragStartListener(
+              return ReorderListItem(
                 key: ValueKey(song.id),
+                song: song,
                 index: index,
-                child: ReorderListItem(
-                  song: song,
-                  index: index,
-                  onRemove: () => _removeSong(song.id),
-                ),
+                onRemove: () => _removeSong(song.id),
               );
             },
           )
