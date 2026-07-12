@@ -253,6 +253,44 @@ void main() {
       expect(repository.abortCount, 1);
     });
 
+    test('resumes a failed multi-page bootstrap from its committed cursor',
+        () async {
+      final repository = _FakeLibraryRepository();
+      final apiClient = _FakeApiClient(
+        failOnBootstrapCall: 2,
+        bootstrapResponses: <V2BootstrapResponse>[
+          _bootstrapPage(
+            syncToken: 20,
+            hasMore: true,
+            cursor: null,
+            nextCursor: 'page-2',
+          ),
+          _bootstrapPage(
+            syncToken: 20,
+            hasMore: false,
+            cursor: 'page-2',
+            nextCursor: null,
+          ),
+        ],
+      );
+      final engine = LibrarySyncEngine(
+        apiClientProvider: () => apiClient,
+        libraryRepository: repository,
+      );
+
+      await expectLater(engine.syncNow(), throwsA(isA<StateError>()));
+      expect(repository.resetCount, 1);
+      expect(repository.abortCount, 0);
+
+      await engine.syncNow();
+
+      expect(apiClient.requestedBootstrapCursors,
+          <String?>[null, 'page-2', 'page-2']);
+      expect(repository.resetCount, 1);
+      expect(repository.bootstrapPagesApplied, 2);
+      expect((await repository.getSyncState()).bootstrapComplete, isTrue);
+    });
+
     test(
         're-runs bootstrap when synced state is marked complete but backfill is pending',
         () async {
@@ -445,8 +483,8 @@ class _FakeApiClient extends ApiClient {
   _FakeApiClient({
     List<V2BootstrapResponse>? bootstrapResponses,
     List<V2ChangesResponse>? changesResponses,
-  })  : _bootstrapResponses =
-            bootstrapResponses ?? <V2BootstrapResponse>[],
+    this.failOnBootstrapCall,
+  })  : _bootstrapResponses = bootstrapResponses ?? <V2BootstrapResponse>[],
         _changesResponses = changesResponses != null
             ? List<V2ChangesResponse>.from(changesResponses)
             : <V2ChangesResponse>[],
@@ -464,6 +502,8 @@ class _FakeApiClient extends ApiClient {
 
   int bootstrapCallCount = 0;
   int changesCallCount = 0;
+  final int? failOnBootstrapCall;
+  final List<String?> requestedBootstrapCursors = <String?>[];
 
   @override
   Future<V2BootstrapResponse> getV2BootstrapPage(
@@ -471,6 +511,10 @@ class _FakeApiClient extends ApiClient {
     int limit,
   ) async {
     bootstrapCallCount += 1;
+    requestedBootstrapCursors.add(cursor);
+    if (bootstrapCallCount == failOnBootstrapCall) {
+      throw StateError('Injected bootstrap transport failure');
+    }
     if (_bootstrapResponses.isEmpty) {
       throw StateError('No bootstrap response queued');
     }

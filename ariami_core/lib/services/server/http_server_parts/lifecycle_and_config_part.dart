@@ -325,6 +325,7 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
         .addMiddleware(_redactingRequestLogger())
         .addMiddleware(_bodyLimitMiddleware())
         .addMiddleware(_corsMiddleware())
+        .addMiddleware(gzipJsonResponses())
         .addMiddleware(_authRateLimitMiddleware())
         .addMiddleware(_authMiddleware())
         .addMiddleware(_connectionTrackingMiddleware())
@@ -344,6 +345,9 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
         print('Serving web UI from: $_webAssetsPath');
       }
       _metricsService.start();
+      if (_tailscaleIp != null && _tailscaleIp!.isNotEmpty) {
+        _tailscalePathDiagnostics.start();
+      }
 
       // Start cleanup timer for stale connections
       _startCleanupTimer();
@@ -499,6 +503,7 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
     }
     _webSocketClients.clear();
     _metricsService.stop();
+    _tailscalePathDiagnostics.stop();
     _inFlightDownloadTranscodesByUser.clear();
     _authEndpointAttempts.clear();
     _registrationTokens.clear();

@@ -9,6 +9,23 @@ import 'package:test/test.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 void main() {
+  test('welcome advertises the command-dedupe protocol version', () {
+    final hub = AriamiConnectHub();
+    final phone = _FakeChannel();
+    hub.register(phone,
+        userId: 'user',
+        deviceId: 'phone',
+        deviceName: 'Phone',
+        clientType: 'mobile');
+
+    final welcome = phone.messages
+        .lastWhere((message) => message.type == AriamiConnectMessageType.welcome);
+    // Clients only retransmit unacknowledged commands when the hub reports
+    // version >= 2 (idempotent command delivery). Downgrading this silently
+    // disables command retries on lossy links.
+    expect(welcome.data?['protocolVersion'], 2);
+  });
+
   test('devices and state are isolated by authenticated user', () {
     final hub = AriamiConnectHub();
     final alicePhone = _FakeChannel();
@@ -287,9 +304,10 @@ void main() {
     );
     await Future<void>.delayed(const Duration(milliseconds: 50));
 
-    final error = phone.messages
-        .lastWhere((message) => message.type == AriamiConnectMessageType.error);
-    expect(error.data?['code'], 'DEVICE_OFFLINE');
+    final result = phone.messages.lastWhere(
+        (message) => message.type == AriamiConnectMessageType.commandResult);
+    expect(result.data?['commandId'], 'command-lost');
+    expect(result.data?['ok'], isFalse);
   });
 
   test('a command result cancels the offline timeout', () async {
@@ -336,6 +354,68 @@ void main() {
     );
   });
 
+  test('duplicate command ids execute once and replay the cached result', () {
+    final hub = AriamiConnectHub();
+    final phone = _FakeChannel();
+    final tv = _FakeChannel();
+    hub.register(phone,
+        userId: 'user',
+        deviceId: 'phone',
+        deviceName: 'Phone',
+        clientType: 'mobile');
+    hub.register(tv,
+        userId: 'user', deviceId: 'tv', deviceName: 'TV', clientType: 'tv');
+    hub.handle(tv, _stateMessage(activate: true));
+
+    final command = WsMessage(
+      type: AriamiConnectMessageType.command,
+      data: <String, dynamic>{
+        'commandId': 'retry-safe-command',
+        'command': AriamiConnectCommand.pause,
+      },
+    );
+    hub.handle(phone, command);
+    hub.handle(phone, command);
+
+    expect(
+      tv.messages.where((message) =>
+          message.type == AriamiConnectMessageType.command &&
+          message.data?['commandId'] == 'retry-safe-command'),
+      hasLength(1),
+    );
+
+    hub.handle(
+      tv,
+      WsMessage(
+        type: AriamiConnectMessageType.commandResult,
+        data: <String, dynamic>{
+          'commandId': 'retry-safe-command',
+          'ok': true,
+        },
+      ),
+    );
+    final resultsBeforeReplay = phone.messages
+        .where((message) =>
+            message.type == AriamiConnectMessageType.commandResult &&
+            message.data?['commandId'] == 'retry-safe-command')
+        .length;
+
+    hub.handle(phone, command);
+
+    expect(
+      tv.messages.where((message) =>
+          message.type == AriamiConnectMessageType.command &&
+          message.data?['commandId'] == 'retry-safe-command'),
+      hasLength(1),
+    );
+    expect(
+      phone.messages.where((message) =>
+          message.type == AriamiConnectMessageType.commandResult &&
+          message.data?['commandId'] == 'retry-safe-command'),
+      hasLength(resultsBeforeReplay + 1),
+    );
+  });
+
   test('a device rename is persisted and broadcast to the account', () {
     final hub = AriamiConnectHub();
     final renames = <(String, String, String)>[];
@@ -365,9 +445,8 @@ void main() {
           .lastWhere(
               (message) => message.type == AriamiConnectMessageType.devices)
           .data!['devices'] as List<dynamic>;
-      final renamed = devices
-          .whereType<Map>()
-          .firstWhere((device) => device['id'] == 'tv');
+      final renamed =
+          devices.whereType<Map>().firstWhere((device) => device['id'] == 'tv');
       expect(renamed['name'], 'Living Room TV');
     }
   });

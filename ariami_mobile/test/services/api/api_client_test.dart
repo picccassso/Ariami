@@ -31,6 +31,7 @@ void main() {
     });
 
     tearDown(() async {
+      client.close();
       await server.close(force: true);
     });
 
@@ -69,6 +70,11 @@ void main() {
       expect(cancel.status, equals('cancelled'));
 
       expect(capturedRequests.length, equals(4));
+      expect(
+        capturedRequests.map((request) => request.remotePort).toSet(),
+        hasLength(1),
+        reason: 'sequential API calls should reuse one keep-alive connection',
+      );
 
       final createRequest = capturedRequests[0];
       expect(createRequest.method, equals('POST'));
@@ -145,6 +151,7 @@ void _startMockApiServer(
           queryParameters: request.uri.queryParameters,
           authorizationHeader:
               request.headers.value(HttpHeaders.authorizationHeader),
+          remotePort: request.connectionInfo?.remotePort,
           body: decodedBody,
         ),
       );
@@ -271,6 +278,7 @@ class _CapturedRequest {
     required this.path,
     required this.queryParameters,
     required this.authorizationHeader,
+    required this.remotePort,
     required this.body,
   });
 
@@ -278,5 +286,6 @@ class _CapturedRequest {
   final String path;
   final Map<String, String> queryParameters;
   final String? authorizationHeader;
+  final int? remotePort;
   final Map<String, dynamic> body;
 }

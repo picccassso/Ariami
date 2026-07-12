@@ -12,6 +12,7 @@ class ApiClient {
   final Duration timeout;
   final String? deviceId;
   final String? deviceName;
+  final http.Client _client;
 
   /// Session token for authenticated requests (set after login/register)
   String? sessionToken;
@@ -27,7 +28,11 @@ class ApiClient {
     this.deviceName,
     this.sessionToken,
     this.onSessionExpired,
-  });
+    http.Client? client,
+  }) : _client = client ?? http.Client();
+
+  /// Release pooled sockets when this endpoint is replaced or disconnected.
+  void close() => _client.close();
 
   /// Base URL for API requests
   String get baseUrl => '${serverInfo.baseUrl}/api';
@@ -89,7 +94,7 @@ class ApiClient {
   Future<Uint8List?> getCurrentUserAvatar(String sessionToken) async {
     try {
       final uri = _withDeviceParams(Uri.parse('$baseUrl/me/avatar'));
-      final response = await http.get(
+      final response = await _client.get(
         uri,
         headers: {'Authorization': 'Bearer $sessionToken'},
       ).timeout(timeout);
@@ -150,7 +155,7 @@ class ApiClient {
   Future<void> deleteCurrentUserAvatar(String sessionToken) async {
     try {
       final uri = _withDeviceParams(Uri.parse('$baseUrl/me/avatar'));
-      final response = await http.delete(
+      final response = await _client.delete(
         uri,
         headers: {'Authorization': 'Bearer $sessionToken'},
       ).timeout(timeout);
@@ -444,8 +449,11 @@ class ApiClient {
 
   /// Fetch playlist edits together with the custom cover-image manifest the
   /// server returns on the same endpoint.
-  Future<({List<Map<String, dynamic>> edits, List<Map<String, dynamic>> images})>
-      getPlaylistEditsAndImages() async {
+  Future<
+      ({
+        List<Map<String, dynamic>> edits,
+        List<Map<String, dynamic>> images
+      })> getPlaylistEditsAndImages() async {
     final response = await _get('/playlists/edits');
     return (
       edits: _mapList(response['edits']),
@@ -495,8 +503,9 @@ class ApiClient {
       if (sessionToken != null) {
         headers['Authorization'] = 'Bearer $sessionToken';
       }
-      final response =
-          await http.put(uri, headers: headers, body: bytes).timeout(timeout);
+      final response = await _client
+          .put(uri, headers: headers, body: bytes)
+          .timeout(timeout);
       final json = _handleResponse(response);
       final image = json['image'];
       if (image is! Map) return null;
@@ -520,7 +529,8 @@ class ApiClient {
       if (sessionToken != null) {
         headers['Authorization'] = 'Bearer $sessionToken';
       }
-      final response = await http.get(uri, headers: headers).timeout(timeout);
+      final response =
+          await _client.get(uri, headers: headers).timeout(timeout);
       if (response.statusCode == 404) return null;
       _throwIfByteResponseFailed(response);
       return response.bodyBytes;
@@ -689,7 +699,8 @@ class ApiClient {
       if (sessionToken != null) {
         headers['Authorization'] = 'Bearer $sessionToken';
       }
-      final response = await http.get(uri, headers: headers).timeout(timeout);
+      final response =
+          await _client.get(uri, headers: headers).timeout(timeout);
 
       return _handleResponse(response);
     } catch (e) {
@@ -714,7 +725,7 @@ class ApiClient {
       if (sessionToken != null) {
         headers['Authorization'] = 'Bearer $sessionToken';
       }
-      final response = await http
+      final response = await _client
           .post(
             uri,
             headers: headers,
@@ -745,7 +756,7 @@ class ApiClient {
       if (sessionToken != null) {
         headers['Authorization'] = 'Bearer $sessionToken';
       }
-      final response = await http
+      final response = await _client
           .put(
             uri,
             headers: headers,
@@ -771,7 +782,7 @@ class ApiClient {
         headers['Authorization'] = 'Bearer $sessionToken';
       }
       final response =
-          await http.delete(uri, headers: headers).timeout(timeout);
+          await _client.delete(uri, headers: headers).timeout(timeout);
       return _handleResponse(response);
     } catch (e) {
       if (e is ApiException) rethrow;
@@ -789,7 +800,7 @@ class ApiClient {
   ) async {
     try {
       final uri = _withDeviceParams(Uri.parse('$baseUrl$endpoint'));
-      final response = await http.get(
+      final response = await _client.get(
         uri,
         headers: {'Authorization': 'Bearer $sessionToken'},
       ).timeout(timeout);
@@ -812,7 +823,7 @@ class ApiClient {
   ) async {
     try {
       final uri = _withDeviceParams(Uri.parse('$baseUrl$endpoint'));
-      final response = await http
+      final response = await _client
           .post(
             uri,
             headers: {

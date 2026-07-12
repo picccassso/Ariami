@@ -3,6 +3,8 @@ import 'package:shelf/shelf.dart';
 
 /// Service for streaming audio files with HTTP range request support
 class StreamingService {
+  static const Duration _growingFilePollInterval = Duration(milliseconds: 15);
+
   /// Stream an audio file by file path
   /// Supports HTTP range requests for seeking
   Future<Response> streamFile(
@@ -84,6 +86,180 @@ class StreamingService {
       print('Error streaming file: $e');
       onDone?.call();
       return Response.internalServerError(body: 'Error streaming file: $e');
+    }
+  }
+
+  /// Starts serving a cold AAC transcode as soon as Sonic writes its first
+  /// bytes. Returning null means transcoding was skipped/failed and the caller
+  /// should serve the original source instead.
+  ///
+  /// Non-zero range requests still wait for the completed cache file because a
+  /// stable length is required for correct seek semantics. Initial playback is
+  /// chunked, allowing time-to-first-audio to overlap the remaining transcode.
+  Future<Response?> streamGrowingTranscode({
+    required File partialFile,
+    required Future<File?> completion,
+    required Request request,
+    required String mimeType,
+    DateTime? partialNotBefore,
+    void Function()? onDone,
+  }) async {
+    final rangeHeader = request.headers[HttpHeaders.rangeHeader];
+    if (rangeHeader != null && !_isInitialRange(rangeHeader)) {
+      final completed = await completion;
+      if (completed == null) return null;
+      return streamFile(completed, request, onDone: onDone);
+    }
+
+    var isComplete = false;
+    File? completedFile;
+    Object? completionError;
+    completion.then<void>(
+      (file) {
+        completedFile = file;
+        isComplete = true;
+      },
+      onError: (Object error, StackTrace _) {
+        completionError = error;
+        isComplete = true;
+      },
+    );
+
+    while (true) {
+      final partialIsCurrent = await _isCurrentPartialFile(
+        partialFile,
+        notBefore: partialNotBefore,
+      );
+      var partialLength = 0;
+      if (partialIsCurrent) {
+        try {
+          partialLength = await partialFile.length();
+        } catch (_) {
+          // Renamed to the final path (or cleaned up after a failure) between
+          // the two stats; the completion future decides on a later iteration.
+        }
+      }
+      if (partialLength > 0) {
+        return Response.ok(
+          _createGrowingFileStream(
+            partialFile,
+            isComplete: () => isComplete,
+            completedFile: () => completedFile,
+            onDone: onDone,
+          ),
+          headers: <String, String>{
+            HttpHeaders.contentTypeHeader: mimeType,
+            HttpHeaders.cacheControlHeader: 'no-cache',
+          },
+        );
+      }
+      if (isComplete) {
+        if (completionError != null || completedFile == null) return null;
+        return streamFile(completedFile!, request, onDone: onDone);
+      }
+      await Future<void>.delayed(_growingFilePollInterval);
+    }
+  }
+
+  Stream<List<int>> _createGrowingFileStream(
+    File partialFile, {
+    required bool Function() isComplete,
+    required File? Function() completedFile,
+    void Function()? onDone,
+  }) async* {
+    RandomAccessFile? raf;
+    var position = 0;
+    try {
+      // The body stream is listened to slightly after the headers go out, so
+      // the partial can complete (rename to the final path) in between. On
+      // POSIX an already-open handle survives the rename, but the open itself
+      // needs the fallback.
+      raf = await _openGrowingSource(
+        partialFile,
+        isComplete: isComplete,
+        completedFile: completedFile,
+      );
+      if (raf == null) return;
+      while (true) {
+        final activeFile = completedFile() ?? partialFile;
+        int length;
+        try {
+          length = await activeFile.length();
+        } catch (_) {
+          length = position;
+        }
+
+        if (length > position) {
+          final bytesToRead = (length - position).clamp(1, 64 * 1024);
+          final chunk = await raf.read(bytesToRead);
+          if (chunk.isNotEmpty) {
+            position += chunk.length;
+            yield chunk;
+            continue;
+          }
+        }
+
+        if (isComplete()) {
+          final finalFile = completedFile();
+          int finalLength;
+          try {
+            finalLength =
+                finalFile == null ? position : await finalFile.length();
+          } catch (_) {
+            finalLength = position;
+          }
+          if (position >= finalLength) break;
+        }
+        await Future<void>.delayed(_growingFilePollInterval);
+      }
+    } finally {
+      await raf?.close();
+      onDone?.call();
+    }
+  }
+
+  /// Opens the in-progress transcode for reading, falling back to the
+  /// completed cache file when the rename beat us to it. Returns null when
+  /// neither exists (the transcode failed before producing output).
+  Future<RandomAccessFile?> _openGrowingSource(
+    File partialFile, {
+    required bool Function() isComplete,
+    required File? Function() completedFile,
+  }) async {
+    while (true) {
+      final completed = completedFile();
+      if (completed != null) {
+        try {
+          return await completed.open(mode: FileMode.read);
+        } catch (_) {
+          return null;
+        }
+      }
+      try {
+        return await partialFile.open(mode: FileMode.read);
+      } catch (_) {
+        // Mid-rename; the completion future resolves imminently.
+      }
+      if (isComplete()) return null;
+      await Future<void>.delayed(_growingFilePollInterval);
+    }
+  }
+
+  bool _isInitialRange(String header) {
+    final normalized = header.trim().toLowerCase();
+    return normalized == 'bytes=0-';
+  }
+
+  Future<bool> _isCurrentPartialFile(
+    File file, {
+    DateTime? notBefore,
+  }) async {
+    if (!await file.exists()) return false;
+    if (notBefore == null) return true;
+    try {
+      return !(await file.stat()).modified.isBefore(notBefore);
+    } catch (_) {
+      return false;
     }
   }
 

@@ -40,6 +40,7 @@ class CacheManager {
   // Track ongoing cache operations to avoid duplicates
   final Map<String, Future<String?>> _inFlightArtworkRequests = {};
   final Set<String> _pendingSongs = {};
+  final Map<String, CancelToken> _songCacheCancelTokens = {};
 
   // Concurrency limiter for artwork downloads
   // Increased from 3 to 6 since thumbnails are ~100x smaller (~2.8KB vs 304KB)
@@ -480,9 +481,10 @@ class CacheManager {
   /// Background song download
   Future<void> _downloadSongInBackground(
       String songId, String downloadUrl) async {
+    final cancelToken = CancelToken();
+    _songCacheCancelTokens[songId] = cancelToken;
+    final filePath = '$_songCachePath/$songId.mp3';
     try {
-      final filePath = '$_songCachePath/$songId.mp3';
-
       print('[CacheManager] Starting background cache for song: $songId');
 
       // Download song
@@ -494,6 +496,7 @@ class CacheManager {
           receiveTimeout: const Duration(minutes: 10),
           headers: _connectionService.authHeaders,
         ),
+        cancelToken: cancelToken,
       );
 
       // Get file size
@@ -528,10 +531,39 @@ class CacheManager {
 
       print(
           '[CacheManager] Cached song: $songId (${entry.getFormattedSize()})');
+    } on DioException catch (e) {
+      await _deletePartialSongCacheFile(filePath);
+      if (!CancelToken.isCancel(e)) {
+        print('[CacheManager] Failed to cache song $songId: $e');
+      }
     } catch (e) {
+      await _deletePartialSongCacheFile(filePath);
       print('[CacheManager] Failed to cache song $songId: $e');
     } finally {
+      if (identical(_songCacheCancelTokens[songId], cancelToken)) {
+        _songCacheCancelTokens.remove(songId);
+      }
       _pendingSongs.remove(songId);
+    }
+  }
+
+  /// Cancel non-essential song-cache transfers when the device leaves Wi-Fi.
+  /// Active playback uses a separate request and is never interrupted here.
+  void cancelPendingSongCaches() {
+    for (final token in _songCacheCancelTokens.values.toList()) {
+      if (!token.isCancelled) {
+        token.cancel('speculative_song_cache_disabled_for_network');
+      }
+    }
+  }
+
+  Future<void> _deletePartialSongCacheFile(String filePath) async {
+    try {
+      final file = File(filePath);
+      if (await file.exists()) await file.delete();
+    } catch (_) {
+      // A partial cache file has no database entry and is harmless; cleanup is
+      // best-effort so a filesystem race cannot affect playback.
     }
   }
 

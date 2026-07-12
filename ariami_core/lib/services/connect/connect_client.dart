@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:convert';
 import 'dart:math';
 
@@ -26,6 +27,8 @@ class AriamiConnectClient {
     required this.pauseForTransfer,
     this.onChanged,
     this.onServerNotification,
+    this.commandAckTimeout = const Duration(seconds: 4),
+    this.maxCommandAttempts = 4,
   });
 
   /// Optional diagnostics sink (e.g. debugPrint). Connect state flows across
@@ -46,6 +49,8 @@ class AriamiConnectClient {
   /// but are not part of the Connect protocol itself (e.g.
   /// `listening_stats_updated` fired when another device uploads stats).
   final void Function(WsMessage message)? onServerNotification;
+  final Duration commandAckTimeout;
+  final int maxCommandAttempts;
 
   WebSocketChannel? _channel;
   StreamSubscription<dynamic>? _subscription;
@@ -57,7 +62,13 @@ class AriamiConnectClient {
   int _reconnectAttempt = 0;
   bool _closedByUser = false;
   bool _connecting = false;
+  bool _isWelcomed = false;
+  int _hubProtocolVersion = 1;
   int _lastRevision = -1;
+  final LinkedHashMap<String, _PendingOutboundCommand> _pendingCommands =
+      LinkedHashMap<String, _PendingOutboundCommand>();
+  final LinkedHashMap<String, Map<String, dynamic>> _handledCommandResults =
+      LinkedHashMap<String, Map<String, dynamic>>();
 
   bool isConnected = false;
   bool isApplyingRemoteState = false;
@@ -73,6 +84,7 @@ class AriamiConnectClient {
   void _log(String message) => logger?.call('[$deviceId] $message');
 
   bool get isThisDeviceActive => activeDeviceId == deviceId;
+  int get pendingCommandCount => _pendingCommands.length;
   AriamiConnectDevice? get activeDevice {
     for (final device in devices) {
       if (device.id == activeDeviceId) return device;
@@ -168,6 +180,9 @@ class AriamiConnectClient {
       switch (message.type) {
         case AriamiConnectMessageType.welcome:
           _welcomeTimer?.cancel();
+          _isWelcomed = true;
+          _hubProtocolVersion =
+              (data['protocolVersion'] as num?)?.toInt() ?? 1;
           errorMessage = null;
           _readDevices(data);
           _readState(data);
@@ -175,6 +190,7 @@ class AriamiConnectClient {
           if (activeDeviceId == null && snapshotProvider().queue.isNotEmpty) {
             publishState(activate: true);
           }
+          _flushPendingCommands();
         case AriamiConnectMessageType.devices:
           _readDevices(data);
         case AriamiConnectMessageType.state:
@@ -182,6 +198,10 @@ class AriamiConnectClient {
         case AriamiConnectMessageType.command:
           unawaited(_runCommand(data));
         case AriamiConnectMessageType.commandResult:
+          final commandId = data['commandId'] as String?;
+          final pending =
+              commandId == null ? null : _pendingCommands.remove(commandId);
+          pending?.retryTimer?.cancel();
           if (data['ok'] == false) {
             errorMessage = data['message'] as String? ??
                 'The playback device could not run that command.';
@@ -241,6 +261,14 @@ class AriamiConnectClient {
   Future<void> _runCommand(Map<String, dynamic> data) async {
     final commandId = data['commandId'] as String? ?? '';
     _log('command in: ${data['command']} from ${data['requestedBy']}');
+    final previousResult = _handledCommandResults[commandId];
+    if (commandId.isNotEmpty && previousResult != null) {
+      _send(WsMessage(
+        type: AriamiConnectMessageType.commandResult,
+        data: previousResult,
+      ));
+      return;
+    }
     try {
       await handleCommand(
         data['command'] as String? ?? '',
@@ -249,9 +277,9 @@ class AriamiConnectClient {
             : const <String, dynamic>{},
       );
       publishState();
-      _sendResult(commandId, ok: true);
+      _sendResult(commandId, ok: true, remember: true);
     } catch (error) {
-      _sendResult(commandId, ok: false, message: '$error');
+      _sendResult(commandId, ok: false, message: '$error', remember: true);
     }
   }
 
@@ -369,14 +397,23 @@ class AriamiConnectClient {
 
   void sendCommand(String command, [Map<String, dynamic>? arguments]) {
     if (!AriamiConnectCommand.supported.contains(command)) return;
-    _send(WsMessage(
-      type: AriamiConnectMessageType.command,
-      data: <String, dynamic>{
-        'commandId': '$deviceId-${DateTime.now().microsecondsSinceEpoch}',
-        'command': command,
-        'arguments': arguments ?? const <String, dynamic>{},
-      },
-    ));
+    final commandId = '$deviceId-${DateTime.now().microsecondsSinceEpoch}';
+    final pending = _PendingOutboundCommand(
+      message: WsMessage(
+        type: AriamiConnectMessageType.command,
+        data: <String, dynamic>{
+          'commandId': commandId,
+          'command': command,
+          'arguments': arguments ?? const <String, dynamic>{},
+        },
+      ),
+    );
+    _pendingCommands[commandId] = pending;
+    while (_pendingCommands.length > 64) {
+      final oldest = _pendingCommands.remove(_pendingCommands.keys.first);
+      oldest?.retryTimer?.cancel();
+    }
+    _dispatchCommand(commandId, pending);
   }
 
   /// Asks the server to rename this device. The server persists the name and
@@ -399,15 +436,69 @@ class AriamiConnectClient {
     ));
   }
 
-  void _sendResult(String commandId, {required bool ok, String? message}) {
+  void _sendResult(
+    String commandId, {
+    required bool ok,
+    String? message,
+    bool remember = false,
+  }) {
+    final data = <String, dynamic>{
+      'commandId': commandId,
+      'ok': ok,
+      if (message != null) 'message': message,
+    };
+    if (remember && commandId.isNotEmpty) {
+      _handledCommandResults.remove(commandId);
+      _handledCommandResults[commandId] = data;
+      while (_handledCommandResults.length > 256) {
+        _handledCommandResults.remove(_handledCommandResults.keys.first);
+      }
+    }
     _send(WsMessage(
       type: AriamiConnectMessageType.commandResult,
-      data: <String, dynamic>{
-        'commandId': commandId,
-        'ok': ok,
-        if (message != null) 'message': message,
-      },
+      data: data,
     ));
+  }
+
+  /// Since welcome protocol version 2 the hub deduplicates replayed
+  /// commandIds, making retransmission safe. Version 1 hubs forward every
+  /// replay to the active device, which would run a non-idempotent command
+  /// (next, toggle, cycle_repeat) twice — so never retry against them.
+  bool get _hubDeduplicatesCommands => _hubProtocolVersion >= 2;
+
+  void _flushPendingCommands() {
+    if (!isConnected || !_isWelcomed) return;
+    for (final entry in _pendingCommands.entries.toList(growable: false)) {
+      if (entry.value.attempts > 0 && !_hubDeduplicatesCommands) {
+        // Already sent once to a hub that cannot dedupe a replay; drop it
+        // rather than risk double execution on the playback device.
+        _pendingCommands.remove(entry.key);
+        continue;
+      }
+      _dispatchCommand(entry.key, entry.value);
+    }
+  }
+
+  void _dispatchCommand(String commandId, _PendingOutboundCommand pending) {
+    if (!isConnected ||
+        !_isWelcomed ||
+        _pendingCommands[commandId] != pending) {
+      return;
+    }
+    pending.retryTimer?.cancel();
+    pending.attempts += 1;
+    _send(pending.message);
+    pending.retryTimer = Timer(commandAckTimeout, () {
+      if (_pendingCommands[commandId] != pending) return;
+      if (!isConnected || !_isWelcomed) return;
+      if (pending.attempts < maxCommandAttempts && _hubDeduplicatesCommands) {
+        _dispatchCommand(commandId, pending);
+        return;
+      }
+      _pendingCommands.remove(commandId);
+      _log('Command $commandId was not acknowledged after '
+          '${pending.attempts} attempts');
+    });
   }
 
   void _send(WsMessage message) {
@@ -422,12 +513,17 @@ class AriamiConnectClient {
   void _handleDisconnect() {
     final wasConnected = isConnected;
     isConnected = false;
+    _isWelcomed = false;
     _pingTimer?.cancel();
     _welcomeTimer?.cancel();
     _pingTimer = null;
     _subscription?.cancel();
     _subscription = null;
     _channel = null;
+    for (final pending in _pendingCommands.values) {
+      pending.retryTimer?.cancel();
+      pending.retryTimer = null;
+    }
     // Revisions live in the server's memory; after a drop the next welcome
     // (possibly from a restarted hub counting from zero again) is the
     // authoritative baseline. Keeping the old high-water mark here silently
@@ -447,9 +543,21 @@ class AriamiConnectClient {
     _reconnectTimer?.cancel();
     _pingTimer?.cancel();
     _welcomeTimer?.cancel();
+    for (final pending in _pendingCommands.values) {
+      pending.retryTimer?.cancel();
+    }
+    _pendingCommands.clear();
     await _subscription?.cancel();
     await _channel?.sink.close(1000, 'Client closed');
     _channel = null;
     isConnected = false;
   }
+}
+
+class _PendingOutboundCommand {
+  _PendingOutboundCommand({required this.message});
+
+  final WsMessage message;
+  int attempts = 0;
+  Timer? retryTimer;
 }

@@ -136,10 +136,13 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
           }
           print('[PlaybackManager] Using server artwork: $artworkUri');
 
-          _cacheFullArtworkInBackground(song, artworkUri);
-
-          // Trigger background caching of the song for offline use
-          _cacheSongInBackground(song);
+          // Whole-file media caching is deliberately Wi-Fi-only. On cellular a
+          // high/original cache download otherwise competes with the lower-rate
+          // stream the listener is waiting for.
+          if (_qualityService.allowsSpeculativeMediaDownloads) {
+            _cacheFullArtworkInBackground(song, artworkUri);
+            _cacheSongInBackground(song);
+          }
           _warmNextStreamInBackground(streamingQuality);
           break;
 
@@ -164,7 +167,16 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
       }
 
       // If we have a restored position, load without playing, seek, then play
-      final upcoming = await _resolveNextGaplessItem(song);
+      final shouldDeferGaplessPreparation =
+          playbackSource == PlaybackSource.stream &&
+              !_qualityService.allowsSpeculativeMediaDownloads;
+      final upcoming = shouldDeferGaplessPreparation
+          ? null
+          : await _resolveNextGaplessItem(song);
+      _deferredGaplessSongId =
+          shouldDeferGaplessPreparation && _gaplessPlayback.isEnabled
+              ? song.id
+              : null;
       if (_restoredPosition != null) {
         // Load the song WITHOUT starting playback
         await _audioPlayer.loadSong(
@@ -319,6 +331,17 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
     final current = _queue.currentSong;
     if (current == null || _castService.isConnected) return;
 
+    if (!_qualityService.allowsSpeculativeMediaDownloads &&
+        !hasSpeculativeGaplessHeadroom(
+          position: _audioPlayer.position,
+          bufferedPosition: _audioPlayer.bufferedPosition,
+          duration: _audioPlayer.duration,
+        )) {
+      _deferredGaplessSongId = current.id;
+      return;
+    }
+    _deferredGaplessSongId = null;
+
     final upcoming = await _resolveNextGaplessItem(current);
     if (generation != _gaplessRefreshGeneration ||
         _queue.currentSong?.id != current.id) {
@@ -380,7 +403,10 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
   }
 
   void _cacheSongInBackgroundImpl(Song song) async {
-    if (_connectionService.apiClient == null) return;
+    if (_connectionService.apiClient == null ||
+        !_qualityService.allowsSpeculativeMediaDownloads) {
+      return;
+    }
 
     final apiClient = _connectionService.apiClient!;
     final downloadQuality = _qualityService.getDownloadQuality();

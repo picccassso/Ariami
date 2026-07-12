@@ -72,7 +72,8 @@ class _ManualServerEntryScreenState extends State<ManualServerEntryScreen> {
       // Discover auth/legacy state (and friendly name/version) from the public
       // server-info endpoint so we can route like the QR flow does.
       final apiClient = ApiClient(serverInfo: bootstrap);
-      final discovered = await apiClient.getServerInfo();
+      final discovered =
+          await apiClient.getServerInfo().whenComplete(apiClient.close);
 
       // On a server that already has users, registration needs an owner-issued
       // invite code; attach it so the user lands on account creation.

@@ -270,6 +270,7 @@ class ConnectionService {
     try {
       await apiClient.ping();
     } catch (e) {
+      apiClient.close();
       throw Exception('Cannot reach server: $e');
     }
 
@@ -302,6 +303,7 @@ class ConnectionService {
       // Complete connection
       await _completeAuthConnection(apiClient, resolvedServerInfo);
     } catch (e) {
+      apiClient.close();
       await _authManager.clearAuthInfo();
       rethrow;
     }
@@ -337,6 +339,7 @@ class ConnectionService {
     try {
       await apiClient.ping();
     } catch (e) {
+      apiClient.close();
       throw Exception('Cannot reach server: $e');
     }
 
@@ -363,6 +366,7 @@ class ConnectionService {
       // Complete connection
       await _completeAuthConnection(apiClient, resolvedServerInfo);
     } catch (e) {
+      apiClient.close();
       await _authManager.clearAuthInfo();
       rethrow;
     }
@@ -783,39 +787,50 @@ class ConnectionService {
       sessionToken: _authManager.sessionToken,
       onSessionExpired: handleSessionExpired,
     );
+    var adopted = false;
+    try {
+      await apiClient.ping();
 
-    await apiClient.ping();
+      final response = await apiClient.connect(ConnectRequest(
+        deviceId: deviceId,
+        deviceName: deviceName,
+        appVersion: '5.0 Preview',
+        platform: Platform.isAndroid ? 'android' : 'ios',
+      ));
 
-    final response = await apiClient.connect(ConnectRequest(
-      deviceId: deviceId,
-      deviceName: deviceName,
-      appVersion: '5.0 Preview',
-      platform: Platform.isAndroid ? 'android' : 'ios',
-    ));
+      if (response.deviceId != null) {
+        await _deviceInfoManager.saveDeviceId(response.deviceId!);
+      }
 
-    if (response.deviceId != null) {
-      await _deviceInfoManager.saveDeviceId(response.deviceId!);
+      final hydratedServerInfo =
+          await _serverInfoManager.hydrateServerInfoMetadata(
+        apiClient,
+        newServerInfo,
+      );
+
+      _lifecycleManager.adoptEstablishedConnection(
+        apiClient: apiClient,
+        sessionId: response.sessionId,
+        serverInfo: hydratedServerInfo,
+      );
+      adopted = true;
+
+      _stateManager.setServerInfo(hydratedServerInfo);
+      _stateManager.setConnected(true);
+
+      await _persistenceManager.saveConnectionInfo(
+        hydratedServerInfo,
+        response.sessionId,
+      );
+
+      // Restart services
+      _heartbeatManager.start();
+      await _webSocketHandler.connect(hydratedServerInfo);
+      _librarySyncEngine.start();
+      _endpointSwitchHandler.configureMonitoring(hydratedServerInfo);
+    } finally {
+      if (!adopted) apiClient.close();
     }
-
-    final hydratedServerInfo =
-        await _serverInfoManager.hydrateServerInfoMetadata(
-      apiClient,
-      newServerInfo,
-    );
-
-    _stateManager.setServerInfo(hydratedServerInfo);
-    _stateManager.setConnected(true);
-
-    await _persistenceManager.saveConnectionInfo(
-      hydratedServerInfo,
-      response.sessionId,
-    );
-
-    // Restart services
-    _heartbeatManager.start();
-    await _webSocketHandler.connect(hydratedServerInfo);
-    _librarySyncEngine.start();
-    _endpointSwitchHandler.configureMonitoring(hydratedServerInfo);
   }
 
   Future<void> _restoreAfterFailedEndpointSwitch(

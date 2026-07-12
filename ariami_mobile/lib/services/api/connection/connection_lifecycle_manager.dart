@@ -55,6 +55,9 @@ class ConnectionLifecycleManager {
     required String sessionId,
     required ServerInfo serverInfo,
   }) {
+    if (!identical(_apiClient, apiClient)) {
+      _apiClient?.close();
+    }
     _apiClient = apiClient;
     _sessionId = sessionId;
     _stateManager.setServerInfo(serverInfo);
@@ -314,6 +317,7 @@ class ConnectionLifecycleManager {
 
   /// Clean up connection state
   void _cleanupConnection() {
+    _apiClient?.close();
     _apiClient = null;
     _sessionId = null;
   }

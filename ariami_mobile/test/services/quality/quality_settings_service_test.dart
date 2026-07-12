@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:ariami_mobile/models/quality_settings.dart';
 import 'package:ariami_mobile/services/quality/quality_settings_service.dart';
+import 'package:ariami_mobile/services/quality/network_monitor_service.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -91,6 +92,14 @@ void main() {
       expect(jsonString, isNotNull);
       final savedSettings = jsonDecode(jsonString!) as Map<String, dynamic>;
       expect(savedSettings['downloadOriginal'], isFalse);
+    });
+  });
+
+  group('speculative media transfer policy', () {
+    test('allows background whole-file transfers only on Wi-Fi', () {
+      expect(allowsSpeculativeMediaDownloadsFor(NetworkType.wifi), isTrue);
+      expect(allowsSpeculativeMediaDownloadsFor(NetworkType.mobile), isFalse);
+      expect(allowsSpeculativeMediaDownloadsFor(NetworkType.none), isFalse);
     });
   });
 }

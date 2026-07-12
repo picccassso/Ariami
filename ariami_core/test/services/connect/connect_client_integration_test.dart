@@ -171,6 +171,66 @@ void main() {
         laptop.remoteSnapshot?.isPlaying == true);
   });
 
+  test('commands queued while disconnected flush once after welcome', () async {
+    var pauseExecutions = 0;
+    var tvPlaying = true;
+    AriamiPlaybackSnapshot tvSnapshot() => AriamiPlaybackSnapshot(
+          queue: const <Map<String, dynamic>>[
+            <String, dynamic>{'id': 'song-a', 'title': 'A'},
+          ],
+          currentIndex: 0,
+          positionMs: 1000,
+          durationMs: 60000,
+          isPlaying: tvPlaying,
+          shuffle: false,
+          repeatMode: 'off',
+          volume: 1,
+        );
+    final tv = AriamiConnectClient(
+      deviceId: 'queued-tv',
+      deviceName: 'Queued TV',
+      clientType: 'tv',
+      snapshotProvider: tvSnapshot,
+      applySnapshot: (_) async {},
+      handleCommand: (command, _) async {
+        if (command == AriamiConnectCommand.pause) {
+          pauseExecutions++;
+          tvPlaying = false;
+        }
+      },
+      pauseForTransfer: () async {},
+    );
+    final controller = AriamiConnectClient(
+      deviceId: 'queued-controller',
+      deviceName: 'Queued Controller',
+      clientType: 'mobile',
+      snapshotProvider: () => AriamiPlaybackSnapshot.fromJson(const {}),
+      applySnapshot: (_) async {},
+      handleCommand: (_, __) async {},
+      pauseForTransfer: () async {},
+      commandAckTimeout: const Duration(milliseconds: 100),
+    );
+    clients
+      ..add(tv)
+      ..add(controller);
+    final baseUrl = 'http://127.0.0.1:${server.port}';
+
+    await tv.connect(baseUrl: baseUrl);
+    await waitFor(() => tv.isConnected && tv.devices.isNotEmpty);
+    tv.publishState(activate: true);
+    await pump(4);
+    controller.sendCommand(AriamiConnectCommand.pause);
+    expect(controller.pendingCommandCount, 1);
+
+    await controller.connect(baseUrl: baseUrl);
+    await waitFor(() =>
+        controller.pendingCommandCount == 0 &&
+        pauseExecutions == 1 &&
+        controller.remoteSnapshot?.isPlaying == false);
+
+    expect(pauseExecutions, 1);
+  });
+
   test('"Play here", skip, and hand back: the old device follows the session',
       () async {
     // TV: active first, then hands off and becomes a mirror.

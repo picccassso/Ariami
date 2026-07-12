@@ -144,15 +144,37 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
 
     // If transcoding is requested and service is available
     if (quality.requiresTranscoding && _transcodingService != null) {
-      // Serve only completed transcodes here. This keeps lower-quality playback
-      // on the normal file streaming path with range support.
-      final transcodedFile = await _transcodingService!.getTranscodedFile(
+      final transcodeRequestedAt = DateTime.now();
+      final transcodeFuture = _transcodingService!.getTranscodedFile(
         filePath,
         path, // songId
         quality,
         requestType: TranscodeRequestType.streaming,
         sourceBitrateKbps: sourceBitrateKbps,
       );
+
+      // Cold initial playback can consume Sonic's ADTS AAC output while it is
+      // still being written. Completed streams and seeks retain normal file
+      // range semantics.
+      _transcodingService!.markInUse(path, quality);
+      final progressiveResponse =
+          await _streamingService.streamGrowingTranscode(
+        partialFile: _transcodingService!.streamingPartialFile(path, quality),
+        completion: transcodeFuture,
+        request: request,
+        mimeType: quality.mimeType ?? 'audio/aac',
+        partialNotBefore: transcodeRequestedAt,
+        onDone: () {
+          _transcodingService!.releaseInUse(path, quality);
+          endStreamTracker();
+        },
+      );
+      if (progressiveResponse != null) {
+        return progressiveResponse;
+      }
+      _transcodingService!.releaseInUse(path, quality);
+
+      final transcodedFile = await transcodeFuture;
 
       if (transcodedFile != null) {
         fileToStream = transcodedFile;

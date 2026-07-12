@@ -32,7 +32,7 @@ class LibrarySyncEngine {
     required ApiClient Function() apiClientProvider,
     LibraryRepository? libraryRepository,
     this.onBootstrapCompleted,
-    this.bootstrapPageLimit = 200,
+    this.bootstrapPageLimit = 500,
     this.changesPageLimit = 500,
     this.pollInterval = const Duration(seconds: 30),
   })  : _apiClientProvider = apiClientProvider,
@@ -63,6 +63,10 @@ class LibrarySyncEngine {
   int _bootstrapRetryAttempts = 0;
   String? _lastError;
   DateTime? _lastSuccessfulSyncAt;
+  String? _bootstrapCursor;
+  int _bootstrapLatestToken = 0;
+  int _bootstrapPagesProcessed = 0;
+  String? _bootstrapScope;
 
   bool get isRunning => _running;
 
@@ -151,16 +155,27 @@ class LibrarySyncEngine {
 
   Future<bool> _runBootstrapSync() async {
     debugPrint('[LibrarySyncEngine][_runBootstrapSync] starting bootstrap');
-    await _libraryRepository.resetForBootstrap();
+    final apiClient = _apiClientProvider();
+    final scope =
+        '${apiClient.serverInfo.baseUrl}|${apiClient.sessionToken ?? ''}';
+    if (_bootstrapScope != scope) {
+      await _discardBootstrapResume();
+      _bootstrapScope = scope;
+    }
+    if (_bootstrapCursor == null) {
+      await _libraryRepository.resetForBootstrap();
+      _bootstrapLatestToken = 0;
+      _bootstrapPagesProcessed = 0;
+    }
 
     try {
-      String? cursor;
-      int latestToken = 0;
-      var pagesProcessed = 0;
+      var cursor = _bootstrapCursor;
+      var latestToken = _bootstrapLatestToken;
+      var pagesProcessed = _bootstrapPagesProcessed;
 
       while (true) {
-        final page = await _apiClientProvider()
-            .getV2BootstrapPage(cursor, bootstrapPageLimit);
+        final page =
+            await apiClient.getV2BootstrapPage(cursor, bootstrapPageLimit);
         debugPrint(
           '[LibrarySyncEngine][_runBootstrapSync] page=${pagesProcessed + 1} '
           'cursor=${cursor ?? '<initial>'} '
@@ -187,6 +202,9 @@ class LibrarySyncEngine {
         }
 
         cursor = nextCursor;
+        _bootstrapCursor = cursor;
+        _bootstrapLatestToken = latestToken;
+        _bootstrapPagesProcessed = pagesProcessed;
 
         // Safety guard against malformed pagination loops.
         if (pagesProcessed > 10000) {
@@ -195,6 +213,7 @@ class LibrarySyncEngine {
       }
 
       await _libraryRepository.completeBootstrap(lastAppliedToken: latestToken);
+      _clearBootstrapResume();
       final bootstrapReady = await _libraryRepository.hasCompletedBootstrap();
       debugPrint(
         '[LibrarySyncEngine][_runBootstrapSync] finished '
@@ -214,9 +233,27 @@ class LibrarySyncEngine {
       debugPrint(
         '[LibrarySyncEngine][_runBootstrapSync] failed error=$error\n$stackTrace',
       );
-      await _libraryRepository.abortBootstrap();
+      // If at least one page committed, retain the staging rows and cursor so a
+      // transient mobile drop resumes rather than downloading the catalog from
+      // page one again. A first-page failure has nothing useful to retain.
+      if (_bootstrapCursor == null) {
+        await _libraryRepository.abortBootstrap();
+      }
       rethrow;
     }
+  }
+
+  Future<void> _discardBootstrapResume() async {
+    if (_bootstrapScope != null || _bootstrapCursor != null) {
+      await _libraryRepository.abortBootstrap();
+    }
+    _clearBootstrapResume();
+  }
+
+  void _clearBootstrapResume() {
+    _bootstrapCursor = null;
+    _bootstrapLatestToken = 0;
+    _bootstrapPagesProcessed = 0;
   }
 
   Future<void> _applyDeltaChanges({int? targetToken}) async {

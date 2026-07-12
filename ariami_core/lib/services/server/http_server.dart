@@ -14,6 +14,8 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:crypto/crypto.dart';
 import 'package:ariami_core/services/server/connection_manager.dart';
 import 'package:ariami_core/services/server/streaming_service.dart';
+import 'package:ariami_core/services/server/response_compression.dart';
+import 'package:ariami_core/services/server/tailscale_path_diagnostics.dart';
 import 'package:ariami_core/services/transcoding/transcode_slots_policy.dart';
 import 'package:ariami_core/services/transcoding/transcoding_service.dart';
 import 'package:ariami_core/services/artwork/artwork_service.dart';
@@ -98,6 +100,8 @@ class AriamiHttpServer {
   final List<WebSocketChannel> _webSocketClients = [];
   final Map<WebSocketChannel, String> _webSocketDeviceIds = {};
   final AriamiConnectHub _connectHub = AriamiConnectHub();
+  final TailscalePathDiagnostics _tailscalePathDiagnostics =
+      TailscalePathDiagnostics();
 
   /// User-chosen device display names, overlaid on the names clients report
   /// when they identify. Initialized in [initializeAuth] beside sessions.

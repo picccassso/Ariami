@@ -73,6 +73,8 @@ class PlaybackManager extends ChangeNotifier {
   StreamSubscription<Duration>? _seekSubscription;
   StreamSubscription<GaplessPlaybackTransition>? _gaplessTransitionSubscription;
   StreamSubscription<double>? _volumeSubscription;
+  StreamSubscription? _networkTypeSubscription;
+  StreamSubscription<Duration>? _bufferedPositionSubscription;
 
   // True when local playback was auto-paused because the device media volume
   // dropped to zero ("mute when silent"). Used to auto-resume when the volume
@@ -94,6 +96,7 @@ class PlaybackManager extends ChangeNotifier {
   String? _lastWarmupKey;
   int _gaplessRefreshGeneration = 0;
   bool _isHandlingGaplessTransition = false;
+  String? _deferredGaplessSongId;
 
   // Getters
   //
@@ -466,6 +469,28 @@ class PlaybackManager extends ChangeNotifier {
 
     _castService.initialize();
     _castService.addListener(_onCastStateChanged);
+
+    _networkTypeSubscription = _qualityService.networkTypeStream.listen((_) {
+      if (!_qualityService.allowsSpeculativeMediaDownloads) {
+        _cacheManager.cancelPendingSongCaches();
+      } else if (_deferredGaplessSongId == _queue.currentSong?.id) {
+        unawaited(_refreshGaplessQueue());
+      }
+    });
+
+    _bufferedPositionSubscription =
+        _audioPlayer.bufferedPositionStream.listen((bufferedPosition) {
+      if (_deferredGaplessSongId != _queue.currentSong?.id) return;
+      if (!hasSpeculativeGaplessHeadroom(
+        position: _audioPlayer.position,
+        bufferedPosition: bufferedPosition,
+        duration: _audioPlayer.duration,
+      )) {
+        return;
+      }
+      _deferredGaplessSongId = null;
+      unawaited(_refreshGaplessQueue());
+    });
 
     // Listen to position updates
     _positionSubscription = _audioPlayer.positionStream.listen((pos) {
@@ -933,6 +958,8 @@ class PlaybackManager extends ChangeNotifier {
     _gaplessTransitionSubscription?.cancel();
     _gaplessPlayback.removeListener(_onGaplessPreferenceChanged);
     _volumeSubscription?.cancel();
+    _networkTypeSubscription?.cancel();
+    _bufferedPositionSubscription?.cancel();
     FlutterVolumeController.removeListener();
     super.dispose();
   }

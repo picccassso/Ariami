@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:convert';
 
 import 'package:ariami_core/models/connect_models.dart';
@@ -231,31 +232,53 @@ class AriamiConnectHub {
 
   void _handleCommand(
       WebSocketChannel socket, _ConnectPeer peer, Map<String, dynamic> data) {
+    final commandId = data['commandId'] as String? ??
+        '${DateTime.now().microsecondsSinceEpoch}-${peer.deviceId}';
     final command = data['command'] as String? ?? '';
     if (!AriamiConnectCommand.supported.contains(command)) {
-      _sendError(
-          socket, 'INVALID_COMMAND', 'That playback command is not supported.');
+      _sendCommandResult(socket, commandId,
+          ok: false, message: 'That playback command is not supported.');
       return;
     }
     final session = _sessions[peer.userId];
-    final target = _peerForDevice(peer.userId, session?.activeDeviceId);
-    if (target == null) {
-      _sendError(
-          socket, 'DEVICE_OFFLINE', 'The active playback device is offline.');
+    final completed = session?.completedCommands[commandId];
+    if (completed != null) {
+      _send(socket, AriamiConnectMessageType.commandResult, completed);
       return;
     }
-    final commandId = data['commandId'] as String? ??
-        '${DateTime.now().microsecondsSinceEpoch}-${peer.deviceId}';
+    final existing = session?.pendingCommands[commandId];
+    if (existing != null) {
+      // A controller can reconnect and replay before the active device answers.
+      // Move the eventual acknowledgement to its newest socket without running
+      // the playback action twice.
+      existing.requester = socket;
+      return;
+    }
+    final target = _peerForDevice(peer.userId, session?.activeDeviceId);
+    if (target == null) {
+      _sendCommandResult(socket, commandId,
+          ok: false, message: 'The active playback device is offline.');
+      return;
+    }
     if (peer.deviceId != session!.activeDeviceId) {
       session.lastControllerDeviceId = peer.deviceId;
     }
-    final pending = _PendingCommand(requester: socket);
+    final pending = _PendingCommand(
+      requester: socket,
+      targetDeviceId: target.peer.deviceId,
+    );
     session.pendingCommands[commandId] = pending;
     pending.timeout = Timer(commandTimeout, () {
       final timedOut = session.pendingCommands.remove(commandId);
       if (timedOut != null) {
-        _sendError(timedOut.requester, 'DEVICE_OFFLINE',
-            'The active playback device is not responding.');
+        final result = <String, dynamic>{
+          'commandId': commandId,
+          'ok': false,
+          'message': 'The active playback device is not responding.',
+        };
+        _rememberCommandResult(session, commandId, result);
+        _send(
+            timedOut.requester, AriamiConnectMessageType.commandResult, result);
       }
     });
     _send(target.socket, AriamiConnectMessageType.command, <String, dynamic>{
@@ -271,10 +294,38 @@ class AriamiConnectHub {
   void _handleCommandResult(_ConnectPeer peer, Map<String, dynamic> data) {
     final commandId = data['commandId'] as String?;
     if (commandId == null) return;
-    final pending = _sessions[peer.userId]?.pendingCommands.remove(commandId);
-    if (pending != null) {
+    final session = _sessions[peer.userId];
+    final pending = session?.pendingCommands[commandId];
+    if (pending != null && pending.targetDeviceId == peer.deviceId) {
+      session!.pendingCommands.remove(commandId);
       pending.timeout?.cancel();
+      _rememberCommandResult(session, commandId, data);
       _send(pending.requester, AriamiConnectMessageType.commandResult, data);
+    }
+  }
+
+  void _sendCommandResult(
+    WebSocketChannel socket,
+    String commandId, {
+    required bool ok,
+    String? message,
+  }) {
+    _send(socket, AriamiConnectMessageType.commandResult, <String, dynamic>{
+      'commandId': commandId,
+      'ok': ok,
+      if (message != null) 'message': message,
+    });
+  }
+
+  void _rememberCommandResult(
+    _ConnectSession session,
+    String commandId,
+    Map<String, dynamic> data,
+  ) {
+    session.completedCommands.remove(commandId);
+    session.completedCommands[commandId] = Map<String, dynamic>.from(data);
+    while (session.completedCommands.length > 256) {
+      session.completedCommands.remove(session.completedCommands.keys.first);
     }
   }
 
@@ -405,8 +456,12 @@ class AriamiConnectHub {
 
   void _sendWelcome(WebSocketChannel socket, _ConnectPeer peer) {
     final session = _sessions[peer.userId];
+    // Version 2: command delivery is idempotent — the hub deduplicates
+    // replayed commandIds and replays cached results, so clients may safely
+    // retransmit unacknowledged commands. Clients must not retry against
+    // version 1 hubs, which forward every replay to the active device.
     _send(socket, AriamiConnectMessageType.welcome, <String, dynamic>{
-      'protocolVersion': 1,
+      'protocolVersion': 2,
       'devices': _deviceJson(peer.userId),
       'activeDeviceId': session?.activeDeviceId,
       if (session?.snapshot != null) 'snapshot': session!.snapshot!.toJson(),
@@ -522,12 +577,15 @@ class _ConnectSession {
   int revision = 0;
   Timer? disconnectTimer;
   final Map<String, _PendingCommand> pendingCommands = {};
+  final LinkedHashMap<String, Map<String, dynamic>> completedCommands =
+      LinkedHashMap<String, Map<String, dynamic>>();
   final Map<String, _PendingTransfer> pendingTransfers = {};
 }
 
 class _PendingCommand {
-  _PendingCommand({required this.requester});
-  final WebSocketChannel requester;
+  _PendingCommand({required this.requester, required this.targetDeviceId});
+  WebSocketChannel requester;
+  final String targetDeviceId;
   Timer? timeout;
 }
 

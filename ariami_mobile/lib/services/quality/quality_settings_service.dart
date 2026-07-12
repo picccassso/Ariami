@@ -4,6 +4,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/quality_settings.dart';
 import 'network_monitor_service.dart';
 
+/// Speculative media transfers must never compete with playback on a metered or
+/// unavailable connection. Wi-Fi includes ethernet in [NetworkMonitorService].
+bool allowsSpeculativeMediaDownloadsFor(NetworkType networkType) =>
+    networkType == NetworkType.wifi;
+
 /// Service for managing audio quality settings
 ///
 /// Handles persistence and provides the appropriate streaming quality
@@ -188,6 +193,15 @@ class QualitySettingsService {
 
   /// Current network type
   NetworkType get currentNetworkType => _networkMonitor.currentNetworkType;
+
+  /// Whether non-essential whole-file transfers may run alongside playback.
+  ///
+  /// This intentionally remains conservative for VPN-only connectivity reports:
+  /// on iOS and Android a Tailscale tunnel may be reported without the underlying
+  /// bearer, so unknown/VPN connectivity is treated like cellular rather than
+  /// risking an original-quality cache download starving the active stream.
+  bool get allowsSpeculativeMediaDownloads =>
+      allowsSpeculativeMediaDownloadsFor(currentNetworkType);
 
   /// Reset in-memory quality settings to factory defaults.
   void resetToDefaults() {

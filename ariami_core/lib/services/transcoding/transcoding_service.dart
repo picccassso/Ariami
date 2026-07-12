@@ -303,6 +303,18 @@ class TranscodingService {
     }
   }
 
+  /// Final cache file used by lower-quality streaming.
+  ///
+  /// Exposed so the HTTP layer can begin a cold stream from Sonic's growing
+  /// partial output instead of waiting for the complete song to be transcoded.
+  File streamingCacheFile(String songId, QualityPreset quality) =>
+      _getCachedFile(songId, quality);
+
+  /// In-progress output paired with [streamingCacheFile]. The file is renamed
+  /// atomically to the final path when transcoding completes.
+  File streamingPartialFile(String songId, QualityPreset quality) =>
+      File('${_getCachedFile(songId, quality).path}.partial');
+
   /// Process next streaming task in queue if capacity available.
   void _processNextStreamingQueue() {
     if (_streamingQueue.isEmpty || _runningStreamingCount >= maxConcurrency) {

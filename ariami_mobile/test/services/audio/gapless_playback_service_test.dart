@@ -46,4 +46,43 @@ void main() {
     service.removeListener(listener);
     expect(notificationCount, 1);
   });
+
+  test('speculative preparation waits for safe playback headroom', () {
+    expect(
+      hasSpeculativeGaplessHeadroom(
+        position: const Duration(seconds: 10),
+        bufferedPosition: const Duration(seconds: 29),
+      ),
+      isFalse,
+    );
+    expect(
+      hasSpeculativeGaplessHeadroom(
+        position: const Duration(seconds: 10),
+        bufferedPosition: const Duration(seconds: 30),
+      ),
+      isTrue,
+    );
+  });
+
+  test('a fully buffered track always has headroom', () {
+    // Near the end of a song the remaining buffer is below any fixed
+    // threshold, but the download is finished so preparation is free — and
+    // this is exactly when the gapless successor must be ready.
+    expect(
+      hasSpeculativeGaplessHeadroom(
+        position: const Duration(seconds: 170),
+        bufferedPosition: const Duration(seconds: 180),
+        duration: const Duration(seconds: 180),
+      ),
+      isTrue,
+    );
+    expect(
+      hasSpeculativeGaplessHeadroom(
+        position: const Duration(seconds: 170),
+        bufferedPosition: const Duration(seconds: 175),
+        duration: const Duration(seconds: 180),
+      ),
+      isFalse,
+    );
+  });
 }
