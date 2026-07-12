@@ -635,6 +635,19 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
         .deleteSongDownloads(_songs.map((s) => s.id).toList());
   }
 
+  /// Cancel the active playlist batch and remove anything it downloaded.
+  Future<void> _cancelPlaylistDownload() async {
+    await _downloadManager
+        .deleteSongDownloads(_songs.map((song) => song.id).toList());
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Playlist download cancelled and removed'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
   /// Play all songs from playlist
   Future<void> _playAll() async {
     if (_songs.isEmpty) return;
@@ -903,11 +916,13 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
             hasSongs: _songs.isNotEmpty,
             canReorder: _songs.length > 1,
             isReorderMode: _isReorderMode,
+            songIds: _songs.map((song) => song.id).toList(),
             onDownloadPlaylist: _songs.isEmpty
                 ? null
                 : (_isPlaylistFullyDownloaded
                     ? _confirmRemoveDownloads
                     : _downloadPlaylist),
+            onCancelDownload: _cancelPlaylistDownload,
             onPlay: _playAll,
             onShuffle: _shuffleAll,
             onToggleReorder: () =>

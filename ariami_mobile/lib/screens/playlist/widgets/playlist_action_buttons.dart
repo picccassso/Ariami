@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../widgets/download/collection_download_button.dart';
 
 /// Action buttons for playlist (Download, Reorder, Add, Shuffle, Play).
 class PlaylistActionButtons extends StatelessWidget {
@@ -14,8 +15,14 @@ class PlaylistActionButtons extends StatelessWidget {
   /// Current reorder mode state
   final bool isReorderMode;
 
-  /// Callback when Download button is pressed (null when fully downloaded)
+  /// Song IDs used to calculate live collection download progress.
+  final List<String> songIds;
+
+  /// Starts a download or removes an already-downloaded playlist.
   final VoidCallback? onDownloadPlaylist;
+
+  /// Cancels and removes an in-progress playlist download.
+  final VoidCallback? onCancelDownload;
 
   /// Callback when Play button is pressed
   final VoidCallback? onPlay;
@@ -38,7 +45,9 @@ class PlaylistActionButtons extends StatelessWidget {
     required this.hasSongs,
     required this.canReorder,
     required this.isReorderMode,
+    this.songIds = const [],
     this.onDownloadPlaylist,
+    this.onCancelDownload,
     this.onPlay,
     this.onShuffle,
     this.onToggleReorder,
@@ -56,14 +65,12 @@ class PlaylistActionButtons extends StatelessWidget {
           // Left side: Download and secondary actions
           Row(
             children: [
-              IconButton(
-                icon: Icon(
-                  isPlaylistFullyDownloaded
-                      ? Icons.download_done_rounded
-                      : Icons.download_for_offline_outlined,
-                  color: isPlaylistFullyDownloaded ? Colors.green : null,
-                ),
+              CollectionDownloadButton(
+                songIds: songIds,
+                isFullyDownloaded: isPlaylistFullyDownloaded,
                 onPressed: onDownloadPlaylist,
+                onCancel: onCancelDownload,
+                collectionLabel: 'playlist',
                 iconSize: 28,
               ),
               IconButton(

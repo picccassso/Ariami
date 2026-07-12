@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
+import '../download/collection_download_button.dart';
 
 /// Row of album-level actions (download, queue, shuffle, play).
 class AlbumActionButtons extends StatelessWidget {
   final bool isAlbumFullyDownloaded;
   final bool hasSongs;
   final bool isPinned;
+  final List<String> songIds;
   final VoidCallback? onDownloadAlbum;
+  final VoidCallback? onCancelDownload;
   final VoidCallback onAddToPlaylist;
   final VoidCallback onAddToQueue;
   final VoidCallback onShuffleAll;
@@ -17,7 +20,9 @@ class AlbumActionButtons extends StatelessWidget {
     required this.isAlbumFullyDownloaded,
     required this.hasSongs,
     required this.isPinned,
+    required this.songIds,
     required this.onDownloadAlbum,
+    this.onCancelDownload,
     required this.onAddToPlaylist,
     required this.onAddToQueue,
     required this.onShuffleAll,
@@ -34,14 +39,12 @@ class AlbumActionButtons extends StatelessWidget {
         children: [
           Row(
             children: [
-              IconButton(
-                icon: Icon(
-                  isAlbumFullyDownloaded
-                      ? Icons.download_done_rounded
-                      : Icons.download_for_offline_outlined,
-                  color: isAlbumFullyDownloaded ? Colors.green : null,
-                ),
+              CollectionDownloadButton(
+                songIds: songIds,
+                isFullyDownloaded: isAlbumFullyDownloaded,
                 onPressed: onDownloadAlbum,
+                onCancel: onCancelDownload,
+                collectionLabel: 'album',
                 iconSize: 28,
               ),
               IconButton(

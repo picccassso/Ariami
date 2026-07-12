@@ -312,12 +312,16 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
                     .every((song) => _downloadedSongIds.contains(song.id)),
             hasSongs: (_albumDetail?.songs ?? []).isNotEmpty,
             isPinned: _libraryController.state.isAlbumPinned(widget.album.id),
+            songIds: (_albumDetail?.songs ?? const <SongModel>[])
+                .map((song) => song.id)
+                .toList(),
             onDownloadAlbum: (_albumDetail?.songs ?? []).isEmpty
                 ? null
                 : (_albumDetail!.songs
                         .every((song) => _downloadedSongIds.contains(song.id))
                     ? _confirmRemoveDownloads
                     : _downloadAlbum),
+            onCancelDownload: _cancelAlbumDownload,
             onAddToPlaylist: _addToPlaylist,
             onAddToQueue: _addToQueue,
             onShuffleAll: _shuffleAll,
@@ -484,6 +488,19 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
     if (confirmed != true || !mounted) return;
 
     await _downloadManager.deleteAlbumDownloads(widget.album.id);
+  }
+
+  /// Cancel the active album batch and remove anything it downloaded.
+  Future<void> _cancelAlbumDownload() async {
+    final songIds = _albumDetail?.songs.map((song) => song.id) ?? const [];
+    await _downloadManager.deleteSongDownloads(songIds);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Album download cancelled and removed'),
+        duration: Duration(seconds: 2),
+      ),
+    );
   }
 
   void _playAll() async {
