@@ -51,7 +51,7 @@ class PlaylistService extends ChangeNotifier {
       'ariami_playlist_image_versions';
   static const String _pendingPlaylistImagePushesKey =
       'ariami_pending_playlist_image_pushes';
-  static const String likedSongsId = '__LIKED_SONGS__';
+  static const String likedSongsId = likedSongsPlaylistId;
   static final PlaylistService _instance = PlaylistService._internal();
 
   factory PlaylistService() => _instance;

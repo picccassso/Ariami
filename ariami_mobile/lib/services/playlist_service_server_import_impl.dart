@@ -217,8 +217,9 @@ extension _PlaylistServiceServerImportImpl on PlaylistService {
   /// replayed by [_replayPendingImportedEditPushesImpl] on the next
   /// connection; until then inbound sync leaves it untouched.
   Future<void> _pushImportedPlaylistEditImpl(String localPlaylistId) async {
-    // Created playlists have no server folder base; they push their own edit.
-    if (isCreatedPlaylistId(localPlaylistId)) {
+    // Account-owned playlists have no server folder base; they push their own
+    // authoritative edit. This includes both user-created and Liked Songs.
+    if (isAccountOwnedPlaylistId(localPlaylistId)) {
       await _pushCreatedPlaylistEditImpl(localPlaylistId);
       return;
     }
@@ -294,7 +295,7 @@ extension _PlaylistServiceServerImportImpl on PlaylistService {
     try {
       for (final localId in _pendingImportedEditPushes.toList()) {
         final stillPresent = _getPlaylistImpl(localId) != null &&
-            (isCreatedPlaylistId(localId) ||
+            (isAccountOwnedPlaylistId(localId) ||
                 _importedFromServer.containsKey(localId));
         if (!stillPresent) {
           // The playlist was deleted or unlinked while the push was queued.

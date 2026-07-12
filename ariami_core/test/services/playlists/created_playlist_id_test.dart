@@ -17,6 +17,11 @@ void main() {
       expect(isCreatedPlaylistId('__LIKED_SONGS__'), isFalse);
     });
 
+    test('recognizes Liked Songs as account-owned but not user-created', () {
+      expect(isAccountOwnedPlaylistId(likedSongsPlaylistId), isTrue);
+      expect(isCreatedPlaylistId(likedSongsPlaylistId), isFalse);
+    });
+
     test('newCreatedPlaylistId is recognized and carries the current prefix',
         () {
       final id = newCreatedPlaylistId();
@@ -25,7 +30,9 @@ void main() {
     });
 
     test('newCreatedPlaylistId yields unique ids', () {
-      final ids = <String>{for (var i = 0; i < 1000; i++) newCreatedPlaylistId()};
+      final ids = <String>{
+        for (var i = 0; i < 1000; i++) newCreatedPlaylistId()
+      };
       expect(ids.length, 1000);
     });
   });

@@ -361,6 +361,30 @@ void main() {
       );
     });
 
+    test('like made without a connection is queued for cross-device sync',
+        () async {
+      await playlistService.toggleLikedSong(
+        'song-liked-offline',
+        'album-1',
+        title: 'Offline Like',
+        artist: 'Ariami',
+        duration: 180,
+      );
+      // The server push runs unawaited after the local mutation.
+      await Future<void>.delayed(Duration.zero);
+
+      expect(playlistService.isLikedSong('song-liked-offline'), isTrue);
+      expect(
+        playlistService.pendingImportedEditPushIds,
+        {PlaylistService.likedSongsId},
+      );
+      final prefs = await SharedPreferences.getInstance();
+      expect(
+        prefs.getString('ariami_pending_imported_edit_pushes'),
+        contains(PlaylistService.likedSongsId),
+      );
+    });
+
     test('inbound sync leaves playlists with queued offline edits untouched',
         () async {
       final imported = await importBasePlaylist();

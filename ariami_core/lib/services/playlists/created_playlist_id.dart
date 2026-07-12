@@ -19,11 +19,21 @@ const String createdPlaylistPrefix = 'created:';
 /// syncing.
 const String legacyDesktopCreatedPlaylistPrefix = 'desktop-created:';
 
+/// Stable account-scoped playlist used by every client for song likes.
+///
+/// Unlike a folder playlist it has no on-disk base. Keeping this id shared is
+/// what lets a heart toggled on one device appear on the others.
+const String likedSongsPlaylistId = '__LIKED_SONGS__';
+
 /// Whether [playlistId] refers to a client-created playlist rather than a
 /// server folder playlist. Recognizes both the current and legacy prefixes.
 bool isCreatedPlaylistId(String playlistId) =>
     playlistId.startsWith(createdPlaylistPrefix) ||
     playlistId.startsWith(legacyDesktopCreatedPlaylistPrefix);
+
+/// Whether [playlistId] lives entirely in the account playlist-edit store.
+bool isAccountOwnedPlaylistId(String playlistId) =>
+    isCreatedPlaylistId(playlistId) || playlistId == likedSongsPlaylistId;
 
 final Random _createdPlaylistRandom = Random();
 

@@ -30,6 +30,15 @@ extension _PlaylistServiceServerEditsImpl on PlaylistService {
         .whereType<ServerPlaylistImage>()
         .toList(growable: false);
     _notifyListeners();
+    // One-time migration for likes created by older mobile builds, which kept
+    // Liked Songs only on-device. If the account has no synced row yet, make
+    // the existing local list the initial server state instead of losing it.
+    final localLiked = _getPlaylistImpl(PlaylistService.likedSongsId);
+    if (!_serverPlaylistEdits.containsKey(PlaylistService.likedSongsId) &&
+        localLiked != null &&
+        localLiked.songIds.isNotEmpty) {
+      await _markImportedEditPushPending(PlaylistService.likedSongsId);
+    }
     // Queued offline edits are replayed first so they win over overlays
     // fetched above (and are not clobbered by the inbound sync below).
     await _replayPendingImportedEditPushesImpl();
@@ -44,7 +53,7 @@ extension _PlaylistServiceServerEditsImpl on PlaylistService {
     // local copies here so they show up alongside imported playlists.
     await _syncCreatedPlaylistsFromEditsImpl(
       removedCreatedPlaylistIds:
-          removedEditIds.where(isCreatedPlaylistId).toSet(),
+          removedEditIds.where(isAccountOwnedPlaylistId).toSet(),
     );
     // Photos follow the same order as edits: queued local changes are
     // replayed first so they win, then the server's image manifest is
@@ -74,14 +83,16 @@ extension _PlaylistServiceServerEditsImpl on PlaylistService {
 
     for (final entry in _serverPlaylistEdits.entries) {
       final id = entry.key;
-      if (!isCreatedPlaylistId(id)) continue;
+      if (!isAccountOwnedPlaylistId(id)) continue;
       // A queued local edit is this device's newest intent; don't clobber it.
       if (_pendingImportedEditPushes.contains(id)) continue;
 
       final edit = entry.value;
-      final name = (edit.name != null && edit.name!.trim().isNotEmpty)
-          ? edit.name!.trim()
-          : 'Playlist';
+      final name = id == likedSongsPlaylistId
+          ? 'Liked Songs'
+          : (edit.name != null && edit.name!.trim().isNotEmpty)
+              ? edit.name!.trim()
+              : 'Playlist';
       final songIds = List<String>.from(edit.songIds);
       final index = _playlists.indexWhere((playlist) => playlist.id == id);
 
