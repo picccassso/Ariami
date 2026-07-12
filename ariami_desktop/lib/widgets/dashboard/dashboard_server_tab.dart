@@ -5,6 +5,7 @@ import '../autostart_card.dart';
 import '../info_card.dart';
 import '../transcode_slots_dialog.dart';
 import 'dashboard_keep_alive_tab.dart';
+import 'tv_license_card.dart';
 
 class DashboardServerTab extends StatelessWidget {
   const DashboardServerTab({
@@ -124,6 +125,10 @@ class DashboardServerTab extends StatelessWidget {
               ),
             ],
           ),
+          const SizedBox(height: 32),
+          const Text('Ariami TV', style: _sectionTitleStyle),
+          const SizedBox(height: 16),
+          const TvLicenseCard(),
           const SizedBox(height: 32),
           const Text('Quick Actions', style: _sectionTitleStyle),
           const SizedBox(height: 16),

@@ -1143,6 +1143,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                             isRefreshingAddresses: _isRefreshingAddresses,
                             onRefreshAddresses: _refreshServerAddresses,
                             isAdmin: _isAdmin,
+                            apiClient: _apiClient,
                             transcodeSlotsSnapshot: _transcodeSlotsSnapshot,
                             isLoadingTranscodeSlots: _isLoadingTranscodeSlots,
                             isSavingTranscodeSlots: _isSavingTranscodeSlots,

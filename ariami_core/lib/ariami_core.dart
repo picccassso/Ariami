@@ -71,6 +71,8 @@ export 'services/stats/listening_stats_store.dart';
 export 'services/stats/listening_stats_syncer.dart';
 export 'services/stats/stats_range.dart';
 export 'services/pins/pinned_item_store.dart';
+export 'services/license/license_file_store.dart';
+export 'services/license/license_key_activator.dart';
 
 // Auth Services
 export 'services/auth/auth_service.dart';

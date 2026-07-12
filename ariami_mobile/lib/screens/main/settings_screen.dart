@@ -414,6 +414,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ],
               ),
 
+              // Ariami TV section
+              SettingsSection(
+                title: 'ARIAMI TV',
+                tiles: [
+                  SettingsTile(
+                    icon: Icons.tv_rounded,
+                    title: 'Activate TV License',
+                    subtitle: 'Unlock your TVs with a license key — '
+                        'no typing on the TV',
+                    onTap: () {
+                      Navigator.of(context).pushNamed('/tv-license');
+                    },
+                  ),
+                ],
+              ),
+
               // About section
               SettingsSection(
                 title: 'ABOUT',

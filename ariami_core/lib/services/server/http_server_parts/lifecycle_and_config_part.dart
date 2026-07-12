@@ -180,6 +180,8 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
       _playlistEditStore = null;
       _playlistImageStore?.close();
       _playlistImageStore = null;
+      _licenseFileStore?.close();
+      _licenseFileStore = null;
       _userAvatarsDirectoryPath = null;
     }
 
@@ -251,6 +253,20 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
       _playlistImageStore = store;
     } catch (e) {
       print('[HttpServer] Playlist image store unavailable: $e');
+    }
+
+    // A client-uploaded license file is durable household data kept beside
+    // the auth stores. The server never inspects it — clients verify it —
+    // so failure here must never block startup.
+    try {
+      final licenseFilePath =
+          '${File(usersFilePath).parent.path}/client_license.txt';
+      final store =
+          _licenseFileStore ?? LicenseFileStore(filePath: licenseFilePath);
+      store.initialize();
+      _licenseFileStore = store;
+    } catch (e) {
+      print('[HttpServer] License file store unavailable: $e');
     }
 
     // Initialize StreamTracker (starts cleanup timer)

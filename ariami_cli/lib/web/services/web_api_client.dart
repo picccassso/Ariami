@@ -362,6 +362,56 @@ class WebApiClient {
     return response.jsonBody?['enabled'] == true;
   }
 
+  Future<WebApiResponse> put(
+    String path, {
+    Map<String, String>? headers,
+    Map<String, dynamic>? body,
+    bool includeAuth = true,
+    bool includeDeviceIdentity = false,
+  }) {
+    return _send(
+      method: 'PUT',
+      path: path,
+      headers: headers,
+      body: body,
+      includeAuth: includeAuth,
+      includeDeviceIdentity: includeDeviceIdentity,
+    );
+  }
+
+  /// Every household license file stored on the server (newest last). The
+  /// server relays them verbatim; devices verify the files themselves.
+  Future<List<String>> getLicenseFiles() async {
+    final response = await get('/api/license', includeDeviceIdentity: true);
+    if (!response.isSuccess) {
+      throw WebApiException(response);
+    }
+    final files = response.jsonBody?['licenseFiles'];
+    if (files is List) {
+      return files
+          .whereType<String>()
+          .where((file) => file.isNotEmpty)
+          .toList();
+    }
+    final single = response.jsonBody?['licenseFile'];
+    return single is String && single.isNotEmpty
+        ? <String>[single]
+        : const <String>[];
+  }
+
+  /// Stores an opaque license file on the server so household devices
+  /// (TVs) can fetch and verify it themselves. Admin only.
+  Future<void> putLicenseFile(String licenseFile) async {
+    final response = await put(
+      '/api/license',
+      body: <String, dynamic>{'licenseFile': licenseFile},
+      includeDeviceIdentity: true,
+    );
+    if (!response.isSuccess) {
+      throw WebApiException(response);
+    }
+  }
+
   Future<WebApiResponse> _send({
     required String method,
     required String path,
@@ -402,6 +452,13 @@ class WebApiClient {
       }
       if (method == 'POST') {
         return _httpClient.post(
+          uri,
+          headers: effectiveHeaders,
+          body: body == null ? null : jsonEncode(body),
+        );
+      }
+      if (method == 'PUT') {
+        return _httpClient.put(
           uri,
           headers: effectiveHeaders,
           body: body == null ? null : jsonEncode(body),

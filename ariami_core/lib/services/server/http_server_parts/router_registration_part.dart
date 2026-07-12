@@ -209,6 +209,9 @@ extension AriamiHttpServerRouterMethods on AriamiHttpServer {
     router.put('/api/me/avatar', _handlePutMeAvatar);
     router.get('/api/me/avatar', _handleGetMeAvatar);
     router.delete('/api/me/avatar', _handleDeleteMeAvatar);
+    router.get('/api/license', _handleLicenseGet);
+    router.put('/api/license', _handleLicensePut);
+    router.delete('/api/license', _handleLicenseDelete);
     router.post('/api/stream-ticket', _handleStreamTicket);
     router.post('/api/stream-warmup', _handleStreamWarmup);
     router.post('/api/download-ticket', _handleDownloadTicket);

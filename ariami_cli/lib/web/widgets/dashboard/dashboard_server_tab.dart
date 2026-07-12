@@ -1,9 +1,11 @@
 import 'package:ariami_core/services/transcoding/transcode_slots_policy.dart';
 import 'package:flutter/material.dart';
 
+import '../../services/web_api_client.dart';
 import 'dashboard_keep_alive_tab.dart';
 import 'server_info_card.dart';
 import 'transcode_slots_section.dart';
+import 'tv_license_section.dart';
 
 class DashboardServerTab extends StatelessWidget {
   const DashboardServerTab({
@@ -14,6 +16,7 @@ class DashboardServerTab extends StatelessWidget {
     required this.isRefreshingAddresses,
     required this.onRefreshAddresses,
     required this.isAdmin,
+    required this.apiClient,
     required this.transcodeSlotsSnapshot,
     required this.isLoadingTranscodeSlots,
     required this.isSavingTranscodeSlots,
@@ -27,6 +30,7 @@ class DashboardServerTab extends StatelessWidget {
   final bool isRefreshingAddresses;
   final VoidCallback onRefreshAddresses;
   final bool isAdmin;
+  final WebApiClient apiClient;
   final TranscodeSlotsSnapshot? transcodeSlotsSnapshot;
   final bool isLoadingTranscodeSlots;
   final bool isSavingTranscodeSlots;
@@ -54,6 +58,8 @@ class DashboardServerTab extends StatelessWidget {
               error: transcodeSlotsError,
               onEdit: onEditTranscodeSlots,
             ),
+            const SizedBox(height: 48),
+            TvLicenseSection(apiClient: apiClient),
           ],
         ],
       ),

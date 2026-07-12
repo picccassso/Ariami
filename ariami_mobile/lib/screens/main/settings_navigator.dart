@@ -7,6 +7,7 @@ import '../settings/import_export_screen.dart';
 import '../settings/quality_settings_screen.dart';
 import '../settings/streaming_stats_screen.dart';
 import '../settings/profile_screen.dart';
+import '../settings/tv_license_screen.dart';
 import 'nested_tab_navigator.dart';
 
 /// A navigator key for the settings tab's nested navigation
@@ -54,6 +55,9 @@ class SettingsNavigator extends StatelessWidget {
             break;
           case '/profile':
             page = const ProfileScreen();
+            break;
+          case '/tv-license':
+            page = const TvLicenseScreen();
             break;
           // Add more routes here as settings sub-screens are added
           default:

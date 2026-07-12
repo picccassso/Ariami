@@ -539,6 +539,17 @@ class ApiClient {
   }
 
   // ============================================================================
+  // LICENSE RELAY
+  // ============================================================================
+
+  /// Stores an opaque license file on the server so other household
+  /// devices (TVs) can fetch and verify it themselves. Admin/owner
+  /// sessions only — others get an ApiException with FORBIDDEN_ADMIN.
+  Future<void> putLicenseFile(String licenseFile) async {
+    await _put('/license', <String, dynamic>{'licenseFile': licenseFile});
+  }
+
+  // ============================================================================
   // STREAMING ENDPOINTS
   // ============================================================================
 
