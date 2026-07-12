@@ -156,9 +156,13 @@ class _TvLicenseSectionState extends State<TvLicenseSection> {
                         ),
                         const SizedBox(height: 4),
                         Text(
+                          // The stored blob is opaque here (only the TV can
+                          // verify what it covers), so never promise it
+                          // unlocks TVs.
                           _hasStoredLicense
-                              ? 'A license is stored on this server. TVs '
-                                  'pick it up automatically when they '
+                              ? 'A license file is already stored on this '
+                                  'server. If it includes Ariami TV, your '
+                                  'TVs unlock automatically when they '
                                   'connect.'
                               : 'Paste the TV license key from your '
                                   'purchase email. It\'s stored on this '
