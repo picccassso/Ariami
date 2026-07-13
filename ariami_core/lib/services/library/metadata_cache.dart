@@ -73,7 +73,9 @@ class MetadataCache {
   ///     extracted with filename-only metadata get their real tags.
   /// v6: Prefer valid ID3v2 Unicode over lossy ID3v1 compatibility text and
   ///     recover missing ID3v2 artwork; re-extract unchanged affected files.
-  static const int schemaVersion = 6;
+  /// v7: Deterministic source precedence, stricter field validation, bounded
+  ///     tag parsing, and cross-format artwork fallback require re-extraction.
+  static const int schemaVersion = 7;
 
   /// Maximum number of entries (sanity limit ~50MB)
   static const int maxEntries = 100000;

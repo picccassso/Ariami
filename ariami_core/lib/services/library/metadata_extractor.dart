@@ -1,6 +1,6 @@
 import 'dart:convert';
+import 'dart:developer' as developer;
 import 'dart:io';
-import 'dart:math' show min;
 import 'dart:typed_data';
 import 'package:path/path.dart' as p;
 import 'package:dart_tags/dart_tags.dart';
@@ -17,19 +17,64 @@ typedef ProcessRunner = Future<ProcessResult> Function(
   List<String> arguments,
 );
 
+typedef BinaryProcessRunner = Future<ProcessResult> Function(
+  String executable,
+  List<String> arguments,
+);
+
+typedef MetadataDiagnosticLogger = void Function(String message);
+
+const bool _externalMetadataToolsEnabledByBuild =
+    !bool.fromEnvironment('ARIAMI_DISABLE_EXTERNAL_METADATA_TOOLS');
+
+Future<ProcessResult> _runBinaryProcess(
+  String executable,
+  List<String> arguments,
+) =>
+    Process.run(
+      executable,
+      arguments,
+      stdoutEncoding: null,
+      stderrEncoding: utf8,
+    );
+
+void _defaultMetadataDiagnosticLogger(String message) {
+  developer.log(message, name: 'MetadataExtractor');
+}
+
 /// Service for extracting metadata from audio files
 class MetadataExtractor {
   MetadataExtractor({
     TagProcessor? tagProcessor,
     Mp3DurationParser? mp3DurationParser,
     ProcessRunner? processRunner,
+    BinaryProcessRunner? binaryProcessRunner,
+    MetadataDiagnosticLogger? diagnosticLogger,
+    bool externalToolsEnabled = _externalMetadataToolsEnabledByBuild,
+    Duration tagReadTimeout = const Duration(seconds: 3),
+    Duration processTimeout = const Duration(seconds: 5),
   })  : _tagProcessor = tagProcessor ?? TagProcessor(),
         _mp3DurationParser = mp3DurationParser ?? Mp3DurationParser(),
-        _processRunner = processRunner ?? Process.run;
+        _processRunner = processRunner ?? Process.run,
+        _binaryProcessRunner = binaryProcessRunner ?? _runBinaryProcess,
+        _diagnosticLogger =
+            diagnosticLogger ?? _defaultMetadataDiagnosticLogger,
+        _externalToolsEnabled = externalToolsEnabled,
+        _tagReadTimeout = tagReadTimeout,
+        _processTimeout = processTimeout;
 
   final TagProcessor _tagProcessor;
   final Mp3DurationParser _mp3DurationParser;
   final ProcessRunner _processRunner;
+  final BinaryProcessRunner _binaryProcessRunner;
+  final MetadataDiagnosticLogger _diagnosticLogger;
+  final bool _externalToolsEnabled;
+  final Duration _tagReadTimeout;
+  final Duration _processTimeout;
+
+  static const int _maxTagSectionBytes = 16 * 1024 * 1024;
+  static const int _maxTagTextLength = 4096;
+  static const int _maxArtworkBytes = 64 * 1024 * 1024;
 
   /// Extracts metadata from a single audio file
   ///
@@ -47,86 +92,137 @@ class MetadataExtractor {
       // Read metadata using optimized tag reading (reads only tag sections, not entire file)
       final tags = await _readTagsOptimized(file, fileSize);
 
-      // Extract metadata from tags
-      String? title;
-      String? artist;
-      String? album;
-      String? albumArtist;
-      int? year;
-      int? trackNumber;
-      int? discNumber;
-      String? genre;
+      // Extract metadata from tags. Source rank makes precedence independent
+      // of parser iteration order: ID3v2 > unknown/other > legacy ID3v1.
+      var titleSelection = const _SelectedText();
+      var artistSelection = const _SelectedText();
+      var albumSelection = const _SelectedText();
+      var albumArtistSelection = const _SelectedText();
+      var genreSelection = const _SelectedText();
+      var yearSelection = const _SelectedInt();
+      var trackSelection = const _SelectedInt();
+      var discSelection = const _SelectedInt();
+      final rejectedFields = <String>{};
       int? duration;
       int? bitrate;
       List<int>? albumArt;
 
       for (final tag in tags) {
         final tagMap = tag.tags;
+        final sourceRank = _tagSourceRank(tag);
 
         final parsedTitle =
             _fixEncoding(_getTagValue(tagMap, ['title', 'TIT2']));
-        if (_preferTagValue(title, parsedTitle)) {
-          title = parsedTitle;
-        }
+        titleSelection = _selectText(
+          titleSelection,
+          parsedTitle,
+          sourceRank,
+          field: 'title',
+          rejectedFields: rejectedFields,
+        );
 
         final parsedArtist =
-            _fixEncoding(_getTagValue(tagMap, ['artist', 'TPE1']));
-        if (_preferTagValue(artist, parsedArtist)) {
-          artist = parsedArtist;
-        }
+            _fixEncoding(_getTagValue(tagMap, ['artist', 'artists', 'TPE1']));
+        artistSelection = _selectText(
+          artistSelection,
+          parsedArtist,
+          sourceRank,
+          field: 'artist',
+          rejectedFields: rejectedFields,
+        );
 
         final parsedAlbum =
             _fixEncoding(_getTagValue(tagMap, ['album', 'TALB']));
-        if (_preferTagValue(album, parsedAlbum)) {
-          album = parsedAlbum;
-        }
+        albumSelection = _selectText(
+          albumSelection,
+          parsedAlbum,
+          sourceRank,
+          field: 'album',
+          rejectedFields: rejectedFields,
+        );
 
-        final parsedAlbumArtist =
-            _fixEncoding(_getTagValue(tagMap, ['albumartist', 'TPE2']));
-        if (_preferTagValue(albumArtist, parsedAlbumArtist)) {
-          albumArtist = parsedAlbumArtist;
-        }
+        final parsedAlbumArtist = _fixEncoding(_getTagValue(tagMap, [
+          'albumartist',
+          'album_artist',
+          'album artist',
+          'TPE2',
+        ]));
+        albumArtistSelection = _selectText(
+          albumArtistSelection,
+          parsedAlbumArtist,
+          sourceRank,
+          field: 'album_artist',
+          rejectedFields: rejectedFields,
+        );
 
         final parsedGenre =
             _fixEncoding(_getTagValue(tagMap, ['genre', 'TCON']));
-        if (_preferTagValue(genre, parsedGenre)) {
-          genre = parsedGenre;
+        genreSelection = _selectText(
+          genreSelection,
+          parsedGenre,
+          sourceRank,
+          field: 'genre',
+          rejectedFields: rejectedFields,
+        );
+
+        final rawYear = _getTagValue(tagMap, ['year', 'TYER', 'TDRC']);
+        if (rawYear != null) {
+          final parsedYear = _parseYear(rawYear);
+          if (parsedYear == null) {
+            rejectedFields.add('date');
+            _diagnose('field_rejected source=id3 field=date reason=invalid');
+          }
+          yearSelection = _selectInt(yearSelection, parsedYear, sourceRank);
         }
 
-        // Extract year
-        final yearStr = _getTagValue(tagMap, ['year', 'TYER', 'TDRC']);
-        if (yearStr != null && year == null) {
-          year = int.tryParse(
-            yearStr.split('-').first,
-          ); // Handle YYYY or YYYY-MM-DD
+        final rawTrack = _getTagValue(tagMap, ['track', 'tracknumber', 'TRCK']);
+        if (rawTrack != null) {
+          final parsedTrack = _parsePosition(rawTrack);
+          if (parsedTrack == null) {
+            rejectedFields.add('track');
+            _diagnose('field_rejected source=id3 field=track reason=invalid');
+          }
+          trackSelection = _selectInt(trackSelection, parsedTrack, sourceRank);
         }
 
-        // Extract track number
-        final trackStr = _getTagValue(tagMap, ['track', 'TRCK']);
-        if (trackStr != null && trackNumber == null) {
-          trackNumber = int.tryParse(
-            trackStr.split('/').first,
-          ); // Handle "3/12" format
-        }
-
-        // Extract disc number
-        final discStr = _getTagValue(tagMap, ['disc', 'TPOS']);
-        if (discStr != null && discNumber == null) {
-          discNumber = int.tryParse(
-            discStr.split('/').first,
-          ); // Handle "1/2" format
+        final rawDisc = _getTagValue(tagMap, ['disc', 'discnumber', 'TPOS']);
+        if (rawDisc != null) {
+          final parsedDisc = _parsePosition(rawDisc);
+          if (parsedDisc == null) {
+            rejectedFields.add('disc');
+            _diagnose('field_rejected source=id3 field=disc reason=invalid');
+          }
+          discSelection = _selectInt(discSelection, parsedDisc, sourceRank);
         }
 
         // Skip duration and album art extraction during scan - done lazily on demand
       }
 
-      // dart_tags only parses ID3 (MP3). For FLAC/M4A/OGG/etc — or MP3s with
-      // stripped ID3 tags — fall back to ffprobe's container tags before
-      // resorting to filename parsing. The single probe also returns duration
-      // and bitrate, saving the separate spawns those would otherwise need.
-      if (_needsFallback(title) ||
-          _needsFallback(artist) ||
-          _needsFallback(album)) {
+      String? title = titleSelection.value;
+      String? artist = artistSelection.value;
+      String? album = albumSelection.value;
+      String? albumArtist = albumArtistSelection.value;
+      String? genre = genreSelection.value;
+      int? year = yearSelection.value;
+      int? trackNumber = trackSelection.value;
+      int? discNumber = discSelection.value;
+
+      final extension = p.extension(filePath).toLowerCase();
+      final shouldProbe = extension != '.mp3' ||
+          _needsFallback(title, field: 'title') ||
+          _needsFallback(artist, field: 'artist') ||
+          _needsFallback(album, field: 'album') ||
+          rejectedFields.isNotEmpty;
+      if (rejectedFields.isNotEmpty) {
+        _diagnose(
+          'rejected_fields format=${_safeFormat(filePath)} '
+          'fields=${_sortedFields(rejectedFields)}',
+        );
+      }
+
+      // ffprobe is the cross-format parser and a per-field fallback for MP3
+      // fields that the primary parser omitted or rejected.
+      if (shouldProbe) {
         final probed = await _probeWithFfprobe(filePath);
         if (probed != null) {
           String? probe(List<String> keys) {
@@ -137,41 +233,49 @@ class MetadataExtractor {
             return null;
           }
 
-          title = _fallbackTagValue(title, _fixEncoding(probe(['title'])));
-          artist = _fallbackTagValue(artist, _fixEncoding(probe(['artist'])));
-          album = _fallbackTagValue(album, _fixEncoding(probe(['album'])));
-          albumArtist = _fallbackTagValue(
-            albumArtist,
-            _fixEncoding(probe(['album_artist', 'albumartist'])),
-          );
-          genre = _fallbackTagValue(genre, _fixEncoding(probe(['genre'])));
+          final fallbackFields = <String>{};
+          String? fallbackText(
+            String field,
+            String? current,
+            List<String> keys,
+          ) {
+            if (!_needsFallback(current, field: field)) return current;
+            final fallback = _fixEncoding(probe(keys));
+            if (_needsFallback(fallback, field: field)) return current;
+            fallbackFields.add(field);
+            return fallback;
+          }
+
+          title = fallbackText('title', title, ['title']);
+          artist = fallbackText('artist', artist, ['artist', 'artists']);
+          album = fallbackText('album', album, ['album']);
+          albumArtist = fallbackText(
+              'album_artist', albumArtist, ['album_artist', 'albumartist']);
+          genre = fallbackText('genre', genre, ['genre']);
 
           if (year == null) {
-            final dateStr = probe(['date', 'year', 'originaldate']);
-            if (dateStr != null) {
-              final yearMatch = RegExp(r'\d{4}').firstMatch(dateStr);
-              if (yearMatch != null) {
-                year = int.tryParse(yearMatch.group(0)!);
-              }
-            }
+            year = _parseYear(probe(['date', 'year', 'originaldate']));
+            if (year != null) fallbackFields.add('date');
           }
 
           if (trackNumber == null) {
-            final trackStr = probe(['track', 'tracknumber']);
-            if (trackStr != null) {
-              trackNumber = int.tryParse(trackStr.split('/').first.trim());
-            }
+            trackNumber = _parsePosition(probe(['track', 'tracknumber']));
+            if (trackNumber != null) fallbackFields.add('track');
           }
 
           if (discNumber == null) {
-            final discStr = probe(['disc', 'discnumber']);
-            if (discStr != null) {
-              discNumber = int.tryParse(discStr.split('/').first.trim());
-            }
+            discNumber = _parsePosition(probe(['disc', 'discnumber']));
+            if (discNumber != null) fallbackFields.add('disc');
           }
 
           duration ??= probed.durationSeconds;
           bitrate ??= probed.bitrateKbps;
+          if (fallbackFields.isNotEmpty) {
+            _diagnose(
+              'ffprobe_fallback format=${_safeFormat(filePath)} '
+              'fields=${_sortedFields(fallbackFields)}',
+            );
+          }
         }
       }
 
@@ -207,6 +311,10 @@ class MetadataExtractor {
 
       return songMetadata;
     } catch (e) {
+      _diagnose(
+        'metadata_parse_failed format=${_safeFormat(filePath)} '
+        'error=${e.runtimeType}',
+      );
       // If metadata extraction fails, create metadata from filename only
       final file = File(filePath);
       final fileStat = await file.stat();
@@ -231,6 +339,7 @@ class MetadataExtractor {
         Map<String, String> tags,
         int? durationSeconds,
         int? bitrateKbps,
+        bool hasAttachedPicture,
       })?> _probeWithFfprobe(String filePath) async {
     if (!await _isFFprobeAvailable()) return null;
 
@@ -239,22 +348,30 @@ class MetadataExtractor {
         '-v',
         'quiet',
         '-show_entries',
-        'format_tags:stream_tags:format=duration,bit_rate:stream=bit_rate',
+        'format_tags=title,artist,artists,album,album_artist,albumartist,genre,date,year,originaldate,track,tracknumber,disc,discnumber:'
+            'stream_tags=title,artist,artists,album,album_artist,albumartist,genre,date,year,originaldate,track,tracknumber,disc,discnumber:'
+            'format=duration,bit_rate:stream=bit_rate,codec_type,codec_name:'
+            'stream_disposition=attached_pic',
         '-of',
         'json',
         filePath,
-      ]).timeout(const Duration(seconds: 5));
-      if (result.exitCode != 0) return null;
+      ]).timeout(_processTimeout);
+      if (result.exitCode != 0 || result.stdout is! String) return null;
 
-      final decoded =
-          jsonDecode(result.stdout as String) as Map<String, dynamic>;
+      final stdout = result.stdout as String;
+      if (stdout.length > _maxTagSectionBytes) {
+        _diagnose('ffprobe_output_rejected format=${_safeFormat(filePath)}');
+        return null;
+      }
+
+      final decoded = jsonDecode(stdout) as Map<String, dynamic>;
 
       final tags = <String, String>{};
       void collect(dynamic tagMap) {
         if (tagMap is! Map) return;
         for (final entry in tagMap.entries) {
           final key = entry.key.toString().toLowerCase().trim();
-          final value = entry.value?.toString().trim();
+          final value = _fixEncoding(entry.value);
           if (key.isEmpty || value == null || value.isEmpty) continue;
           tags.putIfAbsent(key, () => value);
         }
@@ -262,6 +379,7 @@ class MetadataExtractor {
 
       int? durationSeconds;
       int? bitrateBps;
+      var hasAttachedPicture = false;
 
       final format = decoded['format'];
       if (format is Map) {
@@ -279,11 +397,15 @@ class MetadataExtractor {
           if (stream is Map) {
             collect(stream['tags']);
             bitrateBps ??= int.tryParse('${stream['bit_rate'] ?? ''}');
+            final disposition = stream['disposition'];
+            if (disposition is Map &&
+                ('${disposition['attached_pic'] ?? '0'}' == '1' ||
+                    disposition['attached_pic'] == true)) {
+              hasAttachedPicture = true;
+            }
           }
         }
       }
-
-      if (tags.isEmpty) return null;
 
       return (
         tags: tags,
@@ -291,8 +413,13 @@ class MetadataExtractor {
         bitrateKbps: (bitrateBps != null && bitrateBps > 0)
             ? (bitrateBps / 1000).round()
             : null,
+        hasAttachedPicture: hasAttachedPicture,
       );
-    } catch (_) {
+    } catch (e) {
+      _diagnose(
+        'ffprobe_failed format=${_safeFormat(filePath)} '
+        'error=${e.runtimeType}',
+      );
       return null;
     }
   }
@@ -302,6 +429,7 @@ class MetadataExtractor {
     if (extension == '.mp3') {
       return _mp3DurationParser.getBitrate(filePath);
     }
+    if (!_externalToolsEnabled) return null;
 
     try {
       final result = await _processRunner('ffprobe', [
@@ -314,7 +442,7 @@ class MetadataExtractor {
         '-of',
         'json',
         filePath,
-      ]).timeout(const Duration(seconds: 5));
+      ]).timeout(_processTimeout);
       if (result.exitCode != 0) return null;
 
       final decoded =
@@ -337,80 +465,70 @@ class MetadataExtractor {
         return tagMap[key];
       }
     }
+    final lowerKeys = keys.map((key) => key.toLowerCase()).toSet();
+    for (final entry in tagMap.entries) {
+      if (lowerKeys.contains(entry.key.toLowerCase())) return entry.value;
+    }
     return null;
   }
 
   /// Reads only the tag sections of an audio file instead of the entire file
   ///
-  /// For MP3: Reads ID3v2 header + tag data + ID3v1 tail (if present)
-  /// For other formats: Reads first 64KB (usually contains all metadata)
-  /// Falls back to full file read if optimized parsing fails.
+  /// For MP3: reads only the bounded ID3v2 section and ID3v1 tail. Other
+  /// formats bypass dart_tags and use ffprobe, avoiding unsafe full-file reads.
   Future<List<Tag>> _readTagsOptimized(File file, int fileSize) async {
+    if (p.extension(file.path).toLowerCase() != '.mp3') return const <Tag>[];
+
+    RandomAccessFile? raf;
     try {
-      final raf = await file.open(mode: FileMode.read);
-      try {
-        // Read first 10 bytes to check for ID3v2 header
-        final header = await raf.read(10);
-        if (header.length < 10) {
-          // File too small, read whole thing
-          await raf.close();
-          return await _tagProcessor.getTagsFromByteArray(file.readAsBytes());
-        }
+      raf = await file.open(mode: FileMode.read);
+      final header = await raf.read(10);
+      List<int> tagBytes = header;
 
-        int tagSize = 0;
-        bool hasId3v2 = false;
-
-        // Check for ID3v2 header: "ID3" signature
-        if (header[0] == 0x49 && header[1] == 0x44 && header[2] == 0x33) {
-          hasId3v2 = true;
-          // Calculate tag size using syncsafe integer (7 bits per byte)
-          tagSize = 10 +
-              (((header[6] & 0x7F) << 21) |
-                  ((header[7] & 0x7F) << 14) |
-                  ((header[8] & 0x7F) << 7) |
-                  (header[9] & 0x7F));
-        }
-
-        // Read tag section (or first 64KB for non-ID3v2 formats like M4A/FLAC)
-        await raf.setPosition(0);
-        final bytesToRead = hasId3v2 ? tagSize : min(65536, fileSize);
-        final tagBytes = await raf.read(bytesToRead);
-
-        // Check for ID3v1 at end of file (last 128 bytes, starts with "TAG")
-        Uint8List? id3v1Bytes;
-        if (fileSize > 128) {
-          await raf.setPosition(fileSize - 128);
-          final tail = await raf.read(128);
-          if (tail.length == 128 &&
-              tail[0] == 0x54 &&
-              tail[1] == 0x41 &&
-              tail[2] == 0x47) {
-            // "TAG"
-            id3v1Bytes = tail;
-          }
-        }
-
-        await raf.close();
-
-        // Combine bytes: tag section + ID3v1 (if present)
-        final Uint8List allBytes;
-        if (id3v1Bytes != null) {
-          allBytes = Uint8List(tagBytes.length + id3v1Bytes.length);
-          allBytes.setAll(0, tagBytes);
-          allBytes.setAll(tagBytes.length, id3v1Bytes);
+      final hasId3v2 = header.length == 10 &&
+          header[0] == 0x49 &&
+          header[1] == 0x44 &&
+          header[2] == 0x33;
+      if (hasId3v2) {
+        final tagSize = 10 + _syncSafeInt(header, 6);
+        if (tagSize > fileSize || tagSize > _maxTagSectionBytes) {
+          tagBytes = const <int>[];
+          _diagnose('id3_size_rejected format=.mp3');
         } else {
-          allBytes = tagBytes;
+          await raf.setPosition(0);
+          tagBytes = await raf.read(tagSize);
         }
-
-        // Parse tags from the combined bytes
-        return await _tagProcessor.getTagsFromByteArray(Future.value(allBytes));
-      } catch (e) {
-        await raf.close();
-        rethrow;
       }
+
+      Uint8List? id3v1Bytes;
+      if (fileSize >= 128) {
+        await raf.setPosition(fileSize - 128);
+        final tail = await raf.read(128);
+        if (tail.length == 128 &&
+            tail[0] == 0x54 &&
+            tail[1] == 0x41 &&
+            tail[2] == 0x47) {
+          id3v1Bytes = tail;
+        }
+      }
+
+      final Uint8List allBytes;
+      if (id3v1Bytes != null) {
+        allBytes = Uint8List(tagBytes.length + id3v1Bytes.length);
+        allBytes.setAll(0, tagBytes);
+        allBytes.setAll(tagBytes.length, id3v1Bytes);
+      } else {
+        allBytes = Uint8List.fromList(tagBytes);
+      }
+
+      return await _tagProcessor
+          .getTagsFromByteArray(Future.value(allBytes))
+          .timeout(_tagReadTimeout);
     } catch (e) {
-      // Fallback: read entire file (original behavior)
-      return await _tagProcessor.getTagsFromByteArray(file.readAsBytes());
+      _diagnose('dart_tags_failed format=.mp3 error=${e.runtimeType}');
+      return const <Tag>[];
+    } finally {
+      await raf?.close();
     }
   }
 
@@ -427,8 +545,17 @@ class MetadataExtractor {
   /// terminators into stored metadata.
   String? _fixEncoding(dynamic value) {
     if (value == null) return null;
-    var str = value.toString();
+    var str = value is Iterable && value is! String
+        ? value.map((item) => item.toString()).join('; ')
+        : value.toString();
     if (str.isEmpty) return str;
+
+    final nulParts = str
+        .split('\u0000')
+        .map((part) => part.trim())
+        .where((part) => part.isNotEmpty)
+        .toList(growable: false);
+    if (nulParts.length > 1) str = nulParts.join('; ');
 
     final repaired = repairLatin1Mojibake(str);
     if (repaired != null) {
@@ -438,41 +565,110 @@ class MetadataExtractor {
     return sanitizeTagText(str);
   }
 
-  /// Prefers a clean value over a lossy compatibility tag. When two clean
-  /// values are equally long, the later tag wins; dart_tags returns ID3v1
-  /// before ID3v2, so this lets the newer Unicode-capable tag take precedence.
-  bool _preferTagValue(String? current, String? candidate) {
-    if (candidate == null || candidate.isEmpty) return false;
-    if (current == null || current.isEmpty) return true;
+  int _tagSourceRank(Tag tag) {
+    final version = (tag.version ?? '').toLowerCase().replaceFirst('v', '');
+    if (version.startsWith('2.')) return 300;
+    if (version.startsWith('1.')) return 100;
+    return 200;
+  }
 
-    final currentSuspicious = _isSuspiciousTagValue(current);
-    final candidateSuspicious = _isSuspiciousTagValue(candidate);
-    if (currentSuspicious != candidateSuspicious) {
-      return currentSuspicious;
+  _SelectedText _selectText(
+    _SelectedText current,
+    String? candidate,
+    int sourceRank, {
+    required String field,
+    required Set<String> rejectedFields,
+  }) {
+    if (candidate == null || candidate.isEmpty) return current;
+    final reason = _suspicionReason(candidate, field: field);
+    if (reason != null) {
+      rejectedFields.add(field);
+      _diagnose('field_rejected source=id3 field=$field reason=$reason');
+      return current;
     }
-
-    return candidate.length >= current.length;
+    if (current.value == null || sourceRank > current.sourceRank) {
+      return _SelectedText(value: candidate, sourceRank: sourceRank);
+    }
+    return current;
   }
 
-  bool _needsFallback(String? value) =>
-      value == null || value.isEmpty || _isSuspiciousTagValue(value);
-
-  String? _fallbackTagValue(String? current, String? fallback) {
-    if (!_needsFallback(current)) return current;
-    if (_needsFallback(fallback)) return current;
-    return fallback;
+  _SelectedInt _selectInt(
+    _SelectedInt current,
+    int? candidate,
+    int sourceRank,
+  ) {
+    if (candidate == null) return current;
+    if (current.value == null || sourceRank > current.sourceRank) {
+      return _SelectedInt(value: candidate, sourceRank: sourceRank);
+    }
+    return current;
   }
 
-  /// ID3v1 writers commonly replace text outside Latin-1 with question marks.
-  /// Treat a question-mark-dominated value (or Unicode replacement character)
-  /// as lossy, while leaving ordinary titles containing punctuation alone.
-  bool _isSuspiciousTagValue(String value) {
-    if (value.contains('\uFFFD')) return true;
+  bool _needsFallback(String? value, {required String field}) =>
+      value == null ||
+      value.isEmpty ||
+      _suspicionReason(value, field: field) != null;
+
+  String? _suspicionReason(String value, {required String field}) {
+    if (value.length > _maxTagTextLength) return 'oversized';
+    if (value.contains('\uFFFD')) return 'replacement_character';
 
     final visible = value.replaceAll(RegExp(r'\s'), '');
-    if (visible.isEmpty) return false;
+    if (visible.isEmpty) return 'empty';
     final questionMarks = '?'.allMatches(visible).length;
-    return questionMarks >= 2 && questionMarks * 2 >= visible.length;
+    if (questionMarks >= 2 && questionMarks * 2 >= visible.length) {
+      return 'question_mark_placeholder';
+    }
+
+    final lower = value.trim().toLowerCase();
+    const genericPlaceholders = {
+      '<unknown>',
+      '[unknown]',
+      '(unknown)',
+      '<null>',
+      'n/a',
+    };
+    if (genericPlaceholders.contains(lower)) return 'placeholder';
+    if ((field == 'artist' || field == 'album_artist') &&
+        lower == 'unknown artist') {
+      return 'placeholder';
+    }
+    if (field == 'album' && lower == 'unknown album') return 'placeholder';
+    if (field == 'title' && lower == 'unknown title') return 'placeholder';
+    return null;
+  }
+
+  int? _parseYear(dynamic value) {
+    if (value == null) return null;
+    final match = RegExp(r'(?<!\d)(\d{4})(?!\d)').firstMatch(value.toString());
+    final parsed = match == null ? null : int.tryParse(match.group(1)!);
+    return parsed != null && parsed >= 1000 && parsed <= 9999 ? parsed : null;
+  }
+
+  int? _parsePosition(dynamic value) {
+    if (value == null) return null;
+    final match = RegExp(
+      r'^\s*(\d{1,6})(?:\s*(?:/|of)\s*(\d{1,6}))?',
+      caseSensitive: false,
+    ).firstMatch(value.toString());
+    final parsed = match == null ? null : int.tryParse(match.group(1)!);
+    final total =
+        match?.group(2) == null ? null : int.tryParse(match!.group(2)!);
+    if (parsed == null || parsed <= 0) return null;
+    if (total != null && (total <= 0 || total < parsed)) return null;
+    return parsed;
+  }
+
+  void _diagnose(String message) => _diagnosticLogger(message);
+
+  String _safeFormat(String filePath) {
+    final extension = p.extension(filePath).toLowerCase();
+    return extension.isEmpty ? 'unknown' : extension;
+  }
+
+  String _sortedFields(Set<String> fields) {
+    final sorted = fields.toList()..sort();
+    return sorted.join(',');
   }
 
   /// Extracts metadata and duration from a single audio file in one call
@@ -522,7 +718,10 @@ class MetadataExtractor {
           metadataList.add(metadata);
         } catch (e) {
           // Skip files that can't be processed
-          print('Warning: Failed to extract metadata from $path: $e');
+          _diagnose(
+            'batch_item_failed format=${_safeFormat(path)} '
+            'error=${e.runtimeType}',
+          );
         }
       }
 
@@ -607,12 +806,14 @@ class MetadataExtractor {
 
   /// Check if ffprobe is available on the system
   Future<bool> _isFFprobeAvailable() async {
+    if (!_externalToolsEnabled) return false;
     if (_ffprobeAvailable != null) return _ffprobeAvailable!;
 
     try {
-      final result = await _processRunner('ffprobe', ['-version']);
+      final result = await _processRunner('ffprobe', ['-version'])
+          .timeout(_processTimeout);
       _ffprobeAvailable = result.exitCode == 0;
-    } catch (e) {
+    } catch (_) {
       _ffprobeAvailable = false;
     }
 
@@ -659,7 +860,7 @@ class MetadataExtractor {
         '-of',
         'json',
         filePath,
-      ]).timeout(const Duration(seconds: 5));
+      ]).timeout(_processTimeout);
 
       if (result.exitCode == 0) {
         final json = jsonDecode(result.stdout as String);
@@ -675,7 +876,10 @@ class MetadataExtractor {
         }
       }
     } catch (e) {
-      // Silently fail - duration is optional
+      _diagnose(
+        'duration_probe_failed format=${_safeFormat(filePath)} '
+        'error=${e.runtimeType}',
+      );
     }
 
     return null;
@@ -694,39 +898,26 @@ class MetadataExtractor {
         return false;
       }
 
-      final fileStat = await file.stat();
       final extension = p.extension(filePath).toLowerCase();
-      const optimizedFormats = {'.mp3', '.m4a', '.mp4', '.flac'};
-      final List<Tag> tags;
-      if (optimizedFormats.contains(extension)) {
-        tags = await _readTagsOptimized(file, fileStat.size);
-      } else {
-        tags = await _tagProcessor.getTagsFromByteArray(file.readAsBytes());
-      }
-      if (_tagsContainArtwork(tags)) return true;
+      final fileStat = await file.stat();
+      final tags = await _readTagsOptimized(file, fileStat.size);
+      if (_extractArtworkFromTags(tags) != null) return true;
 
       if (extension == '.mp3') {
-        return await _readId3v2Artwork(file, extractBytes: false) != null;
+        if (await _readId3v2Artwork(file, extractBytes: false) != null) {
+          return true;
+        }
       }
-      return false;
-    } catch (_) {
-      return false;
-    }
-  }
 
-  bool _tagsContainArtwork(List<Tag> tags) {
-    for (final tag in tags) {
-      final picture = _getTagValue(tag.tags, [
-        'picture',
-        'APIC',
-        'PIC',
-        'METADATA_BLOCK_PICTURE',
-      ]);
-      if (picture != null) {
-        return true;
-      }
+      final probed = await _probeWithFfprobe(filePath);
+      return probed?.hasAttachedPicture ?? false;
+    } catch (e) {
+      _diagnose(
+        'artwork_detection_failed format=${_safeFormat(filePath)} '
+        'error=${e.runtimeType}',
+      );
+      return false;
     }
-    return false;
   }
 
   /// Returns a sidecar artwork path in the album directory of [songFilePath].
@@ -744,27 +935,34 @@ class MetadataExtractor {
       final file = File(filePath);
       final fileStat = await file.stat();
       final fileSize = fileStat.size;
-      final extension = filePath.split('.').last.toLowerCase();
+      final extension = p.extension(filePath).toLowerCase();
 
-      // Optimized path for formats where metadata is typically in header sections.
-      // This avoids full-file reads on the hot artwork request path.
-      const optimizedFormats = {'mp3', 'm4a', 'mp4', 'flac'};
-      if (optimizedFormats.contains(extension)) {
-        final optimizedTags = await _readTagsOptimized(file, fileSize);
-        final artwork = _extractArtworkFromTags(optimizedTags);
-        if (artwork != null) return artwork;
-        if (extension == 'mp3') {
-          return _readId3v2Artwork(file, extractBytes: true);
+      final optimizedTags = await _readTagsOptimized(file, fileSize);
+      final parsedArtwork = _extractArtworkFromTags(optimizedTags);
+      if (parsedArtwork != null) return parsedArtwork;
+
+      if (extension == '.mp3') {
+        final rawArtwork = await _readId3v2Artwork(file, extractBytes: true);
+        if (rawArtwork != null) {
+          _diagnose('artwork_raw_id3_fallback format=.mp3');
+          return rawArtwork;
         }
-        return null;
       }
 
-      // Compatibility fallback for unsupported formats.
-      final fallbackTags = await _tagProcessor.getTagsFromByteArray(
-        file.readAsBytes(),
-      );
-      return _extractArtworkFromTags(fallbackTags);
+      final probed = await _probeWithFfprobe(filePath);
+      if (probed?.hasAttachedPicture ?? false) {
+        final artwork = await _extractArtworkWithFfmpeg(filePath);
+        if (artwork != null) {
+          _diagnose('artwork_ffmpeg_fallback format=${_safeFormat(filePath)}');
+          return artwork;
+        }
+      }
+      return null;
     } catch (e) {
+      _diagnose(
+        'artwork_extract_failed format=${_safeFormat(filePath)} '
+        'error=${e.runtimeType}',
+      );
       return null;
     }
   }
@@ -780,31 +978,83 @@ class MetadataExtractor {
       ]);
 
       if (picture != null) {
-        if (picture is List) {
-          return List<int>.from(picture);
-        } else if (picture is Map) {
-          final pictureKeys = picture.keys.toList();
-          if (pictureKeys.isNotEmpty) {
-            final imageData = picture[pictureKeys.first];
-            if (imageData is List) {
-              return List<int>.from(imageData);
-            } else {
-              // It's an AttachedPicture object - get the imageData property
-              try {
-                final dynamic attachedPicture = imageData;
-                final pictureData = attachedPicture.imageData;
-                if (pictureData is List) {
-                  return List<int>.from(pictureData);
-                }
-              } catch (e) {
-                // Failed to extract from AttachedPicture
-              }
+        final direct = _coerceArtworkBytes(picture);
+        if (direct != null) return direct;
+
+        if (picture is Map) {
+          final entries = picture.entries.toList()
+            ..sort((a, b) {
+              final aFront = a.key.toString().toLowerCase().contains('front');
+              final bFront = b.key.toString().toLowerCase().contains('front');
+              if (aFront == bFront) return 0;
+              return aFront ? -1 : 1;
+            });
+          for (final entry in entries) {
+            final bytes = _coerceArtworkBytes(entry.value);
+            if (bytes != null) return bytes;
+
+            try {
+              final dynamic attachedPicture = entry.value;
+              final attachedBytes =
+                  _coerceArtworkBytes(attachedPicture.imageData);
+              if (attachedBytes != null) return attachedBytes;
+            } catch (_) {
+              // Try the next picture entry or the external fallback.
             }
           }
         }
       }
     }
     return null;
+  }
+
+  List<int>? _coerceArtworkBytes(dynamic value) {
+    if (value is Uint8List) return _validatedArtwork(value);
+    if (value is List && value.every((element) => element is int)) {
+      return _validatedArtwork(value.cast<int>());
+    }
+    return null;
+  }
+
+  Future<List<int>?> _extractArtworkWithFfmpeg(String filePath) async {
+    if (!_externalToolsEnabled) return null;
+    try {
+      final result = await _binaryProcessRunner('ffmpeg', [
+        '-v',
+        'error',
+        '-i',
+        filePath,
+        '-map',
+        '0:v:0',
+        '-frames:v',
+        '1',
+        '-c:v',
+        'copy',
+        '-f',
+        'image2pipe',
+        'pipe:1',
+      ]).timeout(_processTimeout);
+      if (result.exitCode != 0) return null;
+      final stdout = result.stdout;
+      if (stdout is Uint8List) return _validatedArtwork(stdout);
+      if (stdout is List<int>) return _validatedArtwork(stdout);
+    } catch (e) {
+      _diagnose(
+        'ffmpeg_artwork_failed format=${_safeFormat(filePath)} '
+        'error=${e.runtimeType}',
+      );
+    }
+    return null;
+  }
+
+  List<int>? _validatedArtwork(List<int> bytes) {
+    if (bytes.isEmpty || bytes.length > _maxArtworkBytes) return null;
+    const jpeg = [0xFF, 0xD8];
+    const png = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+    if (!_startsWithBytes(bytes, jpeg, 0) && !_startsWithBytes(bytes, png, 0)) {
+      return null;
+    }
+    return List<int>.from(bytes);
   }
 
   /// Reads a valid ID3v2 APIC frame directly when dart_tags omits it. This is
@@ -831,13 +1081,18 @@ class MetadataExtractor {
 
       final tagSize = _syncSafeInt(header, 6);
       final fileSize = await file.length();
-      if (tagSize <= 0 || tagSize > fileSize - 10) return null;
+      if (tagSize <= 0 ||
+          tagSize > fileSize - 10 ||
+          tagSize > _maxTagSectionBytes) {
+        return null;
+      }
 
       await raf.setPosition(10);
       final body = await raf.read(tagSize);
       var offset = 0;
 
-      while (offset + 10 <= body.length) {
+      var frameCount = 0;
+      while (offset + 10 <= body.length && frameCount++ < 10000) {
         final frameId = String.fromCharCodes(body.sublist(offset, offset + 4));
         if (!RegExp(r'^[A-Z0-9]{4}$').hasMatch(frameId)) break;
 
@@ -894,7 +1149,9 @@ class MetadataExtractor {
       return null;
     }
 
-    return extractBytes ? frame.sublist(imageStart) : const <int>[];
+    final image = _validatedArtwork(frame.sublist(imageStart));
+    if (image == null) return null;
+    return extractBytes ? image : const <int>[];
   }
 
   int _syncSafeInt(List<int> bytes, int offset) =>
@@ -923,4 +1180,18 @@ class MetadataExtractor {
     }
     return true;
   }
+}
+
+class _SelectedText {
+  const _SelectedText({this.value, this.sourceRank = -1});
+
+  final String? value;
+  final int sourceRank;
+}
+
+class _SelectedInt {
+  const _SelectedInt({this.value, this.sourceRank = -1});
+
+  final int? value;
+  final int sourceRank;
 }

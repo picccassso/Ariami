@@ -100,5 +100,28 @@ void main() {
       expect(await cacheFile.readAsString(), 'existing');
       expect((await cacheFile.stat()).modified, originalModified);
     });
+
+    test('older parser schema is invalidated automatically', () async {
+      final cacheFile = File(cachePath);
+      await cacheFile.writeAsString(jsonEncode({
+        'version': MetadataCache.schemaVersion - 1,
+        'entries': {
+          audioFile.path: {
+            'mtime': (await audioFile.stat()).modified.millisecondsSinceEpoch,
+            'size': await audioFile.length(),
+            'metadata': SongMetadata(
+              filePath: audioFile.path,
+              title: 'Stale title',
+            ).toJson(),
+          },
+        },
+      }));
+
+      final cache = MetadataCache(cachePath);
+
+      expect(await cache.load(), isFalse);
+      expect(cache.length, 0);
+      expect(await cacheFile.exists(), isFalse);
+    });
   });
 }
