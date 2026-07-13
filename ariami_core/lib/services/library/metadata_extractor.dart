@@ -63,28 +63,33 @@ class MetadataExtractor {
       for (final tag in tags) {
         final tagMap = tag.tags;
 
-        final parsedTitle = _fixEncoding(_getTagValue(tagMap, ['title', 'TIT2']));
-        if (parsedTitle != null && (title == null || parsedTitle.length > title.length)) {
+        final parsedTitle =
+            _fixEncoding(_getTagValue(tagMap, ['title', 'TIT2']));
+        if (_preferTagValue(title, parsedTitle)) {
           title = parsedTitle;
         }
 
-        final parsedArtist = _fixEncoding(_getTagValue(tagMap, ['artist', 'TPE1']));
-        if (parsedArtist != null && (artist == null || parsedArtist.length > artist.length)) {
+        final parsedArtist =
+            _fixEncoding(_getTagValue(tagMap, ['artist', 'TPE1']));
+        if (_preferTagValue(artist, parsedArtist)) {
           artist = parsedArtist;
         }
 
-        final parsedAlbum = _fixEncoding(_getTagValue(tagMap, ['album', 'TALB']));
-        if (parsedAlbum != null && (album == null || parsedAlbum.length > album.length)) {
+        final parsedAlbum =
+            _fixEncoding(_getTagValue(tagMap, ['album', 'TALB']));
+        if (_preferTagValue(album, parsedAlbum)) {
           album = parsedAlbum;
         }
 
-        final parsedAlbumArtist = _fixEncoding(_getTagValue(tagMap, ['albumartist', 'TPE2']));
-        if (parsedAlbumArtist != null && (albumArtist == null || parsedAlbumArtist.length > albumArtist.length)) {
+        final parsedAlbumArtist =
+            _fixEncoding(_getTagValue(tagMap, ['albumartist', 'TPE2']));
+        if (_preferTagValue(albumArtist, parsedAlbumArtist)) {
           albumArtist = parsedAlbumArtist;
         }
 
-        final parsedGenre = _fixEncoding(_getTagValue(tagMap, ['genre', 'TCON']));
-        if (parsedGenre != null && (genre == null || parsedGenre.length > genre.length)) {
+        final parsedGenre =
+            _fixEncoding(_getTagValue(tagMap, ['genre', 'TCON']));
+        if (_preferTagValue(genre, parsedGenre)) {
           genre = parsedGenre;
         }
 
@@ -119,7 +124,9 @@ class MetadataExtractor {
       // stripped ID3 tags — fall back to ffprobe's container tags before
       // resorting to filename parsing. The single probe also returns duration
       // and bitrate, saving the separate spawns those would otherwise need.
-      if (title == null && artist == null && album == null) {
+      if (_needsFallback(title) ||
+          _needsFallback(artist) ||
+          _needsFallback(album)) {
         final probed = await _probeWithFfprobe(filePath);
         if (probed != null) {
           String? probe(List<String> keys) {
@@ -130,11 +137,14 @@ class MetadataExtractor {
             return null;
           }
 
-          title ??= _fixEncoding(probe(['title']));
-          artist ??= _fixEncoding(probe(['artist']));
-          album ??= _fixEncoding(probe(['album']));
-          albumArtist ??= _fixEncoding(probe(['album_artist', 'albumartist']));
-          genre ??= _fixEncoding(probe(['genre']));
+          title = _fallbackTagValue(title, _fixEncoding(probe(['title'])));
+          artist = _fallbackTagValue(artist, _fixEncoding(probe(['artist'])));
+          album = _fallbackTagValue(album, _fixEncoding(probe(['album'])));
+          albumArtist = _fallbackTagValue(
+            albumArtist,
+            _fixEncoding(probe(['album_artist', 'albumartist'])),
+          );
+          genre = _fallbackTagValue(genre, _fixEncoding(probe(['genre'])));
 
           if (year == null) {
             final dateStr = probe(['date', 'year', 'originaldate']);
@@ -428,6 +438,43 @@ class MetadataExtractor {
     return sanitizeTagText(str);
   }
 
+  /// Prefers a clean value over a lossy compatibility tag. When two clean
+  /// values are equally long, the later tag wins; dart_tags returns ID3v1
+  /// before ID3v2, so this lets the newer Unicode-capable tag take precedence.
+  bool _preferTagValue(String? current, String? candidate) {
+    if (candidate == null || candidate.isEmpty) return false;
+    if (current == null || current.isEmpty) return true;
+
+    final currentSuspicious = _isSuspiciousTagValue(current);
+    final candidateSuspicious = _isSuspiciousTagValue(candidate);
+    if (currentSuspicious != candidateSuspicious) {
+      return currentSuspicious;
+    }
+
+    return candidate.length >= current.length;
+  }
+
+  bool _needsFallback(String? value) =>
+      value == null || value.isEmpty || _isSuspiciousTagValue(value);
+
+  String? _fallbackTagValue(String? current, String? fallback) {
+    if (!_needsFallback(current)) return current;
+    if (_needsFallback(fallback)) return current;
+    return fallback;
+  }
+
+  /// ID3v1 writers commonly replace text outside Latin-1 with question marks.
+  /// Treat a question-mark-dominated value (or Unicode replacement character)
+  /// as lossy, while leaving ordinary titles containing punctuation alone.
+  bool _isSuspiciousTagValue(String value) {
+    if (value.contains('\uFFFD')) return true;
+
+    final visible = value.replaceAll(RegExp(r'\s'), '');
+    if (visible.isEmpty) return false;
+    final questionMarks = '?'.allMatches(visible).length;
+    return questionMarks >= 2 && questionMarks * 2 >= visible.length;
+  }
+
   /// Extracts metadata and duration from a single audio file in one call
   ///
   /// This is more efficient than calling extractMetadata and extractDuration
@@ -656,7 +703,12 @@ class MetadataExtractor {
       } else {
         tags = await _tagProcessor.getTagsFromByteArray(file.readAsBytes());
       }
-      return _tagsContainArtwork(tags);
+      if (_tagsContainArtwork(tags)) return true;
+
+      if (extension == '.mp3') {
+        return await _readId3v2Artwork(file, extractBytes: false) != null;
+      }
+      return false;
     } catch (_) {
       return false;
     }
@@ -699,7 +751,12 @@ class MetadataExtractor {
       const optimizedFormats = {'mp3', 'm4a', 'mp4', 'flac'};
       if (optimizedFormats.contains(extension)) {
         final optimizedTags = await _readTagsOptimized(file, fileSize);
-        return _extractArtworkFromTags(optimizedTags);
+        final artwork = _extractArtworkFromTags(optimizedTags);
+        if (artwork != null) return artwork;
+        if (extension == 'mp3') {
+          return _readId3v2Artwork(file, extractBytes: true);
+        }
+        return null;
       }
 
       // Compatibility fallback for unsupported formats.
@@ -748,5 +805,122 @@ class MetadataExtractor {
       }
     }
     return null;
+  }
+
+  /// Reads a valid ID3v2 APIC frame directly when dart_tags omits it. This is
+  /// bounded to the declared tag section and supports v2.3/v2.4 frame sizes.
+  /// In detection mode an empty list is returned once valid image bytes are
+  /// found, avoiding a second copy of the full cover.
+  Future<List<int>?> _readId3v2Artwork(
+    File file, {
+    required bool extractBytes,
+  }) async {
+    RandomAccessFile? raf;
+    try {
+      raf = await file.open(mode: FileMode.read);
+      final header = await raf.read(10);
+      if (header.length != 10 ||
+          header[0] != 0x49 ||
+          header[1] != 0x44 ||
+          header[2] != 0x33) {
+        return null;
+      }
+
+      final majorVersion = header[3];
+      if (majorVersion != 3 && majorVersion != 4) return null;
+
+      final tagSize = _syncSafeInt(header, 6);
+      final fileSize = await file.length();
+      if (tagSize <= 0 || tagSize > fileSize - 10) return null;
+
+      await raf.setPosition(10);
+      final body = await raf.read(tagSize);
+      var offset = 0;
+
+      while (offset + 10 <= body.length) {
+        final frameId = String.fromCharCodes(body.sublist(offset, offset + 4));
+        if (!RegExp(r'^[A-Z0-9]{4}$').hasMatch(frameId)) break;
+
+        final frameSize = majorVersion == 4
+            ? _syncSafeInt(body, offset + 4)
+            : _bigEndianInt(body, offset + 4);
+        final frameStart = offset + 10;
+        final frameEnd = frameStart + frameSize;
+        if (frameSize <= 0 || frameEnd > body.length) break;
+
+        if (frameId == 'APIC') {
+          final image = _extractApicBytes(
+            body.sublist(frameStart, frameEnd),
+            extractBytes: extractBytes,
+          );
+          if (image != null) return image;
+        }
+
+        offset = frameEnd;
+      }
+    } catch (_) {
+      return null;
+    } finally {
+      await raf?.close();
+    }
+    return null;
+  }
+
+  List<int>? _extractApicBytes(
+    List<int> frame, {
+    required bool extractBytes,
+  }) {
+    if (frame.length < 5) return null;
+
+    final mimeEnd = frame.indexOf(0, 1);
+    if (mimeEnd < 0 || mimeEnd + 2 >= frame.length) return null;
+
+    final encoding = frame[0];
+    var imageStart = mimeEnd + 2;
+    if (encoding == 1 || encoding == 2) {
+      imageStart = _indexOfUtf16Terminator(frame, imageStart);
+      if (imageStart < 0) return null;
+      imageStart += 2;
+    } else {
+      imageStart = frame.indexOf(0, imageStart);
+      if (imageStart < 0) return null;
+      imageStart += 1;
+    }
+
+    const jpeg = [0xFF, 0xD8];
+    const png = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+    if (!_startsWithBytes(frame, jpeg, imageStart) &&
+        !_startsWithBytes(frame, png, imageStart)) {
+      return null;
+    }
+
+    return extractBytes ? frame.sublist(imageStart) : const <int>[];
+  }
+
+  int _syncSafeInt(List<int> bytes, int offset) =>
+      ((bytes[offset] & 0x7F) << 21) |
+      ((bytes[offset + 1] & 0x7F) << 14) |
+      ((bytes[offset + 2] & 0x7F) << 7) |
+      (bytes[offset + 3] & 0x7F);
+
+  int _bigEndianInt(List<int> bytes, int offset) =>
+      (bytes[offset] << 24) |
+      (bytes[offset + 1] << 16) |
+      (bytes[offset + 2] << 8) |
+      bytes[offset + 3];
+
+  int _indexOfUtf16Terminator(List<int> bytes, int start) {
+    for (var i = start; i + 1 < bytes.length; i += 2) {
+      if (bytes[i] == 0 && bytes[i + 1] == 0) return i;
+    }
+    return -1;
+  }
+
+  bool _startsWithBytes(List<int> bytes, List<int> pattern, int offset) {
+    if (offset < 0 || offset + pattern.length > bytes.length) return false;
+    for (var i = 0; i < pattern.length; i++) {
+      if (bytes[offset + i] != pattern[i]) return false;
+    }
+    return true;
   }
 }

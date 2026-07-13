@@ -71,7 +71,9 @@ class MetadataCache {
   /// v5: Non-MP3 formats now fall back to ffprobe container tags when ID3
   ///     parsing yields nothing; invalidate caches so FLAC/M4A/OGG files
   ///     extracted with filename-only metadata get their real tags.
-  static const int schemaVersion = 5;
+  /// v6: Prefer valid ID3v2 Unicode over lossy ID3v1 compatibility text and
+  ///     recover missing ID3v2 artwork; re-extract unchanged affected files.
+  static const int schemaVersion = 6;
 
   /// Maximum number of entries (sanity limit ~50MB)
   static const int maxEntries = 100000;
