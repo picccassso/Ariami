@@ -278,7 +278,7 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
             child: MiniPlayerAwareBuilder(
               builder: (context, bottomPadding) => Padding(
                 padding: EdgeInsets.only(bottom: bottomPadding + 8),
-                child: _buildPeriodSelector(isDark),
+                child: _buildPeriodSelector(),
               ),
             ),
           ),
@@ -294,7 +294,10 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
   /// stats.fm-style period selector: a ‹ label › stepper over a
   /// Day / Week / Month / Year / All granularity row. Paging is blocked
   /// past today and before the account's first listen.
-  Widget _buildPeriodSelector(bool isDark) {
+  Widget _buildPeriodSelector() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
     final range = _range;
     final canBack = range.isSteppable && range.canStepBack(_earliestDay());
     final canForward = range.isSteppable && range.canStepForward();
@@ -314,11 +317,9 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.fromLTRB(6, 2, 6, 8),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF161616) : const Color(0xFFF4F4F4),
+        color: theme.cardTheme.color ?? colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color: isDark ? const Color(0xFF2A2A2A) : const Color(0xFFE2E2E2),
-        ),
+        border: Border.all(color: theme.dividerColor),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: isDark ? 0.5 : 0.12),
@@ -335,7 +336,7 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
               _StepChevron(
                 icon: Icons.chevron_left_rounded,
                 enabled: canBack,
-                isDark: isDark,
+                colorScheme: colorScheme,
                 onTap: () => _step(-1),
               ),
               Expanded(
@@ -358,7 +359,7 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
                             fontSize: 14,
                             fontWeight: FontWeight.w800,
                             letterSpacing: 0.3,
-                            color: isDark ? Colors.white : Colors.black,
+                            color: colorScheme.onSurface,
                           ),
                         ),
                         if (range.isSingleDay) ...[
@@ -366,7 +367,7 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
                           Icon(
                             Icons.calendar_today_rounded,
                             size: 13,
-                            color: isDark ? Colors.grey[500] : Colors.grey[600],
+                            color: colorScheme.onSurfaceVariant,
                           ),
                         ],
                       ],
@@ -377,7 +378,7 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
               _StepChevron(
                 icon: Icons.chevron_right_rounded,
                 enabled: canForward,
-                isDark: isDark,
+                colorScheme: colorScheme,
                 onTap: () => _step(1),
               ),
             ],
@@ -391,7 +392,6 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
                     child: _RangeChip(
                       label: entry.$2,
                       selected: isSelected(entry.$1),
-                      isDark: isDark,
                       onTap: () => _selectGranularity(entry.$1),
                     ),
                   ),
@@ -1216,23 +1216,20 @@ class _RangeChip extends StatelessWidget {
   const _RangeChip({
     required this.label,
     required this.selected,
-    required this.isDark,
     required this.onTap,
   });
 
   final String label;
   final bool selected;
-  final bool isDark;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     final foreground = selected
-        ? (isDark ? Colors.black : Colors.white)
-        : (isDark ? Colors.grey[400] : Colors.grey[700]);
-    final background = selected
-        ? (isDark ? Colors.white : Colors.black)
-        : Colors.transparent;
+        ? colorScheme.onSecondary
+        : colorScheme.onSurfaceVariant;
+    final background = selected ? colorScheme.secondary : Colors.transparent;
 
     return GestureDetector(
       onTap: onTap,
@@ -1266,20 +1263,20 @@ class _StepChevron extends StatelessWidget {
   const _StepChevron({
     required this.icon,
     required this.enabled,
-    required this.isDark,
+    required this.colorScheme,
     required this.onTap,
   });
 
   final IconData icon;
   final bool enabled;
-  final bool isDark;
+  final ColorScheme colorScheme;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final color = enabled
-        ? (isDark ? Colors.white : Colors.black)
-        : (isDark ? Colors.grey[800] : Colors.grey[350]);
+        ? colorScheme.onSurface
+        : colorScheme.onSurfaceVariant.withValues(alpha: 0.35);
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: enabled ? onTap : null,

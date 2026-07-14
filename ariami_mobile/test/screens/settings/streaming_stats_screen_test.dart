@@ -18,7 +18,12 @@ void main() {
 
   testWidgets('stats screen loads with the bottom period selector',
       (tester) async {
-    await tester.pumpWidget(const MaterialApp(home: StreamingStatsScreen()));
+    final theme = ThemeData(
+      colorScheme: ColorScheme.fromSeed(seedColor: Colors.pink),
+    );
+    await tester.pumpWidget(
+      MaterialApp(theme: theme, home: const StreamingStatsScreen()),
+    );
     await tester.pump();
 
     // Existing structure still loads: tabs plus the bottom selector bar.
@@ -31,6 +36,23 @@ void main() {
     expect(find.text('YEAR'), findsOneWidget);
     expect(find.text('ALL'), findsOneWidget);
     expect(find.text('Today'), findsOneWidget);
+
+    final selectedChip = tester.widget<AnimatedContainer>(
+      find
+          .ancestor(
+            of: find.text('DAY'),
+            matching: find.byType(AnimatedContainer),
+          )
+          .first,
+    );
+    expect(
+      (selectedChip.decoration as BoxDecoration).color,
+      theme.colorScheme.secondary,
+    );
+    expect(
+      tester.widget<Text>(find.text('DAY')).style?.color,
+      theme.colorScheme.onSecondary,
+    );
     expect(find.byIcon(Icons.chevron_left_rounded), findsOneWidget);
     expect(find.byIcon(Icons.chevron_right_rounded), findsOneWidget);
 
