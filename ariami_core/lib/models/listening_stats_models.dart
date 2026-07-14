@@ -84,6 +84,31 @@ class ListeningEvent {
     this.clientKind,
   });
 
+  ListeningEvent withAlbumMetadata({
+    String? albumId,
+    String? album,
+    String? albumArtist,
+  }) {
+    return ListeningEvent(
+      eventId: eventId,
+      songId: songId,
+      playId: playId,
+      listenedMs: listenedMs,
+      plays: plays,
+      occurredAtMs: occurredAtMs,
+      tzOffsetMinutes: tzOffsetMinutes,
+      songTitle: songTitle,
+      songArtist: songArtist,
+      albumId: albumId ?? this.albumId,
+      album: album ?? this.album,
+      albumArtist: albumArtist ?? this.albumArtist,
+      songDurationMs: songDurationMs,
+      sourceKind: sourceKind,
+      playlistId: playlistId,
+      clientKind: clientKind,
+    );
+  }
+
   Map<String, dynamic> toJson() => <String, dynamic>{
         'eventId': eventId,
         'songId': songId,

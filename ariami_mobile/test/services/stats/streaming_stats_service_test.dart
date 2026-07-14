@@ -10,11 +10,17 @@ Song _testSong({
   required String title,
   required Duration duration,
   String artist = 'Test Artist',
+  String? albumId,
+  String? album,
+  String? albumArtist,
 }) {
   return Song(
     id: id,
     title: title,
     artist: artist,
+    albumId: albumId,
+    album: album,
+    albumArtist: albumArtist,
     duration: duration,
     filePath: '/test/$id.mp3',
     fileSize: 1000,
@@ -539,6 +545,47 @@ void main() {
       final dropped = await service.remapStaleStatIdsFromLibrary(library);
       expect(dropped, 0);
       expect(service.getSongStats('still_valid')!.playCount, 1);
+    });
+
+    test('repairs missing album labels from the normalized album catalog',
+        () async {
+      final song = _testSong(
+        id: 'missing_album_labels',
+        title: 'Song',
+        duration: const Duration(minutes: 3),
+        albumId: 'album-1',
+      );
+      service.onSongStarted(song);
+      for (int i = 0; i <= 35; i++) {
+        service.updatePosition(Duration(seconds: i));
+      }
+      await service.onSongStopped();
+
+      await service.remapStaleStatIdsFromLibrary(
+        [
+          SongModel(
+            id: song.id,
+            title: song.title,
+            artist: song.artist,
+            albumId: song.albumId,
+            duration: song.duration.inSeconds,
+          ),
+        ],
+        libraryAlbums: [
+          AlbumModel(
+            id: 'album-1',
+            title: 'Resolved Album',
+            artist: 'Resolved Artist',
+            songCount: 1,
+            duration: song.duration.inSeconds,
+          ),
+        ],
+      );
+
+      final repaired = service.getSongStats(song.id)!;
+      expect(repaired.album, 'Resolved Album');
+      expect(repaired.albumArtist, 'Resolved Artist');
+      expect(service.getTopAlbums().single.albumName, 'Resolved Album');
     });
 
     // ------------------------------------------------------------------------

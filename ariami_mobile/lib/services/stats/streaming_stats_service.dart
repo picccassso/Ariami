@@ -45,6 +45,7 @@ class StreamingStatsService extends ChangeNotifier
   // Dependencies
   late StatsDatabase _database;
   bool _isInitialized = false;
+  Future<void>? _initializationFuture;
 
   // In-memory cache for instant UI updates
   final Map<String, SongStats> _statsCache = {};
@@ -112,7 +113,21 @@ class StreamingStatsService extends ChangeNotifier
       _topAlbumsStreamController.stream;
 
   /// Initialize the service
-  Future<void> initialize() async {
+  Future<void> initialize() {
+    if (_isInitialized) return Future<void>.value();
+    final inFlight = _initializationFuture;
+    if (inFlight != null) return inFlight;
+
+    final future = _initialize();
+    _initializationFuture = future;
+    return future.whenComplete(() {
+      if (!_isInitialized && identical(_initializationFuture, future)) {
+        _initializationFuture = null;
+      }
+    });
+  }
+
+  Future<void> _initialize() async {
     // On-listen emissions are deferred a microtask: subscriptions happen
     // during build (StreamBuilder.initState), and emitting synchronously
     // notifies listeners mid-build, which Flutter flags in debug mode.
@@ -672,7 +687,8 @@ class StreamingStatsService extends ChangeNotifier
     notifyListeners();
   }
 
-  /// Remap stale song IDs in the persisted stats using current library data.
+  /// Remap stale song IDs and optionally repair album metadata in persisted
+  /// stats using current library data.
   ///
   /// SongStats are keyed by songId, which is MD5(filePath) on the server. When
   /// the music library is moved to a different folder, every songId changes,
@@ -693,8 +709,11 @@ class StreamingStatsService extends ChangeNotifier
   ///      contents so stale rows are removed rather than left behind.
   ///
   /// Returns the number of stat rows that were dropped (remapped onto an
-  /// existing entry); 0 means no changes were needed.
-  Future<int> remapStaleStatIdsFromLibrary(List<SongModel> librarySongs) async {
+  /// existing entry); metadata-only repairs return 0.
+  Future<int> remapStaleStatIdsFromLibrary(
+    List<SongModel> librarySongs, {
+    List<AlbumModel> libraryAlbums = const <AlbumModel>[],
+  }) async {
     if (!_isInitialized) return 0;
     if (librarySongs.isEmpty) return 0;
 
@@ -709,31 +728,78 @@ class StreamingStatsService extends ChangeNotifier
       librarySongs,
     );
 
-    // remapStats returns the original list reference when nothing changed.
-    if (identical(remapped, originalStats)) {
+    final repaired = _repairAlbumMetadata(
+      remapped,
+      librarySongs: librarySongs,
+      libraryAlbums: libraryAlbums,
+    );
+
+    // Both helpers return the original list reference when nothing changed.
+    if (identical(remapped, originalStats) && identical(repaired, remapped)) {
       return 0;
     }
 
-    final droppedCount = originalStats.length - remapped.length;
+    final droppedCount = originalStats.length - repaired.length;
 
     _statsCache
       ..clear()
-      ..addEntries(remapped.map((s) => MapEntry(s.songId, s)));
+      ..addEntries(repaired.map((s) => MapEntry(s.songId, s)));
     _dirtyStats.clear();
 
     await _database.resetAllStats();
-    if (remapped.isNotEmpty) {
-      await _database.saveAllStats(remapped);
+    if (repaired.isNotEmpty) {
+      await _database.saveAllStats(repaired);
     }
 
     _emitTopSongs();
     notifyListeners();
 
     print('[StreamingStatsService] Remapped stale stat IDs: '
-        '${originalStats.length} rows -> ${remapped.length} rows '
+        '${originalStats.length} rows -> ${repaired.length} rows '
         '($droppedCount merged)');
 
     return droppedCount;
+  }
+
+  List<SongStats> _repairAlbumMetadata(
+    List<SongStats> stats, {
+    required List<SongModel> librarySongs,
+    required List<AlbumModel> libraryAlbums,
+  }) {
+    if (libraryAlbums.isEmpty) return stats;
+
+    final albumsById = <String, AlbumModel>{
+      for (final album in libraryAlbums) album.id: album,
+    };
+    final songAlbumIds = <String, String>{
+      for (final song in librarySongs)
+        if (song.albumId != null) song.id: song.albumId!,
+    };
+    List<SongStats>? repaired;
+
+    for (var index = 0; index < stats.length; index++) {
+      final stat = stats[index];
+      final albumId = stat.albumId ?? songAlbumIds[stat.songId];
+      final album = albumId == null ? null : albumsById[albumId];
+      if (album == null) continue;
+
+      final next = stat.copyWith(
+        albumId: albumId,
+        album: stat.album?.trim().isNotEmpty == true ? stat.album : album.title,
+        albumArtist: stat.albumArtist?.trim().isNotEmpty == true
+            ? stat.albumArtist
+            : album.artist,
+      );
+      if (next.albumId == stat.albumId &&
+          next.album == stat.album &&
+          next.albumArtist == stat.albumArtist) {
+        continue;
+      }
+      repaired ??= List<SongStats>.from(stats);
+      repaired[index] = next;
+    }
+
+    return repaired ?? stats;
   }
 
   /// Reload stats from database into memory cache (after import)

@@ -355,6 +355,15 @@ class DownloadsController extends ChangeNotifier {
       final songs = library.songs;
       final serverPlaylists = library.serverPlaylists;
 
+      // Repair older queue rows that were created before album metadata was
+      // resolved from the normalized album ID. This also makes the Downloads
+      // screen self-healing when opened directly, without relying on the main
+      // library screen having been visited first.
+      await _downloadManager.refreshDownloadAlbumMetadata(
+        libraryAlbums: library.albums,
+        librarySongs: songs,
+      );
+
       playlistService.updateServerPlaylists(serverPlaylists);
 
       final librarySongIds = songs.map((song) => song.id).toSet();

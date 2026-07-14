@@ -53,6 +53,72 @@ extension AriamiHttpServerListeningStatsMethods on AriamiHttpServer {
     return store;
   }
 
+  /// Catalog songs are normalized around albumId, while listening events keep
+  /// denormalized names so history remains readable after library changes.
+  /// Fill missing names at the trusted server boundary: old or lightweight
+  /// clients then cannot create another "Unknown Album" rollup.
+  List<ListeningEvent> _enrichListeningAlbumMetadata(
+    List<ListeningEvent> events,
+  ) {
+    if (events.isEmpty) return events;
+
+    final repository = _libraryManager.createCatalogRepository();
+    final albumIdBySongId = <String, String>{};
+    if (repository != null) {
+      final missingAlbumSongIds = events
+          .where((event) => event.albumId?.trim().isEmpty ?? true)
+          .map((event) => event.songId)
+          .toSet()
+          .toList();
+      for (final song in repository.getSongsByIds(missingAlbumSongIds)) {
+        final albumId = song.albumId?.trim();
+        if (albumId != null && albumId.isNotEmpty) {
+          albumIdBySongId[song.id] = albumId;
+        }
+      }
+    }
+
+    final albumIds = <String>{};
+    for (final event in events) {
+      final albumId = event.albumId?.trim().isNotEmpty == true
+          ? event.albumId!.trim()
+          : albumIdBySongId[event.songId] ??
+              _libraryManager.getSongAlbumId(event.songId);
+      if (albumId != null && albumId.isNotEmpty) albumIds.add(albumId);
+    }
+
+    final catalogAlbums = repository?.getAlbumsByIds(albumIds.toList()) ??
+        const <CatalogAlbumRecord>[];
+    final albumsById = {
+      for (final album in catalogAlbums) album.id: album,
+    };
+
+    return [
+      for (final event in events)
+        (() {
+          final albumId = event.albumId?.trim().isNotEmpty == true
+              ? event.albumId!.trim()
+              : albumIdBySongId[event.songId] ??
+                  _libraryManager.getSongAlbumId(event.songId);
+          if (albumId == null || albumId.isEmpty) return event;
+          final catalogAlbum = albumsById[albumId];
+          final memoryAlbum = _libraryManager.library?.albums[albumId];
+          final title = catalogAlbum?.title ?? memoryAlbum?.title;
+          final artist = catalogAlbum?.artist ?? memoryAlbum?.artist;
+          if (title == null && artist == null && event.albumId == albumId) {
+            return event;
+          }
+          return event.withAlbumMetadata(
+            albumId: albumId,
+            album: event.album?.trim().isNotEmpty == true ? event.album : title,
+            albumArtist: event.albumArtist?.trim().isNotEmpty == true
+                ? event.albumArtist
+                : artist,
+          );
+        })(),
+    ];
+  }
+
   Response _statsUnavailable() {
     return _jsonResponse(HttpStatus.serviceUnavailable, {
       'error': {
@@ -103,9 +169,8 @@ extension AriamiHttpServerListeningStatsMethods on AriamiHttpServer {
     final events = <ListeningEvent>[];
     var rejected = 0;
     for (final raw in rawEvents) {
-      final event = raw is Map<String, dynamic>
-          ? ListeningEvent.tryFromJson(raw)
-          : null;
+      final event =
+          raw is Map<String, dynamic> ? ListeningEvent.tryFromJson(raw) : null;
       if (event == null) {
         rejected++;
         continue;
@@ -113,7 +178,9 @@ extension AriamiHttpServerListeningStatsMethods on AriamiHttpServer {
       events.add(event);
     }
 
-    final result = store.applyEvents(session.userId, session.deviceId, events);
+    final enrichedEvents = _enrichListeningAlbumMetadata(events);
+    final result =
+        store.applyEvents(session.userId, session.deviceId, enrichedEvents);
 
     // Wake the account's other online clients so their stats views refresh in
     // real time. The uploading device already knows.
@@ -262,8 +329,8 @@ extension AriamiHttpServerListeningStatsMethods on AriamiHttpServer {
     final store = _statsStoreIfReady;
     if (store == null) return _statsUnavailable();
 
-    final days = _parseBoundedInt(request, 'days',
-        fallback: 0, max: _maxDailyDays);
+    final days =
+        _parseBoundedInt(request, 'days', fallback: 0, max: _maxDailyDays);
     if (days < 0) {
       return _invalidParam(
           'days must be an integer between 1 and $_maxDailyDays');
@@ -295,8 +362,8 @@ extension AriamiHttpServerListeningStatsMethods on AriamiHttpServer {
     final store = _statsStoreIfReady;
     if (store == null) return _statsUnavailable();
 
-    final days = _parseBoundedInt(request, 'days',
-        fallback: 0, max: _maxDailyDays);
+    final days =
+        _parseBoundedInt(request, 'days', fallback: 0, max: _maxDailyDays);
     if (days < 0) {
       return _invalidParam(
           'days must be an integer between 1 and $_maxDailyDays');

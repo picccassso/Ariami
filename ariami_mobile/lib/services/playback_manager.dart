@@ -28,6 +28,7 @@ import 'media/media_request_scheduler.dart';
 import 'stats/streaming_stats_service.dart';
 import 'color_extraction_service.dart';
 import 'quality/quality_settings_service.dart';
+import 'library/album_metadata_resolver.dart';
 import '../main.dart' show audioHandler;
 
 part 'playback_manager_queue_impl.dart';

@@ -188,10 +188,30 @@ extension _DownloadManagerOperationsImpl on DownloadManager {
         downloadOriginal ?? _qualityService.getDownloadOriginal();
     final taskId = 'song_$songId';
 
+    // Individual-song entry points often only have the normalized album ID.
+    // Resolve the title/artist before creating the durable task so the
+    // Downloads screen does not have to guess later.
+    final resolvedAlbum = await AlbumMetadataResolver().resolve(albumId);
+    if (albumName?.trim().isEmpty ?? true) albumName = resolvedAlbum?.title;
+    if (albumArtist?.trim().isEmpty ?? true) {
+      albumArtist = resolvedAlbum?.artist;
+    }
+
     // A stalled (paused/failed) task for this song is re-queued; an actively
     // downloading, pending, or completed one is left alone.
-    final existing = _getScopedTask(taskId);
+    var existing = _getScopedTask(taskId);
     if (existing != null) {
+      if (resolvedAlbum != null &&
+          ((existing.albumName?.trim().isEmpty ?? true) ||
+              (existing.albumArtist?.trim().isEmpty ?? true))) {
+        final replacement = _buildDownloadTaskWithAlbumMetadata(
+          existing,
+          resolvedAlbum,
+        );
+        if (_queue.replaceTask(existing.id, replacement)) {
+          existing = replacement;
+        }
+      }
       final requeued = await _requeueExistingTasksForDownload([existing]);
       if (requeued > 0) {
         _fillDownloadSlots();

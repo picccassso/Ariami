@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../models/song_stats.dart';
 import '../../models/artist_stats.dart';
 import '../../models/album_stats.dart';
+import '../../models/api_models.dart';
 import '../../services/stats/period_stats_loader.dart';
 import '../../services/stats/streaming_stats_service.dart';
 import '../../services/stats/account_stats_service.dart';
@@ -47,6 +48,7 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
   /// All-time credited artists from the server; null means unavailable
   /// (offline / old server) and the local grouping is shown instead.
   List<ArtistStats>? _creditedArtists;
+  Map<String, AlbumModel> _albumsById = <String, AlbumModel>{};
 
   @override
   void initState() {
@@ -75,10 +77,30 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
     _statsService.refreshTopSongs();
     AccountStatsService().refreshSummary();
     _refreshCreditedArtists();
+    _loadAlbumMetadata();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _loadPeriod();
     });
   }
+
+  Future<void> _loadAlbumMetadata() async {
+    try {
+      final albums = await _connectionService.libraryReadFacade.getAlbums();
+      if (!mounted) return;
+      setState(() {
+        _albumsById = {for (final album in albums) album.id: album};
+      });
+    } catch (_) {
+      // Stats remain usable offline; metadata will be shown when already
+      // present in the stored event/rollup.
+    }
+  }
+
+  String _albumName(AlbumStats stat) =>
+      stat.albumName ?? _albumsById[stat.albumId]?.title ?? 'Unknown Album';
+
+  String _albumArtist(AlbumStats stat) =>
+      stat.albumArtist ?? _albumsById[stat.albumId]?.artist ?? 'Unknown Artist';
 
   ApiClient _requireClient() {
     final client = _connectionService.apiClient;
@@ -1106,7 +1128,7 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  stat.albumName ?? 'Unknown Album',
+                  _albumName(stat),
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
@@ -1117,7 +1139,7 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  stat.albumArtist ?? 'Unknown Artist',
+                  _albumArtist(stat),
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w500,

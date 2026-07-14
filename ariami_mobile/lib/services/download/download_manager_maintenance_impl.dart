@@ -503,27 +503,37 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
 
   Future<int> _refreshDownloadAlbumMetadataImpl({
     required List<AlbumModel> libraryAlbums,
+    List<SongModel> librarySongs = const <SongModel>[],
   }) async {
     await _ensureInitialized();
     if (libraryAlbums.isEmpty) return 0;
 
     final albumsById = {for (final album in libraryAlbums) album.id: album};
-    final tasks =
-        _getScopedQueue().where((task) => task.albumId != null).toList();
+    final albumIdBySongId = {
+      for (final song in librarySongs)
+        if (song.albumId != null) song.id: song.albumId!,
+    };
+    final tasks = _getScopedQueue().toList();
     var refreshedCount = 0;
 
     _queue.beginBatch();
     try {
       for (final task in tasks) {
-        final album = albumsById[task.albumId];
+        final albumId = task.albumId ?? albumIdBySongId[task.songId];
+        final album = albumId == null ? null : albumsById[albumId];
         if (album == null ||
-            (task.albumName == album.title &&
+            (task.albumId == album.id &&
+                task.albumName == album.title &&
                 task.albumArtist == album.artist &&
                 (album.coverArt == null || task.albumArt == album.coverArt))) {
           continue;
         }
 
-        final replacement = _buildDownloadTaskWithAlbumMetadata(task, album);
+        final replacement = _buildDownloadTaskWithAlbumMetadata(
+          task,
+          album,
+          albumId: album.id,
+        );
         if (_queue.replaceTask(task.id, replacement)) {
           refreshedCount++;
         }
@@ -689,8 +699,9 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
 
   DownloadTask _buildDownloadTaskWithAlbumMetadata(
     DownloadTask task,
-    AlbumModel album,
-  ) {
+    AlbumModel album, {
+    String? albumId,
+  }) {
     return DownloadTask(
       id: task.id,
       songId: task.songId,
@@ -698,7 +709,7 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
       userId: task.userId,
       title: task.title,
       artist: task.artist,
-      albumId: task.albumId,
+      albumId: albumId ?? task.albumId,
       albumName: album.title,
       albumArtist: album.artist,
       albumArt: album.coverArt ?? task.albumArt,

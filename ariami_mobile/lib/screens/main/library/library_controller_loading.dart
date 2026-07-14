@@ -263,6 +263,7 @@ extension _LibraryControllerLoading on LibraryController {
 
     await _playlistService.remapPlaylistSongIds(library.songs);
     await _statsService.remapStaleStatIdsFromLibrary(library.songs);
+    await AlbumMetadataRepairMigration().run(library: library);
     await _playlistService.rehydrateSongMetadataFromLibrary(library.songs);
     await _loadDownloadedSongs();
   }

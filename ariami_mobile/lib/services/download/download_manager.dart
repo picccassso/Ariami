@@ -17,6 +17,7 @@ import 'download_queue.dart';
 import 'local_artwork_extractor.dart';
 import 'download_helpers.dart';
 import 'native_download_service.dart';
+import '../library/album_metadata_resolver.dart';
 
 part 'download_manager_initialization_impl.dart';
 part 'download_manager_operations_impl.dart';
@@ -316,8 +317,12 @@ class DownloadManager {
   /// available, so offline copies retain the server's title and artist.
   Future<int> refreshDownloadAlbumMetadata({
     required List<AlbumModel> libraryAlbums,
+    List<SongModel> librarySongs = const <SongModel>[],
   }) =>
-      _refreshDownloadAlbumMetadataImpl(libraryAlbums: libraryAlbums);
+      _refreshDownloadAlbumMetadataImpl(
+        libraryAlbums: libraryAlbums,
+        librarySongs: librarySongs,
+      );
 
   /// Clear all downloads
   Future<void> clearAllDownloads() => _clearAllDownloadsImpl();

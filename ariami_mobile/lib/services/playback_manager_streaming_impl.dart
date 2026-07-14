@@ -11,11 +11,18 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
     // Starting a fresh track resets any pending silence-pause state.
     _pausedBySilence = false;
 
-    final song = _queue.currentSong;
-    if (song == null) {
+    final queuedSong = _queue.currentSong;
+    if (queuedSong == null) {
       print('[PlaybackManager] ERROR: No current song in queue!');
       return;
     }
+
+    // SongModel stores albumId as the normalized catalog source of truth, but
+    // many queue/playback entry points do not carry the denormalized title.
+    // Enrich once at the playback boundary so stats, notifications and saved
+    // playback state all receive the same album metadata.
+    final song = await _resolveAlbumMetadata(queuedSong);
+    _replaceQueuedSongMetadata(queuedSong, song);
 
     print('[PlaybackManager] Current song: ${song.title}');
 
@@ -237,6 +244,38 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
     }
   }
 
+  Future<Song> _resolveAlbumMetadata(Song song) async {
+    if (song.albumId == null || song.albumId!.trim().isEmpty) return song;
+    if ((song.album?.trim().isNotEmpty ?? false) &&
+        (song.albumArtist?.trim().isNotEmpty ?? false)) {
+      return song;
+    }
+
+    final album = await AlbumMetadataResolver().resolve(song.albumId);
+    if (album == null) return song;
+    return song.copyWith(
+      album: song.album?.trim().isNotEmpty == true ? song.album : album.title,
+      albumArtist: song.albumArtist?.trim().isNotEmpty == true
+          ? song.albumArtist
+          : album.artist,
+    );
+  }
+
+  void _replaceQueuedSongMetadata(Song expected, Song replacement) {
+    if (identical(expected, replacement) ||
+        _queue.currentSong?.id != expected.id ||
+        _queue.currentIndex < 0 ||
+        _queue.currentIndex >= _queue.length) {
+      return;
+    }
+    final songs = List<Song>.from(_queue.songs);
+    songs[_queue.currentIndex] = replacement;
+    _queue = PlaybackQueue(
+      songs: songs,
+      currentIndex: _queue.currentIndex,
+    );
+  }
+
   Future<GaplessPlaybackItem?> _resolveNextGaplessItem(
     Song expectedCurrentSong,
   ) async {
@@ -265,6 +304,9 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
 
   Future<GaplessPlaybackItem?> _resolveGaplessItem(Song song) async {
     try {
+      // Gapless tracks bypass _playCurrentSong at the transition boundary, so
+      // they must carry the same resolved metadata into the prepared item.
+      song = await _resolveAlbumMetadata(song);
       final source = await _offlineService.getPlaybackSource(song.id);
       String streamUrl;
       Uri? artworkUri;
@@ -382,16 +424,18 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
     try {
       final previousIndex = _queue.currentIndex;
       final previousSong = _queue.currentSong;
+      final currentSong = await _resolveAlbumMetadata(transition.currentSong);
       final stopStats = _statsService.onSongStopped(completedNaturally: true);
       _queue.jumpToIndex(nextIndex);
+      _replaceQueuedSongMetadata(_queue.currentSong!, currentSong);
       _consumeOneShotQueueItem(previousIndex, previousSong);
       _restoredPosition = null;
       _pendingUiPosition = null;
       _notifyStateChanged();
 
       await stopStats;
-      _statsService.onSongStarted(transition.currentSong);
-      ColorExtractionService().extractColorsForSong(transition.currentSong);
+      _statsService.onSongStarted(currentSong);
+      ColorExtractionService().extractColorsForSong(currentSong);
       await _saveState();
       await _refreshGaplessQueue();
     } catch (e, stackTrace) {
