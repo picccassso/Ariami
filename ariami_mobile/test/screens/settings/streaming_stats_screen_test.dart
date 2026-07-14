@@ -30,12 +30,16 @@ void main() {
     expect(find.text('MONTH'), findsOneWidget);
     expect(find.text('YEAR'), findsOneWidget);
     expect(find.text('ALL'), findsOneWidget);
-    expect(find.text('All time'), findsOneWidget);
+    expect(find.text('Today'), findsOneWidget);
     expect(find.byIcon(Icons.chevron_left_rounded), findsOneWidget);
     expect(find.byIcon(Icons.chevron_right_rounded), findsOneWidget);
 
-    // No listening yet: the all-time empty state shows.
-    expect(find.textContaining('No stats yet'), findsWidgets);
+    // With no server connection, the default day view explains why period
+    // stats are unavailable.
+    expect(
+      find.textContaining('need a connection to your server'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('period views degrade cleanly with no server connection',
@@ -43,11 +47,7 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: StreamingStatsScreen()));
     await tester.pump();
 
-    await tester.tap(find.text('DAY'));
-    await tester.pump();
-    await tester.pump();
-
-    // The stepper now shows the picked day.
+    // Day is selected by default whenever the screen opens.
     expect(find.text('Today'), findsOneWidget);
 
     // Offline (no api client): a clear message rather than a crash/spinner.

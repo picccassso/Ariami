@@ -38,7 +38,7 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
   late final PeriodStatsLoader _periodLoader;
   int _currentTabIndex = 0;
 
-  StatsRange _range = StatsRange.all;
+  StatsRange _range = StatsRange.specificDay(DateTime.now());
   ListeningPeriodStats? _periodStats;
   bool _loadingPeriod = false;
   bool _periodUnavailable = false;
@@ -75,6 +75,9 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
     _statsService.refreshTopSongs();
     AccountStatsService().refreshSummary();
     _refreshCreditedArtists();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _loadPeriod();
+    });
   }
 
   ApiClient _requireClient() {
