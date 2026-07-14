@@ -1,4 +1,4 @@
-package com.example.ariami_mobile
+package app.ariami.mobile
 
 import android.content.Context
 import com.felnanuke.google_cast.GoogleCastOptionsProvider

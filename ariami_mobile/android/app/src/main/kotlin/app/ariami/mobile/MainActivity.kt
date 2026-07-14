@@ -1,4 +1,4 @@
-package com.example.ariami_mobile
+package app.ariami.mobile
 
 import android.util.Log
 import com.google.android.gms.cast.framework.CastContext

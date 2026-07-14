@@ -32,7 +32,7 @@
         android:usesCleartextTraffic="true">
         <meta-data
             android:name="com.google.android.gms.cast.framework.OPTIONS_PROVIDER_CLASS_NAME"
-            android:value="com.example.ariami_mobile.AriamiCastOptionsProvider" />
+            android:value="app.ariami.mobile.AriamiCastOptionsProvider" />
 
         <!-- Cast SDK merges this service by default; strip it so only Ariami's
              audio_service notification is shown during cast. -->

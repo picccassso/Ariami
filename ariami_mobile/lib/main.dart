@@ -48,7 +48,7 @@ void main() async {
   try {
     print('[Main] Step 1: Creating AudioServiceConfig...');
     final config = AudioServiceConfig(
-      androidNotificationChannelId: 'com.example.ariami_mobile.audio',
+      androidNotificationChannelId: 'app.ariami.mobile.audio',
       androidNotificationChannelName: 'Ariami Music Playback',
       androidNotificationChannelDescription: 'Controls for music playback',
       androidNotificationOngoing:

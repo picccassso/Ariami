@@ -1,4 +1,4 @@
-package com.example.ariami_mobile
+package app.ariami.mobile
 
 import android.app.NotificationChannel
 import android.app.NotificationManager

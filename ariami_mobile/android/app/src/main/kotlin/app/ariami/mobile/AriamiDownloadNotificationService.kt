@@ -1,4 +1,4 @@
-package com.example.ariami_mobile
+package app.ariami.mobile
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -71,7 +71,7 @@ class AriamiDownloadNotificationService : Service() {
         const val NOTIFICATION_ID = 24000
         private const val COMPLETION_NOTIFICATION_ID = 24002
         private const val CHANNEL_ID = "ariami_downloads"
-        private const val ACTION_STOP = "com.example.ariami_mobile.action.STOP_BATCH"
+        private const val ACTION_STOP = "app.ariami.mobile.action.STOP_BATCH"
         private const val EXTRA_TEXT = "text"
         private const val EXTRA_PROGRESS_PERCENT = "progressPercent"
         private const val EXTRA_COMPLETION_TEXT = "completionText"
