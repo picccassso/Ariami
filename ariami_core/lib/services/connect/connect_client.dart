@@ -215,6 +215,7 @@ class AriamiConnectClient {
         case WsMessageType.listeningStatsUpdated:
         case WsMessageType.pinsChanged:
         case WsMessageType.playlistEditsChanged:
+        case WsMessageType.syncTokenAdvanced:
           onServerNotification?.call(message);
       }
     } catch (_) {

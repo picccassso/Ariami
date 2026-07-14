@@ -436,9 +436,24 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
         }
       }
 
+      // Weak validator for resumable downloads. Only the untranscoded
+      // original gets one: a per-request transcode has no stable identity,
+      // so clients must never splice ranges of two transcode runs together.
+      String? etag;
+      if (downloadTranscodeResult == null) {
+        final stat = await fileToDownload.stat();
+        etag = '"dl-$fileSize-${stat.modified.millisecondsSinceEpoch}"';
+      }
+
       final rangeHeader = request.headers[HttpHeaders.rangeHeader];
+      // If-Range (RFC 9110): honour the Range only while the validator still
+      // matches; otherwise serve the full body with 200 so a resuming client
+      // can never splice bytes of two different file versions.
+      final ifRange = request.headers[HttpHeaders.ifRangeHeader]?.trim();
+      final rangeApplies = rangeHeader != null &&
+          (ifRange == null || (etag != null && ifRange == etag));
       final range =
-          rangeHeader != null ? RangeHeader.parse(rangeHeader, fileSize) : null;
+          rangeApplies ? RangeHeader.parse(rangeHeader, fileSize) : null;
       final start = range?.start ?? 0;
       final end = range?.end ?? (fileSize - 1);
       final contentLength = end - start + 1;
@@ -500,6 +515,7 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
         'Accept-Ranges': 'bytes',
         'Cache-Control':
             'public, max-age=3600', // Cache for 1 hour during download
+        if (etag != null) HttpHeaders.etagHeader: etag,
       };
       if (range != null) {
         responseHeaders[HttpHeaders.contentRangeHeader] =
