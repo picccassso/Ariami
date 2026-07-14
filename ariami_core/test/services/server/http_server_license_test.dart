@@ -29,11 +29,10 @@ void main() {
     // First registered user is the admin.
     await AuthService().register('owner', 'owner-pass-123456');
     await AuthService().register('member', 'member-pass-123456');
-    port = await _freePort();
-    await server.start(
+    port = await server.startWithPortFallback(
       advertisedIp: '127.0.0.1',
       bindAddress: '127.0.0.1',
-      port: port,
+      preferredPort: await _freePort(),
     );
     adminToken = await _login(port, 'owner', 'owner-pass-123456', 'device-o');
     memberToken =
