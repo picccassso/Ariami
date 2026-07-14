@@ -11,10 +11,17 @@ class GradientColors {
   /// Optional accent color (for highlights)
   final Color? accent;
 
+  /// Artwork colour selected specifically for whole-app dynamic theming.
+  ///
+  /// Player gradients keep using [primary], while the app theme can prefer a
+  /// vibrant swatch without changing the established player artwork treatment.
+  final Color? themeSeed;
+
   const GradientColors({
     required this.primary,
     required this.secondary,
     this.accent,
+    this.themeSeed,
   });
 
   /// Default fallback gradient colors (grey tones)
@@ -30,9 +37,10 @@ class GradientColors {
     return other is GradientColors &&
         other.primary == primary &&
         other.secondary == secondary &&
-        other.accent == accent;
+        other.accent == accent &&
+        other.themeSeed == themeSeed;
   }
 
   @override
-  int get hashCode => Object.hash(primary, secondary, accent);
+  int get hashCode => Object.hash(primary, secondary, accent, themeSeed);
 }

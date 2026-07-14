@@ -537,6 +537,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           theme: ThemeService().lightTheme,
           darkTheme: ThemeService().darkTheme,
           themeMode: ThemeService().themeMode,
+          themeAnimationDuration: const Duration(milliseconds: 400),
           home: _isLoading
               ? const Scaffold(
                   body: Center(

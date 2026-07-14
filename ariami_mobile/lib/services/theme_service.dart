@@ -47,6 +47,7 @@ class ThemeService extends ChangeNotifier {
   Color _presetColor = const Color(0xFFFFFFFF); // Default pure white
   Color _customColor = const Color(0xFFFFFFFF);
   Color _staticCoverArtColor = const Color(0xFFFFFFFF);
+  Color _dynamicCoverArtColor = const Color(0xFF6E7A86);
 
   String? _staticSongId;
   String? _staticSongTitle;
@@ -106,7 +107,7 @@ class ThemeService extends ChangeNotifier {
       case ThemeSource.staticCoverArt:
         return _staticCoverArtColor;
       case ThemeSource.dynamicCoverArt:
-        return _colorService.currentColors.primary;
+        return _dynamicCoverArtColor;
     }
   }
 
@@ -134,6 +135,7 @@ class ThemeService extends ChangeNotifier {
     // Extract colors for the initial song if there is one
     if (_playbackManager.currentSong != null) {
       _colorService.extractColorsForSong(_playbackManager.currentSong);
+      _syncDynamicColor();
     }
   }
 
@@ -231,9 +233,24 @@ class ThemeService extends ChangeNotifier {
   }
 
   void _onColorsChanged() {
-    if (_themeSource == ThemeSource.dynamicCoverArt) {
-      notifyListeners();
-    }
+    if (_themeSource == ThemeSource.dynamicCoverArt) _syncDynamicColor();
+  }
+
+  void _syncDynamicColor() {
+    final song = _playbackManager.currentSong;
+    if (song == null) return;
+
+    final expectedCacheId = song.albumId ?? 'song_${song.id}';
+    if (_colorService.currentCacheId != expectedCacheId) return;
+
+    final colors = _colorService.currentColors;
+    final color = colors.themeSeed;
+    // Match Premium desktop: failed artwork extraction keeps the previous
+    // dynamic colour instead of flashing the interface back to a fallback.
+    if (color == null) return;
+    if (_dynamicCoverArtColor == color) return;
+    _dynamicCoverArtColor = color;
+    if (_themeSource == ThemeSource.dynamicCoverArt) notifyListeners();
   }
 
   Future<void> setThemeMode(ThemeMode mode) async {
@@ -244,6 +261,12 @@ class ThemeService extends ChangeNotifier {
     if (_themeSource == source) return;
     _themeSource = source;
     await sharedPrefs.setInt(_appearanceSourceKey, source.index);
+    if (source == ThemeSource.dynamicCoverArt) {
+      _syncDynamicColor();
+      unawaited(
+        _colorService.extractColorsForSong(_playbackManager.currentSong),
+      );
+    }
     notifyListeners();
   }
 
@@ -252,6 +275,7 @@ class ThemeService extends ChangeNotifier {
     _presetColor = const Color(0xFFFFFFFF);
     _customColor = const Color(0xFFFFFFFF);
     _staticCoverArtColor = const Color(0xFFFFFFFF);
+    _dynamicCoverArtColor = const Color(0xFF6E7A86);
     _staticSongId = null;
     _staticSongTitle = null;
     _staticSongArtist = null;

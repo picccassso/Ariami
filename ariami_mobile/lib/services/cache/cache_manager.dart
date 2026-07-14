@@ -18,6 +18,9 @@ class CacheUpdateEvent {
 
   bool get affectsSongCache =>
       cleared || type == null || type == CacheType.song;
+
+  bool get affectsArtworkCache =>
+      cleared || type == null || type == CacheType.artwork;
 }
 
 /// Manages caching of artwork and songs with LRU eviction
