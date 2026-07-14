@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../../../models/api_models.dart' show PlaylistModel;
 import '../../../models/download_task.dart';
 import '../../../models/quality_settings.dart';
 import '../../../models/websocket_models.dart';
@@ -51,6 +52,24 @@ class DownloadsController extends ChangeNotifier {
   Set<String> _playlistSongIds = {};
   int _libraryAlbumCount = 0;
   bool _hasLibraryReferenceData = false;
+
+  /// Resolves the songs represented by playlists that exist in the mobile
+  /// library. Imported server playlists are local playlists too; server
+  /// playlists still waiting in "Import from Server" are intentionally absent.
+  @visibleForTesting
+  static Set<String> resolveLocalPlaylistSongIds(
+    Iterable<PlaylistModel> playlists, {
+    Set<String>? validSongIds,
+  }) {
+    final songIds = <String>{};
+    for (final playlist in playlists) {
+      songIds.addAll(playlist.songIds);
+    }
+    if (validSongIds != null) {
+      songIds.removeWhere((songId) => !validSongIds.contains(songId));
+    }
+    return songIds;
+  }
 
   String _lastQueueViewSignature = '';
 
@@ -347,14 +366,10 @@ class DownloadsController extends ChangeNotifier {
         }
       }
 
-      final playlistSongIds = <String>{};
-      for (final playlist in playlistService.playlists) {
-        playlistSongIds.addAll(playlist.songIds);
-      }
-      for (final serverPlaylist in serverPlaylists) {
-        playlistSongIds.addAll(serverPlaylist.songIds);
-      }
-      playlistSongIds.removeWhere((songId) => !librarySongIds.contains(songId));
+      final playlistSongIds = resolveLocalPlaylistSongIds(
+        playlistService.playlists,
+        validSongIds: librarySongIds,
+      );
 
       _librarySongIds = librarySongIds;
       _albumSongCounts = albumSongCounts;
@@ -383,13 +398,8 @@ class DownloadsController extends ChangeNotifier {
         .map((t) => t.albumId!)
         .toSet();
 
-    final localPlaylistSongIds = <String>{};
-    for (final playlist in playlistService.playlists) {
-      localPlaylistSongIds.addAll(playlist.songIds);
-    }
-    for (final serverPlaylist in playlistService.visibleServerPlaylists) {
-      localPlaylistSongIds.addAll(serverPlaylist.songIds);
-    }
+    final localPlaylistSongIds =
+        resolveLocalPlaylistSongIds(playlistService.playlists);
 
     final localDownloadedPlaylistSongs =
         localPlaylistSongIds.where(downloadedSongIds.contains).length;
@@ -534,19 +544,13 @@ class DownloadsController extends ChangeNotifier {
       playlistService.updateServerPlaylists(serverPlaylists);
       final validSongIds = songs.map((song) => song.id).toSet();
 
-      final localPlaylistSongIds = <String>{};
-      for (final playlist in playlistService.playlists) {
-        localPlaylistSongIds.addAll(playlist.songIds);
-      }
-      localPlaylistSongIds
-          .removeWhere((songId) => !validSongIds.contains(songId));
-
-      final serverPlaylistIds =
-          serverPlaylists.map((playlist) => playlist.id).toList();
+      final localPlaylistSongIds = resolveLocalPlaylistSongIds(
+        playlistService.playlists,
+        validSongIds: validSongIds,
+      );
 
       await _downloadManager.enqueueDownloadJob(
         songIds: localPlaylistSongIds.toList(),
-        playlistIds: serverPlaylistIds,
         downloadQuality: downloadQuality,
         downloadOriginal: downloadOriginal,
       );
@@ -897,4 +901,3 @@ class DownloadsController extends ChangeNotifier {
     super.dispose();
   }
 }
-
