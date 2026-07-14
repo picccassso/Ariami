@@ -20,7 +20,8 @@ extension AriamiHttpServerLibraryAndArtworkHandlersMethods on AriamiHttpServer {
   /// Handle get album detail request
   Future<Response> _handleGetAlbumDetail(
       Request request, String albumId) async {
-    final baseUrl = 'http://${_advertisedIp ?? _tailscaleIp}:$_port';
+    final baseUrl =
+        _publicOrigin ?? 'http://${_advertisedIp ?? _tailscaleIp}:$_port';
     final albumDetail = await _libraryManager.getAlbumDetail(albumId, baseUrl);
 
     if (albumDetail == null) {

@@ -14,6 +14,7 @@
                             enabled:(BOOL)enabled;
 
 - (void)setEnabled:(BOOL)enabled;
+- (BOOL)isEnabled;
 - (void)setGain:(double)gain forBand:(int)bandIndex;
 
 /// Attaches the processing tap to the item if not already attached. Must be

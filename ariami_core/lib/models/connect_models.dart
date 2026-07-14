@@ -61,6 +61,17 @@ class AriamiConnectCommand {
   /// (Spotify-style) instead of yanking playback to the controller.
   static const playContext = 'play_context';
 
+  /// Removes the track at an absolute index within the queue the active
+  /// device last published, so a controller can edit the mirrored queue.
+  /// Arguments: `index` (int) and `id` (String) — the track id the
+  /// controller saw at that index, guarding against stale snapshots.
+  static const removeQueueIndex = 'remove_queue_index';
+
+  /// Re-inserts a track at an absolute index within the active device's
+  /// published queue — a controller's undo of [removeQueueIndex].
+  /// Arguments: `index` (int) and `track` (catalog-metadata map).
+  static const insertQueueTrack = 'insert_queue_track';
+
   static const supported = <String>{
     play,
     pause,
@@ -73,6 +84,8 @@ class AriamiConnectCommand {
     cycleRepeat,
     playQueueIndex,
     playContext,
+    removeQueueIndex,
+    insertQueueTrack,
   };
 }
 

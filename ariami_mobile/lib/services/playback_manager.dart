@@ -332,6 +332,90 @@ class PlaybackManager extends ChangeNotifier {
     setConnectRemoteMirror(remote.copyWithSnapshot(snapshot));
   }
 
+  /// Removes a track from the mirrored queue: sends the edit to the active
+  /// device and applies it optimistically (the device's next state broadcast
+  /// is authoritative). Returns a removal snapshot for the undo toast.
+  QueueItemRemoval? _removeConnectQueueItem(
+    AriamiRemotePlayback remote,
+    int index,
+  ) {
+    final snapshot = remote.snapshot;
+    if (index < 0 ||
+        index >= snapshot.queue.length ||
+        index >= _connectRemoteSongs.length) {
+      return null;
+    }
+    final song = _connectRemoteSongs[index];
+
+    _sendConnect(AriamiConnectCommand.removeQueueIndex, <String, dynamic>{
+      'index': index,
+      'id': song.id,
+    });
+
+    final wasCurrent = index == snapshot.currentIndex;
+    final queue = List<Map<String, dynamic>>.from(snapshot.queue)
+      ..removeAt(index);
+    var currentIndex = snapshot.currentIndex;
+    if (index < currentIndex) currentIndex--;
+    if (currentIndex >= queue.length) currentIndex = queue.length - 1;
+    setConnectRemoteMirror(remote.copyWithSnapshot(AriamiPlaybackSnapshot(
+      queue: queue,
+      currentIndex: currentIndex,
+      positionMs: wasCurrent ? 0 : remote.positionMs,
+      durationMs: snapshot.durationMs,
+      isPlaying: snapshot.isPlaying,
+      shuffle: snapshot.shuffle,
+      repeatMode: snapshot.repeatMode,
+      volume: snapshot.volume,
+      sourceId: snapshot.sourceId,
+    )));
+
+    return QueueItemRemoval(
+      song: song,
+      index: index,
+      wasCurrent: wasCurrent,
+      wasPlaying: snapshot.isPlaying,
+      wasOneShot: false,
+      wasRemote: true,
+    );
+  }
+
+  /// Sends a controller's undo of a mirrored-queue removal back to the active
+  /// device and re-inserts the track into the mirror optimistically.
+  void _undoConnectQueueRemoval(QueueItemRemoval removal) {
+    final remote = _connectRemote;
+    if (remote == null) return;
+    final trackJson = removal.song.toJson();
+
+    _sendConnect(AriamiConnectCommand.insertQueueTrack, <String, dynamic>{
+      'index': removal.index,
+      'track': trackJson,
+    });
+
+    final snapshot = remote.snapshot;
+    final queue = List<Map<String, dynamic>>.from(snapshot.queue);
+    final clamped = removal.index.clamp(0, queue.length);
+    queue.insert(clamped, trackJson);
+    var currentIndex = snapshot.currentIndex;
+    if (removal.wasCurrent) {
+      // Undoing a removed now-playing track makes it current again.
+      currentIndex = clamped;
+    } else if (clamped <= currentIndex) {
+      currentIndex++;
+    }
+    setConnectRemoteMirror(remote.copyWithSnapshot(AriamiPlaybackSnapshot(
+      queue: queue,
+      currentIndex: currentIndex,
+      positionMs: removal.wasCurrent ? 0 : remote.positionMs,
+      durationMs: snapshot.durationMs,
+      isPlaying: snapshot.isPlaying,
+      shuffle: snapshot.shuffle,
+      repeatMode: snapshot.repeatMode,
+      volume: snapshot.volume,
+      sourceId: snapshot.sourceId,
+    )));
+  }
+
   /// Applies an optimistic local adjustment to the mirrored snapshot so the UI
   /// responds instantly; the active device's next broadcast is authoritative.
   void _applyConnectOptimistic({bool? isPlaying, int? positionMs}) {
@@ -378,6 +462,23 @@ class PlaybackManager extends ChangeNotifier {
         await _skipToQueueItemImpl(
           (arguments['index'] as num?)?.toInt() ?? -1,
         );
+      case AriamiConnectCommand.removeQueueIndex:
+        await _removeQueueItemForConnect(
+          (arguments['index'] as num?)?.toInt() ?? -1,
+          arguments['id'] as String?,
+        );
+      case AriamiConnectCommand.insertQueueTrack:
+        final rawTrack = arguments['track'];
+        if (rawTrack is Map) {
+          final song =
+              _songFromConnectJson(Map<String, dynamic>.from(rawTrack));
+          if (song != null) {
+            _insertQueueItemImpl(
+              (arguments['index'] as num?)?.toInt() ?? _queue.length,
+              song,
+            );
+          }
+        }
       case AriamiConnectCommand.playContext:
         final raw = arguments['snapshot'];
         if (raw is Map) {
@@ -766,10 +867,23 @@ class PlaybackManager extends ChangeNotifier {
   }
 
   /// Remove a queue item and keep playback/UI state in sync.
-  /// Editing a mirrored (remote) queue is not supported.
-  Future<void> removeQueueItem(int index) async {
+  /// Returns a snapshot for [undoRemoveQueueItem], or null if nothing was removed.
+  /// On a mirrored (remote) queue this routes the edit to the active device.
+  Future<QueueItemRemoval?> removeQueueItem(int index) async {
+    final remote = _connectRemote;
+    if (remote != null) return _removeConnectQueueItem(remote, index);
+    return _removeQueueItemImpl(index);
+  }
+
+  /// Re-insert a song removed by [removeQueueItem] at its old position.
+  /// A remote removal is undone on the active device it was sent to.
+  Future<void> undoRemoveQueueItem(QueueItemRemoval removal) async {
+    if (removal.wasRemote) {
+      _undoConnectQueueRemoval(removal);
+      return;
+    }
     if (_connectRemote != null) return;
-    await _removeQueueItemImpl(index);
+    await _undoRemoveQueueItemImpl(removal);
   }
 
   /// Seek to position

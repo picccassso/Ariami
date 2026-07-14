@@ -11,8 +11,10 @@
 /// ```
 ///
 /// The scheme is optional (assumed `http`), the port is optional (defaults to
-/// [defaultPort]), and any trailing path/slash is ignored.
+/// [defaultPort]). A trailing slash is allowed; other URL paths are rejected.
 library;
+
+import 'package:ariami_core/models/server_origin.dart';
 
 class ParsedServerAddress {
   /// Default server port used when the address omits one.
@@ -20,8 +22,17 @@ class ParsedServerAddress {
 
   final String host;
   final int port;
+  final String scheme;
+  final String? publicOrigin;
 
-  const ParsedServerAddress({required this.host, required this.port});
+  const ParsedServerAddress({
+    required this.host,
+    required this.port,
+    required this.scheme,
+    this.publicOrigin,
+  });
+
+  bool get isSecure => publicOrigin != null;
 
   /// Parse [input] into a [ParsedServerAddress], or return `null` if it is not
   /// a usable `host[:port]` address.
@@ -31,8 +42,9 @@ class ParsedServerAddress {
 
     // Prepend a scheme so Uri.parse populates host/port consistently. Without a
     // scheme, "192.168.1.50:8080" is parsed with the host in `scheme`.
+    final lower = trimmed.toLowerCase();
     final hasScheme =
-        trimmed.startsWith('http://') || trimmed.startsWith('https://');
+        lower.startsWith('http://') || lower.startsWith('https://');
     final normalized = hasScheme ? trimmed : 'http://$trimmed';
 
     final Uri uri;
@@ -45,12 +57,28 @@ class ParsedServerAddress {
     final host = uri.host;
     if (host.isEmpty) return null;
 
-    final port = uri.hasPort ? uri.port : defaultPort;
+    final scheme = uri.scheme.toLowerCase();
+    if (scheme != 'http' && scheme != 'https') return null;
+    if (uri.userInfo.isNotEmpty || uri.hasQuery || uri.hasFragment) return null;
+    if (uri.path.isNotEmpty && uri.path != '/') return null;
+
+    final port =
+        uri.hasPort ? uri.port : (scheme == 'https' ? 443 : defaultPort);
     if (port < 1 || port > 65535) return null;
 
-    return ParsedServerAddress(host: host, port: port);
+    final publicOrigin =
+        scheme == 'https' ? normalizeSecurePublicOrigin(uri.origin) : null;
+    if (scheme == 'https' && publicOrigin == null) return null;
+
+    return ParsedServerAddress(
+      host: host,
+      port: port,
+      scheme: scheme,
+      publicOrigin: publicOrigin,
+    );
   }
 
   @override
-  String toString() => 'ParsedServerAddress(host: $host, port: $port)';
+  String toString() =>
+      'ParsedServerAddress(host: $host, port: $port, scheme: $scheme)';
 }

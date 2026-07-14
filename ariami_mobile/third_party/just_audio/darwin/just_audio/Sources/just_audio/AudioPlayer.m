@@ -196,7 +196,16 @@
         } else if ([@"audioEffectSetEnabled" isEqualToString:call.method]) {
             // (Ariami fork) Darwin equalizer support.
             if (_equalizer && [@"DarwinEqualizer" isEqualToString:(NSString *)request[@"type"]]) {
-                [_equalizer setEnabled:[request[@"enabled"] boolValue]];
+                BOOL enabled = [request[@"enabled"] boolValue];
+                [_equalizer setEnabled:enabled];
+                // Disabled equalizers must not install an audio mix at all:
+                // changing AVPlayerItem.audioMix on a queued item can force
+                // AVQueuePlayer to reprepare (and rewind) the current track.
+                // When the user enables EQ, attach only to the current item.
+                if (enabled && _player.currentItem &&
+                    _player.currentItem.status == AVPlayerItemStatusReadyToPlay) {
+                    [_equalizer attachToPlayerItem:_player.currentItem];
+                }
             }
             result(@{});
         } else if ([@"androidEqualizerBandSetGain" isEqualToString:call.method]) {
@@ -821,12 +830,14 @@
         [playerItem.audioSource onStatusChanged:status];
         switch (status) {
             case AVPlayerItemStatusReadyToPlay: {
-                // (Ariami fork) The asset's audio tracks are loaded by now,
-                // so the equalizer tap can be attached (idempotent).
-                if (_equalizer) {
+                if (playerItem != _player.currentItem) return;
+                // (Ariami fork) Only the current item may receive an audio
+                // processing tap. Attaching a tap to a preloaded queue item
+                // makes AVQueuePlayer reprepare the active item and can rewind
+                // playback several seconds near the transition boundary.
+                if (_equalizer && [_equalizer isEnabled]) {
                     [_equalizer attachToPlayerItem:playerItem];
                 }
-                if (playerItem != _player.currentItem) return;
                 // Detect buffering in different ways depending on whether we're playing
                 if (_playing) {
                     if (@available(macOS 10.12, iOS 10.0, *)) {
@@ -939,6 +950,14 @@
     } else if ([keyPath isEqualToString:@"currentItem"] && _player.currentItem) {
         //NSLog(@"currentItem -> [%d]", [self indexForItem:_player.currentItem]);
         IndexedPlayerItem *playerItem = (IndexedPlayerItem *)change[NSKeyValueChangeNewKey];
+        // A preloaded item may already be ReadyToPlay when it becomes current,
+        // so its status observer will not fire again. Attach the enabled EQ
+        // here at the boundary; doing so at position zero cannot disturb the
+        // outgoing item.
+        if (_equalizer && [_equalizer isEnabled] &&
+            playerItem.status == AVPlayerItemStatusReadyToPlay) {
+            [_equalizer attachToPlayerItem:playerItem];
+        }
         //IndexedPlayerItem *oldPlayerItem = (IndexedPlayerItem *)change[NSKeyValueChangeOldKey];
         if (playerItem.status == AVPlayerItemStatusFailed) {
             [self sendErrorForItem:playerItem];

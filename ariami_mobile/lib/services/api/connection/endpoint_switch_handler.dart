@@ -33,6 +33,10 @@ class EndpointSwitchHandler {
 
   /// Configure and start endpoint monitoring
   void configureMonitoring(ServerInfo serverInfo) {
+    if (serverInfo.isSecurePublicConnection) {
+      stopMonitoring();
+      return;
+    }
     final primaryIp = serverInfo.tailscaleServer ?? serverInfo.server;
     _endpointSubscription?.cancel();
     _endpointResolver.configure(

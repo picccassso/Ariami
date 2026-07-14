@@ -65,6 +65,7 @@ class _ManualServerEntryScreenState extends State<ManualServerEntryScreen> {
       final bootstrap = ServerInfo(
         server: parsed.host,
         port: parsed.port,
+        publicOrigin: parsed.publicOrigin,
         name: parsed.host,
         version: '',
       );
@@ -84,6 +85,7 @@ class _ManualServerEntryScreenState extends State<ManualServerEntryScreen> {
       final serverInfo = ServerInfo(
         server: parsed.host,
         port: parsed.port,
+        publicOrigin: parsed.publicOrigin ?? discovered.publicOrigin,
         name: discovered.name,
         version: discovered.version,
         authRequired: discovered.authRequired,
@@ -152,16 +154,16 @@ class _ManualServerEntryScreenState extends State<ManualServerEntryScreen> {
                   const SizedBox(height: 32),
                   Text(
                     'Connect manually',
-                    style:
-                        Theme.of(context).textTheme.headlineMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: Theme.of(context).colorScheme.onSurface,
-                            ),
+                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     'Enter your server address. You can include or omit '
-                    'http:// — the port defaults to 8080.',
+                    'http:// or https://. Secure public servers default to '
+                    'port 443; private servers default to 8080.',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: Theme.of(context)
@@ -282,8 +284,7 @@ class _ManualServerEntryScreenState extends State<ManualServerEntryScreen> {
                     child: ElevatedButton(
                       onPressed: _isConnecting ? null : _handleConnect,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor:
-                            Theme.of(context).colorScheme.primary,
+                        backgroundColor: Theme.of(context).colorScheme.primary,
                         foregroundColor:
                             Theme.of(context).colorScheme.onPrimary,
                         elevation: 8,
@@ -301,8 +302,7 @@ class _ManualServerEntryScreenState extends State<ManualServerEntryScreen> {
                               height: 24,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2.5,
-                                color:
-                                    Theme.of(context).colorScheme.onPrimary,
+                                color: Theme.of(context).colorScheme.onPrimary,
                               ),
                             )
                           : const Text(

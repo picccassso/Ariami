@@ -58,5 +58,31 @@ void main() {
       expect(result.serverInfo.name, 'Ariami Updated');
       expect(result.serverInfo.version, '4.3.1');
     });
+
+    test('secure public origin is preserved without an HTTP port downgrade',
+        () {
+      final manager = ServerInfoManager();
+      final current = ServerInfo(
+        server: 'review.ariami.xyz',
+        port: 443,
+        publicOrigin: 'https://review.ariami.xyz',
+        name: 'Review',
+        version: '4.4.0',
+      );
+      final fetched = ServerInfo(
+        server: '10.0.0.2',
+        lanServer: '10.0.0.2',
+        port: 8080,
+        name: 'Review',
+        version: '4.4.0',
+      );
+
+      final result = manager.applyEndpointRefresh(current, fetched);
+
+      expect(result.serverInfo.baseUrl, 'https://review.ariami.xyz');
+      expect(result.serverInfo.wsUrl, 'wss://review.ariami.xyz');
+      expect(result.serverInfo.port, 443);
+      expect(result.serverInfo.server, 'review.ariami.xyz');
+    });
   });
 }

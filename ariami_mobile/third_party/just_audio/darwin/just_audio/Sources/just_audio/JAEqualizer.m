@@ -203,6 +203,10 @@ static void ja_eq_tap_process(MTAudioProcessingTapRef tap, CMItemCount numberFra
     atomic_store(&_shared->enabled, enabled);
 }
 
+- (BOOL)isEnabled {
+    return atomic_load(&_shared->enabled);
+}
+
 - (void)setGain:(double)gain forBand:(int)bandIndex {
     if (bandIndex < 0 || bandIndex >= _shared->bandCount) return;
     atomic_store_explicit(&_shared->gains[bandIndex], (float)gain, memory_order_relaxed);

@@ -59,6 +59,11 @@ class ServerInfoManager {
   /// Configures the endpoint resolver and returns server info with
   /// the resolved IP address.
   Future<ServerInfo> resolvePreferredServerInfo(ServerInfo serverInfo) async {
+    // A configured public origin is an explicit HTTPS trust boundary. Never
+    // replace it with a server-advertised cleartext LAN/Tailscale address.
+    if (serverInfo.isSecurePublicConnection) {
+      return serverInfo;
+    }
     final primaryIp = serverInfo.tailscaleServer ?? serverInfo.server;
     _endpointResolver.configure(
       primaryIp: primaryIp,
@@ -102,7 +107,8 @@ class ServerInfoManager {
       server: current.server,
       lanServer: fetched.lanServer ?? current.lanServer,
       tailscaleServer: fetched.tailscaleServer ?? current.tailscaleServer,
-      port: fetched.port,
+      port: current.isSecurePublicConnection ? current.port : fetched.port,
+      publicOrigin: current.publicOrigin ?? fetched.publicOrigin,
       name: fetched.name,
       version: fetched.version,
       authRequired: fetched.authRequired,
@@ -111,7 +117,8 @@ class ServerInfoManager {
     );
 
     final endpointConfigChanged = current.lanServer != merged.lanServer ||
-        current.tailscaleServer != merged.tailscaleServer;
+        current.tailscaleServer != merged.tailscaleServer ||
+        current.publicOrigin != merged.publicOrigin;
 
     if (_hasServerInfoChanged(merged, current)) {
       _serverInfo = merged;
@@ -133,6 +140,7 @@ class ServerInfoManager {
         a.lanServer != b.lanServer ||
         a.tailscaleServer != b.tailscaleServer ||
         a.port != b.port ||
+        a.publicOrigin != b.publicOrigin ||
         a.name != b.name ||
         a.version != b.version ||
         a.authRequired != b.authRequired ||
@@ -147,6 +155,7 @@ extension ServerInfoCopyWith on ServerInfo {
     String? lanServer,
     String? tailscaleServer,
     int? port,
+    String? publicOrigin,
     String? name,
     String? version,
     bool? authRequired,
@@ -158,6 +167,7 @@ extension ServerInfoCopyWith on ServerInfo {
       lanServer: lanServer ?? this.lanServer,
       tailscaleServer: tailscaleServer ?? this.tailscaleServer,
       port: port ?? this.port,
+      publicOrigin: publicOrigin ?? this.publicOrigin,
       name: name ?? this.name,
       version: version ?? this.version,
       authRequired: authRequired ?? this.authRequired,

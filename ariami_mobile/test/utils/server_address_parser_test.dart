@@ -56,7 +56,7 @@ void main() {
       expect(result.port, 8080);
     });
 
-    test('ignores trailing path and slash', () {
+    test('allows a trailing slash', () {
       final result = ParsedServerAddress.tryParse('http://192.168.1.50:8080/');
       expect(result, isNotNull);
       expect(result!.host, '192.168.1.50');
@@ -68,6 +68,38 @@ void main() {
       expect(result, isNotNull);
       expect(result!.host, 'my-server.local');
       expect(result.port, 8080);
+    });
+
+    test('preserves a secure public origin and defaults HTTPS to 443', () {
+      final result = ParsedServerAddress.tryParse('https://review.ariami.xyz');
+
+      expect(result, isNotNull);
+      expect(result!.host, 'review.ariami.xyz');
+      expect(result.port, 443);
+      expect(result.scheme, 'https');
+      expect(result.publicOrigin, 'https://review.ariami.xyz');
+      expect(result.isSecure, isTrue);
+    });
+
+    test('rejects credentials, queries, and fragments', () {
+      expect(
+        ParsedServerAddress.tryParse(
+          'https://user:pass@review.ariami.xyz',
+        ),
+        isNull,
+      );
+      expect(
+        ParsedServerAddress.tryParse('https://review.ariami.xyz?next=evil'),
+        isNull,
+      );
+      expect(
+        ParsedServerAddress.tryParse('https://review.ariami.xyz#fragment'),
+        isNull,
+      );
+      expect(
+        ParsedServerAddress.tryParse('https://review.ariami.xyz/api'),
+        isNull,
+      );
     });
 
     test('returns null for empty input', () {

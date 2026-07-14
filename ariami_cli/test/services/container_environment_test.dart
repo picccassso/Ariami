@@ -45,6 +45,16 @@ void main() {
       expect(blank.advertisedTailscaleHostOverride, isNull);
     });
 
+    test('reads and trims the public origin override', () {
+      final env = ContainerEnvironment(
+        environment: const {
+          'ARIAMI_PUBLIC_ORIGIN': '  https://review.ariami.xyz  ',
+        },
+        dockerenvPath: '/path/that/does/not/exist',
+      );
+      expect(env.publicOriginOverride, 'https://review.ariami.xyz');
+    });
+
     test('detects any advertised override', () {
       final none = ContainerEnvironment(
         environment: const {},

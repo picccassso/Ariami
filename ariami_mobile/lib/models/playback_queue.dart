@@ -1,5 +1,27 @@
 import 'song.dart';
 
+/// Snapshot of a removed queue item so the removal can be undone.
+class QueueItemRemoval {
+  final Song song;
+  final int index;
+  final bool wasCurrent;
+  final bool wasPlaying;
+  final bool wasOneShot;
+
+  /// True when the removal edited a mirrored (Ariami Connect) queue, so undo
+  /// must go back out as a Connect command instead of touching the local queue.
+  final bool wasRemote;
+
+  const QueueItemRemoval({
+    required this.song,
+    required this.index,
+    required this.wasCurrent,
+    required this.wasPlaying,
+    required this.wasOneShot,
+    this.wasRemote = false,
+  });
+}
+
 /// Manages the playback queue
 class PlaybackQueue {
   List<Song> _songs = [];

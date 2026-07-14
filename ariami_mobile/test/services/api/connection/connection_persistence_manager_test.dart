@@ -51,6 +51,23 @@ void main() {
         expect(loaded.legacyMode, equals(serverInfo.legacyMode));
       });
 
+      test('secure public origin survives persistence', () async {
+        final serverInfo = ServerInfo(
+          server: 'review.ariami.xyz',
+          port: 443,
+          publicOrigin: 'https://review.ariami.xyz',
+          name: 'Review',
+          version: '4.4.0',
+        );
+
+        await manager.saveConnectionInfo(serverInfo, 'session-https');
+        final loaded = await manager.loadServerInfo();
+
+        expect(loaded?.publicOrigin, 'https://review.ariami.xyz');
+        expect(loaded?.baseUrl, 'https://review.ariami.xyz');
+        expect(loaded?.wsUrl, 'wss://review.ariami.xyz');
+      });
+
       test('loadServerInfo should return null when nothing is saved', () async {
         final loaded = await manager.loadServerInfo();
         expect(loaded, isNull);

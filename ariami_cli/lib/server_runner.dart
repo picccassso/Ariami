@@ -108,6 +108,7 @@ class ServerRunner {
       _httpServer.setTrustProxyHeaders(
         _featureFlagService.loadTrustProxyHeadersFromEnvironment(),
       );
+      _httpServer.setPublicOrigin(_containerEnvironment.publicOriginOverride);
       _configureMetadataCache(featureFlags);
 
       final isPi = _runtimePolicy.isRaspberryPi();

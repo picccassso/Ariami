@@ -6,6 +6,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../models/song.dart';
 import '../services/color_extraction_service.dart';
 import '../utils/constants.dart';
+import '../widgets/common/queue_action_confirmation.dart';
 import '../widgets/queue/reorderable_queue_list.dart';
 
 /// Screen displaying the playback queue
@@ -13,7 +14,8 @@ class QueueScreen extends StatefulWidget {
   final PlaybackQueue queue;
   final Function(int oldIndex, int newIndex)? onReorder;
   final FutureOr<void> Function(int index)? onTap;
-  final FutureOr<void> Function(int index)? onRemove;
+  final FutureOr<QueueItemRemoval?> Function(int index)? onRemove;
+  final FutureOr<void> Function(QueueItemRemoval removal)? onUndoRemove;
   final FutureOr<void> Function()? onClear;
 
   const QueueScreen({
@@ -22,6 +24,7 @@ class QueueScreen extends StatefulWidget {
     this.onReorder,
     this.onTap,
     this.onRemove,
+    this.onUndoRemove,
     this.onClear,
   });
 
@@ -261,7 +264,23 @@ class _QueueScreenState extends State<QueueScreen> {
   }
 
   Future<void> _handleRemove(int index) async {
-    await widget.onRemove?.call(index);
+    final removal = await widget.onRemove?.call(index);
+    if (!mounted) return;
+    setState(() {});
+
+    if (removal != null && widget.onUndoRemove != null) {
+      showQueueActionConfirmation(
+        context,
+        message: 'Removed "${removal.song.title}"',
+        actionLabel: 'UNDO',
+        onAction: () => unawaited(_handleUndoRemove(removal)),
+        duration: const Duration(seconds: 5),
+      );
+    }
+  }
+
+  Future<void> _handleUndoRemove(QueueItemRemoval removal) async {
+    await widget.onUndoRemove?.call(removal);
     if (mounted) {
       setState(() {});
     }

@@ -24,6 +24,12 @@ class ContainerEnvironment {
     return _readTrimmed('ARIAMI_ADVERTISED_TAILSCALE_HOST');
   }
 
+  /// HTTPS origin exposed by a trusted reverse proxy, for example
+  /// `https://review.ariami.xyz`.
+  String? get publicOriginOverride {
+    return _readTrimmed('ARIAMI_PUBLIC_ORIGIN');
+  }
+
   bool get hasAnyAdvertisedOverride {
     return advertisedHostOverride != null ||
         advertisedLanHostOverride != null ||

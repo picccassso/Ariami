@@ -46,6 +46,21 @@ void main() {
       expect(result.serverInfo!.registrationToken, isNull);
     });
 
+    test('accepts and normalizes an HTTPS public origin', () {
+      final result = QrPayloadParser.parse(jsonEncode({
+        ..._validPayload(),
+        'publicOrigin': 'HTTPS://Review.Ariami.XYZ/',
+      }));
+
+      expect(result.isValid, isTrue);
+      expect(
+        result.serverInfo!.publicOrigin,
+        'https://review.ariami.xyz',
+      );
+      expect(result.serverInfo!.baseUrl, 'https://review.ariami.xyz');
+      expect(result.serverInfo!.wsUrl, 'wss://review.ariami.xyz');
+    });
+
     test('accepts an IPv6 host', () {
       final result = QrPayloadParser.parse(jsonEncode({
         'server': 'fd7a:115c:a1e0::1',
@@ -95,8 +110,8 @@ void main() {
         expectRejected(jsonEncode({..._validPayload()}..remove('server')));
         expectRejected(jsonEncode({..._validPayload(), 'server': ''}));
         expectRejected(jsonEncode({..._validPayload(), 'server': 42}));
-        expectRejected(jsonEncode(
-            {..._validPayload(), 'server': 'http://192.168.1.50'}));
+        expectRejected(
+            jsonEncode({..._validPayload(), 'server': 'http://192.168.1.50'}));
         expectRejected(
             jsonEncode({..._validPayload(), 'server': '192.168.1.50/path'}));
         expectRejected(
@@ -110,6 +125,21 @@ void main() {
             jsonEncode({..._validPayload(), 'lanServer': 'http://x'}));
         expectRejected(
             jsonEncode({..._validPayload(), 'tailscaleServer': 'a b'}));
+      });
+
+      test('insecure or injectable public origins', () {
+        expectRejected(jsonEncode({
+          ..._validPayload(),
+          'publicOrigin': 'http://review.ariami.xyz',
+        }));
+        expectRejected(jsonEncode({
+          ..._validPayload(),
+          'publicOrigin': 'https://user:pass@review.ariami.xyz',
+        }));
+        expectRejected(jsonEncode({
+          ..._validPayload(),
+          'publicOrigin': 'https://review.ariami.xyz/api',
+        }));
       });
 
       test('invalid ports', () {
@@ -133,8 +163,8 @@ void main() {
             jsonEncode({..._validPayload(), 'registrationToken': 42}));
         expectRejected(jsonEncode(
             {..._validPayload(), 'registrationToken': 'has spaces'}));
-        expectRejected(jsonEncode(
-            {..._validPayload(), 'registrationToken': 'x' * 300}));
+        expectRejected(
+            jsonEncode({..._validPayload(), 'registrationToken': 'x' * 300}));
       });
 
       test('mistyped name/version/downloadLimits', () {

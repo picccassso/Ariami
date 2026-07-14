@@ -532,6 +532,7 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
       'server': _advertisedIp ?? _tailscaleIp,
       'lanServer': _lanIp,
       'tailscaleServer': _tailscaleIp,
+      if (_publicOrigin != null) 'publicOrigin': _publicOrigin,
       'port': _port,
       'attemptedPort': _attemptedPort ?? _port,
       'portFallbackUsed': _portFallbackUsed,

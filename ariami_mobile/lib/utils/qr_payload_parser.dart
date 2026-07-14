@@ -12,6 +12,8 @@ library;
 
 import 'dart:convert';
 
+import 'package:ariami_core/models/server_origin.dart';
+
 import '../models/server_info.dart';
 
 class QrPayloadResult {
@@ -39,6 +41,7 @@ class QrPayloadParser {
   static const int _maxNameLength = 120;
   static const int _maxVersionLength = 40;
   static const int _maxTokenLength = 128;
+  static const int _maxPublicOriginLength = 512;
 
   static const String _notAriamiMessage =
       'This isn\'t an Ariami pairing code. Scan the QR shown by your '
@@ -95,6 +98,19 @@ class QrPayloadParser {
       }
     }
 
+    String? publicOrigin;
+    if (json.containsKey('publicOrigin') && json['publicOrigin'] != null) {
+      final rawPublicOrigin = json['publicOrigin'];
+      if (rawPublicOrigin is! String ||
+          rawPublicOrigin.length > _maxPublicOriginLength) {
+        return QrPayloadResult.fail(_notAriamiMessage);
+      }
+      publicOrigin = normalizeSecurePublicOrigin(rawPublicOrigin);
+      if (publicOrigin == null) {
+        return QrPayloadResult.fail(_notAriamiMessage);
+      }
+    }
+
     // Auth flags drive the login/register routing decision; a payload with
     // mistyped flags must be rejected rather than silently defaulted, so a
     // crafted QR can't route around the login screen.
@@ -137,6 +153,7 @@ class QrPayloadParser {
         'server': server,
         'lanServer': lanServer,
         'tailscaleServer': tailscaleServer,
+        'publicOrigin': publicOrigin,
         'port': port,
         'name': name.isEmpty ? server : name,
         'version': version,

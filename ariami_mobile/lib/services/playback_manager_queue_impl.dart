@@ -363,15 +363,22 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
     }
   }
 
-  Future<void> _removeQueueItemImpl(int index) async {
+  Future<QueueItemRemoval?> _removeQueueItemImpl(int index) async {
     try {
-      if (index < 0 || index >= _queue.length) return;
+      if (index < 0 || index >= _queue.length) return null;
 
       final wasCurrentSong = index == _queue.currentIndex;
       final removedSong = _queue.songs[index];
       final shouldContinuePlayback = isPlaying;
 
-      _oneShotQueuedSongs.remove(removedSong);
+      final wasOneShot = _oneShotQueuedSongs.remove(removedSong);
+      final removal = QueueItemRemoval(
+        song: removedSong,
+        index: index,
+        wasCurrent: wasCurrentSong,
+        wasPlaying: shouldContinuePlayback,
+        wasOneShot: wasOneShot,
+      );
 
       if (!wasCurrentSong) {
         _queue.removeSong(index);
@@ -381,7 +388,7 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
         unawaited(_refreshGaplessQueue());
         _notifyStateChanged();
         unawaited(_saveState());
-        return;
+        return removal;
       }
 
       _queue.removeSong(index);
@@ -401,7 +408,7 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
           userId: _connectionService.userId,
         );
         _notifyStateChanged();
-        return;
+        return removal;
       }
 
       await _playCurrentSong(
@@ -410,8 +417,91 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
       );
       _notifyStateChanged();
       await _saveState();
+      return removal;
     } catch (e) {
       debugPrint('[PlaybackManager] Error removing queue item: $e');
+      return null;
+    }
+  }
+
+  /// Removes a queue item on behalf of a Connect controller. The controller's
+  /// index came from a published snapshot that may be stale, so the track id
+  /// it saw at that index is verified first; on mismatch the first entry with
+  /// that id is removed instead, and an unknown id is ignored.
+  Future<void> _removeQueueItemForConnect(int index, String? expectedId) async {
+    var target = index;
+    final songs = _queue.songs;
+    final matchesAtIndex = target >= 0 &&
+        target < songs.length &&
+        (expectedId == null || songs[target].id == expectedId);
+    if (!matchesAtIndex) {
+      if (expectedId == null) return;
+      target = songs.indexWhere((song) => song.id == expectedId);
+      if (target == -1) return;
+    }
+    await _removeQueueItemImpl(target);
+  }
+
+  /// Inserts a song at [index] on behalf of a Connect controller (the undo of
+  /// a remote queue removal). Never changes which song is playing, except to
+  /// make the restored song current when it re-lands on the current index
+  /// (undoing the removal of a playing track).
+  void _insertQueueItemImpl(int index, Song song) {
+    final wasEmpty = _queue.isEmpty;
+    final wasPlaying = isPlaying;
+    final clamped = index.clamp(0, _queue.length);
+    final restoreAsCurrent = wasEmpty || clamped == _queue.currentIndex;
+    _queue.insertSong(clamped, song);
+    if (restoreAsCurrent) {
+      // insertSong's index adjustment leaves currentIndex past the restored
+      // song (or out of range on an emptied queue); anchor it there and
+      // reload, resuming only if something was already playing.
+      _queue.jumpToIndex(clamped);
+      _restoredPosition = null;
+      _pendingUiPosition = null;
+      unawaited(_playCurrentSong(autoPlay: wasPlaying));
+    }
+    _lastWarmupKey = null;
+    _warmNextStreamInBackground(_qualityService.getCurrentStreamingQuality());
+    unawaited(_refreshGaplessQueue());
+    _notifyStateChanged();
+    unawaited(_saveState());
+  }
+
+  Future<void> _undoRemoveQueueItemImpl(QueueItemRemoval removal) async {
+    try {
+      final index = removal.index.clamp(0, _queue.length);
+      _queue.insertSong(index, removal.song);
+      if (removal.wasOneShot) {
+        _oneShotQueuedSongs.add(removal.song);
+      }
+      _lastWarmupKey = null;
+
+      if (!removal.wasCurrent) {
+        _warmNextStreamInBackground(
+            _qualityService.getCurrentStreamingQuality());
+        unawaited(_refreshGaplessQueue());
+        _notifyStateChanged();
+        unawaited(_saveState());
+        return;
+      }
+
+      // The removed song was the one playing: make it current again and
+      // reload it, resuming playback only if it was playing when removed.
+      await _statsService.onSongStopped();
+      _queue.jumpToIndex(index);
+      _restoredPosition = null;
+      _pendingUiPosition = null;
+      _notifyStateChanged();
+
+      await _playCurrentSong(
+        autoPlay: removal.wasPlaying,
+        restartStatsTracking: removal.wasPlaying,
+      );
+      _notifyStateChanged();
+      await _saveState();
+    } catch (e) {
+      debugPrint('[PlaybackManager] Error undoing queue removal: $e');
     }
   }
 

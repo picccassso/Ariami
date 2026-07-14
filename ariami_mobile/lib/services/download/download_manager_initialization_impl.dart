@@ -149,8 +149,8 @@ extension _DownloadManagerInitializationImpl on DownloadManager {
   /// Matching against every known endpoint keeps a server's downloads in scope
   /// regardless of which route is currently active.
   Set<String> _currentServerScopeIds() {
-    final info =
-        ConnectionService().apiClient?.serverInfo ?? ConnectionService().serverInfo;
+    final info = ConnectionService().apiClient?.serverInfo ??
+        ConnectionService().serverInfo;
     final ids = <String>{};
     if (info != null) {
       void addAddress(String? address) {
@@ -161,6 +161,9 @@ extension _DownloadManagerInitializationImpl on DownloadManager {
       addAddress(info.server);
       addAddress(info.lanServer);
       addAddress(info.tailscaleServer);
+      if (info.publicOrigin != null) {
+        ids.add('${info.publicOrigin}/api');
+      }
     }
     final current = _getCurrentServerId();
     if (current != null) ids.add(current);

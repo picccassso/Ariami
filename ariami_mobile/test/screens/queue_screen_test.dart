@@ -37,7 +37,17 @@ void main() {
       MaterialApp(
         home: QueueScreen(
           queue: queue,
-          onRemove: queue.removeSong,
+          onRemove: (index) {
+            final removed = queue.songs[index];
+            queue.removeSong(index);
+            return QueueItemRemoval(
+              song: removed,
+              index: index,
+              wasCurrent: false,
+              wasPlaying: false,
+              wasOneShot: false,
+            );
+          },
         ),
       ),
     );
@@ -71,5 +81,50 @@ void main() {
 
     expect(queue.songs.map((song) => song.id), ['a']);
     expect(find.text('Song c'), findsNothing);
+  });
+
+  testWidgets('undo toast restores a removed queue item', (tester) async {
+    final queue = PlaybackQueue(
+      songs: [makeSong('a'), makeSong('b'), makeSong('c')],
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: QueueScreen(
+          queue: queue,
+          onRemove: (index) {
+            final removed = queue.songs[index];
+            queue.removeSong(index);
+            return QueueItemRemoval(
+              song: removed,
+              index: index,
+              wasCurrent: false,
+              wasPlaying: false,
+              wasOneShot: false,
+            );
+          },
+          onUndoRemove: (removal) {
+            queue.insertSong(removal.index, removal.song);
+          },
+        ),
+      ),
+    );
+
+    tester
+        .widget<Dismissible>(find.byType(Dismissible).at(1))
+        .onDismissed
+        ?.call(DismissDirection.endToStart);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(queue.songs.map((song) => song.id), ['a', 'c']);
+    expect(find.text('UNDO'), findsOneWidget);
+
+    await tester.tap(find.text('UNDO'));
+    await tester.pump();
+
+    expect(queue.songs.map((song) => song.id), ['a', 'b', 'c']);
+    expect(find.text('Song b'), findsOneWidget);
+    expect(find.text('UNDO'), findsNothing);
   });
 }

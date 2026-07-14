@@ -21,6 +21,7 @@ import 'package:ariami_core/services/transcoding/transcoding_service.dart';
 import 'package:ariami_core/services/artwork/artwork_service.dart';
 import 'package:ariami_core/models/quality_preset.dart';
 import 'package:ariami_core/models/artwork_size.dart';
+import 'package:ariami_core/models/server_origin.dart';
 import 'package:ariami_core/models/websocket_models.dart';
 import 'package:ariami_core/models/feature_flags.dart';
 import 'package:ariami_core/services/library/library_manager.dart';
@@ -94,6 +95,7 @@ class AriamiHttpServer {
   String? _tailscaleIp;
   String? _lanIp;
   String? _advertisedIp; // The IP to show in QR code (Tailscale or LAN IP)
+  String? _publicOrigin; // HTTPS origin exposed by a trusted reverse proxy.
   int _port = 8080;
   int? _attemptedPort;
   bool _portFallbackUsed = false;
@@ -195,6 +197,28 @@ class AriamiHttpServer {
   /// proxy; otherwise clients can spoof their address.
   void setTrustProxyHeaders(bool enabled) {
     _trustProxyHeaders = enabled;
+  }
+
+  /// Advertise the HTTPS origin clients should use outside the private LAN.
+  ///
+  /// The origin is configuration, not request-derived data: trusting Host or
+  /// X-Forwarded-Host here would allow header injection into QR payloads and
+  /// media URLs. Invalid or non-HTTPS values fail startup instead.
+  void setPublicOrigin(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      _publicOrigin = null;
+      return;
+    }
+    final normalized = normalizeSecurePublicOrigin(value);
+    if (normalized == null) {
+      throw ArgumentError.value(
+        value,
+        'value',
+        'Public origin must be an HTTPS origin with no credentials, path, '
+            'query, or fragment',
+      );
+    }
+    _publicOrigin = normalized;
   }
 
   // One-time code that authorizes creating the FIRST owner account from a

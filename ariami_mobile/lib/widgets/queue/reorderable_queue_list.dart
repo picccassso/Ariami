@@ -232,6 +232,9 @@ class QueueItem extends StatelessWidget {
       direction: onRemove != null
           ? DismissDirection.endToStart
           : DismissDirection.none,
+      // Require a deliberate 60% drag (default is 40%) so a stray horizontal
+      // flick while scrolling the queue doesn't remove the song.
+      dismissThresholds: const {DismissDirection.endToStart: 0.6},
       background: Container(
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 24),

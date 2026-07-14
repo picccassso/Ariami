@@ -50,6 +50,7 @@ the dashboard QR code to connect mobile clients.
 | `ARIAMI_ADVERTISED_HOST` | environment | Overrides the host Ariami advertises in setup URLs, server info, and QR codes. Useful in containers; set it to the host machine's LAN or Tailscale IP. |
 | `ARIAMI_ADVERTISED_LAN_HOST` | environment | Overrides the LAN host Ariami advertises in setup URLs, server info, and QR codes. Useful in containers; set it to the host machine's LAN IP for same-network devices. |
 | `ARIAMI_ADVERTISED_TAILSCALE_HOST` | environment | Overrides the Tailscale host Ariami advertises in setup URLs, server info, and QR codes. Useful in containers; set it to the host machine's Tailscale IP for remote devices with Tailscale enabled. |
+| `ARIAMI_PUBLIC_ORIGIN` | environment | Optional HTTPS origin exposed by a trusted reverse proxy, for example `https://review.ariami.xyz`. It must contain only the origin: no credentials, path, query, or fragment. Secure-origin-aware clients use it for HTTPS API/media traffic and WSS WebSockets. Ariami rejects invalid or non-HTTPS values at startup. |
 | `ARIAMI_CONTAINER` | environment | Set to `1` or `true` to tell Ariami it is running in a container. Docker images set this automatically. |
 | `ARIAMI_TRUST_PROXY_HEADERS` | environment | Set to `1` only when a reverse proxy you control fronts Ariami: the server then uses `X-Forwarded-For` for login rate limiting. Leave unset otherwise — direct clients can forge the header. |
 
@@ -185,6 +186,13 @@ Notes:
 
 - Keep Ariami on LAN, Tailscale, or another VPN.
 - Do not port-forward Ariami to the public internet.
+- A deliberately public deployment must sit behind a maintained HTTPS reverse
+  proxy. Set `ARIAMI_PUBLIC_ORIGIN` to its externally reachable origin, bind or
+  publish Ariami's HTTP port only on loopback, and expose only HTTPS publicly.
+  Set `ARIAMI_TRUST_PROXY_HEADERS=1` only when direct access to Ariami's port is
+  blocked and the proxy overwrites (rather than merely appends to) any incoming
+  `X-Forwarded-For` header. This preserves per-client authentication rate
+  limiting without trusting a client-supplied forwarding header.
 - Create the owner account immediately during first setup. The first account is
   the server admin.
 - Authentication is always enabled. If no owner account exists, `status` and

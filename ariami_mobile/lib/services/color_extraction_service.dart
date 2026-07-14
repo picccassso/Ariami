@@ -129,9 +129,9 @@ class ColorExtractionService extends ChangeNotifier {
       if (colors == null && _connectionService.isConnected) {
         final serverInfo = _connectionService.serverInfo;
         if (serverInfo != null) {
-          final baseUrl = 'http://${serverInfo.server}:${serverInfo.port}/api';
-          final artworkUrl = albumId != null 
-              ? '$baseUrl/artwork/$albumId' 
+          final baseUrl = '${serverInfo.baseUrl}/api';
+          final artworkUrl = albumId != null
+              ? '$baseUrl/artwork/$albumId'
               : '$baseUrl/song-artwork/$songId';
           colors = await _extractFromUrl(artworkUrl);
         }
@@ -145,7 +145,8 @@ class ColorExtractionService extends ChangeNotifier {
 
       return colors.primary;
     } catch (e) {
-      print('[ColorExtractionService] Error extracting color for song $songId: $e');
+      print(
+          '[ColorExtractionService] Error extracting color for song $songId: $e');
       return GradientColors.fallback.primary;
     }
   }
@@ -200,7 +201,8 @@ class ColorExtractionService extends ChangeNotifier {
         _darken(primary, 0.3);
 
     // Accent: prefer light vibrant for potential highlights
-    final accent = palette.lightVibrantColor?.color ?? palette.vibrantColor?.color;
+    final accent =
+        palette.lightVibrantColor?.color ?? palette.vibrantColor?.color;
 
     return GradientColors(
       primary: primary,
@@ -224,7 +226,7 @@ class ColorExtractionService extends ChangeNotifier {
     final serverInfo = _connectionService.serverInfo;
     if (serverInfo == null) return null;
 
-    final baseUrl = 'http://${serverInfo.server}:${serverInfo.port}/api';
+    final baseUrl = '${serverInfo.baseUrl}/api';
 
     if (song.albumId != null) {
       return '$baseUrl/artwork/${song.albumId}';

@@ -152,6 +152,7 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
           },
           onTap: _playbackManager.skipToQueueItem,
           onRemove: _playbackManager.removeQueueItem,
+          onUndoRemove: _playbackManager.undoRemoveQueueItem,
           onClear: _playbackManager.clearQueue,
         ),
       ),

@@ -15,6 +15,7 @@ void main() {
     setUp(() async {
       server = AriamiHttpServer();
       await server.stop();
+      server.setPublicOrigin(null);
       server.libraryManager.clear();
 
       testDir = await Directory.systemTemp.createTemp('ariami_server_info_ep_');
@@ -65,6 +66,25 @@ void main() {
       expect(json['port'], port);
       expect(json['hasUsers'], isFalse);
       expect(json['registeredUsers'], 0);
+    });
+
+    test('advertises only a validated HTTPS public origin', () async {
+      server.setPublicOrigin(' HTTPS://Review.Ariami.XYZ/ ');
+
+      expect(
+        server.getServerInfo()['publicOrigin'],
+        'https://review.ariami.xyz',
+      );
+      expect(
+        () => server.setPublicOrigin('http://review.ariami.xyz'),
+        throwsArgumentError,
+      );
+      expect(
+        () => server.setPublicOrigin(
+          'https://review.ariami.xyz/api?redirect=evil',
+        ),
+        throwsArgumentError,
+      );
     });
 
     test('LAN-only start exposes lanServer and null tailscaleServer', () async {

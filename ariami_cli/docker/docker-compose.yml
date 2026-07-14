@@ -20,6 +20,9 @@ services:
     # environment:
     #   ARIAMI_ADVERTISED_LAN_HOST: "192.168.1.50"       # this machine's LAN IP
     #   ARIAMI_ADVERTISED_TAILSCALE_HOST: "100.x.y.z"    # this machine's Tailscale IP
+    # Public reverse-proxy deployments only:
+    #   ARIAMI_PUBLIC_ORIGIN: "https://review.ariami.xyz"
+    #   ARIAMI_TRUST_PROXY_HEADERS: "1" # only when 8080 is not publicly reachable
 
     volumes:
       - ariami-data:/data

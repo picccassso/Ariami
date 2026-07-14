@@ -99,6 +99,21 @@ for it. Two consequences for mounts:
 Keep Ariami on your LAN or VPN, and do not port-forward it to the public
 internet.
 
+For a deliberately public review/demo server, put a maintained HTTPS reverse
+proxy in front of the container and publish port 8080 on loopback only (for
+example, `127.0.0.1:8080:8080`). Configure both:
+
+```bash
+-e ARIAMI_PUBLIC_ORIGIN=https://review.ariami.xyz \
+-e ARIAMI_TRUST_PROXY_HEADERS=1
+```
+
+The public origin must be HTTPS and contain no path, query, fragment, or
+credentials. Do not expose the container's HTTP port through the cloud
+firewall; only the reverse proxy's HTTPS port should be internet-reachable. The
+proxy must overwrite, not merely append to, any client-supplied
+`X-Forwarded-For` header before proxying to Ariami.
+
 ## Commands
 
 Because the image entrypoint is the Ariami binary, one-off commands can be run
