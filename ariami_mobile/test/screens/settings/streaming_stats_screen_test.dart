@@ -1,4 +1,5 @@
 import 'package:ariami_mobile/screens/settings/streaming_stats_screen.dart';
+import 'package:ariami_mobile/models/song_stats.dart';
 import 'package:ariami_mobile/services/stats/streaming_stats_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -85,5 +86,37 @@ void main() {
     await tester.pump();
     expect(find.text('All time'), findsOneWidget);
     expect(find.textContaining('No stats yet'), findsWidgets);
+  });
+
+  testWidgets('year uses all-time totals when all history is in that year',
+      (tester) async {
+    final service = StreamingStatsService();
+    final now = DateTime.now();
+    addTearDown(() => service.setAccountStatsOverlay(null));
+
+    await tester.pumpWidget(const MaterialApp(home: StreamingStatsScreen()));
+    await tester.pump();
+    service.setAccountStatsOverlay([
+      SongStats(
+        songId: 'current-year-song',
+        playCount: 4,
+        totalTime: const Duration(hours: 2),
+        firstPlayed: DateTime(now.year, 1, 1),
+        lastPlayed: now,
+        songTitle: 'Current Year Song',
+        songArtist: 'Current Year Artist',
+      ),
+    ]);
+    await tester.pump();
+
+    await tester.tap(find.text('YEAR'));
+    await tester.pump();
+
+    expect(find.text('${now.year}'), findsOneWidget);
+    expect(find.text('2h'), findsOneWidget);
+    expect(
+      find.textContaining('need a connection to your server'),
+      findsNothing,
+    );
   });
 }

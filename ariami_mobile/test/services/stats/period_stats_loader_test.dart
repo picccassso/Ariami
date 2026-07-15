@@ -76,6 +76,42 @@ void main() {
     test('all-time has no bounds', () {
       expect(StatsRange.all.bounds(now: now), isNull);
     });
+
+    test('detects when a range contains the complete recorded history', () {
+      final thisYear = StatsRange.yearOf(now);
+      expect(
+        thisYear.coversHistory(
+          firstPlayed: DateTime(2026, 1, 3),
+          lastPlayed: DateTime(2026, 7, 9),
+          now: now,
+        ),
+        isTrue,
+      );
+      expect(
+        thisYear.coversHistory(
+          firstPlayed: DateTime(2025, 12, 31),
+          lastPlayed: DateTime(2026, 7, 9),
+          now: now,
+        ),
+        isFalse,
+      );
+      expect(
+        thisYear.coversHistory(
+          firstPlayed: null,
+          lastPlayed: DateTime(2026, 7, 9),
+          now: now,
+        ),
+        isFalse,
+      );
+      expect(
+        StatsRange.all.coversHistory(
+          firstPlayed: DateTime(2025, 12, 31),
+          lastPlayed: DateTime(2026, 7, 9),
+          now: now,
+        ),
+        isTrue,
+      );
+    });
   });
 
   group('StatsRange stepping', () {

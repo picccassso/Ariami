@@ -7,7 +7,8 @@ library;
 enum StatsRangeKind { all, today, day, week, month, year }
 
 /// A user-selectable stats range. All-time keeps a client's local/summary
-/// view; every other range is served by the server's day/period endpoints.
+/// view; other ranges are normally served by the server's day/period
+/// endpoints.
 ///
 /// Ranges are anchorable: `weekOf`/`monthOf`/`yearOf` pin a range to the
 /// calendar unit containing that date, and [stepped] moves one unit at a
@@ -88,6 +89,24 @@ class StatsRange {
 
   /// Whether ‹ › paging applies (everything except all-time).
   bool get isSteppable => kind != StatsRangeKind.all;
+
+  /// Whether this range contains the complete recorded history between
+  /// [firstPlayed] and [lastPlayed]. Missing or inverted boundaries are not
+  /// treated as covered because the caller cannot safely substitute an
+  /// all-time summary for a calendar-period response.
+  bool coversHistory({
+    required DateTime? firstPlayed,
+    required DateTime? lastPlayed,
+    DateTime? now,
+  }) {
+    if (firstPlayed == null || lastPlayed == null) return false;
+    final first = formatLocalDay(firstPlayed);
+    final last = formatLocalDay(lastPlayed);
+    if (first.compareTo(last) > 0) return false;
+    final b = bounds(now: now);
+    if (b == null) return true;
+    return first.compareTo(b.from) >= 0 && last.compareTo(b.to) <= 0;
+  }
 
   /// The same granularity shifted by [delta] units (days, weeks, months or
   /// years). All-time is unaffected. Uses calendar arithmetic, so stepping

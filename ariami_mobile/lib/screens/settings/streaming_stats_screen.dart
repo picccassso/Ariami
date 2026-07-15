@@ -20,9 +20,11 @@ import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
 ///   prefers the server's credited-artist rollups — where a play of "Mercy"
 ///   counts under Kanye West, Big Sean, Pusha T and 2 Chainz individually —
 ///   and falls back to local combined-string grouping when unavailable.
-/// - Today / specific day / week / month / year: served entirely by the
-///   server's day/period endpoints. These reflect synced events only; when
-///   offline or on an older server the screen degrades to a clear message.
+/// - Today / specific day / week / month / year: normally served by the
+///   server's day/period endpoints. A year that contains the complete known
+///   history reuses all-time so imported baseline totals are not dropped.
+///   Other periods reflect synced events only; when offline or on an older
+///   server the screen degrades to a clear message.
 class StreamingStatsScreen extends StatefulWidget {
   const StreamingStatsScreen({super.key});
 
@@ -179,6 +181,34 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
     return earliest == null ? null : StatsRange.formatLocalDay(earliest);
   }
 
+  /// A baseline import has honest all-time totals but no daily distribution.
+  /// When every recorded first/last timestamp is inside the selected year,
+  /// that all-time snapshot is also the complete year snapshot.
+  bool _yearCoversAllHistory() {
+    if (_range.kind != StatsRangeKind.year) return false;
+    final stats = _statsService.getAllStats();
+    if (stats.isEmpty) return false;
+    DateTime? firstPlayed;
+    DateTime? lastPlayed;
+    for (final stat in stats) {
+      final first = stat.firstPlayed;
+      final last = stat.lastPlayed;
+      if (first == null || last == null) return false;
+      if (firstPlayed == null || first.isBefore(firstPlayed)) {
+        firstPlayed = first;
+      }
+      if (lastPlayed == null || last.isAfter(lastPlayed)) {
+        lastPlayed = last;
+      }
+    }
+    return _range.coversHistory(
+      firstPlayed: firstPlayed,
+      lastPlayed: lastPlayed,
+    );
+  }
+
+  bool get _useAllTimeData => _range.isAllTime || _yearCoversAllHistory();
+
   Future<void> _loadPeriod() async {
     final range = _range;
     if (range.isAllTime) return;
@@ -274,19 +304,22 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
 
                 // Tab content
                 Expanded(
-                  child: TabBarView(
-                    controller: _tabController,
-                    children: _range.isAllTime
-                        ? [
-                            _buildTracksTab(),
-                            _buildArtistsTab(),
-                            _buildAlbumsTab(),
-                          ]
-                        : [
-                            _buildPeriodTab(0),
-                            _buildPeriodTab(1),
-                            _buildPeriodTab(2),
-                          ],
+                  child: ListenableBuilder(
+                    listenable: _statsService,
+                    builder: (context, _) => TabBarView(
+                      controller: _tabController,
+                      children: _useAllTimeData
+                          ? [
+                              _buildTracksTab(),
+                              _buildArtistsTab(),
+                              _buildAlbumsTab(),
+                            ]
+                          : [
+                              _buildPeriodTab(0),
+                              _buildPeriodTab(1),
+                              _buildPeriodTab(2),
+                            ],
+                    ),
                   ),
                 ),
               ],
@@ -439,7 +472,7 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
         String metric3Label;
         String metric3Value;
 
-        if (!_range.isAllTime) {
+        if (!_useAllTimeData) {
           final stats = _periodStats;
           metric1Label = switch (_currentTabIndex) {
             1 => 'ARTISTS',
