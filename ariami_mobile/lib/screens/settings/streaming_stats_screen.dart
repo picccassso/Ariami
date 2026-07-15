@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:ariami_core/ariami_core.dart' show ListeningPeriodStats;
 import 'package:flutter/material.dart';
 import '../../models/song_stats.dart';
@@ -9,6 +11,7 @@ import '../../services/stats/streaming_stats_service.dart';
 import '../../services/stats/account_stats_service.dart';
 import '../../services/api/api_client.dart';
 import '../../services/api/connection_service.dart';
+import '../../utils/shared_preferences_cache.dart';
 import '../../widgets/common/cached_artwork.dart';
 import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
 
@@ -52,9 +55,19 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
   List<ArtistStats>? _creditedArtists;
   Map<String, AlbumModel> _albumsById = <String, AlbumModel>{};
 
+  /// PLAYTIME (and AVG DAILY, when shown) can be flipped to raw minutes by
+  /// tapping the PLAYTIME metric. Until the very first tap a little finger
+  /// demonstrates the gesture on the metric, and that first tap triggers a
+  /// one-time explainer dialog.
+  static const String _playtimeHintSeenKey = 'stats_playtime_hint_seen';
+  bool _playtimeInMinutes = false;
+  bool _playtimeHintPending = false;
+
   @override
   void initState() {
     super.initState();
+    _playtimeHintPending =
+        !(sharedPrefs.getBool(_playtimeHintSeenKey) ?? false);
     _tabController = TabController(length: 3, vsync: this);
     _tabController.addListener(() {
       setState(() {
@@ -558,7 +571,14 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 _buildStatItem(label: metric1Label, value: metric1Value, isDark: isDark),
-                _buildStatItem(label: metric2Label, value: metric2Value, isDark: isDark),
+                // metric2 is always PLAYTIME; tapping it flips the units.
+                _buildStatItem(
+                  label: metric2Label,
+                  value: metric2Value,
+                  isDark: isDark,
+                  onTap: _onPlaytimeTap,
+                  pulse: _playtimeHintPending,
+                ),
                 _buildStatItem(label: metric3Label, value: metric3Value, isDark: isDark),
               ],
             ),
@@ -569,11 +589,71 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
   }
 
   String _formatDurationShort(Duration duration) {
+    if (_playtimeInMinutes) {
+      return '${duration.inMinutes}m';
+    }
     if (duration.inHours > 0) {
       return '${duration.inHours}h';
     } else {
       return '${duration.inMinutes}m';
     }
+  }
+
+  void _onPlaytimeTap() {
+    final firstTap = _playtimeHintPending;
+    setState(() {
+      _playtimeInMinutes = !_playtimeInMinutes;
+      _playtimeHintPending = false;
+    });
+    if (!firstTap) return;
+    unawaited(sharedPrefs.setBool(_playtimeHintSeenKey, true));
+    _showPlaytimeHintDialog();
+  }
+
+  /// One-time explainer shown right after the first PLAYTIME tap, so the
+  /// value switching units doesn't read as a glitch.
+  void _showPlaytimeHintDialog() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF111111) : Colors.white,
+        title: Text(
+          'PLAYTIME UNITS',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1.5,
+            color: isDark ? Colors.white : Colors.black,
+          ),
+        ),
+        content: Text(
+          'Tapping PLAYTIME switches it between hours and minutes — AVG '
+          'DAILY follows along when it\'s shown. Tap it again anytime to '
+          'switch back.',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: isDark ? Colors.grey[400] : Colors.grey[600],
+          ),
+        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'GOT IT',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.0,
+                color: isDark ? Colors.white : Colors.black,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   /// Build a single stat item in the grid
@@ -582,8 +662,10 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
     required String value,
     required bool isDark,
     String? secondaryValue,
+    VoidCallback? onTap,
+    bool pulse = false,
   }) {
-    return Column(
+    Widget item = Column(
       children: [
         Text(
           value,
@@ -618,6 +700,15 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
         ],
       ],
     );
+    if (pulse) item = _TapHint(child: item);
+    if (onTap != null) {
+      item = GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: item,
+      );
+    }
+    return item;
   }
 
   /// One tab (0=tracks, 1=artists, 2=albums) for a server-derived period.
@@ -1262,6 +1353,117 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Overlays a little finger that periodically taps the child — the metric
+/// dips under the press and a ripple ring expands, demonstrating the real
+/// gesture. Only mounted while the PLAYTIME hint is still pending.
+class _TapHint extends StatefulWidget {
+  const _TapHint({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_TapHint> createState() => _TapHintState();
+}
+
+class _TapHintState extends State<_TapHint>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 2400),
+  )..repeat();
+
+  /// Progress of [t] through the [from]→[to] slice of the loop, curved.
+  static double _seg(double t, double from, double to, Curve curve) =>
+      curve.transform(((t - from) / (to - from)).clamp(0.0, 1.0));
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final color = isDark ? Colors.white : Colors.black;
+    return AnimatedBuilder(
+      animation: _controller,
+      child: widget.child,
+      builder: (context, child) {
+        final t = _controller.value;
+        // Loop: finger slides in (0–.25), presses (.25–.35), ripple +
+        // release (.35–.7), fades out (.7–.85), rests (.85–1).
+        final approach = _seg(t, 0.0, 0.25, Curves.easeOutCubic);
+        final press = t < 0.25
+            ? 0.0
+            : t < 0.35
+                ? _seg(t, 0.25, 0.35, Curves.easeIn)
+                : 1.0 - _seg(t, 0.35, 0.5, Curves.easeOut);
+        final ripple = _seg(t, 0.33, 0.7, Curves.easeOut);
+        final visible = approach * (1.0 - _seg(t, 0.7, 0.85, Curves.easeIn));
+
+        // Where the fake tap lands, relative to the metric's centre.
+        const target = Offset(14, -6);
+        return Stack(
+          clipBehavior: Clip.none,
+          alignment: Alignment.center,
+          children: [
+            Transform.scale(scale: 1.0 - 0.06 * press, child: child),
+            Positioned.fill(
+              child: IgnorePointer(
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  alignment: Alignment.center,
+                  children: [
+                    if (ripple > 0 && ripple < 1)
+                      Transform.translate(
+                        offset: target,
+                        child: Opacity(
+                          opacity: (1.0 - ripple) * 0.7,
+                          child: Container(
+                            width: 8 + 26 * ripple,
+                            height: 8 + 26 * ripple,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(color: color, width: 1.5),
+                            ),
+                          ),
+                        ),
+                      ),
+                    Transform.translate(
+                      // Fingertip sits just under the tap point; slides in
+                      // from below-right and dips slightly on the press.
+                      offset: target +
+                          Offset(
+                            6 + 20 * (1 - approach),
+                            12 + 16 * (1 - approach) - 2 * press,
+                          ),
+                      child: Opacity(
+                        opacity: visible.clamp(0.0, 1.0),
+                        child: Transform.scale(
+                          scale: 1.0 - 0.15 * press,
+                          child: Icon(
+                            Icons.touch_app_rounded,
+                            size: 22,
+                            color: color,
+                            shadows: const [
+                              Shadow(color: Colors.black38, blurRadius: 6),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
