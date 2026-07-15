@@ -488,7 +488,9 @@ void main() {
             plays: 1,
             playId: 'p1',
             occurredAtMs: jan2,
-            artist: 'Kanye West, Big Sean'),
+            artist: 'Kanye West, Big Sean',
+            albumId: 'alb-1',
+            album: 'Cruel Summer'),
         event(
             eventId: 'e3',
             songId: 'song-2',
@@ -511,7 +513,10 @@ void main() {
       final nextDay = store.getPeriodStats('user-a',
           fromDay: '2026-01-03', toDay: '2026-01-03');
       expect(nextDay.totalListenedMs, 30000);
-      expect(nextDay.artists.single.artistDisplay, 'Drake');
+      expect(nextDay.totalPlays, 0);
+      expect(nextDay.songs, isEmpty);
+      expect(nextDay.artists, isEmpty);
+      expect(nextDay.albums, isEmpty);
     });
 
     test('a period aggregates across days with a per-day breakdown', () {
@@ -547,6 +552,57 @@ void main() {
       final february = store.getPeriodStats('user-a',
           fromDay: '2026-02-01', toDay: '2026-02-28');
       expect(february.totalListenedMs, 5000);
+      expect(february.totalPlays, 0);
+      expect(february.songs, isEmpty);
+      expect(february.artists, isEmpty);
+      expect(february.albums, isEmpty);
+    });
+
+    test('partial listens affect totals without creating ranked entries', () {
+      final day = DateTime.utc(2026, 2, 2, 12).millisecondsSinceEpoch;
+      store.applyEvents('user-a', 'device-1', [
+        event(
+          eventId: 'partial-time',
+          songId: 'partial-song',
+          listenedMs: 12000,
+          occurredAtMs: day,
+          title: 'Skipped Song',
+          artist: 'Skipped Artist',
+          albumId: 'skipped-album',
+          album: 'Skipped Album',
+        ),
+        event(
+          eventId: 'played-time',
+          songId: 'played-song',
+          listenedMs: 30000,
+          occurredAtMs: day,
+          title: 'Played Song',
+          artist: 'Played Artist',
+          albumId: 'played-album',
+          album: 'Played Album',
+        ),
+        event(
+          eventId: 'played-marker',
+          songId: 'played-song',
+          playId: 'played-action',
+          plays: 1,
+          occurredAtMs: day,
+          title: 'Played Song',
+          artist: 'Played Artist',
+          albumId: 'played-album',
+          album: 'Played Album',
+        ),
+      ]);
+
+      final stats = store.getPeriodStats('user-a',
+          fromDay: '2026-02-02', toDay: '2026-02-02');
+
+      expect(stats.totalListenedMs, 42000);
+      expect(stats.totalPlays, 1);
+      expect(stats.songs.map((song) => song.songId), ['played-song']);
+      expect(stats.artists.map((artist) => artist.artistDisplay),
+          ['Played Artist']);
+      expect(stats.albums.map((album) => album.albumId), ['played-album']);
     });
 
     test('local day respects tz_offset_min across midnight in both directions',

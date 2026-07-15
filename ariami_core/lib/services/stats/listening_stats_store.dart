@@ -971,6 +971,8 @@ class ListeningStatsStore {
       totalListenedMs += listenedMs;
     }
 
+    // Time-only events still feed period/day playtime totals, but a ranked
+    // entity must have crossed the play threshold at least once in the range.
     ResultSet topRows(String dim) => db.select('''
           SELECT dim_key,
                  SUM(play_count) AS play_count,
@@ -980,6 +982,7 @@ class ListeningStatsStore {
           FROM listening_daily_rollups
           WHERE user_id = ? AND dim = ? AND local_day BETWEEN ? AND ?
           GROUP BY dim_key
+          HAVING SUM(play_count) > 0
           ORDER BY listened_ms DESC
           LIMIT ?
         ''', [userId, dim, fromDay, toDay, limit]);

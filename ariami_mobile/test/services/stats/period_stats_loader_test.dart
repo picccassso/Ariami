@@ -309,6 +309,55 @@ void main() {
   });
 
   group('display model adapters', () {
+    test('legacy zero-play rankings are hidden without dropping playtime',
+        () async {
+      final loader = PeriodStatsLoader(
+        fetchDay: (date, limit) async => <String, dynamic>{
+          'from': '2026-07-09',
+          'to': '2026-07-09',
+          'totalPlays': 0,
+          'totalListenedMs': 12000,
+          'songs': [
+            {
+              'songId': 'skipped-song',
+              'playCount': 0,
+              'listenedMs': 12000,
+            },
+          ],
+          'artists': [
+            {
+              'artistKey': 'skipped artist',
+              'artistDisplay': 'Skipped Artist',
+              'playCount': 0,
+              'listenedMs': 12000,
+            },
+          ],
+          'albums': [
+            {
+              'albumKey': 'skipped-album',
+              'albumId': 'skipped-album',
+              'playCount': 0,
+              'listenedMs': 12000,
+            },
+          ],
+          'days': {
+            '2026-07-09': {'playCount': 0, 'listenedMs': 12000},
+          },
+        },
+        fetchPeriod: (from, to, limit) async => <String, dynamic>{},
+        fetchArtists: (limit) async => <String, dynamic>{},
+      );
+
+      final stats = (await loader.load(StatsRange.today, now: now))!;
+
+      expect(stats.totalListenedMs, 12000);
+      expect(stats.totalPlays, 0);
+      expect(stats.days.values.single.listenedMs, 12000);
+      expect(stats.songs, isEmpty);
+      expect(stats.artists, isEmpty);
+      expect(stats.albums, isEmpty);
+    });
+
     test('credited artists recover artwork and song counts from songs',
         () async {
       final loader = PeriodStatsLoader(

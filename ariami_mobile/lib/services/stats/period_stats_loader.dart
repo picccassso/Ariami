@@ -56,7 +56,7 @@ class PeriodStatsLoader {
       final json = range.isSingleDay
           ? await fetchDay(bounds.from, limit)
           : await fetchPeriod(bounds.from, bounds.to, limit);
-      return ListeningPeriodStats.fromJson(json);
+      return _hideUncountedRankings(ListeningPeriodStats.fromJson(json));
     } catch (_) {
       return null; // Old server / offline: the caller shows a fallback.
     }
@@ -78,11 +78,28 @@ class PeriodStatsLoader {
   }
 }
 
+/// Keeps partial listening in period/day totals while requiring a counted play
+/// for ranked track, artist, and album entries. Older servers may already have
+/// zero-play daily rollups, so filtering the response also removes those rows
+/// for existing devices as soon as the mobile app is updated.
+ListeningPeriodStats _hideUncountedRankings(ListeningPeriodStats stats) {
+  return ListeningPeriodStats(
+    fromDay: stats.fromDay,
+    toDay: stats.toDay,
+    totalPlays: stats.totalPlays,
+    totalListenedMs: stats.totalListenedMs,
+    songs: stats.songs.where((rollup) => rollup.playCount > 0).toList(),
+    artists: stats.artists.where((rollup) => rollup.playCount > 0).toList(),
+    albums: stats.albums.where((rollup) => rollup.playCount > 0).toList(),
+    days: stats.days,
+  );
+}
+
 /// Adapts server song rollups to the mobile display model.
 List<SongStats> songStatsFromRollups(Iterable<ListeningSongRollup> rollups) {
   return [
     for (final rollup in rollups)
-      if (rollup.playCount > 0 || rollup.listenedMs > 0)
+      if (rollup.playCount > 0)
         SongStats(
           songId: rollup.songId,
           playCount: rollup.playCount,
@@ -115,7 +132,7 @@ List<ArtistStats> artistStatsFromCredited(
   final songList = songs.toList();
   final result = <ArtistStats>[];
   for (final rollup in artists) {
-    if (rollup.playCount <= 0 && rollup.listenedMs <= 0) continue;
+    if (rollup.playCount <= 0) continue;
     final display = rollup.artistDisplay ?? rollup.artistKey;
     final needle = display.toLowerCase();
     String? artworkAlbumId;
@@ -157,7 +174,7 @@ List<AlbumStats> albumStatsFromRollups(
     Iterable<ListeningAlbumRollup> rollups) {
   return [
     for (final rollup in rollups)
-      if (rollup.playCount > 0 || rollup.listenedMs > 0)
+      if (rollup.playCount > 0)
         AlbumStats(
           albumId: rollup.albumId ?? '',
           albumName: rollup.album,
