@@ -123,6 +123,8 @@ class WebSetupService {
   /// - 'progress': double from 0.0 to 1.0
   /// - 'songsFound': int number of songs found
   /// - 'albumsFound': int number of albums found
+  /// - 'scannedFileCount': int number of audio files scanned
+  /// - 'skippedFileCount': int number of files/directories skipped
   /// - 'currentStatus': String description of current operation
   Future<Map<String, dynamic>> getScanStatus() async {
     try {
@@ -137,6 +139,8 @@ class WebSetupService {
           'progress': (data['progress'] as num?)?.toDouble() ?? 0.0,
           'songsFound': data['songsFound'] ?? 0,
           'albumsFound': data['albumsFound'] ?? 0,
+          'scannedFileCount': data['scannedFileCount'] ?? 0,
+          'skippedFileCount': data['skippedFileCount'] ?? 0,
           'currentStatus': data['currentStatus'] ?? 'Initializing...',
         };
       }
@@ -149,6 +153,8 @@ class WebSetupService {
       'progress': 0.0,
       'songsFound': 0,
       'albumsFound': 0,
+      'scannedFileCount': 0,
+      'skippedFileCount': 0,
       'currentStatus': 'Not scanning',
     };
   }

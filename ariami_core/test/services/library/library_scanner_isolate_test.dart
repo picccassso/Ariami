@@ -40,8 +40,7 @@ void main() {
           reason: 'scan must survive an unreadable directory');
       expect(result.library!.totalSongs, equals(2));
       expect(
-        result.scanDiagnostics.failedFiles
-            .any((f) => f.path == lockedDir.path),
+        result.scanDiagnostics.failedFiles.any((f) => f.path == lockedDir.path),
         isTrue,
         reason: 'unreadable directory should appear in scan diagnostics',
       );
@@ -57,11 +56,13 @@ void main() {
 
       expect(result.library, isNotNull);
       expect(result.library!.totalSongs, equals(1));
+      expect(result.scannedFileCount, equals(1));
     });
 
     test('still skips hidden entries below the scan root', () async {
       await writeFakeAudio('visible.mp3', List<int>.filled(4096, 5));
-      await writeFakeAudio('.hidden-dir/skipped.mp3', List<int>.filled(4096, 6));
+      await writeFakeAudio(
+          '.hidden-dir/skipped.mp3', List<int>.filled(4096, 6));
       await writeFakeAudio('._resource-fork.mp3', List<int>.filled(4096, 7));
 
       final result = await LibraryScannerIsolate.scan(tempDir.path);
@@ -78,6 +79,8 @@ void main() {
       await writeFakeAudio('copy-b.mp3', bytes);
 
       final firstScan = await LibraryScannerIsolate.scan(tempDir.path);
+      expect(firstScan.scannedFileCount, equals(2),
+          reason: 'duplicate files must still count as individually scanned');
       expect(firstScan.updatedCache, isNotNull);
       final hashedPaths = firstScan.updatedCache!.entries
           .where((e) => e.value['partialHash'] != null)

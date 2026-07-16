@@ -146,6 +146,7 @@ extension _LibraryManagerScanningPart on LibraryManager {
       if (result.library != null) {
         _library = result.library;
         _latestScanDiagnostics = result.scanDiagnostics;
+        _latestScannedFileCount = result.scannedFileCount;
         _lastScannedFolderPath = folderPath;
         _rebuildSongIndexes();
         _lastScanTime = DateTime.now();
@@ -165,8 +166,7 @@ extension _LibraryManagerScanningPart on LibraryManager {
             '[LibraryManager] Standalone songs: ${_library!.standaloneSongs.length}');
         print('[LibraryManager] Folder playlists: ${_library!.totalPlaylists}');
         print('[LibraryManager] Total songs: ${_library!.totalSongs}');
-        final autoImported =
-            result.scanDiagnostics.autoImportedPlaylistFolders;
+        final autoImported = result.scanDiagnostics.autoImportedPlaylistFolders;
         if (autoImported.isNotEmpty) {
           print('[LibraryManager] Auto-imported playlist folders: '
               '${autoImported.map((s) => s.name).join(', ')}');
@@ -200,6 +200,7 @@ extension _LibraryManagerScanningPart on LibraryManager {
     _lastScanTime = null;
     _lastScannedFolderPath = null;
     _latestScanDiagnostics = const ScanDiagnostics();
+    _latestScannedFileCount = 0;
     _artworkCache.clear();
     _durationCache.clear();
     _songArtworkCache.clear();

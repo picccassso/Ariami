@@ -137,6 +137,9 @@ class LibraryManager {
   /// Diagnostics from the most recent full library scan.
   ScanDiagnostics _latestScanDiagnostics = const ScanDiagnostics();
 
+  /// Total audio files discovered and attempted by the latest full scan.
+  int _latestScannedFileCount = 0;
+
   /// Persistent playlist-suggestion decisions (import/ignore per folder).
   PlaylistDecisionStore? _playlistDecisionStore;
 
@@ -201,6 +204,9 @@ class LibraryManager {
 
   /// Diagnostics from the most recent full library scan.
   ScanDiagnostics get latestScanDiagnostics => _latestScanDiagnostics;
+
+  /// Total audio files discovered and attempted by the latest full scan.
+  int get latestScannedFileCount => _latestScannedFileCount;
 
   /// Playlist-suggestion decision store (null until [setCachePath]).
   PlaylistDecisionStore? get playlistDecisionStore => _playlistDecisionStore;

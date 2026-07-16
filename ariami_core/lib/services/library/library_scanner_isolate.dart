@@ -65,6 +65,9 @@ class ScanResultMessage {
   /// Total skipped files (may exceed [failedFiles].length when bounded).
   final int skippedFileCount;
 
+  /// Total audio files discovered and attempted during this scan.
+  final int scannedFileCount;
+
   /// Advisory likely-playlist folders detected during the scan.
   final List<PlaylistSuggestion> playlistSuggestions;
 
@@ -81,6 +84,7 @@ class ScanResultMessage {
     this.cacheMisses = 0,
     this.failedFiles = const [],
     this.skippedFileCount = 0,
+    this.scannedFileCount = 0,
     this.playlistSuggestions = const [],
     this.autoImportedPlaylistFolders = const [],
   });
@@ -146,6 +150,7 @@ class LibraryScannerIsolate {
         Map<String, Map<String, dynamic>>? updatedCache,
         int cacheHits,
         int cacheMisses,
+        int scannedFileCount,
         ScanDiagnostics scanDiagnostics,
       })> scan(
     String folderPath, {
@@ -180,6 +185,7 @@ class LibraryScannerIsolate {
       Map<String, Map<String, dynamic>>? updatedCache;
       int cacheHits = 0;
       int cacheMisses = 0;
+      int scannedFileCount = 0;
       ScanDiagnostics scanDiagnostics = const ScanDiagnostics();
       String? errorMessage;
 
@@ -213,6 +219,7 @@ class LibraryScannerIsolate {
             updatedCache = message.updatedCache;
             cacheHits = message.cacheHits;
             cacheMisses = message.cacheMisses;
+            scannedFileCount = message.scannedFileCount;
             scanDiagnostics = ScanDiagnostics(
               skippedFileCount: message.skippedFileCount,
               failedFiles: message.failedFiles,
@@ -235,6 +242,7 @@ class LibraryScannerIsolate {
           updatedCache: null,
           cacheHits: 0,
           cacheMisses: 0,
+          scannedFileCount: 0,
           scanDiagnostics: const ScanDiagnostics(),
         );
       }
@@ -244,6 +252,7 @@ class LibraryScannerIsolate {
         updatedCache: updatedCache,
         cacheHits: cacheHits,
         cacheMisses: cacheMisses,
+        scannedFileCount: scannedFileCount,
         scanDiagnostics: scanDiagnostics,
       );
     } catch (e) {
@@ -253,6 +262,7 @@ class LibraryScannerIsolate {
         updatedCache: null,
         cacheHits: 0,
         cacheMisses: 0,
+        scannedFileCount: 0,
         scanDiagnostics: const ScanDiagnostics(),
       );
     } finally {
@@ -289,9 +299,8 @@ class LibraryScannerIsolate {
       _sendProgress(
           sendPort, 'collecting', 0, 0, 0.0, 'Scanning for audio files...');
 
-      final approvedPlaylistFolderPaths = params.approvedPlaylistFolderPaths
-          .map(path.normalize)
-          .toSet();
+      final approvedPlaylistFolderPaths =
+          params.approvedPlaylistFolderPaths.map(path.normalize).toSet();
       final scanResult = await _collectAudioFiles(
         folderPath,
         approvedPlaylistFolderPaths: approvedPlaylistFolderPaths,
@@ -326,6 +335,7 @@ class LibraryScannerIsolate {
           updatedCache: updatedCache,
           cacheHits: 0,
           cacheMisses: 0,
+          scannedFileCount: totalFiles,
           failedFiles: failedFiles,
           skippedFileCount: skippedFileCount,
         ));
@@ -454,9 +464,8 @@ class LibraryScannerIsolate {
         songs: uniqueSongs,
         libraryRootPath: folderPath,
         explicitPlaylistFolderPaths: playlistFolders.keys.toSet(),
-        ignoredFolderPaths: params.ignoredSuggestionFolderPaths
-            .map(path.normalize)
-            .toSet(),
+        ignoredFolderPaths:
+            params.ignoredSuggestionFolderPaths.map(path.normalize).toSet(),
       );
 
       // A folder with an explicit playlist folder somewhere inside it is
@@ -473,8 +482,7 @@ class LibraryScannerIsolate {
           autoImports.add(autoImport);
         }
       }
-      playlistSuggestions
-          .sort((a, b) => a.folderPath.compareTo(b.folderPath));
+      playlistSuggestions.sort((a, b) => a.folderPath.compareTo(b.folderPath));
 
       // Membership mirrors [PLAYLIST] collection: recursive, keeps duplicate
       // copies (their IDs remap to the surviving song later), and never
@@ -484,14 +492,18 @@ class LibraryScannerIsolate {
       for (final autoImport in autoImports) {
         playlistFolders[autoImport.folderPath] = audioFiles
             .where((filePath) =>
-                filePath.startsWith(
-                    '${autoImport.folderPath}${path.separator}') &&
+                filePath
+                    .startsWith('${autoImport.folderPath}${path.separator}') &&
                 !explicitPlaylistFilePaths.contains(filePath))
             .toList();
       }
       if (autoImports.isNotEmpty) {
-        _sendProgress(sendPort, 'playlists', autoImports.length,
-            autoImports.length, 85.0,
+        _sendProgress(
+            sendPort,
+            'playlists',
+            autoImports.length,
+            autoImports.length,
+            85.0,
             'Auto-imported ${autoImports.length} playlist folder(s)');
       }
 
@@ -561,8 +573,7 @@ class LibraryScannerIsolate {
 
       // Step 6: Import M3U/M3U8 playlists. Explicit sources, imported
       // automatically; a malformed file only produces a diagnostic.
-      final uniqueSongPaths =
-          uniqueSongs.map((song) => song.filePath).toSet();
+      final uniqueSongPaths = uniqueSongs.map((song) => song.filePath).toSet();
       final m3uPlaylists = await _buildM3uPlaylists(
         m3uFiles: m3uFiles,
         uniqueSongPaths: uniqueSongPaths,
@@ -571,8 +582,7 @@ class LibraryScannerIsolate {
       );
       folderPlaylistsList.addAll(m3uPlaylists);
 
-      folderPlaylistsList
-          .sort((a, b) => a.folderPath.compareTo(b.folderPath));
+      folderPlaylistsList.sort((a, b) => a.folderPath.compareTo(b.folderPath));
 
       // Step 7: Medium-confidence suggestions were classified in step 3.5
       // (advisory only — surfaced in scan diagnostics for the approval UI).
@@ -610,6 +620,7 @@ class LibraryScannerIsolate {
         updatedCache: updatedCache,
         cacheHits: cacheHits,
         cacheMisses: cacheMisses,
+        scannedFileCount: totalFiles,
         failedFiles: failedFiles,
         skippedFileCount: skippedFileCount,
         playlistSuggestions: playlistSuggestions,
@@ -844,8 +855,8 @@ class LibraryScannerIsolate {
         if (!uniqueSongPaths.contains(canonicalPath)) {
           missingEntryCount++;
           if (missingEntryCount <= 5) {
-            recordFailure(
-                entry, 'M3U entry not found in library (${path.basename(m3uPath)})');
+            recordFailure(entry,
+                'M3U entry not found in library (${path.basename(m3uPath)})');
           }
           continue;
         }

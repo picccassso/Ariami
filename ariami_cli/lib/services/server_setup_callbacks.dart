@@ -85,12 +85,17 @@ class ServerSetupCallbacks {
     double progress = 0.0;
     int songsFound = 0;
     int albumsFound = 0;
+    int scannedFileCount = 0;
+    int skippedFileCount = 0;
     String currentStatus = 'Initializing...';
 
     if (library != null) {
       progress = 1.0;
       songsFound = library.totalSongs;
       albumsFound = library.totalAlbums;
+      scannedFileCount = _httpServer.libraryManager.latestScannedFileCount;
+      skippedFileCount =
+          _httpServer.libraryManager.latestScanDiagnostics.skippedFileCount;
       currentStatus = 'Scan complete!';
     } else if (isScanning) {
       progress = 0.5;
@@ -102,6 +107,8 @@ class ServerSetupCallbacks {
       'progress': progress,
       'songsFound': songsFound,
       'albumsFound': albumsFound,
+      'scannedFileCount': scannedFileCount,
+      'skippedFileCount': skippedFileCount,
       'currentStatus': currentStatus,
     };
   }

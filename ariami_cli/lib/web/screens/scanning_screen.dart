@@ -19,6 +19,7 @@ class _ScanningScreenState extends State<ScanningScreen>
   String _statusMessage = 'INITIALIZING SCAN...';
   int _songsFound = 0;
   int _albumsFound = 0;
+  int _scannedFileCount = 0;
   int _skippedFileCount = 0;
   bool _isScanning = true;
   bool _isComplete = false;
@@ -91,6 +92,7 @@ class _ScanningScreenState extends State<ScanningScreen>
         _progress = (status['progress'] as num?)?.toDouble() ?? 0.0;
         _songsFound = status['songsFound'] as int? ?? 0;
         _albumsFound = status['albumsFound'] as int? ?? 0;
+        _scannedFileCount = status['scannedFileCount'] as int? ?? 0;
         _skippedFileCount = status['skippedFileCount'] as int? ?? 0;
         _statusMessage =
             (status['currentStatus'] as String? ?? 'Scanning...').toUpperCase();
@@ -115,47 +117,14 @@ class _ScanningScreenState extends State<ScanningScreen>
 
     setState(() {
       _isComplete = true;
-      _isTransitioning = true;
-      _transitionError = null;
-      _statusMessage = 'MOVING SERVER TO BACKGROUND...';
-    });
-
-    final result = await _setupService.transitionToBackground();
-
-    if (!mounted) return;
-
-    final success = result['success'] as bool? ?? false;
-    final alreadyInForeground = result['alreadyInForeground'] as bool? ?? false;
-    final message = result['message'] as String? ?? '';
-    final expectedDisconnect = success || _isLikelyExpectedDisconnect(message);
-
-    if (expectedDisconnect) {
-      setState(() {
-        _statusMessage =
-            alreadyInForeground ? 'FINISHING SETUP...' : 'RECONNECTING...';
-      });
-      await Future.delayed(
-        alreadyInForeground
-            ? const Duration(milliseconds: 500)
-            : const Duration(seconds: 3),
-      );
-      if (mounted) {
-        Navigator.pushReplacementNamed(context, '/owner-setup');
-      }
-      return;
-    }
-
-    setState(() {
       _isTransitioning = false;
-      _transitionError = message.isNotEmpty
-          ? message
-          : 'Could not move the server to background mode.';
-      _statusMessage = 'TRANSITION FAILED';
+      _transitionError = null;
+      _statusMessage = 'SCAN COMPLETE!';
     });
   }
 
-  Future<void> _retryBackgroundTransition() async {
-    if (!mounted) return;
+  Future<void> _transitionToBackground() async {
+    if (!mounted || _isTransitioning) return;
 
     setState(() {
       _isTransitioning = true;
@@ -164,6 +133,7 @@ class _ScanningScreenState extends State<ScanningScreen>
     });
 
     final result = await _setupService.transitionToBackground();
+
     if (!mounted) return;
 
     final success = result['success'] as bool? ?? false;
@@ -327,22 +297,34 @@ class _ScanningScreenState extends State<ScanningScreen>
                         // Stats Grid
                         SizedBox(
                           width: double.infinity,
-                          child: Row(
+                          child: Column(
                             children: [
-                              Expanded(
-                                child: _buildCountCard(
-                                  icon: Icons.audiotrack_rounded,
-                                  count: '$_songsFound',
-                                  label: 'SONGS FOUND',
+                              if (_isComplete) ...[
+                                _buildCountCard(
+                                  icon: Icons.folder_open_rounded,
+                                  count: '$_scannedFileCount',
+                                  label: 'FILES SCANNED',
                                 ),
-                              ),
-                              const SizedBox(width: 24),
-                              Expanded(
-                                child: _buildCountCard(
-                                  icon: Icons.album_rounded,
-                                  count: '$_albumsFound',
-                                  label: 'ALBUMS INDEXED',
-                                ),
+                                const SizedBox(height: 24),
+                              ],
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _buildCountCard(
+                                      icon: Icons.audiotrack_rounded,
+                                      count: '$_songsFound',
+                                      label: 'SONGS FOUND',
+                                    ),
+                                  ),
+                                  const SizedBox(width: 24),
+                                  Expanded(
+                                    child: _buildCountCard(
+                                      icon: Icons.album_rounded,
+                                      count: '$_albumsFound',
+                                      label: 'ALBUMS INDEXED',
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
@@ -380,6 +362,21 @@ class _ScanningScreenState extends State<ScanningScreen>
                                     ),
                                   ),
                                 ],
+                              ),
+                            ),
+                          ),
+                        ],
+                        if (_isComplete &&
+                            !_isTransitioning &&
+                            _transitionError == null) ...[
+                          const SizedBox(height: 40),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton(
+                              onPressed: _transitionToBackground,
+                              child: const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 16),
+                                child: Text('CONTINUE'),
                               ),
                             ),
                           ),
@@ -470,7 +467,7 @@ class _ScanningScreenState extends State<ScanningScreen>
                                     runSpacing: 12,
                                     children: [
                                       OutlinedButton(
-                                        onPressed: _retryBackgroundTransition,
+                                        onPressed: _transitionToBackground,
                                         child: const Text('RETRY'),
                                       ),
                                       ElevatedButton(

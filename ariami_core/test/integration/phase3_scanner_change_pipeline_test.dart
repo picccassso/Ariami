@@ -71,6 +71,7 @@ void main() {
         expect(progressUpdates.last.stage, 'complete');
         expect(progressUpdates.last.percentage, 100);
         expect(progressUpdates.last.message, contains('Scan complete'));
+        expect(libraryManager.latestScannedFileCount, equals(3));
 
         final db =
             CatalogDatabase(databasePath: p.join(testDir.path, 'catalog.db'));
