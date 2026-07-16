@@ -25,6 +25,7 @@ class _ScanningScreenState extends State<ScanningScreen> {
   final AriamiHttpServer _httpServer = AriamiHttpServer();
   String _status = 'Preparing scan...';
   bool _isComplete = false;
+  bool _hasFailed = false;
   int _albumCount = 0;
   int _songCount = 0;
   int _scannedFileCount = 0;
@@ -39,6 +40,8 @@ class _ScanningScreenState extends State<ScanningScreen> {
   Future<void> _startScan() async {
     setState(() {
       _status = 'Scanning media library...';
+      _hasFailed = false;
+      _isComplete = false;
     });
 
     try {
@@ -48,6 +51,9 @@ class _ScanningScreenState extends State<ScanningScreen> {
       _httpServer.libraryManager.setCachePath(cachePath);
 
       await _httpServer.libraryManager.scanMusicFolder(widget.musicFolderPath);
+      if (_httpServer.libraryManager.library == null) {
+        throw StateError('The music library scan did not complete.');
+      }
 
       final diagnostics = _httpServer.libraryManager.latestScanDiagnostics;
       if (!mounted) return;
@@ -65,18 +71,8 @@ class _ScanningScreenState extends State<ScanningScreen> {
       if (!mounted) return;
       setState(() {
         _status = 'Scan failed: $e';
+        _hasFailed = true;
       });
-
-      // Wait then navigate
-      await Future.delayed(const Duration(seconds: 2));
-
-      if (mounted) {
-        if (widget.nextRoute != null) {
-          Navigator.pushReplacementNamed(context, widget.nextRoute!);
-        } else {
-          Navigator.pop(context, false);
-        }
-      }
     }
   }
 
@@ -101,7 +97,13 @@ class _ScanningScreenState extends State<ScanningScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              if (!_isComplete) ...[
+              if (_hasFailed) ...[
+                const Icon(
+                  Icons.error_outline_rounded,
+                  size: 80,
+                  color: Colors.redAccent,
+                ),
+              ] else if (!_isComplete) ...[
                 const SizedBox(
                   width: 60,
                   height: 60,
@@ -119,7 +121,9 @@ class _ScanningScreenState extends State<ScanningScreen> {
               ],
               const SizedBox(height: 32),
               Text(
-                _isComplete ? 'Scan Complete' : 'Scanning Library',
+                _hasFailed
+                    ? 'Could Not Scan Library'
+                    : (_isComplete ? 'Scan Complete' : 'Scanning Library'),
                 style: const TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
@@ -127,7 +131,31 @@ class _ScanningScreenState extends State<ScanningScreen> {
                   color: Colors.white,
                 ),
               ),
-              if (!_isComplete) ...[
+              if (_hasFailed) ...[
+                const SizedBox(height: 16),
+                Text(
+                  _status,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    color: Colors.redAccent,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton.icon(
+                  onPressed: _startScan,
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('Try again'),
+                ),
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: () => Navigator.pushReplacementNamed(
+                    context,
+                    '/folder-selection',
+                  ),
+                  child: const Text('Choose another folder'),
+                ),
+              ] else if (!_isComplete) ...[
                 const SizedBox(height: 16),
                 Text(
                   _status,

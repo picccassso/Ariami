@@ -218,7 +218,10 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
       final prefs = await SharedPreferences.getInstance();
       final musicFolderPath = prefs.getString('music_folder_path');
 
-      if (musicFolderPath != null && musicFolderPath.isNotEmpty && mounted) {
+      if (musicFolderPath != null &&
+          musicFolderPath.isNotEmpty &&
+          _httpServer.libraryManager.library == null &&
+          mounted) {
         print(
             '[ConnectionScreen] Navigating to scanning screen: $musicFolderPath');
         // Replace with scanning screen, which will then navigate forward to /connection

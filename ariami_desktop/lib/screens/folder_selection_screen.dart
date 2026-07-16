@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../onboarding/onboarding_copy.dart';
 import '../onboarding/setup_scaffold.dart';
+import 'scanning_screen.dart';
 
 class FolderSelectionScreen extends StatefulWidget {
   const FolderSelectionScreen({super.key});
@@ -177,7 +178,18 @@ class _FolderSelectionScreenState extends State<FolderSelectionScreen> {
               if (_selectedFolderPath != null)
                 OutlinedButton(
                   onPressed: () {
-                    Navigator.pushReplacementNamed(context, '/owner-setup');
+                    final selected = _selectedFolderPath;
+                    if (selected == null) return;
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        settings: const RouteSettings(name: '/scanning'),
+                        builder: (_) => ScanningScreen(
+                          musicFolderPath: selected,
+                          nextRoute: '/owner-setup',
+                        ),
+                      ),
+                    );
                   },
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Colors.white,
