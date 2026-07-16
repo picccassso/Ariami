@@ -463,7 +463,19 @@ void main() {
       await playlistService.clearAllPlaylistData();
     });
 
-    test('importPlaylists skips backup entry when local name already exists',
+    Future<void> seedLikedSongs() async {
+      await playlistService.replaceAllPlaylists(<PlaylistModel>[
+        PlaylistModel(
+          id: PlaylistService.likedSongsId,
+          name: 'Liked Songs',
+          songIds: const <String>['local-liked-song'],
+          createdAt: DateTime(2024),
+          modifiedAt: DateTime(2024),
+        ),
+      ]);
+    }
+
+    test('importPlaylists preserves a backup entry with a duplicate name',
         () async {
       final local = await playlistService.createPlaylist(name: 'Summer Vibes');
       final backupPlaylist = PlaylistModel(
@@ -474,15 +486,17 @@ void main() {
         modifiedAt: DateTime(2024),
       );
 
-      final imported =
-          await playlistService.importPlaylists(<PlaylistModel>[backupPlaylist]);
+      final imported = await playlistService
+          .importPlaylists(<PlaylistModel>[backupPlaylist]);
 
-      expect(imported, 0);
-      expect(playlistService.playlists.length, 1);
+      expect(imported, 1);
+      expect(playlistService.playlists.length, 2);
       expect(playlistService.getPlaylist(local.id)?.id, local.id);
+      expect(playlistService.getPlaylist(backupPlaylist.id)?.id,
+          backupPlaylist.id);
     });
 
-    test('importServerPlaylist returns existing local playlist for same name',
+    test('importServerPlaylist creates a distinct playlist for the same name',
         () async {
       final local = await playlistService.createPlaylist(name: 'Summer Vibes');
       final serverPlaylist = ServerPlaylist(
@@ -497,10 +511,121 @@ void main() {
         allSongs: const <SongModel>[],
       );
 
-      expect(result.id, local.id);
-      expect(playlistService.playlists.length, 1);
+      expect(result.id, isNot(local.id));
+      expect(playlistService.playlists.length, 2);
       expect(playlistService.hiddenServerPlaylistIds, contains('server-1'));
-      expect(playlistService.getServerPlaylistId(local.id), 'server-1');
+      expect(playlistService.getServerPlaylistId(result.id), 'server-1');
+      expect(playlistService.getServerPlaylistId(local.id), isNull);
+    });
+
+    test('importAllServerPlaylists preserves duplicate display names',
+        () async {
+      await playlistService.createPlaylist(name: 'Summer Vibes');
+      final imported = await playlistService.importAllServerPlaylists(
+        <ServerPlaylist>[
+          ServerPlaylist(
+            id: 'server-1',
+            name: 'Summer Vibes',
+            songIds: const <String>['song-1'],
+            songCount: 1,
+          ),
+        ],
+        allSongs: const <SongModel>[],
+      );
+
+      expect(imported, 1);
+      expect(
+        playlistService.playlists
+            .where((playlist) => playlist.name == 'Summer Vibes'),
+        hasLength(2),
+      );
+    });
+
+    test('server Liked Songs imports beside the account-owned playlist',
+        () async {
+      await seedLikedSongs();
+      playlistService.updateServerPlaylists(<ServerPlaylist>[
+        ServerPlaylist(
+          id: 'server-liked',
+          name: 'Liked Songs',
+          songIds: const <String>['server-liked-song'],
+          songCount: 1,
+        ),
+      ]);
+      await pumpEventQueue();
+
+      final imported = await playlistService.importServerPlaylist(
+        playlistService.visibleServerPlaylists.single,
+        allSongs: const <SongModel>[],
+      );
+
+      expect(imported.id, isNot(PlaylistService.likedSongsId));
+      expect(
+        playlistService.playlists
+            .where((playlist) => playlist.name == 'Liked Songs'),
+        hasLength(2),
+      );
+      expect(
+        playlistService.getServerPlaylistId(imported.id),
+        'server-liked',
+      );
+      expect(
+        playlistService.getServerPlaylistId(PlaylistService.likedSongsId),
+        isNull,
+      );
+    });
+
+    test('repairs an already-hidden Liked Songs name collision once', () async {
+      await seedLikedSongs();
+      await playlistService.applyServerImportState(
+        hiddenServerPlaylistIds: {'server-liked'},
+        importedFromServer: {
+          PlaylistService.likedSongsId: 'server-liked',
+        },
+        replace: true,
+      );
+
+      final serverPlaylist = ServerPlaylist(
+        id: 'server-liked',
+        name: 'Liked Songs',
+        songIds: const <String>['server-liked-song'],
+        songCount: 1,
+      );
+      playlistService.updateServerPlaylists(<ServerPlaylist>[serverPlaylist]);
+      await pumpEventQueue();
+
+      expect(playlistService.visibleServerPlaylists.single.id, 'server-liked');
+      expect(
+        playlistService.hiddenServerPlaylistIds,
+        isNot(contains('server-liked')),
+      );
+      expect(
+        playlistService.getServerPlaylistId(PlaylistService.likedSongsId),
+        isNull,
+      );
+
+      final imported = await playlistService.importServerPlaylist(
+        serverPlaylist,
+        allSongs: const <SongModel>[],
+      );
+      await playlistService.deleteImportedPlaylist(
+        imported.id,
+        restoreServerVersion: false,
+      );
+      playlistService.updateServerPlaylists(<ServerPlaylist>[
+        ServerPlaylist(
+          id: 'server-liked',
+          name: 'Liked Songs',
+          songIds: const <String>['server-liked-song', 'new-song'],
+          songCount: 2,
+        ),
+      ]);
+      await pumpEventQueue();
+
+      expect(
+        playlistService.hiddenServerPlaylistIds,
+        contains('server-liked'),
+      );
     });
 
     test('importServerPlaylist does not duplicate when server id is hidden',
@@ -529,7 +654,8 @@ void main() {
       expect(playlistService.playlists.length, 1);
     });
 
-    test('applyServerImportState persists hidden server ids to SharedPreferences',
+    test(
+        'applyServerImportState persists hidden server ids to SharedPreferences',
         () async {
       await playlistService.applyServerImportState(
         hiddenServerPlaylistIds: {'server-1'},
@@ -549,7 +675,7 @@ void main() {
       );
     });
 
-    test('replaceAllPlaylists persists hidden server ids after auto-hide',
+    test('replaceAllPlaylists does not hide a server playlist by name',
         () async {
       await playlistService.createPlaylist(name: 'Summer Vibes');
       playlistService.updateServerPlaylists(<ServerPlaylist>[
@@ -569,7 +695,10 @@ void main() {
       final prefs = await SharedPreferences.getInstance();
       final hiddenJson = prefs.getString('ariami_hidden_server_playlists');
       expect(hiddenJson, isNotNull);
-      expect(jsonDecode(hiddenJson!) as List<dynamic>, contains('server-1'));
+      expect(
+        jsonDecode(hiddenJson!) as List<dynamic>,
+        isNot(contains('server-1')),
+      );
     });
   });
 }

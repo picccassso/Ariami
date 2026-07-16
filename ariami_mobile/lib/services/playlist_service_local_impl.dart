@@ -1,16 +1,6 @@
 part of 'playlist_service.dart';
 
 extension _PlaylistServiceLocalImpl on PlaylistService {
-  PlaylistModel? _findLocalPlaylistByName(String name) {
-    final normalizedName = name.toLowerCase();
-    for (final playlist in _playlists) {
-      if (playlist.name.toLowerCase() == normalizedName) {
-        return playlist;
-      }
-    }
-    return null;
-  }
-
   Future<PlaylistModel> _createPlaylistImpl({
     required String name,
     String? description,

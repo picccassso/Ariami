@@ -33,13 +33,11 @@ extension _PlaylistServiceBackupImpl on PlaylistService {
     var imported = 0;
     for (final playlist in playlists) {
       if (getPlaylist(playlist.id) != null) continue;
-      if (_findLocalPlaylistByName(playlist.name) != null) continue;
       _playlists.add(playlist);
       imported++;
     }
     if (imported > 0) {
       await _savePlaylists();
-      await _autoHideMatchingServerPlaylists();
       _notifyListeners();
     }
     return imported;
@@ -51,7 +49,6 @@ extension _PlaylistServiceBackupImpl on PlaylistService {
     _recentlyImportedIds.clear();
 
     await _savePlaylists();
-    await _autoHideMatchingServerPlaylists();
     await _saveHiddenServerPlaylists();
     await _saveImportedFromServer();
     _notifyListeners();

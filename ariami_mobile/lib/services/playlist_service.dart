@@ -51,6 +51,8 @@ class PlaylistService extends ChangeNotifier {
       'ariami_playlist_image_versions';
   static const String _pendingPlaylistImagePushesKey =
       'ariami_pending_playlist_image_pushes';
+  static const String _likedSongsCollisionRepairKey =
+      'ariami_liked_songs_collision_repair_v1';
   static const String likedSongsId = likedSongsPlaylistId;
   static final PlaylistService _instance = PlaylistService._internal();
 
@@ -404,7 +406,11 @@ class PlaylistService extends ChangeNotifier {
   /// Clear all local and server-derived playlist state.
   Future<void> clearAllPlaylistData() => _clearAllPlaylistDataImpl();
 
-  /// Import playlists in merge mode, skipping existing IDs and names.
+  /// Import playlists in merge mode, skipping existing IDs.
+  ///
+  /// Display names are not identities: two legitimate playlists may share a
+  /// name, including a server/imported playlist named "Liked Songs" alongside
+  /// Ariami's account-owned likes playlist.
   ///
   /// Returns the number of playlists actually imported.
   Future<int> importPlaylists(List<PlaylistModel> playlists) =>

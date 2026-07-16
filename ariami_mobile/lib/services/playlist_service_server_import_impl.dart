@@ -10,42 +10,15 @@ extension _PlaylistServiceServerImportImpl on PlaylistService {
     return null;
   }
 
-  Future<void> _ensureServerPlaylistHidden(
-    String serverPlaylistId,
-    String localPlaylistId,
-  ) async {
-    var changed = false;
-    if (!_hiddenServerPlaylistIds.contains(serverPlaylistId)) {
-      _hiddenServerPlaylistIds.add(serverPlaylistId);
-      changed = true;
-    }
-    if (_importedFromServer[localPlaylistId] != serverPlaylistId) {
-      _importedFromServer[localPlaylistId] = serverPlaylistId;
-      changed = true;
-    }
-    if (changed) {
-      await _saveHiddenServerPlaylists();
-      await _saveImportedFromServer();
-      _notifyListeners();
-    }
-  }
-
   Future<PlaylistModel> _importServerPlaylistImpl(
     ServerPlaylist serverPlaylist, {
     required List<SongModel> allSongs,
   }) async {
     if (_hiddenServerPlaylistIds.contains(serverPlaylist.id)) {
-      final existing = _findLocalPlaylistForServerId(serverPlaylist.id) ??
-          _findLocalPlaylistByName(serverPlaylist.name);
+      final existing = _findLocalPlaylistForServerId(serverPlaylist.id);
       if (existing != null) {
         return existing;
       }
-    }
-
-    final existingByName = _findLocalPlaylistByName(serverPlaylist.name);
-    if (existingByName != null) {
-      await _ensureServerPlaylistHidden(serverPlaylist.id, existingByName.id);
-      return existingByName;
     }
 
     final now = DateTime.now();
@@ -98,7 +71,7 @@ extension _PlaylistServiceServerImportImpl on PlaylistService {
 
     for (final serverPlaylist in serverPlaylists) {
       if (_hiddenServerPlaylistIds.contains(serverPlaylist.id)) continue;
-      if (_findLocalPlaylistByName(serverPlaylist.name) != null) continue;
+      if (_findLocalPlaylistForServerId(serverPlaylist.id) != null) continue;
 
       final localId = _uuid.v4();
       final metadata = _buildPlaylistSongMetadataFromIndex(

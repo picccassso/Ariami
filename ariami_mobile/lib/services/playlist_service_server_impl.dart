@@ -1,26 +1,62 @@
 part of 'playlist_service.dart';
 
 extension _PlaylistServiceServerImpl on PlaylistService {
-  Future<void> _autoHideMatchingServerPlaylists() async {
-    if (_serverPlaylists.isEmpty || _playlists.isEmpty) return;
+  /// Repairs server playlists that older builds hid after mistaking Ariami's
+  /// account-owned Liked Songs playlist for a same-named folder playlist.
+  ///
+  /// The repair is tracked per server playlist ID. That makes it safe to
+  /// unhide the legacy collision once without resurrecting the same playlist
+  /// if the user later imports and permanently deletes it intentionally.
+  Future<void> _repairLikedSongsNameCollisions() async {
+    final collisions = _serverPlaylists.where(
+      (playlist) => playlist.name.trim().toLowerCase() == 'liked songs',
+    );
+    if (collisions.isEmpty) return;
 
-    final localPlaylistNames =
-        _playlists.map((playlist) => playlist.name.toLowerCase()).toSet();
-
-    var hiddenCount = 0;
-    for (final serverPlaylist in _serverPlaylists) {
-      final normalizedName = serverPlaylist.name.toLowerCase();
-      if (localPlaylistNames.contains(normalizedName) &&
-          !_hiddenServerPlaylistIds.contains(serverPlaylist.id)) {
-        _hiddenServerPlaylistIds.add(serverPlaylist.id);
-        hiddenCount++;
+    final prefs = await SharedPreferences.getInstance();
+    final repairedIds = <String>{};
+    final raw = prefs.getString(PlaylistService._likedSongsCollisionRepairKey);
+    if (raw != null && raw.isNotEmpty) {
+      try {
+        repairedIds.addAll((json.decode(raw) as List<dynamic>).cast<String>());
+      } catch (_) {
+        // A corrupt migration marker should not keep a hidden playlist lost.
       }
     }
 
-    if (hiddenCount > 0) {
-      await _saveHiddenServerPlaylists();
-      print(
-        '[PlaylistService] Auto-hidden $hiddenCount server playlists by name match',
+    var hiddenChanged = false;
+    var importedChanged = false;
+    var markerChanged = false;
+    for (final serverPlaylist in collisions) {
+      final firstRepair = repairedIds.add(serverPlaylist.id);
+      if (firstRepair) markerChanged = true;
+
+      final hasRealImportedCopy = _importedFromServer.entries.any(
+        (entry) =>
+            entry.key != PlaylistService.likedSongsId &&
+            entry.value == serverPlaylist.id &&
+            _getPlaylistImpl(entry.key) != null,
+      );
+      var removedInvalidLikedMapping = false;
+      if (_importedFromServer[PlaylistService.likedSongsId] ==
+          serverPlaylist.id) {
+        _importedFromServer.remove(PlaylistService.likedSongsId);
+        importedChanged = true;
+        removedInvalidLikedMapping = true;
+      }
+      if ((firstRepair || removedInvalidLikedMapping) &&
+          !hasRealImportedCopy &&
+          _hiddenServerPlaylistIds.remove(serverPlaylist.id)) {
+        hiddenChanged = true;
+      }
+    }
+
+    if (hiddenChanged) await _saveHiddenServerPlaylists();
+    if (importedChanged) await _saveImportedFromServer();
+    if (markerChanged) {
+      await prefs.setString(
+        PlaylistService._likedSongsCollisionRepairKey,
+        json.encode(repairedIds.toList()),
       );
     }
   }
@@ -40,7 +76,7 @@ extension _PlaylistServiceServerImpl on PlaylistService {
 
     await _saveHiddenServerPlaylists();
     await _saveImportedFromServer();
-    await _autoHideMatchingServerPlaylists();
+    await _repairLikedSongsNameCollisions();
     _notifyListeners();
   }
 
@@ -52,7 +88,7 @@ extension _PlaylistServiceServerImpl on PlaylistService {
     _serverPlaylists = playlists;
     print('[PlaylistService] Updated server playlists: ${playlists.length}');
 
-    _autoHideMatchingServerPlaylists().then((_) async {
+    _repairLikedSongsNameCollisions().then((_) async {
       // Edits queued while the base playlist was unknown can be pushed now.
       await _replayPendingImportedEditPushesImpl();
       await _syncImportedPlaylistsFromServerImpl();
