@@ -44,8 +44,11 @@ void showDisconnectServerDialog(BuildContext context) {
         ),
         TextButton(
           onPressed: () {
+            // Grab the root navigator before the pop: once the dialog route is
+            // disposed this context unmounts and can no longer navigate.
+            final rootNavigator = Navigator.of(context, rootNavigator: true);
             Navigator.of(context).pop();
-            disconnectServerAndClearData(context);
+            disconnectServerAndClearData(rootNavigator);
           },
           child: const Text(
             'DISCONNECT & CLEAR DATA',
@@ -70,19 +73,23 @@ void navigateToWelcomeScreen(BuildContext context) {
   );
 }
 
-/// Disconnects from the server, clears local data, and navigates to welcome.
-Future<void> disconnectServerAndClearData(BuildContext context) async {
+/// Navigates to the welcome screen immediately, then disconnects from the
+/// server and clears local data in the background.
+Future<void> disconnectServerAndClearData(NavigatorState rootNavigator) async {
   final userId = ConnectionService().userId;
+
+  // Navigate first: the wipe can take seconds (server disconnect request,
+  // deleting downloads/caches) and must not hold the user on the old screen.
+  rootNavigator.pushAndRemoveUntil(
+    MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+    (route) => false,
+  );
 
   try {
     await clearAllLocalUserData(userId: userId);
   } catch (_) {
     // Reset runs each cleanup step independently. A local-store failure should
     // not trap the user on a stale server after it has been forgotten.
-  } finally {
-    if (context.mounted) {
-      navigateToWelcomeScreen(context);
-    }
   }
 }
 

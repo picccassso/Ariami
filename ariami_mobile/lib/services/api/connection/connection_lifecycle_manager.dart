@@ -175,7 +175,11 @@ class ConnectionLifecycleManager {
     if (_apiClient != null && _stateManager.isConnected) {
       try {
         final request = DisconnectRequest(deviceId: _apiClient!.deviceId);
-        await _apiClient!.disconnect(request);
+        // Best-effort notify: don't let an unreachable server hold up the
+        // local disconnect for the full HTTP timeout.
+        await _apiClient!
+            .disconnect(request)
+            .timeout(const Duration(seconds: 3));
       } catch (e) {
         // Ignore disconnect errors
       }
