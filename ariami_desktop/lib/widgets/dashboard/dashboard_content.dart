@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/connected_client_row.dart';
 import '../../models/server_user_row.dart';
+import '../../services/update_check_service.dart';
 import 'dashboard_activity_tab.dart';
 import 'dashboard_overview_tab.dart';
 import 'dashboard_server_tab.dart';
@@ -17,6 +18,8 @@ class DashboardContent extends StatelessWidget {
     required this.httpServer,
     required this.connectedClients,
     required this.hasOwnerAccount,
+    required this.availableUpdate,
+    required this.onOpenReleasePage,
     required this.isLoadingUserActivity,
     required this.userActivityError,
     required this.userActivityRows,
@@ -58,6 +61,8 @@ class DashboardContent extends StatelessWidget {
   final AriamiHttpServer httpServer;
   final int connectedClients;
   final bool hasOwnerAccount;
+  final AvailableUpdate? availableUpdate;
+  final VoidCallback onOpenReleasePage;
   final bool isLoadingUserActivity;
   final String? userActivityError;
   final List<UserActivityRow> userActivityRows;
@@ -118,8 +123,10 @@ class DashboardContent extends StatelessWidget {
                   httpServer: httpServer,
                   connectedClients: connectedClients,
                   hasOwnerAccount: hasOwnerAccount,
+                  availableUpdate: availableUpdate,
                   onToggleServer: onToggleServer,
                   onOpenOwnerSetup: onOpenOwnerSetup,
+                  onOpenReleasePage: onOpenReleasePage,
                 ),
                 DashboardActivityTab(
                   isLoadingUserActivity: isLoadingUserActivity,

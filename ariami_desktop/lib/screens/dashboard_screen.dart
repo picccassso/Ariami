@@ -17,6 +17,7 @@ import '../services/desktop_tailscale_service.dart';
 import '../services/desktop_transcode_slots_service.dart';
 import '../services/server_initialization_service.dart';
 import '../services/system_tray_service.dart';
+import '../services/update_check_service.dart';
 import '../widgets/admin_credentials_dialog.dart';
 import '../widgets/change_password_dialog.dart';
 import '../widgets/create_user_dialog.dart';
@@ -78,6 +79,8 @@ class _DashboardScreenState extends State<DashboardScreen>
   Timer? _connectedRowsRefreshTimer;
   Timer? _userActivityRefreshTimer;
   Timer? _adminHeartbeatTimer;
+  Timer? _updateCheckTimer;
+  AvailableUpdate? _availableUpdate;
   DateTime? _addressesUpdatedAt;
   TranscodeSlotsSnapshot? _transcodeSlotsSnapshot;
   bool _isSavingTranscodeSlots = false;
@@ -139,12 +142,25 @@ class _DashboardScreenState extends State<DashboardScreen>
     _adminHeartbeatTimer = Timer.periodic(const Duration(seconds: 20), (_) {
       unawaited(_adminApi.sendAdminHeartbeat());
     });
+    unawaited(_checkForUpdate());
+    _updateCheckTimer = Timer.periodic(const Duration(hours: 6), (_) {
+      unawaited(_checkForUpdate());
+    });
+  }
+
+  Future<void> _checkForUpdate() async {
+    final update = await UpdateCheckService.checkForUpdate();
+    if (!mounted || update == null) return;
+    setState(() {
+      _availableUpdate = update;
+    });
   }
 
   void _cancelRefreshTimers() {
     _connectedRowsRefreshTimer?.cancel();
     _userActivityRefreshTimer?.cancel();
     _adminHeartbeatTimer?.cancel();
+    _updateCheckTimer?.cancel();
   }
 
   void _setDashboardState(VoidCallback update) {
@@ -186,6 +202,13 @@ class _DashboardScreenState extends State<DashboardScreen>
       httpServer: _httpServer,
       connectedClients: _connectedClients,
       hasOwnerAccount: _hasOwnerAccount,
+      availableUpdate: _availableUpdate,
+      onOpenReleasePage: () {
+        final update = _availableUpdate;
+        unawaited(UpdateCheckService.openReleasePage(
+          update?.releaseUrl ?? UpdateCheckService.releasesPageUrl,
+        ));
+      },
       isLoadingUserActivity: _isLoadingUserActivity,
       userActivityError: _userActivityError,
       userActivityRows: _userActivityRows,

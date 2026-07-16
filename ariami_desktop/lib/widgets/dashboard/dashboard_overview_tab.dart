@@ -1,6 +1,7 @@
 import 'package:ariami_core/ariami_core.dart';
 import 'package:flutter/material.dart';
 
+import '../../services/update_check_service.dart';
 import '../../utils/date_formatter.dart';
 import '../info_card.dart';
 import 'dashboard_keep_alive_tab.dart';
@@ -11,15 +12,19 @@ class DashboardOverviewTab extends StatelessWidget {
     required this.httpServer,
     required this.connectedClients,
     required this.hasOwnerAccount,
+    required this.availableUpdate,
     required this.onToggleServer,
     required this.onOpenOwnerSetup,
+    required this.onOpenReleasePage,
   });
 
   final AriamiHttpServer httpServer;
   final int connectedClients;
   final bool hasOwnerAccount;
+  final AvailableUpdate? availableUpdate;
   final VoidCallback onToggleServer;
   final VoidCallback onOpenOwnerSetup;
+  final VoidCallback onOpenReleasePage;
 
   static const _sectionTitleStyle = TextStyle(
     fontSize: 20,
@@ -35,6 +40,51 @@ class DashboardOverviewTab extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (availableUpdate != null)
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 24),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.lightBlue.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12),
+                border:
+                    Border.all(color: Colors.lightBlue.withValues(alpha: 0.3)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.system_update_alt_rounded,
+                          color: Colors.lightBlue.shade200, size: 20),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Update available: v${availableUpdate!.latestVersion} '
+                          '(you have v$kAriamiVersion)',
+                          style: TextStyle(
+                            color: Colors.lightBlue.shade100,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  OutlinedButton.icon(
+                    onPressed: onOpenReleasePage,
+                    icon: const Icon(Icons.open_in_new_rounded, size: 18),
+                    label: const Text('View Release on GitHub'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.lightBlue.shade100,
+                      side: BorderSide(color: Colors.lightBlue.shade300),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           const Text('Server Status', style: _sectionTitleStyle),
           const SizedBox(height: 16),
           InfoCard(
