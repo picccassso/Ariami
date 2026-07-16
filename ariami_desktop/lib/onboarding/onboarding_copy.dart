@@ -154,9 +154,10 @@ class OnboardingCopy {
       ),
       SetupHelpSection(
         heading: 'When it finishes',
-        body: 'Your library is ready and setup continues automatically. '
-            'Re-scans after adding new music are much faster, because '
-            'already-known files are remembered.',
+        body: 'Your library is ready. Review the exact file count and any '
+            'warnings, then select Continue to finish setup. Re-scans after '
+            'adding new music are much faster, because already-known files '
+            'are remembered.',
       ),
     ],
   );

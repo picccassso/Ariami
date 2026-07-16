@@ -98,9 +98,10 @@ class CliOnboardingCopy {
             'A skipped-file message is normally informational: a file may be unreadable, damaged, or not really audio. The rest of the library is unaffected.',
       ),
       SetupHelpSection(
-        heading: 'After the first scan',
-        body:
-            'Future scans after you add music are faster because already-known files are remembered.',
+        heading: 'When it finishes',
+        body: 'Review the exact file count and any skipped-file message, then '
+            'select Continue to finish setup. Future scans after you add '
+            'music are faster because already-known files are remembered.',
       ),
     ],
   );
