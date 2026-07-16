@@ -9,6 +9,7 @@ import '../../models/api_models.dart';
 import '../../services/stats/period_stats_loader.dart';
 import '../../services/stats/streaming_stats_service.dart';
 import '../../services/stats/account_stats_service.dart';
+import '../../services/stats/stats_artwork_resolver.dart';
 import '../../services/api/api_client.dart';
 import '../../services/api/connection_service.dart';
 import '../../utils/shared_preferences_cache.dart';
@@ -54,6 +55,10 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
   /// (offline / old server) and the local grouping is shown instead.
   List<ArtistStats>? _creditedArtists;
   Map<String, AlbumModel> _albumsById = <String, AlbumModel>{};
+  StatsArtworkResolver _artworkResolver = StatsArtworkResolver(
+    albums: const <AlbumModel>[],
+    songs: const <SongModel>[],
+  );
 
   /// PLAYTIME (and AVG DAILY, when shown) can be flipped to raw minutes by
   /// tapping the PLAYTIME metric. Until the very first tap a little finger
@@ -100,10 +105,15 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
 
   Future<void> _loadAlbumMetadata() async {
     try {
-      final albums = await _connectionService.libraryReadFacade.getAlbums();
+      final library =
+          await _connectionService.libraryReadFacade.getLibraryBundle();
       if (!mounted) return;
       setState(() {
-        _albumsById = {for (final album in albums) album.id: album};
+        _albumsById = {for (final album in library.albums) album.id: album};
+        _artworkResolver = StatsArtworkResolver(
+          albums: library.albums,
+          songs: library.songs,
+        );
       });
     } catch (_) {
       // Stats remain usable offline; metadata will be shown when already
@@ -1014,12 +1024,8 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
 
   /// Build a single top song item
   Widget _buildTopSongItem(SongStats stat, int rank) {
-    final baseUrl = _connectionService.apiClient?.baseUrl;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    // Prefer song-level artwork for individual tracks
-    final artworkUrl = baseUrl != null ? '$baseUrl/song-artwork/${stat.songId}' : null;
-    final cacheId = 'song_${stat.songId}';
+    final artwork = _artworkResolver.forSong(stat);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -1043,8 +1049,8 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
           ClipRRect(
             borderRadius: BorderRadius.circular(12),
             child: CachedArtwork(
-              albumId: cacheId,
-              artworkUrl: artworkUrl,
+              albumId: artwork.cacheId,
+              artworkUrl: artwork.artworkUrl,
               width: 52,
               height: 52,
               fit: BoxFit.cover,
@@ -1100,22 +1106,8 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
 
   /// Build a single top artist item
   Widget _buildTopArtistItem(ArtistStats stat, int rank) {
-    final baseUrl = _connectionService.apiClient?.baseUrl;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    String? artworkUrl;
-    String cacheId;
-
-    if (stat.randomAlbumId != null) {
-      artworkUrl = baseUrl != null ? '$baseUrl/artwork/${stat.randomAlbumId}' : null;
-      cacheId = stat.randomAlbumId!;
-    } else if (stat.randomSongId != null) {
-      artworkUrl = baseUrl != null ? '$baseUrl/song-artwork/${stat.randomSongId}' : null;
-      cacheId = 'song_${stat.randomSongId}';
-    } else {
-      artworkUrl = null;
-      cacheId = '';
-    }
+    final artwork = _artworkResolver.forArtist(stat);
 
     // Credited-artist rollups don't carry a song count; fall back to plays.
     final subtitle = stat.uniqueSongsCount > 0
@@ -1144,8 +1136,8 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
           ClipRRect(
             borderRadius: BorderRadius.circular(12),
             child: CachedArtwork(
-              albumId: cacheId,
-              artworkUrl: artworkUrl,
+              albumId: artwork.cacheId,
+              artworkUrl: artwork.artworkUrl,
               width: 52,
               height: 52,
               fit: BoxFit.cover,
@@ -1200,12 +1192,8 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
 
   /// Build a single top album item
   Widget _buildTopAlbumItem(AlbumStats stat, int rank) {
-    final baseUrl = _connectionService.apiClient?.baseUrl;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    // Server album rollups keyed only by name have no catalog albumId; show
-    // the fallback icon rather than requesting artwork for an empty id.
-    final hasAlbumId = stat.albumId.isNotEmpty;
+    final artwork = _artworkResolver.forAlbum(stat);
     // Period rollups don't carry a song count; fall back to plays.
     final detail = stat.uniqueSongsCount > 0
         ? '${stat.uniqueSongsCount} ${stat.uniqueSongsCount == 1 ? 'SONG' : 'SONGS'}'
@@ -1233,10 +1221,8 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
           ClipRRect(
             borderRadius: BorderRadius.circular(12),
             child: CachedArtwork(
-              albumId: stat.albumId,
-              artworkUrl: baseUrl != null && hasAlbumId
-                  ? '$baseUrl/artwork/${stat.albumId}'
-                  : null,
+              albumId: artwork.cacheId,
+              artworkUrl: artwork.artworkUrl,
               width: 52,
               height: 52,
               fit: BoxFit.cover,

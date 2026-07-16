@@ -397,6 +397,14 @@ class CacheManager {
     return _artworkPathCache[albumId];
   }
 
+  /// Forget every in-memory artwork key pointing at [path].
+  ///
+  /// The database entry is intentionally retained until the normal cache path
+  /// can replace it. Disk lookup already ignores entries whose file is absent.
+  void forgetArtworkPath(String path) {
+    _artworkPathCache.removeWhere((_, cachedPath) => cachedPath == path);
+  }
+
   /// Get cached artwork path with fallback key support
   /// Tries primaryKey first, then fallbackKey if provided
   /// Checks memory cache first (instant), then disk cache for both keys

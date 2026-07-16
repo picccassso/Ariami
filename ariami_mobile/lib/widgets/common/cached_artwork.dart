@@ -94,6 +94,7 @@ class _CachedArtworkState extends State<CachedArtwork> {
   String? _localPath;
   String? _networkFallbackUrl;
   bool _isLoading = true;
+  bool _retriedUnreadableLocalFile = false;
   MediaRequestCancellationToken? _requestCancellationToken;
 
   @override
@@ -116,6 +117,7 @@ class _CachedArtworkState extends State<CachedArtwork> {
         oldWidget.artworkUrl != widget.artworkUrl ||
         oldWidget.sizeHint != widget.sizeHint) {
       _cancelArtworkRequest();
+      _retriedUnreadableLocalFile = false;
       _loadArtwork();
     }
   }
@@ -346,6 +348,12 @@ class _CachedArtworkState extends State<CachedArtwork> {
   Future<String?> _tryExtractFromLocalFile({
     required MediaRequestCancellationToken requestToken,
   }) async {
+    // Download state is restored asynchronously on startup. Await it before
+    // deciding that no local file exists, otherwise a cold-start widget can
+    // miss a valid downloaded fallback for its entire lifetime.
+    await _downloadManager.initialize();
+    if (requestToken.isCancelled) return null;
+
     final sourceKey = _normalizeSourceKey(widget.albumId);
     if (sourceKey.isEmpty) return null;
 
@@ -445,7 +453,8 @@ class _CachedArtworkState extends State<CachedArtwork> {
   }
 
   Widget _buildDiskImage() {
-    final file = File(_localPath!);
+    final localPath = _localPath!;
+    final file = File(localPath);
     if (!_useLayoutBoundsForImage) {
       return Image.file(
         file,
@@ -454,6 +463,7 @@ class _CachedArtworkState extends State<CachedArtwork> {
         fit: widget.fit,
         gaplessPlayback: true,
         errorBuilder: (context, error, stackTrace) {
+          _retryAfterUnreadableLocalFile(localPath);
           return _buildFallback();
         },
       );
@@ -469,11 +479,29 @@ class _CachedArtworkState extends State<CachedArtwork> {
           fit: widget.fit,
           gaplessPlayback: true,
           errorBuilder: (context, error, stackTrace) {
+            _retryAfterUnreadableLocalFile(localPath);
             return _buildFallback();
           },
         );
       },
     );
+  }
+
+  void _retryAfterUnreadableLocalFile(String failedPath) {
+    if (_retriedUnreadableLocalFile) return;
+    _retriedUnreadableLocalFile = true;
+    _cacheManager.forgetArtworkPath(failedPath);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        final file = File(failedPath);
+        if (await file.exists()) await file.delete();
+      } catch (_) {
+        // A later cache/network attempt can still replace the unreadable file.
+      }
+      if (!mounted || _localPath != failedPath) return;
+      await _loadArtwork();
+    });
   }
 
   Widget _buildNetworkImageWidget() {
