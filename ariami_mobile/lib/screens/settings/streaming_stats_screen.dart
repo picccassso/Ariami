@@ -32,6 +32,10 @@ import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
 ///   Other periods reflect synced events only and persist exact-range
 ///   snapshots for offline viewing. With no cached snapshot, the screen
 ///   degrades to a clear message.
+/// How PLAYTIME (and AVG DAILY) render their durations. Tapping the metric
+/// cycles through these in order and the choice is remembered.
+enum _PlaytimeUnit { hours, minutes, minutesCompact }
+
 class StreamingStatsScreen extends StatefulWidget {
   const StreamingStatsScreen({super.key});
 
@@ -64,17 +68,26 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
     songs: const <SongModel>[],
   );
 
-  /// PLAYTIME (and AVG DAILY, when shown) can be flipped to raw minutes by
-  /// tapping the PLAYTIME metric. Until the very first tap a little finger
-  /// demonstrates the gesture on the metric, and that first tap triggers a
-  /// one-time explainer dialog.
+  /// PLAYTIME (and AVG DAILY, when shown) cycle through hours, minutes, and
+  /// compact minutes when the PLAYTIME metric is tapped. Until the very first
+  /// tap a little finger demonstrates the gesture on the metric, and that
+  /// first tap triggers a one-time explainer dialog.
   static const String _playtimeHintSeenKey = 'stats_playtime_hint_seen';
-  bool _playtimeInMinutes = false;
+  static const String _playtimeUnitKey = 'stats_playtime_unit';
+  _PlaytimeUnit _playtimeUnit = _PlaytimeUnit.hours;
   bool _playtimeHintPending = false;
+
+  /// PLAYTIME total (ms) for the currently shown view, recorded while
+  /// formatting so the tap handler can skip compact minutes when it wouldn't
+  /// differ from plain minutes (i.e. under 1000 minutes).
+  int _playtimeTotalMs = 0;
 
   @override
   void initState() {
     super.initState();
+    final unitIndex = sharedPrefs.getInt(_playtimeUnitKey) ?? 0;
+    _playtimeUnit = _PlaytimeUnit
+        .values[unitIndex.clamp(0, _PlaytimeUnit.values.length - 1)];
     _playtimeHintPending =
         !(sharedPrefs.getBool(_playtimeHintSeenKey) ?? false);
     _tabController = TabController(length: 3, vsync: this);
@@ -526,7 +539,7 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
             _ => '${stats?.songs.length ?? 0}',
           };
           metric2Label = 'PLAYTIME';
-          metric2Value = _formatDurationShort(
+          metric2Value = _formatPlaytime(
               Duration(milliseconds: stats?.totalListenedMs ?? 0));
           metric3Label = 'PLAYS';
           metric3Value = '${stats?.totalPlays ?? 0}';
@@ -538,7 +551,7 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
               metric1Label = 'SONGS';
               metric1Value = stats.totalSongsPlayed.toString();
               metric2Label = 'PLAYTIME';
-              metric2Value = _formatDurationShort(stats.totalTimeStreamed);
+              metric2Value = _formatPlaytime(stats.totalTimeStreamed);
               metric3Label = 'AVG DAILY';
               metric3Value = _formatDurationShort(avgData.perCalendarDay);
               break;
@@ -561,7 +574,7 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
               metric1Label = 'ARTISTS';
               metric1Value = artistCount.toString();
               metric2Label = 'PLAYTIME';
-              metric2Value = _formatDurationShort(totalTime);
+              metric2Value = _formatPlaytime(totalTime);
               metric3Label = 'AVG DAILY';
               metric3Value = _formatDurationShort(avgData.perCalendarDay);
               break;
@@ -576,7 +589,7 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
               metric1Label = 'ALBUMS';
               metric1Value = albums.length.toString();
               metric2Label = 'PLAYTIME';
-              metric2Value = _formatDurationShort(totalTime);
+              metric2Value = _formatPlaytime(totalTime);
               metric3Label = 'AVG DAILY';
               metric3Value = _formatDurationShort(avgData.perCalendarDay);
               break;
@@ -585,6 +598,7 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
               metric1Label = 'SONGS';
               metric1Value = '0';
               metric2Label = 'PLAYTIME';
+              _playtimeTotalMs = 0;
               metric2Value = '0h';
               metric3Label = 'AVG';
               metric3Value = '0m';
@@ -618,23 +632,57 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
     );
   }
 
+  /// Formats the PLAYTIME total and records it so the tap handler can skip
+  /// compact minutes when it wouldn't differ from plain minutes.
+  String _formatPlaytime(Duration duration) {
+    _playtimeTotalMs = duration.inMilliseconds;
+    return _formatDurationShort(duration);
+  }
+
   String _formatDurationShort(Duration duration) {
-    if (_playtimeInMinutes) {
-      return '${duration.inMinutes}m';
+    switch (_playtimeUnit) {
+      case _PlaytimeUnit.minutes:
+        return '${duration.inMinutes}m';
+      case _PlaytimeUnit.minutesCompact:
+        return _formatMinutesCompact(duration);
+      case _PlaytimeUnit.hours:
+        if (duration.inHours > 0) {
+          return '${duration.inHours}h';
+        }
+        return '${duration.inMinutes}m';
     }
-    if (duration.inHours > 0) {
-      return '${duration.inHours}h';
-    } else {
-      return '${duration.inMinutes}m';
+  }
+
+  /// Compact minutes (e.g. 4221 → "4.2k"). Values under 1000 stay exact; the
+  /// trailing ".0" is trimmed so 45000 reads "45k".
+  String _formatMinutesCompact(Duration duration) {
+    final minutes = duration.inMinutes;
+    if (minutes < 1000) return '${minutes}m';
+    var text = (minutes / 1000).toStringAsFixed(1);
+    if (text.endsWith('.0')) text = text.substring(0, text.length - 2);
+    return '${text}k';
+  }
+
+  /// The next unit in the cycle, skipping compact minutes when it would render
+  /// identically to plain minutes (under 1000 minutes) so the user never taps
+  /// through a no-op change on the way back to hours.
+  _PlaytimeUnit _nextPlaytimeUnit(_PlaytimeUnit current) {
+    var next = _PlaytimeUnit
+        .values[(current.index + 1) % _PlaytimeUnit.values.length];
+    if (next == _PlaytimeUnit.minutesCompact &&
+        Duration(milliseconds: _playtimeTotalMs).inMinutes < 1000) {
+      next = _PlaytimeUnit.hours;
     }
+    return next;
   }
 
   void _onPlaytimeTap() {
     final firstTap = _playtimeHintPending;
     setState(() {
-      _playtimeInMinutes = !_playtimeInMinutes;
+      _playtimeUnit = _nextPlaytimeUnit(_playtimeUnit);
       _playtimeHintPending = false;
     });
+    unawaited(sharedPrefs.setInt(_playtimeUnitKey, _playtimeUnit.index));
     if (!firstTap) return;
     unawaited(sharedPrefs.setBool(_playtimeHintSeenKey, true));
     _showPlaytimeHintDialog();
@@ -658,9 +706,9 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
           ),
         ),
         content: Text(
-          'Tapping PLAYTIME switches it between hours and minutes — AVG '
-          'DAILY follows along when it\'s shown. Tap it again anytime to '
-          'switch back.',
+          'Tapping PLAYTIME cycles it through hours, minutes, and compact '
+          'minutes — AVG DAILY follows along when it\'s shown. Keep tapping '
+          'to move through them.',
           style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w500,
