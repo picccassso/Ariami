@@ -146,15 +146,18 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
   void _openQueue() {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => QueueScreen(
-          queue: _playbackManager.queue,
-          onReorder: (oldIndex, newIndex) {
-            _playbackManager.reorderQueueFromDisplayOrder(oldIndex, newIndex);
-          },
-          onTap: _playbackManager.skipToQueueItem,
-          onRemove: _playbackManager.removeQueueItem,
-          onUndoRemove: _playbackManager.undoRemoveQueueItem,
-          onClear: _playbackManager.clearQueue,
+        builder: (context) => ListenableBuilder(
+          listenable: _playbackManager,
+          builder: (context, _) => QueueScreen(
+            queue: _playbackManager.queue,
+            onReorder: (oldIndex, newIndex) {
+              _playbackManager.reorderQueueFromDisplayOrder(oldIndex, newIndex);
+            },
+            onTap: _playbackManager.skipToQueueItem,
+            onRemove: _playbackManager.removeQueueItem,
+            onUndoRemove: _playbackManager.undoRemoveQueueItem,
+            onClear: _playbackManager.clearQueue,
+          ),
         ),
       ),
     );

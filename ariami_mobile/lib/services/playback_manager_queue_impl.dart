@@ -1,7 +1,10 @@
 part of 'playback_manager.dart';
 
 extension _PlaybackManagerQueueImpl on PlaybackManager {
-  Future<void> _playSongImpl(Song song) async {
+  Future<void> _playSongImpl(
+    Song song, {
+    bool forceRepeatAll = false,
+  }) async {
     print('[PlaybackManager] ========== playSong() called ==========');
     print('[PlaybackManager] Song: ${song.title} by ${song.artist}');
     print('[PlaybackManager] FilePath: ${song.filePath}');
@@ -15,7 +18,11 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
     // Reset shuffle state - new queue means fresh shuffle context
     _isShuffleEnabled = false;
     _shuffleService.reset();
-    _useRepeatAllForNewSongSelection();
+    if (forceRepeatAll) {
+      _repeatMode = RepeatMode.all;
+    } else {
+      _useRepeatAllForNewSongSelection();
+    }
 
     try {
       // Create new queue with just this song

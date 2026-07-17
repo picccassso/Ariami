@@ -310,6 +310,7 @@ class PlaybackManager extends ChangeNotifier {
     List<Song> songs, {
     int currentIndex = 0,
     required bool shuffle,
+    bool forceRepeatAll = false,
   }) {
     final remote = _connectRemote;
     if (remote == null || songs.isEmpty) return;
@@ -321,8 +322,9 @@ class PlaybackManager extends ChangeNotifier {
       durationMs: songs[start].duration.inMilliseconds,
       isPlaying: true,
       shuffle: shuffle,
-      repeatMode:
-          repeatModeAfterExplicitTrackChange(remote.snapshot.repeatMode),
+      repeatMode: forceRepeatAll
+          ? 'all'
+          : repeatModeAfterExplicitTrackChange(remote.snapshot.repeatMode),
       volume: remote.snapshot.volume,
     );
     _sendConnect(AriamiConnectCommand.playContext, <String, dynamic>{
@@ -410,6 +412,85 @@ class PlaybackManager extends ChangeNotifier {
       positionMs: removal.wasCurrent ? 0 : remote.positionMs,
       durationMs: snapshot.durationMs,
       isPlaying: snapshot.isPlaying,
+      shuffle: snapshot.shuffle,
+      repeatMode: snapshot.repeatMode,
+      volume: snapshot.volume,
+      sourceId: snapshot.sourceId,
+    )));
+  }
+
+  /// Appends songs to the active device's mirrored queue and reflects the
+  /// change immediately while that device processes the insert commands.
+  void _appendConnectQueue(
+    AriamiRemotePlayback remote,
+    List<Song> songs,
+  ) {
+    if (songs.isEmpty) return;
+    final snapshot = remote.snapshot;
+    final queue = List<Map<String, dynamic>>.from(snapshot.queue);
+    for (final song in songs) {
+      final index = queue.length;
+      final track = song.toJson();
+      _sendConnect(AriamiConnectCommand.insertQueueTrack, <String, dynamic>{
+        'index': index,
+        'track': track,
+      });
+      queue.add(track);
+    }
+    setConnectRemoteMirror(remote.copyWithSnapshot(AriamiPlaybackSnapshot(
+      queue: queue,
+      currentIndex: snapshot.currentIndex,
+      positionMs: remote.positionMs,
+      durationMs: snapshot.durationMs,
+      isPlaying: snapshot.isPlaying,
+      shuffle: snapshot.shuffle,
+      repeatMode: snapshot.repeatMode,
+      volume: snapshot.volume,
+      sourceId: snapshot.sourceId,
+    )));
+  }
+
+  /// Clears a mirrored queue on its owning device. Items after and before the
+  /// current song are removed first so playback is not switched to another
+  /// track while clearing; the current song is removed last, which stops the
+  /// active device when the queue becomes empty.
+  void _clearConnectQueue(AriamiRemotePlayback remote) {
+    final snapshot = remote.snapshot;
+    final queue = snapshot.queue;
+    if (queue.isEmpty) return;
+    final currentIndex = snapshot.currentIndex;
+
+    void removeAt(int index) {
+      _sendConnect(AriamiConnectCommand.removeQueueIndex, <String, dynamic>{
+        'index': index,
+        'id': queue[index]['id'],
+      });
+    }
+
+    if (currentIndex >= 0 && currentIndex < queue.length) {
+      for (var index = queue.length - 1; index > currentIndex; index--) {
+        removeAt(index);
+      }
+      for (var index = currentIndex - 1; index >= 0; index--) {
+        removeAt(index);
+      }
+      // Removing every earlier item shifts the current song to index zero.
+      _sendConnect(AriamiConnectCommand.removeQueueIndex, <String, dynamic>{
+        'index': 0,
+        'id': queue[currentIndex]['id'],
+      });
+    } else {
+      for (var index = queue.length - 1; index >= 0; index--) {
+        removeAt(index);
+      }
+    }
+
+    setConnectRemoteMirror(remote.copyWithSnapshot(AriamiPlaybackSnapshot(
+      queue: const <Map<String, dynamic>>[],
+      currentIndex: 0,
+      positionMs: 0,
+      durationMs: 0,
+      isPlaying: false,
       shuffle: snapshot.shuffle,
       repeatMode: snapshot.repeatMode,
       volume: snapshot.volume,
@@ -793,6 +874,23 @@ class PlaybackManager extends ChangeNotifier {
     return _playSongImpl(song);
   }
 
+  /// Plays a one-song context that wraps back to the same song.
+  ///
+  /// This keeps Recently Played independent from the previous queue while
+  /// making both natural completion and an explicit skip deterministic.
+  Future<void> playSingleRepeated(Song song) {
+    if (_connectRemote != null) {
+      _sendConnectPlayContext(
+        [song],
+        shuffle: false,
+        forceRepeatAll: true,
+      );
+      return Future.value();
+    }
+    _suppressConnectMirror();
+    return _playSongImpl(song, forceRepeatAll: true);
+  }
+
   /// Play a list of songs starting at a specific index
   Future<void> playSongs(List<Song> songs, {int startIndex = 0}) {
     if (_connectRemote != null) {
@@ -820,7 +918,15 @@ class PlaybackManager extends ChangeNotifier {
   void addToQueue(Song song) => _addToQueueImpl(song);
 
   /// Add multiple songs to queue
-  void addAllToQueue(List<Song> songs) => _addAllToQueueImpl(songs);
+  void addAllToQueue(List<Song> songs) {
+    if (songs.isEmpty) return;
+    final remote = _connectRemote;
+    if (remote != null) {
+      _appendConnectQueue(remote, songs);
+      return;
+    }
+    _addAllToQueueImpl(songs);
+  }
 
   /// Insert song to play next
   void playNext(Song song) => _playNextImpl(song);
@@ -932,9 +1038,12 @@ class PlaybackManager extends ChangeNotifier {
   }
 
   /// Clear the queue and stop playback.
-  /// Editing a mirrored (remote) queue is not supported.
   Future<void> clearQueue() async {
-    if (_connectRemote != null) return;
+    final remote = _connectRemote;
+    if (remote != null) {
+      _clearConnectQueue(remote);
+      return;
+    }
     await _clearQueueImpl();
   }
 

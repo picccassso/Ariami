@@ -10,7 +10,6 @@ import '../../services/audio/gapless_playback_service.dart';
 import '../../services/offline/offline_manual_reconnect.dart';
 import '../../services/offline/offline_playback_service.dart';
 import '../../services/profile_image_service.dart';
-import '../../services/stats/account_stats_service.dart';
 import '../../widgets/settings/settings_section.dart';
 import '../../widgets/settings/settings_tile.dart';
 
@@ -405,11 +404,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     },
                   ),
                   SettingsTile(
-                    icon: Icons.refresh_rounded,
-                    title: 'Reset Statistics',
-                    subtitle: 'Clear all play counts and data',
+                    icon: Icons.history_rounded,
+                    title: 'Recently Played',
+                    subtitle: 'Revisit your listening history',
                     onTap: () {
-                      _showResetStatsDialog();
+                      Navigator.of(context).pushNamed('/recently-played');
                     },
                   ),
                 ],
@@ -459,65 +458,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           );
         },
       )),
-    );
-  }
-
-  void _showResetStatsDialog() {
-    final colorScheme = Theme.of(context).colorScheme;
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: colorScheme.surface,
-        title: Text(
-          'RESET STATS',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 1.5,
-            color: colorScheme.onSurface,
-          ),
-        ),
-        content: Text(
-          'This will clear all play counts and streaming data. This action cannot be undone.',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-            color: colorScheme.onSurface.withValues(alpha: 0.7),
-          ),
-        ),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        actions: [
-          TextButton(
-            onPressed: Navigator.of(context).pop,
-            child: Text(
-              'CANCEL',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 1.0,
-                color: colorScheme.onSurface.withValues(alpha: 0.5),
-              ),
-            ),
-          ),
-          TextButton(
-            onPressed: () async {
-              final navigator = Navigator.of(context);
-              await AccountStatsService().resetEverywhere();
-              if (!mounted) return;
-              navigator.pop();
-            },
-            child: const Text(
-              'RESET',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 1.0,
-                color: Color(0xFFFF4B4B),
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 

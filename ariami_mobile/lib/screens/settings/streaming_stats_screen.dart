@@ -307,14 +307,6 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
         centerTitle: false,
         backgroundColor: Colors.transparent,
         elevation: 0,
-        actions: [
-          IconButton(
-            icon: Icon(Icons.refresh_rounded,
-                color: isDark ? Colors.white : Colors.black),
-            onPressed: _showResetDialog,
-            tooltip: 'Reset statistics',
-          ),
-        ],
         bottom: TabBar(
           controller: _tabController,
           indicatorColor: isDark ? Colors.white : Colors.black,
@@ -1301,72 +1293,6 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
                   ),
                 ),
               ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Show reset confirmation dialog
-  void _showResetDialog() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: isDark ? const Color(0xFF111111) : Colors.white,
-        title: Text(
-          'RESET STATS',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 1.5,
-            color: isDark ? Colors.white : Colors.black,
-          ),
-        ),
-        content: Text(
-          'This will permanently delete your streaming statistics for this account across all your devices. This action cannot be undone.',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-            color: isDark ? Colors.grey[400] : Colors.grey[600],
-          ),
-        ),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'CANCEL',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 1.0,
-                color: isDark ? Colors.grey[500] : Colors.grey[600],
-              ),
-            ),
-          ),
-          TextButton(
-            onPressed: () async {
-              await AccountStatsService().resetEverywhere();
-              if (mounted) {
-                Navigator.pop(context);
-                setState(() {
-                  _creditedArtists = null;
-                  _periodStats = null;
-                });
-                _refreshCreditedArtists();
-                if (!_range.isAllTime) _loadPeriod();
-              }
-            },
-            child: const Text(
-              'RESET',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 1.0,
-                color: Color(0xFFFF4B4B),
-              ),
             ),
           ),
         ],

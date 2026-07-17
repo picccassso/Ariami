@@ -60,6 +60,7 @@ void main() {
     );
     expect(find.byIcon(Icons.chevron_left_rounded), findsOneWidget);
     expect(find.byIcon(Icons.chevron_right_rounded), findsOneWidget);
+    expect(find.byTooltip('Reset statistics'), findsNothing);
 
     // With no server connection, the default day view explains why period
     // stats are unavailable.

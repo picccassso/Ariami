@@ -76,4 +76,23 @@ void main() {
       isFalse,
     );
   });
+
+  testWidgets('places Recently Played below Listening Statistics',
+      (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(home: SettingsScreen()),
+    );
+    await tester.pumpAndSettle();
+
+    final stats = find.text('Listening Statistics');
+    final recent = find.text('Recently Played');
+    await tester.scrollUntilVisible(recent, 300);
+    expect(stats, findsOneWidget);
+    expect(recent, findsOneWidget);
+    expect(find.text('Reset Statistics'), findsNothing);
+    expect(
+      tester.getTopLeft(stats).dy,
+      lessThan(tester.getTopLeft(recent).dy),
+    );
+  });
 }
