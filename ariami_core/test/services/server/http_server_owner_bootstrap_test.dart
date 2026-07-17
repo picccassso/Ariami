@@ -10,9 +10,10 @@ import 'package:test/test.dart';
 /// setup code shown on the server's own console.
 ///
 /// The deny path only runs for a genuinely non-loopback peer, so these tests
-/// connect to the machine's own LAN address (the socket's remote address is
-/// then the LAN IP, not 127.0.0.1). When the machine has no non-loopback
-/// IPv4 interface the remote tests skip rather than fake it.
+/// connect to a reachable address on the machine itself (the socket's remote
+/// address is then the LAN/VPN IP, not 127.0.0.1). Merely enumerating an
+/// adapter is not enough: CI hosts can expose dormant virtual interfaces, so
+/// the helper probes each candidate against the running test server first.
 void main() {
   group('first-owner bootstrap gating', () {
     late AriamiHttpServer server;
@@ -32,6 +33,7 @@ void main() {
       );
 
       port = await _findFreePort();
+      server.setDiscoveryResponderEnabled(false);
       await server.start(
         advertisedIp: '127.0.0.1',
         bindAddress: '0.0.0.0',
@@ -63,9 +65,11 @@ void main() {
 
     test('remote owner registration is rejected without the setup code',
         () async {
-      final lanIp = await _findNonLoopbackIPv4();
+      final lanIp = await _findReachableNonLoopbackIPv4(port);
       if (lanIp == null) {
-        markTestSkipped('No non-loopback IPv4 interface on this machine.');
+        markTestSkipped(
+          'No reachable non-loopback IPv4 interface on this machine.',
+        );
         return;
       }
 
@@ -95,9 +99,11 @@ void main() {
 
     test('remote owner registration succeeds with the console setup code',
         () async {
-      final lanIp = await _findNonLoopbackIPv4();
+      final lanIp = await _findReachableNonLoopbackIPv4(port);
       if (lanIp == null) {
-        markTestSkipped('No non-loopback IPv4 interface on this machine.');
+        markTestSkipped(
+          'No reachable non-loopback IPv4 interface on this machine.',
+        );
         return;
       }
 
@@ -144,17 +150,29 @@ Future<int> _findFreePort() async {
   return port;
 }
 
-/// A non-loopback IPv4 address of this machine, so a local connection shows
-/// up at the server with a non-loopback remote address.
-Future<String?> _findNonLoopbackIPv4() async {
+/// A reachable non-loopback IPv4 address of this machine, so the HTTP server
+/// observes a genuinely remote peer. Virtual/VPN adapters may be enumerated
+/// while dormant; probing avoids selecting one that cannot route locally.
+Future<String?> _findReachableNonLoopbackIPv4(int port) async {
   final interfaces = await NetworkInterface.list(
     includeLoopback: false,
     type: InternetAddressType.IPv4,
   );
   for (final interface in interfaces) {
     for (final address in interface.addresses) {
-      if (!address.isLoopback && !address.isLinkLocal) {
+      if (address.isLoopback || address.isLinkLocal) continue;
+      Socket? probe;
+      try {
+        probe = await Socket.connect(
+          address,
+          port,
+          timeout: const Duration(seconds: 1),
+        );
         return address.address;
+      } on SocketException {
+        // Try the next adapter. CI often exposes unreachable virtual NICs.
+      } finally {
+        probe?.destroy();
       }
     }
   }
@@ -176,6 +194,7 @@ Future<_JsonResponse> _register({
   String? bootstrapCode,
 }) async {
   final client = HttpClient();
+  client.connectionTimeout = const Duration(seconds: 3);
   try {
     final request =
         await client.postUrl(Uri.parse('http://$host:$port/api/auth/register'));
