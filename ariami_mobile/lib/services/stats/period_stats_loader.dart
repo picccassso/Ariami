@@ -24,10 +24,20 @@ typedef PeriodStatsFetch = Future<Map<String, dynamic>> Function(
   int limit,
 );
 typedef ArtistsFetch = Future<Map<String, dynamic>> Function(int limit);
+typedef PeriodStatsCacheRead = Future<Map<String, dynamic>?> Function(
+  String from,
+  String to,
+);
+typedef PeriodStatsCacheWrite = Future<void> Function(
+  String from,
+  String to,
+  Map<String, dynamic> stats,
+);
 
 /// Fetches server-derived period stats and adapts them to the mobile display
-/// models. All failures (offline, old server without the new endpoints,
-/// malformed payloads) surface as null so the screen can degrade cleanly.
+/// models. Successful responses can be persisted through [writeCached]; on a
+/// fetch failure (offline or an old server), the exact cached range is reused
+/// through [readCached]. Null means neither source had a usable snapshot.
 ///
 /// Note: unlike the all-time overlay, period views reflect server-synced
 /// events only — this device's still-pending outbox events appear once they
@@ -38,11 +48,15 @@ class PeriodStatsLoader {
     required this.fetchDay,
     required this.fetchPeriod,
     required this.fetchArtists,
+    this.readCached,
+    this.writeCached,
   });
 
   final DayStatsFetch fetchDay;
   final PeriodStatsFetch fetchPeriod;
   final ArtistsFetch fetchArtists;
+  final PeriodStatsCacheRead? readCached;
+  final PeriodStatsCacheWrite? writeCached;
 
   /// Loads stats for [range]; null for all-time ranges or on any failure.
   Future<ListeningPeriodStats?> load(
@@ -56,9 +70,20 @@ class PeriodStatsLoader {
       final json = range.isSingleDay
           ? await fetchDay(bounds.from, limit)
           : await fetchPeriod(bounds.from, bounds.to, limit);
-      return _hideUncountedRankings(ListeningPeriodStats.fromJson(json));
+      final stats = _parse(json);
+      try {
+        await writeCached?.call(bounds.from, bounds.to, stats.toJson());
+      } catch (_) {
+        // The network result remains usable when best-effort caching fails.
+      }
+      return stats;
     } catch (_) {
-      return null; // Old server / offline: the caller shows a fallback.
+      try {
+        final json = await readCached?.call(bounds.from, bounds.to);
+        return json == null ? null : _parse(json);
+      } catch (_) {
+        return null; // No valid cached snapshot: show the offline fallback.
+      }
     }
   }
 
@@ -76,6 +101,9 @@ class PeriodStatsLoader {
       return null;
     }
   }
+
+  ListeningPeriodStats _parse(Map<String, dynamic> json) =>
+      _hideUncountedRankings(ListeningPeriodStats.fromJson(json));
 }
 
 /// Keeps partial listening in period/day totals while requiring a counted play

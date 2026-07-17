@@ -8,6 +8,7 @@ import '../../models/artist_stats.dart';
 import '../../models/album_stats.dart';
 import '../../models/api_models.dart';
 import '../../services/stats/period_stats_loader.dart';
+import '../../services/stats/period_stats_cache.dart';
 import '../../services/stats/streaming_stats_service.dart';
 import '../../services/stats/account_stats_service.dart';
 import '../../services/stats/stats_artwork_resolver.dart';
@@ -28,8 +29,9 @@ import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
 /// - Today / specific day / week / month / year: normally served by the
 ///   server's day/period endpoints. A year that contains the complete known
 ///   history reuses all-time so imported baseline totals are not dropped.
-///   Other periods reflect synced events only; when offline or on an older
-///   server the screen degrades to a clear message.
+///   Other periods reflect synced events only and persist exact-range
+///   snapshots for offline viewing. With no cached snapshot, the screen
+///   degrades to a clear message.
 class StreamingStatsScreen extends StatefulWidget {
   const StreamingStatsScreen({super.key});
 
@@ -41,6 +43,7 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
     with SingleTickerProviderStateMixin {
   final StreamingStatsService _statsService = StreamingStatsService();
   final ConnectionService _connectionService = ConnectionService();
+  final PeriodStatsCache _periodCache = PeriodStatsCache();
 
   late TabController _tabController;
   late final PeriodStatsLoader _periodLoader;
@@ -92,6 +95,21 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
       ),
       fetchArtists: (limit) =>
           _requireClient().getListeningArtists(limit: limit),
+      readCached: (from, to) {
+        final scope = _periodCacheScope;
+        if (scope == null) return Future<Map<String, dynamic>?>.value();
+        return _periodCache.read(scope: scope, from: from, to: to);
+      },
+      writeCached: (from, to, stats) {
+        final scope = _periodCacheScope;
+        if (scope == null) return Future<void>.value();
+        return _periodCache.write(
+          scope: scope,
+          from: from,
+          to: to,
+          stats: stats,
+        );
+      },
     );
     // Request fresh data when screen loads (local instantly, account-wide
     // refresh in the background).
@@ -135,6 +153,11 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
     }
     return client;
   }
+
+  String? get _periodCacheScope => PeriodStatsCache.scopeFor(
+        userId: _connectionService.userId,
+        serverInfo: _connectionService.serverInfo,
+      );
 
   @override
   void dispose() {

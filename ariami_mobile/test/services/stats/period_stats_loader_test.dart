@@ -306,6 +306,52 @@ void main() {
       expect(await loader.load(StatsRange.year, now: now), isNull);
       expect(await loader.loadAllTimeArtists(), isNull);
     });
+
+    test('fetch failures reuse the exact cached period', () async {
+      final cacheReads = <(String, String)>[];
+      final loader = PeriodStatsLoader(
+        fetchDay: (date, limit) async => throw Exception('offline'),
+        fetchPeriod: (from, to, limit) async => throw Exception('offline'),
+        fetchArtists: (limit) async => throw Exception('offline'),
+        readCached: (from, to) async {
+          cacheReads.add((from, to));
+          return _mercyPeriodResponse();
+        },
+      );
+
+      final stats = await loader.load(
+        StatsRange.specificDay(DateTime(2026, 7, 9)),
+        now: now,
+      );
+
+      expect(cacheReads, [('2026-07-09', '2026-07-09')]);
+      expect(stats, isNotNull);
+      expect(stats!.songs.single.songTitle, 'Mercy');
+      expect(stats.totalListenedMs, 330000);
+    });
+
+    test('successful fetch persists the normalized snapshot', () async {
+      String? cachedFrom;
+      String? cachedTo;
+      Map<String, dynamic>? cachedStats;
+      final loader = PeriodStatsLoader(
+        fetchDay: (date, limit) async => _mercyPeriodResponse(),
+        fetchPeriod: (from, to, limit) async => _mercyPeriodResponse(),
+        fetchArtists: (limit) async => <String, dynamic>{},
+        writeCached: (from, to, stats) async {
+          cachedFrom = from;
+          cachedTo = to;
+          cachedStats = stats;
+        },
+      );
+
+      await loader.load(StatsRange.monthOf(now), now: now);
+
+      expect(cachedFrom, '2026-07-01');
+      expect(cachedTo, '2026-07-31');
+      expect(cachedStats?['totalPlays'], 1);
+      expect(cachedStats?['songs'], hasLength(1));
+    });
   });
 
   group('display model adapters', () {

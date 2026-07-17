@@ -15,6 +15,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/song_stats.dart';
 import '../api/connection_service.dart';
 import 'streaming_stats_service.dart';
+import 'period_stats_cache.dart';
 
 /// Keeps this device's listening stats in sync with the account on the server
 /// and feeds the account-wide view back into [StreamingStatsService].
@@ -399,6 +400,10 @@ class AccountStatsService {
   /// server can't be reached the reset is remembered and completes on the
   /// next connection (before any further uploads).
   Future<void> resetEverywhere() async {
+    await PeriodStatsCache().clearScope(PeriodStatsCache.scopeFor(
+      userId: _connection.userId,
+      serverInfo: _connection.serverInfo,
+    ));
     await _stats.resetAllStats();
     await _outbox?.clear();
     _summary = ListeningStatsSummary.empty;
@@ -443,6 +448,7 @@ class AccountStatsService {
   /// cached summary, overlay — without touching the account on the server.
   /// Used by "forget this server" style local resets.
   Future<void> clearLocalOnly() async {
+    await PeriodStatsCache().clearAll();
     await _outbox?.clear();
     _summary = ListeningStatsSummary.empty;
     _hasFetchedSummary = false;
