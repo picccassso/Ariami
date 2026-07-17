@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../services/playback_manager.dart';
+import '../../utils/responsive.dart';
 import '../download/global_download_chrome_visibility.dart';
 import 'bottom_chrome_metrics.dart';
 import 'queue_action_confirmation.dart';
@@ -184,7 +185,9 @@ Future<T?> showMiniPlayerAwareBottomSheet<T>({
     elevation: elevation,
     shape: shape,
     clipBehavior: clipBehavior,
-    constraints: constraints,
+    // Keep sheets a readable width on tablets instead of spanning the screen.
+    constraints:
+        constraints ?? const BoxConstraints(maxWidth: kBottomSheetMaxWidth),
     isScrollControlled: isScrollControlled,
     useRootNavigator: useRootNavigator,
     isDismissible: isDismissible,
@@ -306,6 +309,8 @@ Future<T?> showAriamiSheet<T>({
     enableDrag: enableDrag,
     showDragHandle: true,
     useSafeArea: false,
+    // Keep sheets a readable width on tablets instead of spanning the screen.
+    constraints: const BoxConstraints(maxWidth: kBottomSheetMaxWidth),
     backgroundColor: backgroundColor,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(

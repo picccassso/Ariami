@@ -1,3 +1,4 @@
+import '../../utils/responsive.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
@@ -76,7 +77,8 @@ class _TvLicenseScreenState extends State<TvLicenseScreen> {
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: ListView(
+      body: ContentWidthLimiter(
+          child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
         children: [
           Container(
@@ -208,7 +210,7 @@ class _TvLicenseScreenState extends State<TvLicenseScreen> {
             ),
           ],
         ],
-      ),
+      )),
     );
   }
 }

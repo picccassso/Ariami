@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../../models/api_models.dart';
+import '../../../utils/responsive.dart';
 import 'artwork_collage.dart';
 import 'fallback_header.dart';
 
@@ -26,9 +27,10 @@ class PlaylistHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     Widget artworkWidget;
-    
+
     // Priority 1: Custom user-selected image
-    if (playlist?.customImagePath != null && File(playlist!.customImagePath!).existsSync()) {
+    if (playlist?.customImagePath != null &&
+        File(playlist!.customImagePath!).existsSync()) {
       artworkWidget = Image.file(
         File(playlist!.customImagePath!),
         fit: BoxFit.cover,
@@ -50,7 +52,7 @@ class PlaylistHeader extends StatelessWidget {
         Positioned.fill(
           child: artworkWidget,
         ),
-        
+
         // Blur effect and gradient overlay
         Positioned.fill(
           child: BackdropFilter(
@@ -75,8 +77,8 @@ class PlaylistHeader extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.only(top: 40.0, bottom: 20.0),
             child: Container(
-              width: 200,
-              height: 200,
+              width: isExpandedWidth(context) ? 280 : 200,
+              height: isExpandedWidth(context) ? 280 : 200,
               decoration: BoxDecoration(
                 boxShadow: [
                   BoxShadow(

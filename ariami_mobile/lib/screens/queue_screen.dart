@@ -6,6 +6,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../models/song.dart';
 import '../services/color_extraction_service.dart';
 import '../utils/constants.dart';
+import '../utils/responsive.dart';
 import '../widgets/common/queue_action_confirmation.dart';
 import '../widgets/queue/reorderable_queue_list.dart';
 
@@ -85,78 +86,80 @@ class _QueueScreenState extends State<QueueScreen> {
                   ),
               ],
             ),
-            body: Column(
-              children: [
-                if (widget.queue.isNotEmpty)
-                  Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    child: Container(
+            body: ContentWidthLimiter(
+              child: Column(
+                children: [
+                  if (widget.queue.isNotEmpty)
+                    Padding(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 20, vertical: 16),
-                      decoration: BoxDecoration(
-                        color: colorScheme.surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: colorScheme.outlineVariant,
-                          width: 1,
+                          horizontal: 16, vertical: 8),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 16),
+                        decoration: BoxDecoration(
+                          color: colorScheme.surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: colorScheme.outlineVariant,
+                            width: 1,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Total duration: ${_formatDuration(totalDuration)}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                            if (widget.queue.currentSong != null)
+                              Row(
+                                children: [
+                                  Icon(
+                                    LucideIcons.playCircle,
+                                    size: 16,
+                                    color: colorScheme.onSurface,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'NOW PLAYING',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w800,
+                                      color: colorScheme.onSurface,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                          ],
                         ),
                       ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Total duration: ${_formatDuration(totalDuration)}',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                          if (widget.queue.currentSong != null)
-                            Row(
-                              children: [
-                                Icon(
-                                  LucideIcons.playCircle,
-                                  size: 16,
-                                  color: colorScheme.onSurface,
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  'NOW PLAYING',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w800,
-                                    color: colorScheme.onSurface,
-                                    letterSpacing: 0.5,
-                                  ),
-                                ),
-                              ],
-                            ),
-                        ],
-                      ),
+                    ),
+                  Expanded(
+                    child: ReorderableQueueList(
+                      songs: widget.queue.songs,
+                      currentIndex: widget.queue.currentIndex,
+                      onReorder: (oldIndex, newIndex) {
+                        if (oldIndex < newIndex) {
+                          newIndex -= 1;
+                        }
+                        widget.onReorder?.call(oldIndex, newIndex);
+                        setState(() {});
+                      },
+                      onTap: widget.onTap != null
+                          ? (index) => unawaited(_handleTap(index))
+                          : null,
+                      onRemove: widget.onRemove != null
+                          ? (index) => unawaited(_handleRemove(index))
+                          : null,
                     ),
                   ),
-                Expanded(
-                  child: ReorderableQueueList(
-                    songs: widget.queue.songs,
-                    currentIndex: widget.queue.currentIndex,
-                    onReorder: (oldIndex, newIndex) {
-                      if (oldIndex < newIndex) {
-                        newIndex -= 1;
-                      }
-                      widget.onReorder?.call(oldIndex, newIndex);
-                      setState(() {});
-                    },
-                    onTap: widget.onTap != null
-                        ? (index) => unawaited(_handleTap(index))
-                        : null,
-                    onRemove: widget.onRemove != null
-                        ? (index) => unawaited(_handleRemove(index))
-                        : null,
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           );
         },

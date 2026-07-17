@@ -7,6 +7,7 @@ import '../../models/repeat_mode.dart' as playback_repeat;
 import '../../models/song.dart';
 import 'player_artwork_indices.dart';
 import '../../services/api/connection_service.dart';
+import '../../utils/responsive.dart';
 import '../../services/cast/chrome_cast_service.dart';
 import '../common/cached_artwork.dart';
 
@@ -381,10 +382,13 @@ class _PlayerArtworkState extends State<PlayerArtwork> {
     int queueIndex,
   ) {
     final isCurrent = queueIndex == widget.currentIndex;
+    // Tablets get a larger cap so the artwork doesn't look lost in the
+    // roomier player layout.
+    final maxArtworkExtent = isExpandedWidth(context) ? 480.0 : 350.0;
     Widget child = Container(
-      constraints: const BoxConstraints(
-        maxWidth: 350,
-        maxHeight: 350,
+      constraints: BoxConstraints(
+        maxWidth: maxArtworkExtent,
+        maxHeight: maxArtworkExtent,
       ),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),

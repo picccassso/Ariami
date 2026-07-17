@@ -1,3 +1,4 @@
+import '../../../utils/responsive.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -211,7 +212,8 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
           ),
         ],
       ),
-      body: FutureBuilder<void>(
+      body: ContentWidthLimiter(
+          child: FutureBuilder<void>(
         future: _controller.initializeFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -383,7 +385,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
             },
           );
         },
-      ),
+      )),
     );
   }
 

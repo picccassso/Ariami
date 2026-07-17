@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../models/api_models.dart';
+import '../../../../utils/responsive.dart';
 import '../../../../widgets/library/album_grid_item.dart';
 import '../../../../widgets/library/album_list_item.dart';
 import '../library_state.dart';
@@ -52,12 +53,7 @@ class AlbumsSection extends StatelessWidget {
       return SliverPadding(
         padding: const EdgeInsets.all(16.0),
         sliver: SliverGrid(
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: _getGridColumnCount(context),
-            mainAxisSpacing: 16,
-            crossAxisSpacing: 16,
-            childAspectRatio: 0.75,
-          ),
+          gridDelegate: responsiveCardGridDelegate(),
           delegate: SliverChildBuilderDelegate(
             (context, index) {
               final album = albumsToShow[index];
@@ -108,13 +104,5 @@ class AlbumsSection extends StatelessWidget {
         childCount: albumsToShow.length,
       ),
     );
-  }
-
-  int _getGridColumnCount(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
-    if (width > 600) {
-      return 3; // Tablet
-    }
-    return 2; // Phone
   }
 }

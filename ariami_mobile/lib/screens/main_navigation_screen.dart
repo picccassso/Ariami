@@ -6,6 +6,8 @@ import 'main/library_navigator.dart';
 import 'main/search_navigator.dart';
 import 'main/settings_navigator.dart';
 import '../widgets/player/mini_player.dart';
+import '../widgets/player/player_output_button.dart';
+import '../widgets/player/sidebar_now_playing_card.dart';
 import '../widgets/download/download_progress_bar.dart';
 import '../widgets/common/bottom_chrome_metrics.dart';
 import '../screens/full_player_screen.dart';
@@ -26,6 +28,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
   final PlaybackManager _playbackManager = PlaybackManager();
   final ChromeCastService _castService = ChromeCastService();
   final AriamiConnectController _connect = AriamiConnectController();
+  bool _refreshConnectOnResume = false;
 
   void _goToLibrary() {
     setState(() {
@@ -84,6 +87,16 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
         state == AppLifecycleState.detached) {
       unawaited(_playbackManager.saveStateImmediately());
     }
+
+    // A mobile OS may suspend the Connect socket without closing it. Only a
+    // real background transition should trigger the authoritative refresh;
+    // transient inactive states (dialogs, notification shade) should not.
+    if (state == AppLifecycleState.paused) {
+      _refreshConnectOnResume = true;
+    } else if (state == AppLifecycleState.resumed && _refreshConnectOnResume) {
+      _refreshConnectOnResume = false;
+      unawaited(_connect.refresh());
+    }
   }
 
   void _onTabTapped(int index) {
@@ -133,6 +146,25 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
   Widget build(BuildContext context) {
     final bottomNavHeight = getBottomNavigationBarTotalHeight(context);
     final keyboardOpen = isKeyboardOpen(context);
+    // Wide (tablet/landscape) layouts navigate with an extended sidebar
+    // instead of a bottom bar; the mini player docks at the bottom of that
+    // sidebar (Spotify-style), so the content overlay is phone-only.
+    final useRail = useNavigationRail(context);
+    final content = Stack(
+      children: [
+        // Main content area - can scroll behind nav bar
+        _buildCurrentScreen(),
+        // Mini player and download bar - positioned above nav bar.
+        // Hidden while the keyboard is open so it doesn't hover above it.
+        if (!keyboardOpen && !useRail)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: bottomNavHeight,
+            child: _buildMiniPlayerChrome(),
+          ),
+      ],
+    );
     return Scaffold(
       extendBody: true,
       // Don't shrink the body when the keyboard opens. The nested screens
@@ -140,79 +172,160 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
       // player overlay is hidden entirely so it never hovers above the
       // keyboard.
       resizeToAvoidBottomInset: false,
-      body: Stack(
-        children: [
-          // Main content area - can scroll behind nav bar
-          _buildCurrentScreen(),
-          // Mini player and download bar - positioned above nav bar.
-          // Hidden while the keyboard is open so it doesn't hover above it.
-          if (!keyboardOpen)
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: bottomNavHeight,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Mini player connected to real playback
-                  MiniPlayer(
-                    currentSong: _playbackManager.currentSong,
-                    isPlaying: _playbackManager.isPlaying,
-                    isVisible: _playbackManager.currentSong != null,
-                    onTap: _openFullPlayer,
-                    onPlayPause: _playbackManager.togglePlayPause,
-                    onSkipNext: _playbackManager.skipNext,
-                    onSkipPrevious: _playbackManager.skipPrevious,
-                    hasNext: _playbackManager.hasNext,
-                    hasPrevious: _playbackManager.hasPrevious,
-                    position: _playbackManager.position,
-                    duration: _playbackManager.duration ?? Duration.zero,
-                    playbackManager: _playbackManager,
-                  ),
-                  // Download progress bar (between mini player and bottom nav)
-                  const DownloadProgressBar(),
-                ],
-              ),
-            ),
-        ],
-      ),
-      bottomNavigationBar: ClipRect(
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Container(
-            decoration: BoxDecoration(
-              color: Theme.of(context)
-                  .scaffoldBackgroundColor
-                  .withValues(alpha: 0.85),
-              border: Border(
-                top: BorderSide(
-                  color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
+      body: useRail
+          ? Row(
+              children: [
+                _buildNavigationSidebar(context),
+                VerticalDivider(
                   width: 0.5,
+                  thickness: 0.5,
+                  color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
+                ),
+                Expanded(child: content),
+              ],
+            )
+          : content,
+      bottomNavigationBar: useRail
+          ? null
+          : ClipRect(
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Theme.of(context)
+                        .scaffoldBackgroundColor
+                        .withValues(alpha: 0.85),
+                    border: Border(
+                      top: BorderSide(
+                        color: Theme.of(context)
+                            .dividerColor
+                            .withValues(alpha: 0.5),
+                        width: 0.5,
+                      ),
+                    ),
+                  ),
+                  child: SafeArea(
+                    top: false,
+                    child: BottomNavigationBar(
+                      currentIndex: _currentIndex,
+                      onTap: _onTabTapped,
+                      items: const [
+                        BottomNavigationBarItem(
+                          icon: Icon(Icons.library_music),
+                          label: 'Library',
+                        ),
+                        BottomNavigationBarItem(
+                          icon: Icon(Icons.search),
+                          label: 'Search',
+                        ),
+                        BottomNavigationBarItem(
+                          icon: Icon(Icons.settings),
+                          label: 'Settings',
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ),
-            child: SafeArea(
-              top: false,
-              child: BottomNavigationBar(
-                currentIndex: _currentIndex,
-                onTap: _onTabTapped,
-                items: const [
-                  BottomNavigationBarItem(
+    );
+  }
+
+  /// Mini player + download progress bar. Overlaid above the bottom nav on
+  /// phones; docked at the bottom of the navigation sidebar on wide layouts.
+  Widget _buildMiniPlayerChrome() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        MiniPlayer(
+          currentSong: _playbackManager.currentSong,
+          isPlaying: _playbackManager.isPlaying,
+          isVisible: _playbackManager.currentSong != null,
+          onTap: _openFullPlayer,
+          onPlayPause: _playbackManager.togglePlayPause,
+          onSkipNext: _playbackManager.skipNext,
+          onSkipPrevious: _playbackManager.skipPrevious,
+          hasNext: _playbackManager.hasNext,
+          hasPrevious: _playbackManager.hasPrevious,
+          position: _playbackManager.position,
+          duration: _playbackManager.duration ?? Duration.zero,
+          playbackManager: _playbackManager,
+        ),
+        const DownloadProgressBar(),
+      ],
+    );
+  }
+
+  /// Vertical now-playing card for the sidebar. The horizontal MiniPlayer
+  /// bar is phone-only — squeezed into 240px it clips its text and icons.
+  Widget _buildSidebarNowPlaying() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SidebarNowPlayingCard(
+          currentSong: _playbackManager.currentSong,
+          isPlaying: _playbackManager.isPlaying,
+          onTap: _openFullPlayer,
+          onPlayPause: _playbackManager.togglePlayPause,
+          onSkipNext: _playbackManager.skipNext,
+          onSkipPrevious: _playbackManager.skipPrevious,
+          hasNext: _playbackManager.hasNext,
+          hasPrevious: _playbackManager.hasPrevious,
+          position: _playbackManager.position,
+          duration: _playbackManager.duration ?? Duration.zero,
+          playbackManager: _playbackManager,
+        ),
+        const DownloadProgressBar(),
+      ],
+    );
+  }
+
+  /// Extended navigation sidebar for wide layouts: destinations on top, the
+  /// now-playing card docked at the bottom (Spotify-style).
+  Widget _buildNavigationSidebar(BuildContext context) {
+    return SafeArea(
+      right: false,
+      child: SizedBox(
+        width: 240,
+        child: Column(
+          children: [
+            Expanded(
+              child: NavigationRail(
+                selectedIndex: _currentIndex,
+                onDestinationSelected: _onTabTapped,
+                extended: true,
+                minExtendedWidth: 240,
+                backgroundColor: Colors.transparent,
+                destinations: const [
+                  NavigationRailDestination(
                     icon: Icon(Icons.library_music),
-                    label: 'Library',
+                    label: Text('Library'),
                   ),
-                  BottomNavigationBarItem(
+                  NavigationRailDestination(
                     icon: Icon(Icons.search),
-                    label: 'Search',
+                    label: Text('Search'),
                   ),
-                  BottomNavigationBarItem(
+                  NavigationRailDestination(
                     icon: Icon(Icons.settings),
-                    label: 'Settings',
+                    label: Text('Settings'),
                   ),
                 ],
               ),
             ),
-          ),
+            // Standing Ariami Connect entry — reachable without opening the
+            // full player, and visible even when nothing is playing.
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: PlayerOutputButton(
+                  playbackManager: _playbackManager,
+                  fallbackLabel: 'Ariami Connect',
+                ),
+              ),
+            ),
+            _buildSidebarNowPlaying(),
+          ],
         ),
       ),
     );

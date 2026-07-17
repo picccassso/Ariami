@@ -1,3 +1,4 @@
+import '../../utils/responsive.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
@@ -64,7 +65,8 @@ class _EqualizerScreenState extends State<EqualizerScreen> {
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: ListenableBuilder(
+      body: ContentWidthLimiter(
+          child: ListenableBuilder(
         listenable: _equalizerService,
         builder: (context, _) {
           final parameters = _equalizerService.parameters;
@@ -109,7 +111,7 @@ class _EqualizerScreenState extends State<EqualizerScreen> {
             ],
           );
         },
-      ),
+      )),
     );
   }
 

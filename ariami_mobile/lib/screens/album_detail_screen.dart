@@ -22,6 +22,7 @@ import '../widgets/album/album_info_section.dart';
 import '../widgets/album/album_playlist_picker_sheet.dart';
 import '../widgets/album/track_list.dart';
 import '../widgets/common/queue_action_confirmation.dart';
+import '../utils/responsive.dart';
 
 /// Album detail screen with track listing and album actions
 class AlbumDetailScreen extends StatefulWidget {
@@ -269,8 +270,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
     }
 
     // Square flexible region (matches library cards) to avoid letterboxing.
-    final expandedArtHeight =
-        MediaQuery.sizeOf(context).width.clamp(200.0, 600.0);
+    final expandedArtHeight = detailHeaderHeight(context);
 
     return CustomScrollView(
       slivers: [

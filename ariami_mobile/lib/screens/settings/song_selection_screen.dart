@@ -1,3 +1,4 @@
+import '../../utils/responsive.dart';
 import 'package:flutter/material.dart';
 import '../../models/api_models.dart';
 import '../../services/api/connection_service.dart';
@@ -19,7 +20,7 @@ class _SongSelectionScreenState extends State<SongSelectionScreen> {
   List<SongModel> _allSongs = [];
   List<AlbumModel> _allAlbums = [];
   List<SongModel> _filteredSongs = [];
-  
+
   bool _isLoading = true;
   String? _errorMessage;
 
@@ -44,8 +45,9 @@ class _SongSelectionScreenState extends State<SongSelectionScreen> {
         _errorMessage = null;
       });
 
-      final library = await _connectionService.libraryReadFacade.getLibraryBundle();
-      
+      final library =
+          await _connectionService.libraryReadFacade.getLibraryBundle();
+
       setState(() {
         _allSongs = List<SongModel>.from(library.songs);
         _allAlbums = library.albums;
@@ -98,7 +100,8 @@ class _SongSelectionScreenState extends State<SongSelectionScreen> {
                       )
                     : null,
                 filled: true,
-                fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                fillColor:
+                    Theme.of(context).colorScheme.surfaceContainerHighest,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(30),
                   borderSide: BorderSide.none,
@@ -109,7 +112,7 @@ class _SongSelectionScreenState extends State<SongSelectionScreen> {
           ),
         ),
       ),
-      body: _buildBody(),
+      body: ContentWidthLimiter(child: _buildBody()),
     );
   }
 

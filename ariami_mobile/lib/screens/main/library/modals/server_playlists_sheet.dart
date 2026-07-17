@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../models/api_models.dart';
 import '../../../../services/playlist_service.dart';
+import '../../../../utils/responsive.dart';
 import '../../../../widgets/common/mini_player_aware_bottom_sheet.dart';
 
 /// Bottom sheet widget for importing playlists from the server.
@@ -156,6 +157,8 @@ Future<void> showServerPlaylistsSheet({
   return showModalBottomSheet(
     context: context,
     isScrollControlled: true,
+    // Keep the sheet a readable width on tablets.
+    constraints: const BoxConstraints(maxWidth: kBottomSheetMaxWidth),
     builder: (BuildContext context) {
       return ServerPlaylistsSheet(
         playlistService: playlistService,

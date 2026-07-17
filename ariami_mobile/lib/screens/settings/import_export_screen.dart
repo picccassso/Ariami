@@ -1,3 +1,4 @@
+import '../../utils/responsive.dart';
 import 'package:flutter/material.dart';
 import '../../services/import_export_service.dart';
 import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
@@ -143,147 +144,149 @@ class _ImportExportScreenState extends State<ImportExportScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: EdgeInsets.fromLTRB(
-            32,
-            0,
-            32,
-            getMiniPlayerScrollBottomPadding(context) + 24,
-          ),
-          child: Column(
-            children: [
-              const SizedBox(height: 48),
+      body: ContentWidthLimiter(
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+              32,
+              0,
+              32,
+              getMiniPlayerScrollBottomPadding(context) + 24,
+            ),
+            child: Column(
+              children: [
+                const SizedBox(height: 48),
 
-              // Icon with minimalist glow/halo effect if desired, but let's stick to clean
-              Container(
-                padding: const EdgeInsets.all(24),
-                child: Icon(
-                  Icons.auto_awesome_motion_rounded,
-                  size: 64,
-                  color: isDark ? Colors.white : Colors.black,
-                ),
-              ),
-              const SizedBox(height: 32),
-
-              // Title
-              Text(
-                'Data Portability',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w900,
-                  color: isDark ? Colors.white : Colors.black,
-                  letterSpacing: -0.5,
-                ),
-              ),
-              const SizedBox(height: 12),
-
-              // Subtitle
-              Text(
-                'Export your playlists and listening stats to a backup file, or restore from a previous session.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: isDark ? Colors.grey[500] : Colors.grey[600],
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  height: 1.5,
-                ),
-              ),
-
-              const SizedBox(height: 32),
-
-              // Status Card
-              Container(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                child: Column(
-                  children: [
-                    _buildStatusRow(
-                      'LAST EXPORT',
-                      _formatDateTime(_lastExportTime),
-                      isDark,
-                    ),
-                    const SizedBox(height: 16),
-                    _buildStatusRow(
-                      'LAST IMPORT',
-                      _formatDateTime(_lastImportTime),
-                      isDark,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 32),
-
-              // Export Button
-              SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _export,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: isDark ? Colors.white : Colors.black,
-                    foregroundColor: isDark ? Colors.black : Colors.white,
-                    shape: const StadiumBorder(),
-                    elevation: 0,
+                // Icon with minimalist glow/halo effect if desired, but let's stick to clean
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  child: Icon(
+                    Icons.auto_awesome_motion_rounded,
+                    size: 64,
+                    color: isDark ? Colors.white : Colors.black,
                   ),
-                  child: _isLoading
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Colors.black))
-                      : const Text(
-                          'EXPORT DATA',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 1.2,
+                ),
+                const SizedBox(height: 32),
+
+                // Title
+                Text(
+                  'Data Portability',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w900,
+                    color: isDark ? Colors.white : Colors.black,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // Subtitle
+                Text(
+                  'Export your playlists and listening stats to a backup file, or restore from a previous session.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: isDark ? Colors.grey[500] : Colors.grey[600],
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    height: 1.5,
+                  ),
+                ),
+
+                const SizedBox(height: 32),
+
+                // Status Card
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Column(
+                    children: [
+                      _buildStatusRow(
+                        'LAST EXPORT',
+                        _formatDateTime(_lastExportTime),
+                        isDark,
+                      ),
+                      const SizedBox(height: 16),
+                      _buildStatusRow(
+                        'LAST IMPORT',
+                        _formatDateTime(_lastImportTime),
+                        isDark,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 32),
+
+                // Export Button
+                SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: ElevatedButton(
+                    onPressed: _isLoading ? null : _export,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: isDark ? Colors.white : Colors.black,
+                      foregroundColor: isDark ? Colors.black : Colors.white,
+                      shape: const StadiumBorder(),
+                      elevation: 0,
+                    ),
+                    child: _isLoading
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.black))
+                        : const Text(
+                            'EXPORT DATA',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 1.2,
+                            ),
                           ),
-                        ),
-                ),
-              ),
-              const SizedBox(height: 12),
-
-              // Import Button
-              SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: OutlinedButton(
-                  onPressed: _isLoading ? null : _import,
-                  style: OutlinedButton.styleFrom(
-                    side: BorderSide(
-                      color: isDark
-                          ? const Color(0xFF222222)
-                          : const Color(0xFFEEEEEE),
-                      width: 1.5,
-                    ),
-                    shape: const StadiumBorder(),
-                    foregroundColor: isDark ? Colors.white : Colors.black,
-                  ),
-                  child: const Text(
-                    'IMPORT DATA',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 1.2,
-                    ),
                   ),
                 ),
-              ),
+                const SizedBox(height: 12),
 
-              const SizedBox(height: 32),
-
-              // Footer
-              Text(
-                'Includes playlists and streaming statistics',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: isDark ? Colors.grey[700] : Colors.grey[400],
-                  letterSpacing: 0.2,
+                // Import Button
+                SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: OutlinedButton(
+                    onPressed: _isLoading ? null : _import,
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(
+                        color: isDark
+                            ? const Color(0xFF222222)
+                            : const Color(0xFFEEEEEE),
+                        width: 1.5,
+                      ),
+                      shape: const StadiumBorder(),
+                      foregroundColor: isDark ? Colors.white : Colors.black,
+                    ),
+                    child: const Text(
+                      'IMPORT DATA',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 24),
-            ],
+
+                const SizedBox(height: 32),
+
+                // Footer
+                Text(
+                  'Includes playlists and streaming statistics',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? Colors.grey[700] : Colors.grey[400],
+                    letterSpacing: 0.2,
+                  ),
+                ),
+                const SizedBox(height: 24),
+              ],
+            ),
           ),
         ),
       ),

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../utils/responsive.dart';
 import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
 import '../../widgets/common/queue_action_confirmation.dart';
 import '../../models/api_models.dart';
@@ -375,92 +376,95 @@ class _SearchScreenState extends State<SearchScreen> {
     return Scaffold(
       resizeToAvoidBottomInset: false,
       body: SafeArea(
-        child: Column(
-          children: [
-            // Floating-style Search Bar
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Container(
-                      height: 50,
-                      decoration: BoxDecoration(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .surfaceContainerHighest
-                            .withValues(alpha: 0.5),
-                        borderRadius: BorderRadius.circular(25),
-                        border: Border.all(
+        child: ContentWidthLimiter(
+          child: Column(
+            children: [
+              // Floating-style Search Bar
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        height: 50,
+                        decoration: BoxDecoration(
                           color: Theme.of(context)
                               .colorScheme
-                              .outline
-                              .withValues(alpha: 0.1),
-                        ),
-                      ),
-                      child: TextField(
-                        controller: _searchController,
-                        autofocus: false,
-                        style: const TextStyle(fontSize: 16),
-                        decoration: InputDecoration(
-                          hintText: _isOffline
-                              ? 'Search downloaded music...'
-                              : 'Search songs, albums & playlists',
-                          hintStyle: TextStyle(
+                              .surfaceContainerHighest
+                              .withValues(alpha: 0.5),
+                          borderRadius: BorderRadius.circular(25),
+                          border: Border.all(
                             color: Theme.of(context)
                                 .colorScheme
-                                .onSurfaceVariant
-                                .withValues(alpha: 0.7),
+                                .outline
+                                .withValues(alpha: 0.1),
                           ),
-                          prefixIcon: Icon(
-                            Icons.search_rounded,
-                            color:
-                                Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                        child: TextField(
+                          controller: _searchController,
+                          autofocus: false,
+                          style: const TextStyle(fontSize: 16),
+                          decoration: InputDecoration(
+                            hintText: _isOffline
+                                ? 'Search downloaded music...'
+                                : 'Search songs, albums & playlists',
+                            hintStyle: TextStyle(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant
+                                  .withValues(alpha: 0.7),
+                            ),
+                            prefixIcon: Icon(
+                              Icons.search_rounded,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
+                            ),
+                            suffixIcon: _searchController.text.isNotEmpty
+                                ? IconButton(
+                                    icon: const Icon(Icons.clear_rounded),
+                                    onPressed: _clearSearch,
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant,
+                                  )
+                                : null,
+                            border: InputBorder.none,
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 20, vertical: 12),
                           ),
-                          suffixIcon: _searchController.text.isNotEmpty
-                              ? IconButton(
-                                  icon: const Icon(Icons.clear_rounded),
-                                  onPressed: _clearSearch,
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .onSurfaceVariant,
-                                )
-                              : null,
-                          border: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 20, vertical: 12),
                         ),
                       ),
                     ),
-                  ),
-                  if (_isOffline) ...[
-                    const SizedBox(width: 12),
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.05),
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.1),
-                          width: 1,
+                    if (_isOffline) ...[
+                      const SizedBox(width: 12),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.05),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.1),
+                            width: 1,
+                          ),
+                        ),
+                        child: const Icon(
+                          Icons.wifi_off_rounded,
+                          color: Colors.white,
+                          size: 20,
                         ),
                       ),
-                      child: const Icon(
-                        Icons.wifi_off_rounded,
-                        color: Colors.white,
-                        size: 20,
-                      ),
-                    ),
+                    ],
                   ],
-                ],
+                ),
               ),
-            ),
 
-            // Main Content
-            Expanded(
-              child: _buildBody(),
-            ),
-          ],
+              // Main Content
+              Expanded(
+                child: _buildBody(),
+              ),
+            ],
+          ),
         ),
       ),
     );

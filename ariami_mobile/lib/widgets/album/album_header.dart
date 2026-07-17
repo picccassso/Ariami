@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../services/api/connection_service.dart';
+import '../../utils/responsive.dart';
 import '../common/cached_artwork.dart';
 
 /// Album artwork header with parallax effect
@@ -27,7 +28,7 @@ class AlbumArtworkHeader extends StatelessWidget {
           Positioned.fill(
             child: _buildArtwork(fit: BoxFit.cover),
           ),
-          
+
           // Blur effect and gradient overlay
           Positioned.fill(
             child: BackdropFilter(
@@ -52,8 +53,8 @@ class AlbumArtworkHeader extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.only(top: 40.0, bottom: 20.0),
               child: Container(
-                width: 200,
-                height: 200,
+                width: isExpandedWidth(context) ? 280 : 200,
+                height: isExpandedWidth(context) ? 280 : 200,
                 decoration: BoxDecoration(
                   boxShadow: [
                     BoxShadow(
@@ -80,10 +81,8 @@ class AlbumArtworkHeader extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final w =
-            constraints.maxWidth.isFinite ? constraints.maxWidth : null;
-        final h =
-            constraints.maxHeight.isFinite ? constraints.maxHeight : null;
+        final w = constraints.maxWidth.isFinite ? constraints.maxWidth : null;
+        final h = constraints.maxHeight.isFinite ? constraints.maxHeight : null;
 
         // If we have an albumId, use CachedArtwork for automatic caching
         // CachedArtwork checks cache first, so it works even without a URL (offline mode)

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -306,76 +307,175 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
         }
       },
       child: SafeArea(
-        child: Column(
-          children: [
-            PlayerTopBar(
-              onMinimize: () => Navigator.pop(context),
-              onOpenQueue: _openQueue,
-            ),
-            const SizedBox(height: 16),
-            Expanded(
-              flex: 4,
-              child: PlayerArtwork(
-                controller: _artworkController,
-                queue: _playbackManager.queue,
-                currentIndex: _playbackManager.queue.currentIndex,
-                repeatMode: _playbackManager.repeatMode,
-                onPageChanged: (index) {
-                  _pendingSkipIndex = null;
-                  _playbackManager.skipToQueueItem(index);
-                },
-              ),
-            ),
-            const SizedBox(height: 24),
-            PlayerInfo(
-              song: _playbackManager.currentSong!,
-              isFavorite: _isFavorite,
-              onToggleFavorite: () async {
-                final song = _playbackManager.currentSong;
-                if (song != null) {
-                  await _playlistService.toggleLikedSong(
-                    song.id,
-                    song.albumId,
-                    title: song.title,
-                    artist: song.artist,
-                    duration: song.duration.inSeconds,
-                  );
-                }
-              },
-            ),
-            const SizedBox(height: 24),
-            PlayerSeekBar(
-              position: _playbackManager.position,
-              duration: _playbackManager.duration ?? Duration.zero,
-              onSeek: _playbackManager.seek,
-            ),
-            const SizedBox(height: 24),
-            _buildMainControls(themedContext),
-            const SizedBox(height: 16),
-            PlayerSecondaryControls(
-              outputButton:
-                  PlayerOutputButton(playbackManager: _playbackManager),
-              onPlayNext: _playCurrentSongNext,
-              onAddToQueue: _addCurrentSongToQueue,
-              onOpenQueue: _openQueue,
-              onAddToPlaylist: () {
-                final song = _playbackManager.currentSong;
-                if (song != null) {
-                  AddToPlaylistScreen.showForSong(
-                    context,
-                    song.id,
-                    albumId: song.albumId,
-                    title: song.title,
-                    artist: song.artist,
-                    duration: song.duration.inSeconds,
-                  );
-                }
-              },
-            ),
-            const SizedBox(height: 24),
-          ],
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            // In landscape the portrait column doesn't have the vertical room
+            // for artwork above controls, so lay them out side by side.
+            final isWide = constraints.maxWidth > constraints.maxHeight;
+            return isWide
+                ? _buildWidePlayer(themedContext, constraints)
+                : _buildPortraitPlayer(themedContext);
+          },
         ),
       ),
+    );
+  }
+
+  Widget _buildPortraitPlayer(BuildContext themedContext) {
+    return Column(
+      children: [
+        PlayerTopBar(
+          onMinimize: () => Navigator.pop(context),
+          onOpenQueue: _openQueue,
+        ),
+        const SizedBox(height: 16),
+        Expanded(
+          flex: 4,
+          child: _buildArtwork(),
+        ),
+        const SizedBox(height: 24),
+        // Cap the controls block so it doesn't stretch edge-to-edge on
+        // portrait tablets.
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 500),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildPlayerInfo(),
+              const SizedBox(height: 24),
+              _buildSeekBar(),
+              const SizedBox(height: 24),
+              _buildMainControls(themedContext),
+              const SizedBox(height: 16),
+              _buildSecondaryControls(),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+      ],
+    );
+  }
+
+  /// Landscape/tablet layout: artwork on the left, info and controls on the
+  /// right. The controls column scrolls if a short landscape phone runs out
+  /// of height.
+  Widget _buildWidePlayer(
+    BuildContext themedContext,
+    BoxConstraints constraints,
+  ) {
+    // Size the artwork explicitly so artwork + controls center together as
+    // one composition, instead of each floating in its own half of the
+    // screen with a dead gap between them.
+    const gap = 48.0;
+    final artExtent = math
+        .min(constraints.maxHeight - 160.0, constraints.maxWidth * 0.42)
+        .clamp(200.0, 480.0);
+    final controlsWidth = math.min(
+      500.0,
+      constraints.maxWidth - artExtent - gap - 64.0,
+    );
+    return Column(
+      children: [
+        PlayerTopBar(
+          onMinimize: () => Navigator.pop(context),
+          onOpenQueue: _openQueue,
+        ),
+        Expanded(
+          child: Center(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  width: artExtent,
+                  height: artExtent,
+                  child: _buildArtwork(),
+                ),
+                const SizedBox(width: gap),
+                SizedBox(
+                  width: controlsWidth,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _buildPlayerInfo(),
+                        const SizedBox(height: 24),
+                        _buildSeekBar(),
+                        const SizedBox(height: 24),
+                        _buildMainControls(themedContext),
+                        const SizedBox(height: 16),
+                        _buildSecondaryControls(),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+      ],
+    );
+  }
+
+  Widget _buildArtwork() {
+    return PlayerArtwork(
+      controller: _artworkController,
+      queue: _playbackManager.queue,
+      currentIndex: _playbackManager.queue.currentIndex,
+      repeatMode: _playbackManager.repeatMode,
+      onPageChanged: (index) {
+        _pendingSkipIndex = null;
+        _playbackManager.skipToQueueItem(index);
+      },
+    );
+  }
+
+  Widget _buildPlayerInfo() {
+    return PlayerInfo(
+      song: _playbackManager.currentSong!,
+      isFavorite: _isFavorite,
+      onToggleFavorite: () async {
+        final song = _playbackManager.currentSong;
+        if (song != null) {
+          await _playlistService.toggleLikedSong(
+            song.id,
+            song.albumId,
+            title: song.title,
+            artist: song.artist,
+            duration: song.duration.inSeconds,
+          );
+        }
+      },
+    );
+  }
+
+  Widget _buildSeekBar() {
+    return PlayerSeekBar(
+      position: _playbackManager.position,
+      duration: _playbackManager.duration ?? Duration.zero,
+      onSeek: _playbackManager.seek,
+    );
+  }
+
+  Widget _buildSecondaryControls() {
+    return PlayerSecondaryControls(
+      outputButton: PlayerOutputButton(playbackManager: _playbackManager),
+      onPlayNext: _playCurrentSongNext,
+      onAddToQueue: _addCurrentSongToQueue,
+      onOpenQueue: _openQueue,
+      onAddToPlaylist: () {
+        final song = _playbackManager.currentSong;
+        if (song != null) {
+          AddToPlaylistScreen.showForSong(
+            context,
+            song.id,
+            albumId: song.albumId,
+            title: song.title,
+            artist: song.artist,
+            duration: song.duration.inSeconds,
+          );
+        }
+      },
     );
   }
 

@@ -84,6 +84,14 @@ void main() {
   });
 
   testWidgets('undo toast restores a removed queue item', (tester) async {
+    // Phone-width surface: the default 800x600 test view is wide enough to
+    // trigger the tablet rail layout, which moves the undo toast. 500 (not a
+    // real phone's 390) keeps the summary row from overflowing with the
+    // wide test font.
+    tester.view.physicalSize = const Size(500, 844);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
     final queue = PlaybackQueue(
       songs: [makeSong('a'), makeSong('b'), makeSong('c')],
     );

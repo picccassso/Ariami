@@ -1,3 +1,4 @@
+import '../../../../utils/responsive.dart';
 import 'package:flutter/material.dart';
 import '../../../../models/api_models.dart';
 import '../../../../services/playlist_service.dart';
@@ -131,12 +132,7 @@ class _MixedSectionState extends State<MixedSection> {
     return SliverPadding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       sliver: SliverGrid(
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: _getGridColumnCount(context),
-          mainAxisSpacing: 16,
-          crossAxisSpacing: 16,
-          childAspectRatio: 0.75,
-        ),
+        gridDelegate: responsiveCardGridDelegate(),
         delegate: SliverChildBuilderDelegate(
           (context, index) {
             final item = items[index];
@@ -232,14 +228,6 @@ class _MixedSectionState extends State<MixedSection> {
         childCount: items.length,
       ),
     );
-  }
-
-  int _getGridColumnCount(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
-    if (width > 600) {
-      return 3;
-    }
-    return 2;
   }
 }
 

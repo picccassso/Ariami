@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../utils/responsive.dart';
 
 /// Render height of the mini player widget.
 const double kMiniPlayerHeight = 64.0;
@@ -45,10 +46,28 @@ bool isKeyboardOpen(BuildContext context) {
   return mediaQueryInsetBottom > 0 || rawViewInsetBottom > 0;
 }
 
+/// Whether main navigation uses the side rail (wide/tablet layouts) instead
+/// of the bottom bar. Falls back to the raw view size so overlay contexts
+/// without a contextual [MediaQuery] agree with the main navigation screen.
+bool useNavigationRail(BuildContext context) {
+  double width;
+  try {
+    width = MediaQuery.sizeOf(context).width;
+  } catch (_) {
+    try {
+      width = MediaQueryData.fromView(View.of(context)).size.width;
+    } catch (_) {
+      return false;
+    }
+  }
+  return width >= kTabletBreakpoint;
+}
+
 /// Bottom navigation bar height including device safe-area inset.
 ///
 /// When the IME (keyboard) is open, the bottom nav is obscured and the scaffold
 /// body is already laid out above the keyboard, so reserve no height for the bar.
+/// On rail layouts there is no bottom bar; only the safe-area inset remains.
 double getBottomNavigationBarTotalHeight(BuildContext context) {
   double viewPaddingBottom = 0.0;
   try {
@@ -57,9 +76,13 @@ double getBottomNavigationBarTotalHeight(BuildContext context) {
   } catch (_) {
     viewPaddingBottom = MediaQuery.viewPaddingOf(context).bottom;
   }
-  return isKeyboardOpen(context)
-      ? 0.0
-      : kBottomNavigationBarHeight + viewPaddingBottom;
+  if (isKeyboardOpen(context)) {
+    return 0.0;
+  }
+  if (useNavigationRail(context)) {
+    return viewPaddingBottom;
+  }
+  return kBottomNavigationBarHeight + viewPaddingBottom;
 }
 
 /// Total bottom chrome height that content should stay above.
@@ -78,6 +101,12 @@ double getBottomChromeHeight(
     return 0.0;
   }
   final bottomNavHeight = getBottomNavigationBarTotalHeight(context);
+  // On rail layouts the mini player and download bar are docked in the
+  // navigation sidebar rather than overlaid on the content, so content only
+  // needs the safe-area inset.
+  if (useNavigationRail(context)) {
+    return bottomNavHeight;
+  }
   if (!isMiniPlayerVisible) {
     return bottomNavHeight;
   }

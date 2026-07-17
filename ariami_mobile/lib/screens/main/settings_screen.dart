@@ -1,3 +1,4 @@
+import '../../utils/responsive.dart';
 import 'dart:async';
 import 'package:ariami_core/models/connect_models.dart';
 import 'package:flutter/material.dart';
@@ -267,7 +268,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
-      body: ListenableBuilder(
+      body: ContentWidthLimiter(
+          child: ListenableBuilder(
         listenable: Listenable.merge([
           _profileImageService,
           _gaplessPlaybackService,
@@ -296,8 +298,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     icon: Icons.badge_rounded,
                     title: 'Device Name',
                     subtitle: _connectController.isConnected
-                        ? (_connectController.thisDevice?.name ??
-                            'This device')
+                        ? (_connectController.thisDevice?.name ?? 'This device')
                         : 'Connect to your server to rename this device',
                     onTap: _connectController.isConnected
                         ? _showRenameDeviceDialog
@@ -457,7 +458,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ],
           );
         },
-      ),
+      )),
     );
   }
 

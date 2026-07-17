@@ -1,3 +1,4 @@
+import '../../../../utils/responsive.dart';
 import 'package:flutter/material.dart';
 import '../../../../models/api_models.dart';
 import '../../../../services/playlist_service.dart';
@@ -92,12 +93,7 @@ class PlaylistsSection extends StatelessWidget {
         child: GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: _getGridColumnCount(context),
-            mainAxisSpacing: 16,
-            crossAxisSpacing: 16,
-            childAspectRatio: 0.75,
-          ),
+          gridDelegate: responsiveCardGridDelegate(),
           itemCount: itemCount,
           itemBuilder: (context, index) {
             int currentIndex = 0;
@@ -143,13 +139,10 @@ class PlaylistsSection extends StatelessWidget {
     if (regularPlaylists.isEmpty && likedSongsPlaylist == null) {
       return Padding(
         padding: const EdgeInsets.all(16.0),
-        child: GridView.count(
-          crossAxisCount: 2,
+        child: GridView(
+          gridDelegate: responsiveCardGridDelegate(),
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          mainAxisSpacing: 16,
-          crossAxisSpacing: 16,
-          childAspectRatio: 0.75,
           children: [
             CreatePlaylistCard(
               onTap: onCreatePlaylist,
@@ -177,12 +170,7 @@ class PlaylistsSection extends StatelessWidget {
       child: GridView.builder(
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: _getGridColumnCount(context),
-          mainAxisSpacing: 16,
-          crossAxisSpacing: 16,
-          childAspectRatio: 0.75,
-        ),
+        gridDelegate: responsiveCardGridDelegate(),
         itemCount: itemCount,
         itemBuilder: (context, index) {
           if (index == 0) {
@@ -368,13 +356,5 @@ class PlaylistsSection extends StatelessWidget {
         );
       },
     );
-  }
-
-  int _getGridColumnCount(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
-    if (width > 600) {
-      return 3; // Tablet
-    }
-    return 2; // Phone
   }
 }

@@ -1,3 +1,4 @@
+import '../../utils/responsive.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../models/quality_settings.dart';
@@ -88,72 +89,77 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: IconButton(
-          icon: Icon(LucideIcons.chevronLeft, size: 20, color: colorScheme.onSurface),
+          icon: Icon(LucideIcons.chevronLeft,
+              size: 20, color: colorScheme.onSurface),
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: _isLoading
-          ? Center(child: CircularProgressIndicator(color: colorScheme.primary))
-          : ListView(
-              padding: EdgeInsets.fromLTRB(
-                16,
-                8,
-                16,
-                getMiniPlayerScrollBottomPadding(context) + 20,
+      body: ContentWidthLimiter(
+        child: _isLoading
+            ? Center(
+                child: CircularProgressIndicator(color: colorScheme.primary))
+            : ListView(
+                padding: EdgeInsets.fromLTRB(
+                  16,
+                  8,
+                  16,
+                  getMiniPlayerScrollBottomPadding(context) + 20,
+                ),
+                children: [
+                  // Current network indicator
+                  _buildCurrentNetworkCard(),
+
+                  const SizedBox(height: 12),
+
+                  // Streaming quality section
+                  _buildSectionHeader('STREAMING QUALITY'),
+                  _buildQualityCard(
+                    context,
+                    icon: Icons.wifi_rounded,
+                    title: 'WiFi',
+                    subtitle: 'Highest quality when on WiFi',
+                    currentQuality: _settings.wifiQuality,
+                    onChanged: _updateWifiQuality,
+                  ),
+                  const SizedBox(height: 8),
+                  _buildQualityCard(
+                    context,
+                    icon: Icons.signal_cellular_alt_rounded,
+                    title: 'Mobile Data',
+                    subtitle: 'Save bandwidth on cellular',
+                    currentQuality: _settings.mobileDataQuality,
+                    onChanged: _updateMobileDataQuality,
+                  ),
+                  const SizedBox(height: 8),
+                  _buildToggleCard(
+                    icon: Icons.download_for_offline_rounded,
+                    title: 'Prefer Local When Online',
+                    subtitle:
+                        'Play downloaded or cached files even when connected',
+                    value: _preferLocalWhenOnline,
+                    onChanged: _updatePreferLocalWhenOnline,
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // Download quality section
+                  _buildSectionHeader('DOWNLOAD QUALITY'),
+                  _buildQualityCard(
+                    context,
+                    icon: Icons.file_download_outlined,
+                    title: 'Downloads',
+                    subtitle: 'Quality for offline playback',
+                    currentQuality: _settings.downloadQuality,
+                    onChanged: _updateDownloadQuality,
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // Info section
+                  _buildInfoSection(),
+                ],
               ),
-              children: [
-                // Current network indicator
-                _buildCurrentNetworkCard(),
-
-                const SizedBox(height: 12),
-
-                // Streaming quality section
-                _buildSectionHeader('STREAMING QUALITY'),
-                _buildQualityCard(
-                  context,
-                  icon: Icons.wifi_rounded,
-                  title: 'WiFi',
-                  subtitle: 'Highest quality when on WiFi',
-                  currentQuality: _settings.wifiQuality,
-                  onChanged: _updateWifiQuality,
-                ),
-                const SizedBox(height: 8),
-                _buildQualityCard(
-                  context,
-                  icon: Icons.signal_cellular_alt_rounded,
-                  title: 'Mobile Data',
-                  subtitle: 'Save bandwidth on cellular',
-                  currentQuality: _settings.mobileDataQuality,
-                  onChanged: _updateMobileDataQuality,
-                ),
-                const SizedBox(height: 8),
-                _buildToggleCard(
-                  icon: Icons.download_for_offline_rounded,
-                  title: 'Prefer Local When Online',
-                  subtitle: 'Play downloaded or cached files even when connected',
-                  value: _preferLocalWhenOnline,
-                  onChanged: _updatePreferLocalWhenOnline,
-                ),
-
-                const SizedBox(height: 12),
-
-                // Download quality section
-                _buildSectionHeader('DOWNLOAD QUALITY'),
-                _buildQualityCard(
-                  context,
-                  icon: Icons.file_download_outlined,
-                  title: 'Downloads',
-                  subtitle: 'Quality for offline playback',
-                  currentQuality: _settings.downloadQuality,
-                  onChanged: _updateDownloadQuality,
-                ),
-
-                const SizedBox(height: 24),
-
-                // Info section
-                _buildInfoSection(),
-              ],
-            ),
+      ),
     );
   }
 
@@ -164,7 +170,7 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
 
     IconData networkIcon;
     String networkLabel;
-    
+
     switch (networkType) {
       case NetworkType.wifi:
         networkIcon = Icons.wifi_rounded;
@@ -219,7 +225,8 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
               width: 8,
               height: 8,
               decoration: BoxDecoration(
-                color: colorScheme.tertiary, // Use theme tertiary color for status indicator
+                color: colorScheme
+                    .tertiary, // Use theme tertiary color for status indicator
                 shape: BoxShape.circle,
               ),
             ),
@@ -433,7 +440,9 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
                 child: ListTile(
                   leading: Icon(
                     _getQualityIcon(quality),
-                    color: isSelected ? colorScheme.onPrimary : colorScheme.onSurfaceVariant,
+                    color: isSelected
+                        ? colorScheme.onPrimary
+                        : colorScheme.onSurfaceVariant,
                     size: 20,
                   ),
                   title: Text(
@@ -441,7 +450,9 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
-                      color: isSelected ? colorScheme.onPrimary : colorScheme.onSurface,
+                      color: isSelected
+                          ? colorScheme.onPrimary
+                          : colorScheme.onSurface,
                     ),
                   ),
                   subtitle: Text(
@@ -449,7 +460,9 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w500,
-                      color: isSelected ? colorScheme.onPrimary.withValues(alpha: 0.7) : colorScheme.onSurfaceVariant,
+                      color: isSelected
+                          ? colorScheme.onPrimary.withValues(alpha: 0.7)
+                          : colorScheme.onSurfaceVariant,
                     ),
                   ),
                   trailing: isSelected
@@ -553,7 +566,8 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
     );
   }
 
-  Widget _buildInfoRow(String title, String description, ColorScheme colorScheme) {
+  Widget _buildInfoRow(
+      String title, String description, ColorScheme colorScheme) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

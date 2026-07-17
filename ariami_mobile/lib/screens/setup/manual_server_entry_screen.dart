@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import '../../models/server_info.dart';
 import '../../services/api/api_client.dart';
 import '../../services/api/connection_service.dart';
+import '../../utils/responsive.dart';
 import '../../utils/server_address_parser.dart';
 import '../../utils/setup_error_messages.dart';
+import '../../widgets/common/setup_dark_theme.dart';
 import 'server_connection_router.dart';
 
 /// Manual server-address entry as a fallback for QR scanning.
@@ -129,192 +131,203 @@ class _ManualServerEntryScreenState extends State<ManualServerEntryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        title: const Text('Manual entry'),
+    return SetupDarkTheme(
+      child: Scaffold(
         backgroundColor: Colors.black,
-        foregroundColor: Colors.white,
-      ),
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 32.0, vertical: 24.0),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.dns_rounded,
-                    size: 100,
-                    color: Theme.of(context).primaryColor,
-                  ),
-                  const SizedBox(height: 32),
-                  Text(
-                    'Connect manually',
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.onSurface,
-                        ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Enter your server address. You can include or omit '
-                    'http:// or https://. Secure public servers default to '
-                    'port 443; private servers default to 8080.',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .onSurface
-                              .withValues(alpha: 0.7),
-                        ),
-                  ),
-                  const SizedBox(height: 32),
-
-                  // Error message
-                  if (_errorMessage != null)
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(12),
-                      margin: const EdgeInsets.only(bottom: 16),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .error
-                            .withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .error
-                              .withValues(alpha: 0.3),
-                        ),
+        appBar: AppBar(
+          title: const Text('Manual entry'),
+          backgroundColor: Colors.black,
+          foregroundColor: Colors.white,
+        ),
+        body: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 32.0, vertical: 24.0),
+              child: ConstrainedBox(
+                constraints:
+                    const BoxConstraints(maxWidth: kSetupContentMaxWidth),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.dns_rounded,
+                        size: 100,
+                        color: Theme.of(context).primaryColor,
                       ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.error_outline,
-                            color: Theme.of(context).colorScheme.error,
-                            size: 20,
+                      const SizedBox(height: 32),
+                      Text(
+                        'Connect manually',
+                        style: Theme.of(context)
+                            .textTheme
+                            .headlineMedium
+                            ?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: Theme.of(context).colorScheme.onSurface,
+                            ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Enter your server address. You can include or omit '
+                        'http:// or https://. Secure public servers default to '
+                        'port 443; private servers default to 8080.',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurface
+                                  .withValues(alpha: 0.7),
+                            ),
+                      ),
+                      const SizedBox(height: 32),
+
+                      // Error message
+                      if (_errorMessage != null)
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(12),
+                          margin: const EdgeInsets.only(bottom: 16),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .error
+                                .withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .error
+                                  .withValues(alpha: 0.3),
+                            ),
                           ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              _errorMessage!,
-                              style: TextStyle(
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.error_outline,
                                 color: Theme.of(context).colorScheme.error,
+                                size: 20,
                               ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  _errorMessage!,
+                                  style: TextStyle(
+                                    color: Theme.of(context).colorScheme.error,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                      // Address field
+                      TextFormField(
+                        controller: _addressController,
+                        decoration: InputDecoration(
+                          labelText: 'Server address',
+                          hintText: '192.168.1.50:8080',
+                          prefixIcon: const Icon(Icons.link),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          filled: true,
+                          fillColor: Theme.of(context).colorScheme.surface,
+                        ),
+                        autocorrect: false,
+                        enableSuggestions: false,
+                        keyboardType: TextInputType.url,
+                        textInputAction: TextInputAction.go,
+                        onFieldSubmitted: (_) => _handleConnect(),
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'Please enter the server address';
+                          }
+                          return null;
+                        },
+                      ),
+
+                      // Optional invite code (to create a new account on a server
+                      // that already has users). Hidden behind a toggle to keep the
+                      // common path clean.
+                      if (!_showInviteField)
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: TextButton.icon(
+                            onPressed: () =>
+                                setState(() => _showInviteField = true),
+                            icon: const Icon(Icons.vpn_key_outlined, size: 18),
+                            label: const Text('Have an invite code?'),
+                          ),
+                        )
+                      else ...[
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _inviteCodeController,
+                          decoration: InputDecoration(
+                            labelText: 'Invite code (optional)',
+                            hintText: '4F9K-2QX7',
+                            helperText:
+                                'From the server owner, to create a new account',
+                            prefixIcon: const Icon(Icons.vpn_key_outlined),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            filled: true,
+                            fillColor: Theme.of(context).colorScheme.surface,
+                          ),
+                          autocorrect: false,
+                          enableSuggestions: false,
+                          textCapitalization: TextCapitalization.characters,
+                          textInputAction: TextInputAction.go,
+                          onFieldSubmitted: (_) => _handleConnect(),
+                        ),
+                      ],
+                      const SizedBox(height: 32),
+
+                      // Connect button
+                      SizedBox(
+                        width: double.infinity,
+                        height: 56,
+                        child: ElevatedButton(
+                          onPressed: _isConnecting ? null : _handleConnect,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor:
+                                Theme.of(context).colorScheme.primary,
+                            foregroundColor:
+                                Theme.of(context).colorScheme.onPrimary,
+                            elevation: 8,
+                            shadowColor: Theme.of(context)
+                                .colorScheme
+                                .primary
+                                .withValues(alpha: 0.3),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(28),
                             ),
                           ),
-                        ],
-                      ),
-                    ),
-
-                  // Address field
-                  TextFormField(
-                    controller: _addressController,
-                    decoration: InputDecoration(
-                      labelText: 'Server address',
-                      hintText: '192.168.1.50:8080',
-                      prefixIcon: const Icon(Icons.link),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      filled: true,
-                      fillColor: Theme.of(context).colorScheme.surface,
-                    ),
-                    autocorrect: false,
-                    enableSuggestions: false,
-                    keyboardType: TextInputType.url,
-                    textInputAction: TextInputAction.go,
-                    onFieldSubmitted: (_) => _handleConnect(),
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Please enter the server address';
-                      }
-                      return null;
-                    },
-                  ),
-
-                  // Optional invite code (to create a new account on a server
-                  // that already has users). Hidden behind a toggle to keep the
-                  // common path clean.
-                  if (!_showInviteField)
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: TextButton.icon(
-                        onPressed: () =>
-                            setState(() => _showInviteField = true),
-                        icon: const Icon(Icons.vpn_key_outlined, size: 18),
-                        label: const Text('Have an invite code?'),
-                      ),
-                    )
-                  else ...[
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _inviteCodeController,
-                      decoration: InputDecoration(
-                        labelText: 'Invite code (optional)',
-                        hintText: '4F9K-2QX7',
-                        helperText:
-                            'From the server owner, to create a new account',
-                        prefixIcon: const Icon(Icons.vpn_key_outlined),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        filled: true,
-                        fillColor: Theme.of(context).colorScheme.surface,
-                      ),
-                      autocorrect: false,
-                      enableSuggestions: false,
-                      textCapitalization: TextCapitalization.characters,
-                      textInputAction: TextInputAction.go,
-                      onFieldSubmitted: (_) => _handleConnect(),
-                    ),
-                  ],
-                  const SizedBox(height: 32),
-
-                  // Connect button
-                  SizedBox(
-                    width: double.infinity,
-                    height: 56,
-                    child: ElevatedButton(
-                      onPressed: _isConnecting ? null : _handleConnect,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Theme.of(context).colorScheme.primary,
-                        foregroundColor:
-                            Theme.of(context).colorScheme.onPrimary,
-                        elevation: 8,
-                        shadowColor: Theme.of(context)
-                            .colorScheme
-                            .primary
-                            .withValues(alpha: 0.3),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(28),
+                          child: _isConnecting
+                              ? SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.5,
+                                    color:
+                                        Theme.of(context).colorScheme.onPrimary,
+                                  ),
+                                )
+                              : const Text(
+                                  'Connect',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                         ),
                       ),
-                      child: _isConnecting
-                          ? SizedBox(
-                              width: 24,
-                              height: 24,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2.5,
-                                color: Theme.of(context).colorScheme.onPrimary,
-                              ),
-                            )
-                          : const Text(
-                              'Connect',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                    ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
           ),

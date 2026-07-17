@@ -17,6 +17,11 @@ enum _OutputPickerTarget { ariamiConnect, googleCast }
 class PlayerOutputButton extends StatefulWidget {
   final PlaybackManager playbackManager;
   final bool showDeviceName;
+
+  /// Label shown beside the icon while no device is connected (the connected
+  /// device name always wins). Lets the button double as a standing
+  /// "Ariami Connect" entry, e.g. in the tablet sidebar.
+  final String? fallbackLabel;
   final Color? connectedColor;
   final Color? disconnectedColor;
   final double iconSize;
@@ -25,6 +30,7 @@ class PlayerOutputButton extends StatefulWidget {
     super.key,
     required this.playbackManager,
     this.showDeviceName = true,
+    this.fallbackLabel,
     this.connectedColor,
     this.disconnectedColor,
     this.iconSize = 24,
@@ -92,11 +98,12 @@ class _PlayerOutputButtonState extends State<PlayerOutputButton> {
                   isConnected ? Icons.devices_rounded : Icons.devices_outlined,
                   size: widget.iconSize,
                 ),
-                if (widget.showDeviceName && deviceName != null) ...[
+                if (widget.showDeviceName &&
+                    (deviceName ?? widget.fallbackLabel) != null) ...[
                   const SizedBox(width: 7),
                   Flexible(
                     child: Text(
-                      deviceName,
+                      deviceName ?? widget.fallbackLabel!,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(

@@ -17,6 +17,7 @@ import 'add_to_playlist_screen.dart';
 import '../main/library/library_controller.dart';
 import 'utils/playlist_helpers.dart';
 import 'widgets/widgets.dart';
+import '../../utils/responsive.dart';
 
 /// Playlist detail screen with editable header, reorderable songs, and playback actions
 class PlaylistDetailScreen extends StatefulWidget {
@@ -622,7 +623,8 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
             onPressed: () => Navigator.pop(dialogContext, true),
             child: Text(
               'Remove',
-              style: TextStyle(color: Theme.of(dialogContext).colorScheme.error),
+              style:
+                  TextStyle(color: Theme.of(dialogContext).colorScheme.error),
             ),
           ),
         ],
@@ -878,8 +880,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
 
     final baseUrl = _connectionService.apiClient?.baseUrl;
     // Square flexible region (matches library playlist cards) to avoid letterboxing.
-    final expandedArtHeight =
-        MediaQuery.sizeOf(context).width.clamp(200.0, 600.0);
+    final expandedArtHeight = detailHeaderHeight(context);
 
     return CustomScrollView(
       slivers: [

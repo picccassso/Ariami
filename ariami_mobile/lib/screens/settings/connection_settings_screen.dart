@@ -1,3 +1,4 @@
+import '../../utils/responsive.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../models/server_info.dart';
@@ -214,7 +215,8 @@ class _ConnectionSettingsScreenState extends State<ConnectionSettingsScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
-      body: ListView(
+      body: ContentWidthLimiter(
+          child: ListView(
         padding: EdgeInsets.only(
           bottom: getMiniPlayerScrollBottomPadding(context) + 20,
         ),
@@ -399,7 +401,7 @@ class _ConnectionSettingsScreenState extends State<ConnectionSettingsScreen> {
             },
           ),
         ],
-      ),
+      )),
     );
   }
 }

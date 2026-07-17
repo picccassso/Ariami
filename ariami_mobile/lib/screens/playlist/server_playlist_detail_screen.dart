@@ -11,6 +11,7 @@ import '../main/library/library_controller.dart';
 import 'add_to_playlist_screen.dart';
 import 'utils/playlist_helpers.dart';
 import 'widgets/widgets.dart';
+import '../../utils/responsive.dart';
 
 class ServerPlaylistDetailScreen extends StatefulWidget {
   final String playlistId;
@@ -343,8 +344,7 @@ class _ServerPlaylistDetailScreenState
     }
 
     final baseUrl = _connectionService.apiClient?.baseUrl;
-    final expandedArtHeight =
-        MediaQuery.sizeOf(context).width.clamp(200.0, 600.0);
+    final expandedArtHeight = detailHeaderHeight(context);
     final playlistModel = _asPlaylistModel(playlist);
 
     return CustomScrollView(

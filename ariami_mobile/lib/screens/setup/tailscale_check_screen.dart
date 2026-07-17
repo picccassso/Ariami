@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'dart:io';
 import 'package:url_launcher/url_launcher.dart';
 import '../../services/mobile_tailscale_service.dart';
+import '../../utils/responsive.dart';
+import '../../widgets/common/setup_dark_theme.dart';
 
 class TailscaleCheckScreen extends StatefulWidget {
   const TailscaleCheckScreen({super.key});
@@ -44,103 +46,110 @@ class _TailscaleCheckScreenState extends State<TailscaleCheckScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Connect to Your Server'),
-      ),
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.04),
-                    borderRadius: BorderRadius.circular(16),
-                    border:
-                        Border.all(color: Colors.white.withValues(alpha: 0.08)),
-                  ),
-                  child: const Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Local network',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                        ),
+    // The hard-coded white body text below requires the dark palette.
+    return SetupDarkTheme(
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Connect to Your Server'),
+        ),
+        body: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24.0),
+              child: ConstrainedBox(
+                constraints:
+                    const BoxConstraints(maxWidth: kSetupContentMaxWidth),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.04),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.08)),
                       ),
-                      SizedBox(height: 6),
-                      Text(
-                        'If your phone is on the same Wi-Fi as your desktop, you can connect directly with no extra setup.',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.white70,
-                          height: 1.4,
-                        ),
+                      child: const Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Local network',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          SizedBox(height: 6),
+                          Text(
+                            'If your phone is on the same Wi-Fi as your desktop, you can connect directly with no extra setup.',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.white70,
+                              height: 1.4,
+                            ),
+                          ),
+                          SizedBox(height: 16),
+                          Text(
+                            'Remote access',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          SizedBox(height: 6),
+                          Text(
+                            'To use Ariami away from home, install and connect Tailscale on both your desktop and phone.',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.white70,
+                              height: 1.4,
+                            ),
+                          ),
+                        ],
                       ),
-                      SizedBox(height: 16),
-                      Text(
-                        'Remote access',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                        ),
+                    ),
+                    const SizedBox(height: 32),
+                    // Status Icon
+                    _buildStatusIcon(),
+                    const SizedBox(height: 32),
+
+                    // Status Title
+                    Text(
+                      _getStatusTitle(),
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
                       ),
-                      SizedBox(height: 6),
-                      Text(
-                        'To use Ariami away from home, install and connect Tailscale on both your desktop and phone.',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.white70,
-                          height: 1.4,
-                        ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Status Description
+                    Text(
+                      _getStatusDescription(),
+                      style: const TextStyle(
+                        fontSize: 16,
+                        color: Colors.white70,
+                        height: 1.5,
                       ),
-                    ],
-                  ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 32),
+
+                    // Instructions (if needed)
+                    if (_status != TailscaleStatus.connected &&
+                        _status != TailscaleStatus.checking)
+                      _buildInstructions(),
+
+                    const SizedBox(height: 32),
+
+                    // Action Buttons
+                    _buildActionButtons(),
+                  ],
                 ),
-                const SizedBox(height: 32),
-                // Status Icon
-                _buildStatusIcon(),
-                const SizedBox(height: 32),
-
-                // Status Title
-                Text(
-                  _getStatusTitle(),
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 16),
-
-                // Status Description
-                Text(
-                  _getStatusDescription(),
-                  style: const TextStyle(
-                    fontSize: 16,
-                    color: Colors.white70,
-                    height: 1.5,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 32),
-
-                // Instructions (if needed)
-                if (_status != TailscaleStatus.connected &&
-                    _status != TailscaleStatus.checking)
-                  _buildInstructions(),
-
-                const SizedBox(height: 32),
-
-                // Action Buttons
-                _buildActionButtons(),
-              ],
+              ),
             ),
           ),
         ),

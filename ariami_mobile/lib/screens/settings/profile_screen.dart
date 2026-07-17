@@ -1,3 +1,4 @@
+import '../../utils/responsive.dart';
 import 'dart:async';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -809,7 +810,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ],
       ),
-      body: ListView(
+      body: ContentWidthLimiter(
+          child: ListView(
         padding: EdgeInsets.only(
           bottom: getMiniPlayerScrollBottomPadding(context),
         ),
@@ -831,7 +833,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _buildQuickActionsSection(),
           const SizedBox(height: 24),
         ],
-      ),
+      )),
     );
   }
 }

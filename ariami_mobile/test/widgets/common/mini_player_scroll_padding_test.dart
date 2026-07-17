@@ -16,9 +16,18 @@ void main() {
     GlobalDownloadChromeVisibility.instance.debugReset();
   });
 
+  /// The default 800x600 test view is wide enough to trigger the tablet rail
+  /// layout (no bottom nav bar); these tests assert phone chrome heights.
+  void usePhoneSurface(WidgetTester tester) {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+  }
+
   testWidgets('scroll padding stays stable while full player is open', (
     tester,
   ) async {
+    usePhoneSurface(tester);
     late BuildContext capturedContext;
 
     await tester.pumpWidget(
@@ -59,6 +68,7 @@ void main() {
   testWidgets('MiniPlayerScrollPaddingBuilder uses stable scroll padding', (
     tester,
   ) async {
+    usePhoneSurface(tester);
     await tester.pumpWidget(
       MaterialApp(
         home: MiniPlayerScrollPaddingBuilder(
@@ -82,7 +92,41 @@ void main() {
     expect(paddingBefore, greaterThanOrEqualTo(kBottomNavigationBarHeight));
   });
 
+  testWidgets('wide (rail) layout reserves no bottom nav height', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    late BuildContext capturedContext;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) {
+            capturedContext = context;
+            return const SizedBox.shrink();
+          },
+        ),
+      ),
+    );
+
+    expect(useNavigationRail(capturedContext), isTrue);
+    expect(getBottomNavigationBarTotalHeight(capturedContext), 0);
+    // The mini player is docked in the navigation sidebar on rail layouts,
+    // so content reserves no overlay height for it.
+    expect(
+      getBottomChromeHeight(
+        capturedContext,
+        isMiniPlayerVisible: true,
+        isDownloadBarVisible: false,
+      ),
+      0,
+    );
+  });
+
   testWidgets('download bar adds overlay height when visible', (tester) async {
+    usePhoneSurface(tester);
     late BuildContext capturedContext;
 
     await tester.pumpWidget(

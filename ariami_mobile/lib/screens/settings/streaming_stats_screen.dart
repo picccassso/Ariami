@@ -1,3 +1,4 @@
+import '../../utils/responsive.dart';
 import 'dart:async';
 
 import 'package:ariami_core/ariami_core.dart' show ListeningPeriodStats;
@@ -285,7 +286,8 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
         elevation: 0,
         actions: [
           IconButton(
-            icon: Icon(Icons.refresh_rounded, color: isDark ? Colors.white : Colors.black),
+            icon: Icon(Icons.refresh_rounded,
+                color: isDark ? Colors.white : Colors.black),
             onPressed: _showResetDialog,
             tooltip: 'Reset statistics',
           ),
@@ -309,7 +311,8 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
           ],
         ),
       ),
-      body: Stack(
+      body: ContentWidthLimiter(
+          child: Stack(
         children: [
           RefreshIndicator(
             color: isDark ? Colors.white : Colors.black,
@@ -361,7 +364,7 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
             ),
           ),
         ],
-      ),
+      )),
     );
   }
 
@@ -580,7 +583,8 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _buildStatItem(label: metric1Label, value: metric1Value, isDark: isDark),
+                _buildStatItem(
+                    label: metric1Label, value: metric1Value, isDark: isDark),
                 // metric2 is always PLAYTIME; tapping it flips the units.
                 _buildStatItem(
                   label: metric2Label,
@@ -589,7 +593,8 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
                   onTap: _onPlaytimeTap,
                   pulse: _playtimeHintPending,
                 ),
-                _buildStatItem(label: metric3Label, value: metric3Value, isDark: isDark),
+                _buildStatItem(
+                    label: metric3Label, value: metric3Value, isDark: isDark),
               ],
             ),
           ),
@@ -755,8 +760,7 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
             _buildTopAlbumItem(stat, index + 1),
         ],
       _ => [
-          for (final (index, stat)
-              in songStatsFromRollups(stats.songs).indexed)
+          for (final (index, stat) in songStatsFromRollups(stats.songs).indexed)
             _buildTopSongItem(stat, index + 1),
         ],
     };
@@ -819,12 +823,14 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
               return _buildErrorState();
             }
 
-            if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+            if (snapshot.connectionState == ConnectionState.waiting &&
+                !snapshot.hasData) {
               return _buildLoadingState();
             }
 
             if (!snapshot.hasData || snapshot.data!.isEmpty) {
-              return _buildEmptyState('No stats yet. Start listening to see your top songs!');
+              return _buildEmptyState(
+                  'No stats yet. Start listening to see your top songs!');
             }
 
             final topSongs = snapshot.data!;
@@ -938,12 +944,14 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
               return _buildErrorState();
             }
 
-            if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+            if (snapshot.connectionState == ConnectionState.waiting &&
+                !snapshot.hasData) {
               return _buildLoadingState();
             }
 
             if (!snapshot.hasData || snapshot.data!.isEmpty) {
-              return _buildEmptyState('No stats yet. Start listening to see your top albums!');
+              return _buildEmptyState(
+                  'No stats yet. Start listening to see your top albums!');
             }
 
             final topAlbums = snapshot.data!;
@@ -969,15 +977,16 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.error_outline_rounded, size: 48, color: isDark ? Colors.grey[800] : Colors.grey[200]),
+          Icon(Icons.error_outline_rounded,
+              size: 48, color: isDark ? Colors.grey[800] : Colors.grey[200]),
           const SizedBox(height: 16),
           Text(
-             'Error loading statistics',
-             style: TextStyle(
-               fontSize: 14,
-               fontWeight: FontWeight.w700,
-               color: isDark ? Colors.grey[600] : Colors.grey[400],
-             ),
+            'Error loading statistics',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: isDark ? Colors.grey[600] : Colors.grey[400],
+            ),
           ),
         ],
       ),
@@ -1469,9 +1478,8 @@ class _RangeChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final foreground = selected
-        ? colorScheme.onSecondary
-        : colorScheme.onSurfaceVariant;
+    final foreground =
+        selected ? colorScheme.onSecondary : colorScheme.onSurfaceVariant;
     final background = selected ? colorScheme.secondary : Colors.transparent;
 
     return GestureDetector(

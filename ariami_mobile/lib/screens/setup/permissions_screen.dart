@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../../services/permissions_service.dart';
+import '../../utils/responsive.dart';
 
 class PermissionsScreen extends StatefulWidget {
   const PermissionsScreen({super.key});
@@ -146,19 +147,22 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(24.0),
-          child: Column(
-            children: [
-              // Progress indicator
-              _buildProgressIndicator(),
-              const SizedBox(height: 32),
+          child: ContentWidthLimiter(
+            maxWidth: kSetupContentMaxWidth,
+            child: Column(
+              children: [
+                // Progress indicator
+                _buildProgressIndicator(),
+                const SizedBox(height: 32),
 
-              // Content
-              Expanded(
-                child: _currentStep == 0
-                    ? _buildNotificationPermissionScreen()
-                    : _buildStoragePermissionScreen(),
-              ),
-            ],
+                // Content
+                Expanded(
+                  child: _currentStep == 0
+                      ? _buildNotificationPermissionScreen()
+                      : _buildStoragePermissionScreen(),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -166,8 +170,7 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
   }
 
   Widget _buildProgressIndicator() {
-    final totalSteps =
-        _permissionsService.isStoragePermissionNeeded() ? 2 : 1;
+    final totalSteps = _permissionsService.isStoragePermissionNeeded() ? 2 : 1;
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -242,7 +245,8 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
                   '• Control playback without opening the app\n'
                   '• See what\'s currently playing\n'
                   '• Quick access to pause/play, skip tracks',
-                  style: TextStyle(fontSize: 14, height: 1.5, color: Colors.blue[900]),
+                  style: TextStyle(
+                      fontSize: 14, height: 1.5, color: Colors.blue[900]),
                 ),
               ],
             ),
@@ -319,7 +323,8 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
                   '• Download songs for offline listening\n'
                   '• Save mobile data\n'
                   '• Listen without internet connection',
-                  style: TextStyle(fontSize: 14, height: 1.5, color: Colors.blue[900]),
+                  style: TextStyle(
+                      fontSize: 14, height: 1.5, color: Colors.blue[900]),
                 ),
               ],
             ),
