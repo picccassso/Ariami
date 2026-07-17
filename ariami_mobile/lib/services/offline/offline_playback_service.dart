@@ -213,6 +213,19 @@ class OfflinePlaybackService {
     }
   }
 
+  /// Source selection restricted to on-device copies, ignoring connection
+  /// state. Used when a stream stalls on a dead-but-undetected network and
+  /// playback falls back to the downloaded/cached file.
+  Future<PlaybackSource> getOfflineFallbackSource(String songId) async {
+    if (await _downloadManager.isSongDownloaded(songId)) {
+      return PlaybackSource.local;
+    }
+    if (await _cacheManager.isSongCached(songId)) {
+      return PlaybackSource.cached;
+    }
+    return PlaybackSource.unavailable;
+  }
+
   /// Get local file path for a downloaded song
   String? getLocalFilePath(String songId) {
     return _downloadManager.getDownloadedSongPath(songId);

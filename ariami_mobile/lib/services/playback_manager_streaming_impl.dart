@@ -1,10 +1,20 @@
 part of 'playback_manager.dart';
 
+/// Total time a streamed song may spend starting up (stream ticket + player
+/// load) when an on-device copy exists to fall back to. A network that looks
+/// connected but has no internet (Wi-Fi while walking out the door) hangs
+/// here long before the 30s heartbeat notices.
+const _streamStartStallTimeout = Duration(seconds: 8);
+
+/// Minimum slice of the stall budget any single startup step is given.
+const _minStreamStartGrace = Duration(seconds: 1);
+
 extension _PlaybackManagerStreamingImpl on PlaybackManager {
   Future<void> _playCurrentSongImpl({
     bool autoPlay = true,
     bool restartStatsTracking = true,
     bool isResume = false,
+    bool forceOfflineSource = false,
   }) async {
     print('[PlaybackManager] _playCurrentSong() called');
 
@@ -53,11 +63,19 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
 
     try {
       // Determine playback source (local file or stream)
-      final playbackSource = await _offlineService.getPlaybackSource(song.id);
-      print('[PlaybackManager] Playback source: $playbackSource');
+      final playbackSource = forceOfflineSource
+          ? await _offlineService.getOfflineFallbackSource(song.id)
+          : await _offlineService.getPlaybackSource(song.id);
+      print('[PlaybackManager] Playback source: $playbackSource'
+          '${forceOfflineSource ? ' (forced offline fallback)' : ''}');
 
       String audioUrl;
       Uri? artworkUri;
+
+      // Set while starting a stream for a song that also exists on disk:
+      // stream startup steps are capped by this deadline and fall back to the
+      // on-device copy instead of hanging on a dead network.
+      DateTime? offlineFallbackDeadline;
 
       switch (playbackSource) {
         case PlaybackSource.local:
@@ -116,8 +134,29 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
           // Get streaming quality based on current network (WiFi vs mobile data)
           final streamingQuality = _qualityService.getCurrentStreamingQuality();
 
+          if (await _offlineService.getOfflineFallbackSource(song.id) !=
+              PlaybackSource.unavailable) {
+            offlineFallbackDeadline =
+                DateTime.now().add(_streamStartStallTimeout);
+          }
+
           // Get stream URL (with retry-once logic for expired tokens)
-          audioUrl = await _getStreamUrlWithRetry(song, streamingQuality);
+          try {
+            audioUrl = await _capByOfflineFallbackDeadline(
+              _getStreamUrlWithRetry(song, streamingQuality),
+              offlineFallbackDeadline,
+            );
+          } catch (e) {
+            if (offlineFallbackDeadline == null) rethrow;
+            print('[PlaybackManager] Stream ticket stalled/failed ($e), '
+                'falling back to on-device copy');
+            await _fallBackToOfflineCopy(
+              autoPlay: autoPlay,
+              restartStatsTracking: restartStatsTracking,
+              isResume: isResume,
+            );
+            return;
+          }
           print(
               '[PlaybackManager] Streaming from server: $audioUrl (quality: ${streamingQuality.name})');
 
@@ -177,54 +216,82 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
       final shouldDeferGaplessPreparation =
           playbackSource == PlaybackSource.stream &&
               !_qualityService.allowsSpeculativeMediaDownloads;
+      // Preparing the next track may request a stream ticket; never let that
+      // stall the song the listener actually picked (it degrades to non-
+      // gapless when it can't resolve in time).
       final upcoming = shouldDeferGaplessPreparation
           ? null
-          : await _resolveNextGaplessItem(song);
+          : await _resolveNextGaplessItem(song).timeout(
+              _streamStartStallTimeout,
+              onTimeout: () => null,
+            );
       _deferredGaplessSongId =
           shouldDeferGaplessPreparation && _gaplessPlayback.isEnabled
               ? song.id
               : null;
-      if (_restoredPosition != null) {
-        // Load the song WITHOUT starting playback
-        await _audioPlayer.loadSong(
-          song,
-          audioUrl,
-          artworkUri: artworkUri,
-          upcoming: upcoming,
-        );
-
-        // Wait for the audio player to be fully ready before seeking
-        await Future.delayed(const Duration(milliseconds: 500));
-
-        // Seek to the restored position BEFORE starting playback
-        await _audioPlayer.seek(_restoredPosition!);
-
-        // Notify listeners so UI updates with the new position
-        _notifyStateChanged();
-
-        // NOW start playback from the seeked position
-        if (autoPlay) {
-          await _audioPlayer.resume();
-        }
-
-        _restoredPosition = null; // Clear so it doesn't affect next song
-      } else {
-        if (autoPlay) {
-          // No restored position - play normally from the beginning
-          await _audioPlayer.playSong(
-            song,
-            audioUrl,
-            artworkUri: artworkUri,
-            upcoming: upcoming,
+      try {
+        if (_restoredPosition != null) {
+          // Load the song WITHOUT starting playback
+          await _capByOfflineFallbackDeadline(
+            _audioPlayer.loadSong(
+              song,
+              audioUrl,
+              artworkUri: artworkUri,
+              upcoming: upcoming,
+            ),
+            offlineFallbackDeadline,
           );
+
+          // Wait for the audio player to be fully ready before seeking
+          await Future.delayed(const Duration(milliseconds: 500));
+
+          // Seek to the restored position BEFORE starting playback
+          await _audioPlayer.seek(_restoredPosition!);
+
+          // Notify listeners so UI updates with the new position
+          _notifyStateChanged();
+
+          // NOW start playback from the seeked position
+          if (autoPlay) {
+            await _audioPlayer.resume();
+          }
+
+          _restoredPosition = null; // Clear so it doesn't affect next song
         } else {
-          await _audioPlayer.loadSong(
-            song,
-            audioUrl,
-            artworkUri: artworkUri,
-            upcoming: upcoming,
-          );
+          if (autoPlay) {
+            // No restored position - play normally from the beginning
+            await _capByOfflineFallbackDeadline(
+              _audioPlayer.playSong(
+                song,
+                audioUrl,
+                artworkUri: artworkUri,
+                upcoming: upcoming,
+              ),
+              offlineFallbackDeadline,
+            );
+          } else {
+            await _capByOfflineFallbackDeadline(
+              _audioPlayer.loadSong(
+                song,
+                audioUrl,
+                artworkUri: artworkUri,
+                upcoming: upcoming,
+              ),
+              offlineFallbackDeadline,
+            );
+          }
         }
+      } on TimeoutException {
+        if (offlineFallbackDeadline == null) rethrow;
+        print('[PlaybackManager] Stream load stalled past '
+            '${_streamStartStallTimeout.inSeconds}s, '
+            'falling back to on-device copy');
+        await _fallBackToOfflineCopy(
+          autoPlay: autoPlay,
+          restartStatsTracking: restartStatsTracking,
+          isResume: isResume,
+        );
+        return;
       }
 
       // Track stats for this song playback
@@ -242,6 +309,36 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
       print('[PlaybackManager] Stack trace: $stackTrace');
       rethrow;
     }
+  }
+
+  /// Caps a stream-startup step by the shared stall deadline, or passes the
+  /// future through untouched when no on-device fallback exists.
+  Future<T> _capByOfflineFallbackDeadline<T>(
+    Future<T> future,
+    DateTime? deadline,
+  ) {
+    if (deadline == null) return future;
+    var remaining = deadline.difference(DateTime.now());
+    if (remaining < _minStreamStartGrace) remaining = _minStreamStartGrace;
+    return future.timeout(remaining);
+  }
+
+  /// Replays the current song from its downloaded/cached copy after stream
+  /// startup stalled, and probes the connection in the background so a truly
+  /// dead network flips the whole app into auto-offline mode promptly instead
+  /// of waiting for the periodic heartbeat.
+  Future<void> _fallBackToOfflineCopy({
+    required bool autoPlay,
+    required bool restartStatsTracking,
+    required bool isResume,
+  }) async {
+    unawaited(_connectionService.verifyConnectionNow());
+    await _playCurrentSongImpl(
+      autoPlay: autoPlay,
+      restartStatsTracking: restartStatsTracking,
+      isResume: isResume,
+      forceOfflineSource: true,
+    );
   }
 
   Future<Song> _resolveAlbumMetadata(Song song) async {

@@ -57,6 +57,7 @@ class ConnectionService {
   late final ConnectionPersistenceManager _persistenceManager;
   late final EndpointSwitchHandler _endpointSwitchHandler;
   Future<bool>? _restoreConnectionInFlight;
+  Future<bool>? _connectionProbeInFlight;
 
   // Legacy services still managed directly
   final WebSocketService _webSocketService = WebSocketService();
@@ -540,6 +541,45 @@ class ConnectionService {
     if (OfflinePlaybackService().isManualOfflineModeEnabled) return;
     if (_heartbeatManager.isRunning) return;
     _heartbeatManager.start();
+  }
+
+  /// Actively verify the server is reachable right now with a short-timeout
+  /// ping, instead of waiting for the periodic heartbeat to notice.
+  ///
+  /// Playback calls this when a stream stalls on a network the 30s heartbeat
+  /// still believes is healthy (e.g. Wi-Fi that just lost internet as the user
+  /// walks out the door). A failed probe runs the full connection-loss
+  /// transition, flipping the app into auto-offline mode with the reconnect
+  /// loop running. Returns true if the server responded in time. Concurrent
+  /// calls share one probe.
+  Future<bool> verifyConnectionNow({
+    Duration timeout = const Duration(seconds: 3),
+  }) {
+    final inFlight = _connectionProbeInFlight;
+    if (inFlight != null) return inFlight;
+
+    final probe = _verifyConnectionNowInternal(timeout).whenComplete(() {
+      _connectionProbeInFlight = null;
+    });
+    _connectionProbeInFlight = probe;
+    return probe;
+  }
+
+  Future<bool> _verifyConnectionNowInternal(Duration timeout) async {
+    if (!_stateManager.isConnected) return false;
+    if (OfflinePlaybackService().isManualOfflineModeEnabled) return false;
+    final apiClient = _lifecycleManager.apiClient;
+    if (apiClient == null) return false;
+
+    try {
+      final deviceId = await _deviceInfoManager.getDeviceId();
+      await apiClient.ping(deviceId: deviceId).timeout(timeout);
+      _heartbeatManager.resetFailureCount();
+      return true;
+    } catch (_) {
+      await _handleConnectionLoss();
+      return false;
+    }
   }
 
   // ============================================================================
