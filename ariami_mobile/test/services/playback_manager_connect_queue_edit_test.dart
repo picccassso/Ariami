@@ -114,6 +114,57 @@ void main() {
     manager.setConnectRemoteMirror(null);
   });
 
+  test('unchanged mirrored queue keeps its Song instances across broadcasts',
+      () {
+    final manager = PlaybackManager();
+    manager.setConnectRemoteMirror(_remote());
+    final before = manager.queue.songs;
+
+    // A position-tick broadcast: same queue and index, newer position.
+    manager.setConnectRemoteMirror(AriamiRemotePlayback(
+      snapshot: _snapshot().copyWith(positionMs: 2000),
+      deviceId: 'desktop',
+      deviceName: 'Ariami Desktop',
+      deviceType: 'desktop',
+    ));
+
+    final after = manager.queue.songs;
+    expect(after, hasLength(before.length));
+    for (var i = 0; i < after.length; i++) {
+      // Identity, not equality: queue rows are keyed by object identity, and
+      // fresh instances per broadcast would recreate every row's artwork.
+      expect(identical(before[i], after[i]), isTrue);
+    }
+
+    // A track advance keeps the songs but must move the queue's index.
+    manager.setConnectRemoteMirror(_remote(currentIndex: 1));
+    expect(manager.queue.currentIndex, 1);
+    expect(identical(manager.queue.songs.first, before.first), isTrue);
+
+    // A genuinely different queue rebuilds the mirrored songs.
+    manager.setConnectRemoteMirror(AriamiRemotePlayback(
+      snapshot: AriamiPlaybackSnapshot(
+        queue: [
+          {'id': 'song-a', 'title': 'A', 'artist': 'Artist'},
+          {'id': 'song-d', 'title': 'D', 'artist': 'Artist'},
+        ],
+        currentIndex: 0,
+        positionMs: 1000,
+        durationMs: 209000,
+        isPlaying: true,
+        shuffle: false,
+        repeatMode: 'off',
+        volume: 1,
+      ),
+      deviceId: 'desktop',
+      deviceName: 'Ariami Desktop',
+      deviceType: 'desktop',
+    ));
+    expect(manager.queue.songs.map((song) => song.id), ['song-a', 'song-d']);
+
+    manager.setConnectRemoteMirror(null);
+  });
+
   test('local clear keeps Now Playing and removes every other item', () async {
     final manager = PlaybackManager();
     manager.setConnectRemoteMirror(null);

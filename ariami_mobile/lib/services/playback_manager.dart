@@ -257,20 +257,41 @@ class PlaybackManager extends ChangeNotifier {
       _connectRemoteSongs = const <Song>[];
       _connectRemoteQueue = null;
     } else {
-      _connectRemoteSongs = remote.snapshot.queue
+      final incoming = remote.snapshot.queue
           .map(_songFromConnectJson)
           .whereType<Song>()
           .toList(growable: false);
-      _connectRemoteQueue = PlaybackQueue(
-        songs: List<Song>.from(_connectRemoteSongs),
-        currentIndex: _connectRemoteSongs.isEmpty
-            ? 0
-            : remote.snapshot.currentIndex
-                .clamp(0, _connectRemoteSongs.length - 1),
-      );
+      // Broadcasts arrive continuously while the remote device plays
+      // (position ticks), so an unchanged queue must keep its previous Song
+      // instances: queue rows are keyed by object identity, and fresh
+      // instances would recreate every row and re-load its artwork.
+      final sameSongs = _sameSongSequence(_connectRemoteSongs, incoming);
+      final songs = sameSongs ? _connectRemoteSongs : incoming;
+      final currentIndex = songs.isEmpty
+          ? 0
+          : remote.snapshot.currentIndex.clamp(0, songs.length - 1);
+      _connectRemoteSongs = songs;
+      if (!sameSongs ||
+          _connectRemoteQueue == null ||
+          _connectRemoteQueue!.currentIndex != currentIndex) {
+        _connectRemoteQueue = PlaybackQueue(
+          songs: List<Song>.from(songs),
+          currentIndex: currentIndex,
+        );
+      }
     }
     _syncConnectTicker();
     if (!unchanged) notifyListeners();
+  }
+
+  /// Whether both lists hold the same songs in the same order, so the
+  /// mirrored queue can keep its existing instances across a broadcast.
+  static bool _sameSongSequence(List<Song> previous, List<Song> incoming) {
+    if (previous.length != incoming.length) return false;
+    for (var i = 0; i < previous.length; i++) {
+      if (previous[i].id != incoming[i].id) return false;
+    }
+    return true;
   }
 
   /// Hides the mirror immediately when the user starts playback locally, ahead
