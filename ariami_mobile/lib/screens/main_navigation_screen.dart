@@ -273,7 +273,6 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
           hasPrevious: _playbackManager.hasPrevious,
           position: _playbackManager.position,
           duration: _playbackManager.duration ?? Duration.zero,
-          playbackManager: _playbackManager,
         ),
         const DownloadProgressBar(),
       ],

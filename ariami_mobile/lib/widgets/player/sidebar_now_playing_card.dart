@@ -3,11 +3,9 @@ import 'package:flutter/material.dart';
 import '../../models/song.dart';
 import '../../services/api/connection_service.dart';
 import '../../services/color_extraction_service.dart';
-import '../../services/playback_manager.dart';
 import '../../utils/constants.dart';
 import '../common/adaptive_marquee_text.dart';
 import '../common/cached_artwork.dart';
-import 'player_output_button.dart';
 
 /// Vertical now-playing card docked at the bottom of the navigation sidebar
 /// on wide (tablet) layouts: artwork on top, song info, progress, and
@@ -24,7 +22,6 @@ class SidebarNowPlayingCard extends StatefulWidget {
   final bool hasPrevious;
   final Duration position;
   final Duration duration;
-  final PlaybackManager playbackManager;
 
   const SidebarNowPlayingCard({
     super.key,
@@ -38,7 +35,6 @@ class SidebarNowPlayingCard extends StatefulWidget {
     required this.hasPrevious,
     required this.position,
     required this.duration,
-    required this.playbackManager,
   });
 
   @override
@@ -153,16 +149,11 @@ class _SidebarNowPlayingCardState extends State<SidebarNowPlayingCard> {
                       vertical: 2,
                     ),
                     child: Row(
+                      // The sidebar already has a standing output-device
+                      // entry above the card, so the card only carries the
+                      // transport controls, centered.
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
-                        PlayerOutputButton(
-                          playbackManager: widget.playbackManager,
-                          showDeviceName: false,
-                          connectedColor: Colors.white,
-                          disconnectedColor:
-                              Colors.white.withValues(alpha: 0.54),
-                          iconSize: 20,
-                        ),
-                        const Spacer(),
                         IconButton(
                           icon: const Icon(Icons.skip_previous_rounded),
                           color: Colors.white,
