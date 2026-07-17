@@ -244,6 +244,74 @@ void main() {
     expect(phone.isThisDeviceActive, isFalse);
   });
 
+  test('local play before welcome takes ownership without a stale overlay',
+      () async {
+    var desktopPlaying = true;
+    final desktop = AriamiConnectClient(
+      deviceId: 'startup-desktop',
+      deviceName: 'Desktop',
+      clientType: 'desktop',
+      snapshotProvider: () => AriamiPlaybackSnapshot(
+        queue: const [
+          {'id': 'desktop-song', 'title': 'Desktop song'},
+        ],
+        currentIndex: 0,
+        positionMs: 12000,
+        durationMs: 60000,
+        isPlaying: desktopPlaying,
+        shuffle: false,
+        repeatMode: 'off',
+        volume: 1,
+      ),
+      applySnapshot: (_) async {},
+      handleCommand: (command, _) async {
+        if (command == AriamiConnectCommand.pause) desktopPlaying = false;
+      },
+      pauseForTransfer: () async => desktopPlaying = false,
+    );
+    final phone = AriamiConnectClient(
+      deviceId: 'startup-phone',
+      deviceName: 'Phone',
+      clientType: 'mobile',
+      snapshotProvider: () => AriamiPlaybackSnapshot(
+        queue: const [
+          {'id': 'phone-song', 'title': 'Phone song'},
+        ],
+        currentIndex: 0,
+        positionMs: 0,
+        durationMs: 60000,
+        isPlaying: true,
+        shuffle: false,
+        repeatMode: 'off',
+        volume: 1,
+      ),
+      applySnapshot: (_) async {},
+      handleCommand: (_, __) async {},
+      pauseForTransfer: () async {},
+    );
+    clients
+      ..add(desktop)
+      ..add(phone);
+
+    final baseUrl = 'http://127.0.0.1:${server.port}';
+    await desktop.connect(baseUrl: baseUrl);
+    await waitFor(() => desktop.isConnected);
+    desktop.publishState(activate: true);
+    await waitFor(() => desktop.isThisDeviceActive);
+
+    // Models tapping the restored phone track before its Connect socket has
+    // opened and received the desktop's authoritative welcome snapshot.
+    phone.requestLocalTakeover();
+    expect(phone.hasPendingLocalTakeover, isTrue);
+    await phone.connect(baseUrl: baseUrl);
+
+    await waitFor(() =>
+        phone.isThisDeviceActive &&
+        desktop.remoteSnapshot?.currentTrackId == 'phone-song' &&
+        !desktopPlaying);
+    expect(phone.hasPendingLocalTakeover, isFalse);
+  });
+
   test('commands queued while disconnected flush once after welcome', () async {
     var pauseExecutions = 0;
     var tvPlaying = true;

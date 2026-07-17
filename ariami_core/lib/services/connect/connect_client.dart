@@ -64,6 +64,8 @@ class AriamiConnectClient {
   bool _closedByUser = false;
   bool _connecting = false;
   bool _isWelcomed = false;
+  bool _takeoverRequested = false;
+  bool _takeoverSentOnCurrentConnection = false;
   int _hubProtocolVersion = 1;
   int _lastRevision = -1;
   final LinkedHashMap<String, _PendingOutboundCommand> _pendingCommands =
@@ -85,6 +87,7 @@ class AriamiConnectClient {
   void _log(String message) => logger?.call('[$deviceId] $message');
 
   bool get isThisDeviceActive => activeDeviceId == deviceId;
+  bool get hasPendingLocalTakeover => _takeoverRequested;
   int get pendingCommandCount => _pendingCommands.length;
   AriamiConnectDevice? get activeDevice {
     for (final device in devices) {
@@ -188,8 +191,14 @@ class AriamiConnectClient {
           errorMessage = null;
           _readDevices(data);
           _readState(data);
-          // The first device with local playback seeds a new hub session.
-          if (activeDeviceId == null && snapshotProvider().queue.isNotEmpty) {
+          // A local play intent can happen while this socket is still opening.
+          // It must win over the stale remote snapshot carried by welcome,
+          // otherwise local audio keeps playing underneath a remote UI mirror.
+          if (_takeoverRequested) {
+            _flushTakeoverRequest();
+          } else if (activeDeviceId == null &&
+              snapshotProvider().queue.isNotEmpty) {
+            // The first device with local playback seeds a new hub session.
             publishState(activate: true);
           }
           _flushPendingCommands();
@@ -237,6 +246,7 @@ class AriamiConnectClient {
           .toList(growable: false);
     }
     activeDeviceId = data['activeDeviceId'] as String?;
+    _reconcileTakeoverRequest();
     onChanged?.call();
   }
 
@@ -248,6 +258,7 @@ class AriamiConnectClient {
     }
     _lastRevision = revision;
     activeDeviceId = data['activeDeviceId'] as String? ?? activeDeviceId;
+    _reconcileTakeoverRequest();
     final raw = data['snapshot'];
     if (raw is Map) {
       remoteSnapshot = AriamiPlaybackSnapshot.fromJson(
@@ -385,6 +396,49 @@ class AriamiConnectClient {
   }
 
   void publishState({bool activate = false}) {
+    if (activate) {
+      requestLocalTakeover();
+      return;
+    }
+    _publishState(activate: false);
+  }
+
+  /// Remembers a user-initiated local play until the hub confirms that this
+  /// device owns the session.
+  ///
+  /// Playback can start before the Connect socket receives its welcome. A
+  /// durable request prevents that welcome's older remote snapshot from
+  /// replacing the local UI while both devices continue making sound.
+  void requestLocalTakeover() {
+    _takeoverRequested = true;
+    _flushTakeoverRequest();
+  }
+
+  void _flushTakeoverRequest() {
+    if (!_takeoverRequested ||
+        _takeoverSentOnCurrentConnection ||
+        !isConnected ||
+        !_isWelcomed ||
+        isApplyingRemoteState) {
+      return;
+    }
+    _takeoverSentOnCurrentConnection = true;
+    _publishState(activate: true);
+  }
+
+  void _reconcileTakeoverRequest() {
+    // A welcome can say this device was already active before the queued
+    // request has published its newer local track. Only the hub response to a
+    // request sent on this connection confirms both ownership and snapshot.
+    if (_takeoverRequested &&
+        _takeoverSentOnCurrentConnection &&
+        activeDeviceId == deviceId) {
+      _takeoverRequested = false;
+      _takeoverSentOnCurrentConnection = false;
+    }
+  }
+
+  void _publishState({required bool activate}) {
     if (!isConnected || isApplyingRemoteState) return;
     final snapshot = snapshotProvider();
     _log('publish: activate $activate, track ${snapshot.currentTrackId}, '
@@ -474,6 +528,7 @@ class AriamiConnectClient {
     _welcomeTimer = null;
     _isWelcomed = false;
     _lastRevision = -1;
+    _takeoverSentOnCurrentConnection = false;
     isConnected = false;
 
     final subscription = _subscription;
@@ -591,6 +646,9 @@ class AriamiConnectClient {
     // discarded every state update after a server restart, freezing remote
     // mirrors while commands kept working.
     _lastRevision = -1;
+    // A takeover sent just before the drop may never have been acknowledged.
+    // Keep the intent, but allow the replacement socket to publish it again.
+    _takeoverSentOnCurrentConnection = false;
     if (wasConnected) _log('disconnected');
     if (wasConnected) onChanged?.call();
     if (_closedByUser) return;
@@ -608,6 +666,8 @@ class AriamiConnectClient {
       pending.retryTimer?.cancel();
     }
     _pendingCommands.clear();
+    _takeoverRequested = false;
+    _takeoverSentOnCurrentConnection = false;
     await _subscription?.cancel();
     await _channel?.sink.close(1000, 'Client closed');
     _channel = null;

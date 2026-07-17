@@ -24,6 +24,7 @@ class AriamiConnectController extends ChangeNotifier {
   bool _lastPlaying = false;
   String? _connectedBaseUrl;
   bool _started = false;
+  bool _pendingLocalTakeover = false;
   int _generation = 0;
 
   List<AriamiConnectDevice> get devices =>
@@ -39,6 +40,7 @@ class AriamiConnectController extends ChangeNotifier {
     _playback = playback;
     _lastTrackId = playback.localCurrentSong?.id;
     _lastPlaying = playback.localIsPlaying;
+    _pendingLocalTakeover = _lastPlaying && playback.localCurrentSong != null;
     if (!_started) {
       _started = true;
       _generation++;
@@ -83,6 +85,10 @@ class AriamiConnectController extends ChangeNotifier {
           unawaited(AccountStatsService().refreshSummary()),
     );
     _client = client;
+    if (_pendingLocalTakeover) {
+      _pendingLocalTakeover = false;
+      client.requestLocalTakeover();
+    }
     await client.connect(
       baseUrl: info.baseUrl,
       sessionToken: _connection.sessionToken,
@@ -97,7 +103,7 @@ class AriamiConnectController extends ChangeNotifier {
   void _onPlaybackChanged() {
     final playback = _playback;
     final client = _client;
-    if (playback == null || client == null || client.isApplyingRemoteState) {
+    if (playback == null || (client?.isApplyingRemoteState ?? false)) {
       return;
     }
     // While mirroring another device there is no local playback worth
@@ -108,16 +114,22 @@ class AriamiConnectController extends ChangeNotifier {
     // Starting music locally is a takeover; a mere track change while paused
     // (e.g. queueing into an empty queue) is not.
     final activate = (playing && trackId != null && trackId != _lastTrackId) ||
-        (playing && !_lastPlaying && !client.isThisDeviceActive);
+        (playing && !_lastPlaying && !(client?.isThisDeviceActive ?? false));
     _lastTrackId = trackId;
     _lastPlaying = playing;
+    if (trackId == null) _pendingLocalTakeover = false;
     if (activate) {
       // Publish takeovers immediately so the hub pauses the old device and
       // confirms this one as active before stale remote state can flash back.
       _publishTimer?.cancel();
-      client.publishState(activate: true);
+      if (client == null) {
+        _pendingLocalTakeover = true;
+      } else {
+        client.requestLocalTakeover();
+      }
       return;
     }
+    if (client == null) return;
     if (_publishTimer?.isActive ?? false) return;
     _publishTimer = Timer(const Duration(milliseconds: 500), () {
       client.publishState();
@@ -149,6 +161,7 @@ class AriamiConnectController extends ChangeNotifier {
     if (client == null ||
         !client.isConnected ||
         client.isThisDeviceActive ||
+        client.hasPendingLocalTakeover ||
         client.isApplyingRemoteState ||
         active == null ||
         snapshot == null) {
@@ -193,6 +206,7 @@ class AriamiConnectController extends ChangeNotifier {
     await client?.dispose();
     _connectedBaseUrl = null;
     _started = false;
+    _pendingLocalTakeover = false;
     notifyListeners();
   }
 }
