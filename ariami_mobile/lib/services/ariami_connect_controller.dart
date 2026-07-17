@@ -65,7 +65,8 @@ class AriamiConnectController extends ChangeNotifier {
     final deviceName = await _connection.getCurrentDeviceName();
     if (generation != _generation || _playback == null) return;
     if (kDebugMode) {
-      AriamiConnectClient.logger = (message) => debugPrint('[Connect] $message');
+      AriamiConnectClient.logger =
+          (message) => debugPrint('[Connect] $message');
     }
     final client = AriamiConnectClient(
       deviceId: deviceId,
@@ -169,6 +170,15 @@ class AriamiConnectController extends ChangeNotifier {
   void transferTo(String deviceId) => _client?.transferTo(deviceId);
   void sendCommand(String command, [Map<String, dynamic>? arguments]) =>
       _client?.sendCommand(command, arguments);
+
+  /// Reloads the authoritative Connect session after a foreground resume or
+  /// manual refresh. This also repairs sockets left half-open while the mobile
+  /// process was suspended in the background.
+  Future<void> refresh() async {
+    await _connectToCurrentEndpoint();
+    await _client?.refreshState();
+    notifyListeners();
+  }
 
   Future<void> stop() async {
     _generation++;

@@ -171,6 +171,79 @@ void main() {
         laptop.remoteSnapshot?.isPlaying == true);
   });
 
+  test('explicit refresh reloads authoritative playback without taking over',
+      () async {
+    var tvTrackId = 'song-a';
+    AriamiPlaybackSnapshot tvSnapshot() => AriamiPlaybackSnapshot(
+          queue: <Map<String, dynamic>>[
+            <String, dynamic>{'id': tvTrackId, 'title': tvTrackId},
+          ],
+          currentIndex: 0,
+          positionMs: 1000,
+          durationMs: 60000,
+          isPlaying: true,
+          shuffle: false,
+          repeatMode: 'off',
+          volume: 1,
+        );
+    final tv = AriamiConnectClient(
+      deviceId: 'refresh-tv',
+      deviceName: 'TV',
+      clientType: 'tv',
+      snapshotProvider: tvSnapshot,
+      applySnapshot: (_) async {},
+      handleCommand: (_, __) async {},
+      pauseForTransfer: () async {},
+    );
+    final phone = AriamiConnectClient(
+      deviceId: 'refresh-phone',
+      deviceName: 'Phone',
+      clientType: 'mobile',
+      snapshotProvider: () => AriamiPlaybackSnapshot.fromJson(const {}),
+      applySnapshot: (_) async {},
+      handleCommand: (_, __) async {},
+      pauseForTransfer: () async {},
+    );
+    clients
+      ..add(tv)
+      ..add(phone);
+
+    final baseUrl = 'http://127.0.0.1:${server.port}';
+    await tv.connect(baseUrl: baseUrl);
+    await phone.connect(baseUrl: baseUrl);
+    await waitFor(() => tv.isConnected && phone.isConnected);
+    tv.publishState(activate: true);
+    await waitFor(() =>
+        phone.activeDeviceId == 'refresh-tv' &&
+        phone.remoteSnapshot?.currentTrackId == 'song-a');
+
+    // Model a state push missed while the phone process was suspended. First
+    // let the hub advance to song-b, then restore the phone's last-seen song-a
+    // snapshot so only an authoritative refresh can repair it.
+    tvTrackId = 'song-b';
+    tv.publishState();
+    await waitFor(() => phone.remoteSnapshot?.currentTrackId == 'song-b');
+    phone.remoteSnapshot = AriamiPlaybackSnapshot(
+      queue: const <Map<String, dynamic>>[
+        <String, dynamic>{'id': 'song-a', 'title': 'song-a'},
+      ],
+      currentIndex: 0,
+      positionMs: 1000,
+      durationMs: 60000,
+      isPlaying: true,
+      shuffle: false,
+      repeatMode: 'off',
+      volume: 1,
+    );
+
+    await phone.refreshState();
+    await waitFor(() =>
+        phone.isConnected &&
+        phone.activeDeviceId == 'refresh-tv' &&
+        phone.remoteSnapshot?.currentTrackId == 'song-b');
+    expect(phone.isThisDeviceActive, isFalse);
+  });
+
   test('commands queued while disconnected flush once after welcome', () async {
     var pauseExecutions = 0;
     var tvPlaying = true;

@@ -231,6 +231,7 @@ class AriamiHttpServer {
   // each client IP may only hold a few unidentified sockets at once.
   static const int _maxPendingWebSocketsPerIp = 8;
   static const Duration _webSocketIdentifyTimeout = Duration(seconds: 20);
+  static const Duration _webSocketShutdownGrace = Duration(seconds: 2);
   final Map<WebSocketChannel, _PendingWebSocketState> _pendingWebSockets = {};
   final Map<String, int> _pendingWebSocketCountByIp = <String, int>{};
 

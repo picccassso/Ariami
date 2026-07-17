@@ -796,7 +796,10 @@ void main() {
       }
       expect(server.connectionManager.clientCount, sockets.length);
 
+      final shutdownTimer = Stopwatch()..start();
       await expectLater(server.stop(), completes);
+      shutdownTimer.stop();
+      expect(shutdownTimer.elapsed, lessThan(const Duration(seconds: 3)));
       expect(server.connectionManager.clientCount, 0);
     });
 

@@ -490,15 +490,36 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
     // Clear all connected clients since server is stopping
     _connectionManager.clearAll();
 
-    // Close all WebSocket connections
-    // Closing a socket synchronously triggers its onDone callback, which
-    // removes it from _webSocketClients. Iterate over a snapshot so shutdown
-    // cannot mutate the list currently being traversed.
-    for (final client in List<WebSocketChannel>.of(_webSocketClients)) {
+    // Ask every WebSocket to close at once. Awaiting these sequentially lets
+    // one unresponsive peer consume the platform socket timeout before the
+    // next close even starts; the desktop player and dashboard commonly own
+    // multiple local sockets, turning that into a 30-60 second app quit.
+    //
+    // Give peers a short graceful window, then continue teardown. A timed-out
+    // close has still sent its close frame, and the process/server teardown
+    // below releases the remaining transport resources.
+    final clients = List<WebSocketChannel>.of(_webSocketClients);
+    if (clients.isNotEmpty) {
+      final closeOperations = clients.map((client) async {
+        try {
+          await client.sink.close(
+            4000,
+            'Ariami server is stopping',
+          );
+        } catch (_) {
+          // The connection may already have disappeared during shutdown.
+        }
+      });
       try {
-        await client.sink.close();
-      } catch (e) {
-        // Ignore errors when closing
+        await Future.wait(closeOperations).timeout(
+          AriamiHttpServer._webSocketShutdownGrace,
+        );
+      } on TimeoutException {
+        print(
+          'WebSocket shutdown exceeded '
+          '${AriamiHttpServer._webSocketShutdownGrace.inSeconds}s; '
+          'continuing server teardown',
+        );
       }
     }
     _webSocketClients.clear();

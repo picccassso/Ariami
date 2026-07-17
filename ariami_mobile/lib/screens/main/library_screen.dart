@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../models/api_models.dart';
 import '../../models/song.dart';
+import '../../services/ariami_connect_controller.dart';
 import '../../services/offline/offline_manual_reconnect.dart';
 import '../../services/playback_manager.dart';
 import '../../services/quality/quality_settings_service.dart';
@@ -404,7 +405,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
   // Retry/Refresh (same reconnect + load path as pull-to-refresh and Settings)
 
   Future<void> _handleLibraryRefresh() async {
+    final connectRefresh = AriamiConnectController().refresh();
     final outcome = await _controller.refreshLibrary();
+    await connectRefresh;
     if (!mounted) return;
     if (outcome == LibraryRefreshOutcome.navigateToWelcomeScreen) {
       Navigator.pushNamedAndRemoveUntil(

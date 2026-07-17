@@ -57,6 +57,7 @@ class AriamiConnectClient {
   Timer? _reconnectTimer;
   Timer? _pingTimer;
   Timer? _welcomeTimer;
+  Future<void>? _refreshFuture;
   String? _baseUrl;
   String? _sessionToken;
   int _reconnectAttempt = 0;
@@ -112,6 +113,7 @@ class AriamiConnectClient {
     if (_connecting || isConnected || _closedByUser || _baseUrl == null) return;
     _connecting = true;
     _reconnectTimer?.cancel();
+    WebSocketChannel? openingChannel;
     try {
       final httpUri = Uri.parse(_baseUrl!);
       final wsUri = httpUri.replace(
@@ -121,11 +123,12 @@ class AriamiConnectClient {
         fragment: null,
       );
       final channel = WebSocketChannel.connect(wsUri);
+      openingChannel = channel;
       _channel = channel;
       _subscription = channel.stream.listen(
         _handleRawMessage,
-        onError: (_) => _handleDisconnect(),
-        onDone: _handleDisconnect,
+        onError: (_) => _handleDisconnect(channel),
+        onDone: () => _handleDisconnect(channel),
         cancelOnError: false,
       );
       await channel.ready.timeout(const Duration(seconds: 8));
@@ -165,7 +168,7 @@ class AriamiConnectClient {
       onChanged?.call();
     } catch (_) {
       errorMessage = 'Ariami Connect is reconnecting…';
-      _handleDisconnect();
+      _handleDisconnect(openingChannel);
     } finally {
       _connecting = false;
     }
@@ -181,8 +184,7 @@ class AriamiConnectClient {
         case AriamiConnectMessageType.welcome:
           _welcomeTimer?.cancel();
           _isWelcomed = true;
-          _hubProtocolVersion =
-              (data['protocolVersion'] as num?)?.toInt() ?? 1;
+          _hubProtocolVersion = (data['protocolVersion'] as num?)?.toInt() ?? 1;
           errorMessage = null;
           _readDevices(data);
           _readState(data);
@@ -437,6 +439,60 @@ class AriamiConnectClient {
     ));
   }
 
+  /// Reopens the dedicated socket so the next welcome rehydrates the
+  /// authoritative device list and playback snapshot.
+  ///
+  /// Mobile operating systems can suspend a backgrounded app without first
+  /// delivering a WebSocket close event. In that case [isConnected] remains
+  /// true even though state pushes are no longer arriving. A deliberate
+  /// reconnect is therefore more reliable than sending a refresh message on
+  /// the possibly stale socket.
+  Future<void> refreshState() {
+    final inFlight = _refreshFuture;
+    if (inFlight != null) return inFlight;
+    final refresh = _refreshState();
+    _refreshFuture = refresh;
+    return refresh.whenComplete(() {
+      if (identical(_refreshFuture, refresh)) {
+        _refreshFuture = null;
+      }
+    });
+  }
+
+  Future<void> _refreshState() async {
+    if (_closedByUser || _baseUrl == null) return;
+    if (_connecting) return;
+    if (!isConnected) {
+      await _open();
+      return;
+    }
+
+    _reconnectTimer?.cancel();
+    _pingTimer?.cancel();
+    _welcomeTimer?.cancel();
+    _pingTimer = null;
+    _welcomeTimer = null;
+    _isWelcomed = false;
+    _lastRevision = -1;
+    isConnected = false;
+
+    final subscription = _subscription;
+    final channel = _channel;
+    _subscription = null;
+    _channel = null;
+    await subscription?.cancel();
+    try {
+      await channel?.sink
+          .close(1000, 'Refreshing Connect state')
+          .timeout(const Duration(seconds: 1));
+    } catch (_) {
+      // A stale mobile socket may not acknowledge close. Opening its
+      // replacement is still safe because the server replaces duplicate
+      // connections for the same device id.
+    }
+    await _open();
+  }
+
   void _sendResult(
     String commandId, {
     required bool ok,
@@ -503,15 +559,19 @@ class AriamiConnectClient {
   }
 
   void _send(WsMessage message) {
-    if (_channel == null) return;
+    final channel = _channel;
+    if (channel == null) return;
     try {
-      _channel!.sink.add(jsonEncode(message.toJson()));
+      channel.sink.add(jsonEncode(message.toJson()));
     } catch (_) {
-      _handleDisconnect();
+      _handleDisconnect(channel);
     }
   }
 
-  void _handleDisconnect() {
+  void _handleDisconnect([WebSocketChannel? source]) {
+    // Ignore completion/error callbacks from a socket that has already been
+    // superseded by an explicit refresh or a newer reconnect.
+    if (source != null && !identical(_channel, source)) return;
     final wasConnected = isConnected;
     isConnected = false;
     _isWelcomed = false;
