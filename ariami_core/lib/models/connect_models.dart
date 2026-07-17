@@ -72,6 +72,10 @@ class AriamiConnectCommand {
   /// Arguments: `index` (int) and `track` (catalog-metadata map).
   static const insertQueueTrack = 'insert_queue_track';
 
+  /// Removes every queue entry except the currently playing track atomically.
+  /// This avoids index races from sending several remove commands at once.
+  static const clearQueue = 'clear_queue';
+
   static const supported = <String>{
     play,
     pause,
@@ -86,6 +90,7 @@ class AriamiConnectCommand {
     playContext,
     removeQueueIndex,
     insertQueueTrack,
+    clearQueue,
   };
 }
 

@@ -2,6 +2,13 @@ import 'package:ariami_core/models/connect_models.dart';
 import 'package:test/test.dart';
 
 void main() {
+  test('clear queue is a supported Connect command', () {
+    expect(
+      AriamiConnectCommand.supported,
+      contains(AriamiConnectCommand.clearQueue),
+    );
+  });
+
   group('repeatModeAfterExplicitTrackChange', () {
     test('widens repeat-one while preserving other repeat modes', () {
       expect(repeatModeAfterExplicitTrackChange('one'), 'all');

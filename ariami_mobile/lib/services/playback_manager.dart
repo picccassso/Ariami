@@ -450,10 +450,7 @@ class PlaybackManager extends ChangeNotifier {
     )));
   }
 
-  /// Clears every item except Now Playing from a mirrored queue.
-  ///
-  /// Later items are removed before earlier ones so every command keeps a
-  /// valid index while the current song continues uninterrupted.
+  /// Atomically clears every item except Now Playing on the active device.
   void _clearConnectQueue(AriamiRemotePlayback remote) {
     final snapshot = remote.snapshot;
     final queue = snapshot.queue;
@@ -461,19 +458,7 @@ class PlaybackManager extends ChangeNotifier {
     final currentIndex = snapshot.currentIndex;
     if (currentIndex < 0 || currentIndex >= queue.length) return;
 
-    void removeAt(int index) {
-      _sendConnect(AriamiConnectCommand.removeQueueIndex, <String, dynamic>{
-        'index': index,
-        'id': queue[index]['id'],
-      });
-    }
-
-    for (var index = queue.length - 1; index > currentIndex; index--) {
-      removeAt(index);
-    }
-    for (var index = currentIndex - 1; index >= 0; index--) {
-      removeAt(index);
-    }
+    _sendConnect(AriamiConnectCommand.clearQueue);
 
     setConnectRemoteMirror(remote.copyWithSnapshot(AriamiPlaybackSnapshot(
       queue: <Map<String, dynamic>>[queue[currentIndex]],
@@ -551,6 +536,8 @@ class PlaybackManager extends ChangeNotifier {
             );
           }
         }
+      case AriamiConnectCommand.clearQueue:
+        await _clearUpcomingImpl();
       case AriamiConnectCommand.playContext:
         final raw = arguments['snapshot'];
         if (raw is Map) {

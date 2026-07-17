@@ -30,6 +30,16 @@ AriamiRemotePlayback _remote({int currentIndex = 0}) => AriamiRemotePlayback(
       deviceType: 'desktop',
     );
 
+Song _song(String id) => Song(
+      id: id,
+      title: id,
+      artist: 'Artist',
+      duration: const Duration(minutes: 3),
+      filePath: '/music/$id.mp3',
+      fileSize: 1,
+      modifiedTime: DateTime(2026),
+    );
+
 void main() {
   installSqfliteTestMocks();
 
@@ -94,23 +104,28 @@ void main() {
 
     await manager.clearQueue();
 
-    expect(sent.map((command) => command.$1), [
-      AriamiConnectCommand.removeQueueIndex,
-      AriamiConnectCommand.removeQueueIndex,
-    ]);
-    expect(
-      sent.map((command) => command.$2?['index']),
-      [2, 0],
-    );
-    expect(
-      sent.map((command) => command.$2?['id']),
-      ['song-c', 'song-a'],
-    );
+    expect(sent, hasLength(1));
+    expect(sent.single.$1, AriamiConnectCommand.clearQueue);
+    expect(sent.single.$2, isNull);
     expect(manager.queue.songs.map((song) => song.id), ['song-b']);
     expect(manager.currentSong?.id, 'song-b');
     expect(manager.isPlaying, isTrue);
 
     manager.setConnectRemoteMirror(null);
+  });
+
+  test('local clear keeps Now Playing and removes every other item', () async {
+    final manager = PlaybackManager();
+    manager.setConnectRemoteMirror(null);
+    await manager.stopAndClearQueue();
+    manager.addAllToQueue([_song('song-a'), _song('song-b'), _song('song-c')]);
+
+    await manager.clearQueue();
+
+    expect(manager.queue.songs.map((song) => song.id), ['song-a']);
+    expect(manager.currentSong?.id, 'song-a');
+
+    await manager.stopAndClearQueue();
   });
 
   test('single repeated playback sends one song with repeat-all', () async {
