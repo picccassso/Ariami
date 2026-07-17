@@ -135,4 +135,43 @@ void main() {
     expect(find.text('Song b'), findsOneWidget);
     expect(find.text('UNDO'), findsNothing);
   });
+
+  testWidgets('clear queue keeps Now Playing and removes the clear action',
+      (tester) async {
+    final queue = PlaybackQueue(
+      songs: [makeSong('a'), makeSong('b'), makeSong('c')],
+      currentIndex: 1,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: QueueScreen(
+          queue: queue,
+          onClear: () {
+            final current = queue.currentSong!;
+            queue.setQueue([current]);
+          },
+        ),
+      ),
+    );
+
+    await tester.tap(find.byTooltip('Clear queue'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(
+      find.text(
+        'This will remove all upcoming songs. Your current song will keep playing.',
+      ),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.text('CLEAR'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(queue.songs.map((song) => song.id), ['b']);
+    expect(queue.currentSong?.id, 'b');
+    expect(find.text('Song b'), findsOneWidget);
+    expect(find.byTooltip('Clear queue'), findsNothing);
+  });
 }

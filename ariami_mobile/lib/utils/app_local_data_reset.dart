@@ -39,7 +39,7 @@ Future<void> clearAllLocalUserData({String? userId}) async {
   // server unlink is first so a partial local-cleanup failure can never leave
   // credentials or a saved endpoint behind.
   await clearStep(() => ConnectionService().disconnectAndForgetServer());
-  await clearStep(() => PlaybackManager().clearQueue());
+  await clearStep(() => PlaybackManager().stopAndClearQueue());
   await clearStep(() => DownloadManager().clearAllDownloads());
   await clearStep(() => CacheManager().clearAllCache());
   await clearStep(() async {

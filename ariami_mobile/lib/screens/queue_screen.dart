@@ -77,7 +77,7 @@ class _QueueScreenState extends State<QueueScreen> {
                 onPressed: () => Navigator.pop(context),
               ),
               actions: [
-                if (widget.queue.isNotEmpty && widget.onClear != null)
+                if (queueLength > 1 && widget.onClear != null)
                   IconButton(
                     icon:
                         Icon(LucideIcons.trash2, color: colorScheme.onSurface),
@@ -208,7 +208,7 @@ class _QueueScreenState extends State<QueueScreen> {
           ),
         ),
         content: Text(
-          'This will remove all songs from the queue and stop playback.',
+          'This will remove all upcoming songs. Your current song will keep playing.',
           style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w500,

@@ -619,6 +619,18 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
     await _saveState(); // Save state after repeat toggle
   }
 
+  Future<void> _clearUpcomingImpl() async {
+    final current = _queue.currentSong;
+    if (current == null) return;
+
+    _queue.setQueue(<Song>[current]);
+    _oneShotQueuedSongs.clear();
+    _lastWarmupKey = null;
+    unawaited(_refreshGaplessQueue());
+    _notifyStateChanged();
+    await _saveState();
+  }
+
   Future<void> _clearQueueImpl() async {
     // Stop tracking current song
     await _statsService.onSongStopped();

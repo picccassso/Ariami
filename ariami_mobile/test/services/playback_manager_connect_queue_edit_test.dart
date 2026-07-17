@@ -83,7 +83,7 @@ void main() {
     manager.setConnectRemoteMirror(null);
   });
 
-  test('mirrored clear removes the current song last and clears the UI',
+  test('mirrored clear keeps Now Playing and removes every other item',
       () async {
     final manager = PlaybackManager();
     final sent = <(String, Map<String, dynamic>?)>[];
@@ -97,19 +97,18 @@ void main() {
     expect(sent.map((command) => command.$1), [
       AriamiConnectCommand.removeQueueIndex,
       AriamiConnectCommand.removeQueueIndex,
-      AriamiConnectCommand.removeQueueIndex,
     ]);
     expect(
       sent.map((command) => command.$2?['index']),
-      [2, 0, 0],
+      [2, 0],
     );
     expect(
       sent.map((command) => command.$2?['id']),
-      ['song-c', 'song-a', 'song-b'],
+      ['song-c', 'song-a'],
     );
-    expect(manager.queue, isEmpty);
-    expect(manager.currentSong, isNull);
-    expect(manager.isPlaying, isFalse);
+    expect(manager.queue.songs.map((song) => song.id), ['song-b']);
+    expect(manager.currentSong?.id, 'song-b');
+    expect(manager.isPlaying, isTrue);
 
     manager.setConnectRemoteMirror(null);
   });

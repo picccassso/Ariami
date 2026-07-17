@@ -450,15 +450,16 @@ class PlaybackManager extends ChangeNotifier {
     )));
   }
 
-  /// Clears a mirrored queue on its owning device. Items after and before the
-  /// current song are removed first so playback is not switched to another
-  /// track while clearing; the current song is removed last, which stops the
-  /// active device when the queue becomes empty.
+  /// Clears every item except Now Playing from a mirrored queue.
+  ///
+  /// Later items are removed before earlier ones so every command keeps a
+  /// valid index while the current song continues uninterrupted.
   void _clearConnectQueue(AriamiRemotePlayback remote) {
     final snapshot = remote.snapshot;
     final queue = snapshot.queue;
     if (queue.isEmpty) return;
     final currentIndex = snapshot.currentIndex;
+    if (currentIndex < 0 || currentIndex >= queue.length) return;
 
     void removeAt(int index) {
       _sendConnect(AriamiConnectCommand.removeQueueIndex, <String, dynamic>{
@@ -467,30 +468,19 @@ class PlaybackManager extends ChangeNotifier {
       });
     }
 
-    if (currentIndex >= 0 && currentIndex < queue.length) {
-      for (var index = queue.length - 1; index > currentIndex; index--) {
-        removeAt(index);
-      }
-      for (var index = currentIndex - 1; index >= 0; index--) {
-        removeAt(index);
-      }
-      // Removing every earlier item shifts the current song to index zero.
-      _sendConnect(AriamiConnectCommand.removeQueueIndex, <String, dynamic>{
-        'index': 0,
-        'id': queue[currentIndex]['id'],
-      });
-    } else {
-      for (var index = queue.length - 1; index >= 0; index--) {
-        removeAt(index);
-      }
+    for (var index = queue.length - 1; index > currentIndex; index--) {
+      removeAt(index);
+    }
+    for (var index = currentIndex - 1; index >= 0; index--) {
+      removeAt(index);
     }
 
     setConnectRemoteMirror(remote.copyWithSnapshot(AriamiPlaybackSnapshot(
-      queue: const <Map<String, dynamic>>[],
+      queue: <Map<String, dynamic>>[queue[currentIndex]],
       currentIndex: 0,
-      positionMs: 0,
-      durationMs: 0,
-      isPlaying: false,
+      positionMs: remote.positionMs,
+      durationMs: snapshot.durationMs,
+      isPlaying: snapshot.isPlaying,
       shuffle: snapshot.shuffle,
       repeatMode: snapshot.repeatMode,
       volume: snapshot.volume,
@@ -1037,13 +1027,19 @@ class PlaybackManager extends ChangeNotifier {
     _toggleRepeatImpl();
   }
 
-  /// Clear the queue and stop playback.
+  /// Clears every queued item except the currently playing song.
   Future<void> clearQueue() async {
     final remote = _connectRemote;
     if (remote != null) {
       _clearConnectQueue(remote);
       return;
     }
+    await _clearUpcomingImpl();
+  }
+
+  /// Stops playback and removes the complete queue during a local-data reset.
+  Future<void> stopAndClearQueue() async {
+    if (_connectRemote != null) return;
     await _clearQueueImpl();
   }
 
