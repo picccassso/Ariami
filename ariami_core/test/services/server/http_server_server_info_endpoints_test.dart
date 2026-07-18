@@ -48,15 +48,15 @@ void main() {
     test('includes lanServer and tailscaleServer when both are set', () async {
       const tsIp = '100.64.10.20';
       const lan = '192.168.1.50';
-      final port = await _findFreePort();
 
       await server.start(
         advertisedIp: tsIp,
         tailscaleIp: tsIp,
         lanIp: lan,
         bindAddress: '127.0.0.1',
-        port: port,
+        port: 0,
       );
+      final port = server.getServerInfo()['port'] as int;
 
       final (status, body) = await _httpGet(
         Uri.parse('http://127.0.0.1:$port/api/server-info'),
@@ -93,15 +93,15 @@ void main() {
 
     test('LAN-only start exposes lanServer and null tailscaleServer', () async {
       const lan = '10.0.0.2';
-      final port = await _findFreePort();
 
       await server.start(
         advertisedIp: lan,
         tailscaleIp: null,
         lanIp: lan,
         bindAddress: '127.0.0.1',
-        port: port,
+        port: 0,
       );
+      final port = server.getServerInfo()['port'] as int;
 
       final (status, body) = await _httpGet(
         Uri.parse('http://127.0.0.1:$port/api/server-info'),
@@ -117,15 +117,15 @@ void main() {
     test('updateAdvertisedEndpoints updates /api/server-info', () async {
       const lan = '192.168.1.50';
       const tsIp = '100.64.10.20';
-      final port = await _findFreePort();
 
       await server.start(
         advertisedIp: lan,
         tailscaleIp: null,
         lanIp: lan,
         bindAddress: '127.0.0.1',
-        port: port,
+        port: 0,
       );
+      final port = server.getServerInfo()['port'] as int;
 
       final changed = server.updateAdvertisedEndpoints(
         tailscaleIp: tsIp,
@@ -146,14 +146,13 @@ void main() {
 
     test('updateAdvertisedEndpoints emits onEndpointsChanged', () async {
       const lan = '10.0.0.2';
-      final port = await _findFreePort();
 
       await server.start(
         advertisedIp: lan,
         tailscaleIp: null,
         lanIp: lan,
         bindAddress: '127.0.0.1',
-        port: port,
+        port: 0,
       );
 
       final events = <Map<String, dynamic>>[];
@@ -174,7 +173,6 @@ void main() {
     test('endpoint discovery callback updates stored endpoints', () async {
       const lan = '192.168.1.50';
       var tailscaleIp = '100.64.10.20';
-      final port = await _findFreePort();
 
       server.setEndpointDiscoveryCallback(() async {
         return NetworkEndpoints(
@@ -191,7 +189,7 @@ void main() {
         tailscaleIp: null,
         lanIp: lan,
         bindAddress: '127.0.0.1',
-        port: port,
+        port: 0,
       );
       await initialProbe;
 
@@ -210,7 +208,6 @@ void main() {
         () async {
       const initialLan = '192.168.1.50';
       var lan = initialLan;
-      final port = await _findFreePort();
 
       server.setEndpointDiscoveryCallback(() async {
         return NetworkEndpoints(lanIp: lan);
@@ -221,8 +218,9 @@ void main() {
         tailscaleIp: null,
         lanIp: initialLan,
         bindAddress: '127.0.0.1',
-        port: port,
+        port: 0,
       );
+      final port = server.getServerInfo()['port'] as int;
       final sessionToken = await _registerAndLogin(port);
 
       lan = '192.168.1.88';
@@ -240,13 +238,6 @@ void main() {
       expect(json['tailscaleServer'], isNull);
     });
   });
-}
-
-Future<int> _findFreePort() async {
-  final socket = await ServerSocket.bind('127.0.0.1', 0);
-  final port = socket.port;
-  await socket.close();
-  return port;
 }
 
 Future<(int status, String body)> _httpGet(Uri url) async {

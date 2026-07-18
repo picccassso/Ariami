@@ -351,7 +351,11 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
         bindAddress,
         port,
       );
-      print('Ariami Server started on http://$bindAddress:$port');
+      // Port 0 asks the operating system to choose an available ephemeral
+      // port. Store the actual bound port so server-info, discovery, and
+      // callers all observe the listening endpoint rather than 0.
+      _port = _server!.port;
+      print('Ariami Server started on http://$bindAddress:$_port');
       print('Advertised IP for QR code: $advertisedIp');
       if (_webAssetsPath != null) {
         print('Serving web UI from: $_webAssetsPath');
