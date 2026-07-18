@@ -6,7 +6,7 @@ void main() {
     test('detects newer patch, minor, and major versions', () {
       expect(UpdateCheckService.isNewerVersion('4.4.1', than: '4.4.0'), isTrue);
       expect(UpdateCheckService.isNewerVersion('4.5.0', than: '4.4.0'), isTrue);
-      expect(UpdateCheckService.isNewerVersion('5.0.0', than: '4.4.0'), isTrue);
+      expect(UpdateCheckService.isNewerVersion('9.0.0', than: '4.4.0'), isTrue);
     });
 
     test('rejects equal and older versions', () {

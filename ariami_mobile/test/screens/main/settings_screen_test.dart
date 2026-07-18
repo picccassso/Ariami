@@ -35,7 +35,7 @@ void main() {
     PackageInfo.setMockInitialValues(
       appName: 'Ariami',
       packageName: 'com.example.ariamiMobile',
-      version: '5.0.0',
+      version: '4.4.0',
       buildNumber: '8',
       buildSignature: '',
     );

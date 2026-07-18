@@ -67,14 +67,14 @@ void main() {
         port: 443,
         publicOrigin: 'https://review.ariami.xyz',
         name: 'Review',
-        version: '5.0.0',
+        version: '4.4.0',
       );
       final fetched = ServerInfo(
         server: '10.0.0.2',
         lanServer: '10.0.0.2',
         port: 8080,
         name: 'Review',
-        version: '5.0.0',
+        version: '4.4.0',
       );
 
       final result = manager.applyEndpointRefresh(current, fetched);

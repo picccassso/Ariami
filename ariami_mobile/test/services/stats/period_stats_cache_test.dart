@@ -62,7 +62,7 @@ void main() {
           tailscaleServer: '100.64.0.20',
           port: 8642,
           name: 'Bedroom Mac',
-          version: '5.0.0',
+          version: '4.4.0',
         );
 
     expect(
