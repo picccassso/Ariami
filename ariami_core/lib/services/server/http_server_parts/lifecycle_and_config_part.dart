@@ -54,6 +54,18 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
     _ensureEndpointMonitor();
   }
 
+  /// Remove the endpoint discovery callback and discard the monitor.
+  ///
+  /// The server is a singleton and stop() deliberately keeps the callback so
+  /// hosts can restart without re-registering; callers that need a clean
+  /// slate (tests, host teardown) clear it explicitly, otherwise the next
+  /// start() re-probes with the stale callback and overwrites endpoints.
+  void clearEndpointDiscoveryCallback() {
+    _endpointDiscoveryCallback = null;
+    _endpointMonitor?.stop();
+    _endpointMonitor = null;
+  }
+
   /// Stream of updated server-info payloads when advertised endpoints change.
   Stream<Map<String, dynamic>> get onEndpointsChanged =>
       _endpointsChangedController.stream;

@@ -15,6 +15,10 @@ void main() {
     setUp(() async {
       server = AriamiHttpServer();
       await server.stop();
+      // The server is a singleton: without this, a discovery callback
+      // registered by an earlier test re-probes on the next start() and
+      // overwrites this test's endpoints with stale values.
+      server.clearEndpointDiscoveryCallback();
       server.setPublicOrigin(null);
       server.libraryManager.clear();
 
