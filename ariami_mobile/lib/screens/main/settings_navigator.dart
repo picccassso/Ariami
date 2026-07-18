@@ -6,7 +6,7 @@ import '../settings/equalizer_screen.dart';
 import '../settings/import_export_screen.dart';
 import '../settings/quality_settings_screen.dart';
 import '../settings/recently_played_screen.dart';
-import '../settings/streaming_stats_screen.dart';
+import '../settings/stats/streaming_stats_screen.dart';
 import '../settings/profile_screen.dart';
 import '../settings/tv_license_screen.dart';
 import 'nested_tab_navigator.dart';

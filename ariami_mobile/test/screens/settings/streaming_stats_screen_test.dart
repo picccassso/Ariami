@@ -1,4 +1,4 @@
-import 'package:ariami_mobile/screens/settings/streaming_stats_screen.dart';
+import 'package:ariami_mobile/screens/settings/stats/streaming_stats_screen.dart';
 import 'package:ariami_mobile/models/song_stats.dart';
 import 'package:ariami_mobile/services/stats/streaming_stats_service.dart';
 import 'package:ariami_mobile/utils/shared_preferences_cache.dart';
