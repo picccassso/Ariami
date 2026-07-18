@@ -39,7 +39,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.44.0'
+          flutter-version: '3.44.6'
           cache: true
 
       - name: Setup Rust
@@ -174,11 +174,11 @@ jobs:
             zip
 
       # Flutter publishes no linux-arm64 SDK archives, so flutter-action
-      # cannot resolve 3.44.0 here; installing from git at the pinned tag
+      # cannot resolve 3.44.6 here; installing from git at the pinned tag
       # works because the Dart SDK does ship linux-arm64 binaries.
       - name: Setup Flutter (from git, no arm64 archives)
         run: |
-          git clone --depth 1 --branch 3.44.0 \
+          git clone --depth 1 --branch 3.44.6 \
             https://github.com/flutter/flutter.git "${RUNNER_TEMP}/flutter"
           echo "${RUNNER_TEMP}/flutter/bin" >> "${GITHUB_PATH}"
 
@@ -308,7 +308,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.44.0'
+          flutter-version: '3.44.6'
           cache: true
 
       - name: Setup Rust
@@ -434,7 +434,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.44.0'
+          flutter-version: '3.44.6'
           cache: true
 
       - name: Setup Rust
