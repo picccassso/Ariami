@@ -24,7 +24,12 @@ import 'package:ariami_core/services/library/playlist_decision_store.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 part 'library_manager/library_manager_api.part.dart';
+part 'library_manager/library_manager_cache.part.dart';
 part 'library_manager/library_manager_catalog.part.dart';
+part 'library_manager/library_manager_catalog_artwork.part.dart';
+part 'library_manager/library_manager_catalog_changes.part.dart';
+part 'library_manager/library_manager_catalog_duration_updates.part.dart';
+part 'library_manager/library_manager_catalog_records.part.dart';
 part 'library_manager/library_manager_duration.part.dart';
 part 'library_manager/library_manager_scanning.part.dart';
 
