@@ -15,6 +15,38 @@ import 'stats_status_views.dart';
 /// selector plus the global bottom chrome.
 const double _listBottomInset = 240;
 
+/// Lazily builds one stats tab list: the section title followed by one tile
+/// per entry. Only the visible tiles are ever constructed, which keeps
+/// uncapped lists scrolling smoothly.
+Widget _rankedListView({
+  required String title,
+  required int itemCount,
+  required Widget Function(BuildContext context, int index) itemBuilder,
+}) {
+  return ListView.builder(
+    padding: const EdgeInsets.only(bottom: _listBottomInset),
+    itemCount: itemCount + 1,
+    itemBuilder: (context, index) {
+      if (index == 0) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [_SectionTitle(title), const SizedBox(height: 8)],
+        );
+      }
+      return itemBuilder(context, index - 1);
+    },
+  );
+}
+
+/// A scrollable state view (loading/empty/error) under the section title, so
+/// pull-to-refresh keeps working when there are no tiles.
+Widget _statusListView(String title, Widget status) {
+  return ListView(
+    padding: const EdgeInsets.only(bottom: _listBottomInset),
+    children: [_SectionTitle(title), const SizedBox(height: 8), status],
+  );
+}
+
 /// The all-time tracks tab.
 class StatsTracksTab extends StatelessWidget {
   const StatsTracksTab({
@@ -28,42 +60,37 @@ class StatsTracksTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.only(bottom: _listBottomInset),
-      children: [
-        const _SectionTitle('TOP SONGS'),
-        const SizedBox(height: 8),
-        StreamBuilder<List<SongStats>>(
-          stream: statsService.topSongsStream,
-          builder: (context, snapshot) {
-            if (snapshot.hasError) {
-              return const StatsErrorState();
-            }
+    return StreamBuilder<List<SongStats>>(
+      stream: statsService.topSongsStream,
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return _statusListView('TOP SONGS', const StatsErrorState());
+        }
 
-            if (snapshot.connectionState == ConnectionState.waiting &&
-                !snapshot.hasData) {
-              return const StatsLoadingState();
-            }
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            !snapshot.hasData) {
+          return _statusListView('TOP SONGS', const StatsLoadingState());
+        }
 
-            if (!snapshot.hasData || snapshot.data!.isEmpty) {
-              return const StatsEmptyState(
-                  'No stats yet. Start listening to see your top songs!');
-            }
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return _statusListView(
+            'TOP SONGS',
+            const StatsEmptyState(
+                'No stats yet. Start listening to see your top songs!'),
+          );
+        }
 
-            final topSongs = snapshot.data!;
-            return ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: topSongs.length,
-              itemBuilder: (context, index) => TopSongTile(
-                stat: topSongs[index],
-                rank: index + 1,
-                artworkResolver: artworkResolver,
-              ),
-            );
-          },
-        ),
-      ],
+        final topSongs = snapshot.data!;
+        return _rankedListView(
+          title: 'TOP SONGS',
+          itemCount: topSongs.length,
+          itemBuilder: (context, index) => TopSongTile(
+            stat: topSongs[index],
+            rank: index + 1,
+            artworkResolver: artworkResolver,
+          ),
+        );
+      },
     );
   }
 }
@@ -89,57 +116,56 @@ class StatsArtistsTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final credited = creditedArtists;
-    return ListView(
-      padding: const EdgeInsets.only(bottom: _listBottomInset),
-      children: [
-        const _SectionTitle('TOP ARTISTS'),
-        const SizedBox(height: 8),
-        if (credited != null)
-          credited.isEmpty
-              ? const StatsEmptyState(
-                  'No stats yet. Start listening to see your top artists!')
-              : ListView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: credited.length,
-                  itemBuilder: (context, index) => TopArtistTile(
-                    stat: credited[index],
-                    rank: index + 1,
-                    artworkResolver: artworkResolver,
-                  ),
-                )
-        else
-          StreamBuilder<List<ArtistStats>>(
-            stream: statsService.topArtistsStream,
-            builder: (context, snapshot) {
-              if (snapshot.hasError) {
-                return const StatsErrorState();
-              }
+    if (credited != null) {
+      if (credited.isEmpty) {
+        return _statusListView(
+          'TOP ARTISTS',
+          const StatsEmptyState(
+              'No stats yet. Start listening to see your top artists!'),
+        );
+      }
+      return _rankedListView(
+        title: 'TOP ARTISTS',
+        itemCount: credited.length,
+        itemBuilder: (context, index) => TopArtistTile(
+          stat: credited[index],
+          rank: index + 1,
+          artworkResolver: artworkResolver,
+        ),
+      );
+    }
 
-              if (snapshot.connectionState == ConnectionState.waiting &&
-                  !snapshot.hasData) {
-                return const StatsLoadingState();
-              }
+    return StreamBuilder<List<ArtistStats>>(
+      stream: statsService.topArtistsStream,
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return _statusListView('TOP ARTISTS', const StatsErrorState());
+        }
 
-              if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                return const StatsEmptyState(
-                    'No stats yet. Start listening to see your top artists!');
-              }
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            !snapshot.hasData) {
+          return _statusListView('TOP ARTISTS', const StatsLoadingState());
+        }
 
-              final topArtists = snapshot.data!;
-              return ListView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: topArtists.length,
-                itemBuilder: (context, index) => TopArtistTile(
-                  stat: topArtists[index],
-                  rank: index + 1,
-                  artworkResolver: artworkResolver,
-                ),
-              );
-            },
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return _statusListView(
+            'TOP ARTISTS',
+            const StatsEmptyState(
+                'No stats yet. Start listening to see your top artists!'),
+          );
+        }
+
+        final topArtists = snapshot.data!;
+        return _rankedListView(
+          title: 'TOP ARTISTS',
+          itemCount: topArtists.length,
+          itemBuilder: (context, index) => TopArtistTile(
+            stat: topArtists[index],
+            rank: index + 1,
+            artworkResolver: artworkResolver,
           ),
-      ],
+        );
+      },
     );
   }
 }
@@ -159,49 +185,44 @@ class StatsAlbumsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.only(bottom: _listBottomInset),
-      children: [
-        const _SectionTitle('TOP ALBUMS'),
-        const SizedBox(height: 8),
-        StreamBuilder<List<AlbumStats>>(
-          stream: statsService.topAlbumsStream,
-          builder: (context, snapshot) {
-            if (snapshot.hasError) {
-              return const StatsErrorState();
-            }
+    return StreamBuilder<List<AlbumStats>>(
+      stream: statsService.topAlbumsStream,
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return _statusListView('TOP ALBUMS', const StatsErrorState());
+        }
 
-            if (snapshot.connectionState == ConnectionState.waiting &&
-                !snapshot.hasData) {
-              return const StatsLoadingState();
-            }
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            !snapshot.hasData) {
+          return _statusListView('TOP ALBUMS', const StatsLoadingState());
+        }
 
-            if (!snapshot.hasData || snapshot.data!.isEmpty) {
-              return const StatsEmptyState(
-                  'No stats yet. Start listening to see your top albums!');
-            }
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return _statusListView(
+            'TOP ALBUMS',
+            const StatsEmptyState(
+                'No stats yet. Start listening to see your top albums!'),
+          );
+        }
 
-            final topAlbums = snapshot.data!;
-            return ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: topAlbums.length,
-              itemBuilder: (context, index) => TopAlbumTile(
-                stat: topAlbums[index],
-                rank: index + 1,
-                artworkResolver: artworkResolver,
-                albumsById: albumsById,
-              ),
-            );
-          },
-        ),
-      ],
+        final topAlbums = snapshot.data!;
+        return _rankedListView(
+          title: 'TOP ALBUMS',
+          itemCount: topAlbums.length,
+          itemBuilder: (context, index) => TopAlbumTile(
+            stat: topAlbums[index],
+            rank: index + 1,
+            artworkResolver: artworkResolver,
+            albumsById: albumsById,
+          ),
+        );
+      },
     );
   }
 }
 
 /// One tab (0=tracks, 1=artists, 2=albums) for a server-derived period.
-class StatsPeriodTab extends StatelessWidget {
+class StatsPeriodTab extends StatefulWidget {
   const StatsPeriodTab({
     super.key,
     required this.tab,
@@ -220,59 +241,62 @@ class StatsPeriodTab extends StatelessWidget {
   final Map<String, AlbumModel> albumsById;
 
   @override
+  State<StatsPeriodTab> createState() => _StatsPeriodTabState();
+}
+
+class _StatsPeriodTabState extends State<StatsPeriodTab> {
+  /// Adapting rollups to display models — the credited-artist matching in
+  /// particular — is heavy on uncapped lists, so it runs once per fetched
+  /// period instead of on every rebuild.
+  ListeningPeriodStats? _adaptedFor;
+  List<SongStats> _songs = const <SongStats>[];
+  List<ArtistStats> _artists = const <ArtistStats>[];
+  List<AlbumStats> _albums = const <AlbumStats>[];
+
+  void _ensureAdapted(ListeningPeriodStats stats) {
+    if (identical(_adaptedFor, stats)) return;
+    _adaptedFor = stats;
+    switch (widget.tab) {
+      case 1:
+        _artists = artistStatsFromCredited(
+          stats.artists,
+          songStatsFromRollups(stats.songs),
+        );
+      case 2:
+        _albums = albumStatsFromRollups(stats.albums);
+      default:
+        _songs = songStatsFromRollups(stats.songs);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (loading && stats == null) {
+    if (widget.loading && widget.stats == null) {
       return const StatsLoadingState();
     }
-    if (unavailable) {
+    if (widget.unavailable) {
       return const StatsEmptyState(
         'Stats for this period need a connection to your server '
         '(and a server that supports period stats).',
         icon: Icons.cloud_off_rounded,
       );
     }
-    final periodStats = stats;
+    final periodStats = widget.stats;
     if (periodStats == null) return const StatsLoadingState();
+    _ensureAdapted(periodStats);
 
-    final title = switch (tab) {
+    final title = switch (widget.tab) {
       1 => 'TOP ARTISTS',
       2 => 'TOP ALBUMS',
       _ => 'TOP SONGS',
     };
-    final rows = switch (tab) {
-      1 => [
-          for (final (index, stat) in artistStatsFromCredited(
-            periodStats.artists,
-            songStatsFromRollups(periodStats.songs),
-          ).indexed)
-            TopArtistTile(
-              stat: stat,
-              rank: index + 1,
-              artworkResolver: artworkResolver,
-            ),
-        ],
-      2 => [
-          for (final (index, stat)
-              in albumStatsFromRollups(periodStats.albums).indexed)
-            TopAlbumTile(
-              stat: stat,
-              rank: index + 1,
-              artworkResolver: artworkResolver,
-              albumsById: albumsById,
-            ),
-        ],
-      _ => [
-          for (final (index, stat)
-              in songStatsFromRollups(periodStats.songs).indexed)
-            TopSongTile(
-              stat: stat,
-              rank: index + 1,
-              artworkResolver: artworkResolver,
-            ),
-        ],
+    final itemCount = switch (widget.tab) {
+      1 => _artists.length,
+      2 => _albums.length,
+      _ => _songs.length,
     };
 
-    if (rows.isEmpty) {
+    if (itemCount == 0) {
       return ListView(
         padding: const EdgeInsets.only(bottom: _listBottomInset),
         children: const [
@@ -282,13 +306,27 @@ class StatsPeriodTab extends StatelessWidget {
       );
     }
 
-    return ListView(
-      padding: const EdgeInsets.only(bottom: _listBottomInset),
-      children: [
-        _SectionTitle(title),
-        const SizedBox(height: 8),
-        ...rows,
-      ],
+    return _rankedListView(
+      title: title,
+      itemCount: itemCount,
+      itemBuilder: (context, index) => switch (widget.tab) {
+        1 => TopArtistTile(
+            stat: _artists[index],
+            rank: index + 1,
+            artworkResolver: widget.artworkResolver,
+          ),
+        2 => TopAlbumTile(
+            stat: _albums[index],
+            rank: index + 1,
+            artworkResolver: widget.artworkResolver,
+            albumsById: widget.albumsById,
+          ),
+        _ => TopSongTile(
+            stat: _songs[index],
+            rank: index + 1,
+            artworkResolver: widget.artworkResolver,
+          ),
+      },
     );
   }
 }

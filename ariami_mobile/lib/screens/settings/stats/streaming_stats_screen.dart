@@ -248,12 +248,21 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
       _loadingPeriod = true;
       _periodUnavailable = false;
     });
+    // Stale-while-revalidate: a previously viewed range renders from cache
+    // instantly while the fresh fetch replaces it below.
+    final cached = await _periodLoader.loadCached(range);
+    if (mounted &&
+        seq == _periodRequestSeq &&
+        range == _range &&
+        cached != null) {
+      setState(() => _periodStats = cached);
+    }
     final stats = await _periodLoader.load(range);
     if (!mounted || seq != _periodRequestSeq || range != _range) return;
     setState(() {
       _loadingPeriod = false;
-      _periodStats = stats;
-      _periodUnavailable = stats == null;
+      _periodStats = stats ?? cached;
+      _periodUnavailable = stats == null && cached == null;
     });
   }
 

@@ -96,6 +96,23 @@ class PeriodStatsLoader {
     }
   }
 
+  /// Reads the cached snapshot for [range] without touching the network, so
+  /// the screen can show a previously viewed range instantly while the fresh
+  /// fetch replaces it (stale-while-revalidate). Null with no valid cache.
+  Future<ListeningPeriodStats?> loadCached(
+    StatsRange range, {
+    DateTime? now,
+  }) async {
+    final bounds = range.bounds(now: now);
+    if (bounds == null) return null;
+    try {
+      final json = await readCached?.call(bounds.from, bounds.to);
+      return json == null ? null : _parse(json);
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Loads the all-time top credited artists; null when unavailable. The
   /// default limit 0 asks for every artist, retrying once at the old capped
   /// maximum for servers that reject the special value.
@@ -175,6 +192,16 @@ List<ArtistStats> artistStatsFromCredited(
   Iterable<SongStats> songs,
 ) {
   final songList = songs.toList();
+  // The scan is O(artists × songs); lower each song's combined artist string
+  // once here rather than once per artist, which dominated the cost on large
+  // uncapped lists.
+  final haystacks = List<String>.generate(
+    songList.length,
+    (i) =>
+        '${songList[i].songArtist ?? ''}\n${songList[i].albumArtist ?? ''}'
+            .toLowerCase(),
+    growable: false,
+  );
   final result = <ArtistStats>[];
   for (final rollup in artists) {
     if (rollup.playCount <= 0) continue;
@@ -183,10 +210,9 @@ List<ArtistStats> artistStatsFromCredited(
     String? artworkAlbumId;
     String? artworkSongId;
     var matchedSongs = 0;
-    for (final song in songList) {
-      final haystack =
-          '${song.songArtist ?? ''}\n${song.albumArtist ?? ''}'.toLowerCase();
-      if (!haystack.contains(needle)) continue;
+    for (var i = 0; i < songList.length; i++) {
+      if (!haystacks[i].contains(needle)) continue;
+      final song = songList[i];
       matchedSongs++;
       artworkAlbumId ??= song.albumId;
       if (song.albumId == null || song.albumId!.isEmpty) {
