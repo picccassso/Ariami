@@ -179,6 +179,9 @@ void main() {
         );
       });
 
+      // start() fires an immediate unawaited discovery probe; let it land
+      // before changing values, or its stale result overwrites the update.
+      final initialProbe = server.onEndpointsChanged.first;
       await server.start(
         advertisedIp: lan,
         tailscaleIp: null,
@@ -186,6 +189,7 @@ void main() {
         bindAddress: '127.0.0.1',
         port: port,
       );
+      await initialProbe;
 
       tailscaleIp = '100.64.10.99';
       server.updateAdvertisedEndpoints(
