@@ -442,20 +442,21 @@ class StreamingStatsService extends ChangeNotifier
     notifyListeners();
   }
 
-  /// Get top songs (default 20) from in-memory cache
-  List<SongStats> getTopSongs({int limit = 20}) {
+  /// Get top songs from in-memory cache; every song unless [limit] is given.
+  List<SongStats> getTopSongs({int? limit}) {
     final allStats = getAllStats();
     allStats.sort((a, b) => b.playCount.compareTo(a.playCount));
-    return allStats.take(limit).toList();
+    return limit == null ? allStats : allStats.take(limit).toList();
   }
 
-  /// Get top artists (default 20) aggregated from in-memory cache.
+  /// Get top artists aggregated from in-memory cache; every artist unless
+  /// [limit] is given.
   ///
   /// Artists are grouped by a normalized key (see [_normalizeArtistKey]) so the
   /// same artist coming from different sources — e.g. a standalone single and an
   /// album, which may store the name with different casing, whitespace or dash
   /// characters — collapses into a single entry instead of appearing twice.
-  List<ArtistStats> getTopArtists({int limit = 20}) {
+  List<ArtistStats> getTopArtists({int? limit}) {
     final allStats = getAllStats();
     final Map<String, ArtistStats> artistMap = {};
     // Tracks the best display name (highest contributing play count) per key so
@@ -508,7 +509,7 @@ class StreamingStatsService extends ChangeNotifier
 
     final artistList = artistMap.values.toList();
     artistList.sort((a, b) => b.totalTime.compareTo(a.totalTime));
-    return artistList.take(limit).toList();
+    return limit == null ? artistList : artistList.take(limit).toList();
   }
 
   /// Matches invisible characters that should never affect artist identity:
@@ -537,8 +538,9 @@ class StreamingStatsService extends ChangeNotifier
     return s;
   }
 
-  /// Get top albums (default 20) aggregated from in-memory cache
-  List<AlbumStats> getTopAlbums({int limit = 20}) {
+  /// Get top albums aggregated from in-memory cache; every album unless
+  /// [limit] is given.
+  List<AlbumStats> getTopAlbums({int? limit}) {
     final allStats = getAllStats();
     final Map<String, AlbumStats> albumMap = {};
 
@@ -577,7 +579,7 @@ class StreamingStatsService extends ChangeNotifier
 
     final albumList = albumMap.values.toList();
     albumList.sort((a, b) => b.totalTime.compareTo(a.totalTime));
-    return albumList.take(limit).toList();
+    return limit == null ? albumList : albumList.take(limit).toList();
   }
 
   /// Helper: Return the later of two dates

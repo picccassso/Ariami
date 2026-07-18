@@ -342,8 +342,10 @@ class ApiClient {
   }
 
   /// Fetch totals plus top songs / credited artists / albums for one local
-  /// day (`yyyy-mm-dd`). Requires a server with the stats derivation layer;
-  /// older servers respond 404 and callers must degrade gracefully.
+  /// day (`yyyy-mm-dd`). A [limit] of 0 requests every ranked entry
+  /// (older servers reject 0). Requires a server with the stats
+  /// derivation layer; older servers respond 404 and callers must degrade
+  /// gracefully.
   Future<Map<String, dynamic>> getListeningDay(
     String date, {
     int limit = 50,
@@ -370,7 +372,8 @@ class ApiClient {
   }
 
   /// Fetch top credited artists (multi-artist strings split server-side),
-  /// all-time when [days] is null.
+  /// all-time when [days] is null. A [limit] of 0 requests every artist
+  /// (older servers reject 0).
   Future<Map<String, dynamic>> getListeningArtists({
     int? days,
     int limit = 50,

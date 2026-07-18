@@ -424,6 +424,33 @@ void main() {
       final allTime = store.getTopArtists('user-a');
       expect(allTime, hasLength(2));
     });
+
+    test('a non-positive limit returns every ranked entry', () {
+      final noon = DateTime.utc(2026, 3, 10, 12).millisecondsSinceEpoch;
+      store.applyEvents('user-a', 'device-1', [
+        for (var i = 0; i < 5; i++)
+          event(
+            eventId: 'e$i',
+            plays: 1,
+            playId: 'p$i',
+            listenedMs: 1000 * (i + 1),
+            occurredAtMs: noon,
+            songId: 'song-$i',
+            artist: 'Artist $i',
+            album: 'Album $i',
+          ),
+      ]);
+
+      expect(store.getTopArtists('user-a', limit: 2), hasLength(2));
+      expect(store.getTopArtists('user-a', limit: 0), hasLength(5));
+      expect(store.getTopAlbums('user-a', limit: 0), hasLength(5));
+
+      final period = store.getPeriodStats('user-a',
+          fromDay: '2026-03-10', toDay: '2026-03-10', limit: 0);
+      expect(period.songs, hasLength(5));
+      expect(period.artists, hasLength(5));
+      expect(period.albums, hasLength(5));
+    });
   });
 
   group('album rollups', () {

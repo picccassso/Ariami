@@ -144,6 +144,7 @@ extension _ListeningStatsQueries on ListeningStatsStore {
 
     // Time-only events feed period totals, but a ranked entity must have
     // crossed the play threshold at least once in the range.
+    final sqlLimit = _statsSqlLimit(limit);
     ResultSet topRows(String dim) => db.select('''
           SELECT dim_key,
                  SUM(play_count) AS play_count,
@@ -156,7 +157,7 @@ extension _ListeningStatsQueries on ListeningStatsStore {
           HAVING SUM(play_count) > 0
           ORDER BY listened_ms DESC
           LIMIT ?
-        ''', [userId, dim, fromDay, toDay, limit]);
+        ''', [userId, dim, fromDay, toDay, sqlLimit]);
 
     final songs = topRows(ListeningStatsStore.dimSong)
         .map(
@@ -217,7 +218,7 @@ extension _ListeningStatsQueries on ListeningStatsStore {
         WHERE user_id = ?
         ORDER BY listened_ms DESC
         LIMIT ?
-      ''', [userId, limit]);
+      ''', [userId, _statsSqlLimit(limit)]);
       return rows
           .map(
             (row) => ListeningArtistRollup(
@@ -246,7 +247,7 @@ extension _ListeningStatsQueries on ListeningStatsStore {
       userId,
       ListeningStatsStore.dimArtist,
       _statsTrailingWindowStartDay(days),
-      limit,
+      _statsSqlLimit(limit),
     ]);
     return rows
         .map(
@@ -274,7 +275,7 @@ extension _ListeningStatsQueries on ListeningStatsStore {
         WHERE user_id = ?
         ORDER BY listened_ms DESC
         LIMIT ?
-      ''', [userId, limit]);
+      ''', [userId, _statsSqlLimit(limit)]);
       return rows
           .map(
             (row) => _statsAlbumRollup(
@@ -305,7 +306,7 @@ extension _ListeningStatsQueries on ListeningStatsStore {
       userId,
       ListeningStatsStore.dimAlbum,
       _statsTrailingWindowStartDay(days),
-      limit,
+      _statsSqlLimit(limit),
     ]);
     return rows
         .map(
@@ -365,6 +366,10 @@ ListeningAlbumRollup _statsAlbumRollup(
     lastPlayedMs: lastPlayedMs,
   );
 }
+
+/// A non-positive limit means "every row": SQLite treats `LIMIT -1` as
+/// unlimited (while `LIMIT 0` would return nothing).
+int _statsSqlLimit(int limit) => limit > 0 ? limit : -1;
 
 /// First local day of a trailing [days]-day window ending today (server UTC).
 String _statsTrailingWindowStartDay(int days) {

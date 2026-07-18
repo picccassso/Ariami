@@ -59,17 +59,26 @@ class PeriodStatsLoader {
   final PeriodStatsCacheWrite? writeCached;
 
   /// Loads stats for [range]; null for all-time ranges or on any failure.
+  /// The default limit 0 asks for every ranked entry; servers that predate
+  /// that special value get one retry at their old default cap.
   Future<ListeningPeriodStats?> load(
     StatsRange range, {
     DateTime? now,
-    int limit = 50,
+    int limit = 0,
   }) async {
     final bounds = range.bounds(now: now);
     if (bounds == null) return null;
+    Future<Map<String, dynamic>> fetch(int limit) => range.isSingleDay
+        ? fetchDay(bounds.from, limit)
+        : fetchPeriod(bounds.from, bounds.to, limit);
     try {
-      final json = range.isSingleDay
-          ? await fetchDay(bounds.from, limit)
-          : await fetchPeriod(bounds.from, bounds.to, limit);
+      Map<String, dynamic> json;
+      try {
+        json = await fetch(limit);
+      } catch (_) {
+        if (limit != 0) rethrow;
+        json = await fetch(50);
+      }
       final stats = _parse(json);
       try {
         await writeCached?.call(bounds.from, bounds.to, stats.toJson());
@@ -87,11 +96,19 @@ class PeriodStatsLoader {
     }
   }
 
-  /// Loads the all-time top credited artists; null when unavailable.
+  /// Loads the all-time top credited artists; null when unavailable. The
+  /// default limit 0 asks for every artist, retrying once at the old capped
+  /// maximum for servers that reject the special value.
   Future<List<ListeningArtistRollup>?> loadAllTimeArtists(
-      {int limit = 200}) async {
+      {int limit = 0}) async {
     try {
-      final json = await fetchArtists(limit);
+      Map<String, dynamic> json;
+      try {
+        json = await fetchArtists(limit);
+      } catch (_) {
+        if (limit != 0) rethrow;
+        json = await fetchArtists(200);
+      }
       return (json['artists'] as List<dynamic>? ?? const <dynamic>[])
           .whereType<Map<String, dynamic>>()
           .map(ListeningArtistRollup.fromJson)

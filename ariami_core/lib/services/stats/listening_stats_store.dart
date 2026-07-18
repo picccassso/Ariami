@@ -95,7 +95,7 @@ class ListeningStatsStore {
       _getRecentSongTotals(userId, days: days);
 
   /// Aggregated stats for an inclusive local-day range. Baseline imports never
-  /// appear here.
+  /// appear here. A non-positive [limit] returns every ranked entry.
   ListeningPeriodStats getPeriodStats(
     String userId, {
     required String fromDay,
@@ -111,6 +111,7 @@ class ListeningStatsStore {
 
   /// Top credited artists: all-time when [days] is null, otherwise a trailing
   /// window of that many local days (today inclusive) from the daily grain.
+  /// A non-positive [limit] returns every artist.
   List<ListeningArtistRollup> getTopArtists(
     String userId, {
     int? days,
@@ -120,6 +121,7 @@ class ListeningStatsStore {
 
   /// Top albums: all-time when [days] is null, otherwise a trailing window of
   /// that many local days (today inclusive) from the daily grain.
+  /// A non-positive [limit] returns every album.
   List<ListeningAlbumRollup> getTopAlbums(
     String userId, {
     int? days,

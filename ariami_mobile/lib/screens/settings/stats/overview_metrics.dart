@@ -59,13 +59,13 @@ List<OverviewMetric> computeOverviewMetrics({
         final credited = creditedArtists;
         final artistCount = credited != null
             ? credited.length
-            : statsService.getTopArtists(limit: 1000).length;
+            : statsService.getTopArtists().length;
         // With credited artists every collaborator receives the full
         // listened time, so summing per-artist time would double-count
         // collabs — the account total is the honest playtime figure.
         final totalTime = credited != null
             ? statsService.getTotalStats().totalTimeStreamed
-            : statsService.getTopArtists(limit: 1000).fold<Duration>(
+            : statsService.getTopArtists().fold<Duration>(
                   Duration.zero,
                   (sum, artist) => sum + artist.totalTime,
                 );
@@ -79,7 +79,7 @@ List<OverviewMetric> computeOverviewMetrics({
 
       case 2: // Albums
         final avgData = statsService.getAverageDailyTime();
-        final albums = statsService.getTopAlbums(limit: 1000);
+        final albums = statsService.getTopAlbums();
         final totalTime = albums.fold<Duration>(
           Duration.zero,
           (sum, album) => sum + album.totalTime,

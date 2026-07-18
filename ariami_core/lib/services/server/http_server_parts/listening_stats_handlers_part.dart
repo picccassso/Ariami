@@ -41,6 +41,21 @@ extension AriamiHttpServerListeningStatsMethods on AriamiHttpServer {
     return parsed;
   }
 
+  /// Parses the top-list `limit` parameter. Absent falls back to
+  /// [_defaultTopLimit] (old clients keep their capped behavior); `0` is the
+  /// explicit "no limit — return everything" request; other values must be
+  /// positive. Returns -1 when present but invalid.
+  int _parseTopLimit(Request request) {
+    final raw = request.url.queryParameters['limit'];
+    if (raw == null) return _defaultTopLimit;
+    final parsed = int.tryParse(raw);
+    if (parsed == null || parsed < 0 || parsed > _maxTopLimit) return -1;
+    return parsed;
+  }
+
+  Response _invalidTopLimit() => _invalidParam(
+      'limit must be an integer between 1 and $_maxTopLimit, or 0 for all');
+
   Response _invalidParam(String message) {
     return _jsonBadRequest({
       'error': {'code': 'INVALID_REQUEST', 'message': message},
@@ -258,12 +273,8 @@ extension AriamiHttpServerListeningStatsMethods on AriamiHttpServer {
     if (rawDate == null || date == null) {
       return _invalidParam('date must be a valid yyyy-mm-dd day');
     }
-    final limit = _parseBoundedInt(request, 'limit',
-        fallback: _defaultTopLimit, max: _maxTopLimit);
-    if (limit < 0) {
-      return _invalidParam(
-          'limit must be an integer between 1 and $_maxTopLimit');
-    }
+    final limit = _parseTopLimit(request);
+    if (limit < 0) return _invalidTopLimit();
 
     final stats = store.getPeriodStats(
       session.userId,
@@ -300,12 +311,8 @@ extension AriamiHttpServerListeningStatsMethods on AriamiHttpServer {
     if (to.difference(from).inDays > _maxPeriodDays) {
       return _invalidParam('period must not exceed $_maxPeriodDays days');
     }
-    final limit = _parseBoundedInt(request, 'limit',
-        fallback: _defaultTopLimit, max: _maxTopLimit);
-    if (limit < 0) {
-      return _invalidParam(
-          'limit must be an integer between 1 and $_maxTopLimit');
-    }
+    final limit = _parseTopLimit(request);
+    if (limit < 0) return _invalidTopLimit();
 
     final stats = store.getPeriodStats(
       session.userId,
@@ -335,12 +342,8 @@ extension AriamiHttpServerListeningStatsMethods on AriamiHttpServer {
       return _invalidParam(
           'days must be an integer between 1 and $_maxDailyDays');
     }
-    final limit = _parseBoundedInt(request, 'limit',
-        fallback: _defaultTopLimit, max: _maxTopLimit);
-    if (limit < 0) {
-      return _invalidParam(
-          'limit must be an integer between 1 and $_maxTopLimit');
-    }
+    final limit = _parseTopLimit(request);
+    if (limit < 0) return _invalidTopLimit();
 
     final artists = store.getTopArtists(
       session.userId,
@@ -368,12 +371,8 @@ extension AriamiHttpServerListeningStatsMethods on AriamiHttpServer {
       return _invalidParam(
           'days must be an integer between 1 and $_maxDailyDays');
     }
-    final limit = _parseBoundedInt(request, 'limit',
-        fallback: _defaultTopLimit, max: _maxTopLimit);
-    if (limit < 0) {
-      return _invalidParam(
-          'limit must be an integer between 1 and $_maxTopLimit');
-    }
+    final limit = _parseTopLimit(request);
+    if (limit < 0) return _invalidTopLimit();
 
     final albums = store.getTopAlbums(
       session.userId,
