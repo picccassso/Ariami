@@ -8,5 +8,6 @@ export 'fallback_header.dart';
 export 'playlist_action_buttons.dart';
 export 'playlist_header.dart';
 export 'playlist_info_section.dart';
+export 'playlist_offline_copy_banner.dart';
 export 'reorder_list_item.dart';
 export 'song_list_item.dart';
