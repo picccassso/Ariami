@@ -53,6 +53,9 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
+# Gradle caches
+**/.gradle/
+
 # Android signing
 **/*.keystore
 **/*.jks
