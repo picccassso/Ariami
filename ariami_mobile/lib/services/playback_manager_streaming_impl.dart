@@ -147,7 +147,22 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
               offlineFallbackDeadline,
             );
           } catch (e) {
-            if (offlineFallbackDeadline == null) rethrow;
+            if (offlineFallbackDeadline == null) {
+              // The server no longer has this song (stale playlist/queue id)
+              // and there is no on-device copy: it can never play, so skip
+              // past it instead of stalling here.
+              if (e is ApiException && e.isCode(ApiErrorCodes.songNotFound)) {
+                print('[PlaybackManager] Song not on server (${song.id}), '
+                    'auto-skipping unplayable entry');
+                await _skipUnplayableSong(
+                  song,
+                  autoPlay: autoPlay,
+                  restartStatsTracking: restartStatsTracking,
+                );
+                return;
+              }
+              rethrow;
+            }
             print('[PlaybackManager] Stream ticket stalled/failed ($e), '
                 'falling back to on-device copy');
             await _fallBackToOfflineCopy(
@@ -294,6 +309,8 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
         return;
       }
 
+      _unplayableSkipStreak = 0;
+
       // Track stats for this song playback
       if (restartStatsTracking) {
         print(
@@ -307,8 +324,80 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
     } catch (e, stackTrace) {
       print('[PlaybackManager] ERROR in _playCurrentSong: $e');
       print('[PlaybackManager] Stack trace: $stackTrace');
+      // Legacy mode and older servers issue stream URLs without checking the
+      // library, so a deleted song only fails here at player-load time. When
+      // the synced local library confirms the id no longer exists, skip it
+      // instead of halting the queue on an unplayable entry.
+      if (await _isSongGoneFromLibrary(song.id)) {
+        print('[PlaybackManager] Song ${song.id} confirmed gone from library, '
+            'auto-skipping unplayable entry');
+        await _skipUnplayableSong(
+          song,
+          autoPlay: autoPlay,
+          restartStatsTracking: restartStatsTracking,
+        );
+        return;
+      }
       rethrow;
     }
+  }
+
+  /// True only when the synced local library can positively confirm the song
+  /// id no longer exists. Stays false offline or before the first library
+  /// bootstrap, so genuine network errors keep their existing behavior.
+  Future<bool> _isSongGoneFromLibrary(String songId) async {
+    if (_offlineService.isOffline) return false;
+    try {
+      if (!await _libraryRepository.hasCompletedBootstrap()) return false;
+      return await _libraryRepository.getSongById(songId) == null;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Skips past a song that can never play (deleted from the server library),
+  /// notifying the UI which track was skipped. The streak cap stops the chain
+  /// once every remaining queue entry has been tried, so a queue made entirely
+  /// of stale ids halts instead of cycling forever under repeat-all.
+  Future<void> _skipUnplayableSong(
+    Song song, {
+    required bool autoPlay,
+    required bool restartStatsTracking,
+  }) async {
+    _unplayableSongController.add(song);
+    _unplayableSkipStreak++;
+
+    final exhaustedQueue = _unplayableSkipStreak >= _queue.length;
+    final int? nextIndex;
+    if (exhaustedQueue) {
+      nextIndex = null;
+    } else if (_queue.hasNext) {
+      nextIndex = _queue.currentIndex + 1;
+    } else if (_repeatMode == RepeatMode.all && _queue.length > 1) {
+      nextIndex = 0;
+    } else {
+      nextIndex = null;
+    }
+
+    if (nextIndex == null) {
+      print('[PlaybackManager] No playable song to skip to, stopping playback');
+      _unplayableSkipStreak = 0;
+      await _audioPlayer.stop();
+      _notifyStateChanged();
+      await _saveState();
+      return;
+    }
+
+    _queue.jumpToIndex(nextIndex);
+    _restoredPosition = null;
+    _pendingUiPosition = null;
+    _notifyStateChanged();
+    await _playCurrentSongImpl(
+      autoPlay: autoPlay,
+      restartStatsTracking: restartStatsTracking,
+    );
+    _notifyStateChanged();
+    await _saveState();
   }
 
   /// Caps a stream-startup step by the shared stall deadline, or passes the

@@ -245,6 +245,12 @@ void main() {
           forceReinitialize: true,
         );
 
+        // Stream tickets are only issued for songs that exist in the library,
+        // so the token-binding checks below need song-a/song-b to resolve.
+        final repository = server.libraryManager.createCatalogRepository();
+        expect(repository, isNotNull);
+        _seedCatalog(repository!);
+
         final port = await _findFreePort();
         await server.start(
           advertisedIp: '127.0.0.1',
@@ -285,6 +291,22 @@ void main() {
         expect(ticketResponse.statusCode, 200);
         final streamToken = ticketResponse.jsonBody['streamToken'] as String?;
         expect(streamToken, isNotNull);
+
+        // A stale/deleted song id must be rejected at ticket time so clients
+        // can recognise the code and auto-skip the unplayable queue entry.
+        // 410 rather than 404 because the Cascade would swallow a 404 body.
+        final missingTicketResponse = await _sendJsonRequest(
+          method: 'POST',
+          url: Uri.parse('http://127.0.0.1:$port/api/stream-ticket'),
+          headers: <String, String>{'Authorization': 'Bearer $sessionToken'},
+          jsonBody: <String, dynamic>{'songId': 'song-deleted'},
+        );
+        expect(missingTicketResponse.statusCode, HttpStatus.gone);
+        expect(
+          (missingTicketResponse.jsonBody['error']
+              as Map<String, dynamic>)['code'],
+          'SONG_NOT_FOUND',
+        );
 
         final streamMismatch = await _sendJsonRequest(
           method: 'GET',

@@ -36,6 +36,20 @@ extension AriamiHttpServerMediaTicketHandlersMethods on AriamiHttpServer {
         );
       }
 
+      // A ticket for a song that no longer exists would only fail later at
+      // /stream as an opaque player error clients cannot classify. Reject it
+      // here with SONG_NOT_FOUND so they can skip the entry instead of
+      // stalling playback on it. 410 rather than 404: the server's Cascade
+      // treats handler 404s as unmatched routes and replaces the JSON body.
+      if (_libraryManager.getSongFilePath(songId) == null) {
+        return _jsonResponse(HttpStatus.gone, {
+          'error': {
+            'code': ApiErrorCodes.songNotFound,
+            'message': 'Song ID not found in library: $songId',
+          },
+        });
+      }
+
       // Keep ticket issuing fast for bulk downloads by using only known/cached
       // duration values here (no on-demand file metadata extraction).
       final durationSeconds = _libraryManager.getKnownSongDuration(songId) ?? 0;

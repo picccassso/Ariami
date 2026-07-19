@@ -26,6 +26,8 @@ import 'services/stats/streaming_stats_service.dart';
 import 'services/stats/account_stats_service.dart';
 import 'services/quality/quality_settings_service.dart';
 import 'services/quality/network_monitor_service.dart';
+import 'services/playback_manager.dart';
+import 'models/song.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 
 import 'services/theme_service.dart';
@@ -144,6 +146,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   Widget? _initialScreen;
   StreamSubscription<void>? _sessionExpiredSubscription;
   StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
+  StreamSubscription<Song>? _unplayableSongSubscription;
   Timer? _networkDebounceTimer;
   Future<void>? _resumeReconnectFuture;
   bool _startupRecoveryPromptShown = false;
@@ -158,6 +161,30 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     _initializeAndDetermineScreen();
     _listenToSessionExpiry();
     _listenToNetworkChanges();
+    _listenToUnplayableSongs();
+  }
+
+  /// Surface auto-skipped queue entries (songs that no longer exist in the
+  /// server library) so the listener knows what was skipped and why.
+  void _listenToUnplayableSongs() {
+    _unplayableSongSubscription =
+        PlaybackManager().unplayableSongStream.listen((song) {
+      final context = _navigatorKey.currentContext;
+      if (context == null) return;
+
+      final hasRealTitle = song.title.isNotEmpty &&
+          song.title != 'Missing from library' &&
+          song.title != 'Unknown Song';
+      final label = hasRealTitle
+          ? '"${song.title}"'
+          : 'a song that is missing from the library';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Skipped $label — it is no longer on the server.'),
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    });
   }
 
   /// Initialize the bare minimum needed to choose a screen, show it, then warm
@@ -226,6 +253,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _sessionExpiredSubscription?.cancel();
     _connectivitySubscription?.cancel();
+    _unplayableSongSubscription?.cancel();
     _networkDebounceTimer?.cancel();
     super.dispose();
   }

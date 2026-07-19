@@ -101,6 +101,18 @@ class PlaybackManager extends ChangeNotifier {
   bool _isHandlingGaplessTransition = false;
   String? _deferredGaplessSongId;
 
+  // Consecutive auto-skips over songs that no longer exist in the server
+  // library. Reset whenever a song actually starts; caps the skip chain so a
+  // queue made entirely of stale ids stops instead of cycling forever.
+  int _unplayableSkipStreak = 0;
+  final StreamController<Song> _unplayableSongController =
+      StreamController<Song>.broadcast();
+
+  /// Songs that were auto-skipped because they no longer exist in the server
+  /// library (stale playlist ids). The app shell listens and surfaces a
+  /// snackbar naming the track.
+  Stream<Song> get unplayableSongStream => _unplayableSongController.stream;
+
   // Getters
   //
   // Chromecast and the Ariami Connect mirror both overlay the local engine:
@@ -577,6 +589,7 @@ class PlaybackManager extends ChangeNotifier {
     _volumeSubscription?.cancel();
     _networkTypeSubscription?.cancel();
     _bufferedPositionSubscription?.cancel();
+    _unplayableSongController.close();
     FlutterVolumeController.removeListener();
     super.dispose();
   }

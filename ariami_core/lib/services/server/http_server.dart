@@ -31,6 +31,7 @@ import 'package:ariami_core/services/auth/auth_service.dart';
 import 'package:ariami_core/services/auth/user_store.dart'
     show UserExistsException;
 import 'package:ariami_core/models/auth_models.dart';
+import 'package:ariami_core/models/api_models.dart' show ApiErrorCodes;
 import 'package:ariami_core/models/download_job_models.dart';
 import 'package:ariami_core/models/user_activity_row.dart';
 import 'package:ariami_core/services/discovery/discovery_responder.dart';
