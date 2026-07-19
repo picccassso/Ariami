@@ -143,6 +143,102 @@ extension _PlaylistServiceMetadataImpl on PlaylistService {
     return changedCount;
   }
 
+  /// Ids in [playlist] that resolve nowhere: not in the library and not
+  /// downloaded. Downloaded copies stay playable even when the server no
+  /// longer has the song, so they are never treated as removable.
+  List<String> _unavailableSongIds(
+    PlaylistModel playlist,
+    Set<String> libraryIds,
+    Set<String> downloadedSongIds,
+  ) {
+    return playlist.songIds
+        .where((id) =>
+            !libraryIds.contains(id) && !downloadedSongIds.contains(id))
+        .toList(growable: false);
+  }
+
+  Future<UnavailableSongCleanupReport> _previewUnavailableSongCleanupImpl({
+    required List<SongModel> librarySongs,
+    required Set<String> downloadedSongIds,
+  }) async {
+    if (!_isLoaded) await loadPlaylists();
+    if (librarySongs.isEmpty) {
+      return const UnavailableSongCleanupReport(playlistCount: 0, songCount: 0);
+    }
+
+    // Heal what can heal first: entries whose id churned but whose metadata
+    // still matches a library song must not be counted as unavailable.
+    await _remapPlaylistSongIdsImpl(librarySongs);
+
+    final libraryIds = {for (final song in librarySongs) song.id};
+    var playlistCount = 0;
+    var songCount = 0;
+    for (final playlist in _playlists) {
+      final removable =
+          _unavailableSongIds(playlist, libraryIds, downloadedSongIds);
+      if (removable.isEmpty) continue;
+      playlistCount++;
+      songCount += removable.length;
+    }
+    return UnavailableSongCleanupReport(
+      playlistCount: playlistCount,
+      songCount: songCount,
+    );
+  }
+
+  Future<UnavailableSongCleanupReport> _removeUnavailableSongsImpl({
+    required List<SongModel> librarySongs,
+    required Set<String> downloadedSongIds,
+  }) async {
+    if (!_isLoaded) await loadPlaylists();
+    if (librarySongs.isEmpty) {
+      return const UnavailableSongCleanupReport(playlistCount: 0, songCount: 0);
+    }
+
+    await _remapPlaylistSongIdsImpl(librarySongs);
+
+    final libraryIds = {for (final song in librarySongs) song.id};
+    final changedPlaylistIds = <String>[];
+    var songCount = 0;
+
+    for (var index = 0; index < _playlists.length; index++) {
+      final playlist = _playlists[index];
+      final removable =
+          _unavailableSongIds(playlist, libraryIds, downloadedSongIds)
+              .toSet();
+      if (removable.isEmpty) continue;
+
+      final updatedSongIds = playlist.songIds
+          .where((id) => !removable.contains(id))
+          .toList(growable: false);
+      _playlists[index] = playlist.copyWith(
+        songIds: updatedSongIds,
+        modifiedAt: DateTime.now(),
+      );
+      changedPlaylistIds.add(playlist.id);
+      songCount += removable.length;
+    }
+
+    if (changedPlaylistIds.isEmpty) {
+      return const UnavailableSongCleanupReport(playlistCount: 0, songCount: 0);
+    }
+
+    await _savePlaylists();
+    _notifyListeners();
+    for (final playlistId in changedPlaylistIds) {
+      unawaited(_pushImportedPlaylistEditImpl(playlistId));
+    }
+    print(
+      '[PlaylistService] Removed $songCount unavailable songs from '
+      '${changedPlaylistIds.length} playlists',
+    );
+
+    return UnavailableSongCleanupReport(
+      playlistCount: changedPlaylistIds.length,
+      songCount: songCount,
+    );
+  }
+
   Future<int> _rehydrateSongMetadataFromLibrary(
     List<SongModel> librarySongs, {
     bool updateTitles = true,

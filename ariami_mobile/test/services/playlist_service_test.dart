@@ -701,4 +701,129 @@ void main() {
       );
     });
   });
+
+  group('PlaylistService unavailable-song cleanup', () {
+    late PlaylistService playlistService;
+
+    final librarySongs = <SongModel>[
+      SongModel(
+        id: 'song-live',
+        title: 'Live Song',
+        artist: 'Artist',
+        albumId: 'album-1',
+        duration: 200,
+        trackNumber: 1,
+      ),
+    ];
+
+    setUpAll(() async {
+      await initPrivateSqfliteFfi('ariami_playlist_cleanup_');
+    });
+
+    setUp(() async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      playlistService = PlaylistService();
+      await playlistService.clearAllPlaylistData();
+    });
+
+    tearDown(() async {
+      final dbPath = p.join(await getDatabasesPath(), 'library_sync.db');
+      await deleteDatabase(dbPath);
+    });
+
+    Future<String> seedPlaylist() async {
+      final playlist = await playlistService.createPlaylist(name: 'Mixed');
+      await playlistService.addSongToPlaylist(
+        playlistId: playlist.id,
+        songId: 'song-live',
+        title: 'Live Song',
+        artist: 'Artist',
+        duration: 200,
+      );
+      await playlistService.addSongToPlaylist(
+        playlistId: playlist.id,
+        songId: 'song-ghost',
+        title: 'Missing from library',
+      );
+      await playlistService.addSongToPlaylist(
+        playlistId: playlist.id,
+        songId: 'song-downloaded',
+        title: 'Downloaded Song',
+        artist: 'Artist',
+        duration: 100,
+      );
+      return playlist.id;
+    }
+
+    test('preview counts ghosts but spares downloaded and library songs',
+        () async {
+      final playlistId = await seedPlaylist();
+
+      final preview = await playlistService.previewUnavailableSongCleanup(
+        librarySongs: librarySongs,
+        downloadedSongIds: {'song-downloaded'},
+      );
+
+      expect(preview.playlistCount, 1);
+      expect(preview.songCount, 1);
+      // Preview must not mutate.
+      expect(playlistService.getPlaylist(playlistId)!.songIds,
+          ['song-live', 'song-ghost', 'song-downloaded']);
+    });
+
+    test('remove drops only the ghost entries and persists', () async {
+      final playlistId = await seedPlaylist();
+
+      final result = await playlistService.removeUnavailableSongs(
+        librarySongs: librarySongs,
+        downloadedSongIds: {'song-downloaded'},
+      );
+
+      expect(result.playlistCount, 1);
+      expect(result.songCount, 1);
+      expect(playlistService.getPlaylist(playlistId)!.songIds,
+          ['song-live', 'song-downloaded']);
+
+      final prefs = await SharedPreferences.getInstance();
+      final stored =
+          jsonDecode(prefs.getString('ariami_playlists')!) as List<dynamic>;
+      final storedIds =
+          (stored.single as Map<String, dynamic>)['songIds'] as List<dynamic>;
+      expect(storedIds, ['song-live', 'song-downloaded']);
+    });
+
+    test('empty library yields zero counts and never deletes', () async {
+      final playlistId = await seedPlaylist();
+
+      final result = await playlistService.removeUnavailableSongs(
+        librarySongs: const <SongModel>[],
+        downloadedSongIds: const <String>{},
+      );
+
+      expect(result.isEmpty, isTrue);
+      expect(playlistService.getPlaylist(playlistId)!.songIds, hasLength(3));
+    });
+
+    test('id-churned entries heal via remap instead of being removed',
+        () async {
+      final playlist = await playlistService.createPlaylist(name: 'Churned');
+      // Stale id, but metadata matches a library song exactly — the remap
+      // pass must rescue it before the sweep counts it.
+      await playlistService.addSongToPlaylist(
+        playlistId: playlist.id,
+        songId: 'old-id-after-move',
+        title: 'Live Song',
+        artist: 'Artist',
+        duration: 200,
+      );
+
+      final result = await playlistService.removeUnavailableSongs(
+        librarySongs: librarySongs,
+        downloadedSongIds: const <String>{},
+      );
+
+      expect(result.isEmpty, isTrue);
+      expect(playlistService.getPlaylist(playlist.id)!.songIds, ['song-live']);
+    });
+  });
 }

@@ -440,4 +440,43 @@ class PlaylistService extends ChangeNotifier {
   /// MD5-based song IDs. Returns the number of playlists modified.
   Future<int> remapPlaylistSongIds(List<SongModel> librarySongs) =>
       _remapPlaylistSongIdsImpl(librarySongs);
+
+  /// Counts playlist entries that can never resolve — ids absent from
+  /// [librarySongs] and not in [downloadedSongIds] — without mutating
+  /// anything. Runs the id-remap pass first so entries that can heal by
+  /// metadata match are not counted. Returns zero counts when the library
+  /// list is empty (an unsynced library must never look like mass deletion).
+  Future<UnavailableSongCleanupReport> previewUnavailableSongCleanup({
+    required List<SongModel> librarySongs,
+    required Set<String> downloadedSongIds,
+  }) =>
+      _previewUnavailableSongCleanupImpl(
+        librarySongs: librarySongs,
+        downloadedSongIds: downloadedSongIds,
+      );
+
+  /// Removes the entries [previewUnavailableSongCleanup] counts from every
+  /// local playlist (including Liked Songs and imported copies; imported
+  /// playlists push the edit to the server). Returns what was removed.
+  Future<UnavailableSongCleanupReport> removeUnavailableSongs({
+    required List<SongModel> librarySongs,
+    required Set<String> downloadedSongIds,
+  }) =>
+      _removeUnavailableSongsImpl(
+        librarySongs: librarySongs,
+        downloadedSongIds: downloadedSongIds,
+      );
+}
+
+/// Result of an unavailable-song cleanup pass (preview or removal).
+class UnavailableSongCleanupReport {
+  final int playlistCount;
+  final int songCount;
+
+  const UnavailableSongCleanupReport({
+    required this.playlistCount,
+    required this.songCount,
+  });
+
+  bool get isEmpty => songCount == 0;
 }

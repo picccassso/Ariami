@@ -4,11 +4,15 @@ import 'package:ariami_core/models/connect_models.dart';
 import 'package:flutter/material.dart';
 import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import '../../models/download_task.dart';
 import '../../services/api/connection_service.dart';
 import '../../services/ariami_connect_controller.dart';
 import '../../services/audio/gapless_playback_service.dart';
+import '../../services/download/download_manager.dart';
+import '../../services/library/library_repository.dart';
 import '../../services/offline/offline_manual_reconnect.dart';
 import '../../services/offline/offline_playback_service.dart';
+import '../../services/playlist_service.dart';
 import '../../services/profile_image_service.dart';
 import '../../widgets/settings/settings_section.dart';
 import '../../widgets/settings/settings_tile.dart';
@@ -83,6 +87,94 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _version = 'Unknown';
       });
     }
+  }
+
+  void _showCleanupMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  /// Removes ghost entries — playlist songs that no longer exist on the
+  /// server and aren't downloaded — from every local playlist, after a
+  /// preview + confirmation. Requires a synced online library so a stale or
+  /// empty snapshot can never masquerade as mass deletion.
+  Future<void> _cleanUpUnavailableSongs() async {
+    if (_offlineService.isOffline) {
+      _showCleanupMessage(
+        'Connect to your server first — cleanup needs a fresh library.',
+      );
+      return;
+    }
+
+    final libraryRepository = LibraryRepository();
+    if (!await libraryRepository.hasCompletedBootstrap()) {
+      _showCleanupMessage('Library has not finished syncing yet.');
+      return;
+    }
+    final librarySongs = await libraryRepository.getSongs();
+    if (librarySongs.isEmpty) {
+      _showCleanupMessage('Library has not finished syncing yet.');
+      return;
+    }
+
+    final downloadedSongIds = <String>{
+      for (final task in DownloadManager().queue)
+        if (task.status == DownloadStatus.completed) task.songId,
+    };
+
+    final playlistService = PlaylistService();
+    final preview = await playlistService.previewUnavailableSongCleanup(
+      librarySongs: librarySongs,
+      downloadedSongIds: downloadedSongIds,
+    );
+    if (!mounted) return;
+
+    if (preview.isEmpty) {
+      _showCleanupMessage('No unavailable songs found — playlists are clean.');
+      return;
+    }
+
+    final songLabel = preview.songCount == 1 ? 'song' : 'songs';
+    final playlistLabel = preview.playlistCount == 1 ? 'playlist' : 'playlists';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Clean Up Playlists?'),
+        content: Text(
+          'Remove ${preview.songCount} unavailable $songLabel from '
+          '${preview.playlistCount} $playlistLabel?\n\n'
+          'These entries no longer exist on the server and cannot play. '
+          'Imported playlists will sync the change back to the server.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    final result = await playlistService.removeUnavailableSongs(
+      librarySongs: librarySongs,
+      downloadedSongIds: downloadedSongIds,
+    );
+    final removedSongLabel = result.songCount == 1 ? 'song' : 'songs';
+    final removedPlaylistLabel =
+        result.playlistCount == 1 ? 'playlist' : 'playlists';
+    _showCleanupMessage(
+      result.isEmpty
+          ? 'Nothing left to remove — playlists are clean.'
+          : 'Removed ${result.songCount} $removedSongLabel from '
+              '${result.playlistCount} $removedPlaylistLabel.',
+    );
   }
 
   /// Renames this phone in Ariami Connect; the server persists the name and
@@ -387,6 +479,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     onTap: () {
                       Navigator.of(context).pushNamed('/import-export');
                     },
+                  ),
+                  SettingsTile(
+                    icon: Icons.playlist_remove_rounded,
+                    title: 'Clean Up Playlists',
+                    subtitle: 'Remove songs that are no longer on the server',
+                    onTap: _cleanUpUnavailableSongs,
                   ),
                 ],
               ),
