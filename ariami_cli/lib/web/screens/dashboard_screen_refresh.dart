@@ -66,12 +66,25 @@ extension _DashboardRefresh on _DashboardScreenState {
           });
         }
 
-        await _loadConnectedClients(showLoading: false);
-        await _loadUserActivity(showLoading: false);
-        await _loadRegisteredUsers(showLoading: false);
-        await _loadTranscodeSlots(showLoading: false);
-        await _loadUserPicker();
-        await _loadPlaylistSuggestions();
+        // Owner-gated panels: resolve the signed-in user's role once per
+        // refresh and skip the admin requests entirely for non-admin
+        // accounts — they can only ever answer 403.
+        final isAdmin = await _authService.isCurrentUserAdmin();
+        if (!mounted) return;
+        _setDashboardState(() {
+          _isAdmin = isAdmin;
+        });
+
+        if (isAdmin) {
+          await _loadConnectedClients(showLoading: false);
+          await _loadUserActivity(showLoading: false);
+          await _loadRegisteredUsers(showLoading: false);
+          await _loadTranscodeSlots(showLoading: false);
+          await _loadUserPicker();
+          await _loadPlaylistSuggestions();
+        } else {
+          _applyOwnerRequiredPanelState();
+        }
       }
     } catch (e) {
       debugPrint('Error loading server stats: $e');
@@ -83,23 +96,49 @@ extension _DashboardRefresh on _DashboardScreenState {
     }
   }
 
+  /// Marks every owner-gated panel with its "owner privileges required"
+  /// state (the tabs render their sign-in-as-owner CTA from these flags)
+  /// without issuing the requests a non-admin session can never pass.
+  void _applyOwnerRequiredPanelState() {
+    if (!mounted) return;
+    _setDashboardState(() {
+      _connectedClientRows = const <ConnectedClientRow>[];
+      _connectedClientsOwnerForbidden = true;
+      _connectedClientsError = _ownerClientsMessage;
+      _isLoadingConnectedClients = false;
+      _userActivityRows = const <UserActivityRow>[];
+      _userActivityOwnerForbidden = true;
+      _userActivityError = _ownerActivityMessage;
+      _isLoadingUserActivity = false;
+      _serverUserRows = const <ServerUserRow>[];
+      _serverUsersOwnerForbidden = true;
+      _serverUsersError = _ownerUsersMessage;
+      _isLoadingServerUsers = false;
+      _transcodeSlotsSnapshot = null;
+      _transcodeSlotsError = null;
+      _isLoadingTranscodeSlots = false;
+      _userPickerEnabled = null;
+      _playlistSuggestions = const <PlaylistSuggestion>[];
+    });
+  }
+
+  /// Runs after [_loadServerStats] has resolved [_isAdmin]; non-admin
+  /// sessions never reach the request.
   Future<void> _loadTranscodeSlots({required bool showLoading}) async {
-    final isAdmin = await _authService.isCurrentUserAdmin();
     if (!mounted) return;
 
     _setDashboardState(() {
-      _isAdmin = isAdmin;
       if (showLoading) {
         _isLoadingTranscodeSlots = true;
       }
-      if (!isAdmin) {
+      if (!_isAdmin) {
         _transcodeSlotsSnapshot = null;
         _transcodeSlotsError = null;
         _isLoadingTranscodeSlots = false;
       }
     });
 
-    if (!isAdmin) {
+    if (!_isAdmin) {
       return;
     }
 
@@ -133,7 +172,7 @@ extension _DashboardRefresh on _DashboardScreenState {
   }
 
   /// Loads the sign-in account-picker setting. Runs after
-  /// [_loadTranscodeSlots], which resolves [_isAdmin].
+  /// [_loadServerStats] has resolved [_isAdmin].
   Future<void> _loadUserPicker() async {
     if (!_isAdmin) {
       if (mounted && _userPickerEnabled != null) {

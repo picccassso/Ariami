@@ -40,6 +40,9 @@ extension _DashboardAuth on _DashboardScreenState {
         _connectedClients = count;
       });
     }
+    // The detailed rows are owner-gated; a non-admin session keeps the
+    // pushed count but must not chase requests that can only answer 403.
+    if (!_isAdmin) return;
     unawaited(_loadConnectedClients(showLoading: false));
     unawaited(_loadUserActivity(showLoading: false));
     unawaited(_loadRegisteredUsers(showLoading: false));

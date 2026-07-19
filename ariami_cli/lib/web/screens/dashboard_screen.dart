@@ -120,6 +120,8 @@ class _DashboardScreenState extends State<DashboardScreen>
       _loadServerStats();
     });
     _userActivityRefreshTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      // Owner-gated endpoint: a non-admin session can only ever answer 403.
+      if (!_isAdmin) return;
       unawaited(_loadUserActivity(showLoading: false));
     });
 

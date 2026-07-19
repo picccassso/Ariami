@@ -59,5 +59,71 @@ void main() {
       expect(await service.getSessionToken(), equals('token-123'));
       expect(await service.hasSessionToken(), isTrue);
     });
+
+    // The dashboard gates every owner-only panel and its polling on this
+    // check, so a wrong answer either spams 403s or hides working panels.
+    group('isCurrentUserAdmin', () {
+      WebAuthService serviceWithMeResponse(http.Response response) {
+        SharedPreferences.setMockInitialValues(<String, Object>{
+          'cli_web_session_token': 'token-123',
+        });
+        return WebAuthService(
+          httpClient: MockClient((request) async {
+            if (request.url.path == '/api/me') {
+              return response;
+            }
+            return http.Response('{}', 404);
+          }),
+        );
+      }
+
+      test('true for the admin account', () async {
+        final service = serviceWithMeResponse(http.Response(
+          jsonEncode(<String, dynamic>{
+            'userId': 'u-1',
+            'username': 'admin',
+            'isAdmin': true,
+          }),
+          200,
+        ));
+        expect(await service.isCurrentUserAdmin(), isTrue);
+      });
+
+      test('false for a regular account', () async {
+        final service = serviceWithMeResponse(http.Response(
+          jsonEncode(<String, dynamic>{
+            'userId': 'u-2',
+            'username': 'alex',
+            'isAdmin': false,
+          }),
+          200,
+        ));
+        expect(await service.isCurrentUserAdmin(), isFalse);
+      });
+
+      test('false when /api/me fails', () async {
+        final service = serviceWithMeResponse(http.Response(
+          jsonEncode(<String, dynamic>{
+            'error': <String, dynamic>{
+              'code': 'AUTH_REQUIRED',
+              'message': 'Authentication required',
+            },
+          }),
+          401,
+        ));
+        expect(await service.isCurrentUserAdmin(), isFalse);
+      });
+
+      test('false when an older server omits isAdmin', () async {
+        final service = serviceWithMeResponse(http.Response(
+          jsonEncode(<String, dynamic>{
+            'userId': 'u-1',
+            'username': 'admin',
+          }),
+          200,
+        ));
+        expect(await service.isCurrentUserAdmin(), isFalse);
+      });
+    });
   });
 }
