@@ -248,6 +248,10 @@ class LibraryController extends ChangeNotifier {
       _handleSyncTokenAdvanced(latestToken);
 
   @visibleForTesting
+  Future<void> refreshDownloadedLibraryForTest(List<DownloadTask> tasks) =>
+      _refreshDownloadedLibraryState(tasks);
+
+  @visibleForTesting
   set queuedSongIdsForTest(Set<String>? ids) => _queuedSongIdsForTest = ids;
 
   @visibleForTesting

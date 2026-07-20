@@ -9,8 +9,22 @@ extension _LibraryControllerLocalState on LibraryController {
     _downloadStateRefreshTimer?.cancel();
     _downloadStateRefreshTimer = Timer(
       const Duration(milliseconds: 150),
-      _loadDownloadedSongs,
+      () => unawaited(_refreshDownloadedLibraryState()),
     );
+  }
+
+  Future<void> _refreshDownloadedLibraryState([
+    List<DownloadTask>? queueSnapshot,
+  ]) async {
+    await _loadDownloadedSongs(queueSnapshot);
+    if (!_offlineService.isOfflineModeEnabled) return;
+
+    // A failed mobile-data reconnect can temporarily scope the download queue
+    // to an unreachable endpoint. When ConnectionService settles the scope and
+    // re-broadcasts the real queue, rebuild the offline catalog as well as its
+    // badges; otherwise playlists recover but albums/songs stay empty.
+    _buildLibraryFromDownloads(queueSnapshot);
+    await _loadDownloadedSongs(queueSnapshot);
   }
 
   void _scheduleCachedSongsRefresh() {
@@ -123,8 +137,8 @@ extension _LibraryControllerLocalState on LibraryController {
     _updateState(_state.copyWith(cachedSongIds: allCachedIds));
   }
 
-  void _buildLibraryFromDownloads() {
-    final queue = _downloadManager.queue;
+  void _buildLibraryFromDownloads([List<DownloadTask>? queueSnapshot]) {
+    final queue = queueSnapshot ?? _downloadManager.queue;
     final completedTasks =
         queue.where((task) => task.status == DownloadStatus.completed).toList();
 

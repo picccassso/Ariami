@@ -597,7 +597,7 @@ class ConnectionService {
     final response = await apiClient.connect(ConnectRequest(
       deviceId: deviceId,
       deviceName: deviceName,
-      appVersion: '5.0 Preview',
+      appVersion: '4.4.0',
       platform: Platform.isAndroid ? 'android' : 'ios',
     ));
 
@@ -768,6 +768,7 @@ class ConnectionService {
       _stateManager.setConnected(false);
 
       await OfflinePlaybackService().notifyConnectionLost();
+      DownloadManager().refreshScopedQueueBroadcast();
       _stateManager.setConnected(false);
     }
   }
@@ -788,6 +789,7 @@ class ConnectionService {
     _stateManager.setConnected(false);
 
     await OfflinePlaybackService().notifyConnectionLost();
+    DownloadManager().refreshScopedQueueBroadcast();
     _stateManager.setConnected(false);
   }
 
@@ -834,7 +836,7 @@ class ConnectionService {
       final response = await apiClient.connect(ConnectRequest(
         deviceId: deviceId,
         deviceName: deviceName,
-        appVersion: '5.0 Preview',
+        appVersion: '4.4.0',
         platform: Platform.isAndroid ? 'android' : 'ios',
       ));
 

@@ -1,4 +1,5 @@
 import 'package:ariami_mobile/models/api_models.dart';
+import 'package:ariami_mobile/models/download_task.dart';
 import 'package:ariami_mobile/screens/main/library/library_controller.dart';
 import 'package:ariami_mobile/screens/main/library/library_state.dart';
 import 'package:ariami_mobile/utils/shared_preferences_cache.dart';
@@ -62,6 +63,39 @@ void main() {
 
       expect(controller.lastHandledSyncTokenForTest, equals(0));
     });
+  });
+
+  test('settled download queue rebuilds albums and songs while offline',
+      () async {
+    final controller = LibraryController();
+    await controller.offlineService.setManualOfflineMode(true);
+    addTearDown(
+      () => controller.offlineService.setManualOfflineMode(false),
+    );
+    controller.setStateForTest(const LibraryState(isLoading: false));
+
+    await controller.refreshDownloadedLibraryForTest([
+      _completedDownload(
+        songId: 'album-song',
+        title: 'Album Song',
+        albumId: 'album-1',
+      ),
+      _completedDownload(
+        songId: 'standalone-song',
+        title: 'Standalone Song',
+      ),
+    ]);
+
+    expect(controller.state.albums.map((album) => album.id), ['album-1']);
+    expect(
+      controller.state.offlineSongs.map((song) => song.id),
+      ['standalone-song'],
+    );
+    expect(
+      controller.state.downloadedSongIds,
+      {'album-song', 'standalone-song'},
+    );
+    expect(controller.state.albumsWithDownloads, {'album-1'});
   });
 
   group('Batch download summary', () {
@@ -221,4 +255,25 @@ void main() {
       expect(controller.totalSelectedCount, 1);
     });
   });
+}
+
+DownloadTask _completedDownload({
+  required String songId,
+  required String title,
+  String? albumId,
+}) {
+  return DownloadTask(
+    id: 'song_$songId',
+    songId: songId,
+    title: title,
+    artist: 'Artist',
+    albumId: albumId,
+    albumName: albumId == null ? null : 'Album',
+    albumArtist: albumId == null ? null : 'Album Artist',
+    albumArt: '',
+    downloadUrl: '',
+    status: DownloadStatus.completed,
+    bytesDownloaded: 100,
+    totalBytes: 100,
+  );
 }

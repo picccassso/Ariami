@@ -450,18 +450,26 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     // it's fast - unlike the network reconnect, which we defer to the
     // background so the UI is never gated on a socket timeout.
     await _connectionService.loadServerInfoFromStorage();
+    final hasSavedServer = _connectionService.serverInfo != null;
+
+    // A phone having Wi-Fi/mobile data does not mean the Ariami server is
+    // reachable. Start in auto-offline until the background restore actually
+    // succeeds, so downloaded content is complete immediately on 5G without
+    // Tailscale instead of briefly rendering as an online library.
+    if (hasSavedServer) {
+      await _offlineService.notifyConnectionLost();
+    }
 
     setState(() {
       // A saved server means the user has set the app up before, so drop them
       // straight into the app (offline-capable) while we reconnect in the
       // background. Otherwise start the welcome/setup flow.
-      _initialScreen = _connectionService.serverInfo != null
-          ? const MainNavigationScreen()
-          : const WelcomeScreen();
+      _initialScreen =
+          hasSavedServer ? const MainNavigationScreen() : const WelcomeScreen();
       _isLoading = false;
     });
 
-    if (_connectionService.serverInfo != null) {
+    if (hasSavedServer) {
       unawaited(_restoreConnectionInBackground());
     }
   }
