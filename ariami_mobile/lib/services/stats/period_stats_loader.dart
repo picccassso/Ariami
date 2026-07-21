@@ -39,10 +39,12 @@ typedef PeriodStatsCacheWrite = Future<void> Function(
 /// fetch failure (offline or an old server), the exact cached range is reused
 /// through [readCached]. Null means neither source had a usable snapshot.
 ///
-/// Note: unlike the all-time overlay, period views reflect server-synced
-/// events only — this device's still-pending outbox events appear once they
-/// upload (merging them here would need client-side credited-artist
-/// splitting, which is deliberately server-only).
+/// This loader always returns the pure server/cache base — it never merges
+/// the listening-events outbox. Offline pending events are overlaid by the
+/// screen/service layer via [overlayPeriodStatsWithPending] so the base
+/// snapshot stays untouched for when the server becomes source of truth again
+/// after sync. (Period offline artists use combined-string grouping inside
+/// that overlay; credited-artist splitting remains server-only.)
 class PeriodStatsLoader {
   PeriodStatsLoader({
     required this.fetchDay,

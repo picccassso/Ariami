@@ -100,7 +100,7 @@ extension _ListeningStatsRollupMaintenance on ListeningStatsStore {
       ]);
     }
 
-    final albumKey = _statsAlbumKey(event.albumId, event.album);
+    final albumKey = statsAlbumKey(event.albumId, event.album);
     if (albumKey != null) {
       db.execute('''
         INSERT INTO listening_album_rollups (
@@ -132,7 +132,7 @@ extension _ListeningStatsRollupMaintenance on ListeningStatsStore {
     // they contribute to all-time rollups but never to the day grain.
     if (isBaseline) return;
 
-    final localDay = _statsLocalDay(event.occurredAtMs, event.tzOffsetMinutes);
+    final localDay = statsLocalDay(event.occurredAtMs, event.tzOffsetMinutes);
     _upsertDaily(
       db,
       userId,
@@ -371,20 +371,4 @@ extension _ListeningStatsRollupMaintenance on ListeningStatsStore {
   }
 }
 
-String? _statsAlbumKey(String? albumId, String? album) {
-  if (albumId != null && albumId.isNotEmpty) return albumId;
-  if (album != null) {
-    final key = normalizeArtistKey(album);
-    if (key.isNotEmpty) return 'name:$key';
-  }
-  return null;
-}
 
-/// `yyyy-mm-dd` in the listener's local timezone at the event time.
-String _statsLocalDay(int occurredAtMs, int tzOffsetMinutes) {
-  final local = DateTime.fromMillisecondsSinceEpoch(occurredAtMs, isUtc: true)
-      .add(Duration(minutes: tzOffsetMinutes));
-  final month = local.month.toString().padLeft(2, '0');
-  final day = local.day.toString().padLeft(2, '0');
-  return '${local.year.toString().padLeft(4, '0')}-$month-$day';
-}

@@ -16,9 +16,11 @@ class ListeningStatsSyncer {
     this.interval = const Duration(seconds: 45),
     this.batchSize = 200,
     void Function()? onSynced,
+    void Function(List<String> eventIds)? onBatchAccepted,
   })  : _upload = upload,
         _canSync = canSync,
-        _onSynced = onSynced;
+        _onSynced = onSynced,
+        _onBatchAccepted = onBatchAccepted;
 
   final ListeningEventOutbox outbox;
   final Future<bool> Function(List<ListeningEvent> events) _upload;
@@ -30,6 +32,12 @@ class ListeningStatsSyncer {
   /// Invoked after at least one batch was accepted, so the owner can refresh
   /// its account-wide summary.
   final void Function()? _onSynced;
+
+  /// Invoked for each batch the server accepted, with that batch's eventIds,
+  /// immediately before [ListeningEventOutbox.removeByIds]. Callers can hold
+  /// these ids as "acked in flight" so period overlays exclude them while they
+  /// may still briefly remain in the outbox (avoids double-count on reconnect).
+  final void Function(List<String> eventIds)? _onBatchAccepted;
 
   final Duration interval;
   final int batchSize;
@@ -79,7 +87,9 @@ class ListeningStatsSyncer {
         if (batch.isEmpty) return;
         final ok = await _upload(batch);
         if (!ok) return; // stay queued; a later sync retries safely
-        await outbox.removeByIds(batch.map((event) => event.eventId));
+        final ids = batch.map((event) => event.eventId).toList(growable: false);
+        _onBatchAccepted?.call(ids);
+        await outbox.removeByIds(ids);
         anyAccepted = true;
       }
     } catch (_) {

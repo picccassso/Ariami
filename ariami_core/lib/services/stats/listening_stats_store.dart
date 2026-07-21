@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:ariami_core/models/listening_stats_models.dart';
 import 'package:ariami_core/services/stats/credited_artist_splitter.dart';
+import 'package:ariami_core/services/stats/stats_local_day.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 part 'listening_stats_store/event_ingestion.dart';

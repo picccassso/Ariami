@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import '../../../utils/responsive.dart';
 
 import 'package:ariami_core/ariami_core.dart' show ListeningPeriodStats;
@@ -6,6 +8,7 @@ import '../../../models/api_models.dart';
 import '../../../models/artist_stats.dart';
 import '../../../services/stats/period_stats_loader.dart';
 import '../../../services/stats/period_stats_cache.dart';
+import '../../../services/stats/period_stats_overlay_apply.dart';
 import '../../../services/stats/streaming_stats_service.dart';
 import '../../../services/stats/account_stats_service.dart';
 import '../../../services/stats/stats_artwork_resolver.dart';
@@ -24,12 +27,14 @@ import 'widgets/widgets.dart';
 ///   prefers the server's credited-artist rollups — where a play of "Mercy"
 ///   counts under Kanye West, Big Sean, Pusha T and 2 Chainz individually —
 ///   and falls back to local combined-string grouping when unavailable.
-/// - Today / specific day / week / month / year: normally served by the
-///   server's day/period endpoints. A year that contains the complete known
+/// - Today / specific day / week / month / year: server/cache base plus a
+///   display-only overlay of still-pending outbox events. The loader never
+///   mutates the base; when the outbox changes the overlay recomputes
+///   immediately offline. After sync, the server base is refreshed and
+///   becomes source of truth again. A year that contains the complete known
 ///   history reuses all-time so imported baseline totals are not dropped.
-///   Other periods reflect synced events only and persist exact-range
-///   snapshots for offline viewing. With no cached snapshot, the screen
-///   degrades to a clear message.
+///   With no base and no in-range pending events, the screen degrades to a
+///   clear offline message.
 class StreamingStatsScreen extends StatefulWidget {
   const StreamingStatsScreen({super.key});
 
@@ -41,6 +46,7 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
     with SingleTickerProviderStateMixin {
   final StreamingStatsService _statsService = StreamingStatsService();
   final ConnectionService _connectionService = ConnectionService();
+  final AccountStatsService _accountStats = AccountStatsService();
   final PeriodStatsCache _periodCache = PeriodStatsCache();
 
   late TabController _tabController;
@@ -48,10 +54,14 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
   int _currentTabIndex = 0;
 
   StatsRange _range = StatsRange.specificDay(DateTime.now());
+  /// Untouched server/cache snapshot for the selected period.
+  ListeningPeriodStats? _periodBase;
+  /// Displayed stats = base + pending outbox overlay.
   ListeningPeriodStats? _periodStats;
   bool _loadingPeriod = false;
   bool _periodUnavailable = false;
   int _periodRequestSeq = 0;
+  Timer? _periodBaseRefreshDebounce;
 
   /// All-time credited artists from the server; null means unavailable
   /// (offline / old server) and the local grouping is shown instead.
@@ -101,10 +111,12 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
         );
       },
     );
+    // Period overlay tracks pending outbox membership immediately.
+    _accountStats.addListener(_onPendingListeningChanged);
     // Request fresh data when screen loads (local instantly, account-wide
     // refresh in the background).
     _statsService.refreshTopSongs();
-    AccountStatsService().refreshSummary();
+    _accountStats.refreshSummary();
     _refreshCreditedArtists();
     _loadAlbumMetadata();
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -145,8 +157,60 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
 
   @override
   void dispose() {
+    _periodBaseRefreshDebounce?.cancel();
+    _accountStats.removeListener(_onPendingListeningChanged);
     _tabController.dispose();
     super.dispose();
+  }
+
+  /// Pending outbox changed: recompute period overlay immediately (no network).
+  /// When online, also debounced-refresh the server base so truth replaces the
+  /// overlay after events drain — without blocking the instant recompute.
+  void _onPendingListeningChanged() {
+    if (!mounted || _range.isAllTime) return;
+    _applyPeriodOverlay();
+    if (_connectionService.isConnected && _connectionService.isAuthenticated) {
+      _schedulePeriodBaseRefresh();
+    }
+  }
+
+  void _schedulePeriodBaseRefresh() {
+    _periodBaseRefreshDebounce?.cancel();
+    _periodBaseRefreshDebounce = Timer(const Duration(seconds: 1), () {
+      _periodBaseRefreshDebounce = null;
+      if (mounted && !_range.isAllTime) unawaited(_loadPeriod());
+    });
+  }
+
+  /// Recomputes displayed period stats from [_periodBase] + pending events.
+  void _applyPeriodOverlay() {
+    final range = _range;
+    if (range.isAllTime) return;
+    final bounds = range.bounds();
+    if (bounds == null) {
+      if (!mounted) return;
+      setState(() {
+        _periodStats = null;
+        _periodUnavailable = true;
+      });
+      return;
+    }
+    final pending = _accountStats.pendingListeningEvents;
+    final displayed = buildDisplayedPeriodStats(
+      base: _periodBase,
+      pending: pending,
+      fromDay: bounds.from,
+      toDay: bounds.to,
+      ackedInFlightEventIds: _accountStats.syncedPendingEventIds,
+    );
+    if (!mounted) return;
+    setState(() {
+      _periodStats = displayed;
+      // Offline fallback only when there is no base and nothing useful to show
+      // from pending events in range.
+      _periodUnavailable =
+          _periodBase == null && !periodStatsHasContent(displayed);
+    });
   }
 
   Future<void> _refreshCreditedArtists() async {
@@ -163,6 +227,7 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
     if (range == _range) return;
     setState(() {
       _range = range;
+      _periodBase = null;
       _periodStats = null;
       _periodUnavailable = false;
     });
@@ -248,22 +313,28 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
       _loadingPeriod = true;
       _periodUnavailable = false;
     });
+    // When online, drain accepted uploads first so the fresh base is less
+    // likely to race with still-pending outbox rows.
+    if (_connectionService.isConnected && _connectionService.isAuthenticated) {
+      await _accountStats.syncPendingEventsNow();
+    }
+    if (!mounted || seq != _periodRequestSeq || range != _range) return;
     // Stale-while-revalidate: a previously viewed range renders from cache
-    // instantly while the fresh fetch replaces it below.
+    // instantly while the fresh fetch replaces it below. Overlay is applied
+    // on top of the base so pending local events show offline immediately.
     final cached = await _periodLoader.loadCached(range);
     if (mounted &&
         seq == _periodRequestSeq &&
         range == _range &&
         cached != null) {
-      setState(() => _periodStats = cached);
+      _periodBase = cached;
+      _applyPeriodOverlay();
     }
     final stats = await _periodLoader.load(range);
     if (!mounted || seq != _periodRequestSeq || range != _range) return;
-    setState(() {
-      _loadingPeriod = false;
-      _periodStats = stats ?? cached;
-      _periodUnavailable = stats == null && cached == null;
-    });
+    _periodBase = stats ?? cached;
+    _loadingPeriod = false;
+    _applyPeriodOverlay();
   }
 
   Future<void> _pickSpecificDay() async {
@@ -334,7 +405,7 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
             color: isDark ? Colors.white : Colors.black,
             backgroundColor: isDark ? const Color(0xFF111111) : Colors.white,
             onRefresh: () async {
-              await AccountStatsService().refreshSummary();
+              await _accountStats.refreshSummary();
               await _refreshCreditedArtists();
               if (!_range.isAllTime) await _loadPeriod();
               if (mounted) setState(() {});

@@ -116,6 +116,40 @@ void main() {
     expect(reloaded.peek(10).map((e) => e.eventId), ['e1', 'e2']);
   });
 
+  test('outbox notifies listeners on add, remove, and clear', () async {
+    String? storage;
+    final outbox = ListeningEventOutbox(
+      read: () async => storage,
+      write: (contents) async => storage = contents,
+    );
+    await outbox.load();
+
+    var notifications = 0;
+    void listener() => notifications++;
+    outbox.addListener(listener);
+
+    outbox.add(_event('e1'));
+    expect(notifications, 1);
+
+    outbox.add(_event('e1')); // duplicate ignored, no notify
+    expect(notifications, 1);
+
+    outbox.add(_event('e2'));
+    expect(notifications, 2);
+
+    await outbox.removeByIds(['e1']);
+    expect(notifications, 3);
+    expect(outbox.length, 1);
+
+    await outbox.clear();
+    expect(notifications, 4);
+    expect(outbox.isEmpty, isTrue);
+
+    outbox.removeListener(listener);
+    outbox.add(_event('e3'));
+    expect(notifications, 4);
+  });
+
   test('syncer keeps events queued across failures and drains on success',
       () async {
     String? storage;
@@ -150,6 +184,58 @@ void main() {
     await syncer.syncNow();
     expect(outbox.length, 0);
     expect(uploaded, ['e0', 'e1', 'e2', 'e3', 'e4']);
+
+    syncer.dispose();
+  });
+
+  test('onBatchAccepted fires with batch ids before remove; not on failure',
+      () async {
+    String? storage;
+    final outbox = ListeningEventOutbox(
+      read: () async => storage,
+      write: (contents) async => storage = contents,
+    );
+    await outbox.load();
+    for (var i = 0; i < 5; i++) {
+      outbox.add(_event('e$i'));
+    }
+
+    var uploadsSucceed = false;
+    final acceptedBatches = <List<String>>[];
+    final outboxLengthWhenAccepted = <int>[];
+    // Whether every id in the accepted batch was still resident in the outbox
+    // at the moment the callback ran — the identity-level proof that the
+    // callback precedes removeByIds (a length match alone could coincide).
+    final batchStillResidentWhenAccepted = <bool>[];
+    final syncer = ListeningStatsSyncer(
+      outbox: outbox,
+      batchSize: 2,
+      upload: (events) async => uploadsSucceed,
+      onBatchAccepted: (ids) {
+        acceptedBatches.add(List<String>.of(ids));
+        outboxLengthWhenAccepted.add(outbox.length);
+        final residentIds =
+            outbox.peek(outbox.length).map((e) => e.eventId).toSet();
+        batchStillResidentWhenAccepted.add(ids.every(residentIds.contains));
+      },
+    );
+
+    await syncer.syncNow();
+    expect(acceptedBatches, isEmpty);
+    expect(outbox.length, 5);
+
+    uploadsSucceed = true;
+    await syncer.syncNow();
+    expect(acceptedBatches, [
+      ['e0', 'e1'],
+      ['e2', 'e3'],
+      ['e4'],
+    ]);
+    // Callback runs before removeByIds, so events are still in the outbox:
+    // both the count is undiminished and the exact batch ids are still present.
+    expect(outboxLengthWhenAccepted, [5, 3, 1]);
+    expect(batchStillResidentWhenAccepted, [true, true, true]);
+    expect(outbox.length, 0);
 
     syncer.dispose();
   });

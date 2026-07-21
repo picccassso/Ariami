@@ -28,6 +28,7 @@ class ListeningEventOutbox {
 
   final List<ListeningEvent> _pending = <ListeningEvent>[];
   final Set<String> _pendingIds = <String>{};
+  final List<void Function()> _listeners = <void Function()>[];
   Timer? _persistTimer;
   Future<void> _persistChain = Future<void>.value();
   bool _loaded = false;
@@ -37,6 +38,23 @@ class ListeningEventOutbox {
   int get length => _pending.length;
   bool get isEmpty => _pending.isEmpty;
   bool get isNotEmpty => _pending.isNotEmpty;
+
+  /// Register for queue mutations (add / remove / clear). Used by display-only
+  /// overlays that need to refresh when pending events change.
+  void addListener(void Function() listener) {
+    _listeners.add(listener);
+  }
+
+  void removeListener(void Function() listener) {
+    _listeners.remove(listener);
+  }
+
+  void _notifyListeners() {
+    // Copy so a listener can remove itself during notification.
+    for (final listener in List<void Function()>.of(_listeners)) {
+      listener();
+    }
+  }
 
   /// Loads persisted events. Call once before use; safe to call again.
   Future<void> load() async {
@@ -71,6 +89,7 @@ class ListeningEventOutbox {
       _pendingIds.remove(dropped.eventId);
     }
     _schedulePersist();
+    _notifyListeners();
   }
 
   /// The oldest [limit] events, for the next upload batch.
@@ -83,16 +102,21 @@ class ListeningEventOutbox {
   Future<void> removeByIds(Iterable<String> eventIds) async {
     final ids = eventIds.toSet();
     if (ids.isEmpty) return;
+    final before = _pending.length;
     _pending.removeWhere((event) => ids.contains(event.eventId));
     _pendingIds.removeAll(ids);
+    if (_pending.length == before) return;
     await persistNow();
+    _notifyListeners();
   }
 
   /// Drops everything (stats reset / logout of the account).
   Future<void> clear() async {
+    if (_pending.isEmpty && _pendingIds.isEmpty) return;
     _pending.clear();
     _pendingIds.clear();
     await persistNow();
+    _notifyListeners();
   }
 
   void _schedulePersist() {
@@ -124,5 +148,6 @@ class ListeningEventOutbox {
   void dispose() {
     _persistTimer?.cancel();
     _persistTimer = null;
+    _listeners.clear();
   }
 }

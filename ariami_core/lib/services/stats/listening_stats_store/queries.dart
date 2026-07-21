@@ -375,5 +375,5 @@ int _statsSqlLimit(int limit) => limit > 0 ? limit : -1;
 String _statsTrailingWindowStartDay(int days) {
   final start =
       DateTime.now().toUtc().subtract(Duration(days: days > 0 ? days - 1 : 0));
-  return _statsLocalDay(start.millisecondsSinceEpoch, 0);
+  return statsLocalDay(start.millisecondsSinceEpoch, 0);
 }

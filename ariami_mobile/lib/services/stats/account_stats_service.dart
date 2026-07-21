@@ -9,6 +9,7 @@ import 'package:ariami_core/ariami_core.dart'
         ListeningStatsSummary,
         ListeningStatsSyncer,
         WsMessageType;
+import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -29,11 +30,14 @@ import 'period_stats_cache.dart';
 /// - After uploads (and on `listening_stats_updated` pushes caused by the
 ///   account's other devices), the merged summary is re-fetched and shown via
 ///   the stats overlay: server rollups + still-pending local events.
+/// - Period stats screens listen to this service for pending-outbox changes
+///   so offline period views can recompute their display overlay immediately
+///   without touching the outbox file themselves.
 /// - On first login this device's pre-existing local stats are imported once
 ///   as a deterministic baseline, so history isn't lost.
 ///
 /// Everything is automatic — no user interaction anywhere.
-class AccountStatsService {
+class AccountStatsService extends ChangeNotifier {
   static final AccountStatsService _instance = AccountStatsService._internal();
   factory AccountStatsService() => _instance;
   AccountStatsService._internal();
@@ -60,6 +64,10 @@ class AccountStatsService {
   Timer? _overlayDebounce;
   StreamSubscription<bool>? _connectionSub;
   StreamSubscription<dynamic>? _wsSub;
+
+  /// Event ids the server has accepted that are still (briefly) in the outbox.
+  /// Period overlays exclude these so a fresh base is not double-counted.
+  final Set<String> _ackedInFlightEventIds = <String>{};
 
   Future<String> _fileDir() async {
     final dir = await getApplicationSupportDirectory();
@@ -90,6 +98,7 @@ class AccountStatsService {
     );
     await outbox.load();
     _outbox = outbox;
+    outbox.addListener(_onOutboxChanged);
 
     await _loadCachedSummary();
 
@@ -97,6 +106,7 @@ class AccountStatsService {
       outbox: outbox,
       upload: _uploadBatch,
       canSync: () async => _canSync,
+      onBatchAccepted: _onBatchAccepted,
       onSynced: () => unawaited(refreshSummary()),
     );
 
@@ -121,11 +131,34 @@ class AccountStatsService {
     }
     _recomputeOverlay();
     _initialized = true;
+    // Outbox.load does not notify; surface any restored pending events so a
+    // stats screen already open (or opening) can overlay them immediately.
+    notifyListeners();
     print('[AccountStatsService] Initialized '
         '(${outbox.length} events pending upload)');
   }
 
   bool get _canSync => _connection.isConnected && _connection.isAuthenticated;
+
+  /// Snapshot of events still waiting to upload. Period screens overlay these
+  /// on the server/cache base; do not read the outbox file from UI code.
+  List<ListeningEvent> get pendingListeningEvents {
+    final outbox = _outbox;
+    if (outbox == null) return const <ListeningEvent>[];
+    return outbox.peek(outbox.length);
+  }
+
+  /// Server-acked event ids that are still pending in the outbox.
+  ///
+  /// Period screens pass this as the overlay exclude set so a freshly fetched
+  /// base is not double-counted during the accept→drain race.
+  Set<String> get syncedPendingEventIds =>
+      Set<String>.unmodifiable(_ackedInFlightEventIds);
+
+  /// Drains the outbox now (no-op when the syncer cannot sync).
+  Future<void> syncPendingEventsNow() async {
+    await _syncer?.syncNow();
+  }
 
   // ---------------------------------------------------------------------------
   // Event flow
@@ -136,7 +169,42 @@ class AccountStatsService {
     if (outbox == null) return;
     outbox.add(event);
     _syncer?.nudge();
+    // Notify + overlay recompute come solely from [_onOutboxChanged].
+  }
+
+  /// Outbox membership changed (local add, successful upload drain, clear).
+  void _onOutboxChanged() {
+    _pruneAckedInFlight();
+    // Period views recompute their overlay immediately from pending events.
+    notifyListeners();
+    // All-time overlay: debounce local churn; also recompute eventually when
+    // events drain so the account view doesn't stay inflated after upload.
     _scheduleOverlayRecompute();
+  }
+
+  void _onBatchAccepted(List<String> eventIds) {
+    if (eventIds.isEmpty) return;
+    _ackedInFlightEventIds.addAll(eventIds);
+    // Still in outbox until removeByIds finishes — notify so period overlay
+    // excludes them before the drain notification arrives.
+    notifyListeners();
+  }
+
+  void _pruneAckedInFlight() {
+    if (_ackedInFlightEventIds.isEmpty) return;
+    final outbox = _outbox;
+    if (outbox == null || outbox.isEmpty) {
+      _ackedInFlightEventIds.clear();
+      return;
+    }
+    final pendingIds =
+        outbox.peek(outbox.length).map((e) => e.eventId).toSet();
+    _ackedInFlightEventIds.removeWhere((id) => !pendingIds.contains(id));
+  }
+
+  void _clearAckedInFlight() {
+    if (_ackedInFlightEventIds.isEmpty) return;
+    _ackedInFlightEventIds.clear();
   }
 
   Future<bool> _uploadBatch(List<ListeningEvent> events) async {
@@ -406,6 +474,7 @@ class AccountStatsService {
     ));
     await _stats.resetAllStats();
     await _outbox?.clear();
+    _clearAckedInFlight();
     _summary = ListeningStatsSummary.empty;
     _hasFetchedSummary = false;
     try {
@@ -413,6 +482,7 @@ class AccountStatsService {
       if (file.existsSync()) await file.delete();
     } catch (_) {}
     _stats.setAccountStatsOverlay(null);
+    notifyListeners();
 
     // The local history is gone; a later "baseline import" would only upload
     // an empty set, but mark it done for clarity.
@@ -450,6 +520,7 @@ class AccountStatsService {
   Future<void> clearLocalOnly() async {
     await PeriodStatsCache().clearAll();
     await _outbox?.clear();
+    _clearAckedInFlight();
     _summary = ListeningStatsSummary.empty;
     _hasFetchedSummary = false;
     try {
@@ -457,6 +528,7 @@ class AccountStatsService {
       if (file.existsSync()) await file.delete();
     } catch (_) {}
     _stats.setAccountStatsOverlay(null);
+    notifyListeners();
     await _prefs?.setBool(_pendingResetKey, false);
     await _prefs?.remove(_lastUserKey);
   }
@@ -472,6 +544,7 @@ class AccountStatsService {
       print('[AccountStatsService] Account changed ($last -> $userId): '
           'clearing queued events and cached summary');
       await _outbox?.clear();
+      _clearAckedInFlight();
       _summary = ListeningStatsSummary.empty;
       _hasFetchedSummary = false;
       try {
@@ -479,6 +552,7 @@ class AccountStatsService {
         if (file.existsSync()) await file.delete();
       } catch (_) {}
       _stats.setAccountStatsOverlay(null);
+      notifyListeners();
       await _prefs?.setBool(_pendingResetKey, false);
     }
     await _prefs?.setString(_lastUserKey, userId);
@@ -489,11 +563,36 @@ class AccountStatsService {
     await _outbox?.persistNow();
   }
 
+  /// Process-lived singleton — do not call in production.
+  ///
+  /// [ChangeNotifier.dispose] marks the notifier dead so later
+  /// [notifyListeners] throws; this override only tears down timers/subs for
+  /// tests and deliberately skips `super.dispose()`.
+  @override
+  // ignore: must_call_super
   void dispose() {
+    assert(() {
+      // ignore: avoid_print
+      print('[AccountStatsService] dispose() called — test-only cleanup; '
+          'singleton must not be disposed in production');
+      return true;
+    }());
     _overlayDebounce?.cancel();
+    _overlayDebounce = null;
     _connectionSub?.cancel();
+    _connectionSub = null;
     _wsSub?.cancel();
+    _wsSub = null;
     _syncer?.dispose();
-    _outbox?.dispose();
+    _syncer = null;
+    final outbox = _outbox;
+    if (outbox != null) {
+      outbox.removeListener(_onOutboxChanged);
+      outbox.dispose();
+    }
+    _outbox = null;
+    _clearAckedInFlight();
+    // Do not call super.dispose() — keeps ChangeNotifier usable if this
+    // singleton is touched again after a test tear-down.
   }
 }
