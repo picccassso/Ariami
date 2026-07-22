@@ -172,16 +172,26 @@ class DashboardAdminApiService {
   Future<DashboardHttpResponse?> sendAdminRequest({
     required String path,
     required Map<String, dynamic> body,
+  }) =>
+      sendAuthenticatedRequest(method: 'POST', path: path, body: body);
+
+  /// Sends an owner-authenticated dashboard request, prompting again once if
+  /// the cached session expired.
+  Future<DashboardHttpResponse?> sendAuthenticatedRequest({
+    required String method,
+    required String path,
+    Map<String, dynamic>? body,
+    bool includeDashboardDeviceIdentity = true,
   }) async {
     var token = await ensureAdminSessionToken();
     if (token == null) return null;
 
     var response = await sendApiRequest(
-      method: 'POST',
+      method: method,
       path: path,
       bearerToken: token,
       body: body,
-      includeDashboardDeviceIdentity: true,
+      includeDashboardDeviceIdentity: includeDashboardDeviceIdentity,
     );
 
     if (response.statusCode == 401) {
@@ -189,11 +199,11 @@ class DashboardAdminApiService {
       token = await ensureAdminSessionToken(forcePrompt: true);
       if (token == null) return null;
       response = await sendApiRequest(
-        method: 'POST',
+        method: method,
         path: path,
         bearerToken: token,
         body: body,
-        includeDashboardDeviceIdentity: true,
+        includeDashboardDeviceIdentity: includeDashboardDeviceIdentity,
       );
     }
 

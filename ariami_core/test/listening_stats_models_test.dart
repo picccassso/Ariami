@@ -128,4 +128,63 @@ void main() {
       expect(parsed.clientKind, isNull);
     });
   });
+
+  group('ListeningStatsSummary.hasSpotifyImport', () {
+    test('toJson always emits the field', () {
+      const summary = ListeningStatsSummary(
+        songs: <ListeningSongRollup>[],
+        totalListenedMs: 0,
+        totalPlays: 0,
+        generatedAtMs: 123,
+      );
+      expect(summary.toJson()['hasSpotifyImport'], isFalse);
+
+      const imported = ListeningStatsSummary(
+        songs: <ListeningSongRollup>[],
+        totalListenedMs: 0,
+        totalPlays: 0,
+        generatedAtMs: 123,
+        hasSpotifyImport: true,
+      );
+      expect(imported.toJson()['hasSpotifyImport'], isTrue);
+    });
+
+    test('fromJson treats only the literal true as true', () {
+      expect(
+        ListeningStatsSummary.fromJson(const <String, dynamic>{
+          'hasSpotifyImport': true,
+        }).hasSpotifyImport,
+        isTrue,
+      );
+    });
+
+    test('fromJson maps missing, null and malformed values to false', () {
+      final cases = <Map<String, dynamic>>[
+        <String, dynamic>{},
+        <String, dynamic>{'hasSpotifyImport': null},
+        <String, dynamic>{'hasSpotifyImport': false},
+        <String, dynamic>{'hasSpotifyImport': 'true'},
+        <String, dynamic>{'hasSpotifyImport': 1},
+        <String, dynamic>{'hasSpotifyImport': 0},
+        <String, dynamic>{'hasSpotifyImport': <dynamic>[]},
+        <String, dynamic>{
+          'hasSpotifyImport': <String, dynamic>{'value': true}
+        },
+      ];
+      for (final json in cases) {
+        expect(
+          ListeningStatsSummary.fromJson(json).hasSpotifyImport,
+          isFalse,
+          reason: 'json: $json',
+        );
+      }
+    });
+
+    test('empty summary reports false and round-trips', () {
+      expect(ListeningStatsSummary.empty.hasSpotifyImport, isFalse);
+      final restored =
+          ListeningStatsSummary.fromJson(ListeningStatsSummary.empty.toJson());
+      expect(restored.hasSpotifyImport, isFalse);
+    });
+  });
 }

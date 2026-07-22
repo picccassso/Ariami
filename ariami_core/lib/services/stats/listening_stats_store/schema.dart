@@ -55,6 +55,13 @@ extension _ListeningStatsSchema on ListeningStatsStore {
       CREATE INDEX IF NOT EXISTS idx_listening_events_user_time
         ON listening_events (user_id, occurred_at)
     ''');
+    // Keeps the per-user 'spotify:*' event_id existence probe behind the
+    // summary's hasSpotifyImport flag a single index seek, even on 200K+
+    // event histories. Idempotent; no rollup schema version bump needed.
+    db.execute('''
+      CREATE INDEX IF NOT EXISTS idx_listening_events_user_event
+        ON listening_events (user_id, event_id)
+    ''');
     // Second line of defence against double-counted plays: even if a buggy
     // client re-sends the same play-action under a fresh eventId, only one
     // play per (user, playId) can ever land.

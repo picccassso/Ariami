@@ -577,6 +577,7 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
       'version': kAriamiVersion,
       'authRequired': _authRequired,
       'legacyMode': _legacyMode,
+      'supportsListeningSourceReset': true,
       'hasUsers': authSnapshot.hasUsers,
       'registeredUsers': authSnapshot.registeredUsers,
       'downloadLimits': {

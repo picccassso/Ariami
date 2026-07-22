@@ -72,6 +72,28 @@ void main() {
       expect(json['registeredUsers'], 0);
     });
 
+    test('advertises supportsListeningSourceReset as true', () async {
+      expect(server.getServerInfo()['supportsListeningSourceReset'], isTrue);
+
+      const lan = '10.0.0.2';
+      await server.start(
+        advertisedIp: lan,
+        tailscaleIp: null,
+        lanIp: lan,
+        bindAddress: '127.0.0.1',
+        port: 0,
+      );
+      final port = server.getServerInfo()['port'] as int;
+
+      final (status, body) = await _httpGet(
+        Uri.parse('http://127.0.0.1:$port/api/server-info'),
+      );
+      expect(status, 200);
+
+      final json = jsonDecode(body) as Map<String, dynamic>;
+      expect(json['supportsListeningSourceReset'], isTrue);
+    });
+
     test('advertises only a validated HTTPS public origin', () async {
       server.setPublicOrigin(' HTTPS://Review.Ariami.XYZ/ ');
 

@@ -18,6 +18,7 @@ import '../services/desktop_transcode_slots_service.dart';
 import '../services/server_initialization_service.dart';
 import '../services/system_tray_service.dart';
 import '../services/update_check_service.dart';
+import '../services/spotify_import_service.dart';
 import '../widgets/admin_credentials_dialog.dart';
 import '../widgets/change_password_dialog.dart';
 import '../widgets/create_user_dialog.dart';
@@ -25,6 +26,7 @@ import '../widgets/dashboard/dashboard_content.dart';
 import '../widgets/delete_user_dialog.dart';
 import '../widgets/reset_ariami_dialog.dart';
 import '../widgets/transcode_slots_dialog.dart';
+import '../widgets/spotify_import_dialog.dart';
 import 'owner_setup_screen.dart';
 import 'scanning_screen.dart';
 
@@ -251,6 +253,22 @@ class _DashboardScreenState extends State<DashboardScreen>
           ? _rescanLibrary
           : null,
       onResetAriami: _resetAriami,
+      onImportSpotifyStats: _hasOwnerAccount &&
+              _httpServer.isRunning &&
+              (_httpServer.libraryManager.library?.totalSongs ?? 0) > 0
+          ? _showSpotifyImport
+          : null,
     );
   }
+
+  Future<void> _showSpotifyImport() => showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => SpotifyImportDialog(
+          service: DesktopSpotifyImportService(
+            httpServer: _httpServer,
+            adminApi: _adminApi,
+          ),
+        ),
+      );
 }

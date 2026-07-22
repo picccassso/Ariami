@@ -1,6 +1,14 @@
 part of 'dashboard_screen.dart';
 
 extension _DashboardLibrary on _DashboardScreenState {
+  Future<void> _showSpotifyImport() => showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => SpotifyImportDialog(
+          service: SpotifyImportService(_apiClient),
+        ),
+      );
+
   Future<void> _rescanLibrary() async {
     try {
       final success = await _setupService.startScan();

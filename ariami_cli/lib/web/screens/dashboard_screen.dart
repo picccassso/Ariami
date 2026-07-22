@@ -17,6 +17,8 @@ import '../widgets/dashboard/change_password_dialog.dart';
 import '../widgets/dashboard/create_user_dialog.dart';
 import '../widgets/dashboard/delete_user_dialog.dart';
 import '../widgets/dashboard/transcode_slots_dialog.dart';
+import '../widgets/dashboard/spotify_import_dialog.dart';
+import '../services/spotify_import_service.dart';
 
 part 'dashboard_screen_auth.dart';
 part 'dashboard_screen_library.dart';
@@ -218,6 +220,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                             onIgnoreSuggestion: _ignorePlaylistSuggestion,
                             onRescanLibrary: _rescanLibrary,
                             onViewQRCode: _viewQRCode,
+                            onImportSpotifyStats: _showSpotifyImport,
                           ),
                           DashboardActivityTab(
                             userActivityRows: _userActivityRows,

@@ -73,6 +73,12 @@ export 'services/stats/listening_stats_syncer.dart';
 export 'services/stats/period_stats_overlay.dart';
 export 'services/stats/stats_local_day.dart';
 export 'services/stats/stats_range.dart';
+// Spotify Extended Streaming History import
+export 'services/stats/spotify_import/spotify_import_models.dart';
+export 'services/stats/spotify_import/library_track_matcher.dart';
+export 'services/stats/spotify_import/spotify_history_parser.dart';
+export 'services/stats/spotify_import/spotify_event_builder.dart';
+export 'services/stats/spotify_import/spotify_importer.dart';
 export 'services/pins/pinned_item_store.dart';
 export 'services/license/license_file_store.dart';
 export 'services/license/license_key_activator.dart';

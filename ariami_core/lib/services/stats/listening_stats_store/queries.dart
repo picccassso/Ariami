@@ -31,11 +31,21 @@ extension _ListeningStatsQueries on ListeningStatsStore {
       totalPlays += rollup.playCount;
     }
 
+    // Derived from the raw event log, not rollups: a single index seek on
+    // idx_listening_events_user_event thanks to the LIMIT 1 existence probe.
+    // The GLOB pattern is a hardcoded literal, never user-controlled.
+    final hasSpotifyImport = _db.select(
+      'SELECT 1 FROM listening_events '
+      "WHERE user_id = ? AND event_id GLOB 'spotify:*' LIMIT 1",
+      [userId],
+    ).isNotEmpty;
+
     return ListeningStatsSummary(
       songs: songs,
       totalListenedMs: totalListenedMs,
       totalPlays: totalPlays,
       generatedAtMs: DateTime.now().toUtc().millisecondsSinceEpoch,
+      hasSpotifyImport: hasSpotifyImport,
     );
   }
 

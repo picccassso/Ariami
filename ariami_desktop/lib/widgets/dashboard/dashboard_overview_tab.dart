@@ -16,6 +16,7 @@ class DashboardOverviewTab extends StatelessWidget {
     required this.onToggleServer,
     required this.onOpenOwnerSetup,
     required this.onOpenReleasePage,
+    required this.onImportSpotifyStats,
   });
 
   final AriamiHttpServer httpServer;
@@ -25,6 +26,7 @@ class DashboardOverviewTab extends StatelessWidget {
   final VoidCallback onToggleServer;
   final VoidCallback onOpenOwnerSetup;
   final VoidCallback onOpenReleasePage;
+  final VoidCallback? onImportSpotifyStats;
 
   static const _sectionTitleStyle = TextStyle(
     fontSize: 20,
@@ -220,8 +222,7 @@ class DashboardOverviewTab extends StatelessWidget {
             value: httpServer.libraryManager.library?.totalAlbums.toString() ??
                 '0',
             icon: Icons.album_rounded,
-            isActive:
-                (httpServer.libraryManager.library?.totalAlbums ?? 0) > 0,
+            isActive: (httpServer.libraryManager.library?.totalAlbums ?? 0) > 0,
           ),
           const SizedBox(height: 12),
           InfoCard(
@@ -240,6 +241,20 @@ class DashboardOverviewTab extends StatelessWidget {
                 : 'Never',
             icon: Icons.access_time_rounded,
             isActive: httpServer.libraryManager.lastScanTime != null,
+          ),
+          const SizedBox(height: 24),
+          const Text('Listening Statistics', style: _sectionTitleStyle),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: onImportSpotifyStats,
+              icon: const Icon(Icons.history_rounded),
+              label: const Text('Import Spotify listening stats'),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 18),
+              ),
+            ),
           ),
         ],
       ),

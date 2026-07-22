@@ -141,6 +141,12 @@ class ListeningStatsStore {
   /// Deletes all listening data for [userId].
   void resetUser(String userId) => _resetUser(userId);
 
+  /// Deletes only the events whose eventId starts with [sourcePrefix] (e.g.
+  /// `spotify:` for an import) and rebuilds all rollups from the surviving
+  /// raw log. Returns how many raw events were removed.
+  int resetUserBySource(String userId, String sourcePrefix) =>
+      _resetUserBySource(userId, sourcePrefix);
+
   /// Recomputes all of [userId]'s rollups from the raw event log.
   void rebuildRollups(String userId) => _rebuildRollups(userId);
 

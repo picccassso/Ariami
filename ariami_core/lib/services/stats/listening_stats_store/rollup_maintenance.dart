@@ -333,42 +333,78 @@ extension _ListeningStatsRollupMaintenance on ListeningStatsStore {
     }
   }
 
-  void _rebuildRollups(String userId) {
+  /// Deletes only the events whose eventId carries [sourcePrefix] (e.g. a
+  /// `spotify:` import) and rebuilds every rollup from the surviving raw
+  /// log, all in one transaction. Imported rows are indistinguishable from
+  /// live ones in the rollup tables, so the rollups are rebuilt rather than
+  /// selectively deleted. Returns how many raw events were removed.
+  int _resetUserBySource(String userId, String sourcePrefix) {
+    final prefix = sourcePrefix.trim();
+    if (prefix.isEmpty) {
+      throw ArgumentError.value(
+        sourcePrefix,
+        'sourcePrefix',
+        'must not be empty',
+      );
+    }
     final db = _db;
     db.execute('BEGIN IMMEDIATE');
     try {
       db.execute(
-        'DELETE FROM listening_song_rollups WHERE user_id = ?',
-        [userId],
+        'DELETE FROM listening_events WHERE user_id = ? '
+        'AND substr(event_id, 1, length(?)) = ?',
+        [userId, prefix, prefix],
       );
-      db.execute('''
-        INSERT INTO listening_song_rollups (
-          user_id, song_id, play_count, listened_ms, first_played, last_played,
-          song_title, song_artist, album_id, album, album_artist
-        )
-        SELECT
-          user_id,
-          song_id,
-          SUM(plays),
-          SUM(listened_ms),
-          MIN(occurred_at),
-          MAX(occurred_at),
-          MAX(song_title),
-          MAX(song_artist),
-          MAX(album_id),
-          MAX(album),
-          MAX(album_artist)
-        FROM listening_events
-        WHERE user_id = ?
-        GROUP BY user_id, song_id
-      ''', [userId]);
-      _rebuildDerivedForUser(db, userId);
+      final deleted = db.updatedRows;
+      _rebuildRollupsInTransaction(db, userId);
+      db.execute('COMMIT');
+      return deleted;
+    } catch (_) {
+      db.execute('ROLLBACK');
+      rethrow;
+    }
+  }
+
+  void _rebuildRollups(String userId) {
+    final db = _db;
+    db.execute('BEGIN IMMEDIATE');
+    try {
+      _rebuildRollupsInTransaction(db, userId);
       db.execute('COMMIT');
     } catch (_) {
       db.execute('ROLLBACK');
       rethrow;
     }
   }
+
+  /// Transaction-free core of [_rebuildRollups], so callers can compose the
+  /// rebuild with other writes (e.g. a selective delete) atomically.
+  void _rebuildRollupsInTransaction(Database db, String userId) {
+    db.execute(
+      'DELETE FROM listening_song_rollups WHERE user_id = ?',
+      [userId],
+    );
+    db.execute('''
+      INSERT INTO listening_song_rollups (
+        user_id, song_id, play_count, listened_ms, first_played, last_played,
+        song_title, song_artist, album_id, album, album_artist
+      )
+      SELECT
+        user_id,
+        song_id,
+        SUM(plays),
+        SUM(listened_ms),
+        MIN(occurred_at),
+        MAX(occurred_at),
+        MAX(song_title),
+        MAX(song_artist),
+        MAX(album_id),
+        MAX(album),
+        MAX(album_artist)
+      FROM listening_events
+      WHERE user_id = ?
+      GROUP BY user_id, song_id
+    ''', [userId]);
+    _rebuildDerivedForUser(db, userId);
+  }
 }
-
-

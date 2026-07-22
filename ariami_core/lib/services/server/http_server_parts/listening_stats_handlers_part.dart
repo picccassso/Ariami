@@ -417,13 +417,36 @@ extension AriamiHttpServerListeningStatsMethods on AriamiHttpServer {
   }
 
   /// POST /api/v2/listening/reset — wipes this account's listening history.
+  /// An optional body {"source":"spotify"} removes only that import's
+  /// events instead, so a bad import can be undone without touching real
+  /// tracked history. An empty body keeps the original full-wipe behaviour.
   Future<Response> _handleListeningResetPost(Request request) async {
     final session = request.context['session'] as Session?;
     if (session == null) return _authRequiredResponse();
     final store = _statsStoreIfReady;
     if (store == null) return _statsUnavailable();
 
-    store.resetUser(session.userId);
+    final body = (await request.readAsString()).trim();
+    Map<String, dynamic> data = const {};
+    if (body.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(body);
+        if (decoded is! Map<String, dynamic>) throw const FormatException();
+        data = decoded;
+      } catch (_) {
+        return _invalidParam('Body must be a JSON object');
+      }
+    }
+
+    int? deleted;
+    if (data.isEmpty) {
+      store.resetUser(session.userId);
+    } else if (data['source'] == 'spotify') {
+      deleted = store.resetUserBySource(session.userId, 'spotify:');
+    } else {
+      return _invalidParam(
+          'Unknown source "${data['source']}"; supported: "spotify"');
+    }
 
     _connectHub.sendToUser(
       session.userId,
@@ -434,6 +457,6 @@ extension AriamiHttpServerListeningStatsMethods on AriamiHttpServer {
       exceptDeviceId: session.deviceId,
     );
 
-    return _jsonOk({'success': true});
+    return _jsonOk({'success': true, if (deleted != null) 'deleted': deleted});
   }
 }

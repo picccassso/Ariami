@@ -28,6 +28,7 @@ class DashboardOverviewTab extends StatelessWidget {
     required this.onIgnoreSuggestion,
     required this.onRescanLibrary,
     required this.onViewQRCode,
+    required this.onImportSpotifyStats,
   });
 
   final bool serverRunning;
@@ -46,6 +47,7 @@ class DashboardOverviewTab extends StatelessWidget {
   final void Function(PlaylistSuggestion suggestion) onIgnoreSuggestion;
   final VoidCallback onRescanLibrary;
   final VoidCallback onViewQRCode;
+  final VoidCallback onImportSpotifyStats;
 
   @override
   Widget build(BuildContext context) {
@@ -82,6 +84,7 @@ class DashboardOverviewTab extends StatelessWidget {
             isScanning: isScanning,
             onRescanLibrary: onRescanLibrary,
             onViewQRCode: onViewQRCode,
+            onImportSpotifyStats: onImportSpotifyStats,
           ),
         ],
       ),

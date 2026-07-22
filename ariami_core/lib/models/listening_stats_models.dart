@@ -231,11 +231,16 @@ class ListeningStatsSummary {
   final int totalPlays;
   final int generatedAtMs;
 
+  /// Whether the account holds any Spotify-imported listening events.
+  /// Additive wire field: old clients ignore it, old servers omit it.
+  final bool hasSpotifyImport;
+
   const ListeningStatsSummary({
     required this.songs,
     required this.totalListenedMs,
     required this.totalPlays,
     required this.generatedAtMs,
+    this.hasSpotifyImport = false,
   });
 
   Map<String, dynamic> toJson() => <String, dynamic>{
@@ -243,6 +248,7 @@ class ListeningStatsSummary {
         'totalListenedMs': totalListenedMs,
         'totalPlays': totalPlays,
         'generatedAtMs': generatedAtMs,
+        'hasSpotifyImport': hasSpotifyImport,
       };
 
   factory ListeningStatsSummary.fromJson(Map<String, dynamic> json) {
@@ -256,6 +262,8 @@ class ListeningStatsSummary {
       totalListenedMs: (json['totalListenedMs'] as num?)?.toInt() ?? 0,
       totalPlays: (json['totalPlays'] as num?)?.toInt() ?? 0,
       generatedAtMs: (json['generatedAtMs'] as num?)?.toInt() ?? 0,
+      // Strictly the JSON literal true; missing/null/wrong type stay false.
+      hasSpotifyImport: json['hasSpotifyImport'] == true,
     );
   }
 
