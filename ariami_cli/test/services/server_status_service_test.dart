@@ -16,7 +16,7 @@ void main() {
       ));
 
       expect(lines, [
-        'Ariami CLI 4.4.0',
+        'Ariami CLI 5.0.0',
         'Server:    running (PID 1234, up 3h 12m)',
         'Reachable: yes — dashboard responding on port 8080',
         'Dashboard: http://192.168.1.20:8080',
@@ -111,7 +111,7 @@ void main() {
 
       expect(
         lines,
-        contains('Version:   server reports 4.9.0 (CLI is 4.4.0)'),
+        contains('Version:   server reports 4.9.0 (CLI is 5.0.0)'),
       );
     });
   });
@@ -132,7 +132,7 @@ StatusSnapshot _snapshot({
   bool? hasOwnerAccount,
 }) {
   return StatusSnapshot(
-    cliVersion: '4.4.0',
+    cliVersion: '5.0.0',
     isRunning: isRunning,
     pid: pid,
     uptime: uptime,

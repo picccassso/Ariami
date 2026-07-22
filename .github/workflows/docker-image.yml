@@ -1,0 +1,143 @@
+name: Docker Image
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: docker-image-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/ariami-cli
+
+jobs:
+  build:
+    name: Build ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-22.04
+            architecture: amd64
+          - platform: linux/arm64
+            runner: ubuntu-22.04-arm
+            architecture: arm64
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image by digest
+        id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ariami_cli/docker/Dockerfile
+          platforms: ${{ matrix.platform }}
+          outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=ariami-cli-${{ matrix.architecture }}
+          cache-to: type=gha,mode=min,scope=ariami-cli-${{ matrix.architecture }}
+
+      - name: Export image digest
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          mkdir -p "${RUNNER_TEMP}/digests"
+          touch "${RUNNER_TEMP}/digests/${DIGEST#sha256:}"
+
+      - name: Upload image digest
+        uses: actions/upload-artifact@v7
+        with:
+          name: digest-${{ matrix.architecture }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge:
+    name: Publish multi-platform image
+    needs: build
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Download image digests
+        uses: actions/download-artifact@v8
+        with:
+          path: ${{ runner.temp }}/digests
+          pattern: digest-*
+          merge-multiple: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate image metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=edge,branch=main
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,format=short
+
+      - name: Create multi-platform image
+        env:
+          IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          tag_args=()
+          while IFS= read -r tag; do
+            if [ -n "${tag}" ]; then
+              tag_args+=(--tag "${tag}")
+            fi
+          done <<< "${TAGS}"
+
+          source_args=()
+          for digest_path in "${RUNNER_TEMP}/digests/"*; do
+            source_args+=("${IMAGE}@sha256:$(basename "${digest_path}")")
+          done
+
+          if [ "${#source_args[@]}" -ne 2 ]; then
+            echo "::error::Expected two platform digests, found ${#source_args[@]}"
+            exit 1
+          fi
+
+          docker buildx imagetools create "${tag_args[@]}" "${source_args[@]}"
+
+      - name: Verify multi-platform image
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          primary_tag="$(head -n 1 <<< "${TAGS}")"
+          manifest="$(docker buildx imagetools inspect --raw "${primary_tag}")"
+          echo "${manifest}" | jq -e '
+            [.manifests[].platform.architecture] as $architectures
+            | ($architectures | index("amd64")) != null
+              and ($architectures | index("arm64")) != null
+          '

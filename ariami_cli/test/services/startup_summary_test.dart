@@ -5,7 +5,7 @@ void main() {
   group('StartupSummary.buildBanner', () {
     test('formats full server information', () {
       final lines = StartupSummary.buildBanner(
-        version: '4.4.0',
+        version: '5.0.0',
         modeLabel: 'background',
         port: 8080,
         bindHost: '0.0.0.0',
@@ -22,7 +22,7 @@ void main() {
 
       expect(lines, [
         '──────────────────────────────────────────────────────────',
-        ' Ariami Server 4.4.0',
+        ' Ariami Server 5.0.0',
         ' Status:    running (background, PID 1234)',
         ' Dashboard: http://192.168.1.20:8080',
         ' Local:     http://127.0.0.1:8080',
@@ -37,7 +37,7 @@ void main() {
 
     test('omits network addresses when none are available', () {
       final lines = StartupSummary.buildBanner(
-        version: '4.4.0',
+        version: '5.0.0',
         modeLabel: 'foreground',
         port: 8080,
         bindHost: '0.0.0.0',
@@ -59,7 +59,7 @@ void main() {
 
     test('shows localhost-only note and hides remote URLs', () {
       final lines = StartupSummary.buildBanner(
-        version: '4.4.0',
+        version: '5.0.0',
         modeLabel: 'background',
         port: 8080,
         bindHost: '127.0.0.1',
@@ -87,7 +87,7 @@ void main() {
 
     test('warns when there is no owner account', () {
       final lines = StartupSummary.buildBanner(
-        version: '4.4.0',
+        version: '5.0.0',
         modeLabel: 'foreground',
         port: 8080,
         bindHost: '0.0.0.0',
@@ -111,7 +111,7 @@ void main() {
 
     test('shows setup incomplete status and next step', () {
       final lines = StartupSummary.buildBanner(
-        version: '4.4.0',
+        version: '5.0.0',
         modeLabel: 'foreground',
         port: 8080,
         bindHost: '0.0.0.0',
@@ -138,7 +138,7 @@ void main() {
 
     test('marks missing configured music folder', () {
       final lines = StartupSummary.buildBanner(
-        version: '4.4.0',
+        version: '5.0.0',
         modeLabel: 'foreground',
         port: 8080,
         bindHost: '0.0.0.0',

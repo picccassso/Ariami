@@ -20,8 +20,8 @@ below. Everything else works the same.
 INSTALLATION (Linux / Raspberry Pi / macOS)
 -------------------------------------------
 1. Extract the archive:
-   unzip ariami-cli-<platform>-v4.4.0.zip
-   cd ariami-cli-<platform>-v4.4.0
+   unzip ariami-cli-<platform>-v5.0.0.zip
+   cd ariami-cli-<platform>-v5.0.0
 
 2. Make the launcher executable:
    chmod +x ariami_cli
@@ -225,4 +225,4 @@ PROJECT
 -------
 Source code: https://github.com/picccassso/Ariami
 License: See repository
-Version: 4.4.0
+Version: 5.0.0

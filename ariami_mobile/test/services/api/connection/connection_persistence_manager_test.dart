@@ -57,7 +57,7 @@ void main() {
           port: 443,
           publicOrigin: 'https://review.ariami.xyz',
           name: 'Review',
-          version: '4.4.0',
+          version: '5.0.0',
         );
 
         await manager.saveConnectionInfo(serverInfo, 'session-https');
