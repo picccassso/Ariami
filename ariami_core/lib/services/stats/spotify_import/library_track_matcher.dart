@@ -21,23 +21,29 @@ class LibraryTrackMatcher implements TrackMatcher {
   LibraryTrackMatcher(List<LibraryCatalogEntry> catalog) {
     for (final entry in catalog) {
       _byId[entry.songId] = entry;
-      final normTitle = _norm(entry.title);
-      if (normTitle.isEmpty) continue;
       final variants = _artistVariants(entry.artist);
+      final titleCredits = _featArtists(entry.title);
+      if (titleCredits != null && titleCredits.isNotEmpty) {
+        variants.addAll(_artistVariants(titleCredits));
+      }
       _variantsById[entry.songId] = variants;
-      for (final variant in variants) {
-        _exactByTitleArtist
-            .putIfAbsent('$normTitle|||$variant', () => <String>[])
-            .add(entry.songId);
-      }
       final normAlbum = entry.album == null ? '' : _norm(entry.album!);
-      if (normAlbum.isNotEmpty) {
-        _byTitleAlbum
-            .putIfAbsent('$normTitle|||$normAlbum', () => <String>[])
-            .add(entry.songId);
-      }
-      for (final word in SearchNormalizer.of(entry.title).words) {
-        _byTitleWord.putIfAbsent(word, () => <String>{}).add(entry.songId);
+      for (final normTitle in _libraryTitleVariants(entry)) {
+        for (final variant in variants) {
+          _exactByTitleArtist
+              .putIfAbsent('$normTitle|||$variant', () => <String>[])
+              .add(entry.songId);
+        }
+        if (normAlbum.isNotEmpty) {
+          _byTitleAlbum
+              .putIfAbsent('$normTitle|||$normAlbum', () => <String>[])
+              .add(entry.songId);
+        }
+        for (final word in normTitle.split(' ')) {
+          if (word.isNotEmpty) {
+            _byTitleWord.putIfAbsent(word, () => <String>{}).add(entry.songId);
+          }
+        }
       }
     }
   }
@@ -63,20 +69,47 @@ class LibraryTrackMatcher implements TrackMatcher {
     'mono',
     'version',
     'mix',
+    'mixes',
     'deluxe',
+    'soundtrack',
+    'bonus',
+    'recording',
+    'performance',
   };
 
   static final RegExp _featSuffixRe = RegExp(
-    r'\s*(?:[\(\[]\s*\b(?:feat\.?|ft\.?|featuring)\b[^\)\]]*[\)\]]|\b(?:feat\.?|ft\.?|featuring)\b\s.*)$',
+    r'\s*(?:[\(\[]\s*(?:(?:feat\.?|ft\.?|featuring|with)\b|&)\s*[^\)\]]*[\)\]]|\b(?:feat\.?|ft\.?|featuring)\b\s.*)$',
     caseSensitive: false,
   );
   static final RegExp _featArtistsRe = RegExp(
-    r'[\(\[]\s*\b(?:feat\.?|ft\.?|featuring)\b\s+([^\)\]]+)[\)\]]',
+    r'[\(\[]\s*(?:feat|ft|featuring)\b\.?\s+([^\)\]]+)[\)\]]',
     caseSensitive: false,
   );
+  static final RegExp _featCreditBlockRe = RegExp(
+    r'\s*[\(\[]\s*(?:feat|ft|featuring)\b\.?\s+[^\)\]]+[\)\]]',
+    caseSensitive: false,
+  );
+  static final RegExp _expandedAcronymRe = RegExp(
+    r'^([A-Za-z](?:\s*\.\s*[A-Za-z]){1,})\s*\([^\)]+\)\s*(?:pt\.?\s*\d+)?$',
+    caseSensitive: false,
+  );
+  static final RegExp _versionNumberRe =
+      RegExp(r'^(?:\d+|[ivxlcdm]+)$', caseSensitive: false);
+  static const Set<String> _distinctRecordingWords = <String>{
+    'instrumental',
+    'karaoke',
+    'cappella',
+    'acappella',
+  };
   static final RegExp _parenSuffixRe =
       RegExp(r'^(.*?)\s*[\(\[]([^\)\]]*)[\)\]]\s*$');
   static final RegExp _dashSuffixRe = RegExp(r'^(.*?)\s+-\s+([^-]+)$');
+  static final RegExp _artistTitlePrefixRe =
+      RegExp(r'^(.+?)\s+[-\u2013\u2014]\s+(.+)$');
+  static final RegExp _asciiLetterRe = RegExp('[A-Za-z]');
+  static final RegExp _letterRe = RegExp(r'\p{L}', unicode: true);
+  static final RegExp _wrappedSuffixRe =
+      RegExp(r'^(.*?)\s*[\(\[]([^\)\]]+)[\)\]]\s*$');
 
   final Map<String, LibraryCatalogEntry> _byId =
       <String, LibraryCatalogEntry>{};
@@ -107,9 +140,11 @@ class LibraryTrackMatcher implements TrackMatcher {
           if (ids != null) hits.addAll(ids);
         }
         if (hits.isEmpty) continue;
-        // Raw title matched verbatim -> full confidence; a stripped variant
-        // (feat./remaster/live/...) folds onto the base recording for less.
-        final confidence = i == 0 ? 1.0 : 0.9;
+        // Raw title matched verbatim on both sides -> full confidence; a
+        // stripped variant (feat./remaster/live/...) folds for less.
+        final hasRawLibraryTitle =
+            hits.any((id) => _norm(_byId[id]!.title) == titleVariants[i]);
+        final confidence = i == 0 && hasRawLibraryTitle ? 1.0 : 0.9;
         return _resolveMultiple(hits, key, MatchTier.exact, confidence);
       }
     }
@@ -165,32 +200,55 @@ class LibraryTrackMatcher implements TrackMatcher {
       Set<String> hits, SpotifyTrackKey key, MatchTier tier, double confidence) {
     if (hits.length == 1) return _libraryMatch(hits.first, tier, confidence);
     final normAlbum = key.album == null ? '' : _norm(key.album!);
+    final rawSpotifyTitle = _norm(key.title);
+
+    // Prefer a verbatim normalized title over a hit created by stripping
+    // "Live", "Remix", "Album Version", etc. This keeps a Spotify base
+    // recording on the library's base copy when both it and a variant exist.
+    final rawTitleHits =
+        hits.where((id) => _norm(_byId[id]!.title) == rawSpotifyTitle).toSet();
+    final candidates = rawTitleHits.isEmpty ? hits : rawTitleHits;
 
     // Rank by album agreement with Spotify (exact > containment > token
     // overlap > none), deterministic songId tiebreak so re-imports are stable.
-    final ordered = hits.toList()
+    final ordered = candidates.toList()
       ..sort((a, b) {
         final byAlbum =
             _albumScore(b, normAlbum).compareTo(_albumScore(a, normAlbum));
         return byAlbum != 0 ? byAlbum : a.compareTo(b);
       });
+    final lowerPriority = hits.difference(candidates).toList()
+      ..sort((a, b) {
+        final byAlbum =
+            _albumScore(b, normAlbum).compareTo(_albumScore(a, normAlbum));
+        return byAlbum != 0 ? byAlbum : a.compareTo(b);
+      });
+    List<String> alternatesAfter(String chosen) => <String>[
+          ...ordered.where((id) => id != chosen),
+          ...lowerPriority.where((id) => id != chosen),
+        ];
+
+    if (candidates.length == 1) {
+      return _libraryMatch(candidates.first, tier, confidence, lowerPriority);
+    }
 
     // A single copy whose album EXACTLY matches Spotify is an unambiguous pick
     // even across different songs.
     if (normAlbum.isNotEmpty) {
-      final exact = hits.where((id) => _albumScore(id, normAlbum) == 3).toList();
+      final exact =
+          candidates.where((id) => _albumScore(id, normAlbum) == 3).toList();
       if (exact.length == 1) {
-        final rest = ordered.where((id) => id != exact.first).toList();
-        return _libraryMatch(exact.first, tier, confidence, rest);
+        return _libraryMatch(
+            exact.first, tier, confidence, alternatesAfter(exact.first));
       }
     }
 
-    if (_allSameSong(hits)) {
+    if (_allSameSong(candidates)) {
       return _libraryMatch(
-          ordered.first, tier, confidence, ordered.skip(1).toList());
+          ordered.first, tier, confidence, alternatesAfter(ordered.first));
     }
-    return _libraryMatch(
-        ordered.first, MatchTier.ambiguous, 0.5, ordered.skip(1).toList());
+    return _libraryMatch(ordered.first, MatchTier.ambiguous, 0.5,
+        alternatesAfter(ordered.first));
   }
 
   /// Album agreement of song [songId] with a normalized Spotify album:
@@ -287,6 +345,14 @@ class LibraryTrackMatcher implements TrackMatcher {
       String spotifyRawNorm) {
     final entryVariants = _variantsById[songId] ?? const <String>{};
     if (entryVariants.any(spotifyCandidates.contains)) return true;
+    for (final entry in entryVariants) {
+      if (entry.length < 5) continue;
+      for (final spotify in spotifyCandidates) {
+        if (spotify.length >= 5 && _levenshtein(entry, spotify, 1) <= 1) {
+          return true;
+        }
+      }
+    }
     final entryRawNorm = _norm(_byId[songId]!.artist);
     return entryRawNorm.isNotEmpty &&
         spotifyRawNorm.isNotEmpty &&
@@ -298,6 +364,26 @@ class LibraryTrackMatcher implements TrackMatcher {
   /// [_levCap]) on the normalized title strings.
   double _titleScore(String a, String b) {
     if (a == b) return 1.0;
+    if (_hasConflictingVersionNumbers(a, b)) return 0.0;
+    final shorter = a.length <= b.length ? a : b;
+    final longer = a.length <= b.length ? b : a;
+    final shorterWords = shorter.split(' ').where((w) => w.isNotEmpty).length;
+    final containsWholeTitle = longer.startsWith('$shorter ') ||
+        longer.endsWith(' $shorter') ||
+        longer.contains(' $shorter ');
+    if (containsWholeTitle && (shorter.length >= 8 || shorterWords >= 3)) {
+      final extraWords = longer
+          .replaceFirst(shorter, '')
+          .split(' ')
+          .where((word) => word.isNotEmpty)
+          .toSet();
+      if (extraWords.any(_distinctRecordingWords.contains) ||
+          (extraWords.isNotEmpty &&
+              extraWords.every(_versionNumberRe.hasMatch))) {
+        return 0.0;
+      }
+      return 0.85;
+    }
     final wordsA = a.split(' ').toSet();
     final wordsB = b.split(' ').toSet();
     final union = wordsA.union(wordsB).length;
@@ -308,6 +394,21 @@ class LibraryTrackMatcher implements TrackMatcher {
         ? 0.0
         : 1.0 - distance / math.max(a.length, b.length);
     return 0.75 * jaccard + 0.25 * levScore;
+  }
+
+  bool _hasConflictingVersionNumbers(String a, String b) {
+    Set<String> numbers(String value) => value
+        .split(' ')
+        .where(_versionNumberRe.hasMatch)
+        .map((number) => number.toLowerCase())
+        .toSet();
+
+    final aNumbers = numbers(a);
+    final bNumbers = numbers(b);
+    return aNumbers.isNotEmpty &&
+        bNumbers.isNotEmpty &&
+        !aNumbers.containsAll(bNumbers) &&
+        !bNumbers.containsAll(aNumbers);
   }
 
   /// Levenshtein distance, early-exiting with [_levCap] + 1 once it is clear
@@ -340,9 +441,19 @@ class LibraryTrackMatcher implements TrackMatcher {
     void add(String title) {
       final n = _norm(title);
       if (n.isNotEmpty && seen.add(n)) variants.add(n);
+      final numbered = n.replaceAllMapped(
+        RegExp(r'\bno (?=\d)'),
+        (_) => 'number ',
+      );
+      if (numbered != n && seen.add(numbered)) variants.add(numbered);
     }
 
     add(rawTitle);
+    final withoutCreditBlock =
+        rawTitle.replaceAll(_featCreditBlockRe, '').trim();
+    if (withoutCreditBlock != rawTitle) add(withoutCreditBlock);
+    final expandedAcronym = _expandedAcronymRe.firstMatch(rawTitle);
+    if (expandedAcronym != null) add(expandedAcronym.group(1)!);
     final noFeat = _stripFeatSuffix(rawTitle);
     final noTag = _stripVariantSuffix(rawTitle);
     if (noFeat != rawTitle) {
@@ -355,8 +466,62 @@ class LibraryTrackMatcher implements TrackMatcher {
       final both = _stripFeatSuffix(noTag);
       if (both != noTag) add(both);
     }
+    for (final variant in _multilingualTitleVariants(rawTitle)) {
+      add(variant);
+    }
     return variants;
   }
+
+  /// Library titles need the same suffix handling as Spotify titles. Without
+  /// this, a Spotify base title cannot reach a local "(feat. X)", "Album
+  /// Version", or bilingual-tagged title even though the reverse direction
+  /// already works.
+  List<String> _libraryTitleVariants(LibraryCatalogEntry entry) {
+    final variants = _titleVariants(entry.title);
+    final prefixed = _artistTitlePrefixRe.firstMatch(entry.title);
+    if (prefixed != null) {
+      final prefix = _norm(prefixed.group(1)!);
+      if (_artistVariants(entry.artist).contains(prefix)) {
+        for (final variant in _titleVariants(prefixed.group(2)!)) {
+          if (!variants.contains(variant)) variants.add(variant);
+        }
+      }
+    }
+    return variants;
+  }
+
+  /// Produces the separately tagged language forms used by common music tags,
+  /// for example "오아시스 (Oasis)", "으르렁 Growl", and "The Star 星".
+  /// Artist agreement still gates every resulting match.
+  List<String> _multilingualTitleVariants(String title) {
+    final variants = <String>[];
+    final wrapped = _wrappedSuffixRe.firstMatch(title);
+    if (wrapped != null &&
+        _usesDifferentScripts(wrapped.group(1)!, wrapped.group(2)!)) {
+      variants.add(wrapped.group(1)!.trim());
+      variants.add(wrapped.group(2)!.trim());
+    }
+
+    final words = title.split(RegExp(r'\s+'));
+    final ascii = words.where(_hasAsciiLetters).join(' ').trim();
+    final nonAscii = words.where(_hasNonAsciiLetters).join(' ').trim();
+    if (ascii.isNotEmpty &&
+        nonAscii.isNotEmpty &&
+        _usesDifferentScripts(ascii, nonAscii)) {
+      variants.add(ascii);
+      variants.add(nonAscii);
+    }
+    return variants;
+  }
+
+  bool _usesDifferentScripts(String a, String b) =>
+      (_hasAsciiLetters(a) && _hasNonAsciiLetters(b)) ||
+      (_hasNonAsciiLetters(a) && _hasAsciiLetters(b));
+
+  bool _hasAsciiLetters(String value) => _asciiLetterRe.hasMatch(value);
+
+  bool _hasNonAsciiLetters(String value) => value.runes.any(
+      (rune) => rune > 0x7f && _letterRe.hasMatch(String.fromCharCode(rune)));
 
   /// Artist lookup candidates for a Spotify key: the album artist's variants
   /// plus the featured artist(s) lifted out of a "(feat. X)" title suffix.
@@ -375,8 +540,11 @@ class LibraryTrackMatcher implements TrackMatcher {
   Set<String> _artistVariants(String rawArtist) {
     final variants = <String>{};
     void addNorm(String value) {
-      final n = _norm(value);
-      if (n.isNotEmpty) variants.add(n);
+      final searchable = SearchNormalizer.of(value);
+      if (searchable.norm.isNotEmpty) variants.add(searchable.norm);
+      if (searchable.hasCyrillic && searchable.translit.isNotEmpty) {
+        variants.add(searchable.translit);
+      }
     }
 
     addNorm(rawArtist);
@@ -384,10 +552,15 @@ class LibraryTrackMatcher implements TrackMatcher {
     for (final credited in _splitter.split(rawArtist)) {
       addNorm(credited.key);
     }
+    for (final languageForm in _multilingualTitleVariants(rawArtist)) {
+      addNorm(languageForm);
+    }
     for (final variant in variants.toList()) {
       if (variant.startsWith('the ') && variant.length > 4) {
         variants.add(variant.substring(4));
       }
+      final compact = variant.replaceAll(' ', '');
+      if (compact.length >= 4 && compact != variant) variants.add(compact);
     }
     return variants;
   }

@@ -33,6 +33,8 @@ void main() {
       expect(SearchNormalizer.normalizeString("Don't Stop"), 'dont stop');
       expect(SearchNormalizer.normalizeString('Motörhead'), 'motorhead');
       expect(SearchNormalizer.normalizeString('AC/DC'), 'ac dc');
+      expect(SearchNormalizer.normalizeString('Guță și Chindriș'),
+          'guta si chindris');
     });
 
     test('handles NFD-decomposed input (Latin fold, Cyrillic recompose)', () {

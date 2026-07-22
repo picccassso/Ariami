@@ -158,6 +158,310 @@ void main() {
       expect(remix.songId, 's-base');
       expect(remix.confidence, lessThan(1.0));
     });
+
+    test('library-side feature and version suffixes also fold to base title',
+        () {
+      final matcher = matcherOf(const [
+        LibraryCatalogEntry(
+          songId: 's-feat',
+          title: 'Inima (feat. Delia)',
+          artist: "Carla's Dreams, Delia",
+          album: 'Antiexemplu',
+        ),
+        LibraryCatalogEntry(
+          songId: 's-version',
+          title: 'No Idea (Album Version)',
+          artist: 'Big Time Rush',
+        ),
+      ]);
+      expect(
+        matcher
+            .match(const SpotifyTrackKey(
+              title: 'Inima',
+              albumArtist: "Carla's Dreams",
+              album: 'Antiexemplu',
+            ))
+            .songId,
+        's-feat',
+      );
+      expect(
+        matcher
+            .match(const SpotifyTrackKey(
+              title: 'No Idea',
+              albumArtist: 'Big Time Rush',
+            ))
+            .songId,
+        's-version',
+      );
+    });
+
+    test('Spotify with-credit title folds to library base title', () {
+      final matcher = matcherOf(const [
+        LibraryCatalogEntry(
+          songId: 's-with',
+          title: 'Him & I',
+          artist: 'G-Eazy, Halsey',
+          album: 'The Beautiful & Damned',
+        ),
+      ]);
+      final result = matcher.match(const SpotifyTrackKey(
+        title: 'Him & I (with Halsey)',
+        albumArtist: 'G-Eazy',
+        album: 'The Beautiful & Damned',
+      ));
+      expect(result.songId, 's-with');
+    });
+
+    test('multilingual title tags expose either language form', () {
+      final matcher = matcherOf(const [
+        LibraryCatalogEntry(
+          songId: 's-oasis',
+          title: '오아시스 (Oasis)',
+          artist: 'EXO',
+        ),
+        LibraryCatalogEntry(
+          songId: 's-growl',
+          title: '으르렁 Growl',
+          artist: 'EXO',
+        ),
+      ]);
+      expect(
+        matcher
+            .match(const SpotifyTrackKey(
+              title: 'Oasis',
+              albumArtist: 'EXO',
+            ))
+            .songId,
+        's-oasis',
+      );
+      expect(
+        matcher
+            .match(const SpotifyTrackKey(
+              title: 'Growl',
+              albumArtist: 'EXO',
+            ))
+            .songId,
+        's-growl',
+      );
+    });
+
+    test('Cyrillic artist transliteration agrees with Latin spelling', () {
+      final matcher = matcherOf(const [
+        LibraryCatalogEntry(
+          songId: 's-vitas',
+          title: 'Улыбнись',
+          artist: 'Витас',
+        ),
+      ]);
+      final result = matcher.match(const SpotifyTrackKey(
+        title: 'Улыбнись',
+        albumArtist: 'Vitas',
+      ));
+      expect(result.songId, 's-vitas');
+    });
+
+    test('artist-prefixed library title exposes the real title', () {
+      final matcher = matcherOf(const [
+        LibraryCatalogEntry(
+          songId: 's-prefixed',
+          title: 'G-Eazy - Last Night',
+          artist: 'G-Eazy',
+        ),
+      ]);
+      final result = matcher.match(const SpotifyTrackKey(
+        title: 'Last Night',
+        albumArtist: 'G-Eazy',
+      ));
+      expect(result.songId, 's-prefixed');
+    });
+
+    test('raw base title wins over a stripped live or remix variant', () {
+      final matcher = matcherOf(const [
+        LibraryCatalogEntry(
+          songId: 'a-live',
+          title: 'Do I Wanna Know? (Live)',
+          artist: 'Arctic Monkeys',
+        ),
+        LibraryCatalogEntry(
+          songId: 'z-base',
+          title: 'Do I Wanna Know?',
+          artist: 'Arctic Monkeys',
+        ),
+      ]);
+      final result = matcher.match(const SpotifyTrackKey(
+        title: 'Do I Wanna Know?',
+        albumArtist: 'Arctic Monkeys',
+      ));
+      expect(result.songId, 'z-base');
+      expect(result.tier, MatchTier.exact);
+      expect(result.confidence, 1.0);
+      expect(result.alternateSongIds, contains('a-live'));
+    });
+
+    test('compact artist spellings and title-credit artists are indexed', () {
+      final matcher = matcherOf(const [
+        LibraryCatalogEntry(
+          songId: 's-compact',
+          title: 'Daca pozele ar vorbi',
+          artist: 'Denisa, Florin Peste',
+        ),
+        LibraryCatalogEntry(
+          songId: 's-title-credit',
+          title: 'Porque Te Amo (feat. Arsenium)',
+          artist: 'Сати Казанова',
+        ),
+      ]);
+      expect(
+        matcher
+            .match(const SpotifyTrackKey(
+              title: 'Daca pozele ar vorbi',
+              albumArtist: 'Den-Isa',
+            ))
+            .songId,
+        's-compact',
+      );
+      expect(
+        matcher
+            .match(const SpotifyTrackKey(
+              title: 'Porque Te Amo',
+              albumArtist: 'Arsenium',
+            ))
+            .songId,
+        's-title-credit',
+      );
+    });
+
+    test('multilingual artist tags expose the Latin artist form', () {
+      final matcher = matcherOf(const [
+        LibraryCatalogEntry(
+          songId: 's-bts',
+          title: 'IDOL',
+          artist: 'BTS (방탄소년단)',
+        ),
+      ]);
+      expect(
+        matcher
+            .match(const SpotifyTrackKey(
+              title: 'IDOL',
+              albumArtist: 'BTS',
+            ))
+            .songId,
+        's-bts',
+      );
+    });
+
+    test('fuzzy tier accepts whole-title containment and one artist typo', () {
+      final matcher = matcherOf(const [
+        LibraryCatalogEntry(
+          songId: 's-contained',
+          title: 'Satra in asfintit',
+          artist: 'Loredana',
+        ),
+        LibraryCatalogEntry(
+          songId: 's-typo',
+          title: 'Allegro Ventigo (feat. Matteo)',
+          artist: 'Dan Ballan feat. Matteo',
+        ),
+      ]);
+      final contained = matcher.match(const SpotifyTrackKey(
+        title: 'Jampa 3 - Satra in asfintit',
+        albumArtist: 'Loredana',
+      ));
+      expect(contained.songId, 's-contained');
+      expect(contained.tier, MatchTier.fuzzy);
+
+      final typo = matcher.match(const SpotifyTrackKey(
+        title: 'Allegro Ventigo',
+        albumArtist: 'Dan Balan',
+      ));
+      expect(typo.songId, 's-typo');
+      expect(typo.tier, MatchTier.fuzzy);
+    });
+
+    test('number abbreviation in a title matches the written form', () {
+      final matcher = matcherOf(const [
+        LibraryCatalogEntry(
+          songId: 's-number',
+          title: 'Love Potion Number 9',
+          artist: 'The Clovers',
+        ),
+      ]);
+      expect(
+        matcher
+            .match(const SpotifyTrackKey(
+              title: 'Love Potion No.9',
+              albumArtist: 'The Clovers',
+            ))
+            .songId,
+        's-number',
+      );
+    });
+
+    test('expanded acronym and embedded feature credit expose base forms', () {
+      final matcher = matcherOf(const [
+        LibraryCatalogEntry(
+          songId: 's-pop',
+          title: 'P.O.P',
+          artist: 'j-hope',
+        ),
+        LibraryCatalogEntry(
+          songId: 's-opus',
+          title: 'Opus 1 (feat. Daniel Lazăr) [Killing The Classics]',
+          artist: 'Cheloo, Daniel Lazăr',
+        ),
+      ]);
+      expect(
+        matcher
+            .match(const SpotifyTrackKey(
+              title: 'P.O.P (Piece Of Peace) Pt. 1',
+              albumArtist: 'j-hope',
+            ))
+            .songId,
+        's-pop',
+      );
+      expect(
+        matcher
+            .match(const SpotifyTrackKey(
+              title: 'Opus 1 - Killing The Classics',
+              albumArtist: 'Cheloo',
+            ))
+            .songId,
+        's-opus',
+      );
+    });
+
+    test('fuzzy matching rejects distinct recordings and numbered sequels', () {
+      final matcher = matcherOf(const [
+        LibraryCatalogEntry(
+          songId: 's-cappella',
+          title: 'Please Don\'t Go (A Cappella)',
+          artist: 'Joel Adams',
+        ),
+        LibraryCatalogEntry(
+          songId: 's-sequel',
+          title: 'Lady Killers II',
+          artist: 'G-Eazy',
+        ),
+      ]);
+      expect(
+        matcher
+            .match(const SpotifyTrackKey(
+              title: 'Please Don\'t Go',
+              albumArtist: 'Joel Adams',
+            ))
+            .isMatched,
+        isFalse,
+      );
+      expect(
+        matcher
+            .match(const SpotifyTrackKey(
+              title: 'Lady Killers III',
+              albumArtist: 'G-Eazy',
+            ))
+            .isMatched,
+        isFalse,
+      );
+    });
   });
 
   group('disambiguation', () {
