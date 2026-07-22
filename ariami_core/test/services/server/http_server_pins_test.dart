@@ -8,6 +8,8 @@ import 'package:ariami_core/services/server/http_server.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
+import 'http_server_test_support.dart';
+
 void main() {
   late AriamiHttpServer server;
   late Directory directory;
@@ -31,12 +33,7 @@ void main() {
     await AuthService().register('user-a', 'pass-a-123456');
     await AuthService().register('user-b', 'pass-b-123456');
     _seedCatalog(server.libraryManager.createCatalogRepository()!);
-    port = await _freePort();
-    await server.start(
-      advertisedIp: '127.0.0.1',
-      bindAddress: '127.0.0.1',
-      port: port,
-    );
+    port = await startHttpTestServer(server);
     userAToken = await _login(port, 'user-a', 'pass-a-123456', 'device-a');
     userBToken = await _login(port, 'user-b', 'pass-b-123456', 'device-b');
   });
@@ -287,13 +284,6 @@ Future<_Response> _request(
   } finally {
     client.close(force: true);
   }
-}
-
-Future<int> _freePort() async {
-  final socket = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
-  final port = socket.port;
-  await socket.close();
-  return port;
 }
 
 class _Response {

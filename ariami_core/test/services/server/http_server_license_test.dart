@@ -7,6 +7,8 @@ import 'package:ariami_core/services/server/http_server.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
+import 'http_server_test_support.dart';
+
 void main() {
   late AriamiHttpServer server;
   late Directory directory;
@@ -29,11 +31,7 @@ void main() {
     // First registered user is the admin.
     await AuthService().register('owner', 'owner-pass-123456');
     await AuthService().register('member', 'member-pass-123456');
-    port = await server.startWithPortFallback(
-      advertisedIp: '127.0.0.1',
-      bindAddress: '127.0.0.1',
-      preferredPort: await _freePort(),
-    );
+    port = await startHttpTestServer(server);
     adminToken = await _login(port, 'owner', 'owner-pass-123456', 'device-o');
     memberToken =
         await _login(port, 'member', 'member-pass-123456', 'device-m');
@@ -256,13 +254,6 @@ Future<_Response> _request(
   } finally {
     client.close(force: true);
   }
-}
-
-Future<int> _freePort() async {
-  final socket = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
-  final port = socket.port;
-  await socket.close();
-  return port;
 }
 
 class _Response {

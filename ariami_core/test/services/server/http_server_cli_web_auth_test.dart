@@ -11,6 +11,8 @@ import 'package:ariami_core/services/transcoding/transcoding_service.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
+import 'http_server_test_support.dart';
+
 void main() {
   group('CLI web auth compatibility', () {
     late AriamiHttpServer server;
@@ -52,12 +54,7 @@ void main() {
       server.setFeatureFlags(
         const AriamiFeatureFlags(enableApiScopedAuthForCliWeb: false),
       );
-      final port = await _findFreePort();
-      await server.start(
-        advertisedIp: '127.0.0.1',
-        bindAddress: '127.0.0.1',
-        port: port,
-      );
+      final port = await startHttpTestServer(server);
 
       final registerResponse = await _sendJsonRequest(
         method: 'POST',
@@ -85,12 +82,7 @@ void main() {
       server.setFeatureFlags(
         const AriamiFeatureFlags(enableApiScopedAuthForCliWeb: true),
       );
-      final port = await _findFreePort();
-      await server.start(
-        advertisedIp: '127.0.0.1',
-        bindAddress: '127.0.0.1',
-        port: port,
-      );
+      final port = await startHttpTestServer(server);
 
       final registerResponse = await _sendJsonRequest(
         method: 'POST',
@@ -160,12 +152,7 @@ void main() {
 
     test('public registration closes after first user, admin can create users',
         () async {
-      final port = await _findFreePort();
-      await server.start(
-        advertisedIp: '127.0.0.1',
-        bindAddress: '127.0.0.1',
-        port: port,
-      );
+      final port = await startHttpTestServer(server);
 
       final registerOwner = await _sendJsonRequest(
         method: 'POST',
@@ -257,12 +244,7 @@ void main() {
     });
 
     test('admin invite code lets manual entry register, single-use', () async {
-      final port = await _findFreePort();
-      await server.start(
-        advertisedIp: '127.0.0.1',
-        bindAddress: '127.0.0.1',
-        port: port,
-      );
+      final port = await startHttpTestServer(server);
 
       final registerOwner = await _sendJsonRequest(
         method: 'POST',
@@ -337,12 +319,7 @@ void main() {
 
     test('multiple devices stay signed in and legacy takeover is device-local',
         () async {
-      final port = await _findFreePort();
-      await server.start(
-        advertisedIp: '127.0.0.1',
-        bindAddress: '127.0.0.1',
-        port: port,
-      );
+      final port = await startHttpTestServer(server);
 
       final loginUrl = Uri.parse('http://127.0.0.1:$port/api/auth/login');
 
@@ -466,12 +443,7 @@ void main() {
     test(
         'ping-only traffic does not register connected client rows, authenticated connect does',
         () async {
-      final port = await _findFreePort();
-      await server.start(
-        advertisedIp: '127.0.0.1',
-        bindAddress: '127.0.0.1',
-        port: port,
-      );
+      final port = await startHttpTestServer(server);
 
       final registerAdmin = await _sendJsonRequest(
         method: 'POST',
@@ -563,12 +535,7 @@ void main() {
     });
 
     test('admin connected-clients returns username/device rows', () async {
-      final port = await _findFreePort();
-      await server.start(
-        advertisedIp: '127.0.0.1',
-        bindAddress: '127.0.0.1',
-        port: port,
-      );
+      final port = await startHttpTestServer(server);
 
       final registerAdmin = await _sendJsonRequest(
         method: 'POST',
@@ -630,12 +597,7 @@ void main() {
     });
 
     test('admin users returns registered users with device counts', () async {
-      final port = await _findFreePort();
-      await server.start(
-        advertisedIp: '127.0.0.1',
-        bindAddress: '127.0.0.1',
-        port: port,
-      );
+      final port = await startHttpTestServer(server);
 
       final registerAdmin = await _sendJsonRequest(
         method: 'POST',
@@ -693,12 +655,7 @@ void main() {
 
     test('dashboard login stays active while the same user logs in on mobile',
         () async {
-      final port = await _findFreePort();
-      await server.start(
-        advertisedIp: '127.0.0.1',
-        bindAddress: '127.0.0.1',
-        port: port,
-      );
+      final port = await startHttpTestServer(server);
 
       final registerResponse = await _sendJsonRequest(
         method: 'POST',
@@ -796,12 +753,7 @@ void main() {
       server.setFeatureFlags(
         const AriamiFeatureFlags(enableApiScopedAuthForCliWeb: true),
       );
-      final port = await _findFreePort();
-      await server.start(
-        advertisedIp: '127.0.0.1',
-        bindAddress: '127.0.0.1',
-        port: port,
-      );
+      final port = await startHttpTestServer(server);
 
       final registerResponse = await _sendJsonRequest(
         method: 'POST',
@@ -895,12 +847,7 @@ void main() {
     });
 
     test('admin user-activity returns empty users when no activity', () async {
-      final port = await _findFreePort();
-      await server.start(
-        advertisedIp: '127.0.0.1',
-        bindAddress: '127.0.0.1',
-        port: port,
-      );
+      final port = await startHttpTestServer(server);
 
       final registerAdmin = await _sendJsonRequest(
         method: 'POST',
@@ -968,12 +915,7 @@ void main() {
         ),
       );
 
-      final port = await _findFreePort();
-      await server.start(
-        advertisedIp: '127.0.0.1',
-        bindAddress: '127.0.0.1',
-        port: port,
-      );
+      final port = await startHttpTestServer(server);
 
       final registerAdmin = await _sendJsonRequest(
         method: 'POST',
@@ -1083,12 +1025,7 @@ void main() {
     });
 
     test('admin kick-client disconnects target and revokes sessions', () async {
-      final port = await _findFreePort();
-      await server.start(
-        advertisedIp: '127.0.0.1',
-        bindAddress: '127.0.0.1',
-        port: port,
-      );
+      final port = await startHttpTestServer(server);
 
       final registerAdmin = await _sendJsonRequest(
         method: 'POST',
@@ -1187,12 +1124,7 @@ void main() {
 
     test('admin change-password updates password and revokes sessions',
         () async {
-      final port = await _findFreePort();
-      await server.start(
-        advertisedIp: '127.0.0.1',
-        bindAddress: '127.0.0.1',
-        port: port,
-      );
+      final port = await startHttpTestServer(server);
 
       final registerAdmin = await _sendJsonRequest(
         method: 'POST',
@@ -1300,12 +1232,7 @@ void main() {
 
     test('admin delete-user removes account and revokes active sessions',
         () async {
-      final port = await _findFreePort();
-      await server.start(
-        advertisedIp: '127.0.0.1',
-        bindAddress: '127.0.0.1',
-        port: port,
-      );
+      final port = await startHttpTestServer(server);
 
       final registerAdmin = await _sendJsonRequest(
         method: 'POST',
@@ -1410,12 +1337,7 @@ void main() {
     });
 
     test('cannot delete the last remaining admin account', () async {
-      final port = await _findFreePort();
-      await server.start(
-        advertisedIp: '127.0.0.1',
-        bindAddress: '127.0.0.1',
-        port: port,
-      );
+      final port = await startHttpTestServer(server);
 
       final registerAdmin = await _sendJsonRequest(
         method: 'POST',
@@ -1463,12 +1385,7 @@ void main() {
     });
 
     test('non-admin is blocked from admin endpoints', () async {
-      final port = await _findFreePort();
-      await server.start(
-        advertisedIp: '127.0.0.1',
-        bindAddress: '127.0.0.1',
-        port: port,
-      );
+      final port = await startHttpTestServer(server);
 
       final registerAdmin = await _sendJsonRequest(
         method: 'POST',
@@ -1622,12 +1539,7 @@ void main() {
         },
       );
 
-      final port = await _findFreePort();
-      await server.start(
-        advertisedIp: '127.0.0.1',
-        bindAddress: '127.0.0.1',
-        port: port,
-      );
+      final port = await startHttpTestServer(server);
 
       final unauthenticated = await _sendJsonRequest(
         method: 'GET',
@@ -1692,12 +1604,7 @@ void main() {
 
     test('websocket identify without session token closes with auth-required',
         () async {
-      final port = await _findFreePort();
-      await server.start(
-        advertisedIp: '127.0.0.1',
-        bindAddress: '127.0.0.1',
-        port: port,
-      );
+      final port = await startHttpTestServer(server);
 
       final registerResponse = await _sendJsonRequest(
         method: 'POST',
@@ -1730,12 +1637,7 @@ void main() {
 
     test('websocket identify with invalid session closes deterministically',
         () async {
-      final port = await _findFreePort();
-      await server.start(
-        advertisedIp: '127.0.0.1',
-        bindAddress: '127.0.0.1',
-        port: port,
-      );
+      final port = await startHttpTestServer(server);
 
       final registerResponse = await _sendJsonRequest(
         method: 'POST',
@@ -1769,12 +1671,7 @@ void main() {
 
     test('disconnect preserves session token - can reconnect without re-login',
         () async {
-      final port = await _findFreePort();
-      await server.start(
-        advertisedIp: '127.0.0.1',
-        bindAddress: '127.0.0.1',
-        port: port,
-      );
+      final port = await startHttpTestServer(server);
 
       // Register and login
       final registerResponse = await _sendJsonRequest(
@@ -1848,12 +1745,7 @@ void main() {
     });
 
     test('admin kick still revokes session after disconnect change', () async {
-      final port = await _findFreePort();
-      await server.start(
-        advertisedIp: '127.0.0.1',
-        bindAddress: '127.0.0.1',
-        port: port,
-      );
+      final port = await startHttpTestServer(server);
 
       // Register admin
       final registerAdmin = await _sendJsonRequest(
@@ -2000,13 +1892,6 @@ class _SlowDownloadTranscodingService extends TranscodingService {
     await Future<void>.delayed(delay);
     return null;
   }
-}
-
-Future<int> _findFreePort() async {
-  final socket = await ServerSocket.bind('127.0.0.1', 0);
-  final port = socket.port;
-  await socket.close();
-  return port;
 }
 
 Future<_RawResponse> _sendRawRequest({

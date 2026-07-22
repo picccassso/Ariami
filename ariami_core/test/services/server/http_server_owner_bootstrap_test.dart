@@ -5,6 +5,8 @@ import 'package:ariami_core/services/server/http_server.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
+import 'http_server_test_support.dart';
+
 /// First-owner bootstrap gating: while no accounts exist, `POST
 /// /api/auth/register` must reject non-local clients unless they present the
 /// setup code shown on the server's own console.
@@ -32,12 +34,10 @@ void main() {
         forceReinitialize: true,
       );
 
-      port = await _findFreePort();
       server.setDiscoveryResponderEnabled(false);
-      await server.start(
-        advertisedIp: '127.0.0.1',
+      port = await startHttpTestServer(
+        server,
         bindAddress: '0.0.0.0',
-        port: port,
       );
     });
 
@@ -141,13 +141,6 @@ void main() {
       );
     });
   });
-}
-
-Future<int> _findFreePort() async {
-  final socket = await ServerSocket.bind(InternetAddress.anyIPv4, 0);
-  final port = socket.port;
-  await socket.close();
-  return port;
 }
 
 /// A reachable non-loopback IPv4 address of this machine, so the HTTP server

@@ -7,6 +7,8 @@ import 'package:ariami_core/services/server/http_server.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
+import 'http_server_test_support.dart';
+
 /// Playlist-suggestion approval endpoints: decisions persist through the
 /// LibraryManager decision store, hide suggestions immediately, and imports
 /// trigger a rescan. Both endpoints are library-wide, so they authorize like
@@ -41,12 +43,7 @@ void main() {
         );
       }
 
-      port = await _freePort();
-      await server.start(
-        advertisedIp: '127.0.0.1',
-        bindAddress: '127.0.0.1',
-        port: port,
-      );
+      port = await startHttpTestServer(server);
     });
 
     tearDown(() async {
@@ -61,8 +58,7 @@ void main() {
     test('ignore hides a scanned suggestion; reset re-surfaces it', () async {
       await server.libraryManager.scanMusicFolder(musicDir.path);
 
-      final initial =
-          await _request(port, 'GET', '/api/playlists/suggestions');
+      final initial = await _request(port, 'GET', '/api/playlists/suggestions');
       expect(initial.statusCode, 200);
       final suggestions = initial.json['suggestions'] as List<dynamic>;
       expect(
@@ -203,12 +199,7 @@ void main() {
       await AuthService().register('member', 'member-pass');
       server.updateAuthMode();
 
-      port = await _freePort();
-      await server.start(
-        advertisedIp: '127.0.0.1',
-        bindAddress: '127.0.0.1',
-        port: port,
-      );
+      port = await startHttpTestServer(server);
       ownerToken = await _login(port, 'owner', 'owner-pass', 'device-owner');
       memberToken =
           await _login(port, 'member', 'member-pass', 'device-member');
@@ -353,13 +344,6 @@ Future<_Response> _request(
   } finally {
     client.close(force: true);
   }
-}
-
-Future<int> _freePort() async {
-  final socket = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
-  final port = socket.port;
-  await socket.close();
-  return port;
 }
 
 class _Response {

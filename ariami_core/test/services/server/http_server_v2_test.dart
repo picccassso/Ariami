@@ -11,6 +11,8 @@ import 'package:ariami_core/services/transcoding/transcoding_service.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
+import 'http_server_test_support.dart';
+
 void main() {
   group('Phase 4 - V2 HTTP endpoints and auth enforcement', () {
     late AriamiHttpServer server;
@@ -46,12 +48,7 @@ void main() {
       expect(repository, isNotNull);
       _seedCatalog(repository!);
 
-      final port = await _findFreePort();
-      await server.start(
-        advertisedIp: '127.0.0.1',
-        bindAddress: '127.0.0.1',
-        port: port,
-      );
+      final port = await startHttpTestServer(server);
 
       final albumsPage1 = await _sendJsonRequest(
         method: 'GET',
@@ -85,12 +82,7 @@ void main() {
       expect(repository, isNotNull);
       _seedCatalog(repository!);
 
-      final port = await _findFreePort();
-      await server.start(
-        advertisedIp: '127.0.0.1',
-        bindAddress: '127.0.0.1',
-        port: port,
-      );
+      final port = await startHttpTestServer(server);
 
       final registerResponse = await _sendJsonRequest(
         method: 'POST',
@@ -138,12 +130,7 @@ void main() {
         forceReinitialize: true,
       );
 
-      final port = await _findFreePort();
-      await server.start(
-        advertisedIp: '127.0.0.1',
-        bindAddress: '127.0.0.1',
-        port: port,
-      );
+      final port = await startHttpTestServer(server);
 
       final response = await _sendBinaryRequest(
         method: 'GET',
@@ -165,12 +152,7 @@ void main() {
           forceReinitialize: true,
         );
 
-        final port = await _findFreePort();
-        await server.start(
-          advertisedIp: '127.0.0.1',
-          bindAddress: '127.0.0.1',
-          port: port,
-        );
+        final port = await startHttpTestServer(server);
 
         final registerResponse = await _sendJsonRequest(
           method: 'POST',
@@ -251,12 +233,7 @@ void main() {
         expect(repository, isNotNull);
         _seedCatalog(repository!);
 
-        final port = await _findFreePort();
-        await server.start(
-          advertisedIp: '127.0.0.1',
-          bindAddress: '127.0.0.1',
-          port: port,
-        );
+        final port = await startHttpTestServer(server);
 
         final registerResponse = await _sendJsonRequest(
           method: 'POST',
@@ -394,12 +371,7 @@ void main() {
         );
         server.setTranscodingService(transcodingService);
 
-        final port = await _findFreePort();
-        await server.start(
-          advertisedIp: '127.0.0.1',
-          bindAddress: '127.0.0.1',
-          port: port,
-        );
+        final port = await startHttpTestServer(server);
 
         final registerResponse = await _sendJsonRequest(
           method: 'POST',
@@ -502,12 +474,7 @@ void main() {
       );
       server.setTranscodingService(transcodingService);
 
-      final port = await _findFreePort();
-      await server.start(
-        advertisedIp: '127.0.0.1',
-        bindAddress: '127.0.0.1',
-        port: port,
-      );
+      final port = await startHttpTestServer(server);
 
       final registerResponse = await _sendJsonRequest(
         method: 'POST',
@@ -581,12 +548,7 @@ void main() {
         expect(songs, hasLength(1));
         final songId = (songs.single as Map<String, dynamic>)['id'] as String;
 
-        final port = await _findFreePort();
-        await server.start(
-          advertisedIp: '127.0.0.1',
-          bindAddress: '127.0.0.1',
-          port: port,
-        );
+        final port = await startHttpTestServer(server);
 
         final registerResponse = await _sendJsonRequest(
           method: 'POST',
@@ -709,12 +671,7 @@ void main() {
         await _writeAudioStub(
             p.join(musicDir.path, 'Phase4 Artist - Track.mp3'));
 
-        final port = await _findFreePort();
-        await server.start(
-          advertisedIp: '127.0.0.1',
-          bindAddress: '127.0.0.1',
-          port: port,
-        );
+        final port = await startHttpTestServer(server);
 
         final webSocket =
             await WebSocket.connect('ws://127.0.0.1:$port/api/ws');
@@ -787,12 +744,7 @@ void main() {
         forceReinitialize: true,
       );
 
-      final port = await _findFreePort();
-      await server.start(
-        advertisedIp: '127.0.0.1',
-        bindAddress: '127.0.0.1',
-        port: port,
-      );
+      final port = await startHttpTestServer(server);
 
       final sockets = await Future.wait([
         WebSocket.connect('ws://127.0.0.1:$port/api/ws'),
@@ -854,12 +806,11 @@ void main() {
             .setCachePath('/dev/null/ariami-invalid/metadata_cache.json');
         server.setFeatureFlags(const AriamiFeatureFlags(enableV2Api: true));
 
-        final port = await _findFreePort();
         await expectLater(
           () => server.start(
             advertisedIp: '127.0.0.1',
             bindAddress: '127.0.0.1',
-            port: port,
+            port: 0,
           ),
           throwsA(
             isA<StateError>().having(
@@ -1033,13 +984,6 @@ Future<void> _writeAudioStub(String filePath) async {
   final file = File(filePath);
   await file.parent.create(recursive: true);
   await file.writeAsBytes(List<int>.filled(1024, 0), flush: true);
-}
-
-Future<int> _findFreePort() async {
-  final socket = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
-  final port = socket.port;
-  await socket.close();
-  return port;
 }
 
 class _JsonHttpResponse {

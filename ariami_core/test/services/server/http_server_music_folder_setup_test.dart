@@ -5,6 +5,8 @@ import 'package:ariami_core/services/server/http_server.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
+import 'http_server_test_support.dart';
+
 void main() {
   group('music folder setup endpoints', () {
     late AriamiHttpServer server;
@@ -42,12 +44,7 @@ void main() {
 
     test('GET suggestions includes configured path validation', () async {
       savedPath = musicDir.path;
-      final port = await _findFreePort();
-      await server.start(
-        advertisedIp: '127.0.0.1',
-        bindAddress: '127.0.0.1',
-        port: port,
-      );
+      final port = await startHttpTestServer(server);
 
       final response = await _getJson(
         Uri.parse('http://127.0.0.1:$port/api/setup/music-folder/suggestions'),
@@ -69,12 +66,7 @@ void main() {
     });
 
     test('POST validate returns missing vs readable results', () async {
-      final port = await _findFreePort();
-      await server.start(
-        advertisedIp: '127.0.0.1',
-        bindAddress: '127.0.0.1',
-        port: port,
-      );
+      final port = await startHttpTestServer(server);
 
       final valid = await _postJson(
         Uri.parse('http://127.0.0.1:$port/api/setup/music-folder/validate'),
@@ -94,12 +86,7 @@ void main() {
     });
 
     test('POST set rejects invalid path with validation details', () async {
-      final port = await _findFreePort();
-      await server.start(
-        advertisedIp: '127.0.0.1',
-        bindAddress: '127.0.0.1',
-        port: port,
-      );
+      final port = await startHttpTestServer(server);
 
       final response = await _postJson(
         Uri.parse('http://127.0.0.1:$port/api/setup/music-folder'),
@@ -113,12 +100,7 @@ void main() {
     });
 
     test('POST set saves valid path', () async {
-      final port = await _findFreePort();
-      await server.start(
-        advertisedIp: '127.0.0.1',
-        bindAddress: '127.0.0.1',
-        port: port,
-      );
+      final port = await startHttpTestServer(server);
 
       final response = await _postJson(
         Uri.parse('http://127.0.0.1:$port/api/setup/music-folder'),
@@ -141,12 +123,7 @@ void main() {
         forceReinitialize: true,
       );
 
-      final port = await _findFreePort();
-      await server.start(
-        advertisedIp: '127.0.0.1',
-        bindAddress: '127.0.0.1',
-        port: port,
-      );
+      final port = await startHttpTestServer(server);
 
       final register = await _postJson(
         Uri.parse('http://127.0.0.1:$port/api/auth/register'),
@@ -182,13 +159,6 @@ void main() {
       expect(savedPath, musicDir.path);
     });
   });
-}
-
-Future<int> _findFreePort() async {
-  final socket = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
-  final port = socket.port;
-  await socket.close();
-  return port;
 }
 
 Future<({int statusCode, Map<String, dynamic> body})> _getJson(Uri url) async {

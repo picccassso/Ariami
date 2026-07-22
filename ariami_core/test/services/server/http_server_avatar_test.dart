@@ -6,6 +6,8 @@ import 'package:ariami_core/services/server/http_server.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
+import 'http_server_test_support.dart';
+
 void main() {
   group('user avatars', () {
     late AriamiHttpServer server;
@@ -25,13 +27,8 @@ void main() {
         forceReinitialize: true,
       );
 
-      port = await _findFreePort();
+      port = await startHttpTestServer(server);
       baseUri = Uri.parse('http://127.0.0.1:$port');
-      await server.start(
-        advertisedIp: '127.0.0.1',
-        bindAddress: '127.0.0.1',
-        port: port,
-      );
       // Picker avatars rely on the account picker, which is off by default;
       // these tests cover the opted-in behavior. The disabled-state gating
       // is covered by the auth-users tests.
@@ -294,13 +291,6 @@ List<int> _pngBytes() {
     0x00,
     0x00,
   ];
-}
-
-Future<int> _findFreePort() async {
-  final socket = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
-  final port = socket.port;
-  await socket.close();
-  return port;
 }
 
 Future<String> _registerAndLogin(

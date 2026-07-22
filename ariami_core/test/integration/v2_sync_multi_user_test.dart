@@ -7,6 +7,8 @@ import 'package:ariami_core/services/server/http_server.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
+import '../services/server/http_server_test_support.dart';
+
 void main() {
   group('Phase 11 - v2 sync multi-user fairness', () {
     late AriamiHttpServer server;
@@ -46,12 +48,7 @@ void main() {
         expect(repository, isNotNull);
         _seedCatalog(repository!, songCount: 32);
 
-        final port = await _findFreePort();
-        await server.start(
-          advertisedIp: '127.0.0.1',
-          bindAddress: '127.0.0.1',
-          port: port,
-        );
+        final port = await startHttpTestServer(server);
 
         await _registerUser(port, 'user-a', 'pass-a-123456');
         final userAToken = await _loginUser(
@@ -237,13 +234,6 @@ Future<_JsonResponse> _createDownloadJob({
       'downloadOriginal': false,
     },
   );
-}
-
-Future<int> _findFreePort() async {
-  final socket = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
-  final port = socket.port;
-  await socket.close();
-  return port;
 }
 
 Future<_JsonResponse> _sendJsonRequest({

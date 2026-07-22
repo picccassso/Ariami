@@ -5,6 +5,8 @@ import 'package:ariami_core/services/server/http_server.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
+import 'http_server_test_support.dart';
+
 void main() {
   group('GET /api/auth/users', () {
     late AriamiHttpServer server;
@@ -24,12 +26,7 @@ void main() {
         forceReinitialize: true,
       );
 
-      port = await _findFreePort();
-      await server.start(
-        advertisedIp: '127.0.0.1',
-        bindAddress: '127.0.0.1',
-        port: port,
-      );
+      port = await startHttpTestServer(server);
     });
 
     tearDown(() async {
@@ -273,13 +270,6 @@ void main() {
       expect(server.publicUserPickerEnabled, isTrue);
     });
   });
-}
-
-Future<int> _findFreePort() async {
-  final socket = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
-  final port = socket.port;
-  await socket.close();
-  return port;
 }
 
 class _JsonResponse {

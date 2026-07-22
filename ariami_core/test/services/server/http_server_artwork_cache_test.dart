@@ -7,6 +7,8 @@ import 'package:ariami_core/services/server/http_server.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
+import 'http_server_test_support.dart';
+
 void main() {
   group('Phase 5 - Artwork cache headers and conditional requests', () {
     late AriamiHttpServer server;
@@ -70,12 +72,7 @@ void main() {
 
         await server.libraryManager.scanMusicFolder(musicDir.path);
 
-        final port = await _findFreePort();
-        await server.start(
-          advertisedIp: '127.0.0.1',
-          bindAddress: '127.0.0.1',
-          port: port,
-        );
+        final port = await startHttpTestServer(server);
         final sessionToken = await _registerAndLogin(port);
         final authHeaders = <String, String>{
           'Authorization': 'Bearer $sessionToken',
@@ -324,11 +321,4 @@ List<int> _toSyncSafe(int value) {
     (value >> 7) & 0x7F,
     value & 0x7F,
   ];
-}
-
-Future<int> _findFreePort() async {
-  final socket = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
-  final port = socket.port;
-  await socket.close();
-  return port;
 }

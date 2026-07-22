@@ -8,6 +8,8 @@ import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:ariami_core/ariami_core.dart';
 
+import '../services/server/http_server_test_support.dart';
+
 class _LoginInfo {
   final String sessionToken;
   final String userId;
@@ -147,12 +149,7 @@ Future<void> _runDownloadBenchmark({required int simulatedUsers}) async {
     forceReinitialize: true,
   );
 
-  final port = await _findFreePort();
-  await server.start(
-    advertisedIp: '127.0.0.1',
-    bindAddress: '127.0.0.1',
-    port: port,
-  );
+  final port = await startHttpTestServer(server);
 
   final baseUri = Uri.parse('http://127.0.0.1:$port/api');
   final client = HttpClient()..maxConnectionsPerHost = 16;
@@ -249,13 +246,6 @@ List<String> _collectSongIds(LibraryStructure library) {
     ids.add(_songIdForPath(song.filePath));
   }
   return ids.toList();
-}
-
-Future<int> _findFreePort() async {
-  final socket = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
-  final port = socket.port;
-  await socket.close();
-  return port;
 }
 
 Future<_LoginInfo> _registerAndLogin(
