@@ -18,7 +18,8 @@ class SpotifyPlay {
 
   /// When the play happened, UTC epoch millis. For offline plays this is
   /// `offline_timestamp` (`ts` is the sync time for those and would poison
-  /// daily rollups with impossible bursts).
+  /// daily rollups with impossible bursts), unit-normalised to millis since
+  /// that field is seconds in some exports and millis in others.
   final int occurredAtMs;
 
   /// `ms_played` — full credited listening for this play.
@@ -152,14 +153,15 @@ class SpotifyHistoryParser {
       }
 
       // Offline plays: `ts` is the sync time, not the play time — up to 185
-      // records share one second. Use offline_timestamp (epoch ms) instead.
+      // records share one second. Use offline_timestamp instead, normalising
+      // its unit first (see [_normalizeEpochMs]).
       final offlineTimestamp = record['offline_timestamp'];
       int occurredAtMs;
       var usedOfflineTimestamp = false;
       if (record['offline'] == true &&
           offlineTimestamp is num &&
           offlineTimestamp > 0) {
-        occurredAtMs = offlineTimestamp.toInt();
+        occurredAtMs = _normalizeEpochMs(offlineTimestamp);
         usedOfflineTimestamp = true;
       } else {
         final ts = record['ts'];
@@ -225,6 +227,18 @@ class SpotifyHistoryParser {
       tzOffsetMinutesFor: tzOffsetMinutesFor,
       importIncognito: importIncognito,
     );
+  }
+
+  /// Spotify's `offline_timestamp` is a Unix epoch, but its unit is
+  /// inconsistent across exports — some records carry milliseconds (13
+  /// digits), others seconds (10 digits). A seconds value consumed as-is
+  /// lands in Jan 1970 and poisons first-play / day-span stats, so scale
+  /// seconds up to millis by magnitude. The `1e12` boundary is unambiguous:
+  /// real second-scale values sit near 1.8e9 and millisecond-scale near
+  /// 1.8e12, with nothing in between (Spotify data starts 2008).
+  static int _normalizeEpochMs(num epoch) {
+    final value = epoch.toInt();
+    return value < 1000000000000 ? value * 1000 : value;
   }
 
   static bool _hasAudiobookMetadata(Map<String, dynamic> record) {

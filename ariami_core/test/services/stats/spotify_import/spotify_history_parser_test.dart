@@ -140,8 +140,8 @@ void main() {
       );
     });
 
-    test('offline plays use offline_timestamp, not the sync ts', () {
-      const offlineTs = 1609459200000; // 2021-01-01T00:00:00Z
+    test('offline plays use offline_timestamp (millis), not the sync ts', () {
+      const offlineTs = 1609459200000; // 2021-01-01T00:00:00Z, millis
       final result = parse([
         record(
           ts: '2021-03-14T01:23:45Z',
@@ -150,6 +150,28 @@ void main() {
         ),
       ]);
       expect(result.plays.single.occurredAtMs, offlineTs);
+      expect(result.summary.offlineCorrected, 1);
+    });
+
+    test('seconds-scale offline_timestamp is normalised to millis', () {
+      // Real exports carry this field in seconds on some records; used as-is
+      // it would land in Jan 1970 and wreck first-play / day-span stats.
+      const offlineSeconds = 1665801525; // 2022-10-15T21:38:45Z, seconds
+      final result = parse([
+        record(
+          ts: '2022-10-15T02:41:22Z',
+          offline: true,
+          offlineTimestamp: offlineSeconds,
+        ),
+      ]);
+      expect(result.plays.single.occurredAtMs, offlineSeconds * 1000);
+      expect(
+        DateTime.fromMillisecondsSinceEpoch(
+          result.plays.single.occurredAtMs,
+          isUtc: true,
+        ).year,
+        2022,
+      );
       expect(result.summary.offlineCorrected, 1);
     });
 

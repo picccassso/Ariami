@@ -118,10 +118,76 @@ void main() {
     await tester.pump();
 
     expect(find.text('${now.year}'), findsOneWidget);
-    expect(find.text('2h'), findsOneWidget);
+    // PLAYTIME reads 2h; AVG DAILY now reads 2h too — this history spans a
+    // single active day, so per-active-day listening equals total playtime.
+    expect(find.text('2h'), findsNWidgets(2));
     expect(
       find.textContaining('need a connection to your server'),
       findsNothing,
     );
+  });
+
+  test('avg daily divides by the server activeDays, not the span or last-days',
+      () {
+    final service = StreamingStatsService();
+    addTearDown(() => service.setAccountStatsOverlay(null));
+
+    // A 56-year first->last span (which a calendar-day average would divide
+    // by) and both songs sharing one last-played day (which the local
+    // per-song approximation would count as a single active day). Neither
+    // must win over the server's exact count.
+    final lastDay = DateTime(2026, 1, 10);
+    service.setAccountStatsOverlay(
+      [
+        SongStats(
+          songId: 'a',
+          playCount: 5,
+          totalTime: const Duration(minutes: 600),
+          firstPlayed: DateTime(1970, 1, 20),
+          lastPlayed: lastDay,
+          songTitle: 'A',
+          songArtist: 'Artist',
+        ),
+        SongStats(
+          songId: 'b',
+          playCount: 5,
+          totalTime: const Duration(minutes: 300),
+          firstPlayed: DateTime(2026, 1, 1),
+          lastPlayed: lastDay,
+          songTitle: 'B',
+          songArtist: 'Artist',
+        ),
+      ],
+      activeDays: 3,
+    );
+
+    final avg = service.getAverageDailyTime();
+    expect(avg.activeDays, 3);
+    // 900 total minutes / 3 active days.
+    expect(avg.perActiveDay, const Duration(minutes: 300));
+  });
+
+  test('avg daily falls back to local active days when no count is supplied',
+      () {
+    final service = StreamingStatsService();
+    addTearDown(() => service.setAccountStatsOverlay(null));
+
+    // Overlay without an activeDays count (e.g. an older server): the local
+    // distinct last-played day count is used instead.
+    service.setAccountStatsOverlay([
+      SongStats(
+        songId: 'a',
+        playCount: 5,
+        totalTime: const Duration(minutes: 600),
+        firstPlayed: DateTime(2026, 1, 1),
+        lastPlayed: DateTime(2026, 2, 2),
+        songTitle: 'A',
+        songArtist: 'Artist',
+      ),
+    ]);
+
+    final avg = service.getAverageDailyTime();
+    expect(avg.activeDays, 1);
+    expect(avg.perActiveDay, const Duration(minutes: 600));
   });
 }

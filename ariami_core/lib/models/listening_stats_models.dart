@@ -235,12 +235,21 @@ class ListeningStatsSummary {
   /// Additive wire field: old clients ignore it, old servers omit it.
   final bool hasSpotifyImport;
 
+  /// Distinct local days on which the account listened to anything (the
+  /// `total` day grain, so baseline imports are excluded but real imported
+  /// history counts). Clients divide lifetime playtime by this for a
+  /// "per active day" average that a single stray timestamp can't distort.
+  /// Additive wire field: 0 from old servers, where clients fall back to the
+  /// first-to-last calendar span.
+  final int activeDays;
+
   const ListeningStatsSummary({
     required this.songs,
     required this.totalListenedMs,
     required this.totalPlays,
     required this.generatedAtMs,
     this.hasSpotifyImport = false,
+    this.activeDays = 0,
   });
 
   Map<String, dynamic> toJson() => <String, dynamic>{
@@ -249,6 +258,7 @@ class ListeningStatsSummary {
         'totalPlays': totalPlays,
         'generatedAtMs': generatedAtMs,
         'hasSpotifyImport': hasSpotifyImport,
+        'activeDays': activeDays,
       };
 
   factory ListeningStatsSummary.fromJson(Map<String, dynamic> json) {
@@ -264,6 +274,11 @@ class ListeningStatsSummary {
       generatedAtMs: (json['generatedAtMs'] as num?)?.toInt() ?? 0,
       // Strictly the JSON literal true; missing/null/wrong type stay false.
       hasSpotifyImport: json['hasSpotifyImport'] == true,
+      // Tolerant: any non-numeric (missing/null/wrong type) becomes 0, which
+      // makes clients fall back to the calendar-span average rather than throw.
+      activeDays: json['activeDays'] is num
+          ? (json['activeDays'] as num).toInt()
+          : 0,
     );
   }
 

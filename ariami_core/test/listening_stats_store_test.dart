@@ -498,6 +498,24 @@ void main() {
   });
 
   group('day and period queries', () {
+    test('summary activeDays counts distinct local listening days', () {
+      final jan2 = DateTime.utc(2026, 1, 2, 12).millisecondsSinceEpoch;
+      final jan2Late = DateTime.utc(2026, 1, 2, 20).millisecondsSinceEpoch;
+      final jan3 = DateTime.utc(2026, 1, 3, 12).millisecondsSinceEpoch;
+      store.applyEvents('user-a', 'device-1', [
+        event(eventId: 'e1', listenedMs: 60000, occurredAtMs: jan2),
+        // Same local day as e1 -> must not count twice.
+        event(eventId: 'e2', plays: 1, playId: 'p1', occurredAtMs: jan2Late),
+        event(eventId: 'e3', listenedMs: 30000, occurredAtMs: jan3),
+        // Baseline imports compress history into one moment: excluded from the
+        // day grain, so they never inflate activeDays.
+        event(eventId: 'baseline:x', listenedMs: 1000, occurredAtMs: jan2),
+      ]);
+
+      expect(store.getSummary('user-a').activeDays, 2);
+      expect(store.getSummary('user-b').activeDays, 0);
+    });
+
     test('a specific local day returns totals and top items', () {
       final jan2 = DateTime.utc(2026, 1, 2, 12).millisecondsSinceEpoch;
       final jan3 = DateTime.utc(2026, 1, 3, 12).millisecondsSinceEpoch;

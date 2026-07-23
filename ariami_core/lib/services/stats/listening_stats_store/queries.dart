@@ -40,12 +40,22 @@ extension _ListeningStatsQueries on ListeningStatsStore {
       [userId],
     ).isNotEmpty;
 
+    // Distinct listening days from the total-grain daily rollups (baseline
+    // imports never reach that grain; real imported days do). Backed by
+    // idx_listening_daily_user_dim_day.
+    final activeDays = _db.select(
+      'SELECT COUNT(DISTINCT local_day) AS n FROM listening_daily_rollups '
+      'WHERE user_id = ? AND dim = ?',
+      [userId, ListeningStatsStore.dimTotal],
+    ).first['n'] as int? ?? 0;
+
     return ListeningStatsSummary(
       songs: songs,
       totalListenedMs: totalListenedMs,
       totalPlays: totalPlays,
       generatedAtMs: DateTime.now().toUtc().millisecondsSinceEpoch,
       hasSpotifyImport: hasSpotifyImport,
+      activeDays: activeDays,
     );
   }
 

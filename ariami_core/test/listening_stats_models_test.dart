@@ -187,4 +187,35 @@ void main() {
       expect(restored.hasSpotifyImport, isFalse);
     });
   });
+
+  group('ListeningStatsSummary.activeDays', () {
+    test('toJson always emits the field and fromJson round-trips it', () {
+      const summary = ListeningStatsSummary(
+        songs: <ListeningSongRollup>[],
+        totalListenedMs: 0,
+        totalPlays: 0,
+        generatedAtMs: 123,
+        activeDays: 42,
+      );
+      expect(summary.toJson()['activeDays'], 42);
+      expect(ListeningStatsSummary.fromJson(summary.toJson()).activeDays, 42);
+    });
+
+    test('defaults to 0 for missing, null and malformed values', () {
+      final cases = <Map<String, dynamic>>[
+        <String, dynamic>{},
+        <String, dynamic>{'activeDays': null},
+        <String, dynamic>{'activeDays': 'seven'},
+        <String, dynamic>{'activeDays': <dynamic>[]},
+      ];
+      for (final json in cases) {
+        expect(
+          ListeningStatsSummary.fromJson(json).activeDays,
+          0,
+          reason: 'json: $json',
+        );
+      }
+      expect(ListeningStatsSummary.empty.activeDays, 0);
+    });
+  });
 }

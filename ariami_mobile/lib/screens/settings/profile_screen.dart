@@ -717,7 +717,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             SettingsTile(
               icon: Icons.trending_up_rounded,
               title: 'Avg Daily Listening',
-              subtitle: _formatDurationShort(avg.perCalendarDay),
+              subtitle: _formatDurationShort(avg.perActiveDay),
             ),
             SettingsTile(
               icon: Icons.person_rounded,

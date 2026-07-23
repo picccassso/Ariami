@@ -56,6 +56,12 @@ class StreamingStatsService extends ChangeNotifier
   /// per-device tracking underneath is unaffected and keeps recording.
   Map<String, SongStats>? _accountOverlay;
 
+  /// Server's authoritative count of distinct active listening days for the
+  /// account (from the summary's `activeDays`). Only meaningful while the
+  /// account overlay is active; null in device-only mode, where the local
+  /// per-song last-played approximation is used instead.
+  int? _accountActiveDays;
+
   /// Sink for cross-device listening events (wired by AccountStatsService).
   /// Every credited play and time segment is mirrored here so it can be
   /// queued for idempotent upload to the server.
@@ -431,12 +437,14 @@ class StreamingStatsService extends ChangeNotifier
   /// Sets (or clears, with null) the account-wide stats overlay and refreshes
   /// every stream/listener. Called by AccountStatsService whenever the server
   /// summary or the pending-upload queue changes.
-  void setAccountStatsOverlay(List<SongStats>? stats) {
+  void setAccountStatsOverlay(List<SongStats>? stats, {int? activeDays}) {
     if (stats == null) {
       if (_accountOverlay == null) return;
       _accountOverlay = null;
+      _accountActiveDays = null;
     } else {
       _accountOverlay = {for (final stat in stats) stat.songId: stat};
+      _accountActiveDays = activeDays;
     }
     _emitTopSongs();
     notifyListeners();
@@ -665,7 +673,14 @@ class StreamingStatsService extends ChangeNotifier
                 (stats.totalTimeStreamed.inSeconds / daysSinceStart).round())
         : stats.totalTimeStreamed;
 
-    final activeDaysCount = uniqueDates.length;
+    // Prefer the server's exact distinct-day count (matches every other
+    // client); fall back to the local per-song last-played approximation only
+    // in device-only mode, where no account count is available.
+    final activeDaysCount = (_accountOverlay != null &&
+            _accountActiveDays != null &&
+            _accountActiveDays! > 0)
+        ? _accountActiveDays!
+        : uniqueDates.length;
     final perActiveDay = activeDaysCount > 0
         ? Duration(
             seconds:

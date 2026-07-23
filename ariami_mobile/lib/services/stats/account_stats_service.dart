@@ -349,7 +349,10 @@ class AccountStatsService extends ChangeNotifier {
       }
     }
 
-    _stats.setAccountStatsOverlay(merged.values.toList());
+    _stats.setAccountStatsOverlay(
+      merged.values.toList(),
+      activeDays: _summary.activeDays,
+    );
   }
 
   // ---------------------------------------------------------------------------

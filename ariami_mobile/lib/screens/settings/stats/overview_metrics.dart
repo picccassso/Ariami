@@ -51,7 +51,7 @@ List<OverviewMetric> computeOverviewMetrics({
         metric2Label = 'PLAYTIME';
         metric2Value = playtime.formatPlaytime(stats.totalTimeStreamed);
         metric3Label = 'AVG DAILY';
-        metric3Value = playtime.formatDurationShort(avgData.perCalendarDay);
+        metric3Value = playtime.formatDurationShort(avgData.perActiveDay);
         break;
 
       case 1: // Artists
@@ -74,7 +74,7 @@ List<OverviewMetric> computeOverviewMetrics({
         metric2Label = 'PLAYTIME';
         metric2Value = playtime.formatPlaytime(totalTime);
         metric3Label = 'AVG DAILY';
-        metric3Value = playtime.formatDurationShort(avgData.perCalendarDay);
+        metric3Value = playtime.formatDurationShort(avgData.perActiveDay);
         break;
 
       case 2: // Albums
@@ -89,7 +89,7 @@ List<OverviewMetric> computeOverviewMetrics({
         metric2Label = 'PLAYTIME';
         metric2Value = playtime.formatPlaytime(totalTime);
         metric3Label = 'AVG DAILY';
-        metric3Value = playtime.formatDurationShort(avgData.perCalendarDay);
+        metric3Value = playtime.formatDurationShort(avgData.perActiveDay);
         break;
 
       default:
