@@ -2,16 +2,20 @@
   <img src="Ariami_icon.png" alt="Ariami Logo" width="200"/>
   <h1>Ariami</h1>
 </div>
+								https://ariami.xyz/
 
-**Ariami is a self-hosted music app that lets you stream your own music library from a desktop, Raspberry Pi, or server to your phone, without port forwarding or complicated setup.**
+
+**Ariami is a self-hosted cross-platform music service, aiming to provide an easy experience with getting your music up and running, with clients across mobile, desktop and TV.**
 
 ---
 
 ## What is Ariami?
 
-Ariami is not a cloud music service. Your files stay on your machine, and you run the server yourself. The **desktop app** and **CLI** are server hosts; the **mobile app** is the main playback client for now.
+Ariami is not a cloud music server, and it only hosts your files. You run the server on your own machine. There are desktop, CLI, and docker server hosts available, with mobile, desktop and TV clients to access your music. The clients are first party, meaning Ariami hands everything end to end. 
 
-At home, your phone connects over your local network. Away from home, [Tailscale](https://tailscale.com/download) gives you a private path to the same server without opening ports on your router. No subscription, no uploading your library to someone else's servers.
+When at home, your phone, desktop, TV connects to Ariami over your local network. When you are away from home, [Tailscale](https://tailscale.com/download) gives you a private path to the same server without opening ports on your router.
+
+Ariami's core and mobile client will always be free. The Desktop and TV client requires a one-time purchase to obtain licenses to access them. This helps fund the development and future of Ariami. 
 
 <p align="center">
   <img src="app%20photos/Ariami%20Mobile/main_player_1.png" alt="Mobile player" width="24%">
@@ -27,12 +31,16 @@ At home, your phone connects over your local network. Away from home, [Tailscale
 
 Get the [latest release](https://github.com/picccassso/Ariami/releases) for your platform:
 
-| Component | Platforms | Notes |
-| --- | --- | --- |
-| **Desktop app/server** | macOS, Windows, Linux | GUI server with setup wizard and dashboard |
-| **CLI / headless server** | Raspberry Pi, Linux | Background daemon with web setup UI |
-| **Mobile client** | Android APK | Install from releases |
-| **Mobile client** | iOS | Build from source (no App Store release yet) |
+*Note: Desktop Streaming and TV client must be purchased from Ariami website. They can be purchased separately or as a bundle. A bundle license activates both Desktop and TV clients. 
+
+| Component                 | Platforms             | Notes                                                                                                    |
+| ------------------------- | --------------------- | -------------------------------------------------------------------------------------------------------- |
+| **Desktop app/server**    | macOS, Windows, Linux | GUI server with setup wizard and dashboard                                                               |
+| **CLI / headless server** | Raspberry Pi, Linux   | Background daemon with web setup UI                                                                      |
+| **Mobile client**         | Android APK           | Install from releases                                                                                    |
+| **Mobile client**         | iOS                   | Build from source (no App Store release yet)                                                             |
+| Desktop Client            | macOS, Windows, Linux | Purchased and downloaded from Ariami website.                                                            |
+| TV client                 | Android (for now)     | Can be side loaded with .apk files, Amazon App Store + Play Store release coming soon. License required. |
 
 ---
 
@@ -94,7 +102,7 @@ After the owner account exists, new registrations require the time-limited token
 
 Ariami works on your LAN out of the box. You do not need port forwarding for home use.
 
-For listening away from home, install [Tailscale](https://tailscale.com/download) on the server and your phone. Tailscale creates a private network between your devices. The mobile app prefers LAN when you are home and switches to Tailscale when you are away.
+For listening away from home, install [Tailscale](https://tailscale.com/download) on the server and your phone/desktop. Tailscale creates a private network between your devices. The mobile app prefers LAN when you are home and switches to Tailscale when you are away.
 
 Without Tailscale, remote access would require manual port forwarding on your router. Tailscale is optional, but it is the recommended way to reach your server from outside your home network.
 
@@ -141,6 +149,8 @@ Both reset types require typing `RESET` to confirm. Factory reset also disables 
 
 Self-hosting your music usually means wrestling with port forwarding, reverse proxies, and server config. Ariami packages the server, handles library scanning and transcoding, and pairs your phone with a QR code. Run it on the computer you already have, or on a Raspberry Pi in the corner. Your metadata stays in your files, your library stays on your hardware, and there is nothing to pay monthly.
 
+There are plenty of other services that exist out there, and they each excel at something different. What I try to do with Ariami is to make it as easy as possible to use without needing things like port forwarding or reverse proxies or major server configs. Ariami handles everything end to end, with polished clients specifically made for Ariami in order to provide a seamless experience. Ariami server can be run on your Pi, on the computer you already have, and then you can connect your desktop client, your TV client and mobile client, and play across them seamlessly using Ariami Connect. The metadata stays in your files, your library stays on your hardware, and there is nothing to pay monthly. The Desktop and TV clients are a one-time purchase. 
+
 ---
 
 ## Features
@@ -153,14 +163,20 @@ Self-hosting your music usually means wrestling with port forwarding, reverse pr
 - Real-time folder watching: new, changed, or removed files update the library without a full rescan; connected clients get push updates over WebSocket.
 - Metadata cache speeds up rescans by skipping unchanged files.
 - Incremental v2 sync: the phone keeps a local catalog copy; the server tracks changes so you are not constantly doing full rescans.
+- Robust tag reading with sensible fallbacks (including cleaning up mangled characters and YouTube-style channel names) so albums group correctly.
 - Server-side artwork is resized and cached for efficient delivery.
-- On mobile: grid, list, or mixed views; pin albums and playlists; filter to downloaded content; multi-select batch downloads; search with recent history (works offline against downloads).
+- On mobile: grid, list, or mixed views; pin albums and playlists (pins sync across your devices); filter to downloaded content; multi-select batch downloads; search with recent history (works offline against downloads).
+- Fast, forgiving search shared across every client, with transliteration and keyboard-layout correction so a mistyped or differently-scripted query still finds the right track.
 
 ### Mobile player
 
 - Background playback with lock screen and notification controls.
-- Mini player and full-screen player with seek bar, shuffle, repeat, and resume where you left off.
-- Dynamic player colours from album artwork; appearance settings including light, dark, system, preset, and custom themes.
+- Mini player and full-screen player with a swipeable artwork carousel, seek bar, shuffle, repeat (off/all/one), and resume where you left off.
+- Optional gapless playback that preloads the next track so albums flow without silence.
+- Graphic equalizer with built-in and custom presets and a live frequency-response curve (native audio processing on iOS, platform EQ on Android).
+- Auto-pause when you turn the system volume all the way down, and resume when you turn it back up.
+- Dynamic player colours from album artwork; appearance settings including light, dark, system, preset colours, a custom colour picker, and a lock-to-a-chosen-cover mode.
+- A responsive layout that expands into a sidebar with a docked now-playing card on tablets and in landscape.
 - Profile hub with optional local avatar and a quick listening snapshot.
 
 ### Downloads and offline
@@ -169,9 +185,11 @@ Self-hosting your music usually means wrestling with port forwarding, reverse pr
 - Manual offline mode to disconnect on purpose and keep using downloads.
 - When the connection drops, the app stays usable offline and reconnects when the network returns.
 - Streaming cache for tracks you have not downloaded yet; prefer local or cached files even when online.
-- Downloads screen for in-progress, failed, and completed downloads; bulk download options; original-quality downloads that bypass transcoding when appropriate.
+- Downloads screen for in-progress, failed, and completed downloads, grouped by album with recovery for interrupted downloads; bulk download options; original-quality "fast" downloads that bypass transcoding when appropriate.
+- On Android, big downloads keep going in the background after you leave the app.
+- Optional "cooler downloads" mode that paces large batches to cut heat and battery drain.
 - Cache controls for streaming artwork and tracks, including size limits and clear cache.
-- Server-managed v2 download jobs for big batches, with throttling and per-user concurrency limits.
+- Server-managed download jobs for big batches, with throttling and per-user concurrency limits so one device never starves the others.
 
 ### Queue and playback
 
@@ -180,24 +198,55 @@ Self-hosting your music usually means wrestling with port forwarding, reverse pr
 - Quality presets that follow connection type (Wi‑Fi vs mobile data), with separate settings for streaming and downloads.
 - Server-side transcoding powered by Sonic (MP3 → AAC) so clients can use formats and quality levels that suit the device.
 
+### Ariami Connect
+
+- Play across all of your signed-in devices, Spotify-Connect style. Start a song on your phone and push it to your desktop or TV, or take over playback from another device.
+- The controlling device mirrors the active player's queue and transport, and its own controls become remote commands: play/pause, next/previous, seek, volume, shuffle, and repeat.
+- Edit the active device's queue remotely — reorder, add, remove, or clear upcoming tracks.
+- Automatic handoff if the active player drops out, and every device can be renamed so it is easy to pick from the list.
+- Works across LAN and Tailscale, so devices at home and away can play together.
+
 ### Playlists
 
-- Create and edit playlists in the app, including artwork, reordering, and renaming.
+- Create and edit playlists in the app, including custom cover art, reordering, and renaming. Cover photos sync across your devices.
 - Like songs from the player to build a Liked Songs playlist.
-- Folders whose names start with `[PLAYLIST]` become server-side playlists; import them to your phone for offline playback.
-- Export and import playlists and listening stats as JSON for backup or moving to a new phone.
+- Folders whose names start with `[PLAYLIST]`, and `.m3u` playlist files, become server-side playlists. The server can also suggest playlist folders it detects and let the owner approve them.
+- Import server playlists to your devices as editable copies; your edits (add, remove, reorder, rename) sync back to the server and to your other clients, and queue up to replay if you make them offline.
+- "Clean up" a playlist to remove ghost entries — songs that were deleted from the server and that you have not downloaded.
 
 ### Multi-user and auth
 
-- Password-protected accounts; each user gets their own session, downloads, and playback state.
-- The first account created becomes the owner/admin. After setup, new registrations require an owner-generated QR code or invite code.
-- A user can have one active non-dashboard device session at a time; signing in on another device can replace the previous mobile session after confirmation.
-- Login rate limiting helps protect against brute-force attempts.
+- Password-protected accounts (minimum 10 characters); each user gets their own session, downloads, playback state, and listening stats.
+- The first account created becomes the owner/admin. After setup, new registrations require an owner-generated QR code or invite code (both single-use and time-limited). Headless CLI setups can bootstrap the owner with a one-time code printed to the console.
+- Your account can be signed in on multiple devices at the same time — phone, desktop, and TV can all stay connected and play together through Ariami Connect. Signing in again on the *same* device replaces only that device's session.
+- Login rate limiting helps protect against brute-force attempts (repeated failures trigger a short cooldown).
+- Optional account picker on TV sign-in is off by default, so a server never lists its account names unless the owner turns it on.
 
 ### Desktop and CLI server
 
 - **Desktop:** GUI server with system tray (minimize to tray instead of quitting), first-run wizard, admin dashboard, Start at Login, and reset options.
 - **CLI:** headless server for Raspberry Pi and Linux with `start`, `stop`, `status`, `autostart`, and `reset` commands, a background daemon after setup, optional custom port, and a web UI for setup and administration.
+
+### Desktop Client
+
+The paid desktop player (macOS, Windows, Linux) connects to your Ariami server and turns any computer into a full Ariami player. Purchased and downloaded from the Ariami website.
+
+- A three-column player (library, content, now-playing panel) with a queue, shuffle, repeat, seek, volume, gapless playback, and a 5-band equalizer with presets.
+- Connects to a server over LAN or Tailscale with a one-time invite code, stays signed in securely, and reconnects on its own — dropping to your downloads if the server goes away.
+- Full downloads and offline mode: download tracks, albums, playlists, or your whole library to a visible folder, keep playing offline, and optionally prefer local copies while online to save bandwidth.
+- Streaming quality presets (High/Medium/Low), playlists with Liked Songs, fast search, and account-wide listening stats with Spotify history import.
+- Ariami Connect to play across your other devices; light, dark, preset, custom, and cover-art theming; interface zoom; OS media-key and Now Playing integration; and built-in updates.
+
+### TV client
+
+Ariami TV (Android TV and Fire TV) is a big-screen player that connects to your server over your local network. Requires a license; side-load the APK today, with Amazon Appstore and Play Store releases on the way.
+
+- Finds your server automatically on the local network, or enter its address manually. Sign in once and it stays paired, reconnecting on its own if the server's address changes. TV is LAN-only by design (no Tailscale/remote).
+- D-pad-first library: browse albums, playlists, and pinned items with detail screens, and playlist edits made elsewhere show up here.
+- Full-screen now-playing with artwork, a seek bar, an upcoming-queue view, shuffle, repeat (off/all/one), and resume after the TV is switched off — plus a "screen off" mode that keeps playing with the display dark.
+- Ariami Connect: control the TV from your phone or desktop, or use the TV to control another device.
+- Shared search, and dark, light, preset, custom, and cover-art theming.
+- Playback-focused — editing, pinning, and downloads live on your phone or desktop.
 
 ### Chromecast
 
@@ -205,8 +254,12 @@ Self-hosting your music usually means wrestling with port forwarding, reverse pr
 
 ### Listening stats
 
-- On-device stats for songs, albums, and artists, including average daily listening time and tabbed top tracks, artists, and albums views.
-- Stats stay on your phone per account; export and import as JSON.
+- Account-wide listening stats that follow you across every Ariami device: what you play on your phone, desktop, or TV all rolls into one history, kept in sync through the server.
+- Tabbed top tracks, artists, and albums, with play counts and time listened.
+- Time-range views: all-time, today, or a specific day, week, month, or year, with a date picker and stepping controls.
+- Featured artists get credited individually, so a guest verse counts toward that artist too.
+- Average daily listening time and a quick profile snapshot (total playtime, songs played, top artist and song).
+- Import your **Spotify** listening history and match it against your library, so your stats come with you. Export and import your playlists and stats as JSON for backup or moving to a new device.
 
 ### Sonic transcoding
 
@@ -229,9 +282,25 @@ Test setup: Raspberry Pi 5 connected over ethernet, active cooler enabled. Avera
 
 ### Planned
 
-- Richer listening stats (for example per calendar day breakdowns).
-- Desktop player mode.
+- Even richer listening-stats views and history breakdowns.
 - Extension and integration support.
+
+---
+## Roadmap 
+
+Where does Ariami go from here? 
+
+I have a lot planned for Ariami, as I believe this is just the beginning with this piece of software. Some of the things planned:
+
+- Role-based access control for families. This means families can choose what music certain users can listen to, with explicit song/album filtering. 
+- Better individual user control. Right now, one library is accessed by everyone, however, there is currently no ability to hide/manage songs/albums/playlists per person.
+- More stats imports. Spotify history import already ships, so your Spotify listening comes with you. YouTube Music and Apple Music are next — I do not use both services, so I do not yet have a valid set of listening stats to pull from them. Once I do, I will implement it into Ariami so your stats come with you from those services as well. 
+- If there is demand for it, Ariami for tvOS (Apple TV) is something I am willing to look into. 
+- These are just some of the things - however, the most important: user feedback that helps improve the service. I have done everything in my power to test on as many VMs, laptops/PCs, TVs as I can get my hands on, however, that is still relatively small to the breadth of devices that are out there. The more issues that are reported to me, the more I can work with to make this service as good as possible. 
+
+**Ariami 6.0** 
+
+- Ariami 6.0 is quite far away. But, one of the main things I would like for Ariami 6.0 is the ability for user sessions on TV where anybody can join a TV session, control, manage it, etc. This will be a very very difficult task to do, hence why it's so far away.
 
 ---
 
