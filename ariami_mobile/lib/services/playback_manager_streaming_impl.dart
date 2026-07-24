@@ -27,6 +27,9 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
       return;
     }
 
+    // Serialize overlapping loads: a newer skip supersedes this one.
+    final int playGeneration = ++_playCurrentSongGeneration;
+
     // SongModel stores albumId as the normalized catalog source of truth, but
     // many queue/playback entry points do not carry the denormalized title.
     // Enrich once at the playback boundary so stats, notifications and saved
@@ -245,6 +248,10 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
               ? song.id
               : null;
       try {
+        // A newer skip started while this one was resolving its stream/source;
+        // don't touch the audio player — the newer load owns playback now.
+        if (playGeneration != _playCurrentSongGeneration) return;
+
         if (_restoredPosition != null) {
           // Load the song WITHOUT starting playback
           await _capByOfflineFallbackDeadline(
@@ -308,6 +315,10 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
         );
         return;
       }
+
+      // Bail out if superseded during the load so we don't overwrite the newer
+      // track's stats / colors / notification with this stale one.
+      if (playGeneration != _playCurrentSongGeneration) return;
 
       _unplayableSkipStreak = 0;
 

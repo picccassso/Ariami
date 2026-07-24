@@ -101,6 +101,11 @@ class PlaybackManager extends ChangeNotifier {
   bool _isHandlingGaplessTransition = false;
   String? _deferredGaplessSongId;
 
+  /// Monotonic token; each _playCurrentSong call captures the latest value.
+  /// A call whose captured token is no longer current aborts before it can
+  /// clobber the audio player or UI state that a newer skip owns.
+  int _playCurrentSongGeneration = 0;
+
   // Consecutive auto-skips over songs that no longer exist in the server
   // library. Reset whenever a song actually starts; caps the skip chain so a
   // queue made entirely of stale ids stops instead of cycling forever.
