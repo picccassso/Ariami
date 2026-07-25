@@ -30,6 +30,12 @@ extension _DashboardAuth on _DashboardScreenState {
         case WsMessageType.syncTokenAdvanced:
           _loadServerStats();
           break;
+
+        // An import or removal on another client of this account changes
+        // what the Spotify section reports.
+        case WsMessageType.listeningStatsUpdated:
+          unawaited(_loadSpotifyImportStatus());
+          break;
       }
     });
   }

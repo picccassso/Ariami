@@ -241,6 +241,17 @@ class AriamiHttpServer {
   /// Whether the unauthenticated sign-in account picker is enabled.
   bool get publicUserPickerEnabled => _publicUserPickerEnabled;
 
+  /// In-process read of [userId]'s Spotify import status, for host apps that
+  /// display it beside the server (the Desktop dashboard). The HTTP
+  /// equivalent is `GET /api/v2/listening/import-status`; hosts use this so
+  /// a passive status line never has to prompt for owner credentials.
+  /// Null while the stats database is not ready.
+  SpotifyImportStatus? getSpotifyImportStatus(String userId) {
+    final store = _listeningStatsStore;
+    if (store == null || !store.isInitialized) return null;
+    return store.getSpotifyImportStatus(userId);
+  }
+
   /// Enable/disable the unauthenticated sign-in account picker at runtime.
   ///
   /// Hosts own persistence: they apply their saved setting on every start

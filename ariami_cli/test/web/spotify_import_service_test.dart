@@ -190,6 +190,40 @@ void main() {
       );
     });
 
+    test('reads the import status', () async {
+      final service = serviceWith(MockClient((request) async {
+        if (request.url.path != '/api/v2/listening/import-status') {
+          return http.Response('not found', 404);
+        }
+        return http.Response(
+          jsonEncode({
+            'plays': 1200,
+            'lastImportedAtMs': 1700000200000,
+            'oldestPlayAtMs': 1600000000000,
+            'newestPlayAtMs': 1700000000000,
+          }),
+          200,
+        );
+      }));
+
+      final status = await service.fetchImportStatus();
+
+      expect(status.plays, 1200);
+      expect(status.hasImport, isTrue);
+      expect(status.lastImportedAtMs, 1700000200000);
+      expect(status.oldestPlayAtMs, 1600000000000);
+      expect(status.newestPlayAtMs, 1700000000000);
+    });
+
+    test('surfaces a failed status read instead of reporting no import',
+        () async {
+      final service = serviceWith(
+        MockClient((request) async => http.Response('nope', 500)),
+      );
+
+      expect(service.fetchImportStatus(), throwsA(isA<SpotifyImportFailure>()));
+    });
+
     test('surfaces a server failure', () async {
       final service = serviceWith(
         MockClient((request) async => http.Response('boom', 500)),

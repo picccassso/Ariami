@@ -230,4 +230,45 @@ void main() {
     ]);
     expect(store.getSummary('user-c').hasSpotifyImport, isFalse);
   });
+
+  group('getSpotifyImportStatus', () {
+    test('counts and dates only the account\'s imported events', () {
+      expect(store.getSpotifyImportStatus('user-a').hasImport, isFalse);
+
+      final beforeSeed = DateTime.now().toUtc().millisecondsSinceEpoch;
+      seedMixedHistory();
+      final afterSeed = DateTime.now().toUtc().millisecondsSinceEpoch;
+
+      final status = store.getSpotifyImportStatus('user-a');
+
+      // Three spotify: events; the live and baseline rows are not counted.
+      expect(status.plays, 3);
+      expect(status.hasImport, isTrue);
+      // The covered span comes from play times, not ingestion times.
+      expect(status.oldestPlayAtMs, day1);
+      expect(status.newestPlayAtMs, day2);
+      // "Last imported" is when the server accepted the rows.
+      expect(status.lastImportedAtMs, isNotNull);
+      expect(status.lastImportedAtMs, greaterThanOrEqualTo(beforeSeed));
+      expect(status.lastImportedAtMs, lessThanOrEqualTo(afterSeed));
+
+      // Per-user isolation: user-b holds only live events.
+      expect(store.getSpotifyImportStatus('user-b'), same(
+        SpotifyImportStatus.none,
+      ));
+    });
+
+    test('reports nothing once the import is removed', () {
+      seedMixedHistory();
+      store.resetUserBySource('user-a', 'spotify:');
+
+      final status = store.getSpotifyImportStatus('user-a');
+
+      expect(status.plays, 0);
+      expect(status.hasImport, isFalse);
+      expect(status.lastImportedAtMs, isNull);
+      expect(status.oldestPlayAtMs, isNull);
+      expect(status.newestPlayAtMs, isNull);
+    });
+  });
 }

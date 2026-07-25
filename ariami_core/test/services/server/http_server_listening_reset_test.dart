@@ -151,6 +151,52 @@ void main() {
     );
   });
 
+  test('import status describes the import and clears with it', () async {
+    await seedMixedHistory();
+
+    final before = await _request(
+      port,
+      'GET',
+      '/api/v2/listening/import-status',
+      token: userAToken,
+    );
+    expect(before.statusCode, 200);
+    // Only the seeded Spotify event counts; the live one never does.
+    expect(before.json['plays'], 1);
+    expect(before.json['oldestPlayAtMs'], 1700000000000);
+    expect(before.json['newestPlayAtMs'], 1700000000000);
+    expect(before.json['lastImportedAtMs'], isA<int>());
+
+    await _request(
+      port,
+      'POST',
+      '/api/v2/listening/reset',
+      token: userAToken,
+      body: {'source': 'spotify'},
+    );
+
+    final after = await _request(
+      port,
+      'GET',
+      '/api/v2/listening/import-status',
+      token: userAToken,
+    );
+    expect(after.statusCode, 200);
+    expect(after.json['plays'], 0);
+    expect(after.json['lastImportedAtMs'], isNull);
+    expect(after.json['oldestPlayAtMs'], isNull);
+    expect(after.json['newestPlayAtMs'], isNull);
+  });
+
+  test('import status requires a session', () async {
+    final response = await _request(
+      port,
+      'GET',
+      '/api/v2/listening/import-status',
+    );
+    expect(response.statusCode, 401);
+  });
+
   test('empty-object reset keeps the established full-wipe behavior', () async {
     await seedMixedHistory();
 

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:ariami_core/models/auth_models.dart';
+import 'package:ariami_core/models/listening_stats_models.dart';
 import 'package:ariami_core/models/playlist_suggestion.dart';
 import 'package:ariami_core/models/websocket_models.dart';
 import 'package:ariami_core/services/transcoding/transcode_slots_policy.dart';
@@ -76,6 +77,9 @@ class _DashboardScreenState extends State<DashboardScreen>
   String? _transcodeSlotsError;
   TranscodeSlotsSnapshot? _transcodeSlotsSnapshot;
 
+  /// Null while unknown (not loaded yet, or the request failed).
+  SpotifyImportStatus? _spotifyImportStatus;
+
   /// null until loaded (or when not admin); the Users tab hides the toggle
   /// while unknown.
   bool? _userPickerEnabled;
@@ -130,6 +134,7 @@ class _DashboardScreenState extends State<DashboardScreen>
 
     _connectWebSocket();
     unawaited(_loadSetupCompleteStatus());
+    unawaited(_loadSpotifyImportStatus());
   }
 
   @override
@@ -223,6 +228,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                             onViewQRCode: _viewQRCode,
                             onImportSpotifyStats: _showSpotifyImport,
                             onRemoveSpotifyStats: _showSpotifyRemove,
+                            spotifyImportStatus: _spotifyImportStatus,
                           ),
                           DashboardActivityTab(
                             userActivityRows: _userActivityRows,

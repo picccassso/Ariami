@@ -1,6 +1,30 @@
 part of '../listening_stats_store.dart';
 
 extension _ListeningStatsQueries on ListeningStatsStore {
+  /// Counts and dates the account's surviving Spotify-imported events. Like
+  /// the summary's `hasSpotifyImport` probe this reads the raw log through
+  /// idx_listening_events_user_event: the GLOB pattern is a hardcoded literal
+  /// prefix (never user-controlled), so SQLite turns it into an index range
+  /// scan rather than a table scan.
+  SpotifyImportStatus _getSpotifyImportStatus(String userId) {
+    final row = _db.select(
+      'SELECT COUNT(*) AS plays, MAX(received_at) AS last_imported, '
+      'MIN(occurred_at) AS oldest_play, MAX(occurred_at) AS newest_play '
+      'FROM listening_events '
+      "WHERE user_id = ? AND event_id GLOB 'spotify:*'",
+      [userId],
+    ).first;
+
+    final plays = row['plays'] as int? ?? 0;
+    if (plays == 0) return SpotifyImportStatus.none;
+    return SpotifyImportStatus(
+      plays: plays,
+      lastImportedAtMs: row['last_imported'] as int?,
+      oldestPlayAtMs: row['oldest_play'] as int?,
+      newestPlayAtMs: row['newest_play'] as int?,
+    );
+  }
+
   ListeningStatsSummary _getSummary(String userId) {
     final rows = _db.select('''
       SELECT song_id, play_count, listened_ms, first_played, last_played,

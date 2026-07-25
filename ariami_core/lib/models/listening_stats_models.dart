@@ -290,6 +290,56 @@ class ListeningStatsSummary {
   );
 }
 
+/// What an account's Spotify import currently holds. Everything is derived
+/// from the surviving raw events, so a removal (or a never-imported account)
+/// reports [none] rather than a stale record of a past import.
+class SpotifyImportStatus {
+  /// Imported events still stored for the account.
+  final int plays;
+
+  /// When the most recent imported event was accepted by the server —
+  /// effectively "last imported at". Null when nothing is imported. A resumed
+  /// upload lands over several instants; this is the last of them.
+  final int? lastImportedAtMs;
+
+  /// Play times of the oldest and newest imported events: the span of history
+  /// the import covers, which is what tells a listener whether a fresher
+  /// Spotify export would add anything. Null when nothing is imported.
+  final int? oldestPlayAtMs;
+  final int? newestPlayAtMs;
+
+  const SpotifyImportStatus({
+    required this.plays,
+    this.lastImportedAtMs,
+    this.oldestPlayAtMs,
+    this.newestPlayAtMs,
+  });
+
+  bool get hasImport => plays > 0;
+
+  static const SpotifyImportStatus none = SpotifyImportStatus(plays: 0);
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'plays': plays,
+        'lastImportedAtMs': lastImportedAtMs,
+        'oldestPlayAtMs': oldestPlayAtMs,
+        'newestPlayAtMs': newestPlayAtMs,
+      };
+
+  /// Tolerant of missing or wrong-typed fields: an unparseable timestamp only
+  /// costs the caller a date label, never the play count.
+  factory SpotifyImportStatus.fromJson(Map<String, dynamic> json) {
+    int? millis(String key) =>
+        json[key] is num ? (json[key] as num).toInt() : null;
+    return SpotifyImportStatus(
+      plays: json['plays'] is num ? (json['plays'] as num).toInt() : 0,
+      lastImportedAtMs: millis('lastImportedAtMs'),
+      oldestPlayAtMs: millis('oldestPlayAtMs'),
+      newestPlayAtMs: millis('newestPlayAtMs'),
+    );
+  }
+}
+
 /// Per-user aggregate for one credited artist, derived from the event log by
 /// splitting raw artist strings server-side (see CreditedArtistSplitter).
 /// Every credited artist on a song receives the full play and full listened

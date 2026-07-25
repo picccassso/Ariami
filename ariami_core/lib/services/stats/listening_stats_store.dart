@@ -138,6 +138,11 @@ class ListeningStatsStore {
   }) =>
       _getDailyTotals(userId, days: days);
 
+  /// What [userId]'s Spotify import currently holds: how many plays, when
+  /// they last landed and the span of history they cover.
+  SpotifyImportStatus getSpotifyImportStatus(String userId) =>
+      _getSpotifyImportStatus(userId);
+
   /// Deletes all listening data for [userId].
   void resetUser(String userId) => _resetUser(userId);
 

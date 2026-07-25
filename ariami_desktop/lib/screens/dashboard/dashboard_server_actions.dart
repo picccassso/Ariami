@@ -32,6 +32,7 @@ extension _DashboardServerActions on _DashboardScreenState {
     await _refreshUserActivity(showLoading: true);
 
     _transcodeSlotsSnapshot = await _transcodeSlotsService.getSnapshot();
+    await _refreshSpotifyImportStatus();
 
     _setDashboardState(() {
       _isLoading = false;
@@ -77,6 +78,9 @@ extension _DashboardServerActions on _DashboardScreenState {
         _setDashboardState(() {});
       }
       await _refreshOwnerState();
+      // The stats database opens with the server, so the import status is
+      // only readable once it is up.
+      await _refreshSpotifyImportStatus();
       await _refreshConnectedClientRows(showLoading: false);
       await _refreshServerUsers(showLoading: false);
       await _refreshUserActivity(showLoading: false);

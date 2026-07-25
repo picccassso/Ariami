@@ -416,6 +416,19 @@ extension AriamiHttpServerListeningStatsMethods on AriamiHttpServer {
     });
   }
 
+  /// GET /api/v2/listening/import-status — what this account's Spotify
+  /// import holds: play count, when it last landed and the span of history
+  /// it covers. Deliberately its own endpoint rather than more fields on the
+  /// summary, which every client polls; only the dashboards need this.
+  Future<Response> _handleListeningImportStatusGet(Request request) async {
+    final session = request.context['session'] as Session?;
+    if (session == null) return _authRequiredResponse();
+    final store = _statsStoreIfReady;
+    if (store == null) return _statsUnavailable();
+
+    return _jsonOk(store.getSpotifyImportStatus(session.userId).toJson());
+  }
+
   /// POST /api/v2/listening/reset — wipes this account's listening history.
   /// An optional body {"source":"spotify"} removes only that import's
   /// events instead, so a bad import can be undone without touching real

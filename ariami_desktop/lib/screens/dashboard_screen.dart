@@ -86,6 +86,9 @@ class _DashboardScreenState extends State<DashboardScreen>
   AvailableUpdate? _availableUpdate;
   DateTime? _addressesUpdatedAt;
   TranscodeSlotsSnapshot? _transcodeSlotsSnapshot;
+
+  /// Null while unknown (no owner yet, stats DB not ready, or not loaded).
+  SpotifyImportStatus? _spotifyImportStatus;
   bool _isSavingTranscodeSlots = false;
   late TabController _tabController;
 
@@ -263,24 +266,44 @@ class _DashboardScreenState extends State<DashboardScreen>
       onRemoveSpotifyStats: _hasOwnerAccount && _httpServer.isRunning
           ? _showSpotifyRemove
           : null,
+      spotifyImportStatus: _spotifyImportStatus,
     );
   }
 
-  Future<void> _showSpotifyImport() => showDialog<void>(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => SpotifyImportDialog(
-          service: _spotifyImportService(),
-        ),
-      );
+  Future<void> _showSpotifyImport() async {
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => SpotifyImportDialog(
+        service: _spotifyImportService(),
+      ),
+    );
+    await _refreshSpotifyImportStatus();
+  }
 
-  Future<void> _showSpotifyRemove() => showDialog<void>(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => SpotifyRemoveDialog(
-          service: _spotifyImportService(),
-        ),
-      );
+  Future<void> _showSpotifyRemove() async {
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => SpotifyRemoveDialog(
+        service: _spotifyImportService(),
+      ),
+    );
+    await _refreshSpotifyImportStatus();
+  }
+
+  /// Reads the import status in-process, so the status line never prompts
+  /// for owner credentials the way the admin HTTP calls do.
+  Future<void> _refreshSpotifyImportStatus() async {
+    SpotifyImportStatus? status;
+    try {
+      status = await _dashboardData.loadSpotifyImportStatus();
+    } catch (_) {
+      status = null;
+    }
+    if (!mounted) return;
+    setState(() => _spotifyImportStatus = status);
+  }
 
   DesktopSpotifyImportService _spotifyImportService() =>
       DesktopSpotifyImportService(

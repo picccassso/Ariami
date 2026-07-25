@@ -1,21 +1,41 @@
 part of 'dashboard_screen.dart';
 
 extension _DashboardLibrary on _DashboardScreenState {
-  Future<void> _showSpotifyImport() => showDialog<void>(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => SpotifyImportDialog(
-          service: SpotifyImportService(_apiClient),
-        ),
-      );
+  Future<void> _showSpotifyImport() async {
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => SpotifyImportDialog(
+        service: SpotifyImportService(_apiClient),
+      ),
+    );
+    await _loadSpotifyImportStatus();
+  }
 
-  Future<void> _showSpotifyRemove() => showDialog<void>(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => SpotifyRemoveDialog(
-          service: SpotifyImportService(_apiClient),
-        ),
-      );
+  Future<void> _showSpotifyRemove() async {
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => SpotifyRemoveDialog(
+        service: SpotifyImportService(_apiClient),
+      ),
+    );
+    await _loadSpotifyImportStatus();
+  }
+
+  /// Refreshes the imported-history line. A failure leaves the status
+  /// unknown rather than claiming there is no import, so the remove action
+  /// stays reachable.
+  Future<void> _loadSpotifyImportStatus() async {
+    SpotifyImportStatus? status;
+    try {
+      status = await SpotifyImportService(_apiClient).fetchImportStatus();
+    } catch (_) {
+      status = null;
+    }
+    if (!mounted) return;
+    _setDashboardState(() => _spotifyImportStatus = status);
+  }
 
   Future<void> _rescanLibrary() async {
     try {

@@ -48,6 +48,17 @@ class DashboardDataService {
         .toList(growable: false);
   }
 
+  /// The owner account's Spotify import status, read straight from the
+  /// in-process stats store. The dashboard's import and removal both act on
+  /// the owner account, so that is the account described here. Null when
+  /// there is no owner yet or the stats database is not ready — the caller
+  /// then leaves the status unknown rather than claiming there is no import.
+  Future<SpotifyImportStatus?> loadSpotifyImportStatus() async {
+    final users = await _loadStoredUsers();
+    if (users.isEmpty) return null;
+    return httpServer.getSpotifyImportStatus(users.first.userId);
+  }
+
   Future<List<ConnectedClientRow>> loadConnectedClients() async {
     final usernameById = await _loadUsernameMap();
     final rows = httpServer.connectionManager

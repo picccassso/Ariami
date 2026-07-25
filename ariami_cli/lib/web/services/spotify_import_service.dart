@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:ariami_core/models/api_models.dart';
+import 'package:ariami_core/models/listening_stats_models.dart';
 import 'package:ariami_core/services/stats/spotify_import/library_track_matcher.dart';
 import 'package:ariami_core/services/stats/spotify_import/spotify_import_models.dart';
 import 'package:ariami_core/services/stats/spotify_import/spotify_importer.dart';
@@ -181,6 +182,23 @@ class SpotifyImportService {
       accepted: accepted,
       duplicates: duplicates,
       rejected: rejected,
+    );
+  }
+
+  /// What the signed-in account's Spotify import currently holds. Throws
+  /// [SpotifyImportFailure] when the status cannot be read.
+  Future<SpotifyImportStatus> fetchImportStatus() async {
+    final response = await _apiClient.get(
+      '/api/v2/listening/import-status',
+      includeDeviceIdentity: true,
+    );
+    if (!response.isSuccess) {
+      throw const SpotifyImportFailure(
+        'Could not read the Spotify import status.',
+      );
+    }
+    return SpotifyImportStatus.fromJson(
+      response.jsonBody ?? const <String, dynamic>{},
     );
   }
 

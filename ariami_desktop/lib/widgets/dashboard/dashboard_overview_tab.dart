@@ -18,6 +18,7 @@ class DashboardOverviewTab extends StatelessWidget {
     required this.onOpenReleasePage,
     required this.onImportSpotifyStats,
     required this.onRemoveSpotifyStats,
+    required this.spotifyImportStatus,
   });
 
   final AriamiHttpServer httpServer;
@@ -29,6 +30,10 @@ class DashboardOverviewTab extends StatelessWidget {
   final VoidCallback onOpenReleasePage;
   final VoidCallback? onImportSpotifyStats;
   final VoidCallback? onRemoveSpotifyStats;
+
+  /// Null while unknown — no owner yet, stats database not ready, or simply
+  /// not loaded. Removal stays available in that case.
+  final SpotifyImportStatus? spotifyImportStatus;
 
   static const _sectionTitleStyle = TextStyle(
     fontSize: 20,
@@ -247,6 +252,8 @@ class DashboardOverviewTab extends StatelessWidget {
           const SizedBox(height: 24),
           const Text('Listening Statistics', style: _sectionTitleStyle),
           const SizedBox(height: 16),
+          _SpotifyImportSummary(status: spotifyImportStatus),
+          const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
@@ -262,7 +269,9 @@ class DashboardOverviewTab extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
-              onPressed: onRemoveSpotifyStats,
+              onPressed: spotifyImportStatus?.hasImport == false
+                  ? null
+                  : onRemoveSpotifyStats,
               icon: const Icon(Icons.delete_outline_rounded),
               label: const Text('Remove Spotify listening stats'),
               style: OutlinedButton.styleFrom(
@@ -272,6 +281,46 @@ class DashboardOverviewTab extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// One-line description of the owner account's Spotify import.
+class _SpotifyImportSummary extends StatelessWidget {
+  const _SpotifyImportSummary({required this.status});
+
+  final SpotifyImportStatus? status;
+
+  @override
+  Widget build(BuildContext context) {
+    final status = this.status;
+    if (status == null) {
+      return const Text(
+        'Checking for an imported Spotify history…',
+        style: TextStyle(color: Colors.white60),
+      );
+    }
+    if (!status.hasImport) {
+      return const Text(
+        'No Spotify plays imported.',
+        style: TextStyle(color: Colors.white60),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '${formatDashboardCount(status.plays)} imported '
+          '${status.plays == 1 ? 'play' : 'plays'} · last import '
+          '${formatDashboardDateTime(millisToLocal(status.lastImportedAtMs))}',
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Covering ${formatDashboardDate(millisToLocal(status.oldestPlayAtMs))}'
+          ' – ${formatDashboardDate(millisToLocal(status.newestPlayAtMs))}',
+          style: const TextStyle(color: Colors.white60),
+        ),
+      ],
     );
   }
 }

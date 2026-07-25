@@ -176,6 +176,11 @@ extension AriamiHttpServerRouterMethods on AriamiHttpServer {
       (Request request) =>
           _handleProtectedV2Request(request, _handleListeningAlbumsGet),
     );
+    router.get(
+      '/api/v2/listening/import-status',
+      (Request request) =>
+          _handleProtectedV2Request(request, _handleListeningImportStatusGet),
+    );
     router.post(
       '/api/v2/listening/reset',
       (Request request) =>

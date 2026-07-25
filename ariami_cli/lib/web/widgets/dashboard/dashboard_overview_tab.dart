@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:ariami_core/models/listening_stats_models.dart';
 import 'package:ariami_core/models/playlist_suggestion.dart';
 
 import 'auth_required_banner.dart';
@@ -7,6 +8,7 @@ import 'dashboard_keep_alive_tab.dart';
 import 'library_stats_section.dart';
 import 'quick_actions_section.dart';
 import 'server_status_card.dart';
+import 'spotify_stats_section.dart';
 import 'suggested_playlists_section.dart';
 
 class DashboardOverviewTab extends StatelessWidget {
@@ -30,6 +32,7 @@ class DashboardOverviewTab extends StatelessWidget {
     required this.onViewQRCode,
     required this.onImportSpotifyStats,
     required this.onRemoveSpotifyStats,
+    required this.spotifyImportStatus,
   });
 
   final bool serverRunning;
@@ -50,6 +53,7 @@ class DashboardOverviewTab extends StatelessWidget {
   final VoidCallback onViewQRCode;
   final VoidCallback onImportSpotifyStats;
   final VoidCallback onRemoveSpotifyStats;
+  final SpotifyImportStatus? spotifyImportStatus;
 
   @override
   Widget build(BuildContext context) {
@@ -82,12 +86,16 @@ class DashboardOverviewTab extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 48),
+          SpotifyStatsSection(
+            importStatus: spotifyImportStatus,
+            onImportSpotifyStats: onImportSpotifyStats,
+            onRemoveSpotifyStats: onRemoveSpotifyStats,
+          ),
+          const SizedBox(height: 48),
           QuickActionsSection(
             isScanning: isScanning,
             onRescanLibrary: onRescanLibrary,
             onViewQRCode: onViewQRCode,
-            onImportSpotifyStats: onImportSpotifyStats,
-            onRemoveSpotifyStats: onRemoveSpotifyStats,
           ),
         ],
       ),

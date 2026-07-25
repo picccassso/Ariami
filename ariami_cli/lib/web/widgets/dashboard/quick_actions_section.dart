@@ -8,15 +8,11 @@ class QuickActionsSection extends StatelessWidget {
     required this.isScanning,
     required this.onRescanLibrary,
     required this.onViewQRCode,
-    required this.onImportSpotifyStats,
-    required this.onRemoveSpotifyStats,
   });
 
   final bool isScanning;
   final VoidCallback onRescanLibrary;
   final VoidCallback onViewQRCode;
-  final VoidCallback onImportSpotifyStats;
-  final VoidCallback onRemoveSpotifyStats;
 
   @override
   Widget build(BuildContext context) {
@@ -52,32 +48,6 @@ class QuickActionsSection extends StatelessWidget {
                       )
                     : const Icon(Icons.refresh_rounded),
                 label: Text(isScanning ? 'SCANNING...' : 'RESCAN LIBRARY'),
-              ),
-            ),
-            SizedBox(
-              height: 56,
-              child: ElevatedButton.icon(
-                onPressed: onImportSpotifyStats,
-                icon: const Icon(Icons.history_rounded),
-                label: const Text('IMPORT SPOTIFY STATS'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.surfaceBlack,
-                  foregroundColor: Colors.white,
-                  side: const BorderSide(color: AppTheme.borderGrey),
-                ),
-              ),
-            ),
-            SizedBox(
-              height: 56,
-              child: ElevatedButton.icon(
-                onPressed: onRemoveSpotifyStats,
-                icon: const Icon(Icons.delete_outline_rounded),
-                label: const Text('REMOVE SPOTIFY STATS'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.surfaceBlack,
-                  foregroundColor: Colors.white,
-                  side: const BorderSide(color: AppTheme.borderGrey),
-                ),
               ),
             ),
             SizedBox(
