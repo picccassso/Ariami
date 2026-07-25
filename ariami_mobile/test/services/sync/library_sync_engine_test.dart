@@ -36,11 +36,66 @@ void main() {
 
       final state = await repository.getSyncState();
       expect(state.bootstrapComplete, isTrue);
-      expect(state.lastAppliedToken, 4);
+      // The earliest page's token is the resume point, not the last one.
+      expect(state.lastAppliedToken, 3);
       expect(repository.resetCount, 1);
       expect(repository.bootstrapPagesApplied, 2);
       expect(apiClient.bootstrapCallCount, 2);
-      expect(apiClient.changesCallCount, 0);
+      expect(apiClient.changesCallCount, 1);
+      expect(apiClient.requestedChangesSince, <int>[3]);
+    });
+
+    test('replays changes committed while bootstrap pages were being read',
+        () async {
+      // The server soft-deletes a song between page one and page two, so page
+      // one carries a row page two no longer has. Resuming from the earliest
+      // page's token replays that delete and repairs the torn read.
+      final repository = _FakeLibraryRepository();
+      final apiClient = _FakeApiClient(
+        bootstrapResponses: <V2BootstrapResponse>[
+          _bootstrapPage(
+            syncToken: 5,
+            hasMore: true,
+            cursor: null,
+            nextCursor: 'cursor-1',
+          ),
+          _bootstrapPage(
+            syncToken: 8,
+            hasMore: false,
+            cursor: 'cursor-1',
+            nextCursor: null,
+          ),
+        ],
+        changesResponses: <V2ChangesResponse>[
+          V2ChangesResponse(
+            fromToken: 5,
+            toToken: 8,
+            events: <V2ChangeEvent>[
+              const V2ChangeEvent(
+                token: 8,
+                op: V2ChangeOp.delete,
+                entityType: V2EntityType.song,
+                entityId: 'stale-song',
+                payload: null,
+                occurredAt: '2026-07-25T14:30:56Z',
+              ),
+            ],
+            hasMore: false,
+            syncToken: 8,
+          ),
+        ],
+      );
+
+      final engine = LibrarySyncEngine(
+        apiClientProvider: () => apiClient,
+        libraryRepository: repository,
+      );
+
+      await engine.syncNow();
+
+      expect(apiClient.requestedChangesSince, <int>[5]);
+      expect(repository.appliedDeletedSongIds, <String>['stale-song']);
+      expect((await repository.getSyncState()).lastAppliedToken, 8);
     });
 
     test('emits bootstrap completion callback after local bootstrap', () async {
@@ -325,7 +380,7 @@ void main() {
       expect(repository.resetCount, 1);
       expect(repository.bootstrapPagesApplied, 1);
       expect(apiClient.bootstrapCallCount, 1);
-      expect(apiClient.changesCallCount, 0);
+      expect(apiClient.changesCallCount, 1);
     });
 
     test('records sync failure in health state', () async {
@@ -504,6 +559,7 @@ class _FakeApiClient extends ApiClient {
   int changesCallCount = 0;
   final int? failOnBootstrapCall;
   final List<String?> requestedBootstrapCursors = <String?>[];
+  final List<int> requestedChangesSince = <int>[];
 
   @override
   Future<V2BootstrapResponse> getV2BootstrapPage(
@@ -524,6 +580,7 @@ class _FakeApiClient extends ApiClient {
   @override
   Future<V2ChangesResponse> getV2Changes(int since, int limit) async {
     changesCallCount += 1;
+    requestedChangesSince.add(since);
     if (_changesResponses.isEmpty) {
       return V2ChangesResponse(
         fromToken: since,
@@ -551,6 +608,7 @@ class _FakeLibraryRepository extends LibraryRepository {
   int resetCount = 0;
   int bootstrapPagesApplied = 0;
   int abortCount = 0;
+  final List<String> appliedDeletedSongIds = <String>[];
 
   @override
   Future<LibrarySyncState> getSyncState() async => _state;
@@ -589,6 +647,12 @@ class _FakeLibraryRepository extends LibraryRepository {
 
   @override
   Future<void> applyChangesResponse(V2ChangesResponse response) async {
+    for (final event in response.events) {
+      if (event.op == V2ChangeOp.delete &&
+          event.entityType == V2EntityType.song) {
+        appliedDeletedSongIds.add(event.entityId);
+      }
+    }
     final effectiveToken =
         response.toToken > 0 ? response.toToken : response.syncToken;
     _state = LibrarySyncState(

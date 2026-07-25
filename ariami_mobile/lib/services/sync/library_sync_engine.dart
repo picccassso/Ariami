@@ -64,7 +64,7 @@ class LibrarySyncEngine {
   String? _lastError;
   DateTime? _lastSuccessfulSyncAt;
   String? _bootstrapCursor;
-  int _bootstrapLatestToken = 0;
+  int _bootstrapMinToken = 0;
   int _bootstrapPagesProcessed = 0;
   String? _bootstrapScope;
 
@@ -143,9 +143,9 @@ class LibrarySyncEngine {
         return;
       }
       _clearBootstrapRetryBackoff();
-      if (targetToken == null) {
-        return;
-      }
+      // Fall through to the delta pass even without a target token: the
+      // bootstrap resumes from the earliest page's token, so catching up is
+      // what reconciles anything the server committed while it was paginating.
     } else {
       _clearBootstrapRetryBackoff();
     }
@@ -164,13 +164,13 @@ class LibrarySyncEngine {
     }
     if (_bootstrapCursor == null) {
       await _libraryRepository.resetForBootstrap();
-      _bootstrapLatestToken = 0;
+      _bootstrapMinToken = 0;
       _bootstrapPagesProcessed = 0;
     }
 
     try {
       var cursor = _bootstrapCursor;
-      var latestToken = _bootstrapLatestToken;
+      var minToken = _bootstrapMinToken;
       var pagesProcessed = _bootstrapPagesProcessed;
 
       while (true) {
@@ -188,7 +188,16 @@ class LibrarySyncEngine {
 
         await _libraryRepository.applyBootstrapPage(page);
 
-        latestToken = page.syncToken;
+        // Bootstrap pages are separate server reads, so a scan committing
+        // mid-pagination leaves the collected pages torn: early pages hold rows
+        // the later pages no longer have. The minimum token across pages is the
+        // only safe resume point — every change made during the bootstrap is
+        // then replayed by /v2/changes, which repairs the tear. Taking the last
+        // page's token instead marks those changes as already applied, so the
+        // stale rows survive forever behind a sync state that looks healthy.
+        if (minToken == 0 || page.syncToken < minToken) {
+          minToken = page.syncToken;
+        }
         pagesProcessed += 1;
 
         final nextCursor = page.pageInfo.nextCursor;
@@ -203,7 +212,7 @@ class LibrarySyncEngine {
 
         cursor = nextCursor;
         _bootstrapCursor = cursor;
-        _bootstrapLatestToken = latestToken;
+        _bootstrapMinToken = minToken;
         _bootstrapPagesProcessed = pagesProcessed;
 
         // Safety guard against malformed pagination loops.
@@ -212,16 +221,16 @@ class LibrarySyncEngine {
         }
       }
 
-      await _libraryRepository.completeBootstrap(lastAppliedToken: latestToken);
+      await _libraryRepository.completeBootstrap(lastAppliedToken: minToken);
       _clearBootstrapResume();
       final bootstrapReady = await _libraryRepository.hasCompletedBootstrap();
       debugPrint(
         '[LibrarySyncEngine][_runBootstrapSync] finished '
-        'pagesProcessed=$pagesProcessed latestToken=$latestToken '
+        'pagesProcessed=$pagesProcessed minToken=$minToken '
         'bootstrapReady=$bootstrapReady',
       );
       if (bootstrapReady && onBootstrapCompleted != null) {
-        await onBootstrapCompleted!(latestToken);
+        await onBootstrapCompleted!(minToken);
       } else if (!bootstrapReady) {
         debugPrint(
           '[LibrarySyncEngine][_runBootstrapSync] suppressed bootstrap-complete '
@@ -252,7 +261,7 @@ class LibrarySyncEngine {
 
   void _clearBootstrapResume() {
     _bootstrapCursor = null;
-    _bootstrapLatestToken = 0;
+    _bootstrapMinToken = 0;
     _bootstrapPagesProcessed = 0;
   }
 
