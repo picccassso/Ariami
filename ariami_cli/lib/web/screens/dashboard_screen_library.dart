@@ -9,6 +9,14 @@ extension _DashboardLibrary on _DashboardScreenState {
         ),
       );
 
+  Future<void> _showSpotifyRemove() => showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => SpotifyRemoveDialog(
+          service: SpotifyImportService(_apiClient),
+        ),
+      );
+
   Future<void> _rescanLibrary() async {
     try {
       final success = await _setupService.startScan();

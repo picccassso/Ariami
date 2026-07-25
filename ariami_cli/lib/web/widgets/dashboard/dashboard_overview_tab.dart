@@ -29,6 +29,7 @@ class DashboardOverviewTab extends StatelessWidget {
     required this.onRescanLibrary,
     required this.onViewQRCode,
     required this.onImportSpotifyStats,
+    required this.onRemoveSpotifyStats,
   });
 
   final bool serverRunning;
@@ -48,6 +49,7 @@ class DashboardOverviewTab extends StatelessWidget {
   final VoidCallback onRescanLibrary;
   final VoidCallback onViewQRCode;
   final VoidCallback onImportSpotifyStats;
+  final VoidCallback onRemoveSpotifyStats;
 
   @override
   Widget build(BuildContext context) {
@@ -85,6 +87,7 @@ class DashboardOverviewTab extends StatelessWidget {
             onRescanLibrary: onRescanLibrary,
             onViewQRCode: onViewQRCode,
             onImportSpotifyStats: onImportSpotifyStats,
+            onRemoveSpotifyStats: onRemoveSpotifyStats,
           ),
         ],
       ),

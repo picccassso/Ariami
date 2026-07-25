@@ -158,4 +158,47 @@ void main() {
     expect(progress, [1]);
     expect(uploadBody?['events'], hasLength(1));
   });
+
+  group('removeImportedStats', () {
+    SpotifyImportService serviceWith(MockClient httpClient) =>
+        SpotifyImportService(WebApiClient(
+          httpClient: httpClient,
+          tokenProvider: () async => 'token',
+          deviceIdProvider: () async => 'cli-web-device',
+          deviceName: 'Ariami CLI Web Dashboard',
+        ));
+
+    test('resets only the Spotify source and returns the deleted count',
+        () async {
+      Map<String, dynamic>? resetBody;
+      final service = serviceWith(MockClient((request) async {
+        if (request.url.path != '/api/v2/listening/reset') {
+          return http.Response('not found', 404);
+        }
+        resetBody = jsonDecode(request.body) as Map<String, dynamic>;
+        return http.Response(
+          jsonEncode({'success': true, 'deleted': 42}),
+          200,
+        );
+      }));
+
+      expect(await service.removeImportedStats(), 42);
+      expect(
+        resetBody,
+        {'source': 'spotify'},
+        reason: 'an empty body would wipe the whole listening history',
+      );
+    });
+
+    test('surfaces a server failure', () async {
+      final service = serviceWith(
+        MockClient((request) async => http.Response('boom', 500)),
+      );
+
+      expect(
+        service.removeImportedStats(),
+        throwsA(isA<SpotifyImportFailure>()),
+      );
+    });
+  });
 }
