@@ -17,6 +17,7 @@ class DashboardOverviewTab extends StatelessWidget {
     required this.onOpenOwnerSetup,
     required this.onOpenReleasePage,
     required this.onImportSpotifyStats,
+    required this.onRemoveSpotifyStats,
   });
 
   final AriamiHttpServer httpServer;
@@ -27,6 +28,7 @@ class DashboardOverviewTab extends StatelessWidget {
   final VoidCallback onOpenOwnerSetup;
   final VoidCallback onOpenReleasePage;
   final VoidCallback? onImportSpotifyStats;
+  final VoidCallback? onRemoveSpotifyStats;
 
   static const _sectionTitleStyle = TextStyle(
     fontSize: 20,
@@ -251,6 +253,18 @@ class DashboardOverviewTab extends StatelessWidget {
               onPressed: onImportSpotifyStats,
               icon: const Icon(Icons.history_rounded),
               label: const Text('Import Spotify listening stats'),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 18),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: onRemoveSpotifyStats,
+              icon: const Icon(Icons.delete_outline_rounded),
+              label: const Text('Remove Spotify listening stats'),
               style: OutlinedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 18),
               ),

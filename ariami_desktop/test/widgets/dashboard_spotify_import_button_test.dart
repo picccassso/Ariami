@@ -4,9 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  testWidgets('overview exposes the Spotify stats import action',
+  testWidgets('overview exposes the Spotify stats import and remove actions',
       (tester) async {
-    var tapped = false;
+    var imported = false;
+    var removed = false;
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
@@ -18,19 +19,29 @@ void main() {
             onToggleServer: () {},
             onOpenOwnerSetup: () {},
             onOpenReleasePage: () {},
-            onImportSpotifyStats: () => tapped = true,
+            onImportSpotifyStats: () => imported = true,
+            onRemoveSpotifyStats: () => removed = true,
           ),
         ),
       ),
     );
 
-    final button = find.widgetWithText(
+    final importButton = find.widgetWithText(
       OutlinedButton,
       'Import Spotify listening stats',
     );
-    await tester.scrollUntilVisible(button, 300);
-    expect(button, findsOneWidget);
-    await tester.tap(button);
-    expect(tapped, isTrue);
+    await tester.scrollUntilVisible(importButton, 300);
+    expect(importButton, findsOneWidget);
+    await tester.tap(importButton);
+    expect(imported, isTrue);
+
+    final removeButton = find.widgetWithText(
+      OutlinedButton,
+      'Remove Spotify listening stats',
+    );
+    await tester.scrollUntilVisible(removeButton, 300);
+    expect(removeButton, findsOneWidget);
+    await tester.tap(removeButton);
+    expect(removed, isTrue);
   });
 }

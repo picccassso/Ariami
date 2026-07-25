@@ -55,6 +55,7 @@ class DashboardContent extends StatelessWidget {
     required this.onRescanLibrary,
     required this.onResetAriami,
     required this.onImportSpotifyStats,
+    required this.onRemoveSpotifyStats,
   });
 
   final TabController tabController;
@@ -99,6 +100,7 @@ class DashboardContent extends StatelessWidget {
   final VoidCallback? onRescanLibrary;
   final VoidCallback onResetAriami;
   final VoidCallback? onImportSpotifyStats;
+  final VoidCallback? onRemoveSpotifyStats;
 
   @override
   Widget build(BuildContext context) {
@@ -130,6 +132,7 @@ class DashboardContent extends StatelessWidget {
                   onOpenOwnerSetup: onOpenOwnerSetup,
                   onOpenReleasePage: onOpenReleasePage,
                   onImportSpotifyStats: onImportSpotifyStats,
+                  onRemoveSpotifyStats: onRemoveSpotifyStats,
                 ),
                 DashboardActivityTab(
                   isLoadingUserActivity: isLoadingUserActivity,

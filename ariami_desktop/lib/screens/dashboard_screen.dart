@@ -27,6 +27,7 @@ import '../widgets/delete_user_dialog.dart';
 import '../widgets/reset_ariami_dialog.dart';
 import '../widgets/transcode_slots_dialog.dart';
 import '../widgets/spotify_import_dialog.dart';
+import '../widgets/spotify_remove_dialog.dart';
 import 'owner_setup_screen.dart';
 import 'scanning_screen.dart';
 
@@ -258,6 +259,10 @@ class _DashboardScreenState extends State<DashboardScreen>
               (_httpServer.libraryManager.library?.totalSongs ?? 0) > 0
           ? _showSpotifyImport
           : null,
+      // Removing an import needs no library, only an owner-authorized server.
+      onRemoveSpotifyStats: _hasOwnerAccount && _httpServer.isRunning
+          ? _showSpotifyRemove
+          : null,
     );
   }
 
@@ -265,10 +270,21 @@ class _DashboardScreenState extends State<DashboardScreen>
         context: context,
         barrierDismissible: false,
         builder: (context) => SpotifyImportDialog(
-          service: DesktopSpotifyImportService(
-            httpServer: _httpServer,
-            adminApi: _adminApi,
-          ),
+          service: _spotifyImportService(),
         ),
+      );
+
+  Future<void> _showSpotifyRemove() => showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => SpotifyRemoveDialog(
+          service: _spotifyImportService(),
+        ),
+      );
+
+  DesktopSpotifyImportService _spotifyImportService() =>
+      DesktopSpotifyImportService(
+        httpServer: _httpServer,
+        adminApi: _adminApi,
       );
 }

@@ -215,6 +215,25 @@ class DesktopSpotifyImportService {
     );
   }
 
+  /// Deletes every Spotify-imported play from the owner account and returns
+  /// how many the server removed. Plays Ariami tracked itself are kept.
+  Future<int> removeImportedStats() async {
+    // The body must carry the source: an empty body wipes the whole history.
+    final response = await _adminApi.sendAuthenticatedRequest(
+      method: 'POST',
+      path: '/api/v2/listening/reset',
+      body: const <String, dynamic>{'source': 'spotify'},
+    );
+    if (response == null || !response.isSuccess) {
+      throw DesktopSpotifyImportFailure(
+        response?.statusCode == 404
+            ? 'Update Ariami before removing Spotify stats.'
+            : 'Could not remove the imported Spotify stats. Please try again.',
+      );
+    }
+    return response.jsonBody?['deleted'] as int? ?? 0;
+  }
+
   Future<String> _currentUsername() async {
     final response = await _adminApi.sendAuthenticatedRequest(
       method: 'GET',
