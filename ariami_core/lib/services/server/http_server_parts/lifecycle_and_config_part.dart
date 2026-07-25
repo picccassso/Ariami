@@ -505,6 +505,10 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
 
     // Clear all connected clients since server is stopping
     _connectionManager.clearAll();
+    // The hub owns a periodic sweep and per-session timers; without this they
+    // outlive the server instance and keep firing against a dead hub when the
+    // desktop stops and restarts its server in-process.
+    _connectHub.dispose();
 
     // Ask every WebSocket to close at once. Awaiting these sequentially lets
     // one unresponsive peer consume the platform socket timeout before the

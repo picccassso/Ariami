@@ -14,6 +14,8 @@ class AriamiConnectHub {
   AriamiConnectHub({
     this.disconnectGracePeriod = const Duration(seconds: 3),
     this.commandTimeout = const Duration(seconds: 10),
+    this.staleTimeout = const Duration(seconds: 90),
+    this.sweepInterval = const Duration(seconds: 30),
   });
 
   /// Gives a playback client enough time to reconnect after a transient
@@ -26,8 +28,21 @@ class AriamiConnectHub {
   /// not fail silently.
   final Duration commandTimeout;
 
+  /// How long a peer may go without any inbound traffic before the sweep
+  /// treats its socket as dead and evicts it. This is a backstop for sockets
+  /// that never deliver a close event (a killed app, a dropped Wi-Fi radio).
+  /// Clients ping every 20s and the separate `ConnectionManager` already
+  /// evicts stale presence at 60s, so this must sit comfortably above both:
+  /// the hub is the outermost layer and must never race either of them into
+  /// evicting a device that is merely idle, not actually gone.
+  final Duration staleTimeout;
+
+  /// How often the stale-peer sweep runs.
+  final Duration sweepInterval;
+
   final Map<WebSocketChannel, _ConnectPeer> _peers = {};
   final Map<String, _ConnectSession> _sessions = {};
+  Timer? _sweepTimer;
 
   /// Invoked after a device successfully renames itself, so the server can
   /// persist the new name and refresh presence/session records. The hub has
@@ -57,8 +72,14 @@ class AriamiConnectHub {
       deviceName: deviceName,
       clientType: clientType,
       connectedAt: DateTime.now().toUtc(),
+      lastSeen: DateTime.now().toUtc(),
     );
     _peers[socket] = peer;
+    // Lazily start the sweep on the first peer instead of in the constructor:
+    // the hub is a field initializer, so a constructor-started timer would
+    // leak into every server instance (and every test) whether or not
+    // Connect is ever used.
+    _sweepTimer ??= Timer.periodic(sweepInterval, (_) => _sweepStalePeers());
     final session = _sessions[userId];
     if (session?.activeDeviceId == deviceId) {
       // The player came back during the grace period. Keep it as the owner and
@@ -105,6 +126,59 @@ class AriamiConnectHub {
         _broadcastDevices(peer.userId);
       }
     }
+    if (_peers.isEmpty) {
+      _sweepTimer?.cancel();
+      _sweepTimer = null;
+    }
+  }
+
+  /// Marks [socket] as alive. Called for every inbound message it sends,
+  /// including app-level `ping`, which is answered by the server's WebSocket
+  /// layer and never reaches [handle] — without this the sweep would evict a
+  /// device that is idle-but-connected as if it had gone dark.
+  void touch(WebSocketChannel socket) {
+    _peers[socket]?.lastSeen = DateTime.now().toUtc();
+  }
+
+  /// Backstop for peers whose socket died without ever delivering a close
+  /// event. Ordinary disconnects already go through [unregister] via the
+  /// transport; this only catches the ones the transport never told us about.
+  void _sweepStalePeers() {
+    final now = DateTime.now().toUtc();
+    // Snapshot first: unregister() mutates _peers, so iterating the live map
+    // while removing from it would skip entries or throw.
+    final stale = _peers.entries
+        .where((entry) => now.difference(entry.value.lastSeen) > staleTimeout)
+        .map((entry) => entry.key)
+        .toList(growable: false);
+    for (final socket in stale) {
+      unregister(socket);
+      socket.sink.close(4000, 'Connection timed out');
+    }
+    if (_peers.isEmpty) {
+      _sweepTimer?.cancel();
+      _sweepTimer = null;
+    }
+  }
+
+  /// Stops the sweep timer and drops all peers. Call this from the server's
+  /// shutdown path so the periodic timer never outlives the server instance.
+  void dispose() {
+    _sweepTimer?.cancel();
+    _sweepTimer = null;
+    // Sessions own a failover timer and a timeout per pending transfer. Those
+    // outlive _peers.clear() and would fire against a torn-down hub.
+    for (final session in _sessions.values) {
+      session.disconnectTimer?.cancel();
+      for (final transfer in session.pendingTransfers.values) {
+        transfer.timeout?.cancel();
+      }
+      for (final pending in session.pendingCommands.values) {
+        pending.timeout?.cancel();
+      }
+    }
+    _sessions.clear();
+    _peers.clear();
   }
 
   void _scheduleDisconnectFailover(
@@ -152,6 +226,9 @@ class AriamiConnectHub {
   }
 
   bool handle(WebSocketChannel socket, WsMessage message) {
+    // Any traffic on this socket proves it is alive, regardless of the
+    // message type or whether it turns out to be one Connect handles.
+    touch(socket);
     final peer = _peers[socket];
     if (peer == null || !message.type.startsWith('connect_')) return false;
     final data = message.data ?? const <String, dynamic>{};
@@ -561,13 +638,17 @@ class _ConnectPeer {
       required this.deviceId,
       required this.deviceName,
       required this.clientType,
-      required this.connectedAt});
+      required this.connectedAt,
+      required this.lastSeen});
   final String userId;
   final String deviceId;
   String deviceName;
   final String clientType;
   final DateTime connectedAt;
   bool canPlay = false;
+  // Not part of the wire model: server-internal liveness bookkeeping for the
+  // stale-peer sweep. Never serialize this into AriamiConnectDevice/_deviceJson.
+  DateTime lastSeen;
 }
 
 class _ConnectSession {

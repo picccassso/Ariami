@@ -252,6 +252,11 @@ extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
         if (deviceId != null && deviceId.isNotEmpty) {
           _connectionManager.refreshHeartbeatIfRegistered(deviceId);
         }
+        // Ping never reaches _connectHub.handle (we return here), but a
+        // Connect peer that only pings is still alive and castable — tell
+        // the hub's stale-peer sweep so it doesn't wrongly evict it.
+        // Unconditional: touch() is a no-op for sockets the hub doesn't know.
+        _connectHub.touch(webSocket);
         _sendWebSocketMessage(webSocket, PongMessage());
         return;
       }
