@@ -121,3 +121,18 @@ matched listening events in batches of 500
 (`DesktopSpotifyImportService.uploadBatchSize`) to
 `/api/v2/listening/events`. See `docs/TROUBLESHOOTING.md` for the exact
 failure messages and what each one means.
+
+For what actually gets imported and why — which plays are eligible, how
+tracks are matched to your library, why re-importing is safe, and how
+imported stats differ from live-tracked ones — see
+[Core's LISTENING_STATS.md](../../ariami_core/docs/LISTENING_STATS.md).
+
+The Overview tab's **Listening Statistics** section also reports what the
+owner account's import currently holds — play count, when plays last landed
+and the span of history they cover — and offers **Remove Spotify listening
+stats** (`lib/widgets/spotify_remove_dialog.dart`), which confirms and then
+posts `{"source": "spotify"}` to `/api/v2/listening/reset`, deleting only
+imported plays and leaving live-tracked history intact. The status line is
+read in-process (`AriamiHttpServer.getSpotifyImportStatus`) so it never
+prompts for the owner password, and the remove button is disabled when there
+is nothing to remove.

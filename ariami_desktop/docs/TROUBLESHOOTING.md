@@ -670,7 +670,7 @@ Real failure messages, from
 | "\<filename\> does not contain a Spotify history list." | The file parsed as JSON but wasn't a JSON array/list, i.e. not the expected export format. |
 | "The Spotify history files in this folder are empty." | Files matched and parsed, but contained zero records combined. |
 | "Your Ariami library is empty. Scan the library before importing Spotify stats." | No scanned library to match Spotify tracks against. |
-| "No eligible audio plays were found in this Spotify export." | Matching ran, but nothing in the export corresponded to a playable audio event. |
+| "No eligible audio plays were found in this Spotify export." | Every record was dropped by the parser's eligibility rules — the play rule (`ms_played >= 30000` or a `trackdone` end), or exclusion as a podcast/audiobook/private-session/identity-less record. Unmatched tracks do *not* cause this: they still import. See [Core's LISTENING_STATS.md](../../ariami_core/docs/LISTENING_STATS.md#which-plays-are-eligible). |
 | "The signed-in owner changed. Start the import again." | Between analyzing and uploading, `/api/me` returned a different username than the one the preview was built for (thrown from `upload()`). |
 | "The owner account could not be confirmed. Sign in again and restart the import." | `/api/me` failed or returned no username while confirming identity. |
 | "Update Ariami before importing Spotify stats." | The upload endpoint (`/api/v2/listening/events`) returned HTTP 404 — the running server is too old to support this feature. |

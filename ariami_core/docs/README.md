@@ -28,6 +28,11 @@ For the package's own quick-start summary, see [`../README.md`](../README.md)
   migrations, listening-stats schema, the JSON-file auth/cache stores, and
   why pins/playlist-edits/playlist-images are deliberately kept separate
   from the catalog).
+- **[LISTENING_STATS.md](LISTENING_STATS.md)** — What counts as a play and as
+  listened time, how that differs from Spotify's counting, and the full
+  Spotify Extended Streaming History import pipeline (eligibility rules,
+  offline/timestamp corrections, library matching tiers, idempotent
+  re-imports, and how to undo an import).
 - **[TESTING.md](TESTING.md)** — How to run tests and analysis, the shape of
   `test/`, the in-process HTTP test helper, and what to check before
   changing shared behavior that every consuming app relies on.

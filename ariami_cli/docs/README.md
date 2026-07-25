@@ -29,6 +29,15 @@ this package — no invented flags, paths, ports, or behaviors.
 - **[`FAQ.md`](FAQ.md)** — short, source-verified answers to common
   questions.
 
+## Shared behavior documented in Core
+
+- **[`ariami_core/docs/LISTENING_STATS.md`](../../ariami_core/docs/LISTENING_STATS.md)**
+  — what counts as a play and as listened time, how that differs from
+  Spotify's counting, and the full Spotify Extended Streaming History import
+  pipeline. The CLI's web dashboard exposes the same import and removal
+  (`lib/web/services/spotify_import_service.dart`), and the engine behind it
+  lives in `ariami_core`, so the rules are identical to the desktop app's.
+
 ## Existing guides in this package
 
 These already exist alongside this `docs/` folder and are not duplicated
