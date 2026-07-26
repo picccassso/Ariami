@@ -181,3 +181,6 @@ plan.md
 
 # Local Claude artifacts
 .claude/
+
+# Screenshot sources (only the WebP versions used by the README are tracked)
+app photos/**/*.png
