@@ -11,11 +11,11 @@
 
 ## What is Ariami?
 
-Ariami is not a cloud music server, and it only hosts your files. You run the server on your own machine. There are desktop, CLI, and docker server hosts available, with mobile, desktop and TV clients to access your music. The clients are first party, meaning Ariami hands everything end to end. 
+Ariami is not a cloud music server, and it only hosts your files. You run the server on your own machine. There are desktop, CLI, and docker server hosts available, with mobile, desktop and TV clients to access your music. The clients are first party, meaning Ariami handles everything end to end. 
 
 When at home, your phone, desktop, TV connects to Ariami over your local network. When you are away from home, [Tailscale](https://tailscale.com/download) gives you a private path to the same server without opening ports on your router.
 
-Ariami's core and mobile client will always be free. The Desktop and TV client requires a one-time purchase to obtain licenses to access them. This helps fund the development and future of Ariami. 
+Ariami's core and mobile client will always be free. The Desktop and TV client require a one-time purchase to obtain licenses to access them. This helps fund the development and future of Ariami. 
 
 <p align="center">
   <img src="app%20photos/Ariami%20CLI/cli_overview.webp" alt="CLI dashboard" height="130">
@@ -295,9 +295,9 @@ I have a lot planned for Ariami, as I believe this is just the beginning with th
 
 - Role-based access control for families. This means families can choose what music certain users can listen to, with explicit song/album filtering. 
 - Better individual user control. Right now, one library is accessed by everyone, however, there is currently no ability to hide/manage songs/albums/playlists per person.
-- More stats imports. Spotify history import already ships, so your Spotify listening comes with you. YouTube Music and Apple Music are next — I do not use both services, so I do not yet have a valid set of listening stats to pull from them. Once I do, I will implement it into Ariami so your stats come with you from those services as well. 
+- More stats imports. Spotify history import already ships, so your Spotify listening comes with you. YouTube Music and Apple Music are next. I do not use both services, so I do not yet have a valid set of listening stats to pull from them. Once I do, I will implement it into Ariami so your stats come with you from those services as well. 
 - If there is demand for it, Ariami for tvOS (Apple TV) is something I am willing to look into. 
-- These are just some of the things - however, the most important: user feedback that helps improve the service. I have done everything in my power to test on as many VMs, laptops/PCs, TVs as I can get my hands on, however, that is still relatively small to the breadth of devices that are out there. The more issues that are reported to me, the more I can work with to make this service as good as possible. 
+- These are just some of the things - however, the most important: user feedback that helps improve the service. I have done everything in my power to test on as many VMs, laptops/PCs, TVs as I can get my hands on, however, that is still relatively small to the breadth of devices that are out there. The more issues that are reported to me, the more I can work with to make this service as good as possible.
 
 **Ariami 6.0** 
 
@@ -460,6 +460,36 @@ Tap a section to expand. All images reflect the current app UI.
 <p align="center">
   <img src="app%20photos/Ariami%20Mobile/mobile_profile_3.webp" alt="Profile" width="24%">
   <img src="app%20photos/Ariami%20Mobile/mobile_recently_played.webp" alt="Recently played" width="24%">
+</p>
+
+</details>
+
+<details>
+<summary><strong>Ariami Tablet Version</strong> (7 screenshots)</summary>
+
+<br>
+
+The mobile app expands into a tablet layout with a sidebar and a docked now-playing card, on both iPad and Android tablets.
+
+#### Library, playlists, and search
+
+<p align="center">
+  <img src="app%20photos/Ariami%20for%20tablets/tablet_library.webp" alt="Library" width="48%">
+  <img src="app%20photos/Ariami%20for%20tablets/tablet_playlist.webp" alt="Playlist" width="48%">
+</p>
+<p align="center">
+  <img src="app%20photos/Ariami%20for%20tablets/tablet_search.webp" alt="Search" width="48%">
+  <img src="app%20photos/Ariami%20for%20tablets/tablet_queue.webp" alt="Queue" width="48%">
+</p>
+
+#### Player, Ariami Connect, and stats
+
+<p align="center">
+  <img src="app%20photos/Ariami%20for%20tablets/tablet_player.webp" alt="Now playing" width="48%">
+  <img src="app%20photos/Ariami%20for%20tablets/tablet_ariami_connect.webp" alt="Ariami Connect" width="48%">
+</p>
+<p align="center">
+  <img src="app%20photos/Ariami%20for%20tablets/tablet_listening_stats.webp" alt="Listening stats" width="48%">
 </p>
 
 </details>
