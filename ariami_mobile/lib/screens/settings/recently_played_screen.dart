@@ -29,7 +29,11 @@ class _RecentlyPlayedScreenState extends State<RecentlyPlayedScreen> {
   final StreamingStatsService _stats = StreamingStatsService();
   final PlaybackManager _playback = PlaybackManager();
   final ConnectionService _connection = ConnectionService();
-  final Set<String> _collapsedDays = <String>{};
+
+  /// Days the user has explicitly opened or closed. Anything untouched
+  /// follows [_opensExpanded], so arriving on a years-long history gives a
+  /// scannable list of days rather than one endless scroll.
+  final Map<String, bool> _collapsedByDay = <String, bool>{};
 
   Map<String, AlbumModel> _albumsById = const <String, AlbumModel>{};
   List<SongModel> _librarySongs = const <SongModel>[];
@@ -37,18 +41,38 @@ class _RecentlyPlayedScreenState extends State<RecentlyPlayedScreen> {
     albums: const <AlbumModel>[],
     songs: const <SongModel>[],
   );
+
+  /// Deriving the history walks every rollup the account has ever recorded
+  /// and resolves each one against the library, so it is rebuilt only when
+  /// the stats or the catalog actually change — never on a collapse toggle.
+  List<_DayGroup> _groups = const <_DayGroup>[];
   bool _loading = true;
 
   @override
   void initState() {
     super.initState();
+    _stats.addListener(_onStatsChanged);
     _initialize();
+  }
+
+  @override
+  void dispose() {
+    _stats.removeListener(_onStatsChanged);
+    super.dispose();
+  }
+
+  void _onStatsChanged() {
+    if (!mounted) return;
+    setState(_rebuildGroups);
   }
 
   Future<void> _initialize() async {
     await _stats.initialize();
     if (!mounted) return;
-    setState(() => _loading = false);
+    setState(() {
+      _loading = false;
+      _rebuildGroups();
+    });
     unawaited(AccountStatsService().refreshSummary());
     unawaited(_loadLibrary());
   }
@@ -66,10 +90,29 @@ class _RecentlyPlayedScreenState extends State<RecentlyPlayedScreen> {
           albums: library.albums,
           songs: library.songs,
         );
+        _rebuildGroups();
       });
     } catch (_) {
       // Listening metadata remains readable while the catalog is unavailable.
     }
+  }
+
+  void _rebuildGroups() {
+    final stats = _stats
+        .getAllStats()
+        .where((s) => s.lastPlayed != null)
+        .toList()
+      ..sort((a, b) => b.lastPlayed!.compareTo(a.lastPlayed!));
+    final library = _LibraryIndex(_librarySongs, _albumsById);
+    final entriesByIdentity = <String, _RecentEntry>{};
+    for (final stat in stats) {
+      final entry = _RecentEntry(stat: stat, song: library.resolve(stat));
+      // The list is newest-first, so a repeat updates and repositions
+      // this one row. Metadata fallback also collapses stale ids that
+      // refer to the same current library song.
+      entriesByIdentity.putIfAbsent(_identityFor(entry), () => entry);
+    }
+    _groups = _groupByDay(entriesByIdentity.values);
   }
 
   Future<void> _play(_RecentEntry entry) async {
@@ -95,46 +138,19 @@ class _RecentlyPlayedScreenState extends State<RecentlyPlayedScreen> {
         elevation: 0,
       ),
       body: ContentWidthLimiter(
-        child: ListenableBuilder(
-          listenable: _stats,
-          builder: (context, _) {
+        child: Builder(
+          builder: (context) {
             if (_loading) {
               return const Center(child: CircularProgressIndicator());
             }
-
-            final stats = _stats
-                .getAllStats()
-                .where((stat) => stat.lastPlayed != null)
-                .toList()
-              ..sort((a, b) => b.lastPlayed!.compareTo(a.lastPlayed!));
-            final songsById = <String, SongModel>{
-              for (final song in _librarySongs) song.id: song,
-            };
-            final entriesByIdentity = <String, _RecentEntry>{};
-            for (final stat in stats) {
-              final entry = _RecentEntry(
-                stat: stat,
-                song: _resolveSong(stat, _librarySongs, songsById),
-              );
-              // The list is newest-first, so a repeat updates and repositions
-              // this one row. Metadata fallback also collapses stale ids that
-              // refer to the same current library song.
-              entriesByIdentity.putIfAbsent(
-                _identityFor(entry),
-                () => entry,
-              );
-            }
-            final entries = entriesByIdentity.values.toList();
-            final groups = _groupByDay(entries);
-            if (groups.isEmpty) return const _EmptyHistory();
+            if (_groups.isEmpty) return const _EmptyHistory();
 
             return MiniPlayerScrollPaddingBuilder(
-              builder: (context, bottomPadding) => ListView(
+              builder: (context, bottomPadding) => ListView.builder(
                 padding: EdgeInsets.fromLTRB(16, 8, 16, bottomPadding + 24),
-                children: [
-                  for (var index = 0; index < groups.length; index++)
-                    _buildDaySection(groups[index], index),
-                ],
+                itemCount: _groups.length,
+                itemBuilder: (context, index) =>
+                    _buildDaySection(_groups[index], index),
               ),
             );
           },
@@ -144,7 +160,7 @@ class _RecentlyPlayedScreenState extends State<RecentlyPlayedScreen> {
   }
 
   Widget _buildDaySection(_DayGroup group, int index) {
-    final collapsed = _collapsedDays.contains(group.key);
+    final collapsed = _collapsedByDay[group.key] ?? !_opensExpanded(group.day);
     return Padding(
       padding: EdgeInsets.only(top: index == 0 ? 0 : 12),
       child: Column(
@@ -153,16 +169,11 @@ class _RecentlyPlayedScreenState extends State<RecentlyPlayedScreen> {
             label: _dayLabel(context, group.day),
             count: group.entries.length,
             collapsed: collapsed,
-            onAddToQueue: group.entries.any((entry) => entry.song != null)
-                ? () => _addDayToQueue(group)
-                : null,
-            onTap: () => setState(() {
-              if (collapsed) {
-                _collapsedDays.remove(group.key);
-              } else {
-                _collapsedDays.add(group.key);
-              }
-            }),
+            onAddToQueue:
+                group.hasPlayableSongs ? () => _addDayToQueue(group) : null,
+            onTap: () => setState(
+              () => _collapsedByDay[group.key] = !collapsed,
+            ),
           ),
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 180),
@@ -202,37 +213,115 @@ class _RecentlyPlayedScreenState extends State<RecentlyPlayedScreen> {
     );
   }
 
-  Song? _resolveSong(
-    SongStats stat,
-    List<SongModel> librarySongs,
-    Map<String, SongModel> songsById,
-  ) {
-    SongModel? match = songsById[stat.songId];
-    final title = stat.songTitle?.trim().toLowerCase();
-    final artist = stat.songArtist?.trim().toLowerCase();
-    if (match == null && title != null && artist != null) {
-      final candidates = librarySongs
-          .where((candidate) =>
-              candidate.title.trim().toLowerCase() == title &&
-              candidate.artist.trim().toLowerCase() == artist)
-          .toList();
-      if (candidates.length == 1) {
-        match = candidates.single;
-      } else if (candidates.length > 1) {
-        final albumTitle = _normalize(stat.album);
-        final albumArtist = _normalize(stat.albumArtist);
-        final albumMatches = candidates.where((candidate) {
-          final album =
-              candidate.albumId == null ? null : _albumsById[candidate.albumId];
-          final titleMatches =
-              albumTitle.isEmpty || _normalize(album?.title) == albumTitle;
-          final artistMatches =
-              albumArtist.isEmpty || _normalize(album?.artist) == albumArtist;
-          return titleMatches && artistMatches;
-        }).toList();
-        if (albumMatches.length == 1) match = albumMatches.single;
-      }
+  static String _identityFor(_RecentEntry entry) {
+    final song = entry.song;
+    if (song != null) return 'song:${song.id}';
+    final stat = entry.stat;
+    final title = _normalize(stat.songTitle);
+    final artist = _normalize(stat.songArtist);
+    if (title.isNotEmpty || artist.isNotEmpty) {
+      return 'metadata:$title|$artist|${_normalize(stat.album)}';
     }
+    return 'stats:${stat.songId}';
+  }
+
+  static String _normalize(String? value) =>
+      (value ?? '').trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
+
+  static List<_DayGroup> _groupByDay(Iterable<_RecentEntry> entries) {
+    final grouped = <String, _DayGroup>{};
+    for (final entry in entries) {
+      final playedAt = entry.stat.lastPlayed!;
+      final day = DateTime(playedAt.year, playedAt.month, playedAt.day);
+      final key = _dayKey(day);
+      final group = grouped.putIfAbsent(
+        key,
+        () => _DayGroup(key: key, day: day, entries: <_RecentEntry>[]),
+      );
+      group.entries.add(entry);
+      if (entry.song != null) group.hasPlayableSongs = true;
+    }
+    return grouped.values.toList();
+  }
+
+  static String _dayKey(DateTime day) =>
+      '${day.year}-${day.month.toString().padLeft(2, '0')}-'
+      '${day.day.toString().padLeft(2, '0')}';
+
+  static bool _sameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
+  /// The last week (today and the six days before it) arrives open; older
+  /// days wait to be asked for. Built from calendar day numbers rather than
+  /// a subtracted [Duration] so a DST change can't shift the boundary.
+  static bool _opensExpanded(DateTime day) {
+    final now = DateTime.now();
+    return !day.isBefore(DateTime(now.year, now.month, now.day - 6));
+  }
+
+  static String _dayLabel(BuildContext context, DateTime value) {
+    final now = DateTime.now();
+    if (_sameDay(now, value)) return 'TODAY';
+    if (_sameDay(now.subtract(const Duration(days: 1)), value)) {
+      return 'YESTERDAY';
+    }
+    final l10n = MaterialLocalizations.of(context);
+    final label = l10n.formatMediumDate(value).toUpperCase();
+    // A medium date carries no year, so a play from 2019 would read exactly
+    // like one from this July. Spell the year out once it isn't this one.
+    return value.year == now.year ? label : '$label, ${l10n.formatYear(value)}';
+  }
+}
+
+class _RecentEntry {
+  const _RecentEntry({required this.stat, required this.song});
+
+  final SongStats stat;
+  final Song? song;
+
+  String get title => stat.songTitle ?? song?.title ?? 'Unknown track';
+  String get artist => stat.songArtist ?? song?.artist ?? 'Unknown artist';
+  String? get albumId => stat.albumId ?? song?.albumId;
+  String? get album => stat.album ?? song?.album;
+}
+
+class _DayGroup {
+  _DayGroup({
+    required this.key,
+    required this.day,
+    required this.entries,
+  });
+
+  final String key;
+  final DateTime day;
+  final List<_RecentEntry> entries;
+
+  /// Whether any row resolved to a library song, so the day's "add to queue"
+  /// action can be enabled without rescanning the entries on every rebuild.
+  bool hasPlayableSongs = false;
+}
+
+/// Library lookups for history rows, indexed once per catalog load.
+/// Resolving each rollup by scanning the whole library is O(stats × library)
+/// — with an imported history that is millions of string comparisons, and
+/// every play the importer could not match misses the id lookup entirely.
+class _LibraryIndex {
+  _LibraryIndex(List<SongModel> songs, this._albumsById) {
+    for (final song in songs) {
+      _byId[song.id] = song;
+      _byTitleArtist
+          .putIfAbsent(_key(song.title, song.artist), () => <SongModel>[])
+          .add(song);
+    }
+  }
+
+  final Map<String, AlbumModel> _albumsById;
+  final Map<String, SongModel> _byId = <String, SongModel>{};
+  final Map<String, List<SongModel>> _byTitleArtist =
+      <String, List<SongModel>>{};
+
+  Song? resolve(SongStats stat) {
+    final match = _byId[stat.songId] ?? _byMetadata(stat);
     if (match == null) return null;
     final album = match.albumId == null ? null : _albumsById[match.albumId];
     return Song(
@@ -250,79 +339,31 @@ class _RecentlyPlayedScreenState extends State<RecentlyPlayedScreen> {
     );
   }
 
-  static String _identityFor(_RecentEntry entry) {
-    final song = entry.song;
-    if (song != null) return 'song:${song.id}';
-    final stat = entry.stat;
-    final title = _normalize(stat.songTitle);
-    final artist = _normalize(stat.songArtist);
-    if (title.isNotEmpty || artist.isNotEmpty) {
-      return 'metadata:$title|$artist|${_normalize(stat.album)}';
-    }
-    return 'stats:${stat.songId}';
+  SongModel? _byMetadata(SongStats stat) {
+    final title = stat.songTitle;
+    final artist = stat.songArtist;
+    if (title == null || artist == null) return null;
+    final candidates = _byTitleArtist[_key(title, artist)];
+    if (candidates == null) return null;
+    if (candidates.length == 1) return candidates.single;
+    final albumTitle = _RecentlyPlayedScreenState._normalize(stat.album);
+    final albumArtist = _RecentlyPlayedScreenState._normalize(stat.albumArtist);
+    final albumMatches = candidates.where((candidate) {
+      final album =
+          candidate.albumId == null ? null : _albumsById[candidate.albumId];
+      final titleMatches = albumTitle.isEmpty ||
+          _RecentlyPlayedScreenState._normalize(album?.title) == albumTitle;
+      final artistMatches = albumArtist.isEmpty ||
+          _RecentlyPlayedScreenState._normalize(album?.artist) == albumArtist;
+      return titleMatches && artistMatches;
+    }).toList();
+    return albumMatches.length == 1 ? albumMatches.single : null;
   }
 
-  static String _normalize(String? value) =>
-      (value ?? '').trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
-
-  static List<_DayGroup> _groupByDay(List<_RecentEntry> entries) {
-    final grouped = <String, _DayGroup>{};
-    for (final entry in entries) {
-      final playedAt = entry.stat.lastPlayed!;
-      final day = DateTime(playedAt.year, playedAt.month, playedAt.day);
-      final key = _dayKey(day);
-      grouped
-          .putIfAbsent(
-            key,
-            () => _DayGroup(key: key, day: day, entries: <_RecentEntry>[]),
-          )
-          .entries
-          .add(entry);
-    }
-    return grouped.values.toList();
-  }
-
-  static String _dayKey(DateTime day) =>
-      '${day.year}-${day.month.toString().padLeft(2, '0')}-'
-      '${day.day.toString().padLeft(2, '0')}';
-
-  static bool _sameDay(DateTime a, DateTime b) =>
-      a.year == b.year && a.month == b.month && a.day == b.day;
-
-  static String _dayLabel(BuildContext context, DateTime value) {
-    final now = DateTime.now();
-    if (_sameDay(now, value)) return 'TODAY';
-    if (_sameDay(now.subtract(const Duration(days: 1)), value)) {
-      return 'YESTERDAY';
-    }
-    return MaterialLocalizations.of(context)
-        .formatMediumDate(value)
-        .toUpperCase();
-  }
-}
-
-class _RecentEntry {
-  const _RecentEntry({required this.stat, required this.song});
-
-  final SongStats stat;
-  final Song? song;
-
-  String get title => stat.songTitle ?? song?.title ?? 'Unknown track';
-  String get artist => stat.songArtist ?? song?.artist ?? 'Unknown artist';
-  String? get albumId => stat.albumId ?? song?.albumId;
-  String? get album => stat.album ?? song?.album;
-}
-
-class _DayGroup {
-  const _DayGroup({
-    required this.key,
-    required this.day,
-    required this.entries,
-  });
-
-  final String key;
-  final DateTime day;
-  final List<_RecentEntry> entries;
+  /// The separator keeps "Song A" by "B" from colliding with "Song" by
+  /// "A B", which comparing the two fields separately never could.
+  static String _key(String title, String artist) =>
+      '${title.trim().toLowerCase()}\u0000${artist.trim().toLowerCase()}';
 }
 
 class _DayHeader extends StatelessWidget {
