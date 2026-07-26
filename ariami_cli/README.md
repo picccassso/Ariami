@@ -9,6 +9,7 @@ Headless music server for Ariami. Runs on servers and Raspberry Pi.
 - Same streaming capabilities as Desktop
 - Multi-user authentication
 - Dashboard showing connected users and devices with admin controls (kick devices, change passwords)
+- Library rescan and Spotify Extended Streaming History import/removal from the dashboard
 
 ## Building
 
@@ -35,6 +36,10 @@ directory. The release archive includes a root `./ariami_cli` launcher.
 ./ariami_cli status                 # Show server, reachability, auth, data, and backup status
 ./ariami_cli help music-folder      # Explain a setup step in plain language
 ./ariami_cli stop                   # Stop server
+./ariami_cli --version              # Print the CLI version
+
+./ariami_cli configure --music-folder /home/user/Music  # Set the library path
+./ariami_cli music-folder set /home/user/Music          # Same thing, alternate spelling
 
 ./ariami_cli autostart enable   # Start the server automatically on boot
 ./ariami_cli autostart disable  # Stop starting on boot
@@ -58,11 +63,12 @@ Set `ARIAMI_DATA_DIR` to move Ariami's data directory from the default
 ARIAMI_DATA_DIR=/srv/ariami-data ./ariami_cli start --no-browser
 ```
 
-`status` now prints the process state, local dashboard reachability, LAN and
+`status` prints the process state, local dashboard reachability, LAN and
 Tailscale URLs when available, setup state, music folder state, authentication
 summary, data directory, database/cache names, and a backup reminder.
 
 For SSH, Raspberry Pi, NAS, and homelab installs, see [HEADLESS.md](HEADLESS.md).
+For Docker and Compose, see [docker/DOCKER.md](docker/DOCKER.md).
 
 `reset` clears Ariami's local state so you can start over. **Setup/config only**
 removes setup progress, server config and pairing state but keeps the catalog
@@ -96,4 +102,16 @@ If the browser does not open, use one of the URLs printed by the server. On a
 headless machine, open the LAN or Tailscale URL from another browser that can
 reach the server.
 
-See `REBUILD.md` for rebuild workflows and Raspberry Pi cross-compilation.
+See [REBUILD.md](REBUILD.md) for rebuild workflows and Raspberry Pi
+cross-compilation.
+
+## Documentation
+
+The full documentation set lives in [docs/](docs/README.md):
+
+- [OVERVIEW.md](docs/OVERVIEW.md) — what Ariami CLI is and how it fits together
+- [INSTALLATION.md](docs/INSTALLATION.md) — picking an install path
+- [CLI_REFERENCE.md](docs/CLI_REFERENCE.md) — every command, flag, and exit code
+- [CONFIGURATION.md](docs/CONFIGURATION.md) — data directory, `config.json`, environment variables
+- [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) — symptom → cause → fix
+- [FAQ.md](docs/FAQ.md) — short answers to common questions

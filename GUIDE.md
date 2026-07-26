@@ -4,8 +4,14 @@ Guide for building Ariami from source.
 
 ## Prerequisites
 
-- **Dart SDK**: 3.5.0+
-- **Flutter SDK**: Latest stable
+- **Dart SDK**: packages declare `^3.5.0`, but compiling the CLI binary uses
+  `dart build cli`, which needs **Dart 3.9+** (developed against 3.12)
+- **Flutter SDK**: Latest stable (the Docker build pins **3.44.0**)
+- **Rust toolchain**: only needed to build [Sonic](sonic/), the transcoding
+  library. Without it the server still runs; low/medium quality transcoding is
+  unavailable
+- **FFmpeg**: optional, used for artwork resizing only (transcoding is Sonic)
+- **Docker**: optional, for the container image and Raspberry Pi ARM64 releases
 - **Platform tools**:
   - Android: Android Studio
   - iOS: Xcode (macOS only)
@@ -72,6 +78,39 @@ cp build/cli-release/bundle/bin/ariami_cli ./ariami_cli
 chmod +x ./ariami_cli
 ```
 
+Keep `bundle/bin` and `bundle/lib` together when deploying — the executable
+loads native libraries (such as `libsqlite3.so`) from the adjacent bundle
+library directory. See [ariami_cli/REBUILD.md](ariami_cli/REBUILD.md) for clean
+rebuilds, global installs, and the Raspberry Pi ARM64 release script
+(`ariami_cli/build-pi-release-mac.sh`).
+
+### Sonic (transcoding library)
+
+Low/medium quality transcoding loads Sonic over FFI. Build the shared library
+before starting a server if you want transcoding:
+
+```bash
+cd sonic
+cargo build --release --features aac-fdk --lib
+```
+
+The server looks for `libsonic_transcoder.dylib` (macOS),
+`libsonic_transcoder.so` (Linux) or `sonic_transcoder.dll` (Windows) in the
+loader's default paths, alongside the executable (`lib/`, `Frameworks/`), and in
+`sonic/target/release/` relative to the working directory. `ARIAMI_SONIC_LIB`
+overrides the search with an explicit path.
+
+### Docker (CLI server)
+
+Builds the web UI, the CLI binary and Sonic in one multi-stage image:
+
+```bash
+docker build -f ariami_cli/docker/Dockerfile -t ariami-cli .
+```
+
+Run instructions, volumes and security notes are in
+[ariami_cli/docker/DOCKER.md](ariami_cli/docker/DOCKER.md).
+
 ### Start the CLI server on boot
 
 ```bash
@@ -80,9 +119,11 @@ chmod +x ./ariami_cli
 ./ariami_cli autostart status    # show current setting
 ```
 
-First-run setup also asks this as a y/N prompt. On Raspberry Pi/Linux this
-adds an `@reboot` crontab entry for the current user (no sudo). The desktop
-app has an equivalent "Start at Login" toggle on the Server tab.
+First-run setup also asks this as a y/N prompt. Each platform uses its standard
+no-root mechanism: an `@reboot` crontab entry on Linux/Raspberry Pi, a
+LaunchAgent in `~/Library/LaunchAgents` on macOS, and an `HKCU ...\Run` registry
+value on Windows. The desktop app has an equivalent "Start at Login" toggle on
+the Server tab.
 
 ### Reset Ariami
 
@@ -132,13 +173,15 @@ flutter doctor
 ### Test Environment Setup
 
 **Supported Pi Models:**
-- Raspberry Pi 4 (2GB+ RAM recommended)
 - Raspberry Pi 5 (all configurations)
+- Raspberry Pi 4 (2GB+ RAM recommended)
+- Raspberry Pi 3 works but is transcode-bound — see
+  [docs/pi-3-performance-findings.md](docs/pi-3-performance-findings.md)
 
 **Prerequisites:**
 - Raspberry Pi OS (64-bit recommended)
 - Dart SDK installed
-- Compiled CLI binary (`dart build cli -o build/cli-release` then `cp build/cli-release/bundle/bin/ariami_cli ./ariami_cli`)
+- Compiled CLI binary (`dart build cli -o build/cli-release` then `cp build/cli-release/bundle/bin/ariami_cli ./ariami_cli`), or the prebuilt ARM64 release zip
 
 ### Performance Test Checklist
 
@@ -155,7 +198,7 @@ Run these tests to validate multi-user performance on Pi:
 - [ ] User login completes in <1 second
 - [ ] Library scan completes (note time for your library size)
 - [ ] Single stream plays without buffering
-- [ ] Transcoding works (if FFmpeg installed)
+- [ ] Transcoding works (if the Sonic library is present)
 
 #### 3. Multi-User Concurrent Tests
 - [ ] 2 users can register simultaneously
@@ -189,9 +232,12 @@ Run these tests to validate multi-user performance on Pi:
 
 1. **Bcrypt cost factor**: Default is 10. If registration/login is too slow, consider reducing to 8 (less secure but faster).
 
-2. **Memory management**: JSON stores are kept in-memory. With many users/sessions, monitor RAM usage.
+2. **Memory management**: the library catalog lives in SQLite, but the user and
+   session stores are JSON kept in-memory. With many users/sessions, monitor RAM usage.
 
-3. **Transcoding**: Disable or use lower quality presets on Pi 4 to reduce CPU load.
+3. **Transcoding**: transcoding runs through Sonic. Lower the transcode slots
+   (Server tab → Transcode Slots, or the same dialog in the CLI web dashboard)
+   or stick to original quality on a Pi 4 to reduce CPU load.
 
 4. **Storage**: Use fast storage (USB SSD) for music library to improve scan times.
 
@@ -227,11 +273,13 @@ ps aux | grep ariami
 Run the full test suite on Pi to verify implementation:
 
 ```bash
-cd ariami_core
-dart test
+(cd ariami_core && dart test)        # 773 tests, pure Dart
+(cd ariami_cli && flutter test)
+(cd ariami_desktop && flutter test)
+(cd ariami_mobile && flutter test)
 ```
 
-All 85 tests should pass. If tests fail on Pi but pass on desktop, check for:
+The core suite should pass in full. If tests fail on Pi but pass on desktop, check for:
 - Timing-sensitive tests (may need tolerance adjustments)
 - File system permission issues
 - Memory constraints
