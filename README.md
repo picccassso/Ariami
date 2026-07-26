@@ -68,10 +68,10 @@ On first run, the CLI starts in the foreground and opens a **browser setup wizar
 curl -fsSL https://tailscale.com/install.sh | sh
 sudo tailscale up
 
-# Download and extract the latest CLI release (example for v4.4.0)
-curl -L https://github.com/picccassso/Ariami/releases/download/v4.4.0/ariami-cli-raspberry-pi-arm64-v4.4.0.zip -o ariami-cli.zip
+# Download and extract the latest CLI release (example for v5.0.0)
+curl -L https://github.com/picccassso/Ariami/releases/download/v5.0.0/ariami-cli-raspberry-pi-arm64-v5.0.0.zip -o ariami-cli.zip
 unzip ariami-cli.zip
-cd ariami-cli-raspberry-pi-arm64-v4.4.0
+cd ariami-cli-raspberry-pi-arm64-v5.0.0
 
 chmod +x ariami_cli
 ./ariami_cli start
