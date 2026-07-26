@@ -18,12 +18,13 @@ When at home, your phone, desktop, TV connects to Ariami over your local network
 Ariami's core and mobile client will always be free. The Desktop and TV client requires a one-time purchase to obtain licenses to access them. This helps fund the development and future of Ariami. 
 
 <p align="center">
-  <img src="app%20photos/Ariami%20Mobile/main_player_1.png" alt="Mobile player" width="24%">
-  <img src="app%20photos/Ariami%20Mobile/library_view_mixed_grid_1.png" alt="Mobile library" width="24%">
-  <img src="app%20photos/Ariami%20Desktop/main_1_overview.png" alt="Desktop dashboard" width="24%">
-  <img src="app%20photos/Ariami%20CLI/main_1_overview.png" alt="CLI dashboard" width="24%">
+  <img src="app%20photos/Ariami%20CLI/cli_overview.webp" alt="CLI dashboard" width="19%">
+  <img src="app%20photos/Ariami%20Desktop%20(normal%20server)/desktop_overview_1.webp" alt="Desktop server dashboard" width="19%">
+  <img src="app%20photos/Ariami%20Desktop%20(Client%20+%20normal%20server)/desktop_client_home_1.webp" alt="Desktop client" width="19%">
+  <img src="app%20photos/Ariami%20Mobile/mobile_player_1.webp" alt="Mobile player" width="19%">
+  <img src="app%20photos/Ariami%20TV/tv_now_playing_1.webp" alt="TV now playing" width="19%">
 </p>
-<p align="center"><sub>Mobile player · Mobile library · Desktop app/server · CLI web dashboard</sub></p>
+<p align="center"><sub>CLI web dashboard · Desktop server · Desktop client · Mobile player · TV</sub></p>
 
 ---
 
@@ -309,128 +310,195 @@ I have a lot planned for Ariami, as I believe this is just the beginning with th
 Tap a section to expand. All images reflect the current app UI.
 
 <details>
-<summary><strong>Mobile App</strong> (35 screenshots)</summary>
+<summary><strong>CLI Web Dashboard</strong> (4 screenshots)</summary>
+
+<br>
+
+<p align="center">
+  <img src="app%20photos/Ariami%20CLI/cli_overview.webp" alt="Dashboard overview" width="48%">
+  <img src="app%20photos/Ariami%20CLI/cli_activity.webp" alt="User activity" width="48%">
+</p>
+<p align="center">
+  <img src="app%20photos/Ariami%20CLI/cli_users.webp" alt="Registered users" width="48%">
+  <img src="app%20photos/Ariami%20CLI/cli_server.webp" alt="Server settings" width="48%">
+</p>
+
+</details>
+
+<details>
+<summary><strong>Desktop App (server)</strong> (6 screenshots)</summary>
+
+<br>
+
+<p align="center">
+  <img src="app%20photos/Ariami%20Desktop%20(normal%20server)/desktop_overview_1.webp" alt="Dashboard overview" width="48%">
+  <img src="app%20photos/Ariami%20Desktop%20(normal%20server)/desktop_overview_2.webp" alt="Dashboard overview" width="48%">
+</p>
+<p align="center">
+  <img src="app%20photos/Ariami%20Desktop%20(normal%20server)/desktop_activity.webp" alt="User activity" width="48%">
+  <img src="app%20photos/Ariami%20Desktop%20(normal%20server)/desktop_users.webp" alt="Registered users" width="48%">
+</p>
+<p align="center">
+  <img src="app%20photos/Ariami%20Desktop%20(normal%20server)/desktop_server_1.webp" alt="Server settings" width="48%">
+  <img src="app%20photos/Ariami%20Desktop%20(normal%20server)/desktop_server_2.webp" alt="Server settings" width="48%">
+</p>
+
+</details>
+
+<details>
+<summary><strong>Desktop App (server + client)</strong> (15 screenshots)</summary>
+
+<br>
+
+#### Home and library
+
+<p align="center">
+  <img src="app%20photos/Ariami%20Desktop%20(Client%20+%20normal%20server)/desktop_client_home_1.webp" alt="Home" width="48%">
+  <img src="app%20photos/Ariami%20Desktop%20(Client%20+%20normal%20server)/desktop_client_home_2.webp" alt="Home" width="48%">
+</p>
+<p align="center">
+  <img src="app%20photos/Ariami%20Desktop%20(Client%20+%20normal%20server)/desktop_client_album_1.webp" alt="Album view" width="48%">
+  <img src="app%20photos/Ariami%20Desktop%20(Client%20+%20normal%20server)/desktop_client_album_2.webp" alt="Album view" width="48%">
+</p>
+
+#### Playlists and recently played
+
+<p align="center">
+  <img src="app%20photos/Ariami%20Desktop%20(Client%20+%20normal%20server)/desktop_client_playlist_1.webp" alt="Playlist" width="48%">
+  <img src="app%20photos/Ariami%20Desktop%20(Client%20+%20normal%20server)/desktop_client_playlist_2.webp" alt="Playlist" width="48%">
+</p>
+<p align="center">
+  <img src="app%20photos/Ariami%20Desktop%20(Client%20+%20normal%20server)/desktop_client_playlist_3.webp" alt="Playlist" width="48%">
+  <img src="app%20photos/Ariami%20Desktop%20(Client%20+%20normal%20server)/desktop_client_playlist_4.webp" alt="Playlist" width="48%">
+</p>
+<p align="center">
+  <img src="app%20photos/Ariami%20Desktop%20(Client%20+%20normal%20server)/desktop_client_recently_played.webp" alt="Recently played" width="48%">
+</p>
+
+#### Settings
+
+<p align="center">
+  <img src="app%20photos/Ariami%20Desktop%20(Client%20+%20normal%20server)/desktop_client_settings_1.webp" alt="Settings" width="48%">
+  <img src="app%20photos/Ariami%20Desktop%20(Client%20+%20normal%20server)/desktop_client_settings_2.webp" alt="Settings" width="48%">
+</p>
+<p align="center">
+  <img src="app%20photos/Ariami%20Desktop%20(Client%20+%20normal%20server)/desktop_client_settings_3.webp" alt="Settings" width="48%">
+  <img src="app%20photos/Ariami%20Desktop%20(Client%20+%20normal%20server)/desktop_client_settings_4.webp" alt="Settings" width="48%">
+</p>
+<p align="center">
+  <img src="app%20photos/Ariami%20Desktop%20(Client%20+%20normal%20server)/desktop_client_settings_5.webp" alt="Settings" width="48%">
+  <img src="app%20photos/Ariami%20Desktop%20(Client%20+%20normal%20server)/desktop_client_settings_6.webp" alt="Settings" width="48%">
+</p>
+
+</details>
+
+<details>
+<summary><strong>Mobile App</strong> (27 screenshots)</summary>
 
 <br>
 
 #### Library and browse
 
 <p align="center">
-  <img src="app%20photos/Ariami%20Mobile/library_view_grid_1.png" alt="Library grid view" width="24%">
-  <img src="app%20photos/Ariami%20Mobile/library_view_list_1.png" alt="Library list view" width="24%">
-  <img src="app%20photos/Ariami%20Mobile/library_view_mixed_grid_1.png" alt="Library mixed grid view" width="24%">
-  <img src="app%20photos/Ariami%20Mobile/library_view_mixed_list_1.png" alt="Library mixed list view" width="24%">
-</p>
-<p align="center">
-  <img src="app%20photos/Ariami%20Mobile/library_view_select_1.png" alt="Library multi-select" width="24%">
-  <img src="app%20photos/Ariami%20Mobile/library_view_settings_1.png" alt="Library filters and settings" width="24%">
-  <img src="app%20photos/Ariami%20Mobile/album_view_2.png" alt="Album view" width="24%">
-  <img src="app%20photos/Ariami%20Mobile/search_view_1.png" alt="Search" width="24%">
-</p>
-<p align="center">
-  <img src="app%20photos/Ariami%20Mobile/search_view_2.png" alt="Search results" width="24%">
+  <img src="app%20photos/Ariami%20Mobile/mobile_library_1.webp" alt="Library view" width="24%">
+  <img src="app%20photos/Ariami%20Mobile/mobile_library_2.webp" alt="Library view" width="24%">
 </p>
 
-#### Player and queue
+#### Player and Ariami Connect
 
 <p align="center">
-  <img src="app%20photos/Ariami%20Mobile/main_player_1.png" alt="Now playing" width="24%">
-  <img src="app%20photos/Ariami%20Mobile/main_player_2.png" alt="Full player" width="24%">
-  <img src="app%20photos/Ariami%20Mobile/main_player_3.png" alt="Player controls" width="24%">
-  <img src="app%20photos/Ariami%20Mobile/main_player_queue_4.png" alt="Queue" width="24%">
+  <img src="app%20photos/Ariami%20Mobile/mobile_player_1.webp" alt="Now playing" width="24%">
+  <img src="app%20photos/Ariami%20Mobile/mobile_player_2.webp" alt="Full player" width="24%">
+  <img src="app%20photos/Ariami%20Mobile/mobile_player_3.webp" alt="Player controls" width="24%">
+  <img src="app%20photos/Ariami%20Mobile/mobile_player_4.webp" alt="Player controls" width="24%">
+</p>
+<p align="center">
+  <img src="app%20photos/Ariami%20Mobile/mobile_player_ariami_connect.webp" alt="Ariami Connect" width="24%">
 </p>
 
 #### Playlists
 
 <p align="center">
-  <img src="app%20photos/Ariami%20Mobile/playlist_view_1.png" alt="Playlists" width="24%">
-  <img src="app%20photos/Ariami%20Mobile/playlist_view_2.png" alt="Playlist detail" width="24%">
-  <img src="app%20photos/Ariami%20Mobile/playlist_view_3.png" alt="Edit playlist" width="24%">
-  <img src="app%20photos/Ariami%20Mobile/playlist_view_4.png" alt="Playlist artwork" width="24%">
-</p>
-
-#### Downloads and offline
-
-<p align="center">
-  <img src="app%20photos/Ariami%20Mobile/downloads_view_1.png" alt="Downloads" width="24%">
-  <img src="app%20photos/Ariami%20Mobile/downloads_view_2.png" alt="Download progress" width="24%">
-  <img src="app%20photos/Ariami%20Mobile/downloads_view_3.png" alt="Download queue" width="24%">
-  <img src="app%20photos/Ariami%20Mobile/downloads_view_4.png" alt="Download options" width="24%">
+  <img src="app%20photos/Ariami%20Mobile/mobile_playlist_1.webp" alt="Playlists" width="24%">
+  <img src="app%20photos/Ariami%20Mobile/mobile_playlist_2.webp" alt="Playlist detail" width="24%">
+  <img src="app%20photos/Ariami%20Mobile/mobile_album.webp" alt="Album view" width="24%">
+  <img src="app%20photos/Ariami%20Mobile/mobile_playlist_3.webp" alt="Edit playlist" width="24%">
 </p>
 <p align="center">
-  <img src="app%20photos/Ariami%20Mobile/offline_mode_1.png" alt="Offline mode" width="24%">
-  <img src="app%20photos/Ariami%20Mobile/offline_mode_2.png" alt="Offline library" width="24%">
+  <img src="app%20photos/Ariami%20Mobile/mobile_playlist_4.webp" alt="Playlist artwork" width="24%">
 </p>
 
-#### Streaming and connection
+#### Downloads and import/export
 
 <p align="center">
-  <img src="app%20photos/Ariami%20Mobile/streaming_quality_1.png" alt="Streaming quality" width="24%">
-  <img src="app%20photos/Ariami%20Mobile/streaming_quality_2.png" alt="Download quality" width="24%">
-  <img src="app%20photos/Ariami%20Mobile/connection_stats_1.png" alt="Connection stats" width="24%">
-  <img src="app%20photos/Ariami%20Mobile/connection_stats_2.png" alt="Connection details" width="24%">
-</p>
-<p align="center">
-  <img src="app%20photos/Ariami%20Mobile/chromecast_view_1.png" alt="Chromecast" width="24%">
+  <img src="app%20photos/Ariami%20Mobile/mobile_downloads_1.webp" alt="Downloads" width="24%">
+  <img src="app%20photos/Ariami%20Mobile/mobile_downloads_2.webp" alt="Download progress" width="24%">
+  <img src="app%20photos/Ariami%20Mobile/mobile_import_export.webp" alt="Import and export" width="24%">
 </p>
 
-#### Profile, stats, and appearance
+#### Settings, connection, and sound
 
 <p align="center">
-  <img src="app%20photos/Ariami%20Mobile/profile_view_1.png" alt="Profile hub" width="24%">
-  <img src="app%20photos/Ariami%20Mobile/profile_view_2.png" alt="Profile settings" width="24%">
-  <img src="app%20photos/Ariami%20Mobile/listening_stats_1.png" alt="Listening stats" width="24%">
-  <img src="app%20photos/Ariami%20Mobile/listening_stats_2.png" alt="Top tracks and artists" width="24%">
+  <img src="app%20photos/Ariami%20Mobile/mobile_settings_1.webp" alt="Settings" width="24%">
+  <img src="app%20photos/Ariami%20Mobile/mobile_settings_2.webp" alt="Settings" width="24%">
+  <img src="app%20photos/Ariami%20Mobile/mobile_connection_1.webp" alt="Connection stats" width="24%">
+  <img src="app%20photos/Ariami%20Mobile/mobile_connection_2.webp" alt="Connection details" width="24%">
 </p>
 <p align="center">
-  <img src="app%20photos/Ariami%20Mobile/appearence_view_1.png" alt="Appearance themes" width="24%">
-  <img src="app%20photos/Ariami%20Mobile/appearence_view_2.png" alt="Custom theme" width="24%">
+  <img src="app%20photos/Ariami%20Mobile/mobile_eq.webp" alt="Equalizer" width="24%">
+  <img src="app%20photos/Ariami%20Mobile/mobile_streaming_quality.webp" alt="Streaming quality" width="24%">
 </p>
 
-#### Import and export
+#### Profile and stats
 
 <p align="center">
-  <img src="app%20photos/Ariami%20Mobile/import_export_playlist_server_1.png" alt="Import and export" width="48%">
-  <img src="app%20photos/Ariami%20Mobile/import_export_playlist_server_2.png" alt="Server playlist import" width="48%">
+  <img src="app%20photos/Ariami%20Mobile/mobile_listening_stats_1.webp" alt="Listening stats" width="24%">
+  <img src="app%20photos/Ariami%20Mobile/mobile_listening_stats_2.webp" alt="Top tracks and artists" width="24%">
+  <img src="app%20photos/Ariami%20Mobile/mobile_profile_1.webp" alt="Profile hub" width="24%">
+  <img src="app%20photos/Ariami%20Mobile/mobile_profile_2.webp" alt="Profile settings" width="24%">
+</p>
+<p align="center">
+  <img src="app%20photos/Ariami%20Mobile/mobile_profile_3.webp" alt="Profile" width="24%">
+  <img src="app%20photos/Ariami%20Mobile/mobile_recently_played.webp" alt="Recently played" width="24%">
 </p>
 
 </details>
 
 <details>
-<summary><strong>Desktop App</strong> (6 screenshots)</summary>
+<summary><strong>TV App</strong> (11 screenshots)</summary>
 
 <br>
 
-<p align="center">
-  <img src="app%20photos/Ariami%20Desktop/main_1_overview.png" alt="Dashboard overview" width="48%">
-  <img src="app%20photos/Ariami%20Desktop/main_2_activity.png" alt="User activity" width="48%">
-</p>
-<p align="center">
-  <img src="app%20photos/Ariami%20Desktop/main_3_users.png" alt="Registered users" width="48%">
-  <img src="app%20photos/Ariami%20Desktop/main_4_server.png" alt="Server settings" width="48%">
-</p>
-<p align="center">
-  <img src="app%20photos/Ariami%20Desktop/main_5_pairing.png" alt="Mobile pairing QR code" width="48%">
-  <img src="app%20photos/Ariami%20Desktop/main_6_reset.png" alt="Reset and danger zone" width="48%">
-</p>
-
-</details>
-
-<details>
-<summary><strong>CLI Web Dashboard</strong> (5 screenshots)</summary>
-
-<br>
+#### Home and browse
 
 <p align="center">
-  <img src="app%20photos/Ariami%20CLI/main_1_overview.png" alt="Dashboard overview" width="48%">
-  <img src="app%20photos/Ariami%20CLI/main_2_activity.png" alt="User activity" width="48%">
+  <img src="app%20photos/Ariami%20TV/tv_home_1.webp" alt="Home" width="48%">
+  <img src="app%20photos/Ariami%20TV/tv_home_2.webp" alt="Home" width="48%">
 </p>
 <p align="center">
-  <img src="app%20photos/Ariami%20CLI/main_3_users.png" alt="Registered users" width="48%">
-  <img src="app%20photos/Ariami%20CLI/main_4_server.png" alt="Server settings" width="48%">
+  <img src="app%20photos/Ariami%20TV/tv_search.webp" alt="Search" width="48%">
+  <img src="app%20photos/Ariami%20TV/tv_albums.webp" alt="Albums" width="48%">
+</p>
+
+#### Now playing and Ariami Connect
+
+<p align="center">
+  <img src="app%20photos/Ariami%20TV/tv_now_playing_1.webp" alt="Now playing" width="48%">
+  <img src="app%20photos/Ariami%20TV/tv_now_playing_2.webp" alt="Now playing" width="48%">
 </p>
 <p align="center">
-  <img src="app%20photos/Ariami%20CLI/main_5_pairing.png" alt="Mobile pairing QR code" width="48%">
+  <img src="app%20photos/Ariami%20TV/tv_now_playing_3.webp" alt="Now playing" width="48%">
+  <img src="app%20photos/Ariami%20TV/tv_now_playing_4.webp" alt="Now playing" width="48%">
+</p>
+<p align="center">
+  <img src="app%20photos/Ariami%20TV/tv_ariami_connect.webp" alt="Ariami Connect" width="48%">
+</p>
+
+#### Settings
+
+<p align="center">
+  <img src="app%20photos/Ariami%20TV/tv_settings_1.webp" alt="Settings" width="48%">
+  <img src="app%20photos/Ariami%20TV/tv_settings_2.webp" alt="Settings" width="48%">
 </p>
 
 </details>
