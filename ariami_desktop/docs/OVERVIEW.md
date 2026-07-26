@@ -8,7 +8,7 @@ own package description in `ariami_desktop/pubspec.yaml`:
 ```yaml
 name: ariami_desktop
 description: "Ariami Desktop - Music streaming server with GUI"
-version: 4.4.0+8
+version: 5.0.0+9
 ```
 
 It is **not** a playback client. It does not have a "now playing" screen, a
@@ -138,13 +138,14 @@ Linux/macOS).
 
 ## Version note
 
-`ariami_desktop/pubspec.yaml` currently pins `version: 4.4.0+8`. This is
-lower than the sibling packages `ariami_core` and `ariami_cli`
-(`version: 5.0.0` in their respective `pubspec.yaml` files) — per this
-project's documentation rules, that discrepancy is reported as-is rather than
-"corrected." Note also that the in-app "Update available" banner on the
-Overview tab (`ariami_desktop/lib/widgets/dashboard/dashboard_overview_tab.dart`)
-displays `kAriamiVersion` from `ariami_core/lib/app_version.dart` (currently
-`5.0.0`), **not** the `ariami_desktop` package version above — so the version
-string shown inside the running app and the version in this package's
-`pubspec.yaml` can legitimately differ.
+`ariami_desktop/pubspec.yaml` pins `version: 5.0.0+9`, matching the sibling
+packages `ariami_core` and `ariami_cli`. As of the 5.0.0 release every Ariami
+component shares one version number, so a package version that disagrees with
+its siblings should now be treated as a mistake rather than an expected
+difference.
+
+The in-app "Update available" banner on the Overview tab
+(`ariami_desktop/lib/widgets/dashboard/dashboard_overview_tab.dart`) displays
+`kAriamiVersion` from `ariami_core/lib/app_version.dart`, **not** the
+`ariami_desktop` package version above. The two agree today, but they are still
+separate sources — a version bump has to touch both.
