@@ -6,22 +6,34 @@ Thank you for those that actually support and use this project at all! :D
 
 ---
 
-## Unreleased
+## 5.0.0
 
-This update makes Ariami feel much more connected across devices, with shared playback, listening stats, pins, profile pictures, and playlist edits, while also making the CLI far easier to run headlessly, in Docker, and across more platforms. There is a lot packed into this one, and I hope it makes both listening and self-hosting feel better than ever! :D
+Ariami 5.0.0 is the largest release yet. It makes Ariami feel genuinely connected across devices with shared playback, synced statistics, pins, profile pictures, and playlist edits, then builds a whole listening-history experience on top of it — credited artists, period views, Recently Played, offline caching, and Spotify history imports. Mobile gains a graphic equalizer, gapless playback, and a proper tablet layout, the server gains zero-config LAN discovery and a serious security pass, and the CLI becomes something you can genuinely run headless or in Docker.
+
+There is an enormous amount packed into this one, and I hope both listening and self-hosting feel better than ever! :D
 
 ### Highlights
 
-- Added Ariami Connect for transferring, mirroring, and controlling playback across signed-in clients, with more reliable handoffs and disconnect recovery.
-- Synced listening statistics, pinned albums and playlists, and profile pictures across each account's devices.
-- Added non-destructive cross-client playlist editing with mobile offline support and live updates.
-- Added complete CLI Docker packaging with a multi-stage image, Docker Compose, Linux host networking, and container-friendly setup.
+- Added Ariami Connect for transferring, mirroring, and controlling playback across signed-in clients, with device renaming, ghost-device eviction, atomic queue clearing, and far more reliable handoffs.
+- Overhauled listening statistics with server-derived credited-artist rollups, a day/week/month/year period selector, uncapped lists, offline caching and outbox overlays, and a Recently Played history screen.
+- Added Spotify Extended Streaming History imports from the CLI web dashboard and the Desktop app, with match previews, import status reporting, and source-scoped removal.
+- Added a graphic equalizer with Android and iOS support, plus gapless mobile playback.
+- Optimized the mobile app for tablets with an extended sidebar, docked now-playing card, and landscape full player.
+- Added zero-configuration LAN server discovery over UDP beacons and mDNS/DNS-SD.
+- Completed a security hardening pass across the server, CLI, and mobile, including gated first-owner registration and hardened request handling.
+- Made library scanning, metadata extraction, and playlist detection survive large, messy libraries, with M3U import and an auto-import/suggestion workflow.
+- Added a shared search engine with tiered ranking, diacritic folding, transliteration, and keyboard-layout correction.
+- Added Ariami TV license activation with a server-side license relay.
+- Added complete CLI Docker packaging, multi-arch GHCR publishing, and per-package documentation for Core, CLI, Desktop, and Mobile.
 - Overhauled the headless CLI experience with clearer startup details, new server flags, a real health-checking status command, and better diagnostics.
 - Added automated CLI release archives for Linux x64, Raspberry Pi arm64, macOS arm64, and Windows x64, including a Windows launcher and startup coverage.
 - Unified Ariami Connect and Google Cast into one responsive playback-output chooser across the mobile full player and mini player.
 
 ### Full changes
 
+- Fixed the mobile tab back gesture collapsing two navigation levels at once and exiting the app instead of returning to the library
+- Fixed CLI rescan tracking, music folder validation, and mobile catalog recovery when sync tokens are stale
+- Fixed album tracks being dropped as playlist duplicates while keeping generated playlist copies deduplicated
 - Added Ariami Connect playback transfers, remote queue selection, and playback control across signed-in clients
 - Added live remote playback mirroring for the current song, queue, progress, play state, shuffle, and repeat controls
 - Fixed Connect state recovery after reconnects and server restarts so clients no longer remained stuck on stale playback
@@ -51,6 +63,123 @@ This update makes Ariami feel much more connected across devices, with shared pl
 - Added zero-configuration host networking for CLI containers on Linux
 - Added `ARIAMI_ADVERTISED_HOST`, `ARIAMI_ADVERTISED_LAN_HOST`, and `ARIAMI_ADVERTISED_TAILSCALE_HOST` overrides so container pairing advertises reachable addresses
 - Made the setup wizard detect containers, complete setup without an unavailable background transition, and explain container networking on the Tailscale step
+- Fixed offline downloads vanishing when screens opened during startup before the restored queue was broadcast
+- Added a graphic equalizer to mobile with 9 built-in presets, user-saved presets, a frequency-response curve, and native Android and iOS support
+- Fixed iOS playback hanging forever with the equalizer pipeline by scoping audio effects per platform
+- Added gapless mobile playback
+- Hardened library scanning and tagging for large messy libraries, surviving unreadable directories, dead scanner isolates, and formats `dart_tags` cannot parse
+- Added zero-configuration LAN server discovery via a UDP beacon and an mDNS/DNS-SD advertiser, with a matching client browser
+- Synced client-created playlists and custom playlist cover photos across an account's devices
+- Fixed iOS streaming over Tailscale by exempting cleartext HTTP from App Transport Security
+- Removed ghost devices from Ariami Connect with protocol-level WebSocket pings and timeouts on relayed commands
+- Made the CLI exit quietly when its output pipe closes early instead of crashing on a broken pipe
+- Updated the app icon with new Ariami artwork across mobile, desktop, and the README
+- Regenerated the mobile wordmark masks from the new icon artwork
+- Added renameable device names synced through the server so Connect no longer lists identical devices
+- Improved download reliability with background continuation, stall fixes, and sturdier download jobs
+- Added smarter playlist detection with additive folders, M3U/M3U8 import, and a suggestion approval workflow
+- Fixed duplicate-quality ties so the surviving song ID is deterministic across filesystems
+- Added a shared search engine in core with tiered ranking, diacritic folding, Cyrillic transliteration, and QWERTY/ЙЦУКЕН layout correction, adopted by mobile search
+- Exposed engine matching for order-preserving find-in-page style filters
+- Removed the white border from the Ariami app icon and regenerated the launcher icons
+- Added tap-the-downloaded-tick to remove a playlist or album's downloads on mobile
+- Added automatic import of high-confidence playlist folders while keeping medium-confidence ones as suggestions
+- Hardened the mobile setup flow and added an owner-controlled sign-in account picker with dashboard toggles
+- Counted direct-from-disk playback in server stream accounting with delivery-typed stream tickets
+- Fixed the mobile playlist downloaded tick counting stale entries with no library match
+- Added a server-side credited-artist stats derivation layer with rebuildable rollups and day/period/artists/albums endpoints
+- Added credited-artist and period listening stats to mobile with a floating day/week/month/year selector
+- Unified mobile stats tracking onto the shared core engine and added playback source context to listening events
+- Completed a security hardening pass across server, CLI, and mobile covering first-owner registration, rate limiting, request logging, file permissions, body caps, CORS, and container privileges
+- Polished Desktop setup onboarding with contextual help on every step and a warmer welcome
+- Added a TV account-picker toggle to the Desktop dashboard Users tab
+- Improved CLI onboarding guidance
+- Made mobile server disconnect reset cleanly into offline mode and removed the dedicated Server Offline screen
+- Added a Cooler Downloads mode and serialized post-download artwork extraction to reduce device heat during bulk downloads
+- Refined mobile playlist reordering
+- Added live aggregate progress rings and cancellation state to mobile album and playlist download buttons
+- Added Ariami TV license activation and a server license relay usable from mobile, Desktop, and the CLI web dashboard
+- Softened the TV license card's stored-license copy
+- Improved streaming and sync performance on Tailscale paths with progressive cold transcodes, gzipped API responses, at-least-once Connect delivery, and a pooled keep-alive mobile HTTP client
+- Synced Liked Songs across devices through the shared account playlist contract
+- Fixed Unicode metadata and recovered embedded JPEG and PNG artwork missed by `dart_tags`
+- Hardened cross-format metadata importing with deterministic tag precedence, bounded parser inputs, and ffprobe/ffmpeg artwork fallbacks
+- Protected queue swipe-removal with an undo toast and allowed queue edits over Ariami Connect
+- Added the Ariami privacy policy
+- Improved dynamic artwork theming so small accent details cannot dominate the UI
+- Set the Ariami Mobile Android package name to `app.ariami.mobile`
+- Fixed playlist bulk downloads pulling in songs from playlists not present in the mobile library
+- Opened the mobile listening stats view on today's period by default
+- Synced the themed listening stats period selector
+- Repaired missing album metadata in mobile stats and download records
+- Fixed the Sonic submodule not being fetched in CLI artifact builds
+- Hardened license server test startup against parallel CI port claims
+- Improved remote playback sync and made ranged original-quality downloads resumable with ETag and If-Range
+- Fixed current-year listening stats totals dropping imported baseline hours
+- Added a tappable playtime units toggle with a first-run hint to listening stats
+- Hid uncounted listens from stat rankings while preserving partial listening in aggregate playtime
+- Allowed playlists to share display names by keying identity on server IDs and import mappings
+- Fixed nondeterministic streaming stats widget tests by seeding preferences
+- Fixed missing mobile artwork fallbacks for sparse and stale listening-stat identities
+- Kept CLI and Desktop scan results visible until the user explicitly continues, with exact attempted-file counts
+- Clarified CLI and Desktop scan completion guidance for the new manual flow
+- Moved the Desktop library scan ahead of owner account setup
+- Fixed unreliable disconnect-server navigation by navigating on confirm and capping the server notify at 3s
+- Added a Desktop notification banner when a newer release is available
+- Optimized the mobile app for tablets with an extended sidebar, docked now-playing card, landscape full player, and width-capped sheets and settings
+- Fixed mobile Connect refresh after app resume
+- Added a fallback to the downloaded copy when stream startup stalls
+- Cached listening stats per account and server for offline viewing
+- Stabilized the owner bootstrap server test against dormant CI VPN and virtual adapters
+- Added a mobile Recently Played history screen with deduplicated history, collapsible days, and per-day queue actions
+- Changed Clear Queue to keep Now Playing and its position, locally and on an active Connect device
+- Made Connect queue clearing atomic with a single `clear_queue` command
+- Prevented Connect startup playback races so a pre-welcome phone play wins the session
+- Kept mirrored queue identity stable across Connect broadcasts to stop queue rows flickering
+- Dropped the redundant output button from the tablet sidebar now-playing card
+- Made the stats PLAYTIME and AVG DAILY metrics cycle through hours, minutes, and compact minutes with a remembered unit
+- Removed CocoaPods integration from the macOS project
+- Ignored Gradle caches repo-wide
+- Upgraded dependencies within existing constraints
+- Bumped CI Flutter to 3.44.6
+- Disabled Jetifier in the mobile Android build
+- Deflaked the endpoint discovery test by awaiting the initial probe
+- Modularised the streaming stats screen into a focused stats/ feature folder
+- Fixed endpoint test cross-contamination from the singleton server's retained discovery callback
+- Modularised Core auth and admin handlers into focused auth, admin, and media-ticket modules
+- Modularized the CLI dashboard screen into auth, library, refresh, and user modules
+- Modularized the listening stats store into schema, ingestion, rollup, and read modules
+- Modularized the core metadata extractor into parsing, probe, and artwork part files
+- Modularized the mobile playback manager, extracting Connect coordination and lifecycle wiring
+- Eliminated the server info endpoint port race by recording the OS-assigned port
+- Modularised the mobile API models into focused part files
+- Modularised the LibraryManager catalog into focused part files
+- Modularised the mobile playlist detail screen into lifecycle, resolution, action, and offline-copy modules
+- Showed full listening stats lists instead of capping at 20/50, with `limit=0` support on the server endpoints
+- Sped up uncapped listening stats views with lazy list building, memoized credited-artist matching, and instant cached snapshots
+- Added auto-skip for queue entries deleted from the server library, with `410 SONG_NOT_FOUND` on stream tickets
+- Gated web dashboard owner panels on the signed-in role so non-admin sessions stop collecting 403s
+- Added Settings > Downloads > Clean Up Playlists to sweep ghost entries for songs deleted from the server
+- Fixed offline library startup on mobile data by treating unconfirmed connections as offline
+- Removed CocoaPods from the iOS project in favour of SPM only
+- Added an offline outbox overlay so pending plays appear immediately in period listening stats
+- Added Spotify Extended Streaming History imports from the CLI web dashboard and the Desktop server app
+- Improved Spotify history matching by normalizing title and artist variants and rejecting unsafe matches
+- Eliminated Core test port races with atomic OS-assigned port binding
+- Bumped to 5.0.0 and added a multi-arch GHCR Docker publish workflow
+- Fixed the Docker workflow not fetching submodules, leaving the Sonic source missing
+- Fixed Spotify import 1970 timestamps and computed avg daily from distinct active listening days
+- Updated the README with expanded client features and corrected session and stats accuracy
+- Added per-package documentation for Core, CLI, Desktop, and Mobile
+- Ignored Obsidian workspace config
+- Fixed mobile cover art leading audio after rapid skips by serializing overlapping song loads
+- Fixed mobile library sync stranding rows when the catalog changed mid-bootstrap
+- Added Spotify stats removal to the Desktop dashboard
+- Added Spotify stats removal to the CLI web dashboard
+- Added a Spotify import status line reporting play count, last import, and history span beside the import actions on both dashboards
+- Documented listening stats and the Spotify import lifecycle in Core's LISTENING_STATS.md
+- Evicted Connect peers whose socket died without a close event by tracking last-seen and sweeping stale peers
+- Made mobile Recently Played usable on a years-long history with indexed lookups and lazy day building
 
 ---
 
