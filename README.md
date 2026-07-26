@@ -1,8 +1,8 @@
 <div align="center">
   <img src="Ariami_icon.png" alt="Ariami Logo" width="200"/>
   <h1>Ariami</h1>
+  <a href="https://ariami.xyz/">https://ariami.xyz/</a>
 </div>
-								https://ariami.xyz/
 
 
 **Ariami is a self-hosted cross-platform music service, aiming to provide an easy experience with getting your music up and running, with clients across mobile, desktop and TV.**
@@ -18,11 +18,11 @@ When at home, your phone, desktop, TV connects to Ariami over your local network
 Ariami's core and mobile client will always be free. The Desktop and TV client requires a one-time purchase to obtain licenses to access them. This helps fund the development and future of Ariami. 
 
 <p align="center">
-  <img src="app%20photos/Ariami%20CLI/cli_overview.webp" alt="CLI dashboard" width="19%">
-  <img src="app%20photos/Ariami%20Desktop%20(normal%20server)/desktop_overview_1.webp" alt="Desktop server dashboard" width="19%">
-  <img src="app%20photos/Ariami%20Desktop%20(Client%20+%20normal%20server)/desktop_client_home_1.webp" alt="Desktop client" width="19%">
-  <img src="app%20photos/Ariami%20Mobile/mobile_player_1.webp" alt="Mobile player" width="19%">
-  <img src="app%20photos/Ariami%20TV/tv_now_playing_1.webp" alt="TV now playing" width="19%">
+  <img src="app%20photos/Ariami%20CLI/cli_overview.webp" alt="CLI dashboard" height="130">
+  <img src="app%20photos/Ariami%20Desktop%20(normal%20server)/desktop_overview_1.webp" alt="Desktop server dashboard" height="130">
+  <img src="app%20photos/Ariami%20Desktop%20(Client%20+%20normal%20server)/desktop_client_home_1.webp" alt="Desktop client" height="130">
+  <img src="app%20photos/Ariami%20Mobile/mobile_player_1.webp" alt="Mobile player" height="130">
+  <img src="app%20photos/Ariami%20TV/tv_now_playing_1.webp" alt="TV now playing" height="130">
 </p>
 <p align="center"><sub>CLI web dashboard · Desktop server · Desktop client · Mobile player · TV</sub></p>
 
