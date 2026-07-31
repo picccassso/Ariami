@@ -54,5 +54,31 @@ void main() {
 
       monitor.stop();
     });
+
+    test('notifies when only the primary advertised endpoint changes',
+        () async {
+      var advertisedIp = '192.168.1.50';
+      final changes = <NetworkEndpoints>[];
+
+      final monitor = NetworkEndpointMonitor(
+        onChanged: changes.add,
+        pollInterval: const Duration(milliseconds: 20),
+      );
+      monitor.setDiscoveryCallback(
+        () async => NetworkEndpoints(
+          advertisedIp: advertisedIp,
+          lanIp: '192.168.1.50',
+        ),
+      );
+      monitor.start();
+
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      advertisedIp = 'docker-media-vm.infra.example.com';
+      await Future<void>.delayed(const Duration(milliseconds: 40));
+
+      expect(changes.length, greaterThanOrEqualTo(2));
+      expect(changes.last.advertisedIp, 'docker-media-vm.infra.example.com');
+      monitor.stop();
+    });
   });
 }

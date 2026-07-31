@@ -44,12 +44,14 @@ ENV ARIAMI_DATA_DIR=/data
 ENV ARIAMI_CONTAINER=1
 
 VOLUME ["/data", "/music"]
+# Default container port. A bridge-mode ARIAMI_PORT override needs a matching
+# container-side published port, for example ARIAMI_PORT=2000 with 2000:2000.
 EXPOSE 8080
 WORKDIR /opt/ariami
 USER ariami
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-    CMD curl -fsS http://127.0.0.1:8080/api/ping || exit 1
+    CMD curl -fsS "http://127.0.0.1:${ARIAMI_PORT:-8080}/api/ping" || exit 1
 
 ENTRYPOINT ["/opt/ariami/bin/ariami_cli"]
-CMD ["--server-mode", "--port", "8080"]
+CMD ["--server-mode"]

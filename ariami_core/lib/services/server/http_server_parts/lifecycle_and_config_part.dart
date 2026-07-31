@@ -74,6 +74,7 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
   ///
   /// Returns true when stored endpoint values changed.
   bool updateAdvertisedEndpoints({
+    String? advertisedIp,
     String? tailscaleIp,
     String? lanIp,
   }) {
@@ -83,7 +84,7 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
 
     _tailscaleIp = tailscaleIp;
     _lanIp = lanIp;
-    _advertisedIp = tailscaleIp ?? lanIp ?? _advertisedIp;
+    _advertisedIp = advertisedIp ?? tailscaleIp ?? lanIp ?? _advertisedIp;
 
     if (previousTailscale == _tailscaleIp &&
         previousLan == _lanIp &&
@@ -109,6 +110,7 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
 
     final endpoints = await callback();
     updateAdvertisedEndpoints(
+      advertisedIp: endpoints.advertisedIp,
       tailscaleIp: endpoints.tailscaleIp,
       lanIp: endpoints.lanIp,
     );
@@ -124,6 +126,7 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
     _endpointMonitor ??= NetworkEndpointMonitor(
       onChanged: (endpoints) {
         updateAdvertisedEndpoints(
+          advertisedIp: endpoints.advertisedIp,
           tailscaleIp: endpoints.tailscaleIp,
           lanIp: endpoints.lanIp,
         );
@@ -311,7 +314,8 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
       _tailscaleIp = tailscaleIp;
       _lanIp = lanIp;
       _port = port;
-      print('Ariami Server already running on http://$_advertisedIp:$_port');
+      print(
+          'Ariami Server already running on http://$_advertisedIp:$_advertisedPort');
       return;
     }
     _advertisedIp = advertisedIp;
@@ -483,7 +487,7 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
     if (!_discoveryResponderEnabled) return;
     try {
       await _discoveryResponder.start(
-        httpPort: _port,
+        httpPort: _advertisedPort,
         serviceName: Platform.localHostname,
         version: kAriamiVersion,
       );
@@ -574,7 +578,10 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
       'lanServer': _lanIp,
       'tailscaleServer': _tailscaleIp,
       if (_publicOrigin != null) 'publicOrigin': _publicOrigin,
-      'port': _port,
+      // Advertised, not bound: clients connect through whatever port remap
+      // sits in front of us. `attemptedPort`/`portFallbackUsed` stay bind-side
+      // diagnostics — they describe which port we managed to listen on.
+      'port': _advertisedPort,
       'attemptedPort': _attemptedPort ?? _port,
       'portFallbackUsed': _portFallbackUsed,
       'name': Platform.localHostname,

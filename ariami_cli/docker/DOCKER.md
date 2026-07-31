@@ -34,6 +34,25 @@ mapping is needed or used. Host networking also lets the server answer
 LAN auto-discovery (UDP beacon on 45420 + mDNS), so clients like the TV
 app find it instantly without scanning.
 
+To use another host-network port, set `ARIAMI_PORT`. Discovery announces the
+configured port, and the container healthcheck follows it automatically:
+
+```bash
+docker run -d \
+  --name ariami \
+  --network host \
+  -e ARIAMI_PORT=2000 \
+  -e ARIAMI_ADVERTISED_HOST=docker-media-vm.infra.example.com \
+  -v ariami-data:/data \
+  -v "/path/to/Music:/music:ro" \
+  ariami-cli
+```
+
+The advertised hostname is optional. Omit it to let Ariami advertise the
+detected LAN/Tailscale addresses while still using port 2000. Keep it when a
+stable DNS name should be primary in QR codes and setup URLs; non-overridden
+LAN/Tailscale endpoints continue to refresh normally.
+
 ## Run on Docker Desktop (Mac/Windows)
 
 Docker Desktop containers cannot see the machine's real network (host
@@ -58,21 +77,61 @@ and mobile QR code will advertise both reachable hosts instead of the
 container's internal Docker address, and the mobile app automatically picks a
 reachable one.
 
-`ARIAMI_ADVERTISED_HOST` remains available as a single-address shorthand for
-older setups. It advertises one host only, so prefer the explicit LAN and
-Tailscale variables when you want both connection paths.
+`ARIAMI_ADVERTISED_HOST` remains available as a primary/LAN shorthand for
+older setups. Prefer the explicit LAN and Tailscale variables when you want
+to control both connection paths independently.
 
 Note on auto-discovery: broadcast and multicast traffic does not cross
 Docker's bridge network, so with port mapping the server cannot answer
 UDP/mDNS discovery probes. Clients still find it automatically — the TV
 app falls back to scanning ports 8080–8099 on its own subnet — as long as
 the mapped port stays within that range. On Linux, prefer host networking
-for instant discovery.
+for instant discovery. Ariami prints a best-effort startup hint when it
+recognizes a typical Docker bridge address.
+
+## Publishing on a different host port
+
+Ariami advertises the port it binds *inside* the container. If you publish it
+on a different host port — `-p 2000:8080` — setup URLs and the mobile QR code
+would still say `8080`, which is not where clients can reach it. Set
+`ARIAMI_ADVERTISED_PORT` to the host-side port:
+
+```bash
+docker run -d \
+  --name ariami \
+  -p 2000:8080 \
+  -e ARIAMI_ADVERTISED_LAN_HOST=192.168.1.50 \
+  -e ARIAMI_ADVERTISED_PORT=2000 \
+  -v ariami-data:/data \
+  -v "/path/to/Music:/music:ro" \
+  ariami-cli
+```
+
+Only the advertised port changes; the container still binds 8080, so the
+healthcheck and the right-hand side of any `-p` mapping keep referring to
+8080. Values that are not a port number between 1 and 65535 are ignored with
+a warning at startup, and Ariami falls back to advertising the bound port.
+
+Alternatively, make the container bind the custom port too:
+
+```bash
+-e ARIAMI_PORT=2000 -p 2000:2000
+```
+
+In bridge mode, the right-hand/container side of the mapping must match
+`ARIAMI_PORT`. A mismatched mapping such as `-e ARIAMI_PORT=2000 -p 8080:8080`
+can report healthy because the internal healthcheck follows port 2000, while
+the published port forwards to an unused container port.
+
+Note that the TV app's discovery fallback only scans ports 8080–8099, so a
+host port outside that range means TV clients need the server entered
+manually. Keeping the published port inside 8080–8099 avoids that.
 
 ## First-run setup
 
-Open `http://<host>:8080` and complete the first-run wizard. Choose `/music` as
-the music folder.
+Open `http://<host>:<port>` and complete the first-run wizard (`8080` unless
+`ARIAMI_PORT` or a host-side port mapping changes it). Choose `/music` as the
+music folder.
 
 When the wizard reaches the final setup transition, Ariami completes setup in
 place. The server keeps running in the foreground under Docker supervision
@@ -139,7 +198,8 @@ installs.
 
 ## Healthcheck
 
-The image includes a Docker healthcheck that calls:
+The image includes a Docker healthcheck that calls the bound `ARIAMI_PORT`,
+defaulting to:
 
 ```bash
 http://127.0.0.1:8080/api/ping
@@ -151,6 +211,22 @@ Inspect it with:
 docker ps
 docker inspect --format '{{.State.Health.Status}}' ariami
 ```
+
+## Update without losing data
+
+Keep `/data` mounted at the same named volume or host directory, update the
+image tag in Compose, then recreate only Ariami:
+
+```bash
+docker compose pull ariami
+docker compose up -d --no-deps ariami
+docker compose logs --tail=100 ariami
+```
+
+Compose preserves the mounted data while replacing the container. Back up
+`/data` before an upgrade, use immutable image tags, and never run
+`docker compose down -v` unless you deliberately want to delete named-volume
+data.
 
 ## Compose
 

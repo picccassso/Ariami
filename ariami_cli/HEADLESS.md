@@ -22,8 +22,8 @@ quarantine flag once: `xattr -dr com.apple.quarantine <extracted dir>`.
 ## Quick Start Over SSH
 
 ```bash
-unzip ariami-cli-raspberry-pi-arm64-v5.0.0.zip   # or the linux-x64 zip
-cd ariami-cli-raspberry-pi-arm64-v5.0.0
+unzip ariami-cli-raspberry-pi-arm64-v5.0.1.zip   # or the linux-x64 zip
+cd ariami-cli-raspberry-pi-arm64-v5.0.1
 chmod +x ariami_cli
 ./ariami_cli start --no-browser
 ```
@@ -42,14 +42,16 @@ the dashboard QR code to connect mobile clients.
 
 | Name | Type | Use |
 | --- | --- | --- |
-| `--port <port>`, `-p <port>` | flag | Preferred HTTP port before a port is saved. Default is `8080`. During setup, Ariami can fall back through `8080`-`8099` when the port was not explicitly requested. An explicit port disables fallback. Normal `start` uses the saved port after setup. |
+| `--port <port>`, `-p <port>` | flag | Preferred HTTP port before a port is saved. Default is `ARIAMI_PORT` when set, otherwise `8080`. During setup, Ariami can fall back through `8080`-`8099` when the port was not explicitly requested. An explicit port disables fallback. Normal `start` uses the saved port after setup. |
+| `ARIAMI_PORT` | environment | Port the server binds. Used when `--port` is absent; it counts as explicit, so Ariami never falls back to another port. The Docker healthcheck follows it. |
 | `--host <address>` | flag | HTTP bind address. Default is `0.0.0.0`. Use `127.0.0.1` or `localhost` only for local-only access. An explicit value is saved for future starts. |
 | `--no-browser` | flag | During setup, print URLs and never try to auto-open a browser. This is the normal SSH option. |
 | `--verbose` | flag | Show stack traces and extra debug output for startup failures. |
 | `ARIAMI_DATA_DIR` | environment | Overrides the default data directory, `~/.ariami_cli`, for that process. Set it consistently for `start`, `stop`, `status`, `reset`, and backups. |
-| `ARIAMI_ADVERTISED_HOST` | environment | Overrides the host Ariami advertises in setup URLs, server info, and QR codes. Useful in containers; set it to the host machine's LAN or Tailscale IP. |
-| `ARIAMI_ADVERTISED_LAN_HOST` | environment | Overrides the LAN host Ariami advertises in setup URLs, server info, and QR codes. Useful in containers; set it to the host machine's LAN IP for same-network devices. |
-| `ARIAMI_ADVERTISED_TAILSCALE_HOST` | environment | Overrides the Tailscale host Ariami advertises in setup URLs, server info, and QR codes. Useful in containers; set it to the host machine's Tailscale IP for remote devices with Tailscale enabled. |
+| `ARIAMI_ADVERTISED_HOST` | environment | Overrides the primary host Ariami advertises in setup URLs, server info, and QR codes. Accepts an IP address or DNS hostname. Non-overridden LAN/Tailscale endpoints continue to refresh. |
+| `ARIAMI_ADVERTISED_LAN_HOST` | environment | Overrides only the advertised LAN host. Accepts an IP address or DNS hostname; detected Tailscale changes continue to refresh independently. |
+| `ARIAMI_ADVERTISED_TAILSCALE_HOST` | environment | Overrides only the advertised Tailscale host. Detected LAN changes continue to refresh independently. |
+| `ARIAMI_ADVERTISED_PORT` | environment | Port clients should use when Docker maps a different host port to the bound port, for example `2000:8080`. It does not change the port Ariami binds. |
 | `ARIAMI_PUBLIC_ORIGIN` | environment | Optional HTTPS origin exposed by a trusted reverse proxy, for example `https://review.ariami.xyz`. It must contain only the origin: no credentials, path, query, or fragment. Secure-origin-aware clients use it for HTTPS API/media traffic and WSS WebSockets. Ariami rejects invalid or non-HTTPS values at startup. |
 | `ARIAMI_CONTAINER` | environment | Set to `1` or `true` to tell Ariami it is running in a container. Docker images set this automatically. |
 | `ARIAMI_TRUST_PROXY_HEADERS` | environment | Set to `1` only when a reverse proxy you control fronts Ariami: the server then uses `X-Forwarded-For` for login rate limiting. Leave unset otherwise — direct clients can forge the header. |

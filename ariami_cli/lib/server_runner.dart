@@ -7,7 +7,9 @@ import 'package:path/path.dart' as p;
 import 'services/cli_state_service.dart';
 import 'services/cli_status_info.dart';
 import 'services/cli_tailscale_service.dart';
+import 'services/advertised_endpoint_resolver.dart';
 import 'services/container_environment.dart';
+import 'services/container_networking_guidance.dart';
 import 'services/daemon_service.dart';
 import 'services/server_daemon_transition_service.dart';
 import 'services/server_feature_flag_service.dart';
@@ -64,6 +66,12 @@ class ServerRunner {
   late final ServerMediaServicesConfigurator _mediaServicesConfigurator;
 
   int _serverPort = 8080;
+
+  /// The port to tell users about. Differs from [_serverPort] only when a
+  /// container publishes the server on another port; everything that binds,
+  /// persists, or health-checks keeps using [_serverPort].
+  int get _advertisedServerPort =>
+      _containerEnvironment.advertisedPortOverride ?? _serverPort;
 
   /// Run the Ariami server.
   ///
@@ -152,9 +160,13 @@ class ServerRunner {
         allowPortFallback: allowPortFallback,
       );
       print('✓ HTTP server started successfully');
-      print('✓ Server accessible at: http://$advertisedIp:$_serverPort');
+      print(
+          '✓ Server accessible at: http://$advertisedIp:$_advertisedServerPort');
 
-      await notifyHttpServerReady(onHttpServerReady, _serverPort);
+      // Advertised: this drives the setup URLs printed for the operator. The
+      // browser auto-open behind it needs a display session, which a
+      // port-remapped container does not have.
+      await notifyHttpServerReady(onHttpServerReady, _advertisedServerPort);
 
       await _mediaServicesConfigurator.configure(
         isPi: isPi,
@@ -224,13 +236,9 @@ class ServerRunner {
 
   void _configureNetworkCallbacks() {
     _httpServer.setTailscaleStatusCallback(() => _tailscaleService.getStatus());
-    if (_containerEnvironment.hasAnyAdvertisedOverride) {
-      return;
-    }
     _httpServer.setEndpointDiscoveryCallback(() async {
-      final ts = await _tailscaleService.getTailscaleIp();
-      final lan = await _tailscaleService.getLanIp();
-      return NetworkEndpoints(tailscaleIp: ts, lanIp: lan);
+      final bindHost = await _stateService.getBindHost();
+      return (await _resolveAdvertisedEndpoints(bindHost)).networkEndpoints;
     });
   }
 
@@ -281,6 +289,23 @@ class ServerRunner {
     final savedPort = await _stateService.getServerPort();
 
     print('Starting HTTP server on $bindHost (preferred port: $port)...');
+    final networkingHint = buildContainerNetworkingHint(
+      isContainerized: _containerEnvironment.isContainerized,
+      detectedLanHost: endpoints.detectedLanHost,
+      hasAdvertisedHostOverride: _containerEnvironment.hasAnyAdvertisedOverride,
+    );
+    if (networkingHint != null) {
+      print('Hint: $networkingHint');
+    }
+    final invalidAdvertisedPort =
+        _containerEnvironment.invalidAdvertisedPortValue;
+    if (invalidAdvertisedPort != null) {
+      print('Ignoring ARIAMI_ADVERTISED_PORT="$invalidAdvertisedPort": '
+          'expected a port number between 1 and 65535.');
+    }
+    // Before start(): LAN discovery answers from inside it, and must give
+    // clients the same port the QR code does.
+    _httpServer.setAdvertisedPort(endpoints.advertisedPort);
     _serverPort = await _httpServer.startWithPortFallback(
       advertisedIp: endpoints.advertisedIp,
       tailscaleIp: endpoints.tailscaleIp,
@@ -301,8 +326,12 @@ class ServerRunner {
     if (fallbackMessage != null) {
       print('');
       print(fallbackMessage);
-      print(
-          'Rescan the QR code if you previously connected on port $attemptedPort.');
+      // With an advertised-port override the bind port moved but what clients
+      // connect on did not, so the QR code is still valid.
+      if (endpoints.advertisedPort == null) {
+        print(
+            'Rescan the QR code if you previously connected on port $attemptedPort.');
+      }
       print('');
     }
 
@@ -343,7 +372,7 @@ class ServerRunner {
     for (final line in StartupSummary.buildBanner(
       version: kAriamiVersion,
       modeLabel: isServerMode ? 'background' : 'foreground',
-      port: _serverPort,
+      port: _advertisedServerPort,
       bindHost: bindHost,
       lanIp: endpoints.lanIp,
       tailscaleIp: endpoints.tailscaleIp,
@@ -383,24 +412,23 @@ class ServerRunner {
       String bindHost) async {
     final detectedTailscaleIp = await _tailscaleService.getTailscaleIp();
     final detectedLanIp = await _tailscaleService.getLanIp();
-    final genericOverride = _containerEnvironment.advertisedHostOverride;
-    final lanOverride = _containerEnvironment.advertisedLanHostOverride;
-    final tailscaleOverride =
-        _containerEnvironment.advertisedTailscaleHostOverride;
-
-    final effectiveTailscaleIp = tailscaleOverride ?? detectedTailscaleIp;
-    final effectiveLanIp = lanOverride ?? genericOverride ?? detectedLanIp;
-    final advertisedIp = _isLocalBindHost(bindHost)
-        ? 'localhost'
-        : genericOverride ??
-            effectiveTailscaleIp ??
-            effectiveLanIp ??
-            'localhost';
+    final endpoints = resolveAdvertisedEndpoints(
+      bindHost: bindHost,
+      detectedTailscaleHost: detectedTailscaleIp,
+      detectedLanHost: detectedLanIp,
+      advertisedHostOverride: _containerEnvironment.advertisedHostOverride,
+      advertisedLanHostOverride:
+          _containerEnvironment.advertisedLanHostOverride,
+      advertisedTailscaleHostOverride:
+          _containerEnvironment.advertisedTailscaleHostOverride,
+    );
 
     return _AdvertisedEndpoints(
-      advertisedIp: advertisedIp,
-      lanIp: effectiveLanIp,
-      tailscaleIp: effectiveTailscaleIp,
+      advertisedIp: endpoints.advertisedIp!,
+      lanIp: endpoints.lanIp,
+      tailscaleIp: endpoints.tailscaleIp,
+      advertisedPort: _containerEnvironment.advertisedPortOverride,
+      detectedLanHost: detectedLanIp,
     );
   }
 
@@ -429,11 +457,6 @@ class ServerRunner {
     }
     return error.message.toLowerCase().contains('permission denied');
   }
-
-  bool _isLocalBindHost(String bindHost) {
-    final normalized = bindHost.trim().toLowerCase();
-    return normalized == '127.0.0.1' || normalized == 'localhost';
-  }
 }
 
 class _AdvertisedEndpoints {
@@ -441,9 +464,22 @@ class _AdvertisedEndpoints {
     required this.advertisedIp,
     required this.lanIp,
     required this.tailscaleIp,
+    this.advertisedPort,
+    this.detectedLanHost,
   });
 
   final String advertisedIp;
   final String? lanIp;
   final String? tailscaleIp;
+  final String? detectedLanHost;
+
+  /// Port clients connect on when it differs from the bound port. Null means
+  /// the bound port is reachable as-is.
+  final int? advertisedPort;
+
+  NetworkEndpoints get networkEndpoints => NetworkEndpoints(
+        advertisedIp: advertisedIp,
+        lanIp: lanIp,
+        tailscaleIp: tailscaleIp,
+      );
 }

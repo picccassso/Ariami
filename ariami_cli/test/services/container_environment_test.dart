@@ -55,6 +55,77 @@ void main() {
       expect(env.publicOriginOverride, 'https://review.ariami.xyz');
     });
 
+    test('parses the server bind port override', () {
+      final env = ContainerEnvironment(
+        environment: const {'ARIAMI_PORT': '  2000  '},
+        dockerenvPath: '/path/that/does/not/exist',
+      );
+
+      expect(env.serverPortOverride, 2000);
+      expect(env.invalidServerPortValue, isNull);
+    });
+
+    test('reports unusable server bind ports', () {
+      for (final value in const ['abc', '0', '-1', '65536', '80.5']) {
+        final env = ContainerEnvironment(
+          environment: {'ARIAMI_PORT': value},
+          dockerenvPath: '/path/that/does/not/exist',
+        );
+
+        expect(env.serverPortOverride, isNull, reason: 'value: "$value"');
+        expect(env.invalidServerPortValue, value, reason: 'value: "$value"');
+      }
+    });
+
+    test('parses the advertised port override', () {
+      final env = ContainerEnvironment(
+        environment: const {'ARIAMI_ADVERTISED_PORT': '  2000  '},
+        dockerenvPath: '/path/that/does/not/exist',
+      );
+
+      expect(env.advertisedPortOverride, 2000);
+      expect(env.invalidAdvertisedPortValue, isNull);
+    });
+
+    test('ignores unset, blank, and out-of-range advertised ports', () {
+      for (final value in const ['abc', '0', '-1', '65536', '80.5']) {
+        final env = ContainerEnvironment(
+          environment: {'ARIAMI_ADVERTISED_PORT': value},
+          dockerenvPath: '/path/that/does/not/exist',
+        );
+
+        expect(env.advertisedPortOverride, isNull, reason: 'value: "$value"');
+        // Set but unusable: reported so startup can warn about the typo.
+        expect(env.invalidAdvertisedPortValue, value,
+            reason: 'value: "$value"');
+      }
+
+      for (final env in [
+        ContainerEnvironment(
+          environment: const {},
+          dockerenvPath: '/path/that/does/not/exist',
+        ),
+        ContainerEnvironment(
+          environment: const {'ARIAMI_ADVERTISED_PORT': '   '},
+          dockerenvPath: '/path/that/does/not/exist',
+        ),
+      ]) {
+        expect(env.advertisedPortOverride, isNull);
+        // Unset and blank are not typos, so there is nothing to warn about.
+        expect(env.invalidAdvertisedPortValue, isNull);
+      }
+    });
+
+    test('an advertised port alone is not an advertised host override', () {
+      // A port remap says nothing about which addresses are reachable.
+      final env = ContainerEnvironment(
+        environment: const {'ARIAMI_ADVERTISED_PORT': '2000'},
+        dockerenvPath: '/path/that/does/not/exist',
+      );
+
+      expect(env.hasAnyAdvertisedOverride, isFalse);
+    });
+
     test('detects any advertised override', () {
       final none = ContainerEnvironment(
         environment: const {},

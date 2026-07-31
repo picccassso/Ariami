@@ -10,6 +10,8 @@ import 'package:ariami_cli/commands/reset_command.dart';
 import 'package:ariami_cli/server_runner.dart';
 import 'package:ariami_cli/services/cli_state_service.dart';
 import 'package:ariami_cli/services/cli_guidance.dart';
+import 'package:ariami_cli/services/container_environment.dart';
+import 'package:ariami_cli/services/server_port_configuration.dart';
 import 'package:ariami_core/ariami_core.dart';
 
 void main(List<String> arguments) {
@@ -53,7 +55,9 @@ Future<void> _run(List<String> arguments) async {
     ..addFlag('help', abbr: 'h', negatable: false, help: 'Show help message')
     ..addFlag('version', abbr: 'v', negatable: false, help: 'Show version')
     ..addOption('port',
-        abbr: 'p', help: 'Server port (default: 8080)', defaultsTo: '8080')
+        abbr: 'p',
+        help: 'Server port (default: ARIAMI_PORT or 8080)',
+        defaultsTo: defaultServerPort.toString())
     ..addOption('host',
         help: 'HTTP bind address (default: 0.0.0.0)', defaultsTo: '0.0.0.0')
     ..addFlag('no-browser',
@@ -144,7 +148,7 @@ Future<void> _executeStartCommand(ArgResults globalResults) async {
     ..addOption(
       'port',
       abbr: 'p',
-      help: 'Server port (default: 8080)',
+      help: 'Server port (default: ARIAMI_PORT or 8080)',
       defaultsTo: globalResults['port'] as String,
     )
     ..addOption(
@@ -163,12 +167,17 @@ Future<void> _executeStartCommand(ArgResults globalResults) async {
       help: 'Show stack traces and extra debug output',
     );
   final startResults = startParser.parse(globalResults.rest.skip(1));
-  final port = int.tryParse(startResults['port'] as String) ?? 8080;
+  final cliPortExplicit =
+      globalResults.wasParsed('port') || startResults.wasParsed('port');
+  final portConfiguration = resolveServerPort(
+    parsedPort: startResults['port'] as String,
+    cliExplicit: cliPortExplicit,
+    environment: ContainerEnvironment(),
+  );
 
   await StartCommand().execute(
-    port: port,
-    portExplicitlyRequested:
-        globalResults.wasParsed('port') || startResults.wasParsed('port'),
+    port: portConfiguration.port,
+    portExplicitlyRequested: portConfiguration.explicitlyConfigured,
     bindHost: startResults['host'] as String,
     bindHostExplicitlyRequested:
         globalResults.wasParsed('host') || startResults.wasParsed('host'),
@@ -200,7 +209,11 @@ void _executeHelpCommand(List<String> args) {
 }
 
 Future<void> _executeServerMode(ArgResults results) async {
-  final port = int.tryParse(results['port'] as String) ?? 8080;
+  final portConfiguration = resolveServerPort(
+    parsedPort: results['port'] as String,
+    cliExplicit: results.wasParsed('port'),
+    environment: ContainerEnvironment(),
+  );
   final verbose = results['verbose'] as bool;
 
   if (results.wasParsed('host')) {
@@ -217,7 +230,7 @@ Future<void> _executeServerMode(ArgResults results) async {
   for (int attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       await runner.run(
-        port: port,
+        port: portConfiguration.port,
         isSetupMode: false,
         isServerMode: true,
         allowPortFallback: false,
@@ -229,7 +242,7 @@ Future<void> _executeServerMode(ArgResults results) async {
         // Exponential backoff: 100ms, 200ms, 400ms, 800ms, ...
         final delayMs = initialDelayMs * (1 << (attempt - 1));
         print(
-          'Port $port in use, retrying in ${delayMs}ms '
+          'Port ${portConfiguration.port} in use, retrying in ${delayMs}ms '
           '(attempt $attempt/$maxRetries)...',
         );
         await Future.delayed(Duration(milliseconds: delayMs));

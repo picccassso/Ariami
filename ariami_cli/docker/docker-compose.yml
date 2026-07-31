@@ -8,18 +8,26 @@ services:
     # Host networking lets Ariami detect your real LAN and Tailscale
     # addresses automatically, exactly like a native install, and lets it
     # answer LAN auto-discovery (UDP beacon + mDNS) so the TV app finds it
-    # instantly. Uncomment the next line and delete the "ports" and
-    # "environment" sections.
+    # instantly. Uncomment the next line and delete the bridge-mode "ports"
+    # and "environment" block below. For a custom host-network port, also
+    # uncomment this separate environment block.
     # network_mode: host
+    # environment:
+    #   ARIAMI_PORT: "2000"
 
     # --- Docker Desktop on Mac/Windows: port mapping + explicit hosts ---
     # Containers there cannot see your machine's real network, so tell
     # Ariami what addresses to advertise (QR code / setup URLs).
     ports:
       - "8080:8080"
+    # If bridge mode uses ARIAMI_PORT, the mapping's right-hand/container port
+    # must match it (for example ARIAMI_PORT=2000 with "2000:2000").
     # environment:
     #   ARIAMI_ADVERTISED_LAN_HOST: "192.168.1.50"       # this machine's LAN IP
     #   ARIAMI_ADVERTISED_TAILSCALE_HOST: "100.x.y.z"    # this machine's Tailscale IP
+    # Only when the published host port differs from 8080 above (e.g.
+    # "2000:8080"): the port clients should connect on.
+    #   ARIAMI_ADVERTISED_PORT: "2000"
     # Public reverse-proxy deployments only:
     #   ARIAMI_PUBLIC_ORIGIN: "https://review.ariami.xyz"
     #   ARIAMI_TRUST_PROXY_HEADERS: "1" # only when 8080 is not publicly reachable

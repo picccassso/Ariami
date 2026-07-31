@@ -102,6 +102,14 @@ class AriamiHttpServer {
   int _port = 8080;
   int? _attemptedPort;
   bool _portFallbackUsed = false;
+
+  // Port clients are told to connect on, when it differs from the port the
+  // server binds. Only set behind a port remap the server cannot observe —
+  // `docker run -p 2000:8080` binds 8080 inside the container while clients
+  // must use 2000. Null means "advertise the port we bound", which is the
+  // right answer for every non-remapped install.
+  int? _advertisedPortOverride;
+  int get _advertisedPort => _advertisedPortOverride ?? _port;
   final List<WebSocketChannel> _webSocketClients = [];
   final Map<WebSocketChannel, String> _webSocketDeviceIds = {};
   final AriamiConnectHub _connectHub = AriamiConnectHub();
@@ -222,6 +230,24 @@ class AriamiHttpServer {
       );
     }
     _publicOrigin = normalized;
+  }
+
+  /// Advertise [value] as the port clients should connect on, instead of the
+  /// port the server binds.
+  ///
+  /// Only needed when something outside the process remaps the port and the
+  /// server cannot see it — a container published as `-p 2000:8080`. Call
+  /// before [start] so LAN discovery answers with the same port. Pass null to
+  /// advertise the bound port (the default).
+  void setAdvertisedPort(int? value) {
+    if (value != null && (value < 1 || value > 65535)) {
+      throw ArgumentError.value(
+        value,
+        'value',
+        'Advertised port must be between 1 and 65535',
+      );
+    }
+    _advertisedPortOverride = value;
   }
 
   // One-time code that authorizes creating the FIRST owner account from a

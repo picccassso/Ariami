@@ -2,16 +2,20 @@ import 'dart:async';
 
 /// Discovered network endpoints for server advertisement.
 class NetworkEndpoints {
+  final String? advertisedIp;
   final String? tailscaleIp;
   final String? lanIp;
 
   const NetworkEndpoints({
+    this.advertisedIp,
     this.tailscaleIp,
     this.lanIp,
   });
 
   bool matches(NetworkEndpoints other) {
-    return tailscaleIp == other.tailscaleIp && lanIp == other.lanIp;
+    return advertisedIp == other.advertisedIp &&
+        tailscaleIp == other.tailscaleIp &&
+        lanIp == other.lanIp;
   }
 }
 

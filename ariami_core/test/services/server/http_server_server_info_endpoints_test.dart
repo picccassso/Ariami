@@ -166,6 +166,31 @@ void main() {
       expect(json['lanServer'], lan);
     });
 
+    test('an explicit primary endpoint survives a Tailscale refresh', () async {
+      const hostname = 'docker-media-vm.infra.example.com';
+      const lan = '192.168.1.50';
+      const tsIp = '100.64.10.20';
+
+      await server.start(
+        advertisedIp: hostname,
+        tailscaleIp: null,
+        lanIp: hostname,
+        bindAddress: '127.0.0.1',
+        port: 0,
+      );
+
+      server.updateAdvertisedEndpoints(
+        advertisedIp: hostname,
+        tailscaleIp: tsIp,
+        lanIp: lan,
+      );
+
+      final info = server.getServerInfo();
+      expect(info['server'], hostname);
+      expect(info['tailscaleServer'], tsIp);
+      expect(info['lanServer'], lan);
+    });
+
     test('updateAdvertisedEndpoints emits onEndpointsChanged', () async {
       const lan = '10.0.0.2';
 
@@ -258,6 +283,31 @@ void main() {
       expect(json['server'], lan);
       expect(json['lanServer'], lan);
       expect(json['tailscaleServer'], isNull);
+    });
+
+    test('server-info refresh honors the callback primary endpoint', () async {
+      const hostname = 'docker-media-vm.infra.example.com';
+
+      server.setEndpointDiscoveryCallback(() async {
+        return const NetworkEndpoints(
+          advertisedIp: hostname,
+          tailscaleIp: '100.64.10.20',
+          lanIp: hostname,
+        );
+      });
+
+      await server.start(
+        advertisedIp: hostname,
+        tailscaleIp: null,
+        lanIp: hostname,
+        bindAddress: '127.0.0.1',
+        port: 0,
+      );
+
+      final info = await server.refreshAdvertisedEndpoints();
+      expect(info['server'], hostname);
+      expect(info['tailscaleServer'], '100.64.10.20');
+      expect(info['lanServer'], hostname);
     });
   });
 }
