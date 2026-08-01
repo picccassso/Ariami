@@ -104,10 +104,10 @@ class _PlaylistListItemState extends State<PlaylistListItem> {
                       ),
                     ),
                     child: widget.isSelected
-                        ? const Icon(
+                        ? Icon(
                             Icons.check,
                             size: 14,
-                            color: Colors.white,
+                            color: Theme.of(context).colorScheme.onPrimary,
                           )
                         : null,
                   ),
