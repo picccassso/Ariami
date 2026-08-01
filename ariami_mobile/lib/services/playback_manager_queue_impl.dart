@@ -117,6 +117,7 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
   void _addToQueueImpl(Song song) {
     final queuedSong = song.copyWith();
     _queue.addSong(queuedSong);
+    _syncShuffleQueueAfterEdit();
     _oneShotQueuedSongs.add(queuedSong);
     _lastWarmupKey = null;
     _warmNextStreamInBackground(_qualityService.getCurrentStreamingQuality());
@@ -131,6 +132,7 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
       _queue.addSong(queuedSong);
       _oneShotQueuedSongs.add(queuedSong);
     }
+    _syncShuffleQueueAfterEdit();
     _lastWarmupKey = null;
     _warmNextStreamInBackground(_qualityService.getCurrentStreamingQuality());
     unawaited(_refreshGaplessQueue());
@@ -141,6 +143,7 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
   void _playNextImpl(Song song) {
     final queuedSong = song.copyWith();
     _queue.insertSong(_queue.currentIndex + 1, queuedSong);
+    _syncShuffleQueueAfterEdit();
     _oneShotQueuedSongs.add(queuedSong);
     _lastWarmupKey = null;
     _warmNextStreamInBackground(_qualityService.getCurrentStreamingQuality());
@@ -389,6 +392,7 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
 
       if (!wasCurrentSong) {
         _queue.removeSong(index);
+        _syncShuffleQueueAfterEdit();
         _lastWarmupKey = null;
         _warmNextStreamInBackground(
             _qualityService.getCurrentStreamingQuality());
@@ -399,6 +403,7 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
       }
 
       _queue.removeSong(index);
+      _syncShuffleQueueAfterEdit();
       _restoredPosition = null;
       _pendingUiPosition = null;
       _lastWarmupKey = null;
@@ -459,6 +464,7 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
     final clamped = index.clamp(0, _queue.length);
     final restoreAsCurrent = wasEmpty || clamped == _queue.currentIndex;
     _queue.insertSong(clamped, song);
+    _syncShuffleQueueAfterEdit();
     if (restoreAsCurrent) {
       // insertSong's index adjustment leaves currentIndex past the restored
       // song (or out of range on an emptied queue); anchor it there and
@@ -479,6 +485,7 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
     try {
       final index = removal.index.clamp(0, _queue.length);
       _queue.insertSong(index, removal.song);
+      _syncShuffleQueueAfterEdit();
       if (removal.wasOneShot) {
         _oneShotQueuedSongs.add(removal.song);
       }
@@ -607,6 +614,7 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
     }
 
     _queue.setQueue([...songs.sublist(0, c), ...displayed], currentIndex: c);
+    _syncShuffleQueueAfterEdit();
     unawaited(_refreshGaplessQueue());
     _notifyStateChanged();
     unawaited(_saveState());
@@ -624,6 +632,7 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
     if (current == null) return;
 
     _queue.setQueue(<Song>[current]);
+    _syncShuffleQueueAfterEdit();
     _oneShotQueuedSongs.clear();
     _lastWarmupKey = null;
     unawaited(_refreshGaplessQueue());
@@ -640,6 +649,8 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
       await _audioPlayer.stop();
     }
     _queue.clear();
+    _shuffleService.reset();
+    _isShuffleEnabled = false;
     _oneShotQueuedSongs.clear();
     await _stateManager.clearCompletePlaybackState(
       userId: _connectionService.userId,
@@ -662,6 +673,13 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
 
     _oneShotQueuedSongs.remove(song);
     _queue.removeSong(index);
+    _syncShuffleQueueAfterEdit();
+  }
+
+  void _syncShuffleQueueAfterEdit() {
+    if (_isShuffleEnabled) {
+      _shuffleService.synchronizeQueue(_queue.songs);
+    }
   }
 
   Future<int?> _findNextAvailableSongIndexImpl() async {

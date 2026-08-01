@@ -37,7 +37,8 @@ class ShuffleService<T> {
 
     // If there's a current item, find and remove it
     if (currentItem != null) {
-      queueCopy.remove(currentItem);
+      final currentIndex = _indexOfOccurrence(queueCopy, currentItem);
+      if (currentIndex != -1) queueCopy.removeAt(currentIndex);
     }
 
     // Shuffle using Fisher-Yates algorithm
@@ -63,7 +64,7 @@ class ShuffleService<T> {
     }
 
     // Find index of current item in original queue
-    final currentIndex = _originalQueue.indexOf(currentItem);
+    final currentIndex = _indexOfOccurrence(_originalQueue, currentItem);
 
     if (currentIndex == -1) {
       // Current item not in original queue, return as is
@@ -72,6 +73,53 @@ class ShuffleService<T> {
 
     // Return original queue
     return _originalQueue;
+  }
+
+  /// Reconciles both shuffle representations after the active queue changes.
+  ///
+  /// Identity matches run before equality matches so removing one of several
+  /// equal-valued occurrences removes that exact occurrence. Existing items
+  /// retain their original unshuffled order; newly queued items are appended.
+  void synchronizeQueue(List<T> activeQueue) {
+    if (!_isShuffled) return;
+
+    final unmatchedActive =
+        activeQueue.indexed.map((entry) => entry.$1).toSet();
+    final matchedByOriginalIndex = <int, T>{};
+
+    void match(bool Function(T candidate, T original) matches) {
+      for (var originalIndex = 0;
+          originalIndex < _originalQueue.length;
+          originalIndex++) {
+        if (matchedByOriginalIndex.containsKey(originalIndex)) continue;
+        final original = _originalQueue[originalIndex];
+        int? activeIndex;
+        for (final candidateIndex in unmatchedActive) {
+          if (matches(activeQueue[candidateIndex], original)) {
+            activeIndex = candidateIndex;
+            break;
+          }
+        }
+        if (activeIndex == null) continue;
+        matchedByOriginalIndex[originalIndex] = activeQueue[activeIndex];
+        unmatchedActive.remove(activeIndex);
+      }
+    }
+
+    match(identical);
+    match((candidate, original) => candidate == original);
+
+    final synchronizedOriginal = <T>[];
+    for (var index = 0; index < _originalQueue.length; index++) {
+      if (matchedByOriginalIndex.containsKey(index)) {
+        synchronizedOriginal.add(matchedByOriginalIndex[index] as T);
+      }
+    }
+    for (final index in unmatchedActive) {
+      synchronizedOriginal.add(activeQueue[index]);
+    }
+    _originalQueue = synchronizedOriginal;
+    _shuffledQueue = List<T>.from(activeQueue);
   }
 
   /// Toggle shuffle on/off
@@ -99,7 +147,7 @@ class ShuffleService<T> {
     final queue = currentQueue;
     if (queue.isEmpty) return null;
 
-    final currentIndex = queue.indexOf(currentItem);
+    final currentIndex = _indexOfOccurrence(queue, currentItem);
     if (currentIndex == -1 || currentIndex >= queue.length - 1) {
       return null; // No next item
     }
@@ -112,7 +160,7 @@ class ShuffleService<T> {
     final queue = currentQueue;
     if (queue.isEmpty) return null;
 
-    final currentIndex = queue.indexOf(currentItem);
+    final currentIndex = _indexOfOccurrence(queue, currentItem);
     if (currentIndex <= 0) {
       return null; // No previous item
     }
@@ -125,5 +173,11 @@ class ShuffleService<T> {
     _originalQueue = [];
     _shuffledQueue = [];
     _isShuffled = false;
+  }
+
+  int _indexOfOccurrence(List<T> queue, T item) {
+    final identicalIndex =
+        queue.indexWhere((candidate) => identical(candidate, item));
+    return identicalIndex == -1 ? queue.indexOf(item) : identicalIndex;
   }
 }

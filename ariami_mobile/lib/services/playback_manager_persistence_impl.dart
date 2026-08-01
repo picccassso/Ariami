@@ -60,6 +60,7 @@ extension _PlaybackManagerPersistenceImpl on PlaybackManager {
           restoredOriginalQueue,
           _queue.currentSong,
         );
+        _shuffleService.synchronizeQueue(_queue.songs);
       }
 
       // Restore repeat mode
