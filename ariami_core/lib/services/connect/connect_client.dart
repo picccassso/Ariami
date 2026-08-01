@@ -27,9 +27,15 @@ class AriamiConnectClient {
     required this.pauseForTransfer,
     this.onChanged,
     this.onServerNotification,
+    this.onAuthenticationRequired,
     this.commandAckTimeout = const Duration(seconds: 4),
     this.maxCommandAttempts = 4,
   });
+
+  static const Duration _connectTimeout = Duration(seconds: 8);
+  static const Duration _livenessTimeout = Duration(seconds: 60);
+  static const Duration _backoffResetAfter = Duration(seconds: 60);
+  static const Duration _closeTimeout = Duration(seconds: 1);
 
   /// Optional diagnostics sink (e.g. debugPrint). Connect state flows across
   /// three devices and a hub; when a session desyncs in the field, these
@@ -49,6 +55,7 @@ class AriamiConnectClient {
   /// but are not part of the Connect protocol itself (e.g.
   /// `listening_stats_updated` fired when another device uploads stats).
   final void Function(WsMessage message)? onServerNotification;
+  final void Function()? onAuthenticationRequired;
   final Duration commandAckTimeout;
   final int maxCommandAttempts;
 
@@ -57,13 +64,17 @@ class AriamiConnectClient {
   Timer? _reconnectTimer;
   Timer? _pingTimer;
   Timer? _welcomeTimer;
+  Timer? _livenessTimer;
+  Timer? _backoffResetTimer;
   Future<void>? _refreshFuture;
   String? _baseUrl;
   String? _sessionToken;
   int _reconnectAttempt = 0;
   bool _closedByUser = false;
+  bool _reconnectSuppressed = false;
   bool _connecting = false;
   bool _isWelcomed = false;
+  bool _receivedInboundOnCurrentConnection = false;
   bool _takeoverRequested = false;
   bool _takeoverSentOnCurrentConnection = false;
   int _hubProtocolVersion = 1;
@@ -109,11 +120,19 @@ class AriamiConnectClient {
     _baseUrl = baseUrl;
     _sessionToken = sessionToken;
     _closedByUser = false;
+    _reconnectSuppressed = false;
+    _reconnectAttempt = 0;
     await _open();
   }
 
   Future<void> _open() async {
-    if (_connecting || isConnected || _closedByUser || _baseUrl == null) return;
+    if (_connecting ||
+        isConnected ||
+        _closedByUser ||
+        _reconnectSuppressed ||
+        _baseUrl == null) {
+      return;
+    }
     _connecting = true;
     _reconnectTimer?.cancel();
     WebSocketChannel? openingChannel;
@@ -129,16 +148,25 @@ class AriamiConnectClient {
       openingChannel = channel;
       _channel = channel;
       _subscription = channel.stream.listen(
-        _handleRawMessage,
+        (raw) => _handleRawMessage(channel, raw),
         onError: (_) => _handleDisconnect(channel),
         onDone: () => _handleDisconnect(channel),
         cancelOnError: false,
       );
-      await channel.ready.timeout(const Duration(seconds: 8));
+      await channel.ready.timeout(_connectTimeout);
       if (_channel != channel || _closedByUser) return;
       isConnected = true;
+      _receivedInboundOnCurrentConnection = false;
       errorMessage = null;
-      _reconnectAttempt = 0;
+      _armLivenessWatchdog(channel);
+      _backoffResetTimer?.cancel();
+      _backoffResetTimer = Timer(_backoffResetAfter, () {
+        if (identical(_channel, channel) &&
+            isConnected &&
+            _receivedInboundOnCurrentConnection) {
+          _reconnectAttempt = 0;
+        }
+      });
       _send(WsMessage(
         type: WsMessageType.identify,
         data: <String, dynamic>{
@@ -177,7 +205,10 @@ class AriamiConnectClient {
     }
   }
 
-  void _handleRawMessage(dynamic raw) {
+  void _handleRawMessage(WebSocketChannel source, dynamic raw) {
+    if (!identical(_channel, source)) return;
+    _receivedInboundOnCurrentConnection = true;
+    _armLivenessWatchdog(source);
     try {
       final message = WsMessage.fromJson(
         jsonDecode(raw as String) as Map<String, dynamic>,
@@ -232,6 +263,21 @@ class AriamiConnectClient {
     } catch (_) {
       // Ignore malformed messages; the authenticated socket remains usable.
     }
+  }
+
+  void _armLivenessWatchdog(WebSocketChannel channel) {
+    _livenessTimer?.cancel();
+    _livenessTimer = Timer(_livenessTimeout, () {
+      if (!identical(_channel, channel) ||
+          !isConnected ||
+          _closedByUser ||
+          _reconnectSuppressed) {
+        return;
+      }
+      _log('No inbound Connect traffic for ${_livenessTimeout.inSeconds}s; '
+          'replacing the socket');
+      unawaited(refreshState());
+    });
   }
 
   void _readDevices(Map<String, dynamic> data) {
@@ -514,7 +560,7 @@ class AriamiConnectClient {
   }
 
   Future<void> _refreshState() async {
-    if (_closedByUser || _baseUrl == null) return;
+    if (_closedByUser || _reconnectSuppressed || _baseUrl == null) return;
     if (_connecting) return;
     if (!isConnected) {
       await _open();
@@ -524,8 +570,12 @@ class AriamiConnectClient {
     _reconnectTimer?.cancel();
     _pingTimer?.cancel();
     _welcomeTimer?.cancel();
+    _livenessTimer?.cancel();
+    _backoffResetTimer?.cancel();
     _pingTimer = null;
     _welcomeTimer = null;
+    _livenessTimer = null;
+    _backoffResetTimer = null;
     _isWelcomed = false;
     _lastRevision = -1;
     _takeoverSentOnCurrentConnection = false;
@@ -535,16 +585,10 @@ class AriamiConnectClient {
     final channel = _channel;
     _subscription = null;
     _channel = null;
-    await subscription?.cancel();
-    try {
-      await channel?.sink
-          .close(1000, 'Refreshing Connect state')
-          .timeout(const Duration(seconds: 1));
-    } catch (_) {
-      // A stale mobile socket may not acknowledge close. Opening its
-      // replacement is still safe because the server replaces duplicate
-      // connections for the same device id.
-    }
+    await Future.wait(<Future<void>>[
+      _cancelSubscription(subscription),
+      _closeChannel(channel, 1000, 'Refreshing Connect state'),
+    ]);
     await _open();
   }
 
@@ -627,15 +671,32 @@ class AriamiConnectClient {
     // Ignore completion/error callbacks from a socket that has already been
     // superseded by an explicit refresh or a newer reconnect.
     if (source != null && !identical(_channel, source)) return;
+    final closeCode = source?.closeCode;
+    final closeReason = source?.closeReason;
+    final authenticationRequired = closeCode == 4001;
+    final replaced = closeCode == 4000 &&
+        (closeReason?.toLowerCase().contains('replaced') ?? false);
     final wasConnected = isConnected;
     isConnected = false;
     _isWelcomed = false;
+    _receivedInboundOnCurrentConnection = false;
     _pingTimer?.cancel();
     _welcomeTimer?.cancel();
+    _livenessTimer?.cancel();
+    _backoffResetTimer?.cancel();
     _pingTimer = null;
-    _subscription?.cancel();
+    _welcomeTimer = null;
+    _livenessTimer = null;
+    _backoffResetTimer = null;
+    final subscription = _subscription;
     _subscription = null;
     _channel = null;
+    unawaited(_cancelSubscription(subscription));
+    unawaited(_closeChannel(
+      source,
+      1001,
+      'Connect transport disconnected',
+    ));
     for (final pending in _pendingCommands.values) {
       pending.retryTimer?.cancel();
       pending.retryTimer = null;
@@ -649,9 +710,17 @@ class AriamiConnectClient {
     // A takeover sent just before the drop may never have been acknowledged.
     // Keep the intent, but allow the replacement socket to publish it again.
     _takeoverSentOnCurrentConnection = false;
+    if (authenticationRequired) {
+      _reconnectSuppressed = true;
+      _sessionToken = null;
+      errorMessage = 'Your session expired. Please sign in again.';
+    } else if (replaced) {
+      _reconnectSuppressed = true;
+    }
     if (wasConnected) _log('disconnected');
-    if (wasConnected) onChanged?.call();
-    if (_closedByUser) return;
+    if (wasConnected || authenticationRequired) onChanged?.call();
+    if (authenticationRequired) onAuthenticationRequired?.call();
+    if (_closedByUser || _reconnectSuppressed) return;
     _reconnectTimer?.cancel();
     final seconds = min(30, 1 << min(_reconnectAttempt++, 5));
     _reconnectTimer = Timer(Duration(seconds: seconds), _open);
@@ -659,19 +728,52 @@ class AriamiConnectClient {
 
   Future<void> dispose() async {
     _closedByUser = true;
+    _reconnectSuppressed = true;
     _reconnectTimer?.cancel();
     _pingTimer?.cancel();
     _welcomeTimer?.cancel();
+    _livenessTimer?.cancel();
+    _backoffResetTimer?.cancel();
     for (final pending in _pendingCommands.values) {
       pending.retryTimer?.cancel();
     }
     _pendingCommands.clear();
     _takeoverRequested = false;
     _takeoverSentOnCurrentConnection = false;
-    await _subscription?.cancel();
-    await _channel?.sink.close(1000, 'Client closed');
+    final subscription = _subscription;
+    final channel = _channel;
+    _subscription = null;
     _channel = null;
     isConnected = false;
+    await Future.wait(<Future<void>>[
+      _cancelSubscription(subscription),
+      _closeChannel(channel, 1000, 'Client closed'),
+    ]);
+  }
+
+  Future<void> _cancelSubscription(
+    StreamSubscription<dynamic>? subscription,
+  ) async {
+    if (subscription == null) return;
+    try {
+      await subscription.cancel().timeout(_closeTimeout);
+    } catch (_) {
+      // Teardown is best-effort. A replacement socket must not wait forever for
+      // a transport that has already stopped delivering events.
+    }
+  }
+
+  Future<void> _closeChannel(
+    WebSocketChannel? channel,
+    int code,
+    String reason,
+  ) async {
+    if (channel == null) return;
+    try {
+      await channel.sink.close(code, reason).timeout(_closeTimeout);
+    } catch (_) {
+      // See [_cancelSubscription]: close acknowledgement is bounded as well.
+    }
   }
 }
 

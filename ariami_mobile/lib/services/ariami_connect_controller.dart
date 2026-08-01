@@ -84,6 +84,8 @@ class AriamiConnectController extends ChangeNotifier {
       handleCommand: _handleCommand,
       pauseForTransfer: playback.pauseLocal,
       onChanged: _onClientChanged,
+      onAuthenticationRequired: () =>
+          unawaited(_connection.handleSessionExpired()),
       // Stats pushes for this account arrive on the Connect socket; refresh
       // the account-wide view when another device uploads listening activity.
       onServerNotification: (_) =>
