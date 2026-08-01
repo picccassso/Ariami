@@ -16,6 +16,7 @@ class AriamiConnectHub {
     this.commandTimeout = const Duration(seconds: 10),
     this.staleTimeout = const Duration(seconds: 90),
     this.sweepInterval = const Duration(seconds: 30),
+    this.protocolV3Enabled = true,
   });
 
   /// Gives a playback client enough time to reconnect after a transient
@@ -40,7 +41,12 @@ class AriamiConnectHub {
   /// How often the stale-peer sweep runs.
   final Duration sweepInterval;
 
+  /// Server-side rollout switch consulted whenever a peer negotiates.
+  /// Existing clients need no redeployment when v3 is disabled.
+  bool protocolV3Enabled;
+
   final Map<WebSocketChannel, _ConnectPeer> _peers = {};
+  final Map<WebSocketChannel, Map<String, dynamic>> _pendingHellos = {};
   final Map<String, _ConnectSession> _sessions = {};
   Timer? _sweepTimer;
 
@@ -57,6 +63,7 @@ class AriamiConnectHub {
     required String clientType,
   }) {
     if (deviceId.isEmpty) return;
+    final hello = _pendingHellos.remove(socket);
     final duplicates = _peers.entries
         .where((entry) =>
             entry.value.userId == userId && entry.value.deviceId == deviceId)
@@ -73,6 +80,7 @@ class AriamiConnectHub {
       clientType: clientType,
       connectedAt: DateTime.now().toUtc(),
       lastSeen: DateTime.now().toUtc(),
+      protocolVersion: _negotiateProtocolVersion(hello),
     );
     _peers[socket] = peer;
     // Lazily start the sweep on the first peer instead of in the constructor:
@@ -99,13 +107,14 @@ class AriamiConnectHub {
     // have already sent connect_hello while that validation was in flight, so
     // recognized playback clients are made ready here as well.
     if (const {'desktop', 'mobile', 'tv'}.contains(clientType)) {
-      peer.canPlay = true;
+      peer.canPlay = hello?['canPlay'] as bool? ?? true;
       _sendWelcome(socket, peer);
       _broadcastDevices(userId);
     }
   }
 
   void unregister(WebSocketChannel socket) {
+    _pendingHellos.remove(socket);
     final peer = _peers.remove(socket);
     if (peer != null) {
       final session = _sessions[peer.userId];
@@ -181,6 +190,7 @@ class AriamiConnectHub {
       }
     }
     _sessions.clear();
+    _pendingHellos.clear();
     _peers.clear();
   }
 
@@ -235,12 +245,22 @@ class AriamiConnectHub {
     // Any traffic on this socket proves it is alive, regardless of the
     // message type or whether it turns out to be one Connect handles.
     touch(socket);
-    final peer = _peers[socket];
-    if (peer == null || !message.type.startsWith('connect_')) return false;
+    if (!message.type.startsWith('connect_')) return false;
     final data = message.data ?? const <String, dynamic>{};
+    final peer = _peers[socket];
+    if (peer == null) {
+      // Authentication validation is asynchronous. Retain a hello that races
+      // ahead of registration so the first welcome can still be negotiated.
+      if (message.type == AriamiConnectMessageType.hello) {
+        _pendingHellos[socket] = Map<String, dynamic>.from(data);
+        return true;
+      }
+      return false;
+    }
     switch (message.type) {
       case AriamiConnectMessageType.hello:
         peer.canPlay = data['canPlay'] as bool? ?? true;
+        peer.protocolVersion = _negotiateProtocolVersion(data);
         _sendWelcome(socket, peer);
         _broadcastDevices(peer.userId);
       case AriamiConnectMessageType.state:
@@ -601,13 +621,29 @@ class AriamiConnectHub {
     // retransmit unacknowledged commands. Clients must not retry against
     // version 1 hubs, which forward every replay to the active device.
     _send(socket, AriamiConnectMessageType.welcome, <String, dynamic>{
-      'protocolVersion': 2,
+      'protocolVersion': peer.protocolVersion,
       'devices': _deviceJson(peer.userId),
       'activeDeviceId': session?.activeDeviceId,
       if (session?.snapshot != null) 'snapshot': session!.snapshot!.toJson(),
       'revision': session?.revision ?? 0,
       'ownerEpoch': session?.ownerEpoch ?? 0,
     });
+  }
+
+  int _negotiateProtocolVersion(Map<String, dynamic>? hello) {
+    final offered = hello?['protocolVersions'];
+    // num equality already spans int and double, so 3.0 matches without a
+    // toInt() round trip that throws on the Infinity jsonDecode returns for
+    // literals like 1e999.
+    if (protocolV3Enabled &&
+        offered is List &&
+        offered.any((version) =>
+            version is num && version == AriamiConnectProtocol.v3)) {
+      return AriamiConnectProtocol.v3;
+    }
+    // A missing/malformed offer is an old peer. Preserve the hub's established
+    // v2 welcome and full-snapshot semantics for that rolling-upgrade path.
+    return AriamiConnectProtocol.v2;
   }
 
   void _broadcastDevices(String userId) {
@@ -816,13 +852,15 @@ class _ConnectPeer {
       required this.deviceName,
       required this.clientType,
       required this.connectedAt,
-      required this.lastSeen});
+      required this.lastSeen,
+      required this.protocolVersion});
   final String userId;
   final String deviceId;
   String deviceName;
   final String clientType;
   final DateTime connectedAt;
   bool canPlay = false;
+  int protocolVersion;
   // Not part of the wire model: server-internal liveness bookkeeping for the
   // stale-peer sweep. Never serialize this into AriamiConnectDevice/_deviceJson.
   DateTime lastSeen;

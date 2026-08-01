@@ -6,6 +6,7 @@ class AriamiFeatureFlags {
     this.enableArtworkPrecompute = false,
     this.enableDownloadJobs = false,
     this.enableApiScopedAuthForCliWeb = false,
+    this.enableConnectProtocolV3 = true,
   });
 
   final bool enableV2Api;
@@ -14,6 +15,7 @@ class AriamiFeatureFlags {
   final bool enableArtworkPrecompute;
   final bool enableDownloadJobs;
   final bool enableApiScopedAuthForCliWeb;
+  final bool enableConnectProtocolV3;
 
   Map<String, dynamic> toJson() {
     return {
@@ -23,6 +25,7 @@ class AriamiFeatureFlags {
       'enableArtworkPrecompute': enableArtworkPrecompute,
       'enableDownloadJobs': enableDownloadJobs,
       'enableApiScopedAuthForCliWeb': enableApiScopedAuthForCliWeb,
+      'enableConnectProtocolV3': enableConnectProtocolV3,
     };
   }
 }

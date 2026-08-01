@@ -30,6 +30,10 @@ class ServerFeatureFlagService {
         'ARIAMI_ENABLE_API_SCOPED_AUTH_FOR_CLI_WEB',
         defaultValue: true,
       ),
+      enableConnectProtocolV3: parseFlag(
+        'ARIAMI_ENABLE_CONNECT_PROTOCOL_V3',
+        defaultValue: true,
+      ),
     );
   }
 

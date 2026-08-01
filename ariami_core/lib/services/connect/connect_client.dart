@@ -105,6 +105,7 @@ class AriamiConnectClient {
   bool get isThisDeviceActive => activeDeviceId == deviceId;
   bool get hasPendingLocalTakeover => _takeoverRequested;
   int get pendingCommandCount => _pendingCommands.length;
+  int get negotiatedProtocolVersion => _hubProtocolVersion;
   AriamiConnectDevice? get activeDevice {
     for (final device in devices) {
       if (device.id == activeDeviceId) return device;
@@ -127,6 +128,7 @@ class AriamiConnectClient {
     _closedByUser = false;
     _reconnectSuppressed = false;
     _reconnectAttempt = 0;
+    _hubProtocolVersion = 1;
     ownerEpoch = 0;
     activeDeviceId = null;
     _lastPausedOwnerEpoch = -1;
@@ -176,6 +178,15 @@ class AriamiConnectClient {
           _reconnectAttempt = 0;
         }
       });
+      // Send the capability offer first. New hubs retain it while identify is
+      // authenticated asynchronously; old hubs ignore it and proceed normally.
+      _send(WsMessage(
+        type: AriamiConnectMessageType.hello,
+        data: const <String, dynamic>{
+          'protocolVersions': AriamiConnectProtocol.supportedVersions,
+          'canPlay': true,
+        },
+      ));
       _send(WsMessage(
         type: WsMessageType.identify,
         data: <String, dynamic>{
@@ -193,13 +204,6 @@ class AriamiConnectClient {
           onChanged?.call();
         }
       });
-      _send(WsMessage(
-        type: AriamiConnectMessageType.hello,
-        data: const <String, dynamic>{
-          'protocolVersion': 1,
-          'canPlay': true,
-        },
-      ));
       _pingTimer?.cancel();
       _pingTimer = Timer.periodic(const Duration(seconds: 20), (_) {
         _send(PingMessage());
@@ -718,6 +722,7 @@ class AriamiConnectClient {
     _isWelcomed = false;
     _connectionGeneration++;
     _lastRevision = -1;
+    _hubProtocolVersion = 1;
     ownerEpoch = 0;
     activeDeviceId = null;
     _lastPausedOwnerEpoch = -1;
@@ -862,6 +867,7 @@ class AriamiConnectClient {
     // discarded every state update after a server restart, freezing remote
     // mirrors while commands kept working.
     _lastRevision = -1;
+    _hubProtocolVersion = 1;
     ownerEpoch = 0;
     activeDeviceId = null;
     _lastPausedOwnerEpoch = -1;

@@ -4,6 +4,16 @@
 /// tokens. Every playback device requests its own short-lived stream ticket.
 library;
 
+/// Protocol versions this client can speak, in preference order.
+///
+/// Version 3 is negotiation-only until the split queue/state messages ship.
+/// Selecting it must therefore retain the complete version-2 snapshot shape.
+class AriamiConnectProtocol {
+  static const int v2 = 2;
+  static const int v3 = 3;
+  static const List<int> supportedVersions = <int>[v3, v2];
+}
+
 /// Repeat-one belongs to the currently selected track. An explicit track
 /// change keeps repeating enabled, but widens it back to the whole queue.
 String repeatModeAfterExplicitTrackChange(String repeatMode) =>

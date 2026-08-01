@@ -130,6 +130,9 @@ void main() {
     await tv.connect(baseUrl: baseUrl);
     await laptop.connect(baseUrl: baseUrl);
     await waitFor(() => tv.isConnected && laptop.isConnected);
+    await waitFor(() =>
+        tv.negotiatedProtocolVersion == 3 &&
+        laptop.negotiatedProtocolVersion == 3);
 
     // TV starts playing and becomes the active device.
     tv.publishState(activate: true);

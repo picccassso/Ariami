@@ -9,7 +9,9 @@ import 'package:test/test.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 void main() {
-  test('welcome advertises the command-dedupe protocol version', () {
+  test(
+      '[legacy_v2_negotiation_fallback] a legacy peer keeps the '
+      'command-dedupe v2 welcome', () {
     final hub = AriamiConnectHub();
     final phone = _FakeChannel();
     hub.register(phone,
@@ -24,6 +26,192 @@ void main() {
     // version >= 2 (idempotent command delivery). Downgrading this silently
     // disables command retries on lossy links.
     expect(welcome.data?['protocolVersion'], 2);
+  });
+
+  group('protocol negotiation', () {
+    test(
+        '[pre_auth_hello_retained] a hello received before authenticated '
+        'registration selects v3', () {
+      final hub = AriamiConnectHub();
+      addTearDown(hub.dispose);
+      final phone = _FakeChannel();
+
+      hub.handle(
+        phone,
+        WsMessage(
+          type: AriamiConnectMessageType.hello,
+          data: const <String, dynamic>{
+            'protocolVersions': AriamiConnectProtocol.supportedVersions,
+            'canPlay': true,
+          },
+        ),
+      );
+      hub.register(
+        phone,
+        userId: 'user',
+        deviceId: 'phone',
+        deviceName: 'Phone',
+        clientType: 'mobile',
+      );
+
+      final welcomes = phone.messages.where(
+        (message) => message.type == AriamiConnectMessageType.welcome,
+      );
+      expect(welcomes, hasLength(1));
+      expect(welcomes.single.data?['protocolVersion'], 3);
+    });
+
+    test(
+        '[per_peer_protocol_selection] [v3_preserves_v2_snapshots] '
+        'v3 and v2 are selected independently with identical snapshots', () {
+      final hub = AriamiConnectHub();
+      addTearDown(hub.dispose);
+      final v3Peer = _FakeChannel();
+      final v2Peer = _FakeChannel();
+      hub.register(
+        v3Peer,
+        userId: 'user',
+        deviceId: 'v3',
+        deviceName: 'V3',
+        clientType: 'mobile',
+      );
+      hub.register(
+        v2Peer,
+        userId: 'user',
+        deviceId: 'v2',
+        deviceName: 'V2',
+        clientType: 'tv',
+      );
+
+      hub.handle(
+        v3Peer,
+        WsMessage(
+          type: AriamiConnectMessageType.hello,
+          data: const <String, dynamic>{
+            'protocolVersions': <int>[3, 2],
+            'canPlay': true,
+          },
+        ),
+      );
+      hub.handle(
+        v2Peer,
+        WsMessage(
+          type: AriamiConnectMessageType.hello,
+          data: const <String, dynamic>{
+            'protocolVersions': <int>[2],
+            'canPlay': true,
+          },
+        ),
+      );
+
+      expect(
+        _lastMessage(v3Peer, AriamiConnectMessageType.welcome)
+            .data?['protocolVersion'],
+        3,
+      );
+      expect(
+        _lastMessage(v2Peer, AriamiConnectMessageType.welcome)
+            .data?['protocolVersion'],
+        2,
+      );
+
+      hub.handle(v3Peer, _stateMessage(activate: true));
+      final v2State = _lastMessage(v2Peer, AriamiConnectMessageType.state);
+      expect(v2State.data?['snapshot']['queue'], hasLength(1));
+      expect(v2State.data?.containsKey('snapshot'), isTrue);
+
+      hub.handle(v2Peer, _stateMessage(activate: true, ownerEpoch: 1));
+      final v3State = _lastMessage(v3Peer, AriamiConnectMessageType.state);
+      expect(v3State.data?['snapshot']['queue'], hasLength(1));
+      expect(v3State.data?.containsKey('snapshot'), isTrue);
+    });
+
+    test(
+        '[v3_negotiation_disabled] the server rollout switch disables v3 '
+        'at negotiation time', () {
+      final hub = AriamiConnectHub(protocolV3Enabled: false);
+      addTearDown(hub.dispose);
+      final disabledPeer = _FakeChannel();
+      final enabledPeer = _FakeChannel();
+
+      for (final socket in <_FakeChannel>[disabledPeer, enabledPeer]) {
+        hub.handle(
+          socket,
+          WsMessage(
+            type: AriamiConnectMessageType.hello,
+            data: const <String, dynamic>{
+              'protocolVersions': <int>[3, 2],
+              'canPlay': true,
+            },
+          ),
+        );
+        if (identical(socket, enabledPeer)) hub.protocolV3Enabled = true;
+        hub.register(
+          socket,
+          userId: 'user',
+          deviceId: identical(socket, disabledPeer) ? 'disabled' : 'enabled',
+          deviceName: 'Peer',
+          clientType: 'mobile',
+        );
+      }
+
+      expect(
+        _lastMessage(disabledPeer, AriamiConnectMessageType.welcome)
+            .data?['protocolVersion'],
+        2,
+      );
+      expect(
+        _lastMessage(enabledPeer, AriamiConnectMessageType.welcome)
+            .data?['protocolVersion'],
+        3,
+      );
+    });
+
+    test(
+        '[malformed_protocol_offer] an unusable offer degrades to v2 without '
+        'blocking registration', () {
+      final hub = AriamiConnectHub();
+      addTearDown(hub.dispose);
+
+      // Decoded from the wire on purpose: jsonDecode turns 1e999 into
+      // Infinity, and register() runs inside an unguarded auth continuation,
+      // so a throw here would leave the peer permanently out of the session.
+      const unusable = <String>['[1e999]', '[-1e999]', '[3.5]', '["3"]', '3'];
+      for (final offer in unusable) {
+        final socket = _FakeChannel();
+        hub.handle(socket, _helloFromWire(offer));
+        hub.register(
+          socket,
+          userId: 'user',
+          deviceId: 'peer-$offer',
+          deviceName: 'Peer',
+          clientType: 'mobile',
+        );
+
+        expect(
+          _lastMessage(socket, AriamiConnectMessageType.welcome)
+              .data?['protocolVersion'],
+          2,
+          reason: 'offer $offer must degrade to v2',
+        );
+      }
+
+      // A whole-numbered double is a legitimate JSON spelling of 3.
+      final doubleSocket = _FakeChannel();
+      hub.handle(doubleSocket, _helloFromWire('[3.0]'));
+      hub.register(
+        doubleSocket,
+        userId: 'user',
+        deviceId: 'peer-double',
+        deviceName: 'Peer',
+        clientType: 'mobile',
+      );
+      expect(
+        _lastMessage(doubleSocket, AriamiConnectMessageType.welcome)
+            .data?['protocolVersion'],
+        3,
+      );
+    });
   });
 
   test('devices and state are isolated by authenticated user', () {
@@ -888,6 +1076,14 @@ WsMessage _stateMessage({required bool activate, int? ownerEpoch}) => WsMessage(
         ).toJson(),
       },
     );
+
+/// Builds a hello by decoding raw JSON, so numeric offers reach the hub with
+/// the exact types jsonDecode produces rather than hand-written Dart literals.
+WsMessage _helloFromWire(String protocolVersionsJson) =>
+    WsMessage.fromJson(jsonDecode('{"type":"'
+            '${AriamiConnectMessageType.hello}","timestamp":"t",'
+            '"data":{"protocolVersions":$protocolVersionsJson,"canPlay":true}}')
+        as Map<String, dynamic>);
 
 WsMessage _lastMessage(_FakeChannel channel, String type) =>
     channel.messages.lastWhere((message) => message.type == type);

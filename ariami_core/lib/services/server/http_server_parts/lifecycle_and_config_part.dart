@@ -749,6 +749,7 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
     }
     _featureFlags = flags;
     _libraryManager.setFeatureFlags(flags);
+    _connectHub.protocolV3Enabled = flags.enableConnectProtocolV3;
     print('[HttpServer] Feature flags set: ${flags.toJson()}');
   }
 
