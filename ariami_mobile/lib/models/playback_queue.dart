@@ -24,15 +24,16 @@ class QueueItemRemoval {
 
 /// Manages the playback queue
 class PlaybackQueue {
-  List<Song> _songs = [];
+  final List<Song> _songs = <Song>[];
   int _currentIndex = 0;
 
   PlaybackQueue({
     List<Song>? songs,
     int currentIndex = 0,
   }) {
-    _songs = songs ?? [];
-    _currentIndex = currentIndex;
+    if (songs != null) _songs.addAll(songs);
+    _currentIndex =
+        _songs.isEmpty ? 0 : currentIndex.clamp(0, _songs.length - 1);
   }
 
   /// Get all songs in queue
@@ -141,8 +142,12 @@ class PlaybackQueue {
 
   /// Set the queue to a new list of songs
   void setQueue(List<Song> songs, {int currentIndex = 0}) {
-    _songs = List.from(songs);
-    _currentIndex = currentIndex.clamp(0, songs.length - 1);
+    final replacement = List<Song>.of(songs);
+    _songs
+      ..clear()
+      ..addAll(replacement);
+    _currentIndex =
+        replacement.isEmpty ? 0 : currentIndex.clamp(0, replacement.length - 1);
   }
 
   /// Move to next song

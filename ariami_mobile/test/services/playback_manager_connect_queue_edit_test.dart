@@ -1,5 +1,6 @@
 import 'package:ariami_core/models/connect_models.dart';
 import 'package:ariami_core/services/connect/remote_playback.dart';
+import 'package:ariami_mobile/models/playback_queue.dart';
 import 'package:ariami_mobile/models/song.dart';
 import 'package:ariami_mobile/services/playback_manager.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -45,6 +46,25 @@ void main() {
 
   setUp(() {
     SharedPreferences.setMockInitialValues(const <String, Object>{});
+  });
+
+  test('PlaybackQueue owns a growable copy of every input list', () {
+    final fixedInput = List<Song>.unmodifiable(<Song>[_song('song-a')]);
+    final queue = PlaybackQueue(songs: fixedInput);
+
+    queue.addSong(_song('song-c'));
+    queue.insertSong(1, _song('song-b'));
+
+    expect(queue.songs.map((song) => song.id), [
+      'song-a',
+      'song-b',
+      'song-c',
+    ]);
+
+    final mutableInput = <Song>[_song('owned')];
+    final ownedQueue = PlaybackQueue(songs: mutableInput);
+    mutableInput.clear();
+    expect(ownedQueue.songs.map((song) => song.id), ['owned']);
   });
 
   test('mirrored removal sends remove_queue_index and updates the mirror',
