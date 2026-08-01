@@ -1,3 +1,4 @@
+import 'package:ariami_core/models/connect_models.dart';
 import 'package:flutter/material.dart';
 
 import '../../services/ariami_connect_controller.dart';
@@ -57,23 +58,16 @@ Future<void> showAriamiConnectPicker(BuildContext context) {
               title: Text('No playback devices are online'),
             );
           }
+          final thisDeviceId = connect.thisDevice?.id;
           return Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              for (final device in connect.devices)
-                ListTile(
-                  leading: Icon(_icon(device.type)),
-                  title: Text(device.name),
-                  subtitle: Text(device.isActive
-                      ? 'Playing here now'
-                      : 'Tap to play here'),
-                  trailing: device.isActive
-                      ? Icon(Icons.graphic_eq_rounded,
-                          color: Theme.of(context).colorScheme.primary)
-                      : const Icon(Icons.chevron_right_rounded),
-                  onTap: device.isActive || connect.activeDeviceId == null
-                      ? null
-                      : () => connect.transferTo(device.id),
+              for (final device in _ordered(connect.devices, thisDeviceId))
+                _deviceTile(
+                  context,
+                  connect: connect,
+                  device: device,
+                  isThisDevice: device.id == thisDeviceId,
                 ),
               if (connect.errorMessage != null)
                 Padding(
@@ -89,6 +83,75 @@ Future<void> showAriamiConnectPicker(BuildContext context) {
         },
       ),
     ],
+  );
+}
+
+/// This device first, then the playing device, then alphabetical — the hub
+/// orders by arrival, so rows would otherwise reshuffle between openings.
+List<AriamiConnectDevice> _ordered(
+  List<AriamiConnectDevice> devices,
+  String? thisDeviceId,
+) {
+  final ordered = [...devices];
+  ordered.sort((a, b) {
+    if ((a.id == thisDeviceId) != (b.id == thisDeviceId)) {
+      return a.id == thisDeviceId ? -1 : 1;
+    }
+    if (a.isActive != b.isActive) return a.isActive ? -1 : 1;
+    return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+  });
+  return ordered;
+}
+
+/// "Here" only ever means this device: the row for this phone says "play
+/// here", every other row says "transfer". Saying "play here" on a remote
+/// device's row reads as though it targets the device in your hand — which is
+/// exactly backwards.
+Widget _deviceTile(
+  BuildContext context, {
+  required AriamiConnectController connect,
+  required AriamiConnectDevice device,
+  required bool isThisDevice,
+}) {
+  final scheme = Theme.of(context).colorScheme;
+  return ListTile(
+    leading: Icon(_icon(device.type)),
+    title: Row(
+      children: [
+        Flexible(child: Text(device.name, overflow: TextOverflow.ellipsis)),
+        if (isThisDevice) ...[
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: scheme.outlineVariant),
+            ),
+            child: Text(
+              'This device',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ],
+      ],
+    ),
+    subtitle: Text(
+      device.isActive
+          ? (isThisDevice ? 'Playing on this device' : 'Playing now')
+          : isThisDevice
+              ? 'Tap to play here'
+              : 'Tap to transfer',
+    ),
+    trailing: device.isActive
+        ? Icon(Icons.graphic_eq_rounded, color: scheme.primary)
+        : const Icon(Icons.chevron_right_rounded),
+    onTap: device.isActive || connect.activeDeviceId == null
+        ? null
+        : () => connect.transferTo(device.id),
   );
 }
 
