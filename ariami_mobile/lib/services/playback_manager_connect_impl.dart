@@ -63,7 +63,64 @@ extension _PlaybackManagerConnectImpl on PlaybackManager {
       }
     }
     _syncConnectTicker();
+    _publishConnectMirrorToNotification();
     if (!unchanged) _notifyStateChanged();
+  }
+
+  /// Mirrors the active device's playback into this phone's media session, so
+  /// the notification and lock screen track it even while the app is not on
+  /// screen (where the in-app UI is not being rendered at all).
+  void _publishConnectMirrorToNotification() {
+    final handler = audioHandler;
+    if (handler == null) return;
+    final remote = _connectRemote;
+    if (remote == null) {
+      _connectMirrorSongId = null;
+      _connectMirrorArtwork = null;
+      handler.exitConnectMirror();
+      return;
+    }
+    final song = currentSong;
+    if (song == null) return;
+    if (song.id != _connectMirrorSongId) {
+      _connectMirrorSongId = song.id;
+      _connectMirrorArtwork = null;
+      unawaited(_resolveConnectMirrorArtwork(song));
+    }
+    handler.updateConnectMirror(
+      song: song,
+      artworkUri: _connectMirrorArtwork,
+      position: Duration(milliseconds: remote.positionMs),
+      duration: duration ?? song.duration,
+      isPlaying: remote.snapshot.isPlaying,
+    );
+  }
+
+  /// Resolves mirrored artwork to an on-device file. Notification artwork
+  /// loaders cannot send session headers, and a mirrored track has no stream
+  /// ticket to authorise the server URL with, so the cache is the only source.
+  Future<void> _resolveConnectMirrorArtwork(Song song) async {
+    final cacheKey = song.albumId ?? 'song_${song.id}';
+    var path = await _cacheManager.getArtworkPathWithFallback(
+      cacheKey,
+      song.albumId != null ? '${song.albumId}_thumb' : null,
+    );
+    if (path == null) {
+      final baseUrl = _connectionService.apiClient?.baseUrl;
+      if (baseUrl != null) {
+        path = await _cacheManager.cacheArtwork(
+          cacheKey,
+          song.albumId != null
+              ? '$baseUrl/artwork/${song.albumId}'
+              : '$baseUrl/song-artwork/${song.id}',
+          priority: MediaRequestPriority.nearby,
+        );
+      }
+    }
+    // A later track may have taken over while the artwork was resolving.
+    if (path == null || _connectMirrorSongId != song.id) return;
+    _connectMirrorArtwork = Uri.file(path);
+    _publishConnectMirrorToNotification();
   }
 
   /// Whether both lists hold the same songs in the same order, so the
@@ -88,6 +145,7 @@ extension _PlaybackManagerConnectImpl on PlaybackManager {
     _connectRemoteQueue = null;
     _sendConnectCommand = null;
     _syncConnectTicker();
+    _publishConnectMirrorToNotification();
   }
 
   /// Keeps the mirrored seek bar moving between remote state broadcasts.
@@ -96,7 +154,10 @@ extension _PlaybackManagerConnectImpl on PlaybackManager {
     if (ticking && !(_connectTicker?.isActive ?? false)) {
       _connectTicker = Timer.periodic(
         const Duration(seconds: 1),
-        (_) => _notifyStateChanged(),
+        (_) {
+          _publishConnectMirrorToNotification();
+          _notifyStateChanged();
+        },
       );
     } else if (!ticking) {
       _connectTicker?.cancel();
@@ -316,6 +377,7 @@ extension _PlaybackManagerConnectImpl on PlaybackManager {
       isPlaying: isPlaying,
     ));
     _syncConnectTicker();
+    _publishConnectMirrorToNotification();
     _notifyStateChanged();
   }
 

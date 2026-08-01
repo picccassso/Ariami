@@ -20,6 +20,7 @@ class AriamiConnectController extends ChangeNotifier {
   PlaybackManager? _playback;
   StreamSubscription<dynamic>? _serverSubscription;
   Timer? _publishTimer;
+  Timer? _staleStateTimer;
   String? _lastTrackId;
   bool _lastPlaying = false;
   String? _connectedBaseUrl;
@@ -48,6 +49,10 @@ class AriamiConnectController extends ChangeNotifier {
       _serverSubscription = _connection.serverInfoStream.listen((_) {
         unawaited(_connectToCurrentEndpoint());
       });
+      _staleStateTimer = Timer.periodic(
+        _staleCheckInterval,
+        (_) => _repairStaleSocket(),
+      );
     }
     await _connectToCurrentEndpoint();
   }
@@ -184,6 +189,32 @@ class AriamiConnectController extends ChangeNotifier {
   void sendCommand(String command, [Map<String, dynamic>? arguments]) =>
       _client?.sendCommand(command, arguments);
 
+  /// How often a mirroring device checks that remote state is still arriving,
+  /// and how long a silence has to last before the socket counts as dead. The
+  /// active device republishes on every change and at least once per ping
+  /// (20s), so a playing remote that has gone quiet this long is unreachable.
+  static const _staleCheckInterval = Duration(seconds: 15);
+  static const _staleStateTimeout = Duration(seconds: 50);
+
+  /// Repairs a socket the OS suspended without closing it. Android can freeze a
+  /// backgrounded process's connection with no close event, leaving the client
+  /// "connected" while every state push is lost — the mirrored notification
+  /// would then sit frozen on whatever arrived last.
+  void _repairStaleSocket() {
+    final client = _client;
+    if (client == null || !client.isConnected || client.isThisDeviceActive) {
+      return;
+    }
+    // Only a playing remote guarantees a steady stream of updates to miss.
+    if (!(client.remoteSnapshot?.isPlaying ?? false)) return;
+    final receivedAt = client.remoteSnapshotAt;
+    if (receivedAt == null ||
+        DateTime.now().difference(receivedAt) < _staleStateTimeout) {
+      return;
+    }
+    unawaited(client.refreshState());
+  }
+
   /// Reloads the authoritative Connect session after a foreground resume or
   /// manual refresh. This also repairs sockets left half-open while the mobile
   /// process was suspended in the background.
@@ -196,6 +227,8 @@ class AriamiConnectController extends ChangeNotifier {
   Future<void> stop() async {
     _generation++;
     _publishTimer?.cancel();
+    _staleStateTimer?.cancel();
+    _staleStateTimer = null;
     _playback?.removeListener(_onPlaybackChanged);
     _playback?.setConnectRemoteMirror(null);
     _playback = null;

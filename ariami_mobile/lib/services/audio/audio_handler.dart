@@ -59,6 +59,7 @@ class AriamiAudioHandler extends BaseAudioHandler
   final _skipNextController = StreamController<void>.broadcast();
   final _skipPreviousController = StreamController<void>.broadcast();
   final _seekController = StreamController<Duration>.broadcast();
+  final _playPauseController = StreamController<void>.broadcast();
   final _gaplessTransitionController =
       StreamController<GaplessPlaybackTransition>.broadcast();
   final ChromeCastService _castService = ChromeCastService();
@@ -68,10 +69,23 @@ class AriamiAudioHandler extends BaseAudioHandler
 
   bool _isCastMode = false;
 
+  /// True while the notification mirrors another Ariami Connect device instead
+  /// of this phone's own player. Local just_audio events must not overwrite the
+  /// mirrored state, and the transport buttons become remote controls.
+  bool _isConnectMirror = false;
+
+  /// The track shown by the Connect mirror. Kept apart from [_currentSong] so
+  /// the local engine's gapless bookkeeping survives the mirror.
+  Song? _mirroredSong;
+
   // Expose streams for PlaybackManager to listen to
   Stream<void> get onSkipNext => _skipNextController.stream;
   Stream<void> get onSkipPrevious => _skipPreviousController.stream;
   Stream<Duration> get onSeek => _seekController.stream;
+
+  /// Notification play/pause presses that must be routed by PlaybackManager
+  /// rather than applied to the local player (Connect mirror only).
+  Stream<void> get onPlayPause => _playPauseController.stream;
   Stream<GaplessPlaybackTransition> get onGaplessTransition =>
       _gaplessTransitionController.stream;
 
@@ -135,18 +149,27 @@ class AriamiAudioHandler extends BaseAudioHandler
     print('[AriamiAudioHandler] Initialized');
   }
 
-  /// Convert Song model to MediaItem for audio_service
-  MediaItem _songToMediaItem(Song song, String streamUrl, {Uri? artworkUri}) {
+  /// Convert Song model to MediaItem for audio_service.
+  ///
+  /// [streamUrl] is null for tracks this device does not play itself (the
+  /// Ariami Connect mirror), where there is no source to derive artwork from.
+  MediaItem _songToMediaItem(
+    Song song,
+    String? streamUrl, {
+    Uri? artworkUri,
+    Duration? duration,
+  }) {
     return MediaItem(
       id: song.id,
       title: song.title,
       artist: song.artist,
       album: song.album ?? 'Unknown Album',
-      duration: song.duration,
-      artUri: artworkUri ?? _getAlbumArtUri(song, streamUrl),
+      duration: duration ?? song.duration,
+      artUri: artworkUri ??
+          (streamUrl == null ? null : _getAlbumArtUri(song, streamUrl)),
       extras: {
         'filePath': song.filePath,
-        'streamUrl': streamUrl,
+        if (streamUrl != null) 'streamUrl': streamUrl,
       },
     );
   }
@@ -348,7 +371,7 @@ class AriamiAudioHandler extends BaseAudioHandler
 
   /// Broadcast the current playback state to the system
   void _broadcastState(PlaybackEvent event) {
-    if (_isCastMode) {
+    if (_isCastMode || _isConnectMirror) {
       return;
     }
 
@@ -385,7 +408,9 @@ class AriamiAudioHandler extends BaseAudioHandler
     );
   }
 
-  void _broadcastCastState({
+  /// Publishes state for playback this device controls but does not render:
+  /// a Chromecast session or the Ariami Connect mirror.
+  void _broadcastRemoteState({
     required Duration position,
     required bool isPlaying,
     Duration? duration,
@@ -432,7 +457,7 @@ class AriamiAudioHandler extends BaseAudioHandler
     _isCastMode = true;
     _currentSong = song;
     mediaItem.add(_songToMediaItem(song, streamUrl, artworkUri: artworkUri));
-    _broadcastCastState(
+    _broadcastRemoteState(
       position: position,
       isPlaying: isPlaying,
       duration: song.duration,
@@ -450,7 +475,7 @@ class AriamiAudioHandler extends BaseAudioHandler
     if (!_isCastMode) {
       return;
     }
-    _broadcastCastState(
+    _broadcastRemoteState(
       position: position,
       isPlaying: isPlaying,
       duration: duration,
@@ -465,6 +490,60 @@ class AriamiAudioHandler extends BaseAudioHandler
     }
     print('[AriamiAudioHandler] exitCastMode');
     _isCastMode = false;
+    _broadcastState(_player.playbackEvent);
+  }
+
+  /// Mirror another Ariami Connect device's playback into this phone's
+  /// notification and lock screen.
+  ///
+  /// Casting keeps its own mode because it is still this device's session;
+  /// here the phone owns nothing but the controls. Called on every hub update
+  /// and on the mirror's position ticker, so the media item is only re-published
+  /// when it actually changes — Android reloads artwork on every update.
+  void updateConnectMirror({
+    required Song song,
+    required Uri? artworkUri,
+    required Duration position,
+    required Duration duration,
+    required bool isPlaying,
+  }) {
+    if (_isCastMode) return;
+    final previous = mediaItem.value;
+    final changed = !_isConnectMirror ||
+        _mirroredSong?.id != song.id ||
+        previous?.artUri != artworkUri ||
+        previous?.duration != duration;
+    _isConnectMirror = true;
+    _mirroredSong = song;
+    if (changed) {
+      mediaItem.add(
+        _songToMediaItem(song, null,
+            artworkUri: artworkUri, duration: duration),
+      );
+    }
+    _broadcastRemoteState(
+      position: position,
+      isPlaying: isPlaying,
+      duration: duration,
+      isBuffering: false,
+    );
+  }
+
+  /// Hand the notification back to this device's own player when the Connect
+  /// mirror lifts (this device took the session back, or Connect went away).
+  void exitConnectMirror() {
+    if (!_isConnectMirror) {
+      return;
+    }
+    print('[AriamiAudioHandler] exitConnectMirror');
+    _isConnectMirror = false;
+    _mirroredSong = null;
+    final index = _activePlaylistIndex;
+    if (index != null && index >= 0 && index < _playlistItems.length) {
+      _activatePlaylistItem(_playlistItems[index]);
+    } else {
+      mediaItem.add(null);
+    }
     _broadcastState(_player.playbackEvent);
   }
 
@@ -494,6 +573,12 @@ class AriamiAudioHandler extends BaseAudioHandler
   @override
   Future<void> play() async {
     print('[AriamiAudioHandler] play() called');
+    if (_isConnectMirror) {
+      // Nothing plays here; PlaybackManager turns this into a Connect command
+      // for the device that owns the session.
+      _playPauseController.add(null);
+      return;
+    }
     if (_isCastMode) {
       await _castService.play();
       updateCastPlaybackState(
@@ -512,6 +597,10 @@ class AriamiAudioHandler extends BaseAudioHandler
   @override
   Future<void> pause() async {
     print('[AriamiAudioHandler] pause() called');
+    if (_isConnectMirror) {
+      _playPauseController.add(null);
+      return;
+    }
     if (_isCastMode) {
       await _castService.pause();
       updateCastPlaybackState(
@@ -531,6 +620,8 @@ class AriamiAudioHandler extends BaseAudioHandler
     if (_isCastMode) {
       _isCastMode = false;
     }
+    _isConnectMirror = false;
+    _mirroredSong = null;
     await _player.stop();
     await _player.seek(Duration.zero);
 
@@ -555,6 +646,10 @@ class AriamiAudioHandler extends BaseAudioHandler
   Future<void> seek(Duration position) async {
     print('[AriamiAudioHandler] seek() called: $position');
     _seekController.add(position);
+    if (_isConnectMirror) {
+      // The seek listener forwards this to the active Connect device.
+      return;
+    }
     if (_isCastMode) {
       await _castService.seek(
         position,
@@ -654,6 +749,7 @@ class AriamiAudioHandler extends BaseAudioHandler
     await _skipNextController.close();
     await _skipPreviousController.close();
     await _seekController.close();
+    await _playPauseController.close();
     await _gaplessTransitionController.close();
     await _player.dispose();
     await super.stop();

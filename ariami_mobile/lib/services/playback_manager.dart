@@ -74,6 +74,7 @@ class PlaybackManager extends ChangeNotifier {
   StreamSubscription<void>? _skipNextSubscription;
   StreamSubscription<void>? _skipPreviousSubscription;
   StreamSubscription<Duration>? _seekSubscription;
+  StreamSubscription<void>? _playPauseSubscription;
   StreamSubscription<GaplessPlaybackTransition>? _gaplessTransitionSubscription;
   StreamSubscription<double>? _volumeSubscription;
   StreamSubscription? _networkTypeSubscription;
@@ -228,6 +229,11 @@ class PlaybackManager extends ChangeNotifier {
   Timer? _connectTicker;
   Timer? _connectSuppressionTimer;
   DateTime? _connectSuppressedAt;
+
+  /// Track currently published to the media session by the mirror, and its
+  /// resolved on-device artwork.
+  String? _connectMirrorSongId;
+  Uri? _connectMirrorArtwork;
 
   /// How long a local play intent keeps the mirror off while the takeover
   /// publish round-trips through the hub.
@@ -603,6 +609,7 @@ class PlaybackManager extends ChangeNotifier {
     _skipNextSubscription?.cancel();
     _skipPreviousSubscription?.cancel();
     _seekSubscription?.cancel();
+    _playPauseSubscription?.cancel();
     _gaplessTransitionSubscription?.cancel();
     _gaplessPlayback.removeListener(_onGaplessPreferenceChanged);
     _volumeSubscription?.cancel();

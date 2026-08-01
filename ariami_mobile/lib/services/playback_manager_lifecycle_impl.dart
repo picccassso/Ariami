@@ -94,8 +94,17 @@ extension _PlaybackManagerLifecycleImpl on PlaybackManager {
       skipPrevious();
     });
 
-    _seekSubscription = _audioPlayer.seekStream.listen((_) {
+    _seekSubscription = _audioPlayer.seekStream.listen((position) {
       _statsService.markPositionDiscontinuity();
+      // While mirroring, the notification's scrubber must move the active
+      // Connect device rather than this idle local player.
+      if (_connectRemote != null) unawaited(seek(position));
+    });
+
+    // Play/pause from the notification while mirroring another Connect device.
+    _playPauseSubscription = audioHandler?.onPlayPause.listen((_) {
+      print('[PlaybackManager] Play/Pause pressed from notification (mirror)');
+      unawaited(togglePlayPause());
     });
 
     _gaplessTransitionSubscription =
