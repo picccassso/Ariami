@@ -15,6 +15,7 @@ import 'package:ariami_core/services/library/library_playlist_builder.dart'
 import 'package:ariami_core/services/library/m3u_playlist_parser.dart';
 import 'package:ariami_core/services/library/metadata_extractor.dart';
 import 'package:ariami_core/services/library/album_builder.dart';
+import 'package:ariami_core/services/library/album_grouping.dart';
 import 'package:ariami_core/services/library/duplicate_detector.dart';
 import 'package:ariami_core/services/library/natural_path_order.dart';
 import 'package:ariami_core/services/library/playlist_folder_classifier.dart';
@@ -431,8 +432,14 @@ class LibraryScannerIsolate {
       final duplicateDetector = DuplicateDetector();
       final playlistFolderSongPaths =
           playlistFolders.values.expand((paths) => paths).toSet();
+      // Prefer keeping the copy that can still form an album. Tracks inside
+      // an [ALBUM] folder qualify even when that folder sits inside a
+      // playlist folder — the marker is the user overruling the heuristics,
+      // so its copy must be the one that survives deduplication.
       final albumCandidateSongPaths = songs
-          .where((song) => !playlistFolderSongPaths.contains(song.filePath))
+          .where((song) =>
+              !playlistFolderSongPaths.contains(song.filePath) ||
+              detectAlbumFolderPath(song.filePath) != null)
           .map((song) => song.filePath)
           .toSet();
       final duplicateGroups = await duplicateDetector.detectDuplicates(

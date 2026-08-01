@@ -1,3 +1,5 @@
+import 'package:path/path.dart' as p;
+
 import 'package:ariami_core/models/song_metadata.dart';
 
 /// Shared album grouping logic for [AlbumBuilder] and [ChangeProcessor].
@@ -103,6 +105,41 @@ String? _directlyAppendedChannelSuffix(String value) {
 String _normalizeArtistChannelName(String value) {
   return value.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '').trim();
 }
+
+/// The album folder marker, matched case-insensitively at the start of a
+/// folder name — mirrors `[PLAYLIST]` (see [FolderPlaylist]).
+///
+/// It is the explicit opt-out from tag-based grouping: everything under a
+/// marked folder becomes exactly one album, no matter what its tags say.
+const String albumFolderMarker = '[ALBUM]';
+
+/// Whether [folderName] starts with the `[ALBUM]` marker.
+bool isAlbumFolderName(String folderName) =>
+    folderName.toUpperCase().startsWith(albumFolderMarker);
+
+/// Display title for a marked folder, e.g. `[ALBUM] Verve 50` -> `Verve 50`.
+///
+/// Returns the empty string for a bare `[ALBUM]` folder, which means "no
+/// explicit title" — callers fall back to the tracks' own album tags.
+String albumFolderDisplayName(String folderName) {
+  if (!isAlbumFolderName(folderName)) return folderName;
+  return folderName.substring(albumFolderMarker.length).trim();
+}
+
+/// Nearest marked ancestor of [directoryPath], itself included, or null.
+String? enclosingAlbumFolder(String directoryPath) {
+  var current = directoryPath;
+  while (true) {
+    if (isAlbumFolderName(p.basename(current))) return current;
+    final parent = p.dirname(current);
+    if (parent == current) return null;
+    current = parent;
+  }
+}
+
+/// Nearest `[ALBUM]` folder containing [filePath], or null if there is none.
+String? detectAlbumFolderPath(String filePath) =>
+    enclosingAlbumFolder(p.dirname(filePath));
 
 /// Composite key `album|||artist` for grouping, or null if not album-groupable.
 String? albumGroupingKey(SongMetadata song) {

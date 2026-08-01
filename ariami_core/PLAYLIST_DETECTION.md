@@ -9,8 +9,9 @@ what is merely *suggested* as a playlist. Implemented across
 
 - A track can belong to an album **and** appear in any number of playlists.
   Playlist membership is additive, never destructive.
-- Albums are built from tags only (album + album artist / normalized track
-  artist). Folder paths never group albums.
+- Albums are built from tags (album + album artist / normalized track
+  artist), with two exceptions: an explicit `[ALBUM]` folder, and
+  compilation detection. See "Album grouping" below.
 - Playlists come from **explicit sources** (imported automatically),
   **high-confidence detections** (unmarked mixed-song folders with strong
   playlist evidence, also imported automatically), or **suggestions**
@@ -77,6 +78,86 @@ Imported on every full scan without user confirmation:
      to an M3U take effect on the next full scan (e.g. server restart or
      manual rescan). Incremental updates carry M3U playlists through
      unchanged, dropping entries whose songs were removed.
+
+## Album grouping
+
+Implemented in `album_builder.dart` / `album_grouping.dart`, in three
+passes of decreasing authority. Each song is claimed by the first pass that
+matches it.
+
+### 1. `[ALBUM]` marker folders
+
+A folder whose name *starts with* `[ALBUM]` in any casing (`[ALBUM] Verve
+50`, `[album] Verve 50`, `[Album]Verve 50`). Everything beneath it —
+including disc subfolders — becomes exactly **one** album, whatever the
+tags say.
+
+- The marker is stripped for the display title (`[ALBUM] Verve 50` →
+  "Verve 50"). A bare `[ALBUM]` folder means "no explicit title": the
+  album falls back to its tracks' most common album tag.
+- The 2-song minimum does not apply — the user already said this is an
+  album.
+- The album artist is the tracks' most common grouping artist, or
+  "Various Artists" when they span 5+ artists.
+- Nested markers: the **innermost** one wins (unlike `[PLAYLIST]`, which
+  collapses to the outermost — a marked folder inside another marked
+  folder is a deliberately narrower statement).
+- Marked folders are exempt from every playlist heuristic: they are never
+  classified or suggested as playlists, and the suspicious-album-tag guard
+  skips them, so an `[ALBUM]` folder inside a `[PLAYLIST]` folder keeps
+  both its album *and* its playlist membership. Their tracks also count as
+  album candidates for the duplicate detector's `preferredPaths`, so the
+  marked copy is the one that survives deduplication.
+
+This is the escape hatch for anything the heuristics below can't reach.
+
+### 2. Compilation detection
+
+Recognised **before** the per-artist split, and grouped by **containing
+folder + album title** rather than title alone. `_detectCompilations` in
+`album_builder.dart` documents why both of those matter.
+
+A folder's title group merges into a single "Various Artists" album when:
+
+- it holds 2+ tracks spanning **5 or more** distinct grouping artists, and
+- it **never repeats a disc/track position** — restarting numbering means
+  several albums that merely share a title, not one compilation.
+
+A compilation foldered as `Disc 1` / `Disc 2` produces one qualifying group
+per disc; both build the same album identity and are merged by the
+collision rule below.
+
+A properly tagged compilation (`albumArtist="Various Artists"` on every
+track) never reaches this pass — it already groups into one bucket.
+
+This pass is deliberately inert inside `[PLAYLIST]` folders: signal 3 of the
+suspicious-album-tag guard strips those tracks before album building, and
+the two populations are indistinguishable by tags alone. Use `[ALBUM]` to
+declare a genuine compilation that lives inside a playlist folder.
+
+### 3. Tags
+
+Everything left over groups on `albumGroupingKey` (album title + album
+artist, falling back to the normalized track artist), needing **2+ songs**
+to become an album. Folder paths are not a grouping key here: the same
+album tag scattered across unrelated folders still merges.
+
+### Album identity
+
+`generateAlbumId` hashes **title + artist only**, so two groups can land on
+the same identity — the two discs of one compilation, two `[ALBUM]` folders
+sharing a name. **Colliding albums merge their songs** rather than
+overwriting; see `addAlbum` in `album_builder.dart` for why.
+
+Every field feeding album identity or payload is chosen deterministically,
+never by file enumeration order: title and artist by most common value with
+alphabetical tie-break, year by most common with the earliest winning ties,
+and the lazy artwork path by lowest file path.
+
+Known limitation: `resolveAlbumArtworkSources` looks for a sidecar
+(`cover.jpg` etc.) only in the first track's own directory, so a `cover.jpg`
+at the root of an `[ALBUM]` folder split into `Disc 1` / `Disc 2`
+subfolders is not picked up. Embedded artwork still is.
 
 ## Auto-imported (high confidence)
 

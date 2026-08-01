@@ -1,3 +1,5 @@
+import 'package:path/path.dart' as p;
+
 import 'package:ariami_core/models/album.dart';
 import 'package:ariami_core/models/song_metadata.dart';
 import 'package:ariami_core/models/library_structure.dart';
@@ -18,7 +20,13 @@ import 'package:ariami_core/services/library/metadata_extractor.dart';
     }
   }
 
-  final lazyPath = songs.isNotEmpty ? songs.first.filePath : null;
+  // Lowest path, not `songs.first`: a merged compilation's song order follows
+  // file enumeration, and artwork must not change between scans.
+  final lazyPath = songs.isEmpty
+      ? null
+      : songs
+          .map((song) => song.filePath)
+          .reduce((a, b) => a.compareTo(b) <= 0 ? a : b);
   return (artworkPath: lazyPath, hasArtwork: false);
 }
 
@@ -29,18 +37,70 @@ class AlbumBuilder {
 
   final MetadataExtractor _metadataExtractor;
 
-  /// Groups songs into albums based on metadata
+  /// Groups songs into albums, in three passes of decreasing authority.
   ///
-  /// Uses [albumGroupingKey] (album + album artist, or normalized track artist).
-  /// Handles "Various Artists" compilations via [_isCompilation].
+  /// 1. `[ALBUM]` folders ([detectAlbumFolderPath]) — an explicit user
+  ///    override; everything under one becomes a single album, tags ignored.
+  /// 2. Compilations ([_detectCompilations]) — one album title spread over
+  ///    many artists in one folder. This must run *before* the per-artist
+  ///    split below, or every bucket holds a single artist and
+  ///    [_isCompilation] can never fire.
+  /// 3. Tags — [albumGroupingKey] (album + album artist, or normalized track
+  ///    artist), needing 2+ songs to form an album.
   ///
   /// Returns a LibraryStructure with albums and standalone songs
   LibraryStructure buildLibrary(List<SongMetadata> songs) {
-    final albumMap = <String, List<SongMetadata>>{};
+    final albums = <String, Album>{};
     final standaloneSongs = <SongMetadata>[];
 
-    // Group songs by album
+    /// Albums are keyed by [generateAlbumId], which hashes title+artist only.
+    /// Two groups can legitimately land on the same identity — the two discs
+    /// of one compilation, an `[ALBUM]` folder named after a tagged album —
+    /// so collisions merge. Overwriting would drop the loser's songs out of
+    /// the library entirely, taking their pins and listening stats with them.
+    void addAlbum(Album album) {
+      final existing = albums[album.id];
+      albums[album.id] = existing == null
+          ? album
+          : existing.copyWith(songs: [...existing.songs, ...album.songs]);
+    }
+
+    // Pass 1: explicit [ALBUM] folders. The user already said "this folder is
+    // one album", so neither the tags nor the 2-song minimum get a vote.
+    final markedFolders = <String, List<SongMetadata>>{};
+    final unmarkedSongs = <SongMetadata>[];
     for (final song in songs) {
+      final folderPath = detectAlbumFolderPath(song.filePath);
+      if (folderPath == null) {
+        unmarkedSongs.add(song);
+      } else {
+        markedFolders.putIfAbsent(folderPath, () => []).add(song);
+      }
+    }
+
+    for (final entry in markedFolders.entries) {
+      final folderTitle = albumFolderDisplayName(p.basename(entry.key));
+      final album = _buildAlbum(
+        entry.value,
+        titleOverride: folderTitle.isEmpty ? null : folderTitle,
+      );
+      addAlbum(album);
+    }
+
+    // Pass 2: compilations the tags describe as many one-artist albums.
+    final compilations = _detectCompilations(unmarkedSongs);
+    final compilationPaths = <String>{
+      for (final group in compilations)
+        for (final song in group) song.filePath,
+    };
+    for (final group in compilations) {
+      addAlbum(_buildAlbum(group, forcedCompilation: true));
+    }
+
+    // Pass 3: ordinary tag grouping for everything left over.
+    final albumMap = <String, List<SongMetadata>>{};
+    for (final song in unmarkedSongs) {
+      if (compilationPaths.contains(song.filePath)) continue;
       final albumKey = albumGroupingKey(song);
 
       if (albumKey == null) {
@@ -52,16 +112,12 @@ class AlbumBuilder {
       }
     }
 
-    // Build albums from grouped songs
-    final albums = <String, Album>{};
-
     for (final entry in albumMap.entries) {
       final albumSongs = entry.value;
 
       // Only create album if it has 2+ songs
       if (albumSongs.length >= 2) {
-        final album = _buildAlbum(entry.key, albumSongs);
-        albums[album.id] = album;
+        addAlbum(_buildAlbum(albumSongs));
       } else {
         // Single song, add to standalone
         standaloneSongs.addAll(albumSongs);
@@ -114,15 +170,106 @@ class AlbumBuilder {
     return enriched;
   }
 
+  /// Minimum distinct grouping artists before one shared album title reads as
+  /// a compilation rather than several same-titled albums. Matches the
+  /// threshold [_isCompilation] applies once songs are already grouped.
+  static const int _minArtistsForCompilation = 5;
+
+  /// Groups of tracks that are really one compilation split across artists.
+  ///
+  /// YouTube-sourced rips are the common case: every track carries the
+  /// compilation's album tag but its *own* artist as album artist, so
+  /// [albumGroupingKey] shatters a 50-track compilation into ~45 buckets and
+  /// most of them fall under the 2-song minimum into standalone songs.
+  ///
+  /// Candidates are grouped by **containing folder plus album title**, never
+  /// by title alone: a compilation is a folder of files, and matching on the
+  /// title across the library would merge unrelated albums that happen to
+  /// share a name (every library has more than one "Greatest Hits"). Grouping
+  /// per folder also keeps the decision local — one stray file elsewhere
+  /// carrying the same tag cannot silently collapse a real compilation.
+  ///
+  /// A folder's title group qualifies when it holds 2+ tracks spanning
+  /// [_minArtistsForCompilation]+ grouping artists and never repeats a
+  /// disc/track position (restarting numbering means separate albums that
+  /// merely share a title). A compilation foldered as `Disc 1`/`Disc 2`
+  /// yields one qualifying group per disc; both build the same album identity
+  /// and are merged by `addAlbum` in [buildLibrary].
+  static List<List<SongMetadata>> _detectCompilations(
+    List<SongMetadata> candidates,
+  ) {
+    final byFolderAndTitle = <String, List<SongMetadata>>{};
+    for (final song in candidates) {
+      final title = normalizeAlbumTitle(song.album)?.toLowerCase();
+      if (title == null) continue;
+      byFolderAndTitle
+          .putIfAbsent('${p.dirname(song.filePath)}|||$title', () => [])
+          .add(song);
+    }
+
+    return byFolderAndTitle.values
+        .where(_isCompilationGroup)
+        .toList(growable: false);
+  }
+
+  static bool _isCompilationGroup(List<SongMetadata> group) {
+    if (group.length < 2) return false;
+
+    final artists = <String>{
+      for (final song in group)
+        if (albumGroupingArtist(song) case final String artist)
+          artist.toLowerCase(),
+    };
+    if (artists.length < _minArtistsForCompilation) return false;
+
+    final positions = <String>[
+      for (final song in group)
+        if (song.trackNumber != null)
+          '${song.discNumber ?? 1}/${song.trackNumber}',
+    ];
+    return positions.toSet().length == positions.length;
+  }
+
+  /// Most common non-empty value, ties broken alphabetically.
+  ///
+  /// Album identity must not depend on file enumeration order: a group whose
+  /// tags disagree (an `[ALBUM]` folder, a compilation) would otherwise pick a
+  /// different title/artist per scan and churn its [generateAlbumId].
+  static String? _dominantValue(Iterable<String?> values) {
+    final counts = <String, int>{};
+    for (final value in values) {
+      if (value == null || value.isEmpty) continue;
+      counts[value] = (counts[value] ?? 0) + 1;
+    }
+    if (counts.isEmpty) return null;
+
+    final ranked = counts.entries.toList()
+      ..sort((a, b) => a.value != b.value
+          ? b.value.compareTo(a.value)
+          : a.key.compareTo(b.key));
+    return ranked.first.key;
+  }
+
   /// Builds an Album object from grouped songs
-  Album _buildAlbum(String key, List<SongMetadata> songs) {
-    // Extract album info from first song
-    final firstSong = songs.first;
-    final albumTitle = normalizeAlbumTitle(firstSong.album) ?? 'Unknown Album';
-    final albumArtist = albumGroupingArtist(firstSong) ?? 'Unknown Artist';
+  ///
+  /// [titleOverride] names the album explicitly (an `[ALBUM]` folder's own
+  /// name). [forcedCompilation] marks a group that [_detectCompilations]
+  /// already proved spans many artists, so it does not have to clear
+  /// [_isCompilation]'s raw-track-artist bar a second time.
+  Album _buildAlbum(
+    List<SongMetadata> songs, {
+    String? titleOverride,
+    bool forcedCompilation = false,
+  }) {
+    final albumTitle = titleOverride ??
+        _dominantValue(songs.map((song) => normalizeAlbumTitle(song.album))) ??
+        'Unknown Album';
+    final albumArtist =
+        _dominantValue(songs.map(albumGroupingArtist)) ?? 'Unknown Artist';
 
     // Determine if it's a compilation
-    final isCompilation = _isCompilation(songs, albumArtist);
+    final isCompilation =
+        forcedCompilation || _isCompilation(songs, albumArtist);
     final finalArtist = isCompilation ? 'Various Artists' : albumArtist;
 
     // Find the most common year
@@ -191,7 +338,12 @@ class AlbumBuilder {
 
     if (yearCounts.isEmpty) return null;
 
-    // Return the year with the highest count
-    return yearCounts.entries.reduce((a, b) => a.value > b.value ? a : b).key;
+    // Most common year, earliest winning ties — a compilation spans decades,
+    // and file enumeration order must not decide what clients sync.
+    return yearCounts.entries
+        .reduce((a, b) => a.value != b.value
+            ? (a.value > b.value ? a : b)
+            : (a.key <= b.key ? a : b))
+        .key;
   }
 }

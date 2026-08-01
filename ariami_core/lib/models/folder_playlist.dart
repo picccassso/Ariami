@@ -52,11 +52,8 @@ class FolderPlaylist {
   }
 
   /// Check if a folder name indicates a playlist folder
-  static bool isPlaylistFolder(String folderName) {
-    if (folderName.length < _markerPrefix.length) return false;
-    return folderName.substring(0, _markerPrefix.length).toUpperCase() ==
-        _markerPrefix;
-  }
+  static bool isPlaylistFolder(String folderName) =>
+      folderName.toUpperCase().startsWith(_markerPrefix);
 
   /// Convert to JSON for API response
   Map<String, dynamic> toJson() {

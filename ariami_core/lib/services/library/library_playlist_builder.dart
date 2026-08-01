@@ -163,6 +163,9 @@ Set<String> suspiciousPlaylistAlbumTagPaths({
   for (final song in songs) {
     final folder = folderByFile[song.filePath];
     if (folder == null) continue;
+    // An [ALBUM] folder inside a playlist folder is the user overruling these
+    // heuristics by hand — never second-guess it.
+    if (detectAlbumFolderPath(song.filePath) != null) continue;
     final albumTag = normalizeAlbumTitle(song.album)?.toLowerCase();
     if (albumTag == null) continue;
     groupsByFolderAndAlbum
@@ -284,22 +287,17 @@ Map<String, List<String>> buildPlaylistFolderMap({
 
 /// Returns the nearest ancestor folder whose name starts with `[PLAYLIST]`.
 String? detectPlaylistFolderPath(String filePath) {
+  // `dirname` reaches a fixpoint at the root on every platform ('/' on POSIX,
+  // 'C:\' on Windows), so that is the only stop condition needed.
   var directoryPath = path.dirname(filePath);
-  final rootPrefix = Platform.isWindows ? '' : '/';
-
-  while (directoryPath.isNotEmpty && directoryPath != rootPrefix) {
+  while (true) {
     if (FolderPlaylist.isPlaylistFolder(path.basename(directoryPath))) {
       return directoryPath;
     }
-
     final parentPath = path.dirname(directoryPath);
-    if (parentPath == directoryPath) {
-      break;
-    }
+    if (parentPath == directoryPath) return null;
     directoryPath = parentPath;
   }
-
-  return null;
 }
 
 /// Default song ID generation (matches [LibraryScannerIsolate] / [ChangeProcessor]).

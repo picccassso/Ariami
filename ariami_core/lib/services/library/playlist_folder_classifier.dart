@@ -3,6 +3,7 @@ import 'package:path/path.dart' as path;
 import 'package:ariami_core/models/playlist_suggestion.dart';
 import 'package:ariami_core/models/scan_diagnostics.dart';
 import 'package:ariami_core/models/song_metadata.dart';
+import 'package:ariami_core/services/library/album_grouping.dart';
 
 /// Result of classifying unmarked folders.
 ///
@@ -142,6 +143,8 @@ class PlaylistFolderClassifier {
       if (path.normalize(folderPath) == normalizedRoot) continue;
       if (ignoredFolderPaths.contains(path.normalize(folderPath))) continue;
       if (_isInsideAny(folderPath, explicitPlaylistFolderPaths)) continue;
+      // An [ALBUM] folder (or anything under one) is declared album-shaped.
+      if (enclosingAlbumFolder(folderPath) != null) continue;
 
       final classified = _classifyFolder(folderPath, entry.value);
       if (classified == null) continue;
