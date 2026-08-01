@@ -134,6 +134,21 @@ void main() {
     manager.setConnectRemoteMirror(null);
   });
 
+  test('Connect play drops a stale mirror before targeting the local engine',
+      () async {
+    final manager = PlaybackManager();
+    final sent = <String>[];
+    manager.setConnectRemoteMirror(
+      _remote(),
+      sendCommand: (command, [arguments]) => sent.add(command),
+    );
+
+    await manager.handleConnectCommand(AriamiConnectCommand.play, const {});
+
+    expect(manager.isConnectRemoteActive, isFalse);
+    expect(sent, isEmpty);
+  });
+
   test('unchanged mirrored queue keeps its Song instances across broadcasts',
       () {
     final manager = PlaybackManager();

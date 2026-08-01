@@ -389,6 +389,10 @@ extension _PlaybackManagerConnectImpl on PlaybackManager {
     String command,
     Map<String, dynamic> arguments,
   ) async {
+    // A transfer commit marks this device active before the controller's
+    // onChanged callback clears the previous owner's mirror. Drop that stale
+    // mirror first so this command always reaches the local playback engine.
+    if (_connectRemote != null) setConnectRemoteMirror(null);
     switch (command) {
       case AriamiConnectCommand.play:
         if (!_localIsPlaying) await _togglePlayPauseImpl();
