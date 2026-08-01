@@ -319,7 +319,14 @@ class PlaybackManager extends ChangeNotifier {
   }
 
   /// Add song to end of queue
-  void addToQueue(Song song) => _addToQueueImpl(song);
+  void addToQueue(Song song) {
+    final remote = _connectRemote;
+    if (remote != null) {
+      _appendConnectQueue(remote, <Song>[song]);
+      return;
+    }
+    _addToQueueImpl(song);
+  }
 
   /// Add multiple songs to queue
   void addAllToQueue(List<Song> songs) {
@@ -333,7 +340,14 @@ class PlaybackManager extends ChangeNotifier {
   }
 
   /// Insert song to play next
-  void playNext(Song song) => _playNextImpl(song);
+  void playNext(Song song) {
+    final remote = _connectRemote;
+    if (remote != null) {
+      _playNextConnectQueue(remote, song);
+      return;
+    }
+    _playNextImpl(song);
+  }
 
   /// Toggle play/pause
   Future<void> togglePlayPause() async {

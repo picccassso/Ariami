@@ -242,21 +242,22 @@ class _LibraryScreenState extends State<LibraryScreen> {
   Future<void> _addAlbumToQueue(AlbumModel album) async {
     try {
       final albumSongs = _albumSongsFor(album.id);
-      for (final track in albumSongs) {
-        final song = Song(
-          id: track.id,
-          title: track.title,
-          artist: track.artist,
-          album: album.title,
-          albumId: track.albumId,
-          duration: Duration(seconds: track.duration),
-          filePath: track.id,
-          fileSize: 0,
-          modifiedTime: DateTime.now(),
-          trackNumber: track.trackNumber,
-        );
-        _playbackManager.addToQueue(song);
-      }
+      final songs = <Song>[
+        for (final track in albumSongs)
+          Song(
+            id: track.id,
+            title: track.title,
+            artist: track.artist,
+            album: album.title,
+            albumId: track.albumId,
+            duration: Duration(seconds: track.duration),
+            filePath: track.id,
+            fileSize: 0,
+            modifiedTime: DateTime.now(),
+            trackNumber: track.trackNumber,
+          ),
+      ];
+      _playbackManager.addAllToQueue(songs);
       if (mounted) {
         showQueueActionConfirmation(context, message: 'Added to queue');
       }
@@ -269,14 +270,14 @@ class _LibraryScreenState extends State<LibraryScreen> {
     if (_controller.connectionService.apiClient == null) return;
 
     try {
+      final songs = <Song>[];
       for (final songId in playlist.songIds) {
         final song = _controller.state.songs.firstWhere(
           (s) => s.id == songId,
           orElse: () => SongModel(
               id: songId, title: 'Unknown', artist: 'Unknown', duration: 0),
         );
-
-        final playSong = Song(
+        songs.add(Song(
           id: song.id,
           title: song.title,
           artist: song.artist,
@@ -287,9 +288,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
           fileSize: 0,
           modifiedTime: DateTime.now(),
           trackNumber: song.trackNumber,
-        );
-        _playbackManager.addToQueue(playSong);
+        ));
       }
+      _playbackManager.addAllToQueue(songs);
       if (mounted) {
         showQueueActionConfirmation(context, message: 'Added to queue');
       }

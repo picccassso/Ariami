@@ -253,6 +253,34 @@ extension _PlaybackManagerConnectImpl on PlaybackManager {
     )));
   }
 
+  /// Inserts [song] right after the active device's current track — a
+  /// controller's "play next" — and mirrors the result optimistically.
+  void _playNextConnectQueue(
+    AriamiRemotePlayback remote,
+    Song song,
+  ) {
+    final snapshot = remote.snapshot;
+    final queue = List<Map<String, dynamic>>.from(snapshot.queue);
+    final index = (snapshot.currentIndex + 1).clamp(0, queue.length);
+    final track = song.toJson();
+    _sendConnect(AriamiConnectCommand.insertQueueTrack, <String, dynamic>{
+      'index': index,
+      'track': track,
+    });
+    queue.insert(index, track);
+    setConnectRemoteMirror(remote.copyWithSnapshot(AriamiPlaybackSnapshot(
+      queue: queue,
+      currentIndex: snapshot.currentIndex,
+      positionMs: remote.positionMs,
+      durationMs: snapshot.durationMs,
+      isPlaying: snapshot.isPlaying,
+      shuffle: snapshot.shuffle,
+      repeatMode: snapshot.repeatMode,
+      volume: snapshot.volume,
+      sourceId: snapshot.sourceId,
+    )));
+  }
+
   /// Atomically clears every item except Now Playing on the active device.
   void _clearConnectQueue(AriamiRemotePlayback remote) {
     final snapshot = remote.snapshot;
