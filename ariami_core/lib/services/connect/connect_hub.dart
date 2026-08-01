@@ -176,6 +176,9 @@ class AriamiConnectHub {
       for (final pending in session.pendingCommands.values) {
         pending.timeout?.cancel();
       }
+      for (final pending in session.pendingFormerOwnerPauses.values) {
+        pending.timeout?.cancel();
+      }
     }
     _sessions.clear();
     _peers.clear();
@@ -219,7 +222,10 @@ class AriamiConnectHub {
       _handleTransfer(
         target.socket,
         target.peer,
-        <String, dynamic>{'targetDeviceId': target.peer.deviceId},
+        <String, dynamic>{
+          'targetDeviceId': target.peer.deviceId,
+          'ownerEpoch': session.ownerEpoch,
+        },
         automatic: true,
       );
     });
@@ -266,42 +272,33 @@ class AriamiConnectHub {
       ).copyWith(updatedAt: DateTime.now().toUtc());
       final activate = data['activate'] as bool? ?? false;
       final session = _sessions.putIfAbsent(peer.userId, _ConnectSession.new);
+      if (!_acceptEpoch(session, data)) {
+        _sendAuthoritativeState(socket, session);
+        return;
+      }
       final previousActive = session.activeDeviceId;
       if (session.activeDeviceId == null || activate) {
-        session.activeDeviceId = peer.deviceId;
+        _commitOwnership(
+          peer.userId,
+          session,
+          peer.deviceId,
+          requestedBy: peer.deviceId,
+        );
       }
       // Inactive devices cannot overwrite the session being remotely
       // controlled. Answer with the authoritative state instead of dropping
       // silently, so a device that wrongly believes it is active resyncs
       // within one publish cycle instead of diverging forever.
       if (session.activeDeviceId != peer.deviceId) {
-        if (session.snapshot != null) {
-          _send(socket, AriamiConnectMessageType.state, <String, dynamic>{
-            'activeDeviceId': session.activeDeviceId,
-            'snapshot': session.snapshot!.toJson(),
-            'revision': session.revision,
-          });
-        }
+        _sendAuthoritativeState(socket, session);
         return;
       }
       session.snapshot = snapshot;
       session.revision++;
-      if (activate &&
-          previousActive != null &&
-          previousActive != peer.deviceId) {
-        final previous = _peerForDevice(peer.userId, previousActive);
-        if (previous != null) {
-          _send(previous.socket,
-              AriamiConnectMessageType.command, <String, dynamic>{
-            'commandId': 'takeover-${DateTime.now().microsecondsSinceEpoch}',
-            'command': AriamiConnectCommand.pause,
-            'arguments': const <String, dynamic>{},
-            'requestedBy': peer.deviceId,
-          });
-        }
-      }
       _broadcastState(peer.userId, session, except: socket);
-      if (activate) _broadcastDevices(peer.userId);
+      if (activate && previousActive != session.activeDeviceId) {
+        _broadcastDevices(peer.userId);
+      }
     } on FormatException catch (error) {
       _sendError(socket, 'INVALID_STATE', error.message);
     }
@@ -312,12 +309,29 @@ class AriamiConnectHub {
     final commandId = data['commandId'] as String? ??
         '${DateTime.now().microsecondsSinceEpoch}-${peer.deviceId}';
     final command = data['command'] as String? ?? '';
+    final session = _sessions[peer.userId];
     if (!AriamiConnectCommand.supported.contains(command)) {
-      _sendCommandResult(socket, commandId,
-          ok: false, message: 'That playback command is not supported.');
+      _sendCommandResult(
+        socket,
+        commandId,
+        ok: false,
+        message: 'That playback command is not supported.',
+        ownerEpoch: session?.ownerEpoch,
+        activeDeviceId: session?.activeDeviceId,
+      );
       return;
     }
-    final session = _sessions[peer.userId];
+    if (session != null && !_acceptEpoch(session, data)) {
+      _sendCommandResult(
+        socket,
+        commandId,
+        ok: false,
+        message: 'Playback ownership changed before that command arrived.',
+        ownerEpoch: session.ownerEpoch,
+        activeDeviceId: session.activeDeviceId,
+      );
+      return;
+    }
     final completed = session?.completedCommands[commandId];
     if (completed != null) {
       _send(socket, AriamiConnectMessageType.commandResult, completed);
@@ -333,8 +347,14 @@ class AriamiConnectHub {
     }
     final target = _peerForDevice(peer.userId, session?.activeDeviceId);
     if (target == null) {
-      _sendCommandResult(socket, commandId,
-          ok: false, message: 'The active playback device is offline.');
+      _sendCommandResult(
+        socket,
+        commandId,
+        ok: false,
+        message: 'The active playback device is offline.',
+        ownerEpoch: session?.ownerEpoch,
+        activeDeviceId: session?.activeDeviceId,
+      );
       return;
     }
     if (peer.deviceId != session!.activeDeviceId) {
@@ -343,6 +363,7 @@ class AriamiConnectHub {
     final pending = _PendingCommand(
       requester: socket,
       targetDeviceId: target.peer.deviceId,
+      ownerEpoch: session.ownerEpoch,
     );
     session.pendingCommands[commandId] = pending;
     pending.timeout = Timer(commandTimeout, () {
@@ -352,6 +373,8 @@ class AriamiConnectHub {
           'commandId': commandId,
           'ok': false,
           'message': 'The active playback device is not responding.',
+          'ownerEpoch': timedOut.ownerEpoch,
+          'activeDeviceId': session.activeDeviceId,
         };
         _rememberCommandResult(session, commandId, result);
         _send(
@@ -365,6 +388,8 @@ class AriamiConnectHub {
           ? Map<String, dynamic>.from(data['arguments'] as Map)
           : const <String, dynamic>{},
       'requestedBy': peer.deviceId,
+      'activeDeviceId': session.activeDeviceId,
+      'ownerEpoch': session.ownerEpoch,
     });
   }
 
@@ -372,12 +397,25 @@ class AriamiConnectHub {
     final commandId = data['commandId'] as String?;
     if (commandId == null) return;
     final session = _sessions[peer.userId];
+    final formerOwnerPause = session?.pendingFormerOwnerPauses[commandId];
+    if (formerOwnerPause != null &&
+        formerOwnerPause.targetDeviceId == peer.deviceId &&
+        _matchesEpoch(data, formerOwnerPause.ownerEpoch)) {
+      session!.pendingFormerOwnerPauses.remove(commandId);
+      formerOwnerPause.timeout?.cancel();
+      return;
+    }
     final pending = session?.pendingCommands[commandId];
-    if (pending != null && pending.targetDeviceId == peer.deviceId) {
+    if (pending != null &&
+        pending.targetDeviceId == peer.deviceId &&
+        _matchesEpoch(data, pending.ownerEpoch)) {
       session!.pendingCommands.remove(commandId);
       pending.timeout?.cancel();
-      _rememberCommandResult(session, commandId, data);
-      _send(pending.requester, AriamiConnectMessageType.commandResult, data);
+      final result = Map<String, dynamic>.from(data)
+        ..putIfAbsent('ownerEpoch', () => pending.ownerEpoch)
+        ..putIfAbsent('activeDeviceId', () => session.activeDeviceId);
+      _rememberCommandResult(session, commandId, result);
+      _send(pending.requester, AriamiConnectMessageType.commandResult, result);
     }
   }
 
@@ -386,11 +424,15 @@ class AriamiConnectHub {
     String commandId, {
     required bool ok,
     String? message,
+    int? ownerEpoch,
+    String? activeDeviceId,
   }) {
     _send(socket, AriamiConnectMessageType.commandResult, <String, dynamic>{
       'commandId': commandId,
       'ok': ok,
       if (message != null) 'message': message,
+      if (ownerEpoch != null) 'ownerEpoch': ownerEpoch,
+      if (activeDeviceId != null) 'activeDeviceId': activeDeviceId,
     });
   }
 
@@ -417,6 +459,11 @@ class AriamiConnectHub {
       return;
     }
     final session = _sessions.putIfAbsent(peer.userId, _ConnectSession.new);
+    if (!_acceptEpoch(session, data)) {
+      _sendError(socket, 'STALE_OWNER_EPOCH',
+          'Playback ownership changed before that handoff arrived.');
+      return;
+    }
     if (!automatic && peer.deviceId != targetId) {
       session.lastControllerDeviceId = peer.deviceId;
     }
@@ -453,8 +500,10 @@ class AriamiConnectHub {
       sourceDeviceId: session.activeDeviceId,
       targetDeviceId: targetId,
       requester: socket,
+      requesterDeviceId: peer.deviceId,
       snapshot: preparedSnapshot,
       createdAt: now,
+      ownerEpoch: session.ownerEpoch,
       automatic: automatic,
     );
     session.pendingTransfers[transferId] = pending;
@@ -471,6 +520,7 @@ class AriamiConnectHub {
       'sourceDeviceId': session.activeDeviceId,
       'targetDeviceId': targetId,
       'snapshot': preparedSnapshot.toJson(),
+      'ownerEpoch': session.ownerEpoch,
     });
   }
 
@@ -478,9 +528,16 @@ class AriamiConnectHub {
     final session = _sessions[peer.userId];
     final transferId = data['transferId'] as String?;
     if (session == null || transferId == null) return;
-    final transfer = session.pendingTransfers.remove(transferId);
+    final transfer = session.pendingTransfers[transferId];
     if (transfer == null || transfer.targetDeviceId != peer.deviceId) return;
+    session.pendingTransfers.remove(transferId);
     transfer.timeout?.cancel();
+    if (session.ownerEpoch != transfer.ownerEpoch ||
+        !_matchesEpoch(data, transfer.ownerEpoch)) {
+      _sendError(transfer.requester, 'STALE_OWNER_EPOCH',
+          'Playback ownership changed before that handoff completed.');
+      return;
+    }
     if (data['ok'] != true) {
       _sendError(
           transfer.requester,
@@ -490,7 +547,12 @@ class AriamiConnectHub {
       return;
     }
 
-    session.activeDeviceId = transfer.targetDeviceId;
+    _commitOwnership(
+      peer.userId,
+      session,
+      transfer.targetDeviceId,
+      requestedBy: transfer.requesterDeviceId,
+    );
     session.snapshot = transfer.snapshot.compensated(DateTime.now().toUtc());
     session.revision++;
     final payload = <String, dynamic>{
@@ -500,6 +562,7 @@ class AriamiConnectHub {
       'targetDeviceId': transfer.targetDeviceId,
       'snapshot': session.snapshot!.toJson(),
       'revision': session.revision,
+      'ownerEpoch': session.ownerEpoch,
     };
     for (final entry in _peers.entries) {
       if (entry.value.userId == peer.userId) {
@@ -543,6 +606,7 @@ class AriamiConnectHub {
       'activeDeviceId': session?.activeDeviceId,
       if (session?.snapshot != null) 'snapshot': session!.snapshot!.toJson(),
       'revision': session?.revision ?? 0,
+      'ownerEpoch': session?.ownerEpoch ?? 0,
     });
   }
 
@@ -550,6 +614,7 @@ class AriamiConnectHub {
     final payload = <String, dynamic>{
       'devices': _deviceJson(userId),
       'activeDeviceId': _sessions[userId]?.activeDeviceId,
+      'ownerEpoch': _sessions[userId]?.ownerEpoch ?? 0,
     };
     for (final entry in _peers.entries) {
       if (entry.value.userId == userId && entry.value.canPlay) {
@@ -566,12 +631,124 @@ class AriamiConnectHub {
       'activeDeviceId': session.activeDeviceId,
       'snapshot': snapshot.toJson(),
       'revision': session.revision,
+      'ownerEpoch': session.ownerEpoch,
     };
     for (final entry in _peers.entries) {
       if (entry.key != except && entry.value.userId == userId) {
         _send(entry.key, AriamiConnectMessageType.state, payload);
       }
     }
+  }
+
+  /// Epochs are optional only for rolling compatibility with older v2 peers.
+  /// Once a peer sends one, the hub accepts work solely for its current epoch;
+  /// future values are invalid too because only the hub may mint them.
+  bool _acceptEpoch(_ConnectSession session, Map<String, dynamic> data) {
+    final raw = data['ownerEpoch'];
+    if (raw == null) return true;
+    if (raw is! num || raw != raw.toInt() || raw.toInt() != session.ownerEpoch) {
+      return false;
+    }
+    return true;
+  }
+
+  bool _matchesEpoch(Map<String, dynamic> data, int expected) {
+    final raw = data['ownerEpoch'];
+    return raw == null ||
+        (raw is num && raw == raw.toInt() && raw.toInt() == expected);
+  }
+
+  void _sendAuthoritativeState(
+      WebSocketChannel socket, _ConnectSession session) {
+    final snapshot = session.snapshot;
+    if (snapshot == null) return;
+    _send(socket, AriamiConnectMessageType.state, <String, dynamic>{
+      'activeDeviceId': session.activeDeviceId,
+      'snapshot': snapshot.toJson(),
+      'revision': session.revision,
+      'ownerEpoch': session.ownerEpoch,
+    });
+  }
+
+  void _commitOwnership(
+    String userId,
+    _ConnectSession session,
+    String nextDeviceId, {
+    required String requestedBy,
+  }) {
+    final previousDeviceId = session.activeDeviceId;
+    if (previousDeviceId == nextDeviceId) return;
+
+    session.activeDeviceId = nextDeviceId;
+    session.ownerEpoch++;
+    session.disconnectTimer?.cancel();
+    session.disconnectTimer = null;
+
+    // Commands are bound to the owner that was authoritative when accepted.
+    // A takeover settles them immediately instead of allowing a later result
+    // from the former owner to look successful in the new epoch.
+    final pendingCommands = session.pendingCommands.entries.toList();
+    for (final entry in pendingCommands) {
+      session.pendingCommands.remove(entry.key);
+      entry.value.timeout?.cancel();
+      final result = <String, dynamic>{
+        'commandId': entry.key,
+        'ok': false,
+        'message': 'Playback ownership changed before the command completed.',
+        'ownerEpoch': session.ownerEpoch,
+        'activeDeviceId': session.activeDeviceId,
+      };
+      _rememberCommandResult(session, entry.key, result);
+      _send(entry.value.requester, AriamiConnectMessageType.commandResult,
+          result);
+    }
+
+    // A prepare belongs to the epoch whose snapshot it carries. A takeover
+    // invalidates it; allowing its late result to commit would resurrect an
+    // owner that already lost the race.
+    final pendingTransfers = session.pendingTransfers.values.toList();
+    for (final transfer in pendingTransfers) {
+      session.pendingTransfers.remove(transfer.id);
+      transfer.timeout?.cancel();
+      _sendError(transfer.requester, 'STALE_OWNER_EPOCH',
+          'Playback ownership changed before that handoff completed.');
+    }
+
+    if (previousDeviceId != null) {
+      _trackFormerOwnerPause(
+        userId,
+        session,
+        previousDeviceId,
+        requestedBy: requestedBy,
+      );
+    }
+  }
+
+  void _trackFormerOwnerPause(
+    String userId,
+    _ConnectSession session,
+    String formerDeviceId, {
+    required String requestedBy,
+  }) {
+    final former = _peerForDevice(userId, formerDeviceId);
+    if (former == null) return;
+    final commandId = 'owner-${session.ownerEpoch}-pause-$formerDeviceId';
+    final pending = _PendingFormerOwnerPause(
+      targetDeviceId: formerDeviceId,
+      ownerEpoch: session.ownerEpoch,
+    );
+    session.pendingFormerOwnerPauses[commandId] = pending;
+    pending.timeout = Timer(commandTimeout, () {
+      session.pendingFormerOwnerPauses.remove(commandId);
+    });
+    _send(former.socket, AriamiConnectMessageType.command, <String, dynamic>{
+      'commandId': commandId,
+      'command': AriamiConnectCommand.pause,
+      'arguments': const <String, dynamic>{},
+      'requestedBy': requestedBy,
+      'activeDeviceId': session.activeDeviceId,
+      'ownerEpoch': session.ownerEpoch,
+    });
   }
 
   List<Map<String, dynamic>> _deviceJson(String userId) {
@@ -653,20 +830,37 @@ class _ConnectPeer {
 
 class _ConnectSession {
   String? activeDeviceId;
+  int ownerEpoch = 0;
   String? lastControllerDeviceId;
   AriamiPlaybackSnapshot? snapshot;
   int revision = 0;
   Timer? disconnectTimer;
   final Map<String, _PendingCommand> pendingCommands = {};
+  final Map<String, _PendingFormerOwnerPause> pendingFormerOwnerPauses = {};
   final LinkedHashMap<String, Map<String, dynamic>> completedCommands =
       LinkedHashMap<String, Map<String, dynamic>>();
   final Map<String, _PendingTransfer> pendingTransfers = {};
 }
 
 class _PendingCommand {
-  _PendingCommand({required this.requester, required this.targetDeviceId});
+  _PendingCommand({
+    required this.requester,
+    required this.targetDeviceId,
+    required this.ownerEpoch,
+  });
   WebSocketChannel requester;
   final String targetDeviceId;
+  final int ownerEpoch;
+  Timer? timeout;
+}
+
+class _PendingFormerOwnerPause {
+  _PendingFormerOwnerPause({
+    required this.targetDeviceId,
+    required this.ownerEpoch,
+  });
+  final String targetDeviceId;
+  final int ownerEpoch;
   Timer? timeout;
 }
 
@@ -676,16 +870,20 @@ class _PendingTransfer {
     required this.sourceDeviceId,
     required this.targetDeviceId,
     required this.requester,
+    required this.requesterDeviceId,
     required this.snapshot,
     required this.createdAt,
+    required this.ownerEpoch,
     this.automatic = false,
   });
   final String id;
   final String? sourceDeviceId;
   final String targetDeviceId;
   final WebSocketChannel requester;
+  final String requesterDeviceId;
   final AriamiPlaybackSnapshot snapshot;
   final DateTime createdAt;
+  final int ownerEpoch;
   final bool automatic;
   Timer? timeout;
 }

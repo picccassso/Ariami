@@ -79,6 +79,10 @@ class AriamiConnectClient {
   bool _takeoverSentOnCurrentConnection = false;
   int _hubProtocolVersion = 1;
   int _lastRevision = -1;
+  Future<void> _inboundQueue = Future<void>.value();
+  Future<void>? _formerOwnerPauseFuture;
+  int _lastPausedOwnerEpoch = -1;
+  int _connectionGeneration = 0;
   final LinkedHashMap<String, _PendingOutboundCommand> _pendingCommands =
       LinkedHashMap<String, _PendingOutboundCommand>();
   final LinkedHashMap<String, Map<String, dynamic>> _handledCommandResults =
@@ -87,6 +91,7 @@ class AriamiConnectClient {
   bool isConnected = false;
   bool isApplyingRemoteState = false;
   String? activeDeviceId;
+  int ownerEpoch = 0;
   AriamiPlaybackSnapshot? remoteSnapshot;
 
   /// Local receipt time of [remoteSnapshot], used to extrapolate the remote
@@ -122,6 +127,9 @@ class AriamiConnectClient {
     _closedByUser = false;
     _reconnectSuppressed = false;
     _reconnectAttempt = 0;
+    ownerEpoch = 0;
+    activeDeviceId = null;
+    _lastPausedOwnerEpoch = -1;
     await _open();
   }
 
@@ -147,6 +155,7 @@ class AriamiConnectClient {
       final channel = WebSocketChannel.connect(wsUri);
       openingChannel = channel;
       _channel = channel;
+      _connectionGeneration++;
       _subscription = channel.stream.listen(
         (raw) => _handleRawMessage(channel, raw),
         onError: (_) => _handleDisconnect(channel),
@@ -213,6 +222,17 @@ class AriamiConnectClient {
       final message = WsMessage.fromJson(
         jsonDecode(raw as String) as Map<String, dynamic>,
       );
+      final generation = _connectionGeneration;
+      _inboundQueue =
+          _inboundQueue.then((_) => _handleMessage(message, generation));
+    } catch (_) {
+      // Ignore malformed messages; the authenticated socket remains usable.
+    }
+  }
+
+  Future<void> _handleMessage(WsMessage message, int generation) async {
+    if (generation != _connectionGeneration) return;
+    try {
       final data = message.data ?? const <String, dynamic>{};
       switch (message.type) {
         case AriamiConnectMessageType.welcome:
@@ -220,8 +240,7 @@ class AriamiConnectClient {
           _isWelcomed = true;
           _hubProtocolVersion = (data['protocolVersion'] as num?)?.toInt() ?? 1;
           errorMessage = null;
-          _readDevices(data);
-          _readState(data);
+          if (!await _readDevices(data) || !await _readState(data)) return;
           // A local play intent can happen while this socket is still opening.
           // It must win over the stale remote snapshot carried by welcome,
           // otherwise local audio keeps playing underneath a remote UI mirror.
@@ -234,12 +253,14 @@ class AriamiConnectClient {
           }
           _flushPendingCommands();
         case AriamiConnectMessageType.devices:
-          _readDevices(data);
+          await _readDevices(data);
         case AriamiConnectMessageType.state:
-          _readState(data);
+          await _readState(data);
         case AriamiConnectMessageType.command:
-          unawaited(_runCommand(data));
+          await _runCommand(data);
         case AriamiConnectMessageType.commandResult:
+          final authority = await _acceptAuthority(data);
+          if (!authority.accepted) return;
           final commandId = data['commandId'] as String?;
           final pending =
               commandId == null ? null : _pendingCommands.remove(commandId);
@@ -250,7 +271,7 @@ class AriamiConnectClient {
             onChanged?.call();
           }
         case AriamiConnectMessageType.transfer:
-          unawaited(_runTransfer(data));
+          await _runTransfer(data);
         case AriamiConnectMessageType.error:
           errorMessage = data['message'] as String? ?? 'Ariami Connect error';
           onChanged?.call();
@@ -261,7 +282,7 @@ class AriamiConnectClient {
           onServerNotification?.call(message);
       }
     } catch (_) {
-      // Ignore malformed messages; the authenticated socket remains usable.
+      // One malformed or failed message must not poison the ordered queue.
     }
   }
 
@@ -280,7 +301,9 @@ class AriamiConnectClient {
     });
   }
 
-  void _readDevices(Map<String, dynamic> data) {
+  Future<bool> _readDevices(Map<String, dynamic> data) async {
+    final authority = await _acceptAuthority(data);
+    if (!authority.accepted) return false;
     final rawDevices = data['devices'] as List<dynamic>?;
     if (rawDevices != null) {
       devices = rawDevices
@@ -291,19 +314,20 @@ class AriamiConnectClient {
           .where((device) => device.id.isNotEmpty)
           .toList(growable: false);
     }
-    activeDeviceId = data['activeDeviceId'] as String?;
     _reconcileTakeoverRequest();
     onChanged?.call();
+    return true;
   }
 
-  void _readState(Map<String, dynamic> data) {
+  Future<bool> _readState(Map<String, dynamic> data) async {
+    final authority = await _acceptAuthority(data);
+    if (!authority.accepted) return false;
     final revision = (data['revision'] as num?)?.toInt() ?? 0;
     if (revision < _lastRevision) {
       _log('state rejected: revision $revision < $_lastRevision');
-      return;
+      return false;
     }
     _lastRevision = revision;
-    activeDeviceId = data['activeDeviceId'] as String? ?? activeDeviceId;
     _reconcileTakeoverRequest();
     final raw = data['snapshot'];
     if (raw is Map) {
@@ -316,11 +340,101 @@ class AriamiConnectClient {
         'track ${remoteSnapshot?.currentTrackId}, '
         'playing ${remoteSnapshot?.isPlaying}');
     onChanged?.call();
+    return true;
+  }
+
+  Future<({bool accepted, bool paused})> _acceptAuthority(
+      Map<String, dynamic> data) async {
+    final generation = _connectionGeneration;
+    final rawEpoch = data['ownerEpoch'];
+    final carriesOwner = data.containsKey('activeDeviceId');
+    final incomingOwner =
+        carriesOwner ? data['activeDeviceId'] as String? : activeDeviceId;
+
+    // Older v2 hubs omit epochs. Keep that rolling-upgrade path working; it
+    // cannot provide fencing, but upgraded hubs always include the field.
+    if (rawEpoch == null) {
+      if (carriesOwner) activeDeviceId = incomingOwner;
+      return (accepted: true, paused: false);
+    }
+    if (rawEpoch is! num ||
+        rawEpoch != rawEpoch.toInt() ||
+        rawEpoch.toInt() < 0) {
+      return (accepted: false, paused: false);
+    }
+
+    final incomingEpoch = rawEpoch.toInt();
+    if (incomingEpoch < ownerEpoch) {
+      _log('work rejected: owner epoch $incomingEpoch < $ownerEpoch');
+      return (accepted: false, paused: false);
+    }
+    if (incomingEpoch == ownerEpoch &&
+        carriesOwner &&
+        activeDeviceId != null &&
+        incomingOwner != activeDeviceId) {
+      _log('work rejected: owner changed without advancing epoch $ownerEpoch');
+      return (accepted: false, paused: false);
+    }
+
+    var paused = false;
+    if (incomingEpoch > ownerEpoch &&
+        activeDeviceId == deviceId &&
+        incomingOwner != null &&
+        incomingOwner != deviceId) {
+      if (!await _pauseForNewOwner(incomingEpoch)) {
+        return (accepted: false, paused: false);
+      }
+      if (generation != _connectionGeneration) {
+        return (accepted: false, paused: false);
+      }
+      paused = true;
+    }
+    ownerEpoch = incomingEpoch;
+    if (carriesOwner) activeDeviceId = incomingOwner;
+    return (accepted: true, paused: paused);
+  }
+
+  Future<bool> _pauseForNewOwner(int epoch) async {
+    if (_lastPausedOwnerEpoch >= epoch) return true;
+    final inFlight = _formerOwnerPauseFuture;
+    if (inFlight != null) {
+      try {
+        await inFlight;
+      } catch (_) {
+        return false;
+      }
+      return _lastPausedOwnerEpoch >= epoch;
+    }
+
+    final pause = Future<void>.sync(pauseForTransfer);
+    _formerOwnerPauseFuture = pause;
+    try {
+      await pause;
+      _lastPausedOwnerEpoch = epoch;
+      return true;
+    } catch (error) {
+      errorMessage = 'Ariami Connect could not pause former playback: $error';
+      onChanged?.call();
+      return false;
+    } finally {
+      if (identical(_formerOwnerPauseFuture, pause)) {
+        _formerOwnerPauseFuture = null;
+      }
+    }
   }
 
   Future<void> _runCommand(Map<String, dynamic> data) async {
     final commandId = data['commandId'] as String? ?? '';
     _log('command in: ${data['command']} from ${data['requestedBy']}');
+    final authority = await _acceptAuthority(data);
+    if (!authority.accepted) {
+      _sendResult(
+        commandId,
+        ok: false,
+        message: 'Playback ownership changed before that command arrived.',
+      );
+      return;
+    }
     final previousResult = _handledCommandResults[commandId];
     if (commandId.isNotEmpty && previousResult != null) {
       _send(WsMessage(
@@ -330,13 +444,19 @@ class AriamiConnectClient {
       return;
     }
     try {
-      await handleCommand(
-        data['command'] as String? ?? '',
-        data['arguments'] is Map
-            ? Map<String, dynamic>.from(data['arguments'] as Map)
-            : const <String, dynamic>{},
-      );
-      publishState();
+      final command = data['command'] as String? ?? '';
+      if (!(authority.paused && command == AriamiConnectCommand.pause)) {
+        await handleCommand(
+          command,
+          data['arguments'] is Map
+              ? Map<String, dynamic>.from(data['arguments'] as Map)
+              : const <String, dynamic>{},
+        );
+      }
+      final commandEpoch = (data['ownerEpoch'] as num?)?.toInt();
+      if (commandEpoch == null || commandEpoch == ownerEpoch) {
+        if (isThisDeviceActive) publishState();
+      }
       _sendResult(commandId, ok: true, remember: true);
     } catch (error) {
       _sendResult(commandId, ok: false, message: '$error', remember: true);
@@ -350,6 +470,11 @@ class AriamiConnectClient {
     final targetId = data['targetDeviceId'] as String?;
     _log('transfer $phase: $sourceId -> $targetId');
     if (phase == 'prepare' && targetId == deviceId) {
+      final authority = await _acceptAuthority(<String, dynamic>{
+        ...data,
+        'activeDeviceId': sourceId,
+      });
+      if (!authority.accepted) return;
       final raw = data['snapshot'];
       if (raw is! Map) return;
       isApplyingRemoteState = true;
@@ -366,7 +491,11 @@ class AriamiConnectClient {
         remoteSnapshotAt = DateTime.now();
         _send(WsMessage(
           type: AriamiConnectMessageType.transferResult,
-          data: <String, dynamic>{'transferId': transferId, 'ok': true},
+          data: <String, dynamic>{
+            'transferId': transferId,
+            'ok': true,
+            'ownerEpoch': ownerEpoch,
+          },
         ));
       } catch (error) {
         _send(WsMessage(
@@ -375,6 +504,7 @@ class AriamiConnectClient {
             'transferId': transferId,
             'ok': false,
             'message': '$error',
+            'ownerEpoch': ownerEpoch,
           },
         ));
       } finally {
@@ -385,7 +515,11 @@ class AriamiConnectClient {
     }
 
     if (phase != 'commit') return;
-    activeDeviceId = targetId;
+    final authority = await _acceptAuthority(<String, dynamic>{
+      ...data,
+      'activeDeviceId': targetId,
+    });
+    if (!authority.accepted) return;
     // The commit carries the session's authoritative snapshot and revision;
     // adopt them on every device so remote mirrors reflect the handoff
     // immediately instead of waiting for the new active device to publish.
@@ -435,7 +569,7 @@ class AriamiConnectClient {
         isApplyingRemoteState = false;
       }
       publishState();
-    } else if (sourceId == deviceId) {
+    } else if (sourceId == deviceId && !authority.paused) {
       await pauseForTransfer();
     }
     onChanged?.call();
@@ -494,6 +628,7 @@ class AriamiConnectClient {
       data: <String, dynamic>{
         'activate': activate,
         'snapshot': snapshot.toJson(),
+        'ownerEpoch': ownerEpoch,
       },
     ));
   }
@@ -508,6 +643,7 @@ class AriamiConnectClient {
           'commandId': commandId,
           'command': command,
           'arguments': arguments ?? const <String, dynamic>{},
+          'ownerEpoch': ownerEpoch,
         },
       ),
     );
@@ -535,7 +671,10 @@ class AriamiConnectClient {
     errorMessage = null;
     _send(WsMessage(
       type: AriamiConnectMessageType.transfer,
-      data: <String, dynamic>{'targetDeviceId': targetDeviceId},
+      data: <String, dynamic>{
+        'targetDeviceId': targetDeviceId,
+        'ownerEpoch': ownerEpoch,
+      },
     ));
   }
 
@@ -577,7 +716,11 @@ class AriamiConnectClient {
     _livenessTimer = null;
     _backoffResetTimer = null;
     _isWelcomed = false;
+    _connectionGeneration++;
     _lastRevision = -1;
+    ownerEpoch = 0;
+    activeDeviceId = null;
+    _lastPausedOwnerEpoch = -1;
     _takeoverSentOnCurrentConnection = false;
     isConnected = false;
 
@@ -602,6 +745,8 @@ class AriamiConnectClient {
       'commandId': commandId,
       'ok': ok,
       if (message != null) 'message': message,
+      'ownerEpoch': ownerEpoch,
+      'activeDeviceId': activeDeviceId,
     };
     if (remember && commandId.isNotEmpty) {
       _handledCommandResults.remove(commandId);
@@ -642,6 +787,15 @@ class AriamiConnectClient {
       return;
     }
     pending.retryTimer?.cancel();
+    if (pending.attempts == 0) {
+      pending.message = WsMessage(
+        type: pending.message.type,
+        data: <String, dynamic>{
+          ...?pending.message.data,
+          'ownerEpoch': ownerEpoch,
+        },
+      );
+    }
     pending.attempts += 1;
     _send(pending.message);
     pending.retryTimer = Timer(commandAckTimeout, () {
@@ -677,6 +831,7 @@ class AriamiConnectClient {
     final replaced = closeCode == 4000 &&
         (closeReason?.toLowerCase().contains('replaced') ?? false);
     final wasConnected = isConnected;
+    _connectionGeneration++;
     isConnected = false;
     _isWelcomed = false;
     _receivedInboundOnCurrentConnection = false;
@@ -707,6 +862,9 @@ class AriamiConnectClient {
     // discarded every state update after a server restart, freezing remote
     // mirrors while commands kept working.
     _lastRevision = -1;
+    ownerEpoch = 0;
+    activeDeviceId = null;
+    _lastPausedOwnerEpoch = -1;
     // A takeover sent just before the drop may never have been acknowledged.
     // Keep the intent, but allow the replacement socket to publish it again.
     _takeoverSentOnCurrentConnection = false;
@@ -728,6 +886,7 @@ class AriamiConnectClient {
 
   Future<void> dispose() async {
     _closedByUser = true;
+    _connectionGeneration++;
     _reconnectSuppressed = true;
     _reconnectTimer?.cancel();
     _pingTimer?.cancel();
@@ -780,7 +939,7 @@ class AriamiConnectClient {
 class _PendingOutboundCommand {
   _PendingOutboundCommand({required this.message});
 
-  final WsMessage message;
+  WsMessage message;
   int attempts = 0;
   Timer? retryTimer;
 }

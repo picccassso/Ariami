@@ -18,8 +18,8 @@ void main() {
         deviceName: 'Phone',
         clientType: 'mobile');
 
-    final welcome = phone.messages
-        .lastWhere((message) => message.type == AriamiConnectMessageType.welcome);
+    final welcome = phone.messages.lastWhere(
+        (message) => message.type == AriamiConnectMessageType.welcome);
     // Clients only retransmit unacknowledged commands when the hub reports
     // version >= 2 (idempotent command delivery). Downgrading this silently
     // disables command retries on lossy links.
@@ -135,7 +135,8 @@ void main() {
     );
   });
 
-  test('remote commands are routed only to the active device', () {
+  test('remote commands keep ownership and route only to the active device',
+      () {
     final hub = AriamiConnectHub();
     final phone = _FakeChannel();
     final tv = _FakeChannel();
@@ -155,7 +156,8 @@ void main() {
         type: AriamiConnectMessageType.command,
         data: <String, dynamic>{
           'commandId': 'command-1',
-          'command': AriamiConnectCommand.pause,
+          'command': AriamiConnectCommand.next,
+          'ownerEpoch': 1,
         },
       ),
     );
@@ -163,8 +165,10 @@ void main() {
     expect(phone.messages.length, phoneBefore);
     final command = tv.messages.lastWhere(
         (message) => message.type == AriamiConnectMessageType.command);
-    expect(command.data?['command'], AriamiConnectCommand.pause);
+    expect(command.data?['command'], AriamiConnectCommand.next);
     expect(command.data?['commandId'], 'command-1');
+    expect(command.data?['activeDeviceId'], 'tv');
+    expect(command.data?['ownerEpoch'], 1);
   });
 
   test('a rejected state publish is answered with the authoritative state', () {
@@ -583,8 +587,8 @@ void main() {
     final welcome = phone.messages.lastWhere(
         (message) => message.type == AriamiConnectMessageType.welcome);
     final devices = welcome.data!['devices'] as List<dynamic>;
-    expect(devices.whereType<Map>().any((device) => device['id'] == 'tv'),
-        isTrue);
+    expect(
+        devices.whereType<Map>().any((device) => device['id'] == 'tv'), isTrue);
   });
 
   test('the sweep timer stops once every peer has disconnected', () async {
@@ -620,12 +624,256 @@ void main() {
 
     expect(phone.closeCode, isNull);
   });
+
+  test('[monotonic_owner_epoch] committed owners advance exactly once', () {
+    final hub = AriamiConnectHub();
+    final tv = _FakeChannel();
+    final phone = _FakeChannel();
+    hub.register(tv,
+        userId: 'user', deviceId: 'tv', deviceName: 'TV', clientType: 'tv');
+    hub.register(phone,
+        userId: 'user',
+        deviceId: 'phone',
+        deviceName: 'Phone',
+        clientType: 'mobile');
+
+    hub.handle(tv, _stateMessage(activate: true, ownerEpoch: 0));
+    expect(
+        _lastMessage(phone, AriamiConnectMessageType.state).data?['ownerEpoch'],
+        1);
+
+    hub.handle(tv, _stateMessage(activate: true, ownerEpoch: 1));
+    expect(
+        _lastMessage(phone, AriamiConnectMessageType.state).data?['ownerEpoch'],
+        1);
+
+    hub.handle(phone, _stateMessage(activate: true, ownerEpoch: 1));
+    expect(_lastMessage(tv, AriamiConnectMessageType.state).data?['ownerEpoch'],
+        2);
+    expect(_lastMessage(tv, AriamiConnectMessageType.command).data,
+        containsPair('ownerEpoch', 2));
+  });
+
+  test('[same_owner_reclaim_retains_epoch] reconnect keeps the epoch', () {
+    final hub = AriamiConnectHub();
+    final tv = _FakeChannel();
+    hub.register(tv,
+        userId: 'user', deviceId: 'tv', deviceName: 'TV', clientType: 'tv');
+    hub.handle(tv, _stateMessage(activate: true, ownerEpoch: 0));
+    hub.unregister(tv);
+
+    final replacement = _FakeChannel();
+    hub.register(replacement,
+        userId: 'user', deviceId: 'tv', deviceName: 'TV', clientType: 'tv');
+
+    final welcome = _lastMessage(replacement, AriamiConnectMessageType.welcome);
+    expect(welcome.data?['activeDeviceId'], 'tv');
+    expect(welcome.data?['ownerEpoch'], 1);
+  });
+
+  test('[stale_state_rejected] former owner cannot reactivate its queue', () {
+    final hub = AriamiConnectHub();
+    final tv = _FakeChannel();
+    final phone = _FakeChannel();
+    hub.register(tv,
+        userId: 'user', deviceId: 'tv', deviceName: 'TV', clientType: 'tv');
+    hub.register(phone,
+        userId: 'user',
+        deviceId: 'phone',
+        deviceName: 'Phone',
+        clientType: 'mobile');
+    hub.handle(tv, _stateMessage(activate: true, ownerEpoch: 0));
+    hub.handle(phone, _stateMessage(activate: true, ownerEpoch: 1));
+
+    hub.handle(tv, _stateMessage(activate: true, ownerEpoch: 1));
+
+    final correction = _lastMessage(tv, AriamiConnectMessageType.state);
+    expect(correction.data?['activeDeviceId'], 'phone');
+    expect(correction.data?['ownerEpoch'], 2);
+    expect(
+        _lastMessage(phone, AriamiConnectMessageType.devices)
+            .data?['activeDeviceId'],
+        'phone');
+  });
+
+  test('[simultaneous_takeovers_converge] one matching epoch wins', () {
+    final hub = AriamiConnectHub();
+    final tv = _FakeChannel();
+    final phone = _FakeChannel();
+    final desktop = _FakeChannel();
+    for (final device in <(_FakeChannel, String)>[
+      (tv, 'tv'),
+      (phone, 'phone'),
+      (desktop, 'desktop'),
+    ]) {
+      hub.register(device.$1,
+          userId: 'user',
+          deviceId: device.$2,
+          deviceName: device.$2,
+          clientType: 'tv');
+    }
+    hub.handle(tv, _stateMessage(activate: true, ownerEpoch: 0));
+
+    // Both contenders observed epoch 1. The first commit advances to 2, so
+    // the second publication is stale and cannot replace it.
+    hub.handle(phone, _stateMessage(activate: true, ownerEpoch: 1));
+    hub.handle(desktop, _stateMessage(activate: true, ownerEpoch: 1));
+
+    final correction = _lastMessage(desktop, AriamiConnectMessageType.state);
+    expect(correction.data?['activeDeviceId'], 'phone');
+    expect(correction.data?['ownerEpoch'], 2);
+    expect(
+        _lastMessage(phone, AriamiConnectMessageType.devices)
+            .data?['activeDeviceId'],
+        'phone');
+  });
+
+  test('[stale_command_rejected] stale controller work never reaches owner',
+      () {
+    final hub = AriamiConnectHub();
+    final tv = _FakeChannel();
+    final phone = _FakeChannel();
+    hub.register(tv,
+        userId: 'user', deviceId: 'tv', deviceName: 'TV', clientType: 'tv');
+    hub.register(phone,
+        userId: 'user',
+        deviceId: 'phone',
+        deviceName: 'Phone',
+        clientType: 'mobile');
+    hub.handle(tv, _stateMessage(activate: true, ownerEpoch: 0));
+    final commandsBefore = tv.messages
+        .where((message) => message.type == AriamiConnectMessageType.command)
+        .length;
+
+    hub.handle(
+      phone,
+      WsMessage(
+        type: AriamiConnectMessageType.command,
+        data: const <String, dynamic>{
+          'commandId': 'stale-command',
+          'command': AriamiConnectCommand.pause,
+          'ownerEpoch': 0,
+        },
+      ),
+    );
+
+    expect(
+      tv.messages
+          .where((message) => message.type == AriamiConnectMessageType.command),
+      hasLength(commandsBefore),
+    );
+    final result = _lastMessage(phone, AriamiConnectMessageType.commandResult);
+    expect(result.data?['ok'], isFalse);
+    expect(result.data?['ownerEpoch'], 1);
+  });
+
+  test('[epoch_change_fails_pending_command] result is deterministic', () {
+    final hub = AriamiConnectHub();
+    final tv = _FakeChannel();
+    final phone = _FakeChannel();
+    hub.register(tv,
+        userId: 'user', deviceId: 'tv', deviceName: 'TV', clientType: 'tv');
+    hub.register(phone,
+        userId: 'user',
+        deviceId: 'phone',
+        deviceName: 'Phone',
+        clientType: 'mobile');
+    hub.handle(tv, _stateMessage(activate: true, ownerEpoch: 0));
+    hub.handle(
+      phone,
+      WsMessage(
+        type: AriamiConnectMessageType.command,
+        data: const <String, dynamic>{
+          'commandId': 'in-flight',
+          'command': AriamiConnectCommand.seek,
+          'ownerEpoch': 1,
+        },
+      ),
+    );
+
+    hub.handle(phone, _stateMessage(activate: true, ownerEpoch: 1));
+
+    final result = phone.messages.lastWhere((message) =>
+        message.type == AriamiConnectMessageType.commandResult &&
+        message.data?['commandId'] == 'in-flight');
+    expect(result.data?['ok'], isFalse);
+    expect(result.data?['ownerEpoch'], 2);
+    expect(result.data?['activeDeviceId'], 'phone');
+  });
+
+  test('[stale_transfer_rejected] old prepare cannot commit after takeover',
+      () {
+    final hub = AriamiConnectHub();
+    final tv = _FakeChannel();
+    final phone = _FakeChannel();
+    final desktop = _FakeChannel();
+    for (final device in <(_FakeChannel, String)>[
+      (tv, 'tv'),
+      (phone, 'phone'),
+      (desktop, 'desktop'),
+    ]) {
+      hub.register(device.$1,
+          userId: 'user',
+          deviceId: device.$2,
+          deviceName: device.$2,
+          clientType: 'tv');
+    }
+    hub.handle(tv, _stateMessage(activate: true, ownerEpoch: 0));
+    hub.handle(
+      phone,
+      WsMessage(
+        type: AriamiConnectMessageType.transfer,
+        data: const <String, dynamic>{
+          'targetDeviceId': 'desktop',
+          'ownerEpoch': 1,
+        },
+      ),
+    );
+    final prepare = _lastMessage(desktop, AriamiConnectMessageType.transfer);
+
+    hub.handle(phone, _stateMessage(activate: true, ownerEpoch: 1));
+    hub.handle(
+      desktop,
+      WsMessage(
+        type: AriamiConnectMessageType.transferResult,
+        data: <String, dynamic>{
+          'transferId': prepare.data?['transferId'],
+          'ok': true,
+          'ownerEpoch': 1,
+        },
+      ),
+    );
+
+    expect(
+        _lastMessage(phone, AriamiConnectMessageType.devices)
+            .data?['activeDeviceId'],
+        'phone');
+    expect(
+        _lastMessage(phone, AriamiConnectMessageType.devices)
+            .data?['ownerEpoch'],
+        2);
+  });
+
+  test('[legacy_v2_epoch_omission] old peer remains compatible', () {
+    final hub = AriamiConnectHub();
+    final tv = _FakeChannel();
+    hub.register(tv,
+        userId: 'user', deviceId: 'tv', deviceName: 'TV', clientType: 'tv');
+
+    hub.handle(tv, _stateMessage(activate: true));
+    hub.handle(tv, _stateMessage(activate: false));
+
+    final devices = _lastMessage(tv, AriamiConnectMessageType.devices);
+    expect(devices.data?['activeDeviceId'], 'tv');
+    expect(devices.data?['ownerEpoch'], 1);
+  });
 }
 
-WsMessage _stateMessage({required bool activate}) => WsMessage(
+WsMessage _stateMessage({required bool activate, int? ownerEpoch}) => WsMessage(
       type: AriamiConnectMessageType.state,
       data: <String, dynamic>{
         'activate': activate,
+        if (ownerEpoch != null) 'ownerEpoch': ownerEpoch,
         'snapshot': AriamiPlaybackSnapshot(
           queue: <Map<String, dynamic>>[
             <String, dynamic>{'id': 'song-1', 'title': 'Song'},
@@ -640,6 +888,9 @@ WsMessage _stateMessage({required bool activate}) => WsMessage(
         ).toJson(),
       },
     );
+
+WsMessage _lastMessage(_FakeChannel channel, String type) =>
+    channel.messages.lastWhere((message) => message.type == type);
 
 class _FakeChannel extends StreamChannelMixin<dynamic>
     implements WebSocketChannel {
