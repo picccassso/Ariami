@@ -255,6 +255,107 @@ void main() {
       expect(controller.totalSelectedCount, 1);
     });
   });
+
+  group('Resolving the selection to songs', () {
+    late LibraryController controller;
+
+    setUp(() {
+      controller = LibraryController();
+      controller.resetBatchDownloadTestState();
+    });
+
+    test('albums resolve in track order, loose songs in library order', () {
+      const albumId = 'album-1';
+      controller.setStateForTest(LibraryState(
+        isLoading: false,
+        albums: [
+          AlbumModel(
+            id: albumId,
+            title: 'Album',
+            artist: 'A',
+            songCount: 2,
+            duration: 200,
+          ),
+        ],
+        songs: [
+          SongModel(
+            id: 'track-2',
+            title: 'T2',
+            artist: 'A',
+            albumId: albumId,
+            duration: 100,
+            trackNumber: 2,
+          ),
+          SongModel(
+            id: 'track-1',
+            title: 'T1',
+            artist: 'A',
+            albumId: albumId,
+            duration: 100,
+            trackNumber: 1,
+          ),
+          SongModel(id: 'loose-1', title: 'L1', artist: 'B', duration: 100),
+          SongModel(id: 'loose-2', title: 'L2', artist: 'B', duration: 100),
+        ],
+      ));
+      controller.setSelectionForTest(
+        albumIds: {albumId},
+        songIds: {'loose-2', 'loose-1'},
+      );
+
+      final resolved =
+          controller.resolveSelectedSongs().map((song) => song.id).toList();
+
+      expect(resolved, ['track-1', 'track-2', 'loose-1', 'loose-2']);
+    });
+
+    test('songs already pulled in by an album are not repeated', () {
+      const albumId = 'album-1';
+      controller.setStateForTest(LibraryState(
+        isLoading: false,
+        albums: [
+          AlbumModel(
+            id: albumId,
+            title: 'Album',
+            artist: 'A',
+            songCount: 1,
+            duration: 100,
+          ),
+        ],
+        songs: [
+          SongModel(
+            id: 'track-1',
+            title: 'T1',
+            artist: 'A',
+            albumId: albumId,
+            duration: 100,
+            trackNumber: 1,
+          ),
+        ],
+      ));
+      controller.setSelectionForTest(
+        albumIds: {albumId},
+        songIds: {'track-1'},
+      );
+
+      expect(controller.resolveSelectedSongs().length, 1);
+    });
+
+    test('ids with no library match are skipped', () {
+      controller.setStateForTest(LibraryState(
+        isLoading: false,
+        songs: [
+          SongModel(id: 'song-1', title: 'A', artist: 'X', duration: 100),
+        ],
+      ));
+      controller.setSelectionForTest(songIds: {'song-1', 'ghost-song'});
+
+      final resolved =
+          controller.resolveSelectedSongs().map((song) => song.id).toList();
+
+      expect(resolved, ['song-1']);
+    });
+  });
 }
 
 DownloadTask _completedDownload({

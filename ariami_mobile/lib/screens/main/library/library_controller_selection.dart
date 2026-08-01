@@ -97,6 +97,84 @@ extension _LibraryControllerSelection on LibraryController {
     return resolvedSongIds;
   }
 
+  /// Library songs belonging to [albumId], in track order.
+  List<SongModel> _albumSongsFor(String albumId) {
+    final songs =
+        _state.songs.where((song) => song.albumId == albumId).toList();
+    songs.sort((a, b) {
+      final trackCompare =
+          (a.trackNumber ?? 1 << 30).compareTo(b.trackNumber ?? 1 << 30);
+      if (trackCompare != 0) {
+        return trackCompare;
+      }
+      return a.title.compareTo(b.title);
+    });
+    return songs;
+  }
+
+  /// Looks a song id up in the library, whichever mode it came from.
+  SongModel? _librarySongFor(String songId) {
+    final offlineMatch = _state.offlineSongs.where((song) => song.id == songId);
+    if (offlineMatch.isNotEmpty) {
+      final song = offlineMatch.first;
+      return SongModel(
+        id: song.id,
+        title: song.title,
+        artist: song.artist,
+        albumId: song.albumId,
+        duration: song.duration.inSeconds,
+        trackNumber: song.trackNumber,
+      );
+    }
+
+    for (final candidates in [_state.songs, _state.offlineCopySongs]) {
+      final match = candidates.where((song) => song.id == songId);
+      if (match.isNotEmpty) return match.first;
+    }
+
+    return null;
+  }
+
+  /// The selection flattened to songs, in the order the library shows them:
+  /// playlists first, then albums (track order), then loose songs.
+  ///
+  /// Ids with no library match - stale playlist entries - are skipped, since
+  /// they can neither be queued nor added to a playlist.
+  List<SongModel> _resolveSelectedSongsInOrder() {
+    final seenIds = <String>{};
+    final resolved = <SongModel>[];
+
+    void addById(String songId) {
+      if (!seenIds.add(songId)) return;
+      final song = _librarySongFor(songId);
+      if (song != null) resolved.add(song);
+    }
+
+    for (final playlist in _playlistService.playlists) {
+      if (!_selectedPlaylistIds.contains(playlist.id)) continue;
+      playlist.songIds.forEach(addById);
+    }
+
+    for (final album in _state.albums) {
+      if (!_selectedAlbumIds.contains(album.id)) continue;
+      for (final track in _albumSongsFor(album.id)) {
+        addById(track.id);
+      }
+    }
+
+    final visibleSongIds = _state.isOfflineMode
+        ? _state.offlineSongs.map((song) => song.id)
+        : _state.onlineSongsToShow.map((song) => song.id);
+    for (final songId in visibleSongIds) {
+      if (_selectedSongIds.contains(songId)) addById(songId);
+    }
+    // Selections made before a filter change are no longer visible, but are
+    // still selected - keep them.
+    _selectedSongIds.forEach(addById);
+
+    return resolved;
+  }
+
   bool _isSongInDownloadQueue(String songId) {
     if (_queuedSongIdsForTest != null) {
       return _queuedSongIdsForTest!.contains(songId);

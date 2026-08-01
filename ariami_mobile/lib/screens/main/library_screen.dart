@@ -11,6 +11,7 @@ import '../../services/quality/quality_settings_service.dart';
 import '../../widgets/common/bottom_chrome_metrics.dart';
 import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
 import '../../widgets/common/queue_action_confirmation.dart';
+import '../playlist/add_to_playlist_screen.dart';
 import '../playlist/create_playlist_screen.dart';
 import '../playlist/server_playlist_detail_screen.dart';
 import 'library/library.dart';
@@ -241,7 +242,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
 
   Future<void> _addAlbumToQueue(AlbumModel album) async {
     try {
-      final albumSongs = _albumSongsFor(album.id);
+      final albumSongs = _controller.albumSongsFor(album.id);
       final songs = <Song>[
         for (final track in albumSongs)
           Song(
@@ -299,13 +300,90 @@ class _LibraryScreenState extends State<LibraryScreen> {
     }
   }
 
+  // Multi-select Batch Operations
+
+  List<Song> _selectedPlayableSongs() => [
+        for (final song in _controller.resolveSelectedSongs())
+          Song(
+            id: song.id,
+            title: song.title,
+            artist: song.artist,
+            album: null,
+            albumId: song.albumId,
+            duration: Duration(seconds: song.duration),
+            filePath: song.id,
+            fileSize: 0,
+            modifiedTime: DateTime.now(),
+            trackNumber: song.trackNumber,
+          ),
+      ];
+
+  void _showBatchActionsSheet() {
+    final songCount = _controller.resolveSelectedSongs().length;
+
+    showAriamiSheet<void>(
+      context: context,
+      header: AriamiSheetHeader(
+        title: '${_controller.totalSelectedCount} selected',
+        subtitle: '$songCount song${songCount == 1 ? '' : 's'}',
+        leading: const Icon(Icons.library_music_rounded, size: 28),
+      ),
+      items: [
+        ListTile(
+          leading: const Icon(Icons.queue_music),
+          title: const Text('Add to Queue'),
+          onTap: () {
+            Navigator.pop(context);
+            _addSelectionToQueue();
+          },
+        ),
+        ListTile(
+          leading: const Icon(Icons.playlist_add),
+          title: const Text('Add to Playlist'),
+          onTap: () {
+            Navigator.pop(context);
+            unawaited(_addSelectionToPlaylist());
+          },
+        ),
+      ],
+    );
+  }
+
+  void _addSelectionToQueue() {
+    final songs = _selectedPlayableSongs();
+    if (songs.isEmpty) {
+      showQueueActionConfirmation(context, message: 'Nothing to add to queue');
+      return;
+    }
+
+    _playbackManager.addAllToQueue(songs);
+    _controller.exitSelectionMode();
+    showQueueActionConfirmation(
+      context,
+      message:
+          'Added ${songs.length} song${songs.length == 1 ? '' : 's'} to queue',
+    );
+  }
+
+  Future<void> _addSelectionToPlaylist() async {
+    final songs = _controller.resolveSelectedSongs();
+    if (songs.isEmpty) {
+      showQueueActionConfirmation(context, message: 'Nothing to add');
+      return;
+    }
+
+    await AddToPlaylistScreen.showForSongs(context, songs);
+    if (!mounted) return;
+    _controller.exitSelectionMode();
+  }
+
   // Download Operations
 
   Future<void> _downloadAlbum(AlbumModel album) async {
     try {
       final downloadQuality = _qualityService.getDownloadQuality();
       final downloadOriginal = _qualityService.getDownloadOriginal();
-      final albumSongs = _albumSongsFor(album.id);
+      final albumSongs = _controller.albumSongsFor(album.id);
 
       final songDataList = albumSongs.map((track) {
         return {
@@ -333,21 +411,6 @@ class _LibraryScreenState extends State<LibraryScreen> {
     } catch (e) {
       // Silently fail
     }
-  }
-
-  List<SongModel> _albumSongsFor(String albumId) {
-    final songs = _controller.state.songs
-        .where((song) => song.albumId == albumId)
-        .toList();
-    songs.sort((a, b) {
-      final trackCompare =
-          (a.trackNumber ?? 1 << 30).compareTo(b.trackNumber ?? 1 << 30);
-      if (trackCompare != 0) {
-        return trackCompare;
-      }
-      return a.title.compareTo(b.title);
-    });
-    return songs;
   }
 
   Future<void> _downloadPlaylist(PlaylistModel playlist) async {
@@ -680,34 +743,53 @@ class _LibraryScreenState extends State<LibraryScreen> {
                                   mainAxisAlignment:
                                       MainAxisAlignment.spaceBetween,
                                   children: [
-                                    Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Text(
-                                          'Batch Download',
-                                          style: TextStyle(
-                                            color: Theme.of(context)
-                                                .colorScheme
-                                                .onSurface,
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 14,
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            'Batch Actions',
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              color: Theme.of(context)
+                                                  .colorScheme
+                                                  .onSurface,
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 14,
+                                            ),
                                           ),
-                                        ),
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          subtitle,
-                                          style: TextStyle(
-                                            color: Theme.of(context)
-                                                .colorScheme
-                                                .onSurface
-                                                .withValues(alpha: 0.7),
-                                            fontSize: 12,
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            subtitle,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              color: Theme.of(context)
+                                                  .colorScheme
+                                                  .onSurface
+                                                  .withValues(alpha: 0.7),
+                                              fontSize: 12,
+                                            ),
                                           ),
-                                        ),
-                                      ],
+                                        ],
+                                      ),
                                     ),
+                                    IconButton(
+                                      onPressed: _showBatchActionsSheet,
+                                      icon:
+                                          const Icon(Icons.more_horiz_rounded),
+                                      tooltip: 'More Actions',
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurface,
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(
+                                          minWidth: 40, minHeight: 40),
+                                    ),
+                                    const SizedBox(width: 8),
                                     ElevatedButton.icon(
                                       onPressed: hasItemsToDownload
                                           ? () async {

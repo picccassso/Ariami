@@ -65,12 +65,33 @@ class AddToPlaylistScreen extends StatefulWidget {
         title: 'Add to Playlist',
         subtitle: subtitle,
       ),
-      child: _AddSongToPlaylistsSheet(
-        songId: songId,
-        albumId: albumId,
-        title: title,
-        artist: artist,
-        duration: duration,
+      child: _AddSongsToPlaylistsSheet(
+        songs: [
+          PlaylistSongEntry(
+            id: songId,
+            albumId: albumId,
+            title: title,
+            artist: artist,
+            duration: duration,
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Show as a bottom sheet for adding several songs to playlists at once.
+  static Future<void> showForSongs(
+    BuildContext context,
+    List<SongModel> songs,
+  ) {
+    return showAriamiSheet<void>(
+      context: context,
+      header: AriamiSheetHeader(
+        title: 'Add to Playlist',
+        subtitle: '${songs.length} song${songs.length == 1 ? '' : 's'}',
+      ),
+      child: _AddSongsToPlaylistsSheet(
+        songs: songs.map(PlaylistSongEntry.fromSong).toList(),
       ),
     );
   }
@@ -413,31 +434,46 @@ class _AddToPlaylistScreenState extends State<AddToPlaylistScreen> {
   }
 }
 
-/// Bottom sheet body for adding a song to one or more playlists.
-///
-/// Rendered as the `child` of [showAriamiSheet], which provides the rounded
-/// corners, drag handle, and mini-player-aware bottom padding.
-class _AddSongToPlaylistsSheet extends StatefulWidget {
-  final String songId;
-  final String? albumId;
-  final String? title;
-  final String? artist;
-  final int? duration;
-
-  const _AddSongToPlaylistsSheet({
-    required this.songId,
+/// A song being added to playlists, with the metadata playlists cache for it.
+class PlaylistSongEntry {
+  const PlaylistSongEntry({
+    required this.id,
     this.albumId,
     this.title,
     this.artist,
     this.duration,
   });
 
-  @override
-  State<_AddSongToPlaylistsSheet> createState() =>
-      _AddSongToPlaylistsSheetState();
+  factory PlaylistSongEntry.fromSong(SongModel song) => PlaylistSongEntry(
+        id: song.id,
+        albumId: song.albumId,
+        title: song.title,
+        artist: song.artist,
+        duration: song.duration,
+      );
+
+  final String id;
+  final String? albumId;
+  final String? title;
+  final String? artist;
+  final int? duration;
 }
 
-class _AddSongToPlaylistsSheetState extends State<_AddSongToPlaylistsSheet> {
+/// Bottom sheet body for adding one or more songs to one or more playlists.
+///
+/// Rendered as the `child` of [showAriamiSheet], which provides the rounded
+/// corners, drag handle, and mini-player-aware bottom padding.
+class _AddSongsToPlaylistsSheet extends StatefulWidget {
+  final List<PlaylistSongEntry> songs;
+
+  const _AddSongsToPlaylistsSheet({required this.songs});
+
+  @override
+  State<_AddSongsToPlaylistsSheet> createState() =>
+      _AddSongsToPlaylistsSheetState();
+}
+
+class _AddSongsToPlaylistsSheetState extends State<_AddSongsToPlaylistsSheet> {
   final PlaylistService _playlistService = PlaylistService();
 
   // Track playlist states: 'transitioning' or 'added'
@@ -466,18 +502,28 @@ class _AddSongToPlaylistsSheetState extends State<_AddSongToPlaylistsSheet> {
     setState(() {});
   }
 
+  /// Adds every song not already in [playlist]; returns how many were added.
+  Future<int> _addMissingSongs(PlaylistModel playlist) async {
+    var added = 0;
+    for (final song in widget.songs) {
+      if (playlist.songIds.contains(song.id)) continue;
+      await _playlistService.addSongToPlaylist(
+        playlistId: playlist.id,
+        songId: song.id,
+        albumId: song.albumId,
+        title: song.title,
+        artist: song.artist,
+        duration: song.duration,
+      );
+      added++;
+    }
+    return added;
+  }
+
   Future<void> _createNewPlaylist() async {
     final playlist = await CreatePlaylistScreen.show(context);
     if (playlist != null && mounted) {
-      // Add the song to the newly created playlist
-      await _playlistService.addSongToPlaylist(
-        playlistId: playlist.id,
-        songId: widget.songId,
-        albumId: widget.albumId,
-        title: widget.title,
-        artist: widget.artist,
-        duration: widget.duration,
-      );
+      await _addMissingSongs(playlist);
       if (mounted) {
         Navigator.pop(context);
       }
@@ -485,19 +531,10 @@ class _AddSongToPlaylistsSheetState extends State<_AddSongToPlaylistsSheet> {
   }
 
   Future<void> _addToPlaylist(PlaylistModel playlist) async {
-    // Check if song is already in playlist
-    if (playlist.songIds.contains(widget.songId)) {
+    final added = await _addMissingSongs(playlist);
+    if (added == 0) {
       return;
     }
-
-    await _playlistService.addSongToPlaylist(
-      playlistId: playlist.id,
-      songId: widget.songId,
-      albumId: widget.albumId,
-      title: widget.title,
-      artist: widget.artist,
-      duration: widget.duration,
-    );
 
     if (mounted) {
       setState(() {
@@ -523,10 +560,12 @@ class _AddSongToPlaylistsSheetState extends State<_AddSongToPlaylistsSheet> {
     _transitionTimers[playlist.id]?.cancel();
     _transitionTimers.remove(playlist.id);
 
-    await _playlistService.removeSongFromPlaylist(
-      playlistId: playlist.id,
-      songId: widget.songId,
-    );
+    for (final song in widget.songs) {
+      await _playlistService.removeSongFromPlaylist(
+        playlistId: playlist.id,
+        songId: song.id,
+      );
+    }
 
     if (mounted) {
       setState(() {
@@ -579,7 +618,8 @@ class _AddSongToPlaylistsSheetState extends State<_AddSongToPlaylistsSheet> {
   }
 
   Widget _buildPlaylistTile(PlaylistModel playlist) {
-    final isInPlaylist = playlist.songIds.contains(widget.songId);
+    final isInPlaylist =
+        widget.songs.every((song) => playlist.songIds.contains(song.id));
     final playlistState = _playlistStates[playlist.id];
 
     Widget trailing;

@@ -134,6 +134,12 @@ class LibraryController extends ChangeNotifier {
   void clearSelection() => _clearSelection();
   Future<int> downloadSelectedItems() => _downloadSelectedItems();
 
+  /// The current selection flattened to songs, in library order.
+  List<SongModel> resolveSelectedSongs() => _resolveSelectedSongsInOrder();
+
+  /// Library songs belonging to [albumId], in track order.
+  List<SongModel> albumSongsFor(String albumId) => _albumSongsFor(albumId);
+
   Future<void> toggleViewMode() => _toggleViewMode();
   Future<void> toggleAlbumsExpanded() => _toggleAlbumsExpanded();
   Future<void> toggleSongsExpanded() => _toggleSongsExpanded();
