@@ -254,6 +254,43 @@ void main() {
       expect(first.queueFingerprint, second.queueFingerprint);
     });
 
+    test('split progress retains validated queue identity', () {
+      final queue = List<Map<String, dynamic>>.unmodifiable(
+        const <Map<String, dynamic>>[
+          <String, dynamic>{'id': 'a'},
+          <String, dynamic>{'id': 'b'},
+        ],
+      );
+      final backingOrder = List<int>.unmodifiable(const <int>[1, 0]);
+
+      final first = AriamiPlaybackSnapshot.fromSplitState(
+        const <String, dynamic>{
+          'currentIndex': 0,
+          'positionMs': 1000,
+          'durationMs': 60000,
+          'isPlaying': true,
+        },
+        queue: queue,
+        backingOrder: backingOrder,
+        sourceId: 'playlist:test',
+      );
+      final second = AriamiPlaybackSnapshot.fromSplitState(
+        const <String, dynamic>{
+          'currentIndex': 0,
+          'positionMs': 2000,
+          'durationMs': 60000,
+          'isPlaying': true,
+        },
+        queue: queue,
+        backingOrder: backingOrder,
+        sourceId: 'playlist:test',
+      );
+
+      expect(identical(first.queue, second.queue), isTrue);
+      expect(identical(first.backingOrder, second.backingOrder), isTrue);
+      expect(second.positionMs, 2000);
+    });
+
     test('compensates a playing handoff for transport time', () {
       final updatedAt = DateTime.utc(2026, 1, 1, 12);
       final snapshot = AriamiPlaybackSnapshot(

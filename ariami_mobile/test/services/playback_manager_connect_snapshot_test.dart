@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:ariami_core/models/connect_models.dart';
+import 'package:ariami_core/services/connect/remote_playback.dart';
 import 'package:ariami_mobile/services/playback_manager.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -135,5 +136,54 @@ void main() {
       snapshot.queue.map((track) => track['title']),
       <String>['C', 'First A', 'Second A'],
     );
+    final progressOnly = manager.connectSnapshot;
+    expect(identical(snapshot.queue, progressOnly.queue), isTrue);
+    expect(identical(snapshot.backingOrder, progressOnly.backingOrder), isTrue);
+
+    manager.addToQueue(manager.currentSong!);
+    final edited = manager.connectSnapshot;
+    expect(identical(progressOnly.queue, edited.queue), isFalse);
+    expect(edited.queue, hasLength(4));
+  });
+
+  test('remote progress does not notify the whole playback manager', () {
+    final manager = PlaybackManager();
+    manager.setConnectRemoteMirror(null);
+    final queue = List<Map<String, dynamic>>.unmodifiable(
+      const <Map<String, dynamic>>[
+        <String, dynamic>{'id': 'song-a', 'title': 'A', 'artist': 'Artist'},
+      ],
+    );
+    final order = List<int>.unmodifiable(const <int>[0]);
+    AriamiRemotePlayback remoteAt(int positionMs) => AriamiRemotePlayback(
+          snapshot: AriamiPlaybackSnapshot.fromValidatedQueue(
+            queue: queue,
+            backingOrder: order,
+            currentIndex: 0,
+            positionMs: positionMs,
+            durationMs: 60000,
+            isPlaying: true,
+            shuffle: false,
+            repeatMode: 'off',
+            volume: 1,
+          ),
+          deviceId: 'tv',
+          deviceName: 'TV',
+          deviceType: 'tv',
+          receivedAt: DateTime.now(),
+        );
+
+    var notifications = 0;
+    void listener() => notifications++;
+    manager.addListener(listener);
+    addTearDown(() {
+      manager.removeListener(listener);
+      manager.setConnectRemoteMirror(null);
+    });
+    manager.setConnectRemoteMirror(remoteAt(1000));
+    expect(notifications, 1);
+
+    manager.setConnectRemoteMirror(remoteAt(2000));
+    expect(notifications, 1);
   });
 }

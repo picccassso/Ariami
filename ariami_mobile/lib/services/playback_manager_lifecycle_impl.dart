@@ -48,7 +48,7 @@ extension _PlaybackManagerLifecycleImpl on PlaybackManager {
         _pendingUiPosition = null;
       }
       _statsService.updatePosition(pos);
-      _notifyStateChanged();
+      positionNotifier.value = pos;
     });
 
     // Listen to duration updates
@@ -207,6 +207,7 @@ extension _PlaybackManagerLifecycleImpl on PlaybackManager {
     _statsService.setPlaybackActive(
       _castService.isRemotePlaying && !_castService.isRemoteBuffering,
     );
+    positionNotifier.value = _castService.remotePosition;
 
     audioHandler?.updateCastPlaybackState(
       position: _castService.remotePosition,
@@ -220,7 +221,9 @@ extension _PlaybackManagerLifecycleImpl on PlaybackManager {
       const Duration(seconds: 1),
       (_) {
         if (_castService.isConnected) {
-          _statsService.updatePosition(_castService.remotePosition);
+          final position = _castService.remotePosition;
+          _statsService.updatePosition(position);
+          positionNotifier.value = position;
         }
       },
     );

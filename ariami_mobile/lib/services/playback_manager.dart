@@ -66,6 +66,11 @@ class PlaybackManager extends ChangeNotifier {
 
   // State
   PlaybackQueue _queue = PlaybackQueue();
+  PlaybackQueue? _connectQueueCacheOwner;
+  int _connectQueueCacheRevision = -1;
+  List<Map<String, dynamic>> _connectQueueJsonCache =
+      const <Map<String, dynamic>>[];
+  List<int> _connectBackingOrderCache = const <int>[];
   final HashSet<Song> _oneShotQueuedSongs = HashSet<Song>.identity();
   bool _isShuffleEnabled = false;
   RepeatMode _repeatMode = RepeatMode.none;
@@ -204,20 +209,39 @@ class PlaybackManager extends ChangeNotifier {
       ? (_castService.remoteDuration ?? _queue.currentSong?.duration)
       : (_audioPlayer.duration ?? _queue.currentSong?.duration);
 
-  AriamiPlaybackSnapshot get connectSnapshot => AriamiPlaybackSnapshot(
-        queue:
-            _queue.songs.map((song) => song.toJson()).toList(growable: false),
-        backingOrder: _shuffleService.backingOrderFor(_queue.songs),
-        currentIndex: _queue.isEmpty ? -1 : _queue.currentIndex,
-        positionMs: _localPosition.inMilliseconds,
-        durationMs:
-            (_localDuration ?? _localCurrentSong?.duration ?? Duration.zero)
-                .inMilliseconds,
-        isPlaying: _localIsPlaying,
-        shuffle: _isShuffleEnabled,
-        repeatMode: _repeatMode == RepeatMode.none ? 'off' : _repeatMode.name,
-        volume: 1,
-      );
+  ({List<Map<String, dynamic>> queue, List<int> backingOrder})
+      get _connectQueueData {
+    if (!identical(_connectQueueCacheOwner, _queue) ||
+        _connectQueueCacheRevision != _queue.revision) {
+      final songs = _queue.songs;
+      _connectQueueCacheOwner = _queue;
+      _connectQueueCacheRevision = _queue.revision;
+      _connectQueueJsonCache =
+          songs.map((song) => song.toJson()).toList(growable: false);
+      _connectBackingOrderCache = _shuffleService.backingOrderFor(songs);
+    }
+    return (
+      queue: _connectQueueJsonCache,
+      backingOrder: _connectBackingOrderCache,
+    );
+  }
+
+  AriamiPlaybackSnapshot get connectSnapshot {
+    final queueData = _connectQueueData;
+    return AriamiPlaybackSnapshot.fromValidatedQueue(
+      queue: queueData.queue,
+      backingOrder: queueData.backingOrder,
+      currentIndex: _queue.isEmpty ? -1 : _queue.currentIndex,
+      positionMs: _localPosition.inMilliseconds,
+      durationMs:
+          (_localDuration ?? _localCurrentSong?.duration ?? Duration.zero)
+              .inMilliseconds,
+      isPlaying: _localIsPlaying,
+      shuffle: _isShuffleEnabled,
+      repeatMode: _repeatMode == RepeatMode.none ? 'off' : _repeatMode.name,
+      volume: 1,
+    );
+  }
 
   // Ariami Connect remote mirroring ------------------------------------------
   //
@@ -233,6 +257,11 @@ class PlaybackManager extends ChangeNotifier {
   Timer? _connectTicker;
   Timer? _connectSuppressionTimer;
   DateTime? _connectSuppressedAt;
+
+  /// High-frequency progress is intentionally separate from the broad
+  /// playback notifier so scrolling surfaces do not rebuild every 16–200 ms.
+  final ValueNotifier<Duration> positionNotifier =
+      ValueNotifier<Duration>(Duration.zero);
 
   /// Track currently published to the media session by the mirror, and its
   /// resolved on-device artwork.

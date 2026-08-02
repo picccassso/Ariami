@@ -453,10 +453,13 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
   }
 
   Widget _buildSeekBar() {
-    return PlayerSeekBar(
-      position: _playbackManager.position,
-      duration: _playbackManager.duration ?? Duration.zero,
-      onSeek: _playbackManager.seek,
+    return ValueListenableBuilder<Duration>(
+      valueListenable: _playbackManager.positionNotifier,
+      builder: (context, _, __) => PlayerSeekBar(
+        position: _playbackManager.position,
+        duration: _playbackManager.duration ?? Duration.zero,
+        onSeek: _playbackManager.seek,
+      ),
     );
   }
 

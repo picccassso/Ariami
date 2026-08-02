@@ -128,6 +128,10 @@ class AriamiConnectClient {
   String? _remoteSourceId;
   String? _lastPublishedQueueFingerprint;
   String? _lastPublishedDiscreteFingerprint;
+  List<Map<String, dynamic>>? _fingerprintedQueue;
+  List<int>? _fingerprintedBackingOrder;
+  String? _fingerprintedSourceId;
+  String? _cachedQueueFingerprint;
   _ObservedSemanticSnapshot? _lastObservedSemanticSnapshot;
   String? _awaitingQueueFingerprint;
   DateTime? _lastStatePublishedAt;
@@ -436,12 +440,12 @@ class AriamiConnectClient {
         _log('state rejected: queue counter $rawCounter != $_queueCounter');
         return false;
       }
-      remoteSnapshot = AriamiPlaybackSnapshot.fromJson(<String, dynamic>{
-        ...data,
-        'queue': _remoteQueue,
-        'backingOrder': _remoteBackingOrder,
-        if (_remoteSourceId != null) 'sourceId': _remoteSourceId,
-      });
+      remoteSnapshot = AriamiPlaybackSnapshot.fromSplitState(
+        data,
+        queue: _remoteQueue,
+        backingOrder: _remoteBackingOrder,
+        sourceId: _remoteSourceId,
+      );
     } else {
       final raw = data['snapshot'];
       if (raw is Map) {
@@ -781,7 +785,7 @@ class AriamiConnectClient {
     if (targetId == deviceId) {
       if (snapshot == null) return;
       _preparedTransfer = null;
-      _lastPublishedQueueFingerprint = snapshot.queueFingerprint;
+      _lastPublishedQueueFingerprint = _queueFingerprint(snapshot);
       isApplyingRemoteState = true;
       try {
         await handleCommand(AriamiConnectCommand.seek,
@@ -922,7 +926,7 @@ class AriamiConnectClient {
     final snapshot = snapshotProvider();
     final discreteFingerprint = _discreteFingerprint(snapshot);
     final queueChanged =
-        snapshot.queueFingerprint != _lastPublishedQueueFingerprint;
+        _queueFingerprint(snapshot) != _lastPublishedQueueFingerprint;
     final discreteChanged =
         discreteFingerprint != _lastPublishedDiscreteFingerprint;
     if (activate || queueChanged || discreteChanged) {
@@ -945,7 +949,7 @@ class AriamiConnectClient {
       return;
     }
     final discreteFingerprint = _discreteFingerprint(current);
-    if (current.queueFingerprint != _lastPublishedQueueFingerprint ||
+    if (_queueFingerprint(current) != _lastPublishedQueueFingerprint ||
         discreteFingerprint != _lastPublishedDiscreteFingerprint) {
       _progressPublishTimer?.cancel();
       _progressPublishTimer = null;
@@ -974,7 +978,7 @@ class AriamiConnectClient {
     _log('publish: activate $activate, track ${snapshot.currentTrackId}, '
         'playing ${snapshot.isPlaying}, thinksActive $isThisDeviceActive');
     if (_hubProtocolVersion >= AriamiConnectProtocol.v3) {
-      final fingerprint = snapshot.queueFingerprint;
+      final fingerprint = _queueFingerprint(snapshot);
       final queueChanged = fingerprint != _lastPublishedQueueFingerprint;
       if (activate || queueChanged) {
         // The hub echoes connect_queue to acknowledge its canonical counter.
@@ -1035,7 +1039,7 @@ class AriamiConnectClient {
   }
 
   void _recordPublishedState(AriamiPlaybackSnapshot snapshot) {
-    _lastPublishedQueueFingerprint = snapshot.queueFingerprint;
+    _lastPublishedQueueFingerprint = _queueFingerprint(snapshot);
     _lastPublishedDiscreteFingerprint = _discreteFingerprint(snapshot);
     _lastStatePublishedAt = DateTime.now();
   }
@@ -1059,9 +1063,25 @@ class AriamiConnectClient {
     );
   }
 
+  /// Reuses queue identity across position-only snapshots. Playback clients
+  /// retain these lists until a real queue edit, so canonical JSON work belongs
+  /// on that edit rather than on every progress tick.
+  String _queueFingerprint(AriamiPlaybackSnapshot snapshot) {
+    if (identical(_fingerprintedQueue, snapshot.queue) &&
+        identical(_fingerprintedBackingOrder, snapshot.backingOrder) &&
+        _fingerprintedSourceId == snapshot.sourceId &&
+        _cachedQueueFingerprint != null) {
+      return _cachedQueueFingerprint!;
+    }
+    _fingerprintedQueue = snapshot.queue;
+    _fingerprintedBackingOrder = snapshot.backingOrder;
+    _fingerprintedSourceId = snapshot.sourceId;
+    return _cachedQueueFingerprint = snapshot.queueFingerprint;
+  }
+
   String _semanticFingerprint(AriamiPlaybackSnapshot snapshot) => jsonEncode(
         <String, dynamic>{
-          'queue': snapshot.queueFingerprint,
+          'queue': _queueFingerprint(snapshot),
           'currentIndex': snapshot.currentIndex,
           'isPlaying': snapshot.isPlaying,
           'shuffle': snapshot.shuffle,
@@ -1072,7 +1092,7 @@ class AriamiConnectClient {
 
   String _discreteFingerprint(AriamiPlaybackSnapshot snapshot) => jsonEncode(
         <String, dynamic>{
-          'queue': snapshot.queueFingerprint,
+          'queue': _queueFingerprint(snapshot),
           'currentIndex': snapshot.currentIndex,
           'durationMs': snapshot.durationMs,
           'isPlaying': snapshot.isPlaying,
@@ -1094,6 +1114,10 @@ class AriamiConnectClient {
     _remoteSourceId = null;
     _lastPublishedQueueFingerprint = null;
     _lastPublishedDiscreteFingerprint = null;
+    _fingerprintedQueue = null;
+    _fingerprintedBackingOrder = null;
+    _fingerprintedSourceId = null;
+    _cachedQueueFingerprint = null;
     _awaitingQueueFingerprint = null;
     _lastStatePublishedAt = null;
   }

@@ -26,6 +26,7 @@ class QueueItemRemoval {
 class PlaybackQueue {
   final List<Song> _songs = <Song>[];
   int _currentIndex = 0;
+  int _revision = 0;
 
   PlaybackQueue({
     List<Song>? songs,
@@ -41,6 +42,11 @@ class PlaybackQueue {
 
   /// Get current index
   int get currentIndex => _currentIndex;
+
+  /// Changes only when the serialized queue/order changes. Playback progress
+  /// and current-index moves deliberately leave it alone so Connect can reuse
+  /// its cached queue payload between progress ticks.
+  int get revision => _revision;
 
   /// Get current song
   Song? get currentSong {
@@ -80,17 +86,21 @@ class PlaybackQueue {
   /// Add a song to the end of the queue
   void addSong(Song song) {
     _songs.add(song);
+    _revision++;
   }
 
   /// Add multiple songs to the end of the queue
   void addSongs(List<Song> songs) {
+    if (songs.isEmpty) return;
     _songs.addAll(songs);
+    _revision++;
   }
 
   /// Insert a song at a specific index
   void insertSong(int index, Song song) {
     if (index < 0 || index > _songs.length) return;
     _songs.insert(index, song);
+    _revision++;
 
     // Adjust current index if insertion affects it
     if (index <= _currentIndex) {
@@ -103,6 +113,7 @@ class PlaybackQueue {
     if (index < 0 || index >= _songs.length) return;
 
     _songs.removeAt(index);
+    _revision++;
 
     // Adjust current index if removal affects it
     if (index < _currentIndex) {
@@ -120,6 +131,7 @@ class PlaybackQueue {
 
     final song = _songs.removeAt(fromIndex);
     _songs.insert(toIndex, song);
+    _revision++;
 
     // Adjust current index based on the move
     if (fromIndex == _currentIndex) {
@@ -136,8 +148,10 @@ class PlaybackQueue {
 
   /// Clear the entire queue
   void clear() {
+    if (_songs.isEmpty) return;
     _songs.clear();
     _currentIndex = 0;
+    _revision++;
   }
 
   /// Set the queue to a new list of songs
@@ -148,6 +162,7 @@ class PlaybackQueue {
       ..addAll(replacement);
     _currentIndex =
         replacement.isEmpty ? 0 : currentIndex.clamp(0, replacement.length - 1);
+    _revision++;
   }
 
   /// Move to next song

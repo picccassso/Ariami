@@ -491,9 +491,37 @@ Set<String> _readSupportedConnectCommands(Map<String, dynamic> json) {
 }
 
 class AriamiPlaybackSnapshot {
-  AriamiPlaybackSnapshot({
-    required this.queue,
+  factory AriamiPlaybackSnapshot({
+    required List<Map<String, dynamic>> queue,
     List<int>? backingOrder,
+    required int currentIndex,
+    required int positionMs,
+    required int durationMs,
+    required bool isPlaying,
+    required bool shuffle,
+    required String repeatMode,
+    required double volume,
+    String? sourceId,
+    DateTime? updatedAt,
+  }) {
+    return AriamiPlaybackSnapshot._validated(
+      queue: queue,
+      backingOrder: validateConnectBackingOrder(backingOrder, queue.length),
+      currentIndex: currentIndex,
+      positionMs: positionMs,
+      durationMs: durationMs,
+      isPlaying: isPlaying,
+      shuffle: shuffle,
+      repeatMode: repeatMode,
+      volume: volume,
+      sourceId: sourceId,
+      updatedAt: updatedAt,
+    );
+  }
+
+  AriamiPlaybackSnapshot._validated({
+    required this.queue,
+    required this.backingOrder,
     required this.currentIndex,
     required this.positionMs,
     required this.durationMs,
@@ -501,9 +529,43 @@ class AriamiPlaybackSnapshot {
     required this.shuffle,
     required this.repeatMode,
     required this.volume,
-    this.sourceId,
-    this.updatedAt,
-  }) : backingOrder = validateConnectBackingOrder(backingOrder, queue.length);
+    required this.sourceId,
+    required this.updatedAt,
+  });
+
+  /// Builds from queue data already owned and validated by a playback engine.
+  /// The list identities are retained so Connect can cache queue fingerprints
+  /// across position-only snapshots.
+  factory AriamiPlaybackSnapshot.fromValidatedQueue({
+    required List<Map<String, dynamic>> queue,
+    required List<int> backingOrder,
+    required int currentIndex,
+    required int positionMs,
+    required int durationMs,
+    required bool isPlaying,
+    required bool shuffle,
+    required String repeatMode,
+    required double volume,
+    String? sourceId,
+    DateTime? updatedAt,
+  }) {
+    if (queue.length > maxQueueLength || backingOrder.length != queue.length) {
+      throw const FormatException('Invalid Connect queue state');
+    }
+    return AriamiPlaybackSnapshot._validated(
+      queue: queue,
+      backingOrder: backingOrder,
+      currentIndex: currentIndex,
+      positionMs: positionMs,
+      durationMs: durationMs,
+      isPlaying: isPlaying,
+      shuffle: shuffle,
+      repeatMode: repeatMode,
+      volume: volume,
+      sourceId: sourceId,
+      updatedAt: updatedAt,
+    );
+  }
 
   static const maxQueueLength = 5000;
 
@@ -565,6 +627,43 @@ class AriamiPlaybackSnapshot {
     );
   }
 
+  /// Decodes a v3 progress message while retaining the already-validated
+  /// queue objects received in the matching `connect_queue` message.
+  ///
+  /// A normal progress tick changes only scalar playback state. Copying every
+  /// track map and revalidating the full backing permutation on each tick puts
+  /// queue-sized work back on Flutter's UI isolate, defeating the v3 split.
+  factory AriamiPlaybackSnapshot.fromSplitState(
+    Map<String, dynamic> json, {
+    required List<Map<String, dynamic>> queue,
+    required List<int> backingOrder,
+    required String? sourceId,
+  }) {
+    if (queue.length > maxQueueLength || backingOrder.length != queue.length) {
+      throw const FormatException('Invalid Connect queue state');
+    }
+    final rawIndex = (json['currentIndex'] as num?)?.toInt() ?? -1;
+    return AriamiPlaybackSnapshot._validated(
+      queue: queue,
+      backingOrder: backingOrder,
+      currentIndex: queue.isEmpty ? -1 : rawIndex.clamp(0, queue.length - 1),
+      positionMs:
+          ((json['positionMs'] as num?)?.toInt() ?? 0).clamp(0, 86400000),
+      durationMs:
+          ((json['durationMs'] as num?)?.toInt() ?? 0).clamp(0, 86400000),
+      isPlaying: json['isPlaying'] as bool? ?? false,
+      shuffle: json['shuffle'] as bool? ?? false,
+      repeatMode: switch (json['repeatMode']) {
+        'all' => 'all',
+        'one' => 'one',
+        _ => 'off',
+      },
+      volume: ((json['volume'] as num?)?.toDouble() ?? 1).clamp(0.0, 1.0),
+      sourceId: sourceId,
+      updatedAt: DateTime.tryParse(json['updatedAt'] as String? ?? ''),
+    );
+  }
+
   AriamiPlaybackSnapshot compensated(DateTime now) {
     final timestamp = updatedAt;
     if (!isPlaying || timestamp == null) return this;
@@ -589,7 +688,7 @@ class AriamiPlaybackSnapshot {
     double? volume,
     DateTime? updatedAt,
   }) =>
-      AriamiPlaybackSnapshot(
+      AriamiPlaybackSnapshot._validated(
         queue: queue,
         backingOrder: backingOrder,
         currentIndex: currentIndex,

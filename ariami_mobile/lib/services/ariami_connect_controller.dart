@@ -19,6 +19,7 @@ class AriamiConnectController extends ChangeNotifier {
   AriamiConnectClient? _client;
   PlaybackManager? _playback;
   StreamSubscription<dynamic>? _serverSubscription;
+  Timer? _publishTimer;
   Timer? _staleStateTimer;
   String? _lastTrackId;
   bool _lastPlaying = false;
@@ -45,6 +46,7 @@ class AriamiConnectController extends ChangeNotifier {
       _started = true;
       _generation++;
       playback.addListener(_onPlaybackChanged);
+      playback.positionNotifier.addListener(_onPlaybackPositionTick);
       _serverSubscription = _connection.serverInfoStream.listen((_) {
         unawaited(_connectToCurrentEndpoint());
       });
@@ -113,6 +115,8 @@ class AriamiConnectController extends ChangeNotifier {
     if (playback == null || (client?.isApplyingRemoteState ?? false)) {
       return;
     }
+    _publishTimer?.cancel();
+    _publishTimer = null;
     // While mirroring another device there is no local playback worth
     // publishing; the mirror's own notifications must not look like takeovers.
     if (playback.isConnectRemoteActive) return;
@@ -139,6 +143,22 @@ class AriamiConnectController extends ChangeNotifier {
       return;
     }
     client?.publishState();
+  }
+
+  void _onPlaybackPositionTick() {
+    final playback = _playback;
+    final client = _client;
+    if (playback == null ||
+        client == null ||
+        client.isApplyingRemoteState ||
+        playback.isConnectRemoteActive ||
+        (_publishTimer?.isActive ?? false)) {
+      return;
+    }
+    _publishTimer = Timer(const Duration(seconds: 1), () {
+      _publishTimer = null;
+      _client?.publishState();
+    });
   }
 
   Future<void> _handleCommand(
@@ -246,6 +266,8 @@ class AriamiConnectController extends ChangeNotifier {
 
   Future<void> stop({bool stopLocalPlayback = false}) async {
     _generation++;
+    _publishTimer?.cancel();
+    _publishTimer = null;
     _staleStateTimer?.cancel();
     _staleStateTimer = null;
     final playback = _playback;
@@ -253,6 +275,7 @@ class AriamiConnectController extends ChangeNotifier {
         !playback.isConnectRemoteActive &&
         playback.localIsPlaying;
     playback?.removeListener(_onPlaybackChanged);
+    playback?.positionNotifier.removeListener(_onPlaybackPositionTick);
     playback?.setConnectRemoteMirror(null);
     _playback = null;
     final serverSubscription = _serverSubscription;

@@ -31,23 +31,28 @@ extension _PlaybackManagerConnectImpl on PlaybackManager {
       _connectSuppressedAt = null;
     }
     _sendConnectCommand = sendCommand ?? _sendConnectCommand;
-    final unchanged = identical(_connectRemote?.snapshot, remote?.snapshot) &&
-        _connectRemote?.deviceId == remote?.deviceId;
+    final previous = _connectRemote;
+    final presentationChanged = _connectPresentationChanged(previous, remote);
     _connectRemote = remote;
     if (remote == null) {
       _sendConnectCommand = null;
       _connectRemoteSongs = const <Song>[];
       _connectRemoteQueue = null;
     } else {
-      final incoming = remote.snapshot.queue
-          .map(_songFromConnectJson)
-          .whereType<Song>()
-          .toList(growable: false);
+      final queueIdentityChanged =
+          !identical(previous?.snapshot.queue, remote.snapshot.queue);
+      final incoming = queueIdentityChanged
+          ? remote.snapshot.queue
+              .map(_songFromConnectJson)
+              .whereType<Song>()
+              .toList(growable: false)
+          : _connectRemoteSongs;
       // Broadcasts arrive continuously while the remote device plays
       // (position ticks), so an unchanged queue must keep its previous Song
       // instances: queue rows are keyed by object identity, and fresh
       // instances would recreate every row and re-load its artwork.
-      final sameSongs = _sameSongSequence(_connectRemoteSongs, incoming);
+      final sameSongs = !queueIdentityChanged ||
+          _sameSongSequence(_connectRemoteSongs, incoming);
       final songs = sameSongs ? _connectRemoteSongs : incoming;
       final currentIndex = songs.isEmpty
           ? 0
@@ -63,8 +68,30 @@ extension _PlaybackManagerConnectImpl on PlaybackManager {
       }
     }
     _syncConnectTicker();
+    positionNotifier.value = position;
     _publishConnectMirrorToNotification();
-    if (!unchanged) _notifyStateChanged();
+    if (presentationChanged) _notifyStateChanged();
+  }
+
+  bool _connectPresentationChanged(
+    AriamiRemotePlayback? previous,
+    AriamiRemotePlayback? next,
+  ) {
+    if (previous == null || next == null) return previous != next;
+    final before = previous.snapshot;
+    final after = next.snapshot;
+    return previous.deviceId != next.deviceId ||
+        previous.deviceName != next.deviceName ||
+        previous.deviceType != next.deviceType ||
+        !identical(before.queue, after.queue) ||
+        !identical(before.backingOrder, after.backingOrder) ||
+        before.currentIndex != after.currentIndex ||
+        before.durationMs != after.durationMs ||
+        before.isPlaying != after.isPlaying ||
+        before.shuffle != after.shuffle ||
+        before.repeatMode != after.repeatMode ||
+        before.volume != after.volume ||
+        before.sourceId != after.sourceId;
   }
 
   /// Mirrors the active device's playback into this phone's media session, so
@@ -156,7 +183,7 @@ extension _PlaybackManagerConnectImpl on PlaybackManager {
         const Duration(seconds: 1),
         (_) {
           _publishConnectMirrorToNotification();
-          _notifyStateChanged();
+          positionNotifier.value = position;
         },
       );
     } else if (!ticking) {
@@ -379,6 +406,7 @@ extension _PlaybackManagerConnectImpl on PlaybackManager {
       isPlaying: isPlaying,
     ));
     _syncConnectTicker();
+    positionNotifier.value = position;
     _publishConnectMirrorToNotification();
     _notifyStateChanged();
   }
