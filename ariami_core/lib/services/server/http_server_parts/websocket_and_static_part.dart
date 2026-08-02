@@ -6,8 +6,9 @@ extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
   /// deliberately keeps using the reported name — renaming a phone to
   /// "Ariami Desktop Dashboard" must not change how it is counted.
   String? _customOrReportedDeviceName(String deviceId, String? reported) {
-    final custom =
-        _deviceNameStore.isInitialized ? _deviceNameStore.nameFor(deviceId) : null;
+    final custom = _deviceNameStore.isInitialized
+        ? _deviceNameStore.nameFor(deviceId)
+        : null;
     return custom ?? reported;
   }
 
@@ -155,9 +156,36 @@ extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
 
   /// Handle incoming WebSocket message
   void _handleWebSocketMessage(WebSocketChannel webSocket, dynamic rawMessage) {
+    if (rawMessage is! String) {
+      _sendWebSocketMessage(
+        webSocket,
+        WsMessage(
+          type: AriamiConnectMessageType.error,
+          data: const <String, dynamic>{
+            'code': 'INVALID_MESSAGE',
+            'message': 'Connect messages must be UTF-8 JSON text.',
+          },
+        ),
+      );
+      return;
+    }
+    // The maximum supported 5,000-track corpus is 7.63 MB. Reject above the
+    // measured 8 MiB ceiling before JSON decoding allocates a second graph.
+    if (!isConnectRawMessageWithinLimit(rawMessage)) {
+      _sendWebSocketMessage(
+        webSocket,
+        WsMessage(
+          type: AriamiConnectMessageType.error,
+          data: const <String, dynamic>{
+            'code': 'MESSAGE_TOO_LARGE',
+            'message': 'That Connect message is too large.',
+          },
+        ),
+      );
+      return;
+    }
     try {
-      final jsonMessage =
-          jsonDecode(rawMessage as String) as Map<String, dynamic>;
+      final jsonMessage = jsonDecode(rawMessage) as Map<String, dynamic>;
       final message = WsMessage.fromJson(jsonMessage);
 
       print('WebSocket message received: ${message.type}');
@@ -268,6 +296,16 @@ extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
       // Other message types can be handled here in future phases
     } catch (e) {
       print('Error parsing WebSocket message: $e');
+      _sendWebSocketMessage(
+        webSocket,
+        WsMessage(
+          type: AriamiConnectMessageType.error,
+          data: const <String, dynamic>{
+            'code': 'INVALID_MESSAGE',
+            'message': 'That Connect message is malformed.',
+          },
+        ),
+      );
     }
   }
 

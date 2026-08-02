@@ -91,8 +91,8 @@ void main() {
         isTrue,
       );
       expect(
-        slices.skip(5).map((entry) => entry['probe']).toSet(),
-        hasLength(4),
+        slices.skip(6).map((entry) => entry['probe']).toSet(),
+        hasLength(3),
       );
 
       final slice2 = slices.first;
@@ -103,8 +103,9 @@ void main() {
       expect(slice4['coverage'], 'complete');
       expect(slices[3]['coverage'], 'complete');
       expect(slices[4]['coverage'], 'complete');
+      expect(slices[5]['coverage'], 'complete');
       expect(
-        slices.skip(5).every((entry) => entry['coverage'] == 'representative'),
+        slices.skip(6).every((entry) => entry['coverage'] == 'representative'),
         isTrue,
       );
       final probes = (slice2['probes'] as List<dynamic>).cast<String>();
@@ -186,6 +187,34 @@ void main() {
       ].join('\n');
       for (final probe in slice6Probes) {
         expect(slice6Source, contains('[$probe]'),
+            reason: 'Missing probe $probe');
+      }
+      final slice7 = slices[5];
+      final slice7Probes = (slice7['probes'] as List<dynamic>).cast<String>();
+      final slice7Modes = (slice7['failureModes'] as List<dynamic>)
+          .map((mode) => Map<String, dynamic>.from(mode as Map))
+          .toList(growable: false);
+      expect(slice7Modes.map((mode) => mode['probe']).toSet(),
+          slice7Probes.toSet());
+      final slice7Source = <String>[
+        _readCoreTestSource('connect_hub_test.dart'),
+        _readCoreTestSource('connect_client_fault_baseline_test.dart'),
+        File('test/models/connect_models_test.dart').readAsStringSync(),
+        _readClientTestSource(
+          '../ariami_mobile/test/connect_v2_contract_fixture_test.dart',
+        ),
+        _readClientTestSource(
+          '../ariami_desktop_premium/test/connect_v2_contract_fixture_test.dart',
+        ),
+        _readClientTestSource(
+          '../ariami_tv/test/connect_v2_contract_fixture_test.dart',
+        ),
+        _readClientTestSource(
+          '../ariami_tvos/AriamiTVOSTests/ConnectV2ContractFixtureTests.swift',
+        ),
+      ].join('\n');
+      for (final probe in slice7Probes) {
+        expect(slice7Source, contains('[$probe]'),
             reason: 'Missing probe $probe');
       }
     });
@@ -387,8 +416,7 @@ void main() {
           contains(AriamiConnectCommand.clearQueue));
     });
 
-    test('slice 7: target replacement does not redeliver retained command',
-        () async {
+    test('slice 7: target replacement receives the retained command', () {
       final hub = AriamiConnectHub(
         commandTimeout: const Duration(milliseconds: 10),
       );
@@ -415,13 +443,23 @@ void main() {
         replacement.messages.where(
           (message) => message.type == AriamiConnectMessageType.command,
         ),
-        isEmpty,
+        hasLength(1),
       );
-      await Future<void>.delayed(const Duration(milliseconds: 30));
+      hub.handle(
+        replacement,
+        WsMessage(
+          type: AriamiConnectMessageType.commandResult,
+          data: const <String, dynamic>{
+            'commandId': 'replace-target-command',
+            'ok': true,
+            'ownerEpoch': 1,
+          },
+        ),
+      );
       final result = requester.messages.lastWhere(
         (message) => message.type == AriamiConnectMessageType.commandResult,
       );
-      expect(result.data?['ok'], isFalse);
+      expect(result.data?['ok'], isTrue);
     });
 
     test('slice 8: handoff commit overwrites a concurrent owner pause', () {

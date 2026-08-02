@@ -174,6 +174,7 @@ extension _PlaybackManagerConnectImpl on PlaybackManager {
     List<Song> songs, {
     int currentIndex = 0,
     required bool shuffle,
+    List<int>? backingOrder,
     bool forceRepeatAll = false,
   }) {
     final remote = _connectRemote;
@@ -181,6 +182,7 @@ extension _PlaybackManagerConnectImpl on PlaybackManager {
     final start = currentIndex.clamp(0, songs.length - 1);
     final snapshot = AriamiPlaybackSnapshot(
       queue: songs.map((song) => song.toJson()).toList(growable: false),
+      backingOrder: backingOrder,
       currentIndex: start,
       positionMs: 0,
       durationMs: songs[start].duration.inMilliseconds,
@@ -192,7 +194,7 @@ extension _PlaybackManagerConnectImpl on PlaybackManager {
       volume: remote.snapshot.volume,
     );
     _sendConnect(AriamiConnectCommand.playContext, <String, dynamic>{
-      'snapshot': snapshot.toJson(),
+      'snapshot': snapshot.toJson(includeBackingOrder: true),
     });
     // Mirror the new context optimistically; the active device's own state
     // broadcast confirms it.

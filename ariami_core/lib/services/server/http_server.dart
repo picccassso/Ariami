@@ -23,6 +23,7 @@ import 'package:ariami_core/models/quality_preset.dart';
 import 'package:ariami_core/models/artwork_size.dart';
 import 'package:ariami_core/models/server_origin.dart';
 import 'package:ariami_core/models/websocket_models.dart';
+import 'package:ariami_core/models/connect_models.dart';
 import 'package:ariami_core/models/feature_flags.dart';
 import 'package:ariami_core/services/library/library_manager.dart';
 import 'package:ariami_core/services/library/playlist_decision_store.dart';

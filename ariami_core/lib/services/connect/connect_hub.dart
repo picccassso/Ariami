@@ -17,6 +17,8 @@ class AriamiConnectHub {
     this.staleTimeout = const Duration(seconds: 90),
     this.sweepInterval = const Duration(seconds: 30),
     this.protocolV3Enabled = true,
+    this.maxPendingCommands = kMaxPendingConnectCommands,
+    this.maxCommandDeliveries = 4,
   });
 
   /// Gives a playback client enough time to reconnect after a transient
@@ -28,6 +30,13 @@ class AriamiConnectHub {
   /// a slow track load, short enough that tapping play on a dead device does
   /// not fail silently.
   final Duration commandTimeout;
+
+  /// Bounded command retention prevents one controller from exhausting the
+  /// account-scoped session while results are outstanding.
+  final int maxPendingCommands;
+
+  /// Initial delivery plus retained-payload redeliveries to the active device.
+  final int maxCommandDeliveries;
 
   /// How long a peer may go without any inbound traffic before the sweep
   /// treats its socket as dead and evicts it. This is a backstop for sockets
@@ -110,6 +119,9 @@ class AriamiConnectHub {
     if (const {'desktop', 'mobile', 'tv'}.contains(clientType)) {
       peer.canPlay = hello?['canPlay'] as bool? ?? true;
       _sendWelcome(socket, peer);
+      if (session?.activeDeviceId == deviceId) {
+        _redeliverPendingCommands(session!, socket, peer);
+      }
       _broadcastDevices(userId);
     }
   }
@@ -248,6 +260,12 @@ class AriamiConnectHub {
     touch(socket);
     if (!message.type.startsWith('connect_')) return false;
     final data = message.data ?? const <String, dynamic>{};
+    try {
+      validateConnectJsonShape(data);
+    } on FormatException catch (error) {
+      _sendError(socket, 'INVALID_PAYLOAD', error.message);
+      return true;
+    }
     final peer = _peers[socket];
     if (peer == null) {
       // Authentication validation is asynchronous. Retain a hello that races
@@ -294,9 +312,9 @@ class AriamiConnectHub {
     }
     try {
       final raw = data['snapshot'];
-      if (raw is! Map) throw const FormatException('Missing snapshot');
+      final normalized = validateConnectSnapshotPayload(raw);
       final parsed = AriamiPlaybackSnapshot.fromJson(
-        Map<String, dynamic>.from(raw),
+        normalized,
       );
       final snapshot = AriamiPlaybackSnapshot.fromJson(parsed.toJson())
           .copyWith(updatedAt: DateTime.now().toUtc());
@@ -349,20 +367,14 @@ class AriamiConnectHub {
       if (rawTracks.length > AriamiPlaybackSnapshot.maxQueueLength) {
         throw const FormatException('Connect queue is too large');
       }
-      final tracks = <Map<String, dynamic>>[];
-      for (final rawTrack in rawTracks) {
-        if (rawTrack is! Map) {
-          throw const FormatException('Invalid Connect track');
-        }
-        final track = Map<String, dynamic>.from(rawTrack);
-        if ((track['id'] as String? ?? '').isEmpty) {
-          throw const FormatException('Invalid Connect track');
-        }
-        tracks.add(track);
-      }
+      final tracks =
+          rawTracks.map(validateConnectTrackPayload).toList(growable: false);
       final backingOrder =
           validateConnectBackingOrder(data['backingOrder'], tracks.length);
       final sourceId = data['sourceId'] as String?;
+      if (sourceId != null && sourceId.length > kMaxConnectSourceIdLength) {
+        throw const FormatException('Invalid Connect source');
+      }
       final session = _sessions.putIfAbsent(peer.userId, _ConnectSession.new);
       if (!_acceptEpoch(session, data)) {
         _sendAuthoritativeState(socket, session);
@@ -459,10 +471,123 @@ class AriamiConnectHub {
 
   void _handleCommand(
       WebSocketChannel socket, _ConnectPeer peer, Map<String, dynamic> data) {
-    final commandId = data['commandId'] as String? ??
-        '${DateTime.now().microsecondsSinceEpoch}-${peer.deviceId}';
-    final command = data['command'] as String? ?? '';
+    final commandId = data['commandId'] as String? ?? '';
     final session = _sessions[peer.userId];
+    if (commandId.isEmpty || commandId.length > kMaxConnectCommandIdLength) {
+      _sendCommandResult(
+        socket,
+        commandId,
+        ok: false,
+        code: 'INVALID_COMMAND_ID',
+        message: 'That command identifier is invalid.',
+        remember: false,
+        ownerEpoch: session?.ownerEpoch,
+        activeDeviceId: session?.activeDeviceId,
+      );
+      return;
+    }
+    if (session != null && !_acceptEpoch(session, data)) {
+      _sendCommandResult(
+        socket,
+        commandId,
+        ok: false,
+        code: 'STALE_OWNER',
+        message: 'Playback ownership changed before that command arrived.',
+        ownerEpoch: session.ownerEpoch,
+        activeDeviceId: session.activeDeviceId,
+      );
+      return;
+    }
+    final completed = session?.completedCommands[commandId];
+    if (completed != null) {
+      if (completed.requesterDeviceId != peer.deviceId) {
+        _sendCommandResult(
+          socket,
+          commandId,
+          ok: false,
+          code: 'COMMAND_ID_COLLISION',
+          message: 'That command identifier is already in use.',
+          remember: false,
+          ownerEpoch: session?.ownerEpoch,
+          activeDeviceId: session?.activeDeviceId,
+        );
+        return;
+      }
+      _send(socket, AriamiConnectMessageType.commandResult, completed.result);
+      return;
+    }
+    final existing = session?.pendingCommands[commandId];
+    if (existing != null) {
+      if (existing.requesterDeviceId != peer.deviceId) {
+        _sendCommandResult(
+          socket,
+          commandId,
+          ok: false,
+          code: 'COMMAND_ID_COLLISION',
+          message: 'That command identifier is already in use.',
+          remember: false,
+          ownerEpoch: session?.ownerEpoch,
+          activeDeviceId: session?.activeDeviceId,
+        );
+        return;
+      }
+      final retryOnly = data['retry'] == true &&
+          data.keys.every(const <String>{'commandId', 'retry'}.contains);
+      if (!retryOnly) {
+        // Older clients replay the full payload. It remains supported only
+        // when it is byte-for-byte equivalent to the immutable retained work.
+        final command = data['command'] as String? ?? '';
+        try {
+          final arguments = validateConnectCommandArguments(
+            command,
+            data['arguments'] ?? const <String, dynamic>{},
+          );
+          final fingerprint = jsonEncode(<String, dynamic>{
+            'command': command,
+            'arguments': arguments,
+          });
+          if (fingerprint != existing.fingerprint) {
+            throw const FormatException('Command payload changed');
+          }
+        } on FormatException {
+          _sendCommandResult(
+            socket,
+            commandId,
+            ok: false,
+            code: 'COMMAND_ID_COLLISION',
+            message: 'That command identifier was reused for different work.',
+            remember: false,
+            ownerEpoch: session?.ownerEpoch,
+            activeDeviceId: session?.activeDeviceId,
+          );
+          return;
+        }
+      }
+      // A controller can reconnect and retry through its newest socket. The
+      // hub redelivers its retained full payload; the target deduplicates it.
+      existing.requester = socket;
+      _deliverPendingCommand(session!, commandId, existing);
+      return;
+    }
+
+    if (data['retry'] == true) {
+      // Deliberately not remembered: the controller answers this by replaying
+      // its retained full payload under the same id, and a memoized failure
+      // would make the hub reject that replay instead of running it.
+      _sendCommandResult(
+        socket,
+        commandId,
+        ok: false,
+        code: 'UNKNOWN_COMMAND',
+        message: 'That retained command is no longer available.',
+        remember: false,
+        ownerEpoch: session?.ownerEpoch,
+        activeDeviceId: session?.activeDeviceId,
+      );
+      return;
+    }
+
+    final command = data['command'] as String? ?? '';
     if (!AriamiConnectCommand.supported.contains(command)) {
       _sendCommandResult(
         socket,
@@ -475,28 +600,24 @@ class AriamiConnectHub {
       );
       return;
     }
-    if (session != null && !_acceptEpoch(session, data)) {
+    late final Map<String, dynamic> arguments;
+    try {
+      arguments = validateConnectCommandArguments(
+        command,
+        data['arguments'] ?? const <String, dynamic>{},
+      );
+    } on FormatException catch (error) {
       _sendCommandResult(
         socket,
         commandId,
         ok: false,
-        message: 'Playback ownership changed before that command arrived.',
-        ownerEpoch: session.ownerEpoch,
-        activeDeviceId: session.activeDeviceId,
+        code: command == AriamiConnectCommand.playContext
+            ? 'PLAY_CONTEXT_TOO_LARGE'
+            : 'INVALID_ARGUMENTS',
+        message: error.message,
+        ownerEpoch: session?.ownerEpoch,
+        activeDeviceId: session?.activeDeviceId,
       );
-      return;
-    }
-    final completed = session?.completedCommands[commandId];
-    if (completed != null) {
-      _send(socket, AriamiConnectMessageType.commandResult, completed);
-      return;
-    }
-    final existing = session?.pendingCommands[commandId];
-    if (existing != null) {
-      // A controller can reconnect and replay before the active device answers.
-      // Move the eventual acknowledgement to its newest socket without running
-      // the playback action twice.
-      existing.requester = socket;
       return;
     }
     final target = _peerForDevice(peer.userId, session?.activeDeviceId);
@@ -523,13 +644,41 @@ class AriamiConnectHub {
       );
       return;
     }
-    if (peer.deviceId != session!.activeDeviceId) {
+    if (session!.pendingCommands.length >= maxPendingCommands) {
+      _sendCommandResult(
+        socket,
+        commandId,
+        ok: false,
+        code: 'COMMAND_OVERFLOW',
+        message: 'Too many playback commands are awaiting a result.',
+        ownerEpoch: session.ownerEpoch,
+        activeDeviceId: session.activeDeviceId,
+      );
+      return;
+    }
+    if (peer.deviceId != session.activeDeviceId) {
       session.lastControllerDeviceId = peer.deviceId;
     }
+    final payload = immutableConnectJson(<String, dynamic>{
+      'commandId': commandId,
+      'command': command,
+      'arguments': arguments,
+      'requestedBy': peer.deviceId,
+      'activeDeviceId': session.activeDeviceId,
+      'ownerEpoch': session.ownerEpoch,
+    })! as Map<String, dynamic>;
     final pending = _PendingCommand(
+      userId: peer.userId,
       requester: socket,
+      requesterDeviceId: peer.deviceId,
       targetDeviceId: target.peer.deviceId,
+      targetConnection: target.socket,
       ownerEpoch: session.ownerEpoch,
+      payload: payload,
+      fingerprint: jsonEncode(<String, dynamic>{
+        'command': command,
+        'arguments': arguments,
+      }),
     );
     session.pendingCommands[commandId] = pending;
     pending.timeout = Timer(commandTimeout, () {
@@ -538,25 +687,98 @@ class AriamiConnectHub {
         final result = <String, dynamic>{
           'commandId': commandId,
           'ok': false,
+          'code': 'COMMAND_TIMEOUT',
           'message': 'The active playback device is not responding.',
           'ownerEpoch': timedOut.ownerEpoch,
           'activeDeviceId': session.activeDeviceId,
         };
-        _rememberCommandResult(session, commandId, result);
+        _rememberCommandResult(
+            session, commandId, timedOut.requesterDeviceId, result);
         _send(
             timedOut.requester, AriamiConnectMessageType.commandResult, result);
       }
     });
-    _send(target.socket, AriamiConnectMessageType.command, <String, dynamic>{
+    _deliverPendingCommand(session, commandId, pending);
+  }
+
+  void _deliverPendingCommand(
+    _ConnectSession session,
+    String commandId,
+    _PendingCommand pending,
+  ) {
+    if (session.pendingCommands[commandId] != pending) return;
+    if (session.ownerEpoch != pending.ownerEpoch ||
+        session.activeDeviceId != pending.targetDeviceId) {
+      _settlePendingCommand(
+        session,
+        commandId,
+        pending,
+        code: 'STALE_OWNER',
+        message: 'Playback ownership changed before the command completed.',
+      );
+      return;
+    }
+    final target = _peerForDevice(
+      pending.userId,
+      pending.targetDeviceId,
+    );
+    if (target == null) return; // Retain until replacement or timeout.
+    if (pending.deliveryAttempts >= maxCommandDeliveries) {
+      _settlePendingCommand(
+        session,
+        commandId,
+        pending,
+        code: 'COMMAND_RETRY_EXHAUSTED',
+        message: 'The playback command could not be delivered reliably.',
+      );
+      return;
+    }
+    pending.targetConnection = target.socket;
+    pending.deliveryAttempts++;
+    _send(target.socket, AriamiConnectMessageType.command, pending.payload);
+  }
+
+  void _redeliverPendingCommands(
+    _ConnectSession session,
+    WebSocketChannel replacement,
+    _ConnectPeer peer,
+  ) {
+    for (final entry
+        in session.pendingCommands.entries.toList(growable: false)) {
+      final pending = entry.value;
+      if (pending.targetDeviceId != peer.deviceId ||
+          pending.ownerEpoch != session.ownerEpoch) {
+        continue;
+      }
+      pending.targetConnection = replacement;
+      _deliverPendingCommand(session, entry.key, pending);
+    }
+  }
+
+  void _settlePendingCommand(
+    _ConnectSession session,
+    String commandId,
+    _PendingCommand pending, {
+    required String code,
+    required String message,
+  }) {
+    if (session.pendingCommands.remove(commandId) != pending) return;
+    pending.timeout?.cancel();
+    final result = <String, dynamic>{
       'commandId': commandId,
-      'command': command,
-      'arguments': data['arguments'] is Map
-          ? Map<String, dynamic>.from(data['arguments'] as Map)
-          : const <String, dynamic>{},
-      'requestedBy': peer.deviceId,
-      'activeDeviceId': session.activeDeviceId,
+      'ok': false,
+      'code': code,
+      'message': message,
       'ownerEpoch': session.ownerEpoch,
-    });
+      'activeDeviceId': session.activeDeviceId,
+    };
+    _rememberCommandResult(
+      session,
+      commandId,
+      pending.requesterDeviceId,
+      result,
+    );
+    _send(pending.requester, AriamiConnectMessageType.commandResult, result);
   }
 
   void _handleCommandResult(_ConnectPeer peer, Map<String, dynamic> data) {
@@ -580,7 +802,12 @@ class AriamiConnectHub {
       final result = Map<String, dynamic>.from(data)
         ..putIfAbsent('ownerEpoch', () => pending.ownerEpoch)
         ..putIfAbsent('activeDeviceId', () => session.activeDeviceId);
-      _rememberCommandResult(session, commandId, result);
+      _rememberCommandResult(
+        session,
+        commandId,
+        pending.requesterDeviceId,
+        result,
+      );
       _send(pending.requester, AriamiConnectMessageType.commandResult, result);
     }
   }
@@ -593,25 +820,43 @@ class AriamiConnectHub {
     String? message,
     int? ownerEpoch,
     String? activeDeviceId,
+    bool remember = true,
   }) {
-    _send(socket, AriamiConnectMessageType.commandResult, <String, dynamic>{
+    final result = <String, dynamic>{
       'commandId': commandId,
       'ok': ok,
       if (code != null) 'code': code,
       if (message != null) 'message': message,
       if (ownerEpoch != null) 'ownerEpoch': ownerEpoch,
       if (activeDeviceId != null) 'activeDeviceId': activeDeviceId,
-    });
+    };
+    if (remember && commandId.isNotEmpty) {
+      final requester = _peers[socket];
+      final session = requester == null ? null : _sessions[requester.userId];
+      if (session != null) {
+        _rememberCommandResult(
+          session,
+          commandId,
+          requester!.deviceId,
+          result,
+        );
+      }
+    }
+    _send(socket, AriamiConnectMessageType.commandResult, result);
   }
 
   void _rememberCommandResult(
     _ConnectSession session,
     String commandId,
+    String requesterDeviceId,
     Map<String, dynamic> data,
   ) {
     session.completedCommands.remove(commandId);
-    session.completedCommands[commandId] = Map<String, dynamic>.from(data);
-    while (session.completedCommands.length > 256) {
+    session.completedCommands[commandId] = _CompletedCommand(
+      requesterDeviceId: requesterDeviceId,
+      result: Map<String, dynamic>.unmodifiable(data),
+    );
+    while (session.completedCommands.length > kMaxCompletedConnectCommands) {
       session.completedCommands.remove(session.completedCommands.keys.first);
     }
   }
@@ -966,11 +1211,17 @@ class AriamiConnectHub {
       final result = <String, dynamic>{
         'commandId': entry.key,
         'ok': false,
+        'code': 'STALE_OWNER',
         'message': 'Playback ownership changed before the command completed.',
         'ownerEpoch': session.ownerEpoch,
         'activeDeviceId': session.activeDeviceId,
       };
-      _rememberCommandResult(session, entry.key, result);
+      _rememberCommandResult(
+        session,
+        entry.key,
+        entry.value.requesterDeviceId,
+        result,
+      );
       _send(entry.value.requester, AriamiConnectMessageType.commandResult,
           result);
     }
@@ -1116,8 +1367,8 @@ class _ConnectSession {
   Timer? disconnectTimer;
   final Map<String, _PendingCommand> pendingCommands = {};
   final Map<String, _PendingFormerOwnerPause> pendingFormerOwnerPauses = {};
-  final LinkedHashMap<String, Map<String, dynamic>> completedCommands =
-      LinkedHashMap<String, Map<String, dynamic>>();
+  final LinkedHashMap<String, _CompletedCommand> completedCommands =
+      LinkedHashMap<String, _CompletedCommand>();
   final Map<String, _PendingTransfer> pendingTransfers = {};
 }
 
@@ -1140,14 +1391,35 @@ class _ConnectQueueData {
 
 class _PendingCommand {
   _PendingCommand({
+    required this.userId,
     required this.requester,
+    required this.requesterDeviceId,
     required this.targetDeviceId,
+    required this.targetConnection,
     required this.ownerEpoch,
+    required this.payload,
+    required this.fingerprint,
   });
+  final String userId;
   WebSocketChannel requester;
+  final String requesterDeviceId;
   final String targetDeviceId;
+  WebSocketChannel targetConnection;
   final int ownerEpoch;
+  final Map<String, dynamic> payload;
+  final String fingerprint;
+  int deliveryAttempts = 0;
   Timer? timeout;
+}
+
+class _CompletedCommand {
+  const _CompletedCommand({
+    required this.requesterDeviceId,
+    required this.result,
+  });
+
+  final String requesterDeviceId;
+  final Map<String, dynamic> result;
 }
 
 class _PendingFormerOwnerPause {

@@ -228,16 +228,75 @@
     },
     {
       "slice": 7,
-      "coverage": "representative",
-      "probe": "command_is_lost_on_target_replacement",
+      "coverage": "complete",
+      "probes": [
+        "raw_message_limit",
+        "bounded_command_shapes",
+        "oversized_play_context",
+        "target_socket_replacement",
+        "small_retry_envelope",
+        "target_execution_idempotent",
+        "epoch_change_fails_pending_command",
+        "command_overflow",
+        "command_timeout",
+        "retry_exhaustion",
+        "optimistic_reconciliation",
+        "play_context_backing_order",
+        "four_client_reliable_command_parity"
+      ],
       "failureModes": [
-        "raw message is decoded before a size limit",
-        "queue strings nesting or arguments are unbounded",
-        "play_context overflow has no explicit failure",
-        "target socket replacement loses a command",
-        "retry executes a command more than once",
-        "ownership change leaves command result ambiguous",
-        "timeout or retry exhaustion leaves optimistic state sticky"
+        {
+          "name": "raw message is decoded before a size limit",
+          "probe": "raw_message_limit"
+        },
+        {
+          "name": "queue strings nesting or arguments are unbounded",
+          "probe": "bounded_command_shapes"
+        },
+        {
+          "name": "play_context overflow has no explicit failure",
+          "probe": "oversized_play_context"
+        },
+        {
+          "name": "target socket replacement loses a command",
+          "probe": "target_socket_replacement"
+        },
+        {
+          "name": "controller retries resend the full payload",
+          "probe": "small_retry_envelope"
+        },
+        {
+          "name": "retry executes a command more than once",
+          "probe": "target_execution_idempotent"
+        },
+        {
+          "name": "ownership change leaves command result ambiguous",
+          "probe": "epoch_change_fails_pending_command"
+        },
+        {
+          "name": "pending command overflow is silent",
+          "probe": "command_overflow"
+        },
+        {
+          "name": "hub timeout is not explicit",
+          "probe": "command_timeout"
+        },
+        {
+          "name": "retry exhaustion is silent",
+          "probe": "retry_exhaustion"
+        },
+        {
+          "name": "failed commands leave optimistic state sticky",
+          "probe": "optimistic_reconciliation"
+        },
+        {
+          "name": "play_context drops known backing order",
+          "probe": "play_context_backing_order"
+        },
+        {
+          "name": "reliable command behavior differs across clients",
+          "probe": "four_client_reliable_command_parity"
+        }
       ]
     },
     {

@@ -809,6 +809,250 @@ void main() {
       }
     });
   });
+
+  group('slice 7 bounded reliable commands', () {
+    test('[small_retry_envelope] retries carry only a collision-proof id',
+        () async {
+      final clock = _FakeTimerClock();
+      final socket = _FakeWebSocketChannel();
+      final factory = _SocketFactory(clock, <_FakeWebSocketChannel>[socket]);
+      final client = _client(factory, clock);
+      addTearDown(client.dispose);
+      await client.connect(baseUrl: 'http://ariami.test');
+      socket.serverMessage(
+        AriamiConnectMessageType.welcome,
+        _authority(epoch: 4, owner: 'tv'),
+      );
+      await _pumpTwice();
+
+      client.sendCommand(
+        AriamiConnectCommand.seek,
+        <String, dynamic>{'positionMs': 1234},
+      );
+      final first = socket.sentMessages.lastWhere(
+          (message) => message.type == AriamiConnectMessageType.command);
+      final commandId = first.data?['commandId'] as String;
+      expect(
+        commandId,
+        matches(RegExp(
+            r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$')),
+      );
+
+      clock.elapse(const Duration(seconds: 4));
+      final commands = socket.sentMessages
+          .where((message) => message.type == AriamiConnectMessageType.command)
+          .toList(growable: false);
+      expect(commands, hasLength(2));
+      expect(commands.last.data, <String, dynamic>{
+        'commandId': commandId,
+        'retry': true,
+      });
+      expect(
+        utf8.encode(jsonEncode(commands.last.toJson())).length,
+        lessThan(utf8.encode(jsonEncode(first.toJson())).length),
+      );
+    });
+
+    test('[small_retry_envelope] a hub that cannot honour the envelope gets '
+        'the retained payload', () async {
+      for (final code in <String>['UNKNOWN_COMMAND', 'UNSUPPORTED_COMMAND']) {
+        final clock = _FakeTimerClock();
+        final socket = _FakeWebSocketChannel();
+        final factory = _SocketFactory(clock, <_FakeWebSocketChannel>[socket]);
+        final client = _client(factory, clock);
+        addTearDown(client.dispose);
+        await client.connect(baseUrl: 'http://ariami.test');
+        socket.serverMessage(
+          AriamiConnectMessageType.welcome,
+          _authority(epoch: 1, owner: 'tv'),
+        );
+        await _pumpTwice();
+
+        client.sendCommand(
+          AriamiConnectCommand.seek,
+          <String, dynamic>{'positionMs': 1234},
+        );
+        final first = socket.sentMessages.lastWhere(
+            (message) => message.type == AriamiConnectMessageType.command);
+        final commandId = first.data?['commandId'] as String;
+        clock.elapse(const Duration(seconds: 4));
+
+        // An older hub reads the envelope as an empty command; a restarted hub
+        // no longer holds the payload. Either way the work must still run.
+        socket.serverMessage(
+          AriamiConnectMessageType.commandResult,
+          <String, dynamic>{
+            'commandId': commandId,
+            'ok': false,
+            'code': code,
+            'message': 'no retained payload',
+            'ownerEpoch': 1,
+            'activeDeviceId': 'tv',
+          },
+        );
+        await _pumpTwice();
+
+        final commands = socket.sentMessages
+            .where(
+                (message) => message.type == AriamiConnectMessageType.command)
+            .toList(growable: false);
+        expect(commands, hasLength(3), reason: code);
+        expect(commands.last.data, first.data, reason: code);
+        expect(client.pendingCommandCount, 1, reason: code);
+        expect(client.errorCode, isNull, reason: code);
+
+        // The replay is sent once. A hub that fails it again surfaces the
+        // failure rather than looping.
+        socket.serverMessage(
+          AriamiConnectMessageType.commandResult,
+          <String, dynamic>{
+            'commandId': commandId,
+            'ok': false,
+            'code': code,
+            'ownerEpoch': 1,
+            'activeDeviceId': 'tv',
+          },
+        );
+        await _pumpTwice();
+        expect(
+          socket.sentMessages
+              .where(
+                  (message) => message.type == AriamiConnectMessageType.command)
+              .length,
+          3,
+          reason: code,
+        );
+        expect(client.errorCode, code, reason: code);
+        expect(client.pendingCommandCount, 0, reason: code);
+      }
+    });
+
+    test('[target_execution_idempotent] a repeated id executes exactly once',
+        () async {
+      final clock = _FakeTimerClock();
+      final socket = _FakeWebSocketChannel();
+      final factory = _SocketFactory(clock, <_FakeWebSocketChannel>[socket]);
+      var executions = 0;
+      final client = _client(
+        factory,
+        clock,
+        handleCommand: (_, __) async => executions++,
+      );
+      addTearDown(client.dispose);
+      await client.connect(baseUrl: 'http://ariami.test');
+      socket.serverMessage(
+        AriamiConnectMessageType.welcome,
+        _authority(epoch: 1, owner: 'fault-client'),
+      );
+      await _pumpTwice();
+      final command = <String, dynamic>{
+        ..._authority(epoch: 1, owner: 'fault-client'),
+        'commandId': 'same-command-id',
+        'command': AriamiConnectCommand.pause,
+        'arguments': const <String, dynamic>{},
+      };
+
+      socket.serverMessage(AriamiConnectMessageType.command, command);
+      socket.serverMessage(AriamiConnectMessageType.command, command);
+      await _pumpTwice();
+      await _pumpTwice();
+
+      expect(executions, 1);
+      expect(
+        socket.sentMessages.where((message) =>
+            message.type == AriamiConnectMessageType.commandResult &&
+            message.data?['commandId'] == 'same-command-id'),
+        hasLength(2),
+      );
+    });
+
+    test(
+        '[optimistic_reconciliation] [client_retry_exhaustion] failure is visible',
+        () async {
+      final clock = _FakeTimerClock();
+      final socket = _FakeWebSocketChannel();
+      final factory = _SocketFactory(clock, <_FakeWebSocketChannel>[socket]);
+      var changes = 0;
+      final client = _client(
+        factory,
+        clock,
+        commandAckTimeout: const Duration(seconds: 1),
+        maxCommandAttempts: 2,
+        onChanged: () => changes++,
+      );
+      addTearDown(client.dispose);
+      await client.connect(baseUrl: 'http://ariami.test');
+      socket.serverMessage(
+        AriamiConnectMessageType.welcome,
+        _authority(epoch: 1, owner: 'tv'),
+      );
+      await _pumpTwice();
+      final changesBefore = changes;
+
+      client.sendCommand(AriamiConnectCommand.pause);
+      clock.elapse(const Duration(seconds: 2));
+      await _pumpTwice();
+
+      expect(client.pendingCommandCount, 0);
+      expect(client.errorCode, 'COMMAND_RETRY_EXHAUSTED');
+      expect(client.errorMessage, isNotEmpty);
+      expect(changes, greaterThan(changesBefore));
+
+      client.sendCommand(AriamiConnectCommand.play);
+      final recovery = socket.sentMessages.lastWhere((message) =>
+          message.type == AriamiConnectMessageType.command &&
+          message.data?['retry'] != true);
+      socket.serverMessage(
+        AriamiConnectMessageType.commandResult,
+        <String, dynamic>{
+          'commandId': recovery.data?['commandId'],
+          'ok': true,
+          'ownerEpoch': 1,
+          'activeDeviceId': 'tv',
+        },
+      );
+      await _pumpTwice();
+      expect(client.errorCode, isNull);
+      expect(client.errorMessage, isNull);
+    });
+
+    test('[oversized_play_context] invalid metadata never crosses the socket',
+        () async {
+      final clock = _FakeTimerClock();
+      final socket = _FakeWebSocketChannel();
+      final factory = _SocketFactory(clock, <_FakeWebSocketChannel>[socket]);
+      final client = _client(factory, clock);
+      addTearDown(client.dispose);
+      await client.connect(baseUrl: 'http://ariami.test');
+      socket.serverMessage(
+        AriamiConnectMessageType.welcome,
+        _authority(epoch: 1, owner: 'tv'),
+      );
+      await _pumpTwice();
+      final before = socket.sentMessages
+          .where((message) => message.type == AriamiConnectMessageType.command)
+          .length;
+
+      client.sendCommand(
+        AriamiConnectCommand.playContext,
+        <String, dynamic>{
+          'snapshot': <String, dynamic>{
+            'queue': <Map<String, dynamic>>[
+              <String, dynamic>{'id': 'track', 'title': 'x' * 513},
+            ],
+          },
+        },
+      );
+      await _pumpTwice();
+
+      expect(client.errorCode, 'PLAY_CONTEXT_TOO_LARGE');
+      expect(
+        socket.sentMessages.where(
+            (message) => message.type == AriamiConnectMessageType.command),
+        hasLength(before),
+      );
+    });
+  });
 }
 
 AriamiConnectClient _client(
@@ -817,6 +1061,9 @@ AriamiConnectClient _client(
   Duration connectTimeout = const Duration(seconds: 8),
   Duration refreshCloseTimeout = const Duration(seconds: 1),
   Duration disposeTimeout = const Duration(seconds: 1),
+  Duration commandAckTimeout = const Duration(seconds: 4),
+  int maxCommandAttempts = 4,
+  void Function()? onChanged,
   void Function()? onAuthenticationRequired,
   Future<void> Function()? pauseForTransfer,
   ConnectCommandHandler? handleCommand,
@@ -833,9 +1080,12 @@ AriamiConnectClient _client(
       handleCommand: handleCommand ?? (_, __) async {},
       pauseForTransfer: pauseForTransfer ?? () async {},
       supportedCommands: supportedCommands,
+      commandAckTimeout: commandAckTimeout,
+      maxCommandAttempts: maxCommandAttempts,
       connectTimeout: connectTimeout,
       refreshCloseTimeout: refreshCloseTimeout,
       disposeTimeout: disposeTimeout,
+      onChanged: onChanged,
       onAuthenticationRequired: onAuthenticationRequired,
       webSocketFactory: sockets.call,
       timerFactory: clock.timer,

@@ -2,6 +2,128 @@ import 'package:ariami_core/models/connect_models.dart';
 import 'package:test/test.dart';
 
 void main() {
+  group('slice 7 payload bounds', () {
+    test('[raw_message_limit] input above measured 8 MiB is rejected', () {
+      expect(isConnectRawMessageWithinLimit('{}'), isTrue);
+      expect(
+        isConnectRawMessageWithinLimit(
+          'x' * (kMaxConnectRawMessageBytes + 1),
+        ),
+        isFalse,
+      );
+    });
+
+    test('[bounded_command_shapes] accepts real long-tail track metadata', () {
+      // Measured against 274,360 real plays: the longest title is a
+      // 203-character medley. Bounds must clear the long tail of real tags,
+      // because one rejected track fails the whole queue publication.
+      final validated = validateConnectCommandArguments(
+        AriamiConnectCommand.insertQueueTrack,
+        <String, dynamic>{
+          'index': 0,
+          'track': <String, dynamic>{
+            'id': 'a1b2c3d4e5f6',
+            'title': 'Medley: ${'Lawdy, Miss Clawdy / ' * 10}All Shook Up',
+            'artist': 'A' * 300,
+            'album': 'B' * 300,
+            'filePath': '/Volumes/Music/${'nested folder/' * 30}track.mp3',
+          },
+        },
+      );
+      final track = Map<String, dynamic>.from(validated['track'] as Map);
+      expect((track['title'] as String).length, greaterThan(200));
+      expect((track['filePath'] as String).length, greaterThan(400));
+    });
+
+    test('[bounded_command_shapes] rejects nesting and oversized strings', () {
+      expect(
+        () => validateConnectCommandArguments(
+          AriamiConnectCommand.seek,
+          <String, dynamic>{
+            'positionMs': 1,
+            'nested': <String, dynamic>{'unexpected': true},
+          },
+        ),
+        throwsFormatException,
+      );
+      expect(
+        () => validateConnectCommandArguments(
+          AriamiConnectCommand.insertQueueTrack,
+          <String, dynamic>{
+            'index': 0,
+            'track': <String, dynamic>{
+              'id': 'x' * 65,
+              'title': 'Song',
+            },
+          },
+        ),
+        throwsFormatException,
+      );
+      expect(
+        () => validateConnectCommandArguments(
+          AriamiConnectCommand.insertQueueTrack,
+          <String, dynamic>{
+            'index': 0,
+            'track': <String, dynamic>{'id': 7},
+          },
+        ),
+        throwsFormatException,
+      );
+      expect(
+        () => validateConnectCommandArguments(
+          AriamiConnectCommand.playContext,
+          <String, dynamic>{
+            'snapshot': <String, dynamic>{
+              'queue': <Map<String, dynamic>>[],
+              'currentIndex': 'zero',
+            },
+          },
+        ),
+        throwsFormatException,
+      );
+    });
+
+    test('[play_context_backing_order] preserves order and rejects overflow',
+        () {
+      final validated = validateConnectCommandArguments(
+        AriamiConnectCommand.playContext,
+        <String, dynamic>{
+          'snapshot': <String, dynamic>{
+            'queue': <Map<String, dynamic>>[
+              <String, dynamic>{'id': 'duplicate', 'title': 'First'},
+              <String, dynamic>{'id': 'duplicate', 'title': 'Second'},
+            ],
+            'backingOrder': <int>[1, 0],
+            'currentIndex': 0,
+            'positionMs': 0,
+            'durationMs': 1000,
+            'isPlaying': true,
+            'shuffle': true,
+            'repeatMode': 'off',
+            'volume': 1,
+          },
+        },
+      );
+      final snapshot = Map<String, dynamic>.from(validated['snapshot'] as Map);
+      expect(snapshot['backingOrder'], <int>[1, 0]);
+
+      expect(
+        () => validateConnectCommandArguments(
+          AriamiConnectCommand.playContext,
+          <String, dynamic>{
+            'snapshot': <String, dynamic>{
+              'queue': List<Map<String, dynamic>>.generate(
+                AriamiPlaybackSnapshot.maxQueueLength + 1,
+                (index) => <String, dynamic>{'id': 'track-$index'},
+              ),
+            },
+          },
+        ),
+        throwsFormatException,
+      );
+    });
+  });
+
   test('clear queue is a supported Connect command', () {
     expect(
       AriamiConnectCommand.supported,

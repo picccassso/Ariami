@@ -125,6 +125,11 @@
               "modifiedTime": "2026-01-02T03:04:07.000Z"
             }
           ],
+          "backingOrder": [
+            2,
+            0,
+            1
+          ],
           "currentIndex": 1,
           "positionMs": 45678,
           "durationMs": 202000,
@@ -202,6 +207,24 @@
       "sourceId": "playlist:shared-fixture"
     },
     "timestamp": "2026-01-02T03:04:10.000Z"
+  },
+  "reliableCommands": {
+    "rawMessageLimitBytes": 8388608,
+    "maxPendingCommands": 64,
+    "maxCompletedCommands": 256,
+    "maxCommandAttempts": 4,
+    "retryEnvelope": {
+      "commandId": "550e8400-e29b-41d4-a716-446655440000",
+      "retry": true
+    },
+    "explicitFailureCodes": [
+      "INVALID_ARGUMENTS",
+      "PLAY_CONTEXT_TOO_LARGE",
+      "COMMAND_OVERFLOW",
+      "COMMAND_TIMEOUT",
+      "COMMAND_RETRY_EXHAUSTED",
+      "STALE_OWNER"
+    ]
   },
   "clientBaselines": {
     "mobile": {

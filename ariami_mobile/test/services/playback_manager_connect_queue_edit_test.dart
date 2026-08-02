@@ -281,4 +281,54 @@ void main() {
 
     manager.setConnectRemoteMirror(null);
   });
+
+  test('[play_context_backing_order] shuffled remote play retains source order',
+      () async {
+    final manager = PlaybackManager();
+    final sent = <(String, Map<String, dynamic>?)>[];
+    manager.setConnectRemoteMirror(
+      _remote(),
+      sendCommand: (command, [arguments]) => sent.add((command, arguments)),
+    );
+    final songs = <Song>[
+      Song(
+        id: 'a',
+        title: 'A',
+        artist: 'Artist',
+        duration: const Duration(minutes: 1),
+        filePath: '/a',
+        fileSize: 1,
+        modifiedTime: DateTime(2026),
+      ),
+      Song(
+        id: 'b',
+        title: 'B',
+        artist: 'Artist',
+        duration: const Duration(minutes: 1),
+        filePath: '/b',
+        fileSize: 1,
+        modifiedTime: DateTime(2026),
+      ),
+      Song(
+        id: 'c',
+        title: 'C',
+        artist: 'Artist',
+        duration: const Duration(minutes: 1),
+        filePath: '/c',
+        fileSize: 1,
+        modifiedTime: DateTime(2026),
+      ),
+    ];
+
+    await manager.playShuffled(songs);
+    final snapshot = AriamiPlaybackSnapshot.fromJson(
+      Map<String, dynamic>.from(sent.single.$2!['snapshot'] as Map),
+    );
+    expect(snapshot.shuffle, isTrue);
+    expect(
+      snapshot.backingOrder.map((index) => snapshot.queue[index]['id']),
+      <String>['a', 'b', 'c'],
+    );
+    manager.setConnectRemoteMirror(null);
+  });
 }

@@ -318,9 +318,12 @@ class PlaybackManager extends ChangeNotifier {
   /// Play all songs and shuffle if requested
   Future<void> playShuffled(List<Song> songs) {
     if (_connectRemote != null) {
+      final resolvedOrder = List<int>.generate(songs.length, (index) => index)
+        ..shuffle();
       _sendConnectPlayContext(
-        List<Song>.from(songs)..shuffle(),
+        resolvedOrder.map((index) => songs[index]).toList(growable: false),
         shuffle: true,
+        backingOrder: connectBackingOrderFor(resolvedOrder, songs.length),
       );
       return Future.value();
     }

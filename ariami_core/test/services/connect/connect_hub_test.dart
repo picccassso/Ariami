@@ -121,6 +121,7 @@ void main() {
           data: const <String, dynamic>{
             'commandId': 'unsupported-volume',
             'command': AriamiConnectCommand.setVolume,
+            'arguments': <String, dynamic>{'volume': 0.5},
           },
         ),
       );
@@ -152,6 +153,266 @@ void main() {
             message.type == AriamiConnectMessageType.command &&
             message.data?['commandId'] == 'supported-pause'),
         hasLength(1),
+      );
+    });
+  });
+
+  group('slice 7 bounded reliable commands', () {
+    test(
+        '[target_socket_replacement] retained payload executes through replacement',
+        () {
+      final hub = AriamiConnectHub();
+      addTearDown(hub.dispose);
+      final controller = _FakeChannel();
+      final target = _FakeChannel();
+      hub.register(
+        controller,
+        userId: 'user',
+        deviceId: 'controller',
+        deviceName: 'Controller',
+        clientType: 'mobile',
+      );
+      hub.register(
+        target,
+        userId: 'user',
+        deviceId: 'target',
+        deviceName: 'Target',
+        clientType: 'tv',
+      );
+      hub.handle(target, _stateMessage(activate: true));
+      hub.handle(
+        controller,
+        WsMessage(
+          type: AriamiConnectMessageType.command,
+          data: const <String, dynamic>{
+            'commandId': 'replacement-command',
+            'command': AriamiConnectCommand.seek,
+            'arguments': <String, dynamic>{'positionMs': 4321},
+            'ownerEpoch': 1,
+          },
+        ),
+      );
+      final first = _lastMessage(target, AriamiConnectMessageType.command);
+
+      final replacement = _FakeChannel();
+      hub.register(
+        replacement,
+        userId: 'user',
+        deviceId: 'target',
+        deviceName: 'Target',
+        clientType: 'tv',
+      );
+      final redelivered =
+          _lastMessage(replacement, AriamiConnectMessageType.command);
+      expect(redelivered.data, first.data);
+      expect(target.closeCode, 4000);
+
+      hub.handle(
+        replacement,
+        WsMessage(
+          type: AriamiConnectMessageType.commandResult,
+          data: const <String, dynamic>{
+            'commandId': 'replacement-command',
+            'ok': true,
+            'ownerEpoch': 1,
+          },
+        ),
+      );
+      final result =
+          _lastMessage(controller, AriamiConnectMessageType.commandResult);
+      expect(result.data?['ok'], isTrue);
+    });
+
+    test('[command_overflow] pending work fails explicitly at the bound', () {
+      final hub = AriamiConnectHub(maxPendingCommands: 1);
+      addTearDown(hub.dispose);
+      final controller = _FakeChannel();
+      final target = _FakeChannel();
+      hub.register(controller,
+          userId: 'user',
+          deviceId: 'controller',
+          deviceName: 'Controller',
+          clientType: 'mobile');
+      hub.register(target,
+          userId: 'user',
+          deviceId: 'target',
+          deviceName: 'Target',
+          clientType: 'tv');
+      hub.handle(target, _stateMessage(activate: true));
+
+      for (final id in <String>['first', 'overflow']) {
+        hub.handle(
+          controller,
+          WsMessage(
+            type: AriamiConnectMessageType.command,
+            data: <String, dynamic>{
+              'commandId': id,
+              'command': AriamiConnectCommand.pause,
+              'ownerEpoch': 1,
+            },
+          ),
+        );
+      }
+      final result =
+          _lastMessage(controller, AriamiConnectMessageType.commandResult);
+      expect(result.data?['commandId'], 'overflow');
+      expect(result.data?['code'], 'COMMAND_OVERFLOW');
+    });
+
+    test('[small_retry_envelope] an unretained retry still accepts a replay',
+        () {
+      // A restarted hub has no retained payload. Its UNKNOWN_COMMAND answer
+      // must not be memoized, or the controller's full-payload replay under
+      // the same id would be answered from the cache instead of running.
+      final hub = AriamiConnectHub();
+      addTearDown(hub.dispose);
+      final controller = _FakeChannel();
+      final target = _FakeChannel();
+      hub.register(controller,
+          userId: 'user',
+          deviceId: 'controller',
+          deviceName: 'Controller',
+          clientType: 'mobile');
+      hub.register(target,
+          userId: 'user',
+          deviceId: 'target',
+          deviceName: 'Target',
+          clientType: 'tv');
+      hub.handle(target, _stateMessage(activate: true));
+
+      hub.handle(
+        controller,
+        WsMessage(
+          type: AriamiConnectMessageType.command,
+          data: const <String, dynamic>{
+            'commandId': 'lost-payload',
+            'retry': true,
+          },
+        ),
+      );
+      expect(
+        _lastMessage(controller, AriamiConnectMessageType.commandResult)
+            .data?['code'],
+        'UNKNOWN_COMMAND',
+      );
+
+      hub.handle(
+        controller,
+        WsMessage(
+          type: AriamiConnectMessageType.command,
+          data: const <String, dynamic>{
+            'commandId': 'lost-payload',
+            'command': AriamiConnectCommand.seek,
+            'arguments': <String, dynamic>{'positionMs': 9000},
+          },
+        ),
+      );
+      final delivered = _lastMessage(target, AriamiConnectMessageType.command);
+      expect(delivered.data?['commandId'], 'lost-payload');
+      expect(delivered.data?['arguments'], <String, dynamic>{
+        'positionMs': 9000,
+      });
+    });
+
+    test('[retry_exhaustion] retained delivery exhaustion is deterministic',
+        () {
+      final hub = AriamiConnectHub(maxCommandDeliveries: 2);
+      addTearDown(hub.dispose);
+      final controller = _FakeChannel();
+      final target = _FakeChannel();
+      hub.register(controller,
+          userId: 'user',
+          deviceId: 'controller',
+          deviceName: 'Controller',
+          clientType: 'mobile');
+      hub.register(target,
+          userId: 'user',
+          deviceId: 'target',
+          deviceName: 'Target',
+          clientType: 'tv');
+      hub.handle(target, _stateMessage(activate: true));
+      hub.handle(
+        controller,
+        WsMessage(
+          type: AriamiConnectMessageType.command,
+          data: const <String, dynamic>{
+            'commandId': 'exhausted',
+            'command': AriamiConnectCommand.pause,
+          },
+        ),
+      );
+      for (var retry = 0; retry < 2; retry++) {
+        hub.handle(
+          controller,
+          WsMessage(
+            type: AriamiConnectMessageType.command,
+            data: const <String, dynamic>{
+              'commandId': 'exhausted',
+              'retry': true,
+            },
+          ),
+        );
+      }
+      expect(
+        target.messages.where((message) =>
+            message.type == AriamiConnectMessageType.command &&
+            message.data?['commandId'] == 'exhausted'),
+        hasLength(2),
+      );
+      final result =
+          _lastMessage(controller, AriamiConnectMessageType.commandResult);
+      expect(result.data?['code'], 'COMMAND_RETRY_EXHAUSTED');
+    });
+
+    test('[malformed_command] invalid input fails and the socket stays usable',
+        () {
+      final hub = AriamiConnectHub();
+      addTearDown(hub.dispose);
+      final controller = _FakeChannel();
+      final target = _FakeChannel();
+      hub.register(controller,
+          userId: 'user',
+          deviceId: 'controller',
+          deviceName: 'Controller',
+          clientType: 'mobile');
+      hub.register(target,
+          userId: 'user',
+          deviceId: 'target',
+          deviceName: 'Target',
+          clientType: 'tv');
+      hub.handle(target, _stateMessage(activate: true));
+
+      hub.handle(
+        controller,
+        WsMessage(
+          type: AriamiConnectMessageType.command,
+          data: const <String, dynamic>{
+            'commandId': 'malformed',
+            'command': AriamiConnectCommand.seek,
+            'arguments': <String, dynamic>{'positionMs': 'later'},
+          },
+        ),
+      );
+      expect(
+        _lastMessage(controller, AriamiConnectMessageType.commandResult)
+            .data?['code'],
+        'INVALID_ARGUMENTS',
+      );
+
+      hub.handle(
+        controller,
+        WsMessage(
+          type: AriamiConnectMessageType.command,
+          data: const <String, dynamic>{
+            'commandId': 'still-usable',
+            'command': AriamiConnectCommand.pause,
+          },
+        ),
+      );
+      expect(
+        _lastMessage(target, AriamiConnectMessageType.command)
+            .data?['commandId'],
+        'still-usable',
       );
     });
   });
@@ -675,7 +936,7 @@ void main() {
     );
   });
 
-  test('an unanswered command reports the active device as offline', () async {
+  test('[command_timeout] unanswered command fails explicitly', () async {
     final hub = AriamiConnectHub(
       commandTimeout: const Duration(milliseconds: 20),
     );
@@ -753,7 +1014,7 @@ void main() {
     );
   });
 
-  test('duplicate command ids execute once and replay the cached result', () {
+  test('command retries redeliver retained work and replay cached results', () {
     final hub = AriamiConnectHub();
     final phone = _FakeChannel();
     final tv = _FakeChannel();
@@ -774,13 +1035,21 @@ void main() {
       },
     );
     hub.handle(phone, command);
-    hub.handle(phone, command);
-
+    hub.handle(
+      phone,
+      WsMessage(
+        type: AriamiConnectMessageType.command,
+        data: const <String, dynamic>{
+          'commandId': 'retry-safe-command',
+          'retry': true,
+        },
+      ),
+    );
     expect(
       tv.messages.where((message) =>
           message.type == AriamiConnectMessageType.command &&
           message.data?['commandId'] == 'retry-safe-command'),
-      hasLength(1),
+      hasLength(2),
     );
 
     hub.handle(
@@ -805,7 +1074,7 @@ void main() {
       tv.messages.where((message) =>
           message.type == AriamiConnectMessageType.command &&
           message.data?['commandId'] == 'retry-safe-command'),
-      hasLength(1),
+      hasLength(2),
     );
     expect(
       phone.messages.where((message) =>
@@ -1181,6 +1450,7 @@ void main() {
         data: const <String, dynamic>{
           'commandId': 'in-flight',
           'command': AriamiConnectCommand.seek,
+          'arguments': <String, dynamic>{'positionMs': 1000},
           'ownerEpoch': 1,
         },
       ),

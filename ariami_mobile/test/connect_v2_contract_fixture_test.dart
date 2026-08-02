@@ -9,7 +9,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test(
-      '[four_client_capability_parity] mobile consumes the shared Connect '
+      '[four_client_capability_parity] [four_client_reliable_command_parity] '
+      'mobile consumes the shared Connect '
       'contract fixture', () {
     final fixture = _fixture();
     final snapshot = AriamiPlaybackSnapshot.fromJson(
@@ -45,6 +46,8 @@ void main() {
         <String>['track-a', 'track-b', 'track-a']);
     expect(playSnapshot.shuffle, isTrue);
     expect(playSnapshot.repeatMode, 'all');
+    expect(playSnapshot.backingOrder, <int>[2, 0, 1]);
+    _expectReliableCommands(fixture);
 
     final baseline = Map<String, dynamic>.from(
       (fixture['clientBaselines'] as Map)['mobile'] as Map,
@@ -62,6 +65,17 @@ void main() {
         isNot(contains(AriamiConnectCommand.setVolume)));
     _expectBackingOrder(fixture);
   });
+}
+
+void _expectReliableCommands(Map<String, dynamic> fixture) {
+  final contract =
+      Map<String, dynamic>.from(fixture['reliableCommands'] as Map);
+  expect(contract['rawMessageLimitBytes'], kMaxConnectRawMessageBytes);
+  expect(contract['maxPendingCommands'], kMaxPendingConnectCommands);
+  expect(contract['maxCompletedCommands'], kMaxCompletedConnectCommands);
+  final retry = Map<String, dynamic>.from(contract['retryEnvelope'] as Map);
+  expect(retry.keys, <String>{'commandId', 'retry'});
+  expect(retry['retry'], isTrue);
 }
 
 Map<String, dynamic> _fixture() {

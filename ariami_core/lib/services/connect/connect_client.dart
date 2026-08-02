@@ -137,6 +137,7 @@ class AriamiConnectClient {
       LinkedHashMap<String, _PendingOutboundCommand>();
   final LinkedHashMap<String, Map<String, dynamic>> _handledCommandResults =
       LinkedHashMap<String, Map<String, dynamic>>();
+  final Random _commandRandom = Random.secure();
 
   bool isConnected = false;
   bool isApplyingRemoteState = false;
@@ -148,6 +149,7 @@ class AriamiConnectClient {
   /// position without depending on the other device's clock.
   DateTime? remoteSnapshotAt;
   String? errorMessage;
+  String? errorCode;
   List<AriamiConnectDevice> devices = const <AriamiConnectDevice>[];
 
   void _log(String message) => logger?.call('[$deviceId] $message');
@@ -220,6 +222,7 @@ class AriamiConnectClient {
       isConnected = true;
       _receivedInboundOnCurrentConnection = false;
       errorMessage = null;
+      errorCode = null;
       _armLivenessWatchdog(channel);
       _backoffResetTimer?.cancel();
       _backoffResetTimer = timerFactory(backoffResetAfter, () {
@@ -276,8 +279,11 @@ class AriamiConnectClient {
     _receivedInboundOnCurrentConnection = true;
     _armLivenessWatchdog(source);
     try {
+      if (!isConnectRawMessageWithinLimit(raw)) {
+        throw const FormatException('Connect message is too large');
+      }
       final message = WsMessage.fromJson(
-        jsonDecode(raw as String) as Map<String, dynamic>,
+        jsonDecode(raw) as Map<String, dynamic>,
       );
       final generation = _connectionGeneration;
       _inboundQueue =
@@ -291,12 +297,14 @@ class AriamiConnectClient {
     if (generation != _connectionGeneration) return;
     try {
       final data = message.data ?? const <String, dynamic>{};
+      validateConnectJsonShape(data);
       switch (message.type) {
         case AriamiConnectMessageType.welcome:
           _welcomeTimer?.cancel();
           _isWelcomed = true;
           _hubProtocolVersion = (data['protocolVersion'] as num?)?.toInt() ?? 1;
           errorMessage = null;
+          errorCode = null;
           if (!await _readDevices(data)) return;
           if (_hubProtocolVersion >= AriamiConnectProtocol.v3) {
             final counter = data['queueCounter'];
@@ -329,17 +337,27 @@ class AriamiConnectClient {
           final authority = await _acceptAuthority(data);
           if (!authority.accepted) return;
           final commandId = data['commandId'] as String?;
+          if (commandId != null && _replayRetainedPayload(commandId, data)) {
+            return;
+          }
           final pending =
               commandId == null ? null : _pendingCommands.remove(commandId);
           pending?.retryTimer?.cancel();
           if (data['ok'] == false) {
+            errorCode = data['code'] as String? ?? 'COMMAND_FAILED';
             errorMessage = data['message'] as String? ??
                 'The playback device could not run that command.';
             onChanged?.call();
+          } else {
+            final hadError = errorMessage != null;
+            errorCode = null;
+            errorMessage = null;
+            if (hadError) onChanged?.call();
           }
         case AriamiConnectMessageType.transfer:
           await _runTransfer(data);
         case AriamiConnectMessageType.error:
+          errorCode = data['code'] as String? ?? 'CONNECT_ERROR';
           errorMessage = data['message'] as String? ?? 'Ariami Connect error';
           onChanged?.call();
         case WsMessageType.listeningStatsUpdated:
@@ -561,6 +579,15 @@ class AriamiConnectClient {
   Future<void> _runCommand(Map<String, dynamic> data) async {
     final commandId = data['commandId'] as String? ?? '';
     _log('command in: ${data['command']} from ${data['requestedBy']}');
+    if (commandId.isEmpty || commandId.length > kMaxConnectCommandIdLength) {
+      _sendResult(
+        commandId,
+        ok: false,
+        code: 'INVALID_COMMAND_ID',
+        message: 'That command identifier is invalid.',
+      );
+      return;
+    }
     final authority = await _acceptAuthority(data);
     if (!authority.accepted) {
       _sendResult(
@@ -589,14 +616,27 @@ class AriamiConnectClient {
       );
       return;
     }
+    late final Map<String, dynamic> arguments;
+    try {
+      arguments = validateConnectCommandArguments(
+        command,
+        data['arguments'] ?? const <String, dynamic>{},
+      );
+    } on FormatException catch (error) {
+      _sendResult(
+        commandId,
+        ok: false,
+        code: command == AriamiConnectCommand.playContext
+            ? 'PLAY_CONTEXT_TOO_LARGE'
+            : 'INVALID_ARGUMENTS',
+        message: error.message,
+        remember: true,
+      );
+      return;
+    }
     try {
       if (!(authority.paused && command == AriamiConnectCommand.pause)) {
-        await handleCommand(
-          command,
-          data['arguments'] is Map
-              ? Map<String, dynamic>.from(data['arguments'] as Map)
-              : const <String, dynamic>{},
-        );
+        await handleCommand(command, arguments);
       }
       final commandEpoch = (data['ownerEpoch'] as num?)?.toInt();
       if (commandEpoch == null || commandEpoch == ownerEpoch) {
@@ -938,24 +978,77 @@ class AriamiConnectClient {
 
   void sendCommand(String command, [Map<String, dynamic>? arguments]) {
     if (!AriamiConnectCommand.supported.contains(command)) return;
-    final commandId = '$deviceId-${DateTime.now().microsecondsSinceEpoch}';
+    if (_pendingCommands.length >= kMaxPendingConnectCommands) {
+      _rejectOutboundCommand(
+        'COMMAND_OVERFLOW',
+        'Too many playback commands are awaiting a result.',
+      );
+      return;
+    }
+    late final Map<String, dynamic> validatedArguments;
+    try {
+      validatedArguments = validateConnectCommandArguments(
+        command,
+        arguments ?? const <String, dynamic>{},
+      );
+    } on FormatException catch (error) {
+      _rejectOutboundCommand(
+        command == AriamiConnectCommand.playContext
+            ? 'PLAY_CONTEXT_TOO_LARGE'
+            : 'INVALID_ARGUMENTS',
+        error.message,
+      );
+      return;
+    }
+    final commandId = _newCommandId();
+    final message = WsMessage(
+      type: AriamiConnectMessageType.command,
+      data: <String, dynamic>{
+        'commandId': commandId,
+        'command': command,
+        'arguments': validatedArguments,
+        'ownerEpoch': ownerEpoch,
+      },
+    );
+    if (utf8.encode(jsonEncode(message.toJson())).length >
+        kMaxConnectRawMessageBytes) {
+      _rejectOutboundCommand(
+        command == AriamiConnectCommand.playContext
+            ? 'PLAY_CONTEXT_TOO_LARGE'
+            : 'MESSAGE_TOO_LARGE',
+        'That Connect command is too large.',
+      );
+      return;
+    }
     final pending = _PendingOutboundCommand(
-      message: WsMessage(
-        type: AriamiConnectMessageType.command,
-        data: <String, dynamic>{
-          'commandId': commandId,
-          'command': command,
-          'arguments': arguments ?? const <String, dynamic>{},
-          'ownerEpoch': ownerEpoch,
-        },
-      ),
+      commandId: commandId,
+      message: message,
     );
     _pendingCommands[commandId] = pending;
-    while (_pendingCommands.length > 64) {
-      final oldest = _pendingCommands.remove(_pendingCommands.keys.first);
-      oldest?.retryTimer?.cancel();
-    }
     _dispatchCommand(commandId, pending);
+  }
+
+  String _newCommandId() {
+    final bytes = List<int>.generate(
+      16,
+      (_) => _commandRandom.nextInt(256),
+      growable: false,
+    );
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    final hex =
+        bytes.map((byte) => byte.toRadixString(16).padLeft(2, '0')).join();
+    return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-'
+        '${hex.substring(12, 16)}-${hex.substring(16, 20)}-'
+        '${hex.substring(20)}';
+  }
+
+  void _rejectOutboundCommand(String code, String message) {
+    errorCode = code;
+    errorMessage = message;
+    // Callers apply their optimistic mirror immediately after sendCommand.
+    // Reconcile from the last authoritative snapshot after that stack unwinds.
+    scheduleMicrotask(() => onChanged?.call());
   }
 
   /// Asks the server to rename this device. The server persists the name and
@@ -1052,11 +1145,14 @@ class AriamiConnectClient {
     String? message,
     bool remember = false,
   }) {
+    final boundedMessage = message == null || message.length <= 1024
+        ? message
+        : message.substring(0, 1024);
     final data = <String, dynamic>{
       'commandId': commandId,
       'ok': ok,
       if (code != null) 'code': code,
-      if (message != null) 'message': message,
+      if (boundedMessage != null) 'message': boundedMessage,
       'ownerEpoch': ownerEpoch,
       'activeDeviceId': activeDeviceId,
     };
@@ -1086,10 +1182,39 @@ class AriamiConnectClient {
         // Already sent once to a hub that cannot dedupe a replay; drop it
         // rather than risk double execution on the playback device.
         _pendingCommands.remove(entry.key);
+        _rejectOutboundCommand(
+          'COMMAND_RETRY_UNSUPPORTED',
+          'The server could not safely retry that playback command.',
+        );
         continue;
       }
       _dispatchCommand(entry.key, entry.value);
     }
+  }
+
+  /// A retry envelope names a command the hub is expected to have retained.
+  /// Two hubs cannot honour it: a build older than the retained-payload work,
+  /// which reads the envelope as an unsupported empty command, and a hub that
+  /// restarted and lost the payload. Both answer a failure the controller can
+  /// recognise, so replay the retained payload under the same command id
+  /// instead of surfacing it. Every hub since protocol v2 deduplicates by
+  /// command id and the playback device deduplicates its own results, so the
+  /// command still runs exactly once. Later retries keep the full payload:
+  /// this hub has already shown it does not retain them.
+  bool _replayRetainedPayload(String commandId, Map<String, dynamic> data) {
+    if (data['ok'] != false) return false;
+    final code = data['code'] as String?;
+    if (code != 'UNKNOWN_COMMAND' && code != 'UNSUPPORTED_COMMAND') {
+      return false;
+    }
+    final pending = _pendingCommands[commandId];
+    if (pending == null || pending.attempts < 2 || pending.replaysFullPayload) {
+      return false;
+    }
+    pending.replaysFullPayload = true;
+    _log('Command $commandId was not retained by the hub; replaying payload');
+    _dispatchCommand(commandId, pending);
+    return true;
   }
 
   void _dispatchCommand(String commandId, _PendingOutboundCommand pending) {
@@ -1109,7 +1234,17 @@ class AriamiConnectClient {
       );
     }
     pending.attempts += 1;
-    _send(pending.message);
+    _send(
+      pending.attempts == 1 || pending.replaysFullPayload
+          ? pending.message
+          : WsMessage(
+              type: AriamiConnectMessageType.command,
+              data: <String, dynamic>{
+                'commandId': pending.commandId,
+                'retry': true,
+              },
+            ),
+    );
     pending.retryTimer = timerFactory(commandAckTimeout, () {
       if (_pendingCommands[commandId] != pending) return;
       if (!isConnected || !_isWelcomed) return;
@@ -1120,6 +1255,10 @@ class AriamiConnectClient {
       _pendingCommands.remove(commandId);
       _log('Command $commandId was not acknowledged after '
           '${pending.attempts} attempts');
+      _rejectOutboundCommand(
+        'COMMAND_RETRY_EXHAUSTED',
+        'The playback device did not acknowledge that command.',
+      );
     });
   }
 
@@ -1256,9 +1395,11 @@ class AriamiConnectClient {
 }
 
 class _PendingOutboundCommand {
-  _PendingOutboundCommand({required this.message});
+  _PendingOutboundCommand({required this.commandId, required this.message});
 
+  final String commandId;
   WsMessage message;
   int attempts = 0;
+  bool replaysFullPayload = false;
   Timer? retryTimer;
 }

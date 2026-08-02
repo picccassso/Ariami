@@ -33,6 +33,34 @@ class AriamiConnectMessageType {
   static const error = 'connect_error';
 }
 
+/// The P0 corpus measured the largest supported 5,000-track state and
+/// `play_context` messages at about 7.63 MB. Eight MiB keeps that measured
+/// maximum valid while putting a hard ceiling in front of JSON decoding.
+const int kMaxConnectRawMessageBytes = 8 * 1024 * 1024;
+
+/// A session may have only this many controller commands awaiting a result.
+const int kMaxPendingConnectCommands = 64;
+
+/// Completed command results are retained for bounded replay/idempotence.
+const int kMaxCompletedConnectCommands = 256;
+
+const int kMaxConnectCommandIdLength = 128;
+const int kMaxConnectSourceIdLength = 512;
+const int kMaxConnectTrackFields = 20;
+const int kMaxConnectTrackFieldNameLength = 40;
+const int kMaxConnectTrackStringLength = 1024;
+
+/// Longest string accepted anywhere in a Connect payload. It stays above every
+/// per-field track maximum so generic shape validation can never reject
+/// metadata that the track rules accept.
+const int kMaxConnectStringLength = 2048;
+
+/// Checks the encoded byte ceiling without decoding JSON.
+bool isConnectRawMessageWithinLimit(Object? raw) {
+  if (raw is! String || raw.length > kMaxConnectRawMessageBytes) return false;
+  return utf8.encode(raw).length <= kMaxConnectRawMessageBytes;
+}
+
 /// Longest device display name accepted by the server and rename UIs.
 const int kMaxDeviceDisplayNameLength = 40;
 
@@ -123,6 +151,290 @@ class AriamiConnectCommand {
     insertQueueTrack,
     clearQueue,
   };
+}
+
+/// Rejects hostile or accidentally recursive Connect data before a handler
+/// walks it. Command-specific validation below applies tighter shapes.
+void validateConnectJsonShape(
+  Object? value, {
+  int depth = 0,
+  int maxDepth = 7,
+}) {
+  if (depth > maxDepth) {
+    throw const FormatException('Connect payload is nested too deeply');
+  }
+  if (value == null || value is bool || value is num) return;
+  if (value is String) {
+    if (value.length > kMaxConnectStringLength) {
+      throw const FormatException(
+          'Connect payload contains an oversized string');
+    }
+    return;
+  }
+  if (value is List) {
+    if (value.length > AriamiPlaybackSnapshot.maxQueueLength) {
+      throw const FormatException('Connect payload contains an oversized list');
+    }
+    for (final item in value) {
+      validateConnectJsonShape(item, depth: depth + 1, maxDepth: maxDepth);
+    }
+    return;
+  }
+  if (value is Map) {
+    if (value.length > 32) {
+      throw const FormatException('Connect payload contains too many fields');
+    }
+    for (final entry in value.entries) {
+      if (entry.key is! String || (entry.key as String).length > 64) {
+        throw const FormatException(
+            'Connect payload contains an invalid field');
+      }
+      validateConnectJsonShape(
+        entry.value,
+        depth: depth + 1,
+        maxDepth: maxDepth,
+      );
+    }
+    return;
+  }
+  throw const FormatException('Connect payload contains an invalid value');
+}
+
+/// Validates one catalog track.
+///
+/// The P0 corpus sized a synthetic worst case, not real tags, and its
+/// per-field lengths are far too tight to enforce: a single over-long title
+/// anywhere in a queue rejects the whole publication, and the scanner never
+/// truncates what it reads from a file. Real libraries carry 200-character
+/// medley titles today. These maxima therefore keep several times the measured
+/// headroom; [kMaxConnectRawMessageBytes] and [kMaxConnectTrackFields] remain
+/// the bounds that actually cap memory.
+Map<String, dynamic> validateConnectTrackPayload(Object? raw) {
+  if (raw is! Map || raw.length > kMaxConnectTrackFields) {
+    throw const FormatException('Invalid Connect track');
+  }
+  final track = Map<String, dynamic>.from(raw);
+  for (final entry in track.entries) {
+    if (entry.key.length > kMaxConnectTrackFieldNameLength) {
+      throw const FormatException('Invalid Connect track field');
+    }
+    final value = entry.value;
+    if (value is String) {
+      final maximum = switch (entry.key) {
+        'id' || 'albumId' => 64,
+        'modifiedTime' => 64,
+        'genre' => 256,
+        'title' || 'album' || 'artist' || 'albumArtist' => 512,
+        _ => kMaxConnectTrackStringLength,
+      };
+      if (value.length > maximum) {
+        throw FormatException('Connect track ${entry.key} is too long');
+      }
+    } else if (value != null && value is! num && value is! bool) {
+      throw const FormatException('Invalid nested Connect track metadata');
+    }
+  }
+  final id = track['id'];
+  if (id is! String || id.isEmpty) {
+    throw const FormatException('Invalid Connect track');
+  }
+  return Map<String, dynamic>.unmodifiable(track);
+}
+
+/// Validates the complete snapshot shape used only by v2 state, handoff and
+/// `play_context`. The latter deliberately fails as one bounded message; it is
+/// not chunked or uploaded out of band.
+Map<String, dynamic> validateConnectSnapshotPayload(Object? raw) {
+  if (raw is! Map) throw const FormatException('Missing snapshot');
+  final snapshot = Map<String, dynamic>.from(raw);
+  const allowed = <String>{
+    'queue',
+    'backingOrder',
+    'currentIndex',
+    'positionMs',
+    'durationMs',
+    'isPlaying',
+    'shuffle',
+    'repeatMode',
+    'volume',
+    'sourceId',
+    'updatedAt',
+  };
+  if (!allowed.containsAll(snapshot.keys)) {
+    throw const FormatException('Invalid Connect snapshot fields');
+  }
+  final rawQueue = snapshot['queue'];
+  if (rawQueue is! List ||
+      rawQueue.length > AriamiPlaybackSnapshot.maxQueueLength) {
+    throw const FormatException('Connect queue is too large');
+  }
+  final queue =
+      rawQueue.map(validateConnectTrackPayload).toList(growable: false);
+  final backingOrder = validateConnectBackingOrder(
+    snapshot['backingOrder'],
+    queue.length,
+  );
+  final sourceId = snapshot['sourceId'];
+  if (sourceId != null &&
+      (sourceId is! String || sourceId.length > kMaxConnectSourceIdLength)) {
+    throw const FormatException('Invalid Connect source');
+  }
+  bool isBoundedInt(Object? value, int min, int max) =>
+      value is num &&
+      value.isFinite &&
+      value == value.toInt() &&
+      value >= min &&
+      value <= max;
+
+  if ((snapshot.containsKey('currentIndex') &&
+          !isBoundedInt(
+            snapshot['currentIndex'],
+            -1,
+            AriamiPlaybackSnapshot.maxQueueLength - 1,
+          )) ||
+      (snapshot.containsKey('positionMs') &&
+          !isBoundedInt(snapshot['positionMs'], 0, 86400000)) ||
+      (snapshot.containsKey('durationMs') &&
+          !isBoundedInt(snapshot['durationMs'], 0, 86400000)) ||
+      (snapshot.containsKey('isPlaying') && snapshot['isPlaying'] is! bool) ||
+      (snapshot.containsKey('shuffle') && snapshot['shuffle'] is! bool)) {
+    throw const FormatException('Invalid Connect snapshot state');
+  }
+  final repeatMode = snapshot['repeatMode'];
+  if (repeatMode != null && !const {'off', 'all', 'one'}.contains(repeatMode)) {
+    throw const FormatException('Invalid Connect repeat mode');
+  }
+  final volume = snapshot['volume'];
+  if (volume != null &&
+      (volume is! num || !volume.isFinite || volume < 0 || volume > 1)) {
+    throw const FormatException('Invalid Connect volume');
+  }
+  final updatedAt = snapshot['updatedAt'];
+  if (updatedAt != null &&
+      (updatedAt is! String ||
+          updatedAt.length > 64 ||
+          DateTime.tryParse(updatedAt) == null)) {
+    throw const FormatException('Invalid Connect timestamp');
+  }
+  final parsed = AriamiPlaybackSnapshot.fromJson(<String, dynamic>{
+    ...snapshot,
+    'queue': queue,
+    'backingOrder': backingOrder,
+  });
+  return Map<String, dynamic>.unmodifiable(
+    parsed.toJson(includeBackingOrder: snapshot.containsKey('backingOrder')),
+  );
+}
+
+/// Returns an immutable, normalized argument map for a supported command.
+/// Every command has an explicit shape so arbitrary nesting cannot hide below
+/// an otherwise small envelope.
+Map<String, dynamic> validateConnectCommandArguments(
+  String command,
+  Object? raw,
+) {
+  if (raw is! Map) throw const FormatException('Invalid command arguments');
+  final arguments = Map<String, dynamic>.from(raw);
+
+  void requireKeys(Set<String> keys) {
+    if (arguments.length != keys.length || !keys.containsAll(arguments.keys)) {
+      throw const FormatException('Invalid command arguments');
+    }
+  }
+
+  int requireInt(String key, {required int min, required int max}) {
+    final value = arguments[key];
+    if (value is! num || !value.isFinite || value != value.toInt()) {
+      throw const FormatException('Invalid command arguments');
+    }
+    final integer = value.toInt();
+    if (integer < min || integer > max) {
+      throw const FormatException('Invalid command arguments');
+    }
+    return integer;
+  }
+
+  switch (command) {
+    case AriamiConnectCommand.play:
+    case AriamiConnectCommand.pause:
+    case AriamiConnectCommand.toggle:
+    case AriamiConnectCommand.next:
+    case AriamiConnectCommand.previous:
+    case AriamiConnectCommand.toggleShuffle:
+    case AriamiConnectCommand.cycleRepeat:
+    case AriamiConnectCommand.clearQueue:
+      requireKeys(const <String>{});
+      return const <String, dynamic>{};
+    case AriamiConnectCommand.seek:
+      requireKeys(const <String>{'positionMs'});
+      return Map<String, dynamic>.unmodifiable(<String, dynamic>{
+        'positionMs': requireInt('positionMs', min: 0, max: 86400000),
+      });
+    case AriamiConnectCommand.setVolume:
+      requireKeys(const <String>{'volume'});
+      final volume = arguments['volume'];
+      if (volume is! num || !volume.isFinite || volume < 0 || volume > 1) {
+        throw const FormatException('Invalid command arguments');
+      }
+      return Map<String, dynamic>.unmodifiable(<String, dynamic>{
+        'volume': volume.toDouble(),
+      });
+    case AriamiConnectCommand.playQueueIndex:
+      requireKeys(const <String>{'index'});
+      return Map<String, dynamic>.unmodifiable(<String, dynamic>{
+        'index': requireInt(
+          'index',
+          min: 0,
+          max: AriamiPlaybackSnapshot.maxQueueLength - 1,
+        ),
+      });
+    case AriamiConnectCommand.removeQueueIndex:
+      requireKeys(const <String>{'index', 'id'});
+      final id = arguments['id'];
+      if (id is! String || id.isEmpty || id.length > 64) {
+        throw const FormatException('Invalid command arguments');
+      }
+      return Map<String, dynamic>.unmodifiable(<String, dynamic>{
+        'index': requireInt(
+          'index',
+          min: 0,
+          max: AriamiPlaybackSnapshot.maxQueueLength - 1,
+        ),
+        'id': id,
+      });
+    case AriamiConnectCommand.insertQueueTrack:
+      requireKeys(const <String>{'index', 'track'});
+      return Map<String, dynamic>.unmodifiable(<String, dynamic>{
+        'index': requireInt(
+          'index',
+          min: 0,
+          max: AriamiPlaybackSnapshot.maxQueueLength,
+        ),
+        'track': validateConnectTrackPayload(arguments['track']),
+      });
+    case AriamiConnectCommand.playContext:
+      requireKeys(const <String>{'snapshot'});
+      return Map<String, dynamic>.unmodifiable(<String, dynamic>{
+        'snapshot': validateConnectSnapshotPayload(arguments['snapshot']),
+      });
+    default:
+      throw const FormatException('Unsupported Connect command');
+  }
+}
+
+/// Recursively freezes a JSON payload before the hub retains it for later
+/// delivery. This prevents a caller-owned map from mutating in-flight work.
+Object? immutableConnectJson(Object? value) {
+  if (value is Map) {
+    return Map<String, dynamic>.unmodifiable(<String, dynamic>{
+      for (final entry in value.entries)
+        entry.key as String: immutableConnectJson(entry.value),
+    });
+  }
+  if (value is List) {
+    return List<Object?>.unmodifiable(value.map(immutableConnectJson));
+  }
+  return value;
 }
 
 class AriamiConnectDevice {
