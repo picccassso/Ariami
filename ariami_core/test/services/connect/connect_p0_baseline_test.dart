@@ -583,11 +583,9 @@ void main() {
       );
     });
 
-    test('slice 9: an uncontrolled recent peer adopts the session paused',
+    test('slice 9: a connected peer immediately resumes the playing session',
         () async {
-      final hub = AriamiConnectHub(
-        disconnectGracePeriod: const Duration(milliseconds: 5),
-      );
+      final hub = AriamiConnectHub();
       addTearDown(hub.dispose);
       final candidate = _FakeChannel();
       final owner = _FakeChannel();
@@ -596,14 +594,14 @@ void main() {
       hub.handle(owner, _state(activate: true, isPlaying: true));
 
       hub.unregister(owner);
-      await Future<void>.delayed(const Duration(milliseconds: 20));
+      await Future<void>.delayed(const Duration(milliseconds: 10));
 
       final prepare = candidate.messages.lastWhere(
         (message) =>
             message.type == AriamiConnectMessageType.transfer &&
             message.data?['phase'] == 'prepare',
       );
-      expect(prepare.data?['snapshot']['isPlaying'], isFalse);
+      expect(prepare.data?['snapshot']['isPlaying'], isTrue);
     });
 
     test('slice 10: an empty hub retains the previous account session', () {

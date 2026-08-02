@@ -6,7 +6,7 @@ import 'package:ariami_core/models/connect_models.dart';
 import 'package:ariami_core/models/websocket_models.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
-const kConnectOwnerReclaimGrace = Duration(seconds: 20);
+const kConnectOwnerReclaimGrace = Duration.zero;
 const kConnectRecentControllerWindow = Duration(seconds: 120);
 const kConnectIdleSessionRetention = Duration(minutes: 30);
 
@@ -33,12 +33,13 @@ class AriamiConnectHub {
   })  : _now = now ?? _connectUtcNow,
         _timerFactory = timerFactory ?? Timer.new;
 
-  /// Gives a playback client enough time to reconnect after a transient
-  /// WebSocket drop before its controller takes over the session.
+  /// Delay between confirmed owner loss and automatic failover. Production
+  /// fails over immediately; the seam remains configurable for deterministic
+  /// transition and retention tests.
   final Duration disconnectGracePeriod;
 
   /// How recently a device must have issued an accepted command in this
-  /// session before automatic failover may let it inherit playing state.
+  /// session for that control activity to influence failover priority.
   final Duration recentControllerWindow;
 
   /// How long an ownerless account session may retain its last queue and
@@ -130,8 +131,8 @@ class AriamiConnectHub {
     session?.idleTimer?.cancel();
     if (session != null) session.idleTimer = null;
     if (session?.activeDeviceId == deviceId) {
-      // The player came back during the grace period. Keep it as the owner and
-      // cancel any automatic handoff that raced with its reconnect.
+      // The player came back before an automatic handoff committed. Keep it as
+      // the owner and cancel preparation that raced with its reconnect.
       session!.disconnectTimer?.cancel();
       session.disconnectTimer = null;
       session.failover = null;
@@ -309,8 +310,8 @@ class AriamiConnectHub {
   void _beginDisconnectFailover(
       String userId, String sourceDeviceId, _ConnectSession session) {
     final now = _now();
-    session.lastCommandAtByDevice.removeWhere(
-      (_, issuedAt) => !_isRecentController(issuedAt, now),
+    session.lastControlAtByDevice.removeWhere(
+      (_, issuedAt) => !_isRecentControl(issuedAt, now),
     );
     final candidates = _peers.entries
         .where((entry) =>
@@ -320,18 +321,21 @@ class AriamiConnectHub {
         .map((entry) => _FailoverCandidate(
               deviceId: entry.value.deviceId,
               connectedAt: entry.value.connectedAt,
-              lastCommandAt:
-                  session.lastCommandAtByDevice[entry.value.deviceId],
+              lastControlAt:
+                  session.lastControlAtByDevice[entry.value.deviceId],
             ))
         .toList(growable: false)
       ..sort((a, b) {
-        final aRecent = a.lastCommandAt != null;
-        final bRecent = b.lastCommandAt != null;
+        final aRecent = a.lastControlAt != null;
+        final bRecent = b.lastControlAt != null;
         if (aRecent != bRecent) return aRecent ? -1 : 1;
         if (aRecent) {
-          final commandOrder = b.lastCommandAt!.compareTo(a.lastCommandAt!);
+          final commandOrder = b.lastControlAt!.compareTo(a.lastControlAt!);
           if (commandOrder != 0) return commandOrder;
         }
+        final aPrevious = a.deviceId == session.previousActiveDeviceId;
+        final bPrevious = b.deviceId == session.previousActiveDeviceId;
+        if (aPrevious != bPrevious) return aPrevious ? -1 : 1;
         final connectionOrder = b.connectedAt.compareTo(a.connectedAt);
         return connectionOrder != 0
             ? connectionOrder
@@ -358,11 +362,6 @@ class AriamiConnectHub {
       if (target == null || !target.peer.canPlay) continue;
       final snapshot = session.snapshot;
       if (snapshot == null || snapshot.queue.isEmpty) break;
-      final now = _now();
-      final preparedSnapshot = !_isRecentController(
-              candidate.lastCommandAt, now)
-          ? snapshot.compensated(now).copyWith(isPlaying: false, updatedAt: now)
-          : snapshot;
       _handleTransfer(
         target.socket,
         target.peer,
@@ -371,14 +370,14 @@ class AriamiConnectHub {
           'ownerEpoch': session.ownerEpoch,
         },
         automatic: true,
-        automaticSnapshot: preparedSnapshot,
+        automaticSnapshot: snapshot,
       );
       return;
     }
     _settleFailedFailover(userId, session);
   }
 
-  bool _isRecentController(DateTime? issuedAt, DateTime now) {
+  bool _isRecentControl(DateTime? issuedAt, DateTime now) {
     if (issuedAt == null) return false;
     final age = now.difference(issuedAt);
     return !age.isNegative && age <= recentControllerWindow;
@@ -844,7 +843,7 @@ class AriamiConnectHub {
       );
       return;
     }
-    session.lastCommandAtByDevice[peer.deviceId] = _now();
+    session.lastControlAtByDevice[peer.deviceId] = _now();
     // A validated playback command is semantic work even before the owner has
     // time to publish its resulting state. Reserving the generation here
     // prevents a handoff prepared concurrently with pause/seek/skip/queue
@@ -1105,6 +1104,12 @@ class AriamiConnectHub {
       _sendError(socket, 'NO_SESSION',
           'There is no playback session to transfer yet.');
       return;
+    }
+    if (!automatic) {
+      // Choosing a playback device is controller intent just like a routed
+      // command. If that target later disappears, prefer the device that made
+      // the choice over an arbitrary connection-recency fallback.
+      session.lastControlAtByDevice[peer.deviceId] = now;
     }
     final transferId = '${_now().microsecondsSinceEpoch}-${peer.deviceId}';
     final preparedSnapshot = snapshot.compensated(_now());
@@ -1455,6 +1460,9 @@ class AriamiConnectHub {
     final previousDeviceId = session.activeDeviceId;
     if (previousDeviceId == nextDeviceId) return;
 
+    if (nextDeviceId != null && previousDeviceId != null) {
+      session.previousActiveDeviceId = previousDeviceId;
+    }
     session.activeDeviceId = nextDeviceId;
     session.ownerEpoch++;
     session.semanticGeneration++;
@@ -1764,8 +1772,9 @@ class _ConnectPeer {
 
 class _ConnectSession {
   String? activeDeviceId;
+  String? previousActiveDeviceId;
   int ownerEpoch = 0;
-  final Map<String, DateTime> lastCommandAtByDevice = {};
+  final Map<String, DateTime> lastControlAtByDevice = {};
   _ConnectQueueData? queue;
   int queueCounter = 0;
   AriamiPlaybackSnapshot? snapshot;
@@ -1795,12 +1804,12 @@ class _FailoverCandidate {
   const _FailoverCandidate({
     required this.deviceId,
     required this.connectedAt,
-    required this.lastCommandAt,
+    required this.lastControlAt,
   });
 
   final String deviceId;
   final DateTime connectedAt;
-  final DateTime? lastCommandAt;
+  final DateTime? lastControlAt;
 }
 
 class _ConnectQueueData {

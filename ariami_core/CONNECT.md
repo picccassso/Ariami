@@ -42,15 +42,14 @@ learns about a newer owner pauses before adopting the remote mirror.
 
 When the audible owner disconnects:
 
-1. The server gives that device 20 seconds to reclaim the same owner epoch.
-2. If it does not return, the server tries connected playback candidates in a
-   deterministic order.
-3. A device that issued an accepted command in this session within the last
-   120 seconds may inherit playing state. Connection recency alone never
-   authorizes automatic playback.
-4. Other candidates prepare the session paused. A failed preparation advances
-   to the next candidate.
-5. If every candidate fails or none exist, the session becomes ownerless and
+1. As soon as the server confirms that the owner socket is gone, it tries
+   connected playback candidates in a deterministic order.
+2. Devices that recently sent a command or requested a handoff are preferred,
+   followed by the previous playback device, then the most recently connected
+   eligible client.
+3. The replacement inherits the playing state, queue, track, and position. A
+   failed preparation advances to the next candidate.
+4. If every candidate fails or none exist, the session becomes ownerless and
    settles paused.
 
 Handoffs capture the owner epoch, queue identity, and semantic generation.
@@ -62,7 +61,7 @@ superseded target restores the local state it held before preparation.
 
 The hub keeps a settled, peerless session in memory for 30 minutes so devices
 can recover from an ordinary route change, sleep, or short outage. It never
-expires a session while a reclaim, command, or handoff transition is pending.
+expires a session while a failover, command, or handoff transition is pending.
 
 After 30 idle minutes with no peers or pending transitions, the hub discards
 the retained queue, playback snapshot, owner epoch, and command bookkeeping.

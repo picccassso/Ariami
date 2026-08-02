@@ -18,9 +18,7 @@ void main() {
   final clients = <AriamiConnectClient>[];
 
   setUp(() async {
-    hub = AriamiConnectHub(
-      disconnectGracePeriod: const Duration(milliseconds: 50),
-    );
+    hub = AriamiConnectHub();
     server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     server.listen((request) async {
       final socket = await WebSocketTransformer.upgrade(request);
@@ -666,7 +664,7 @@ void main() {
         laptop.remoteSnapshot?.currentTrackId == 'song-a');
   });
 
-  test('controller continues the active song when the player disconnects',
+  test('connected replacement continues the song when the player disconnects',
       () async {
     var tvPlaying = true;
     final tv = AriamiConnectClient(
@@ -739,12 +737,8 @@ void main() {
         phone.activeDeviceId == 'tv' &&
         phone.remoteSnapshot?.currentTrackId == 'song-b');
 
-    // Establish the phone as the controller, then make the player disappear.
-    phone.sendCommand(
-      AriamiConnectCommand.seek,
-      <String, dynamic>{'positionMs': 12000},
-    );
-    await pump(4);
+    // No preparatory command is required: a connected playback-capable phone
+    // should immediately inherit the playing session when the owner vanishes.
     await tv.dispose();
 
     await waitFor(() =>

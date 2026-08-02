@@ -1078,9 +1078,9 @@ void main() {
   });
 
   group('slice 9 safe failover', () {
-    test('[reclaim_grace_policy] the owner has the centralized grace window',
+    test('[immediate_failover_policy] confirmed owner loss starts failover now',
         () {
-      expect(kConnectOwnerReclaimGrace, const Duration(seconds: 20));
+      expect(kConnectOwnerReclaimGrace, Duration.zero);
       expect(kConnectRecentControllerWindow, const Duration(seconds: 120));
       final clock = _FakeClock();
       final hub = AriamiConnectHub(
@@ -1095,20 +1095,11 @@ void main() {
       hub.handle(owner, _stateMessage(activate: true));
 
       hub.unregister(owner);
-      clock.elapse(const Duration(seconds: 19));
-      expect(_transferPrepares(candidate), isEmpty);
+      clock.elapse(Duration.zero);
 
-      final reclaimedOwner = _FakeChannel();
-      _registerDevice(hub, reclaimedOwner, 'owner');
-      clock.elapse(const Duration(seconds: 2));
-
-      expect(_transferPrepares(candidate), isEmpty);
-      final welcome = _lastMessage(
-        reclaimedOwner,
-        AriamiConnectMessageType.welcome,
-      );
-      expect(welcome.data?['activeDeviceId'], 'owner');
-      expect(welcome.data?['ownerEpoch'], 1);
+      final prepare = _transferPrepares(candidate).single;
+      expect(prepare.data?['sourceDeviceId'], 'owner');
+      expect(prepare.data?['snapshot']['isPlaying'], isTrue);
     });
 
     test(
@@ -1128,7 +1119,7 @@ void main() {
       _sendPauseCommand(hub, controller, 'recent-command');
 
       hub.unregister(owner);
-      clock.elapse(kConnectOwnerReclaimGrace);
+      clock.elapse(Duration.zero);
 
       final prepare = _transferPrepares(controller).single;
       expect(prepare.data?['targetDeviceId'], 'controller');
@@ -1136,8 +1127,8 @@ void main() {
     });
 
     test(
-        '[connection_recency_falls_back_paused] a newly connected peer never '
-        'inherits playing state by recency alone', () {
+        '[connected_candidate_inherits_playing] a connected fallback resumes '
+        'the playing session', () {
       final clock = _FakeClock();
       final hub = AriamiConnectHub(
         now: clock.now,
@@ -1154,16 +1145,44 @@ void main() {
       hub.handle(owner, _stateMessage(activate: true));
 
       hub.unregister(owner);
-      clock.elapse(kConnectOwnerReclaimGrace);
+      clock.elapse(Duration.zero);
 
       expect(_transferPrepares(older), isEmpty);
       final prepare = _transferPrepares(newer).single;
-      expect(prepare.data?['snapshot']['isPlaying'], isFalse);
+      expect(prepare.data?['snapshot']['isPlaying'], isTrue);
     });
 
     test(
-        '[stale_controller_falls_back_paused] command activity outside the '
-        'policy window cannot resume playback', () {
+        '[previous_player_is_preferred] the previous playback device beats '
+        'connection recency', () {
+      final clock = _FakeClock();
+      final hub = AriamiConnectHub(
+        now: clock.now,
+        timerFactory: clock.createTimer,
+      );
+      addTearDown(hub.dispose);
+      final previous = _FakeChannel();
+      final newer = _FakeChannel();
+      final owner = _FakeChannel();
+      _registerDevice(hub, previous, 'previous');
+      hub.handle(previous, _stateMessage(activate: true));
+      clock.elapse(const Duration(seconds: 1));
+      _registerDevice(hub, newer, 'newer');
+      _registerDevice(hub, owner, 'owner');
+      hub.handle(owner, _stateMessage(activate: true, ownerEpoch: 1));
+
+      hub.unregister(owner);
+      clock.elapse(Duration.zero);
+
+      expect(_transferPrepares(newer), isEmpty);
+      final prepare = _transferPrepares(previous).single;
+      expect(prepare.data?['targetDeviceId'], 'previous');
+      expect(prepare.data?['snapshot']['isPlaying'], isTrue);
+    });
+
+    test(
+        '[recent_controller_inherits_playing] a handoff requester is preferred '
+        'if the selected owner disappears', () {
       final clock = _FakeClock();
       final hub = AriamiConnectHub(
         now: clock.now,
@@ -1171,18 +1190,43 @@ void main() {
       );
       addTearDown(hub.dispose);
       final controller = _FakeChannel();
+      final previous = _FakeChannel();
       final owner = _FakeChannel();
       _registerDevice(hub, controller, 'controller');
+      _registerDevice(hub, previous, 'previous');
       _registerDevice(hub, owner, 'owner');
-      hub.handle(owner, _stateMessage(activate: true));
-      _sendPauseCommand(hub, controller, 'stale-command');
-      clock.elapse(const Duration(seconds: 121));
+      hub.handle(previous, _stateMessage(activate: true));
+
+      hub.handle(
+        controller,
+        WsMessage(
+          type: AriamiConnectMessageType.transfer,
+          data: <String, dynamic>{
+            'targetDeviceId': 'owner',
+            'ownerEpoch': 1,
+          },
+        ),
+      );
+      final manualPrepare = _transferPrepares(owner).single;
+      hub.handle(
+        owner,
+        WsMessage(
+          type: AriamiConnectMessageType.transferResult,
+          data: <String, dynamic>{
+            'transferId': manualPrepare.data?['transferId'],
+            'ok': true,
+            'ownerEpoch': 1,
+          },
+        ),
+      );
 
       hub.unregister(owner);
-      clock.elapse(kConnectOwnerReclaimGrace);
+      clock.elapse(Duration.zero);
 
-      final prepare = _transferPrepares(controller).single;
-      expect(prepare.data?['snapshot']['isPlaying'], isFalse);
+      expect(_transferPrepares(previous), isEmpty);
+      final failoverPrepare = _transferPrepares(controller).single;
+      expect(failoverPrepare.data?['targetDeviceId'], 'controller');
+      expect(failoverPrepare.data?['snapshot']['isPlaying'], isTrue);
     });
 
     test(
@@ -1206,7 +1250,7 @@ void main() {
       _sendPauseCommand(hub, first, 'first-command');
 
       hub.unregister(owner);
-      clock.elapse(kConnectOwnerReclaimGrace);
+      clock.elapse(Duration.zero);
       final rejected = _transferPrepares(first).single;
       expect(rejected.data?['snapshot']['isPlaying'], isTrue);
       hub.handle(
@@ -1258,12 +1302,12 @@ void main() {
       hub.handle(owner, _stateMessage(activate: true));
 
       hub.unregister(owner);
-      clock.elapse(kConnectOwnerReclaimGrace);
+      clock.elapse(Duration.zero);
       final secondPrepare = _transferPrepares(second).single;
-      expect(secondPrepare.data?['snapshot']['isPlaying'], isFalse);
+      expect(secondPrepare.data?['snapshot']['isPlaying'], isTrue);
       _rejectTransfer(hub, second, secondPrepare);
       final firstPrepare = _transferPrepares(first).single;
-      expect(firstPrepare.data?['snapshot']['isPlaying'], isFalse);
+      expect(firstPrepare.data?['snapshot']['isPlaying'], isTrue);
       _rejectTransfer(hub, first, firstPrepare);
 
       final settledState = _lastMessage(
@@ -1293,7 +1337,7 @@ void main() {
       hub.handle(owner, _stateMessage(activate: true));
 
       hub.unregister(owner);
-      clock.elapse(kConnectOwnerReclaimGrace);
+      clock.elapse(Duration.zero);
       final prepare = _transferPrepares(candidate).single;
       hub.handle(
         candidate,
@@ -1510,9 +1554,8 @@ void main() {
 
   test('active-device disconnect hands the exact session to its controller',
       () async {
-    final hub = AriamiConnectHub(
-      disconnectGracePeriod: const Duration(milliseconds: 10),
-    );
+    final hub = AriamiConnectHub();
+    addTearDown(hub.dispose);
     final phone = _FakeChannel();
     final tv = _FakeChannel();
     hub.register(phone,
@@ -1537,14 +1580,8 @@ void main() {
         },
       ),
     );
-    final messageCountBeforeDisconnect = phone.messages.length;
-
     hub.unregister(tv);
-
-    // Do not publish a device list with a dangling active ID during the grace
-    // period: that was what made controllers reveal an unrelated local song.
-    expect(phone.messages, hasLength(messageCountBeforeDisconnect));
-    await Future<void>.delayed(const Duration(milliseconds: 30));
+    await Future<void>.delayed(const Duration(milliseconds: 10));
 
     final prepare = phone.messages.lastWhere((message) =>
         message.type == AriamiConnectMessageType.transfer &&
