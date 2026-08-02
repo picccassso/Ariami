@@ -34,7 +34,7 @@ class InfoCard extends StatelessWidget {
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: isActive
-                    ? theme.colorScheme.primary.withOpacity(0.1)
+                    ? theme.colorScheme.primary.withValues(alpha: 0.1)
                     : theme.colorScheme.surfaceContainer,
                 shape: BoxShape.circle,
               ),
@@ -43,7 +43,7 @@ class InfoCard extends StatelessWidget {
                 size: 24,
                 color: isActive
                     ? theme.colorScheme.primary
-                    : theme.colorScheme.onSurface.withOpacity(0.5),
+                    : theme.colorScheme.onSurface.withValues(alpha: 0.5),
               ),
             ),
             const SizedBox(width: 16),
@@ -56,7 +56,7 @@ class InfoCard extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w500,
-                      color: theme.colorScheme.onSurface.withOpacity(0.5),
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
                       letterSpacing: 0.5,
                     ),
                   ),
@@ -68,7 +68,7 @@ class InfoCard extends StatelessWidget {
                       fontWeight: FontWeight.w600,
                       color: isActive
                           ? theme.colorScheme.onSurface
-                          : theme.colorScheme.onSurface.withOpacity(0.7),
+                          : theme.colorScheme.onSurface.withValues(alpha: 0.7),
                       letterSpacing: -0.5,
                     ),
                     overflow: TextOverflow.ellipsis,
@@ -81,7 +81,7 @@ class InfoCard extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
-                        color: theme.colorScheme.onSurface.withOpacity(0.55),
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.55),
                       ),
                     ),
                   ],

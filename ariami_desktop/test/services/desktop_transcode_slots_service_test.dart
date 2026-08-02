@@ -1,5 +1,4 @@
 import 'package:ariami_desktop/services/desktop_transcode_slots_service.dart';
-import 'package:ariami_core/services/transcoding/transcode_slots_policy.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 

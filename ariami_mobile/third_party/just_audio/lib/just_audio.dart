@@ -2723,8 +2723,7 @@ abstract class UriAudioSource extends IndexedAudioSource {
   final Map<String, String>? headers;
   Uri? _overrideUri;
 
-  UriAudioSource(this.uri, {this.headers, dynamic tag, Duration? duration})
-      : super(tag: tag, duration: duration);
+  UriAudioSource(this.uri, {this.headers, super.tag, super.duration});
 
   /// If [uri] points to an asset, this gives us [_overrideUri] which is the URI
   /// of the copied asset on the filesystem, otherwise it gives us the original
@@ -2851,9 +2850,7 @@ class ProgressiveAudioSource extends UriAudioSource {
 /// If headers are set, just_audio will create a cleartext local HTTP proxy on
 /// your device to forward HTTP requests with headers included.
 class DashAudioSource extends UriAudioSource {
-  DashAudioSource(Uri uri,
-      {Map<String, String>? headers, dynamic tag, Duration? duration})
-      : super(uri, headers: headers, tag: tag, duration: duration);
+  DashAudioSource(super.uri, {super.headers, super.tag, super.duration});
 
   @override
   AudioSourceMessage _toMessage() => DashAudioSourceMessage(
@@ -2878,9 +2875,7 @@ class DashAudioSource extends UriAudioSource {
 /// If headers are set, just_audio will create a cleartext local HTTP proxy on
 /// your device to forward HTTP requests with headers included.
 class HlsAudioSource extends UriAudioSource {
-  HlsAudioSource(Uri uri,
-      {Map<String, String>? headers, dynamic tag, Duration? duration})
-      : super(uri, headers: headers, tag: tag, duration: duration);
+  HlsAudioSource(super.uri, {super.headers, super.tag, super.duration});
 
   @override
   AudioSourceMessage _toMessage() => HlsAudioSourceMessage(
@@ -2902,9 +2897,9 @@ class SilenceAudioSource extends IndexedAudioSource {
   set duration(covariant Duration duration) => super.duration = duration;
 
   SilenceAudioSource({
-    dynamic tag,
-    required Duration duration,
-  }) : super(tag: tag, duration: duration);
+    super.tag,
+    required Duration super.duration,
+  });
 
   @override
   AudioSourceMessage _toMessage() =>
@@ -3228,9 +3223,9 @@ class ClippingAudioSource extends IndexedAudioSource {
     required this.child,
     this.start,
     this.end,
-    dynamic tag,
-    Duration? duration,
-  }) : super(tag: tag, duration: duration);
+    super.tag,
+    super.duration,
+  });
 
   @override
   void _onAttach(AudioPlayer player) {
@@ -3301,7 +3296,7 @@ Uri _encodeDataUrl(String base64Data, String mimeType) =>
 @experimental
 abstract class StreamAudioSource extends IndexedAudioSource {
   Uri? _uri;
-  StreamAudioSource({dynamic tag}) : super(tag: tag);
+  StreamAudioSource({super.tag});
 
   @override
   Future<void> _onLoad() async {
@@ -3390,10 +3385,9 @@ class LockCachingAudioSource extends StreamAudioSource {
     this.uri, {
     this.headers,
     File? cacheFile,
-    dynamic tag,
+    super.tag,
   })  : cacheFile =
-            cacheFile != null ? Future.value(cacheFile) : _getCacheFile(uri),
-        super(tag: tag) {
+            cacheFile != null ? Future.value(cacheFile) : _getCacheFile(uri) {
     _init();
   }
 
