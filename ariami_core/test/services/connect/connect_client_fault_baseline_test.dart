@@ -199,6 +199,169 @@ void main() {
     });
   });
 
+  group('slice 6 capabilities and takeover intent', () {
+    test(
+        '[capabilities_advertised] hello advertises the executable command '
+        'set before identify', () async {
+      final clock = _FakeTimerClock();
+      final socket = _FakeWebSocketChannel();
+      final factory = _SocketFactory(clock, <_FakeWebSocketChannel>[socket]);
+      final client = _client(
+        factory,
+        clock,
+        supportedCommands: const <String>{
+          AriamiConnectCommand.pause,
+          AriamiConnectCommand.clearQueue,
+        },
+      );
+      addTearDown(client.dispose);
+
+      await client.connect(baseUrl: 'http://ariami.test');
+
+      final hello = socket.sentMessages.first;
+      expect(hello.type, AriamiConnectMessageType.hello);
+      expect(
+        Set<String>.from(hello.data?['supportedCommands'] as List),
+        <String>{
+          AriamiConnectCommand.pause,
+          AriamiConnectCommand.clearQueue,
+        },
+      );
+    });
+
+    test(
+        '[unsupported_command_fails_explicitly] a target refuses commands it '
+        'did not advertise instead of reporting false success', () async {
+      final clock = _FakeTimerClock();
+      final socket = _FakeWebSocketChannel();
+      final factory = _SocketFactory(clock, <_FakeWebSocketChannel>[socket]);
+      var commandCalls = 0;
+      final client = _client(
+        factory,
+        clock,
+        supportedCommands: const <String>{AriamiConnectCommand.pause},
+        handleCommand: (_, __) async => commandCalls++,
+      );
+      addTearDown(client.dispose);
+      await client.connect(baseUrl: 'http://ariami.test');
+      socket.serverMessage(
+        AriamiConnectMessageType.welcome,
+        _authority(epoch: 1, owner: 'fault-client'),
+      );
+      await _pumpTwice();
+
+      socket.serverMessage(
+        AriamiConnectMessageType.command,
+        <String, dynamic>{
+          ..._authority(epoch: 1, owner: 'fault-client'),
+          'commandId': 'unsupported-volume',
+          'command': AriamiConnectCommand.setVolume,
+        },
+      );
+      await _pumpTwice();
+
+      expect(commandCalls, 0);
+      final result = socket.sentMessages.lastWhere((message) =>
+          message.type == AriamiConnectMessageType.commandResult &&
+          message.data?['commandId'] == 'unsupported-volume');
+      expect(result.data?['ok'], isFalse);
+      expect(result.data?['code'], 'UNSUPPORTED_COMMAND');
+    });
+
+    test(
+        '[pending_takeover_cancellation] cancelling before welcome prevents a '
+        'stale local play intent from taking ownership', () async {
+      final clock = _FakeTimerClock();
+      final socket = _FakeWebSocketChannel();
+      final factory = _SocketFactory(clock, <_FakeWebSocketChannel>[socket]);
+      final client = _client(
+        factory,
+        clock,
+        snapshotProvider: () => AriamiPlaybackSnapshot(
+          queue: const <Map<String, dynamic>>[
+            <String, dynamic>{'id': 'cancelled-track'},
+          ],
+          currentIndex: 0,
+          positionMs: 0,
+          durationMs: 1000,
+          isPlaying: false,
+          shuffle: false,
+          repeatMode: 'off',
+          volume: 1,
+        ),
+      );
+      addTearDown(client.dispose);
+      await client.connect(baseUrl: 'http://ariami.test');
+      client.requestLocalTakeover();
+      expect(client.hasPendingLocalTakeover, isTrue);
+
+      client.cancelLocalTakeover();
+      socket.serverMessage(
+        AriamiConnectMessageType.welcome,
+        _authority(epoch: 1, owner: 'desktop'),
+      );
+      await _pumpTwice();
+
+      expect(client.hasPendingLocalTakeover, isFalse);
+      expect(
+        socket.sentMessages.where((message) =>
+            (message.type == AriamiConnectMessageType.state ||
+                message.type == AriamiConnectMessageType.queue) &&
+            message.data?['activate'] == true),
+        isEmpty,
+      );
+    });
+
+    test('a takeover cancelled after send republishes paused on confirmation',
+        () async {
+      final clock = _FakeTimerClock();
+      final socket = _FakeWebSocketChannel();
+      final factory = _SocketFactory(clock, <_FakeWebSocketChannel>[socket]);
+      var playing = true;
+      final client = _client(
+        factory,
+        clock,
+        snapshotProvider: () => AriamiPlaybackSnapshot(
+          queue: const <Map<String, dynamic>>[
+            <String, dynamic>{'id': 'local-track'},
+          ],
+          currentIndex: 0,
+          positionMs: 0,
+          durationMs: 1000,
+          isPlaying: playing,
+          shuffle: false,
+          repeatMode: 'off',
+          volume: 1,
+        ),
+      );
+      addTearDown(client.dispose);
+      await client.connect(baseUrl: 'http://ariami.test');
+      socket.serverMessage(
+        AriamiConnectMessageType.welcome,
+        _authority(epoch: 1, owner: 'desktop'),
+      );
+      await _pumpTwice();
+
+      client.requestLocalTakeover();
+      playing = false;
+      client.cancelLocalTakeover();
+      socket.serverMessage(
+        AriamiConnectMessageType.devices,
+        _authority(epoch: 2, owner: 'fault-client'),
+      );
+      await _pumpTwice();
+
+      final publications = socket.sentMessages
+          .where((message) => message.type == AriamiConnectMessageType.state)
+          .toList(growable: false);
+      expect(publications, hasLength(2));
+      expect(publications.first.data?['activate'], isTrue);
+      expect(publications.last.data?['activate'], isFalse);
+      expect(publications.last.data?['snapshot']['isPlaying'], isFalse);
+      expect(publications.last.data?['ownerEpoch'], 2);
+    });
+  });
+
   group('slice 2 client transport hardening', () {
     test('[half_open_socket] is replaced after the inbound deadline', () async {
       final clock = _FakeTimerClock();
@@ -658,6 +821,7 @@ AriamiConnectClient _client(
   Future<void> Function()? pauseForTransfer,
   ConnectCommandHandler? handleCommand,
   AriamiPlaybackSnapshot Function()? snapshotProvider,
+  Set<String> supportedCommands = AriamiConnectCommand.supported,
 }) =>
     AriamiConnectClient(
       deviceId: 'fault-client',
@@ -668,6 +832,7 @@ AriamiConnectClient _client(
       applySnapshot: (_) async {},
       handleCommand: handleCommand ?? (_, __) async {},
       pauseForTransfer: pauseForTransfer ?? () async {},
+      supportedCommands: supportedCommands,
       connectTimeout: connectTimeout,
       refreshCloseTimeout: refreshCloseTimeout,
       disposeTimeout: disposeTimeout,

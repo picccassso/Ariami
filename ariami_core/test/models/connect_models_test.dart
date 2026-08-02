@@ -9,6 +9,26 @@ void main() {
     );
   });
 
+  test('device capabilities default for legacy peers and narrow safely', () {
+    final legacy = AriamiConnectDevice.fromJson(const <String, dynamic>{
+      'id': 'legacy',
+    });
+    final narrowed = AriamiConnectDevice.fromJson(const <String, dynamic>{
+      'id': 'tv',
+      'supportedCommands': <String>[
+        AriamiConnectCommand.pause,
+        'invented_command',
+      ],
+    });
+
+    expect(legacy.supportedCommands, AriamiConnectCommand.supported);
+    expect(narrowed.supportedCommands, <String>{AriamiConnectCommand.pause});
+    expect(
+      narrowed.toJson()['supportedCommands'],
+      <String>[AriamiConnectCommand.pause],
+    );
+  });
+
   group('repeatModeAfterExplicitTrackChange', () {
     test('widens repeat-one while preserving other repeat modes', () {
       expect(repeatModeAfterExplicitTrackChange('one'), 'all');

@@ -42,6 +42,9 @@ part 'playback_manager_persistence_impl.dart';
 /// with Phase 7 UI components. Provides a single source of truth for
 /// playback state and controls across the entire app.
 class PlaybackManager extends ChangeNotifier {
+  static const Set<String> connectSupportedCommands =
+      AriamiConnectCommand.supportedWithoutVolume;
+
   // Singleton pattern
   static final PlaybackManager _instance = PlaybackManager._internal();
   factory PlaybackManager() => _instance;

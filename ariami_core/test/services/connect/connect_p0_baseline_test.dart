@@ -56,8 +56,7 @@ void main() {
       // decoder that dropped backingOrder entirely.
       final v3Queue = Map<String, dynamic>.from(fixture['v3Queue'] as Map);
       final queueData = Map<String, dynamic>.from(v3Queue['data'] as Map);
-      final queueSnapshot =
-          AriamiPlaybackSnapshot.fromJson(<String, dynamic>{
+      final queueSnapshot = AriamiPlaybackSnapshot.fromJson(<String, dynamic>{
         'queue': queueData['tracks'],
         'backingOrder': queueData['backingOrder'],
         'sourceId': queueData['sourceId'],
@@ -92,8 +91,8 @@ void main() {
         isTrue,
       );
       expect(
-        slices.skip(4).map((entry) => entry['probe']).toSet(),
-        hasLength(5),
+        slices.skip(5).map((entry) => entry['probe']).toSet(),
+        hasLength(4),
       );
 
       final slice2 = slices.first;
@@ -103,8 +102,9 @@ void main() {
       expect(slice3['coverage'], 'complete');
       expect(slice4['coverage'], 'complete');
       expect(slices[3]['coverage'], 'complete');
+      expect(slices[4]['coverage'], 'complete');
       expect(
-        slices.skip(4).every((entry) => entry['coverage'] == 'representative'),
+        slices.skip(5).every((entry) => entry['coverage'] == 'representative'),
         isTrue,
       );
       final probes = (slice2['probes'] as List<dynamic>).cast<String>();
@@ -159,6 +159,33 @@ void main() {
       ].join('\n');
       for (final probe in slice5Probes) {
         expect(slice5Source, contains('[$probe]'),
+            reason: 'Missing probe $probe');
+      }
+      final slice6 = slices[4];
+      final slice6Probes = (slice6['probes'] as List<dynamic>).cast<String>();
+      final slice6Modes = (slice6['failureModes'] as List<dynamic>)
+          .map((mode) => Map<String, dynamic>.from(mode as Map))
+          .toList(growable: false);
+      expect(slice6Modes.map((mode) => mode['probe']).toSet(),
+          slice6Probes.toSet());
+      final slice6Source = <String>[
+        _readCoreTestSource('connect_hub_test.dart'),
+        _readCoreTestSource('connect_client_fault_baseline_test.dart'),
+        _readClientTestSource(
+          '../ariami_mobile/test/connect_v2_contract_fixture_test.dart',
+        ),
+        _readClientTestSource(
+          '../ariami_desktop_premium/test/connect_v2_contract_fixture_test.dart',
+        ),
+        _readClientTestSource(
+          '../ariami_tv/test/connect_v2_contract_fixture_test.dart',
+        ),
+        _readClientTestSource(
+          '../ariami_tvos/AriamiTVOSTests/ConnectV2ContractFixtureTests.swift',
+        ),
+      ].join('\n');
+      for (final probe in slice6Probes) {
+        expect(slice6Source, contains('[$probe]'),
             reason: 'Missing probe $probe');
       }
     });
@@ -327,16 +354,35 @@ void main() {
       expect((_lastStateRaw(peer).length - firstBytes).abs(), lessThan(8));
     });
 
-    test('slice 6: welcome has no per-client command capabilities', () {
+    test('slice 6: welcome publishes allowlisted per-client capabilities', () {
       final hub = AriamiConnectHub();
       addTearDown(hub.dispose);
       final socket = _FakeChannel();
+      hub.handle(
+        socket,
+        WsMessage(
+          type: AriamiConnectMessageType.hello,
+          data: const <String, dynamic>{
+            'supportedCommands': <String>[
+              AriamiConnectCommand.pause,
+              AriamiConnectCommand.clearQueue,
+              'not_in_the_protocol',
+            ],
+          },
+        ),
+      );
       _register(hub, socket, 'native-tvos');
       final welcome = socket.messages.lastWhere(
         (message) => message.type == AriamiConnectMessageType.welcome,
       );
 
-      expect(welcome.data?.containsKey('supportedCommands'), isFalse);
+      expect(
+        Set<String>.from(welcome.data?['supportedCommands'] as List),
+        <String>{
+          AriamiConnectCommand.pause,
+          AriamiConnectCommand.clearQueue,
+        },
+      );
       expect(AriamiConnectCommand.supported,
           contains(AriamiConnectCommand.clearQueue));
     });
@@ -499,6 +545,18 @@ String _readCoreTestSource(String name) {
     if (file.existsSync()) return file.readAsStringSync();
   }
   throw StateError('Cannot find Core Connect test $name');
+}
+
+/// Reads a sibling client's Connect test, tolerating its absence.
+///
+/// Core is shared with the public open-core repository, which by design does
+/// not contain the paid clients. A probe is still only satisfied by a real
+/// tagged test somewhere on disk, so a probe that exists nowhere fails loudly;
+/// this only stops Core's own suite from crashing on a checkout where the
+/// paid clients were never published.
+String _readClientTestSource(String path) {
+  final file = File(path);
+  return file.existsSync() ? file.readAsStringSync() : '';
 }
 
 void _register(

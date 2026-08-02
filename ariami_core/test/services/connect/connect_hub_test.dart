@@ -26,6 +26,134 @@ void main() {
     // version >= 2 (idempotent command delivery). Downgrading this silently
     // disables command retries on lossy links.
     expect(welcome.data?['protocolVersion'], 2);
+    expect(
+      Set<String>.from(welcome.data?['supportedCommands'] as List),
+      AriamiConnectCommand.supported,
+    );
+  });
+
+  group('slice 6 command capabilities', () {
+    test(
+        '[capabilities_advertised] hello capabilities are narrowed by the '
+        'hub allowlist and published per device', () {
+      final hub = AriamiConnectHub();
+      addTearDown(hub.dispose);
+      final tv = _FakeChannel();
+      hub.handle(
+        tv,
+        WsMessage(
+          type: AriamiConnectMessageType.hello,
+          data: const <String, dynamic>{
+            'protocolVersions': <int>[3, 2],
+            'canPlay': true,
+            'supportedCommands': <String>[
+              AriamiConnectCommand.pause,
+              AriamiConnectCommand.clearQueue,
+              'invented_command',
+            ],
+          },
+        ),
+      );
+      hub.register(
+        tv,
+        userId: 'user',
+        deviceId: 'tv',
+        deviceName: 'TV',
+        clientType: 'tv',
+      );
+
+      final welcome = _lastMessage(tv, AriamiConnectMessageType.welcome).data!;
+      expect(
+        Set<String>.from(welcome['supportedCommands'] as List),
+        <String>{
+          AriamiConnectCommand.pause,
+          AriamiConnectCommand.clearQueue,
+        },
+      );
+      final device = Map<String, dynamic>.from(
+        (welcome['devices'] as List).single as Map,
+      );
+      expect(
+        Set<String>.from(device['supportedCommands'] as List),
+        <String>{
+          AriamiConnectCommand.pause,
+          AriamiConnectCommand.clearQueue,
+        },
+      );
+    });
+
+    test(
+        '[unsupported_command_fails_explicitly] unsupported target commands '
+        'fail without forwarding while advertised commands still relay', () {
+      final hub = AriamiConnectHub();
+      addTearDown(hub.dispose);
+      final target = _FakeChannel();
+      final controller = _FakeChannel();
+      hub.handle(
+        target,
+        WsMessage(
+          type: AriamiConnectMessageType.hello,
+          data: const <String, dynamic>{
+            'supportedCommands': <String>[AriamiConnectCommand.pause],
+          },
+        ),
+      );
+      hub.register(
+        target,
+        userId: 'user',
+        deviceId: 'target',
+        deviceName: 'Target',
+        clientType: 'tv',
+      );
+      hub.register(
+        controller,
+        userId: 'user',
+        deviceId: 'controller',
+        deviceName: 'Controller',
+        clientType: 'mobile',
+      );
+      hub.handle(target, _stateMessage(activate: true));
+
+      hub.handle(
+        controller,
+        WsMessage(
+          type: AriamiConnectMessageType.command,
+          data: const <String, dynamic>{
+            'commandId': 'unsupported-volume',
+            'command': AriamiConnectCommand.setVolume,
+          },
+        ),
+      );
+      final rejected = _lastMessage(
+        controller,
+        AriamiConnectMessageType.commandResult,
+      );
+      expect(rejected.data?['ok'], isFalse);
+      expect(rejected.data?['code'], 'UNSUPPORTED_COMMAND');
+      expect(
+        target.messages.where((message) =>
+            message.type == AriamiConnectMessageType.command &&
+            message.data?['commandId'] == 'unsupported-volume'),
+        isEmpty,
+      );
+
+      hub.handle(
+        controller,
+        WsMessage(
+          type: AriamiConnectMessageType.command,
+          data: const <String, dynamic>{
+            'commandId': 'supported-pause',
+            'command': AriamiConnectCommand.pause,
+          },
+        ),
+      );
+      expect(
+        target.messages.where((message) =>
+            message.type == AriamiConnectMessageType.command &&
+            message.data?['commandId'] == 'supported-pause'),
+        hasLength(1),
+      );
+    });
   });
 
   group('protocol negotiation', () {

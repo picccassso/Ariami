@@ -81,6 +81,7 @@ class AriamiConnectHub {
       connectedAt: DateTime.now().toUtc(),
       lastSeen: DateTime.now().toUtc(),
       protocolVersion: _negotiateProtocolVersion(hello),
+      supportedCommands: _readSupportedCommands(hello),
     );
     _peers[socket] = peer;
     // Lazily start the sweep on the first peer instead of in the constructor:
@@ -261,6 +262,7 @@ class AriamiConnectHub {
       case AriamiConnectMessageType.hello:
         peer.canPlay = data['canPlay'] as bool? ?? true;
         peer.protocolVersion = _negotiateProtocolVersion(data);
+        peer.supportedCommands = _readSupportedCommands(data);
         _sendWelcome(socket, peer);
         _broadcastDevices(peer.userId);
       case AriamiConnectMessageType.queue:
@@ -466,6 +468,7 @@ class AriamiConnectHub {
         socket,
         commandId,
         ok: false,
+        code: 'UNSUPPORTED_COMMAND',
         message: 'That playback command is not supported.',
         ownerEpoch: session?.ownerEpoch,
         activeDeviceId: session?.activeDeviceId,
@@ -503,6 +506,18 @@ class AriamiConnectHub {
         commandId,
         ok: false,
         message: 'The active playback device is offline.',
+        ownerEpoch: session?.ownerEpoch,
+        activeDeviceId: session?.activeDeviceId,
+      );
+      return;
+    }
+    if (!target.peer.supportedCommands.contains(command)) {
+      _sendCommandResult(
+        socket,
+        commandId,
+        ok: false,
+        code: 'UNSUPPORTED_COMMAND',
+        message: 'The active playback device does not support that command.',
         ownerEpoch: session?.ownerEpoch,
         activeDeviceId: session?.activeDeviceId,
       );
@@ -574,6 +589,7 @@ class AriamiConnectHub {
     WebSocketChannel socket,
     String commandId, {
     required bool ok,
+    String? code,
     String? message,
     int? ownerEpoch,
     String? activeDeviceId,
@@ -581,6 +597,7 @@ class AriamiConnectHub {
     _send(socket, AriamiConnectMessageType.commandResult, <String, dynamic>{
       'commandId': commandId,
       'ok': ok,
+      if (code != null) 'code': code,
       if (message != null) 'message': message,
       if (ownerEpoch != null) 'ownerEpoch': ownerEpoch,
       if (activeDeviceId != null) 'activeDeviceId': activeDeviceId,
@@ -764,6 +781,7 @@ class AriamiConnectHub {
     // version 1 hubs, which forward every replay to the active device.
     _send(socket, AriamiConnectMessageType.welcome, <String, dynamic>{
       'protocolVersion': peer.protocolVersion,
+      'supportedCommands': _sortedCommands(peer.supportedCommands),
       'devices': _deviceJson(peer.userId),
       'activeDeviceId': session?.activeDeviceId,
       if (peer.protocolVersion < AriamiConnectProtocol.v3 &&
@@ -798,6 +816,25 @@ class AriamiConnectHub {
     // v2 welcome and full-snapshot semantics for that rolling-upgrade path.
     return AriamiConnectProtocol.v2;
   }
+
+  Set<String> _readSupportedCommands(Map<String, dynamic>? hello) {
+    if (hello == null || !hello.containsKey('supportedCommands')) {
+      // A peer without a capability offer predates slice 6. Preserve the
+      // established rolling-upgrade behaviour and let the protocol allowlist
+      // describe it until that device upgrades.
+      return AriamiConnectCommand.supported;
+    }
+    final offered = hello['supportedCommands'];
+    if (offered is! List) return const <String>{};
+    return Set<String>.unmodifiable(
+      offered
+          .whereType<String>()
+          .where(AriamiConnectCommand.supported.contains),
+    );
+  }
+
+  List<String> _sortedCommands(Set<String> commands) =>
+      commands.toList(growable: false)..sort();
 
   void _broadcastDevices(String userId) {
     final payload = <String, dynamic>{
@@ -997,6 +1034,7 @@ class AriamiConnectHub {
               'canPlay': peer.canPlay,
               'connectedAt': peer.connectedAt.toIso8601String(),
               'isActive': peer.deviceId == activeId,
+              'supportedCommands': _sortedCommands(peer.supportedCommands),
             })
         .toList(growable: false);
     result.sort((a, b) => (a['name'] as String).compareTo(b['name'] as String));
@@ -1052,7 +1090,8 @@ class _ConnectPeer {
       required this.clientType,
       required this.connectedAt,
       required this.lastSeen,
-      required this.protocolVersion});
+      required this.protocolVersion,
+      required this.supportedCommands});
   final String userId;
   final String deviceId;
   String deviceName;
@@ -1060,6 +1099,7 @@ class _ConnectPeer {
   final DateTime connectedAt;
   bool canPlay = false;
   int protocolVersion;
+  Set<String> supportedCommands;
   // Not part of the wire model: server-internal liveness bookkeeping for the
   // stale-peer sweep. Never serialize this into AriamiConnectDevice/_deviceJson.
   DateTime lastSeen;

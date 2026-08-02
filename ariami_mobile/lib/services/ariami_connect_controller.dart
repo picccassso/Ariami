@@ -82,6 +82,7 @@ class AriamiConnectController extends ChangeNotifier {
       applySnapshot: playback.applyConnectSnapshot,
       handleCommand: _handleCommand,
       pauseForTransfer: playback.pauseLocal,
+      supportedCommands: PlaybackManager.connectSupportedCommands,
       onChanged: _onClientChanged,
       onAuthenticationRequired: () =>
           unawaited(_connection.handleSessionExpired()),
@@ -123,7 +124,10 @@ class AriamiConnectController extends ChangeNotifier {
         (playing && !_lastPlaying && !(client?.isThisDeviceActive ?? false));
     _lastTrackId = trackId;
     _lastPlaying = playing;
-    if (trackId == null) _pendingLocalTakeover = false;
+    if (!playing || trackId == null) {
+      _pendingLocalTakeover = false;
+      client?.cancelLocalTakeover();
+    }
     if (activate) {
       // Publish takeovers immediately so the hub pauses the old device and
       // confirms this one as active before stale remote state can flash back.

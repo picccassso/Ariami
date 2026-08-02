@@ -103,6 +103,26 @@ class AriamiConnectCommand {
     insertQueueTrack,
     clearQueue,
   };
+
+  /// Playback engines that do not expose programmatic volume control still
+  /// support every other Connect command. Controllers may send [setVolume]
+  /// to another capable device; this set describes only commands executable
+  /// by the device advertising it.
+  static const supportedWithoutVolume = <String>{
+    play,
+    pause,
+    toggle,
+    next,
+    previous,
+    seek,
+    toggleShuffle,
+    cycleRepeat,
+    playQueueIndex,
+    playContext,
+    removeQueueIndex,
+    insertQueueTrack,
+    clearQueue,
+  };
 }
 
 class AriamiConnectDevice {
@@ -113,6 +133,7 @@ class AriamiConnectDevice {
     required this.canPlay,
     required this.connectedAt,
     this.isActive = false,
+    this.supportedCommands = AriamiConnectCommand.supported,
   });
 
   final String id;
@@ -121,6 +142,7 @@ class AriamiConnectDevice {
   final bool canPlay;
   final DateTime connectedAt;
   final bool isActive;
+  final Set<String> supportedCommands;
 
   factory AriamiConnectDevice.fromJson(Map<String, dynamic> json) =>
       AriamiConnectDevice(
@@ -131,6 +153,7 @@ class AriamiConnectDevice {
         connectedAt: DateTime.tryParse(json['connectedAt'] as String? ?? '') ??
             DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
         isActive: json['isActive'] as bool? ?? false,
+        supportedCommands: _readSupportedConnectCommands(json),
       );
 
   Map<String, dynamic> toJson() => <String, dynamic>{
@@ -140,7 +163,19 @@ class AriamiConnectDevice {
         'canPlay': canPlay,
         'connectedAt': connectedAt.toUtc().toIso8601String(),
         'isActive': isActive,
+        'supportedCommands': supportedCommands.toList(growable: false)..sort(),
       };
+}
+
+Set<String> _readSupportedConnectCommands(Map<String, dynamic> json) {
+  if (!json.containsKey('supportedCommands')) {
+    return AriamiConnectCommand.supported;
+  }
+  final raw = json['supportedCommands'];
+  if (raw is! List) return const <String>{};
+  return Set<String>.unmodifiable(
+    raw.whereType<String>().where(AriamiConnectCommand.supported.contains),
+  );
 }
 
 class AriamiPlaybackSnapshot {

@@ -4,10 +4,13 @@ import 'dart:io';
 import 'package:ariami_core/models/connect_models.dart';
 import 'package:ariami_mobile/models/song.dart';
 import 'package:ariami_mobile/services/audio/shuffle_service.dart';
+import 'package:ariami_mobile/services/playback_manager.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('mobile consumes the shared Connect v2 contract fixture', () {
+  test(
+      '[four_client_capability_parity] mobile consumes the shared Connect '
+      'contract fixture', () {
     final fixture = _fixture();
     final snapshot = AriamiPlaybackSnapshot.fromJson(
       Map<String, dynamic>.from(fixture['snapshot'] as Map),
@@ -16,8 +19,7 @@ void main() {
 
     expect(fixture['protocolVersion'], 2);
     expect(AriamiConnectProtocol.supportedVersions, <int>[3, 2]);
-    final ownership =
-        Map<String, dynamic>.from(fixture['ownership'] as Map);
+    final ownership = Map<String, dynamic>.from(fixture['ownership'] as Map);
     expect(ownership['ownerEpoch'], 7);
     expect(ownership['staleOwnerEpoch'], lessThan(ownership['ownerEpoch']));
     expect(songs.map((song) => song.id),
@@ -32,12 +34,10 @@ void main() {
     final playContext =
         Map<String, dynamic>.from(fixture['playContext'] as Map);
     expect(playContext['type'], AriamiConnectMessageType.command);
-    final playData =
-        Map<String, dynamic>.from(playContext['data'] as Map);
+    final playData = Map<String, dynamic>.from(playContext['data'] as Map);
     expect(playData['command'], AriamiConnectCommand.playContext);
     expect(playData['ownerEpoch'], ownership['ownerEpoch']);
-    final arguments =
-        Map<String, dynamic>.from(playData['arguments'] as Map);
+    final arguments = Map<String, dynamic>.from(playData['arguments'] as Map);
     final playSnapshot = AriamiPlaybackSnapshot.fromJson(
       Map<String, dynamic>.from(arguments['snapshot'] as Map),
     );
@@ -54,6 +54,12 @@ void main() {
       AriamiConnectCommand.supported.contains(AriamiConnectCommand.clearQueue),
     );
     expect(baseline['supportsOwnerEpochFencing'], isTrue);
+    expect(
+      Set<String>.from(baseline['supportedCommands'] as List),
+      PlaybackManager.connectSupportedCommands,
+    );
+    expect(PlaybackManager.connectSupportedCommands,
+        isNot(contains(AriamiConnectCommand.setVolume)));
     _expectBackingOrder(fixture);
   });
 }
@@ -87,6 +93,7 @@ void _expectBackingOrder(Map<String, dynamic> fixture) {
     reason: 'duplicate IDs must not collapse onto one occurrence',
   );
 }
+
 /// Rebuilds the wire snapshot a v3 peer would hold after `connect_queue`,
 /// using the shared fixture's own bytes.
 AriamiPlaybackSnapshot _snapshotFromV3Queue(Map<String, dynamic> fixture) {

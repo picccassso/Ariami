@@ -207,22 +207,46 @@
     "mobile": {
       "clientType": "mobile",
       "supportsClearQueue": true,
-      "supportsOwnerEpochFencing": true
+      "supportsOwnerEpochFencing": true,
+      "supportedCommands": [
+        "play", "pause", "toggle", "next", "previous", "seek",
+        "toggle_shuffle", "cycle_repeat", "play_queue_index",
+        "play_context", "remove_queue_index", "insert_queue_track",
+        "clear_queue"
+      ]
     },
     "premiumDesktop": {
       "clientType": "desktop",
       "supportsClearQueue": true,
-      "supportsOwnerEpochFencing": true
+      "supportsOwnerEpochFencing": true,
+      "supportedCommands": [
+        "play", "pause", "toggle", "next", "previous", "seek",
+        "set_volume", "toggle_shuffle", "cycle_repeat",
+        "play_queue_index", "play_context", "remove_queue_index",
+        "insert_queue_track", "clear_queue"
+      ]
     },
     "flutterTv": {
       "clientType": "tv",
       "supportsClearQueue": true,
-      "supportsOwnerEpochFencing": true
+      "supportsOwnerEpochFencing": true,
+      "supportedCommands": [
+        "play", "pause", "toggle", "next", "previous", "seek",
+        "toggle_shuffle", "cycle_repeat", "play_queue_index",
+        "play_context", "remove_queue_index", "insert_queue_track",
+        "clear_queue"
+      ]
     },
     "nativeTvos": {
       "clientType": "tv",
       "supportsClearQueue": true,
-      "supportsOwnerEpochFencing": true
+      "supportsOwnerEpochFencing": true,
+      "supportedCommands": [
+        "play", "pause", "toggle", "next", "previous", "seek",
+        "toggle_shuffle", "cycle_repeat", "play_queue_index",
+        "play_context", "remove_queue_index", "insert_queue_track",
+        "clear_queue"
+      ]
     }
   }
 }

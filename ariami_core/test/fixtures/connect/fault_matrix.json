@@ -200,14 +200,30 @@
     },
     {
       "slice": 6,
-      "coverage": "representative",
-      "probe": "capabilities_are_not_advertised",
+      "coverage": "complete",
+      "probes": [
+        "capabilities_advertised",
+        "unsupported_command_fails_explicitly",
+        "pending_takeover_cancellation",
+        "four_client_capability_parity"
+      ],
       "failureModes": [
-        "unsupported command reports success or times out",
-        "set_volume differs across clients",
-        "clear_queue capability drifts across clients",
-        "takeover listener timing differs across clients",
-        "pending takeover is dropped or cannot be cancelled"
+        {
+          "name": "client command capabilities are absent or expand the protocol allowlist",
+          "probe": "capabilities_advertised"
+        },
+        {
+          "name": "unsupported command reports success or times out",
+          "probe": "unsupported_command_fails_explicitly"
+        },
+        {
+          "name": "pending takeover is dropped or cannot be cancelled",
+          "probe": "pending_takeover_cancellation"
+        },
+        {
+          "name": "set_volume clear_queue or takeover behaviour differs across clients",
+          "probe": "four_client_capability_parity"
+        }
       ]
     },
     {

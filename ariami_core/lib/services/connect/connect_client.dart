@@ -44,6 +44,7 @@ class AriamiConnectClient {
     required this.applySnapshot,
     required this.handleCommand,
     required this.pauseForTransfer,
+    Set<String> supportedCommands = AriamiConnectCommand.supported,
     this.onChanged,
     this.onServerNotification,
     this.onAuthenticationRequired,
@@ -58,7 +59,9 @@ class AriamiConnectClient {
     this.webSocketFactory = _connectWebSocket,
     this.timerFactory = _startTimer,
     this.periodicTimerFactory = _startPeriodicTimer,
-  });
+  }) : supportedCommands = Set<String>.unmodifiable(
+          supportedCommands.where(AriamiConnectCommand.supported.contains),
+        );
 
   /// Optional diagnostics sink (e.g. debugPrint). Connect state flows across
   /// three devices and a hub; when a session desyncs in the field, these
@@ -72,6 +75,7 @@ class AriamiConnectClient {
   final Future<void> Function(AriamiPlaybackSnapshot snapshot) applySnapshot;
   final ConnectCommandHandler handleCommand;
   final Future<void> Function() pauseForTransfer;
+  final Set<String> supportedCommands;
   final void Function()? onChanged;
 
   /// Receives account-scoped server pushes that arrive on the Connect socket
@@ -113,6 +117,7 @@ class AriamiConnectClient {
   bool _receivedInboundOnCurrentConnection = false;
   bool _takeoverRequested = false;
   bool _takeoverSentOnCurrentConnection = false;
+  bool _takeoverCancelledAfterSend = false;
   int _hubProtocolVersion = 1;
   int _lastRevision = -1;
   int _queueCounter = 0;
@@ -228,9 +233,11 @@ class AriamiConnectClient {
       // authenticated asynchronously; old hubs ignore it and proceed normally.
       _send(WsMessage(
         type: AriamiConnectMessageType.hello,
-        data: const <String, dynamic>{
+        data: <String, dynamic>{
           'protocolVersions': AriamiConnectProtocol.supportedVersions,
           'canPlay': true,
+          'supportedCommands': supportedCommands.toList(growable: false)
+            ..sort(),
         },
       ));
       _send(WsMessage(
@@ -571,8 +578,18 @@ class AriamiConnectClient {
       ));
       return;
     }
+    final command = data['command'] as String? ?? '';
+    if (!supportedCommands.contains(command)) {
+      _sendResult(
+        commandId,
+        ok: false,
+        code: 'UNSUPPORTED_COMMAND',
+        message: 'This playback device does not support that command.',
+        remember: true,
+      );
+      return;
+    }
     try {
-      final command = data['command'] as String? ?? '';
       if (!(authority.paused && command == AriamiConnectCommand.pause)) {
         await handleCommand(
           command,
@@ -727,8 +744,20 @@ class AriamiConnectClient {
   /// durable request prevents that welcome's older remote snapshot from
   /// replacing the local UI while both devices continue making sound.
   void requestLocalTakeover() {
+    _takeoverCancelledAfterSend = false;
     _takeoverRequested = true;
     _flushTakeoverRequest();
+  }
+
+  /// Drops a local play intent that has not yet been confirmed by the hub.
+  /// A common case is pressing play and then pause while the socket is still
+  /// opening; reconnect must not resurrect that cancelled intent later.
+  void cancelLocalTakeover() {
+    if (!_takeoverRequested) return;
+    _takeoverCancelledAfterSend = _takeoverSentOnCurrentConnection;
+    _takeoverRequested = false;
+    _takeoverSentOnCurrentConnection = false;
+    onChanged?.call();
   }
 
   void _flushTakeoverRequest() {
@@ -744,6 +773,13 @@ class AriamiConnectClient {
   }
 
   void _reconcileTakeoverRequest() {
+    if (_takeoverCancelledAfterSend && activeDeviceId == deviceId) {
+      // The activation crossed the wire before local playback was cancelled.
+      // Publish the current (normally paused) state in the newly confirmed
+      // epoch so the hub cannot retain the earlier playing snapshot.
+      _takeoverCancelledAfterSend = false;
+      _publishState(activate: false);
+    }
     // A welcome can say this device was already active before the queued
     // request has published its newer local track. Only the hub response to a
     // request sent on this connection confirms both ownership and snapshot.
@@ -1012,12 +1048,14 @@ class AriamiConnectClient {
   void _sendResult(
     String commandId, {
     required bool ok,
+    String? code,
     String? message,
     bool remember = false,
   }) {
     final data = <String, dynamic>{
       'commandId': commandId,
       'ok': ok,
+      if (code != null) 'code': code,
       if (message != null) 'message': message,
       'ownerEpoch': ownerEpoch,
       'activeDeviceId': activeDeviceId,
@@ -1177,6 +1215,7 @@ class AriamiConnectClient {
     _pendingCommands.clear();
     _takeoverRequested = false;
     _takeoverSentOnCurrentConnection = false;
+    _takeoverCancelledAfterSend = false;
     final subscription = _subscription;
     final channel = _channel;
     _subscription = null;
