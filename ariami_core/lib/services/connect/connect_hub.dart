@@ -6,13 +6,19 @@ import 'package:ariami_core/models/connect_models.dart';
 import 'package:ariami_core/models/websocket_models.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
+const kConnectOwnerReclaimGrace = Duration(seconds: 20);
+const kConnectRecentControllerWindow = Duration(seconds: 120);
+
+DateTime _connectUtcNow() => DateTime.now().toUtc();
+
 /// Authenticated, in-memory rendezvous for Ariami Connect.
 ///
 /// Playback remains owned and persisted by clients. After a server restart,
 /// clients reconnect and the active device republishes its state.
 class AriamiConnectHub {
   AriamiConnectHub({
-    this.disconnectGracePeriod = const Duration(seconds: 3),
+    this.disconnectGracePeriod = kConnectOwnerReclaimGrace,
+    this.recentControllerWindow = kConnectRecentControllerWindow,
     this.commandTimeout = const Duration(seconds: 10),
     this.transferTimeout = const Duration(seconds: 30),
     this.staleTimeout = const Duration(seconds: 90),
@@ -20,11 +26,18 @@ class AriamiConnectHub {
     this.protocolV3Enabled = true,
     this.maxPendingCommands = kMaxPendingConnectCommands,
     this.maxCommandDeliveries = 4,
-  });
+    DateTime Function()? now,
+    Timer Function(Duration, void Function())? timerFactory,
+  })  : _now = now ?? _connectUtcNow,
+        _timerFactory = timerFactory ?? Timer.new;
 
   /// Gives a playback client enough time to reconnect after a transient
   /// WebSocket drop before its controller takes over the session.
   final Duration disconnectGracePeriod;
+
+  /// How recently a device must have issued an accepted command in this
+  /// session before automatic failover may let it inherit playing state.
+  final Duration recentControllerWindow;
 
   /// How long a relayed command may wait for the active device's result
   /// before the requester is told the device is unreachable. Long enough for
@@ -62,6 +75,8 @@ class AriamiConnectHub {
   final Map<WebSocketChannel, _ConnectPeer> _peers = {};
   final Map<WebSocketChannel, Map<String, dynamic>> _pendingHellos = {};
   final Map<String, _ConnectSession> _sessions = {};
+  final DateTime Function() _now;
+  final Timer Function(Duration, void Function()) _timerFactory;
   Timer? _sweepTimer;
 
   /// Invoked after a device successfully renames itself, so the server can
@@ -92,8 +107,8 @@ class AriamiConnectHub {
       deviceId: deviceId,
       deviceName: deviceName,
       clientType: clientType,
-      connectedAt: DateTime.now().toUtc(),
-      lastSeen: DateTime.now().toUtc(),
+      connectedAt: _now(),
+      lastSeen: _now(),
       protocolVersion: _negotiateProtocolVersion(hello),
       supportedCommands: _readSupportedCommands(hello),
     );
@@ -109,13 +124,18 @@ class AriamiConnectHub {
       // cancel any automatic handoff that raced with its reconnect.
       session!.disconnectTimer?.cancel();
       session.disconnectTimer = null;
+      session.failover = null;
       final automaticTransfers = session.pendingTransfers.values
           .where((transfer) =>
               transfer.automatic && transfer.sourceDeviceId == deviceId)
           .toList(growable: false);
       for (final transfer in automaticTransfers) {
-        session.pendingTransfers.remove(transfer.id);
-        transfer.timeout?.cancel();
+        _cancelTransfer(
+          userId,
+          session,
+          transfer,
+          reason: 'owner_reclaimed',
+        );
       }
     }
     // Identify is authenticated asynchronously by the server. A client may
@@ -126,6 +146,9 @@ class AriamiConnectHub {
       _sendWelcome(socket, peer);
       if (session?.activeDeviceId == deviceId) {
         _redeliverPendingCommands(session!, socket, peer);
+      }
+      if (session != null) {
+        _redeliverFormerOwnerPause(userId, session, deviceId);
       }
       _broadcastDevices(userId);
     }
@@ -150,8 +173,12 @@ class AriamiConnectHub {
           reason: 'disconnect',
           notifyTarget: transfer.targetDeviceId != peer.deviceId,
         );
-        _sendError(transfer.requester, 'DEVICE_OFFLINE',
-            'A device disconnected during handoff.');
+        if (transfer.automatic) {
+          _continueAutomaticFailover(peer.userId, session, transfer);
+        } else {
+          _sendError(transfer.requester, 'DEVICE_OFFLINE',
+              'A device disconnected during handoff.');
+        }
       }
       if (session?.activeDeviceId == peer.deviceId &&
           session?.snapshot?.queue.isNotEmpty == true) {
@@ -171,14 +198,14 @@ class AriamiConnectHub {
   /// layer and never reaches [handle] — without this the sweep would evict a
   /// device that is idle-but-connected as if it had gone dark.
   void touch(WebSocketChannel socket) {
-    _peers[socket]?.lastSeen = DateTime.now().toUtc();
+    _peers[socket]?.lastSeen = _now();
   }
 
   /// Backstop for peers whose socket died without ever delivering a close
   /// event. Ordinary disconnects already go through [unregister] via the
   /// transport; this only catches the ones the transport never told us about.
   void _sweepStalePeers() {
-    final now = DateTime.now().toUtc();
+    final now = _now();
     // Snapshot first: unregister() mutates _peers, so iterating the live map
     // while removing from it would skip entries or throw.
     final stale = _peers.entries
@@ -222,38 +249,74 @@ class AriamiConnectHub {
   void _scheduleDisconnectFailover(
       String userId, String sourceDeviceId, _ConnectSession session) {
     session.disconnectTimer?.cancel();
-    session.disconnectTimer = Timer(disconnectGracePeriod, () {
+    session.failover = null;
+    session.disconnectTimer = _timerFactory(disconnectGracePeriod, () {
       session.disconnectTimer = null;
       if (session.activeDeviceId != sourceDeviceId ||
           _peerForDevice(userId, sourceDeviceId) != null) {
         return;
       }
+      _beginDisconnectFailover(userId, sourceDeviceId, session);
+    });
+  }
 
-      // Prefer the device that most recently sent a remote-control command.
-      // If it is unavailable, use the most recently connected playback
-      // client. This keeps failover platform-neutral while avoiding an
-      // arbitrary stale local queue.
-      var target = _peerForDevice(userId, session.lastControllerDeviceId);
-      if (target == null ||
-          !target.peer.canPlay ||
-          target.peer.deviceId == sourceDeviceId) {
-        final candidates = _peers.entries
-            .where((entry) =>
-                entry.value.userId == userId &&
-                entry.value.canPlay &&
-                entry.value.deviceId != sourceDeviceId)
-            .toList(growable: false)
-          ..sort((a, b) => b.value.connectedAt.compareTo(a.value.connectedAt));
-        if (candidates.isNotEmpty) {
-          final candidate = candidates.first;
-          target = (socket: candidate.key, peer: candidate.value);
+  void _beginDisconnectFailover(
+      String userId, String sourceDeviceId, _ConnectSession session) {
+    final now = _now();
+    session.lastCommandAtByDevice.removeWhere(
+      (_, issuedAt) => !_isRecentController(issuedAt, now),
+    );
+    final candidates = _peers.entries
+        .where((entry) =>
+            entry.value.userId == userId &&
+            entry.value.canPlay &&
+            entry.value.deviceId != sourceDeviceId)
+        .map((entry) => _FailoverCandidate(
+              deviceId: entry.value.deviceId,
+              connectedAt: entry.value.connectedAt,
+              lastCommandAt:
+                  session.lastCommandAtByDevice[entry.value.deviceId],
+            ))
+        .toList(growable: false)
+      ..sort((a, b) {
+        final aRecent = a.lastCommandAt != null;
+        final bRecent = b.lastCommandAt != null;
+        if (aRecent != bRecent) return aRecent ? -1 : 1;
+        if (aRecent) {
+          final commandOrder = b.lastCommandAt!.compareTo(a.lastCommandAt!);
+          if (commandOrder != 0) return commandOrder;
         }
-      }
+        final connectionOrder = b.connectedAt.compareTo(a.connectedAt);
+        return connectionOrder != 0
+            ? connectionOrder
+            : a.deviceId.compareTo(b.deviceId);
+      });
+    session.failover = _PendingFailover(
+      sourceDeviceId: sourceDeviceId,
+      remainingCandidates: List<_FailoverCandidate>.of(candidates),
+    );
+    _tryNextFailoverCandidate(userId, session);
+  }
 
-      if (target == null) {
-        _broadcastDevices(userId);
-        return;
-      }
+  void _tryNextFailoverCandidate(String userId, _ConnectSession session) {
+    final failover = session.failover;
+    if (failover == null ||
+        session.activeDeviceId != failover.sourceDeviceId ||
+        _peerForDevice(userId, failover.sourceDeviceId) != null) {
+      session.failover = null;
+      return;
+    }
+    while (failover.remainingCandidates.isNotEmpty) {
+      final candidate = failover.remainingCandidates.removeAt(0);
+      final target = _peerForDevice(userId, candidate.deviceId);
+      if (target == null || !target.peer.canPlay) continue;
+      final snapshot = session.snapshot;
+      if (snapshot == null || snapshot.queue.isEmpty) break;
+      final now = _now();
+      final preparedSnapshot = !_isRecentController(
+              candidate.lastCommandAt, now)
+          ? snapshot.compensated(now).copyWith(isPlaying: false, updatedAt: now)
+          : snapshot;
       _handleTransfer(
         target.socket,
         target.peer,
@@ -262,8 +325,53 @@ class AriamiConnectHub {
           'ownerEpoch': session.ownerEpoch,
         },
         automatic: true,
+        automaticSnapshot: preparedSnapshot,
       );
-    });
+      return;
+    }
+    _settleFailedFailover(userId, session);
+  }
+
+  bool _isRecentController(DateTime? issuedAt, DateTime now) {
+    if (issuedAt == null) return false;
+    final age = now.difference(issuedAt);
+    return !age.isNegative && age <= recentControllerWindow;
+  }
+
+  void _continueAutomaticFailover(
+      String userId, _ConnectSession session, _PendingTransfer transfer) {
+    final failover = session.failover;
+    if (!transfer.automatic ||
+        failover == null ||
+        failover.sourceDeviceId != transfer.sourceDeviceId) {
+      return;
+    }
+    _tryNextFailoverCandidate(userId, session);
+  }
+
+  void _settleFailedFailover(String userId, _ConnectSession session) {
+    final failover = session.failover;
+    if (failover == null ||
+        session.activeDeviceId != failover.sourceDeviceId ||
+        _peerForDevice(userId, failover.sourceDeviceId) != null) {
+      session.failover = null;
+      return;
+    }
+    final now = _now();
+    final snapshot = session.snapshot;
+    if (snapshot != null) {
+      session.snapshot =
+          snapshot.compensated(now).copyWith(isPlaying: false, updatedAt: now);
+    }
+    _commitOwnership(
+      userId,
+      session,
+      null,
+      requestedBy: 'automatic_failover',
+    );
+    session.revision++;
+    _broadcastState(userId, session);
+    _broadcastDevices(userId);
   }
 
   bool handle(WebSocketChannel socket, WsMessage message) {
@@ -329,7 +437,7 @@ class AriamiConnectHub {
         normalized,
       );
       final snapshot = AriamiPlaybackSnapshot.fromJson(parsed.toJson())
-          .copyWith(updatedAt: DateTime.now().toUtc());
+          .copyWith(updatedAt: _now());
       final activate = data['activate'] as bool? ?? false;
       final session = _sessions.putIfAbsent(peer.userId, _ConnectSession.new);
       if (!_acceptEpoch(session, data)) {
@@ -475,7 +583,7 @@ class AriamiConnectHub {
         'queue': queue.tracks,
         'backingOrder': queue.backingOrder,
         if (queue.sourceId != null) 'sourceId': queue.sourceId,
-      }).copyWith(updatedAt: DateTime.now().toUtc());
+      }).copyWith(updatedAt: _now());
       _adoptSemanticGeneration(
         session,
         data,
@@ -690,9 +798,7 @@ class AriamiConnectHub {
       );
       return;
     }
-    if (peer.deviceId != session.activeDeviceId) {
-      session.lastControllerDeviceId = peer.deviceId;
-    }
+    session.lastCommandAtByDevice[peer.deviceId] = _now();
     // A validated playback command is semantic work even before the owner has
     // time to publish its resulting state. Reserving the generation here
     // prevents a handoff prepared concurrently with pause/seek/skip/queue
@@ -721,7 +827,7 @@ class AriamiConnectHub {
       }),
     );
     session.pendingCommands[commandId] = pending;
-    pending.timeout = Timer(commandTimeout, () {
+    pending.timeout = _timerFactory(commandTimeout, () {
       final timedOut = session.pendingCommands.remove(commandId);
       if (timedOut != null) {
         final result = <String, dynamic>{
@@ -829,8 +935,11 @@ class AriamiConnectHub {
     if (formerOwnerPause != null &&
         formerOwnerPause.targetDeviceId == peer.deviceId &&
         _matchesEpoch(data, formerOwnerPause.ownerEpoch)) {
-      session!.pendingFormerOwnerPauses.remove(commandId);
       formerOwnerPause.timeout?.cancel();
+      formerOwnerPause.timeout = null;
+      if (data['ok'] == true) {
+        session!.pendingFormerOwnerPauses.remove(commandId);
+      }
       return;
     }
     final pending = session?.pendingCommands[commandId];
@@ -903,7 +1012,7 @@ class AriamiConnectHub {
 
   void _handleTransfer(
       WebSocketChannel socket, _ConnectPeer peer, Map<String, dynamic> data,
-      {bool automatic = false}) {
+      {bool automatic = false, AriamiPlaybackSnapshot? automaticSnapshot}) {
     final targetId = data['targetDeviceId'] as String? ?? '';
     final target = _peerForDevice(peer.userId, targetId);
     if (target == null || !target.peer.canPlay) {
@@ -917,10 +1026,8 @@ class AriamiConnectHub {
           'Playback ownership changed before that handoff arrived.');
       return;
     }
-    if (!automatic && peer.deviceId != targetId) {
-      session.lastControllerDeviceId = peer.deviceId;
-    }
-    final now = DateTime.now().toUtc();
+    if (!automatic) session.failover = null;
+    final now = _now();
     final expired = session.pendingTransfers.values
         .where(
             (transfer) => now.difference(transfer.createdAt) > transferTimeout)
@@ -947,15 +1054,14 @@ class AriamiConnectHub {
       _sendError(transfer.requester, 'TRANSFER_SUPERSEDED',
           'A newer playback-device choice replaced this handoff.');
     }
-    final snapshot = session.snapshot;
+    final snapshot = automaticSnapshot ?? session.snapshot;
     if (snapshot == null || snapshot.queue.isEmpty) {
       _sendError(socket, 'NO_SESSION',
           'There is no playback session to transfer yet.');
       return;
     }
-    final transferId =
-        '${DateTime.now().microsecondsSinceEpoch}-${peer.deviceId}';
-    final preparedSnapshot = snapshot.compensated(DateTime.now().toUtc());
+    final transferId = '${_now().microsecondsSinceEpoch}-${peer.deviceId}';
+    final preparedSnapshot = snapshot.compensated(_now());
     final pending = _PendingTransfer(
       id: transferId,
       sourceDeviceId: session.activeDeviceId,
@@ -970,7 +1076,7 @@ class AriamiConnectHub {
       automatic: automatic,
     );
     session.pendingTransfers[transferId] = pending;
-    pending.timeout = Timer(transferTimeout, () {
+    pending.timeout = _timerFactory(transferTimeout, () {
       final timedOut = session.pendingTransfers.remove(transferId);
       if (timedOut != null) {
         _sendTransferCancellation(
@@ -978,8 +1084,12 @@ class AriamiConnectHub {
           timedOut,
           reason: 'timeout',
         );
-        _sendError(timedOut.requester, 'TRANSFER_TIMEOUT',
-            'The target device did not respond to the handoff.');
+        if (timedOut.automatic) {
+          _continueAutomaticFailover(peer.userId, session, timedOut);
+        } else {
+          _sendError(timedOut.requester, 'TRANSFER_TIMEOUT',
+              'The target device did not respond to the handoff.');
+        }
       }
     });
     _send(target.socket, AriamiConnectMessageType.transfer, <String, dynamic>{
@@ -1012,8 +1122,12 @@ class AriamiConnectHub {
         transfer,
         reason: 'stale_owner',
       );
-      _sendError(transfer.requester, 'STALE_OWNER_EPOCH',
-          'Playback ownership changed before that handoff completed.');
+      if (transfer.automatic) {
+        session.failover = null;
+      } else {
+        _sendError(transfer.requester, 'STALE_OWNER_EPOCH',
+            'Playback ownership changed before that handoff completed.');
+      }
       return;
     }
     final requiresRevisionEcho =
@@ -1032,8 +1146,12 @@ class AriamiConnectHub {
         transfer,
         reason: 'state_changed',
       );
-      _sendError(transfer.requester, 'TRANSFER_STATE_CHANGED',
-          'Playback changed while that handoff was preparing.');
+      if (transfer.automatic) {
+        _continueAutomaticFailover(peer.userId, session, transfer);
+      } else {
+        _sendError(transfer.requester, 'TRANSFER_STATE_CHANGED',
+            'Playback changed while that handoff was preparing.');
+      }
       return;
     }
     if (data['ok'] != true) {
@@ -1042,11 +1160,15 @@ class AriamiConnectHub {
         transfer,
         reason: 'rejected',
       );
-      _sendError(
-          transfer.requester,
-          'TRANSFER_FAILED',
-          data['message'] as String? ??
-              'The target device could not start playback.');
+      if (transfer.automatic) {
+        _continueAutomaticFailover(peer.userId, session, transfer);
+      } else {
+        _sendError(
+            transfer.requester,
+            'TRANSFER_FAILED',
+            data['message'] as String? ??
+                'The target device could not start playback.');
+      }
       return;
     }
 
@@ -1056,7 +1178,7 @@ class AriamiConnectHub {
       transfer.targetDeviceId,
       requestedBy: transfer.requesterDeviceId,
     );
-    session.snapshot = transfer.snapshot.compensated(DateTime.now().toUtc());
+    session.snapshot = transfer.snapshot.compensated(_now());
     session.revision++;
     for (final entry in _peers.entries) {
       if (entry.value.userId == peer.userId) {
@@ -1235,8 +1357,7 @@ class AriamiConnectHub {
         'repeatMode': snapshot.repeatMode,
         'volume': snapshot.volume,
         'stateRevision': session.revision,
-        'updatedAt':
-            (snapshot.updatedAt ?? DateTime.now().toUtc()).toIso8601String(),
+        'updatedAt': (snapshot.updatedAt ?? _now()).toIso8601String(),
       });
       return;
     }
@@ -1282,7 +1403,7 @@ class AriamiConnectHub {
   void _commitOwnership(
     String userId,
     _ConnectSession session,
-    String nextDeviceId, {
+    String? nextDeviceId, {
     required String requestedBy,
   }) {
     final previousDeviceId = session.activeDeviceId;
@@ -1293,6 +1414,10 @@ class AriamiConnectHub {
     session.semanticGeneration++;
     session.disconnectTimer?.cancel();
     session.disconnectTimer = null;
+    session.failover = null;
+    if (nextDeviceId != null) {
+      _clearFormerOwnerPauses(session, nextDeviceId);
+    }
 
     // Commands are bound to the owner that was authoritative when accepted.
     // A takeover settles them immediately instead of allowing a later result
@@ -1334,6 +1459,7 @@ class AriamiConnectHub {
           'Playback ownership changed before that handoff completed.');
     }
 
+    _refreshFormerOwnerPauses(userId, session);
     if (previousDeviceId != null) {
       _trackFormerOwnerPause(
         userId,
@@ -1419,26 +1545,88 @@ class AriamiConnectHub {
     String formerDeviceId, {
     required String requestedBy,
   }) {
-    final former = _peerForDevice(userId, formerDeviceId);
-    if (former == null) return;
+    _clearFormerOwnerPauses(session, formerDeviceId);
     final commandId = 'owner-${session.ownerEpoch}-pause-$formerDeviceId';
     final pending = _PendingFormerOwnerPause(
       targetDeviceId: formerDeviceId,
       ownerEpoch: session.ownerEpoch,
+      requestedBy: requestedBy,
     );
     session.pendingFormerOwnerPauses[commandId] = pending;
-    pending.timeout = Timer(commandTimeout, () {
-      session.pendingFormerOwnerPauses.remove(commandId);
+    _deliverFormerOwnerPause(userId, session, commandId, pending);
+  }
+
+  void _refreshFormerOwnerPauses(
+    String userId,
+    _ConnectSession session,
+  ) {
+    final stale =
+        session.pendingFormerOwnerPauses.values.toList(growable: false);
+    session.pendingFormerOwnerPauses.clear();
+    for (final pending in stale) {
+      pending.timeout?.cancel();
+      if (pending.targetDeviceId == session.activeDeviceId) continue;
+      final refreshed = _PendingFormerOwnerPause(
+        targetDeviceId: pending.targetDeviceId,
+        ownerEpoch: session.ownerEpoch,
+        requestedBy: pending.requestedBy,
+      );
+      final commandId =
+          'owner-${session.ownerEpoch}-pause-${pending.targetDeviceId}';
+      session.pendingFormerOwnerPauses[commandId] = refreshed;
+      _deliverFormerOwnerPause(userId, session, commandId, refreshed);
+    }
+  }
+
+  void _redeliverFormerOwnerPause(
+    String userId,
+    _ConnectSession session,
+    String deviceId,
+  ) {
+    final pending = session.pendingFormerOwnerPauses.entries
+        .where((entry) => entry.value.targetDeviceId == deviceId)
+        .toList(growable: false);
+    for (final entry in pending) {
+      _deliverFormerOwnerPause(userId, session, entry.key, entry.value);
+    }
+  }
+
+  void _deliverFormerOwnerPause(
+    String userId,
+    _ConnectSession session,
+    String commandId,
+    _PendingFormerOwnerPause pending,
+  ) {
+    final former = _peerForDevice(userId, pending.targetDeviceId);
+    if (former == null) return;
+    pending.timeout?.cancel();
+    pending.timeout = _timerFactory(commandTimeout, () {
+      if (session.pendingFormerOwnerPauses[commandId] == pending) {
+        pending.timeout = null;
+      }
     });
     _send(former.socket, AriamiConnectMessageType.command, <String, dynamic>{
       'commandId': commandId,
       'command': AriamiConnectCommand.pause,
       'arguments': const <String, dynamic>{},
-      'requestedBy': requestedBy,
+      'requestedBy': pending.requestedBy,
       'activeDeviceId': session.activeDeviceId,
-      'ownerEpoch': session.ownerEpoch,
+      'ownerEpoch': pending.ownerEpoch,
       'semanticGeneration': session.semanticGeneration,
     });
+  }
+
+  void _clearFormerOwnerPauses(
+    _ConnectSession session,
+    String deviceId,
+  ) {
+    final stale = session.pendingFormerOwnerPauses.entries
+        .where((entry) => entry.value.targetDeviceId == deviceId)
+        .toList(growable: false);
+    for (final entry in stale) {
+      session.pendingFormerOwnerPauses.remove(entry.key);
+      entry.value.timeout?.cancel();
+    }
   }
 
   List<Map<String, dynamic>> _deviceJson(String userId) {
@@ -1526,18 +1714,41 @@ class _ConnectPeer {
 class _ConnectSession {
   String? activeDeviceId;
   int ownerEpoch = 0;
-  String? lastControllerDeviceId;
+  final Map<String, DateTime> lastCommandAtByDevice = {};
   _ConnectQueueData? queue;
   int queueCounter = 0;
   AriamiPlaybackSnapshot? snapshot;
   int revision = 0;
   int semanticGeneration = 0;
   Timer? disconnectTimer;
+  _PendingFailover? failover;
   final Map<String, _PendingCommand> pendingCommands = {};
   final Map<String, _PendingFormerOwnerPause> pendingFormerOwnerPauses = {};
   final LinkedHashMap<String, _CompletedCommand> completedCommands =
       LinkedHashMap<String, _CompletedCommand>();
   final Map<String, _PendingTransfer> pendingTransfers = {};
+}
+
+class _PendingFailover {
+  _PendingFailover({
+    required this.sourceDeviceId,
+    required this.remainingCandidates,
+  });
+
+  final String sourceDeviceId;
+  final List<_FailoverCandidate> remainingCandidates;
+}
+
+class _FailoverCandidate {
+  const _FailoverCandidate({
+    required this.deviceId,
+    required this.connectedAt,
+    required this.lastCommandAt,
+  });
+
+  final String deviceId;
+  final DateTime connectedAt;
+  final DateTime? lastCommandAt;
 }
 
 class _ConnectQueueData {
@@ -1594,9 +1805,11 @@ class _PendingFormerOwnerPause {
   _PendingFormerOwnerPause({
     required this.targetDeviceId,
     required this.ownerEpoch,
+    required this.requestedBy,
   });
   final String targetDeviceId;
   final int ownerEpoch;
+  final String requestedBy;
   Timer? timeout;
 }
 

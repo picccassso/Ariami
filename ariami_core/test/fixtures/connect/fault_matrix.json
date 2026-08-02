@@ -343,14 +343,45 @@
     },
     {
       "slice": 9,
-      "coverage": "representative",
-      "probe": "uncontrolled_candidate_inherits_playing",
+      "coverage": "complete",
+      "probes": [
+        "reclaim_grace_policy",
+        "recent_controller_inherits_playing",
+        "connection_recency_falls_back_paused",
+        "stale_controller_falls_back_paused",
+        "failed_failover_tries_next",
+        "failover_exhaustion_settles_paused",
+        "former_owner_reconnects_paused"
+      ],
       "failureModes": [
-        "owner grace is not centralized",
-        "connection recency selects a playing replacement",
-        "inactive controller older than policy inherits playing",
-        "failed candidate prevents trying the next candidate",
-        "candidate exhaustion does not settle paused"
+        {
+          "name": "owner grace is not centralized",
+          "probe": "reclaim_grace_policy"
+        },
+        {
+          "name": "a recent controller cannot safely inherit playing state",
+          "probe": "recent_controller_inherits_playing"
+        },
+        {
+          "name": "connection recency selects a playing replacement",
+          "probe": "connection_recency_falls_back_paused"
+        },
+        {
+          "name": "inactive controller older than policy inherits playing",
+          "probe": "stale_controller_falls_back_paused"
+        },
+        {
+          "name": "failed candidate prevents trying the next candidate",
+          "probe": "failed_failover_tries_next"
+        },
+        {
+          "name": "candidate exhaustion does not settle paused",
+          "probe": "failover_exhaustion_settles_paused"
+        },
+        {
+          "name": "a former owner reconnects after failover without pausing",
+          "probe": "former_owner_reconnects_paused"
+        }
       ]
     },
     {

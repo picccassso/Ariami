@@ -90,8 +90,8 @@ void main() {
             (entry['failureModes'] as List<dynamic>).isNotEmpty),
         isTrue,
       );
-      expect(
-          slices.skip(7).map((entry) => entry['probe']).toSet(), hasLength(2));
+      expect((slices[7]['probes'] as List<dynamic>), isNotEmpty);
+      expect(slices[8]['probe'], isNotEmpty);
 
       final slice2 = slices.first;
       final slice3 = slices[1];
@@ -103,10 +103,8 @@ void main() {
       expect(slices[4]['coverage'], 'complete');
       expect(slices[5]['coverage'], 'complete');
       expect(slices[6]['coverage'], 'complete');
-      expect(
-        slices.skip(7).every((entry) => entry['coverage'] == 'representative'),
-        isTrue,
-      );
+      expect(slices[7]['coverage'], 'complete');
+      expect(slices[8]['coverage'], 'representative');
       final probes = (slice2['probes'] as List<dynamic>).cast<String>();
       final modes = (slice2['failureModes'] as List<dynamic>)
           .map((mode) => Map<String, dynamic>.from(mode as Map))
@@ -241,6 +239,18 @@ void main() {
       ].join('\n');
       for (final probe in slice8Probes) {
         expect(slice8Source, contains('[$probe]'),
+            reason: 'Missing probe $probe');
+      }
+      final slice9 = slices[7];
+      final slice9Probes = (slice9['probes'] as List<dynamic>).cast<String>();
+      final slice9Modes = (slice9['failureModes'] as List<dynamic>)
+          .map((mode) => Map<String, dynamic>.from(mode as Map))
+          .toList(growable: false);
+      expect(slice9Modes.map((mode) => mode['probe']).toSet(),
+          slice9Probes.toSet());
+      final slice9Source = _readCoreTestSource('connect_hub_test.dart');
+      for (final probe in slice9Probes) {
+        expect(slice9Source, contains('[$probe]'),
             reason: 'Missing probe $probe');
       }
       final reversibleClientSources = <String>[
@@ -573,7 +583,7 @@ void main() {
       );
     });
 
-    test('slice 9: an uncontrolled recent peer inherits playing state',
+    test('slice 9: an uncontrolled recent peer adopts the session paused',
         () async {
       final hub = AriamiConnectHub(
         disconnectGracePeriod: const Duration(milliseconds: 5),
@@ -593,7 +603,7 @@ void main() {
             message.type == AriamiConnectMessageType.transfer &&
             message.data?['phase'] == 'prepare',
       );
-      expect(prepare.data?['snapshot']['isPlaying'], isTrue);
+      expect(prepare.data?['snapshot']['isPlaying'], isFalse);
     });
 
     test('slice 10: an empty hub retains the previous account session', () {

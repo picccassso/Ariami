@@ -1077,6 +1077,274 @@ void main() {
     });
   });
 
+  group('slice 9 safe failover', () {
+    test('[reclaim_grace_policy] the owner has the centralized grace window',
+        () {
+      expect(kConnectOwnerReclaimGrace, const Duration(seconds: 20));
+      expect(kConnectRecentControllerWindow, const Duration(seconds: 120));
+      final clock = _FakeClock();
+      final hub = AriamiConnectHub(
+        now: clock.now,
+        timerFactory: clock.createTimer,
+      );
+      addTearDown(hub.dispose);
+      final candidate = _FakeChannel();
+      final owner = _FakeChannel();
+      _registerDevice(hub, candidate, 'candidate');
+      _registerDevice(hub, owner, 'owner');
+      hub.handle(owner, _stateMessage(activate: true));
+
+      hub.unregister(owner);
+      clock.elapse(const Duration(seconds: 19));
+      expect(_transferPrepares(candidate), isEmpty);
+
+      final reclaimedOwner = _FakeChannel();
+      _registerDevice(hub, reclaimedOwner, 'owner');
+      clock.elapse(const Duration(seconds: 2));
+
+      expect(_transferPrepares(candidate), isEmpty);
+      final welcome = _lastMessage(
+        reclaimedOwner,
+        AriamiConnectMessageType.welcome,
+      );
+      expect(welcome.data?['activeDeviceId'], 'owner');
+      expect(welcome.data?['ownerEpoch'], 1);
+    });
+
+    test(
+        '[recent_controller_inherits_playing] an accepted recent command '
+        'permits playing inheritance', () {
+      final clock = _FakeClock();
+      final hub = AriamiConnectHub(
+        now: clock.now,
+        timerFactory: clock.createTimer,
+      );
+      addTearDown(hub.dispose);
+      final controller = _FakeChannel();
+      final owner = _FakeChannel();
+      _registerDevice(hub, controller, 'controller');
+      _registerDevice(hub, owner, 'owner');
+      hub.handle(owner, _stateMessage(activate: true));
+      _sendPauseCommand(hub, controller, 'recent-command');
+
+      hub.unregister(owner);
+      clock.elapse(kConnectOwnerReclaimGrace);
+
+      final prepare = _transferPrepares(controller).single;
+      expect(prepare.data?['targetDeviceId'], 'controller');
+      expect(prepare.data?['snapshot']['isPlaying'], isTrue);
+    });
+
+    test(
+        '[connection_recency_falls_back_paused] a newly connected peer never '
+        'inherits playing state by recency alone', () {
+      final clock = _FakeClock();
+      final hub = AriamiConnectHub(
+        now: clock.now,
+        timerFactory: clock.createTimer,
+      );
+      addTearDown(hub.dispose);
+      final older = _FakeChannel();
+      final newer = _FakeChannel();
+      final owner = _FakeChannel();
+      _registerDevice(hub, older, 'older');
+      clock.elapse(const Duration(seconds: 1));
+      _registerDevice(hub, newer, 'newer');
+      _registerDevice(hub, owner, 'owner');
+      hub.handle(owner, _stateMessage(activate: true));
+
+      hub.unregister(owner);
+      clock.elapse(kConnectOwnerReclaimGrace);
+
+      expect(_transferPrepares(older), isEmpty);
+      final prepare = _transferPrepares(newer).single;
+      expect(prepare.data?['snapshot']['isPlaying'], isFalse);
+    });
+
+    test(
+        '[stale_controller_falls_back_paused] command activity outside the '
+        'policy window cannot resume playback', () {
+      final clock = _FakeClock();
+      final hub = AriamiConnectHub(
+        now: clock.now,
+        timerFactory: clock.createTimer,
+      );
+      addTearDown(hub.dispose);
+      final controller = _FakeChannel();
+      final owner = _FakeChannel();
+      _registerDevice(hub, controller, 'controller');
+      _registerDevice(hub, owner, 'owner');
+      hub.handle(owner, _stateMessage(activate: true));
+      _sendPauseCommand(hub, controller, 'stale-command');
+      clock.elapse(const Duration(seconds: 121));
+
+      hub.unregister(owner);
+      clock.elapse(kConnectOwnerReclaimGrace);
+
+      final prepare = _transferPrepares(controller).single;
+      expect(prepare.data?['snapshot']['isPlaying'], isFalse);
+    });
+
+    test(
+        '[failed_failover_tries_next] a rejected recent controller advances '
+        'to the next eligible controller', () {
+      final clock = _FakeClock();
+      final hub = AriamiConnectHub(
+        now: clock.now,
+        timerFactory: clock.createTimer,
+      );
+      addTearDown(hub.dispose);
+      final next = _FakeChannel();
+      final first = _FakeChannel();
+      final owner = _FakeChannel();
+      _registerDevice(hub, next, 'next');
+      _registerDevice(hub, first, 'first');
+      _registerDevice(hub, owner, 'owner');
+      hub.handle(owner, _stateMessage(activate: true));
+      _sendPauseCommand(hub, next, 'next-command');
+      clock.elapse(const Duration(seconds: 1));
+      _sendPauseCommand(hub, first, 'first-command');
+
+      hub.unregister(owner);
+      clock.elapse(kConnectOwnerReclaimGrace);
+      final rejected = _transferPrepares(first).single;
+      expect(rejected.data?['snapshot']['isPlaying'], isTrue);
+      hub.handle(
+        first,
+        WsMessage(
+          type: AriamiConnectMessageType.transferResult,
+          data: <String, dynamic>{
+            'transferId': rejected.data?['transferId'],
+            'ok': false,
+          },
+        ),
+      );
+
+      final retry = _transferPrepares(next).single;
+      expect(retry.data?['snapshot']['isPlaying'], isTrue);
+      hub.handle(
+        next,
+        WsMessage(
+          type: AriamiConnectMessageType.transferResult,
+          data: <String, dynamic>{
+            'transferId': retry.data?['transferId'],
+            'ok': true,
+          },
+        ),
+      );
+      expect(
+        _lastMessage(next, AriamiConnectMessageType.devices)
+            .data?['activeDeviceId'],
+        'next',
+      );
+    });
+
+    test(
+        '[failover_exhaustion_settles_paused] rejected candidates leave an '
+        'ownerless paused session', () {
+      final clock = _FakeClock();
+      final hub = AriamiConnectHub(
+        now: clock.now,
+        timerFactory: clock.createTimer,
+      );
+      addTearDown(hub.dispose);
+      final first = _FakeChannel();
+      final second = _FakeChannel();
+      final owner = _FakeChannel();
+      _registerDevice(hub, first, 'first');
+      clock.elapse(const Duration(seconds: 1));
+      _registerDevice(hub, second, 'second');
+      _registerDevice(hub, owner, 'owner');
+      hub.handle(owner, _stateMessage(activate: true));
+
+      hub.unregister(owner);
+      clock.elapse(kConnectOwnerReclaimGrace);
+      final secondPrepare = _transferPrepares(second).single;
+      expect(secondPrepare.data?['snapshot']['isPlaying'], isFalse);
+      _rejectTransfer(hub, second, secondPrepare);
+      final firstPrepare = _transferPrepares(first).single;
+      expect(firstPrepare.data?['snapshot']['isPlaying'], isFalse);
+      _rejectTransfer(hub, first, firstPrepare);
+
+      final settledState = _lastMessage(
+        first,
+        AriamiConnectMessageType.state,
+      );
+      expect(settledState.data?['activeDeviceId'], isNull);
+      expect(settledState.data?['snapshot']['isPlaying'], isFalse);
+      final devices = _lastMessage(first, AriamiConnectMessageType.devices);
+      expect(devices.data?['activeDeviceId'], isNull);
+      expect(devices.data?['ownerEpoch'], 2);
+    });
+
+    test(
+        '[former_owner_reconnects_paused] the disconnected owner is paused '
+        'when it returns after failover', () {
+      final clock = _FakeClock();
+      final hub = AriamiConnectHub(
+        now: clock.now,
+        timerFactory: clock.createTimer,
+      );
+      addTearDown(hub.dispose);
+      final candidate = _FakeChannel();
+      final owner = _FakeChannel();
+      _registerDevice(hub, candidate, 'candidate');
+      _registerDevice(hub, owner, 'owner');
+      hub.handle(owner, _stateMessage(activate: true));
+
+      hub.unregister(owner);
+      clock.elapse(kConnectOwnerReclaimGrace);
+      final prepare = _transferPrepares(candidate).single;
+      hub.handle(
+        candidate,
+        WsMessage(
+          type: AriamiConnectMessageType.transferResult,
+          data: <String, dynamic>{
+            'transferId': prepare.data?['transferId'],
+            'ok': true,
+          },
+        ),
+      );
+      final nextOwner = _FakeChannel();
+      _registerDevice(hub, nextOwner, 'next-owner');
+      hub.handle(
+        nextOwner,
+        _stateMessage(activate: true, ownerEpoch: 2),
+      );
+
+      final reconnectedOwner = _FakeChannel();
+      _registerDevice(hub, reconnectedOwner, 'owner');
+      final pause = reconnectedOwner.messages.singleWhere(
+        (message) =>
+            message.type == AriamiConnectMessageType.command &&
+            message.data?['command'] == AriamiConnectCommand.pause,
+      );
+      expect(pause.data?['activeDeviceId'], 'next-owner');
+      expect(pause.data?['ownerEpoch'], 3);
+
+      hub.handle(
+        reconnectedOwner,
+        WsMessage(
+          type: AriamiConnectMessageType.commandResult,
+          data: <String, dynamic>{
+            'commandId': pause.data?['commandId'],
+            'ok': true,
+            'ownerEpoch': 3,
+          },
+        ),
+      );
+      hub.unregister(reconnectedOwner);
+      final ownerAfterAcknowledgement = _FakeChannel();
+      _registerDevice(hub, ownerAfterAcknowledgement, 'owner');
+      expect(
+        ownerAfterAcknowledgement.messages.where((message) =>
+            message.type == AriamiConnectMessageType.command &&
+            message.data?['command'] == AriamiConnectCommand.pause),
+        isEmpty,
+      );
+    });
+  });
+
   test('remote commands keep ownership and route only to the active device',
       () {
     final hub = AriamiConnectHub();
@@ -1820,6 +2088,60 @@ void main() {
   });
 }
 
+void _registerDevice(
+  AriamiConnectHub hub,
+  _FakeChannel channel,
+  String deviceId,
+) {
+  hub.register(
+    channel,
+    userId: 'user',
+    deviceId: deviceId,
+    deviceName: deviceId,
+    clientType: 'mobile',
+  );
+}
+
+void _sendPauseCommand(
+  AriamiConnectHub hub,
+  _FakeChannel controller,
+  String commandId,
+) {
+  hub.handle(
+    controller,
+    WsMessage(
+      type: AriamiConnectMessageType.command,
+      data: <String, dynamic>{
+        'commandId': commandId,
+        'command': AriamiConnectCommand.pause,
+      },
+    ),
+  );
+}
+
+List<WsMessage> _transferPrepares(_FakeChannel channel) => channel.messages
+    .where((message) =>
+        message.type == AriamiConnectMessageType.transfer &&
+        message.data?['phase'] == 'prepare')
+    .toList(growable: false);
+
+void _rejectTransfer(
+  AriamiConnectHub hub,
+  _FakeChannel target,
+  WsMessage prepare,
+) {
+  hub.handle(
+    target,
+    WsMessage(
+      type: AriamiConnectMessageType.transferResult,
+      data: <String, dynamic>{
+        'transferId': prepare.data?['transferId'],
+        'ok': false,
+      },
+    ),
+  );
+}
+
 WsMessage _stateMessage({
   required bool activate,
   int? ownerEpoch,
@@ -1906,6 +2228,59 @@ WsMessage _helloFromWire(String protocolVersionsJson) =>
 
 WsMessage _lastMessage(_FakeChannel channel, String type) =>
     channel.messages.lastWhere((message) => message.type == type);
+
+class _FakeClock {
+  DateTime _current = DateTime.utc(2026, 1, 1);
+  final List<_FakeTimer> _timers = <_FakeTimer>[];
+
+  DateTime now() => _current;
+
+  Timer createTimer(Duration duration, void Function() callback) {
+    final timer = _FakeTimer(_current.add(duration), callback);
+    _timers.add(timer);
+    return timer;
+  }
+
+  void elapse(Duration duration) {
+    final target = _current.add(duration);
+    while (true) {
+      _FakeTimer? next;
+      for (final timer in _timers) {
+        if (!timer.isActive || timer.due.isAfter(target)) continue;
+        if (next == null || timer.due.isBefore(next.due)) next = timer;
+      }
+      if (next == null) break;
+      _current = next.due;
+      next.fire();
+    }
+    _current = target;
+  }
+}
+
+class _FakeTimer implements Timer {
+  _FakeTimer(this.due, this._callback);
+
+  final DateTime due;
+  final void Function() _callback;
+  bool _isActive = true;
+  int _tick = 0;
+
+  void fire() {
+    if (!_isActive) return;
+    _isActive = false;
+    _tick = 1;
+    _callback();
+  }
+
+  @override
+  void cancel() => _isActive = false;
+
+  @override
+  bool get isActive => _isActive;
+
+  @override
+  int get tick => _tick;
+}
 
 class _FakeChannel extends StreamChannelMixin<dynamic>
     implements WebSocketChannel {
