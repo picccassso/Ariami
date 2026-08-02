@@ -122,15 +122,20 @@ class AriamiConnectClient {
   int _lastRevision = -1;
   int _queueCounter = 0;
   int _outboundStateRevision = 0;
+  int _semanticGeneration = 0;
   List<Map<String, dynamic>> _remoteQueue = const <Map<String, dynamic>>[];
   List<int> _remoteBackingOrder = const <int>[];
   String? _remoteSourceId;
   String? _lastPublishedQueueFingerprint;
   String? _lastPublishedDiscreteFingerprint;
+  _ObservedSemanticSnapshot? _lastObservedSemanticSnapshot;
   String? _awaitingQueueFingerprint;
   DateTime? _lastStatePublishedAt;
   Future<void> _inboundQueue = Future<void>.value();
   Future<void>? _formerOwnerPauseFuture;
+  _PreparedTransfer? _preparedTransfer;
+  Future<void>? _preparedTransferApplyFuture;
+  final LinkedHashSet<String> _completedTransferIds = LinkedHashSet<String>();
   int _lastPausedOwnerEpoch = -1;
   int _connectionGeneration = 0;
   final LinkedHashMap<String, _PendingOutboundCommand> _pendingCommands =
@@ -400,6 +405,12 @@ class AriamiConnectClient {
           .toList(growable: false);
     }
     _reconcileTakeoverRequest();
+    if (isThisDeviceActive && _lastObservedSemanticSnapshot == null) {
+      _lastObservedSemanticSnapshot = _ObservedSemanticSnapshot(
+        snapshot: snapshotProvider(),
+        observedAt: DateTime.now(),
+      );
+    }
     onChanged?.call();
     return true;
   }
@@ -544,6 +555,12 @@ class AriamiConnectClient {
     }
     ownerEpoch = incomingEpoch;
     if (carriesOwner) activeDeviceId = incomingOwner;
+    final rawSemanticGeneration = data['semanticGeneration'];
+    if (rawSemanticGeneration is num &&
+        rawSemanticGeneration == rawSemanticGeneration.toInt() &&
+        rawSemanticGeneration.toInt() >= _semanticGeneration) {
+      _semanticGeneration = rawSemanticGeneration.toInt();
+    }
     return (accepted: true, paused: paused);
   }
 
@@ -638,6 +655,15 @@ class AriamiConnectClient {
       if (!(authority.paused && command == AriamiConnectCommand.pause)) {
         await handleCommand(command, arguments);
       }
+      // The hub reserves this semantic generation when it accepts the
+      // command. Anchor the resulting local snapshot to that generation so
+      // the publication does not count the same command a second time.
+      if (data['semanticGeneration'] != null) {
+        _lastObservedSemanticSnapshot = _ObservedSemanticSnapshot(
+          snapshot: snapshotProvider(),
+          observedAt: DateTime.now(),
+        );
+      }
       final commandEpoch = (data['ownerEpoch'] as num?)?.toInt();
       if (commandEpoch == null || commandEpoch == ownerEpoch) {
         if (isThisDeviceActive) publishState();
@@ -654,6 +680,10 @@ class AriamiConnectClient {
     final sourceId = data['sourceDeviceId'] as String?;
     final targetId = data['targetDeviceId'] as String?;
     _log('transfer $phase: $sourceId -> $targetId');
+    if (phase == 'cancel' && targetId == deviceId) {
+      await _restorePreparedTransfer(transferId);
+      return;
+    }
     if (phase == 'prepare' && targetId == deviceId) {
       final authority = await _acceptAuthority(<String, dynamic>{
         ...data,
@@ -662,6 +692,12 @@ class AriamiConnectClient {
       if (!authority.accepted) return;
       final raw = data['snapshot'];
       if (raw is! Map) return;
+      await _restorePreparedTransfer();
+      final previousSnapshot = snapshotProvider();
+      _preparedTransfer = _PreparedTransfer(
+        id: transferId,
+        previousSnapshot: previousSnapshot,
+      );
       isApplyingRemoteState = true;
       onChanged?.call();
       try {
@@ -671,7 +707,10 @@ class AriamiConnectClient {
         // Load and seek without starting. The source keeps playing until the
         // target confirms readiness, preventing a failed load from silencing
         // the session.
-        await applySnapshot(snapshot.copyWith(isPlaying: false));
+        final applyFuture = applySnapshot(snapshot.copyWith(isPlaying: false));
+        _preparedTransferApplyFuture = applyFuture;
+        await applyFuture;
+        if (_preparedTransfer?.id != transferId) return;
         remoteSnapshot = snapshot;
         remoteSnapshotAt = DateTime.now();
         _send(WsMessage(
@@ -680,9 +719,12 @@ class AriamiConnectClient {
             'transferId': transferId,
             'ok': true,
             'ownerEpoch': ownerEpoch,
+            'queueCounter': data['queueCounter'],
+            'semanticGeneration': data['semanticGeneration'],
           },
         ));
       } catch (error) {
+        await _restorePreparedTransfer(transferId);
         _send(WsMessage(
           type: AriamiConnectMessageType.transferResult,
           data: <String, dynamic>{
@@ -693,6 +735,7 @@ class AriamiConnectClient {
           },
         ));
       } finally {
+        _preparedTransferApplyFuture = null;
         isApplyingRemoteState = false;
         onChanged?.call();
       }
@@ -700,6 +743,11 @@ class AriamiConnectClient {
     }
 
     if (phase != 'commit') return;
+    if (_completedTransferIds.contains(transferId)) return;
+    if (targetId == deviceId && _preparedTransfer?.id != transferId) {
+      _log('transfer commit ignored: $transferId is not the prepared transfer');
+      return;
+    }
     final authority = await _acceptAuthority(<String, dynamic>{
       ...data,
       'activeDeviceId': targetId,
@@ -732,6 +780,7 @@ class AriamiConnectClient {
     }
     if (targetId == deviceId) {
       if (snapshot == null) return;
+      _preparedTransfer = null;
       _lastPublishedQueueFingerprint = snapshot.queueFingerprint;
       isApplyingRemoteState = true;
       try {
@@ -764,9 +813,46 @@ class AriamiConnectClient {
       }
       publishState();
     } else if (sourceId == deviceId && !authority.paused) {
-      await pauseForTransfer();
+      await _pauseForNewOwner(ownerEpoch);
     }
+    _rememberCompletedTransfer(transferId);
     onChanged?.call();
+  }
+
+  Future<void> _restorePreparedTransfer([String? transferId]) async {
+    final prepareApply = _preparedTransferApplyFuture;
+    if (prepareApply != null) {
+      try {
+        await prepareApply;
+      } catch (_) {
+        // The prepare path reports its own failure. Rollback must still run.
+      }
+    }
+    final prepared = _preparedTransfer;
+    if (prepared == null || (transferId != null && prepared.id != transferId)) {
+      return;
+    }
+    _preparedTransfer = null;
+    isApplyingRemoteState = true;
+    onChanged?.call();
+    try {
+      await applySnapshot(prepared.previousSnapshot);
+    } catch (error) {
+      errorMessage = 'Ariami Connect could not restore local playback: $error';
+    } finally {
+      isApplyingRemoteState = false;
+      onChanged?.call();
+    }
+  }
+
+  void _rememberCompletedTransfer(String transferId) {
+    if (transferId.isEmpty) return;
+    _completedTransferIds
+      ..remove(transferId)
+      ..add(transferId);
+    while (_completedTransferIds.length > 256) {
+      _completedTransferIds.remove(_completedTransferIds.first);
+    }
   }
 
   void publishState({bool activate = false}) {
@@ -884,6 +970,7 @@ class AriamiConnectClient {
 
   void _publishSnapshot(AriamiPlaybackSnapshot snapshot,
       {required bool activate}) {
+    _observeSemanticState(snapshot);
     _log('publish: activate $activate, track ${snapshot.currentTrackId}, '
         'playing ${snapshot.isPlaying}, thinksActive $isThisDeviceActive');
     if (_hubProtocolVersion >= AriamiConnectProtocol.v3) {
@@ -906,6 +993,7 @@ class AriamiConnectClient {
             if (snapshot.sourceId != null) 'sourceId': snapshot.sourceId,
             'queueCounter': queueChanged ? _queueCounter + 1 : _queueCounter,
             'ownerEpoch': ownerEpoch,
+            'semanticGeneration': _semanticGeneration,
           },
         ));
         return;
@@ -919,6 +1007,7 @@ class AriamiConnectClient {
         'activate': activate,
         'snapshot': snapshot.toJson(),
         'ownerEpoch': ownerEpoch,
+        'semanticGeneration': _semanticGeneration,
       },
     ));
     _recordPublishedState(snapshot);
@@ -939,6 +1028,7 @@ class AriamiConnectClient {
         'volume': snapshot.volume,
         'stateRevision': _outboundStateRevision,
         'ownerEpoch': ownerEpoch,
+        'semanticGeneration': _semanticGeneration,
       },
     ));
     _recordPublishedState(snapshot);
@@ -949,6 +1039,36 @@ class AriamiConnectClient {
     _lastPublishedDiscreteFingerprint = _discreteFingerprint(snapshot);
     _lastStatePublishedAt = DateTime.now();
   }
+
+  void _observeSemanticState(AriamiPlaybackSnapshot snapshot) {
+    final previous = _lastObservedSemanticSnapshot;
+    final observedAt = DateTime.now();
+    if (previous != null) {
+      final changed = _semanticFingerprint(previous.snapshot) !=
+          _semanticFingerprint(snapshot);
+      final elapsedMs =
+          observedAt.difference(previous.observedAt).inMilliseconds;
+      final expectedPosition = previous.snapshot.positionMs +
+          (previous.snapshot.isPlaying && elapsedMs > 0 ? elapsedMs : 0);
+      final seeked = (snapshot.positionMs - expectedPosition).abs() > 1500;
+      if (changed || seeked) _semanticGeneration++;
+    }
+    _lastObservedSemanticSnapshot = _ObservedSemanticSnapshot(
+      snapshot: snapshot,
+      observedAt: observedAt,
+    );
+  }
+
+  String _semanticFingerprint(AriamiPlaybackSnapshot snapshot) => jsonEncode(
+        <String, dynamic>{
+          'queue': snapshot.queueFingerprint,
+          'currentIndex': snapshot.currentIndex,
+          'isPlaying': snapshot.isPlaying,
+          'shuffle': snapshot.shuffle,
+          'repeatMode': snapshot.repeatMode,
+          'volume': snapshot.volume,
+        },
+      );
 
   String _discreteFingerprint(AriamiPlaybackSnapshot snapshot) => jsonEncode(
         <String, dynamic>{
@@ -967,6 +1087,8 @@ class AriamiConnectClient {
     _progressPublishTimer = null;
     _queueCounter = 0;
     _outboundStateRevision = 0;
+    _semanticGeneration = 0;
+    _lastObservedSemanticSnapshot = null;
     _remoteQueue = const <Map<String, dynamic>>[];
     _remoteBackingOrder = const <int>[];
     _remoteSourceId = null;
@@ -1100,6 +1222,10 @@ class AriamiConnectClient {
     if (!isConnected) {
       await _open();
       return;
+    }
+
+    if (_preparedTransfer != null) {
+      await _restorePreparedTransfer();
     }
 
     _reconnectTimer?.cancel();
@@ -1282,6 +1408,7 @@ class AriamiConnectClient {
     final replaced = closeCode == 4000 &&
         (closeReason?.toLowerCase().contains('replaced') ?? false);
     final wasConnected = isConnected;
+    unawaited(_restorePreparedTransfer());
     _connectionGeneration++;
     isConnected = false;
     _isWelcomed = false;
@@ -1360,6 +1487,7 @@ class AriamiConnectClient {
     _subscription = null;
     _channel = null;
     isConnected = false;
+    await _restorePreparedTransfer();
     await Future.wait(<Future<void>>[
       _cancelSubscription(subscription, disposeTimeout),
       _closeChannel(channel, 1000, 'Client closed', disposeTimeout),
@@ -1392,6 +1520,26 @@ class AriamiConnectClient {
       // See [_cancelSubscription]: close acknowledgement is bounded as well.
     }
   }
+}
+
+class _PreparedTransfer {
+  const _PreparedTransfer({
+    required this.id,
+    required this.previousSnapshot,
+  });
+
+  final String id;
+  final AriamiPlaybackSnapshot previousSnapshot;
+}
+
+class _ObservedSemanticSnapshot {
+  const _ObservedSemanticSnapshot({
+    required this.snapshot,
+    required this.observedAt,
+  });
+
+  final AriamiPlaybackSnapshot snapshot;
+  final DateTime observedAt;
 }
 
 class _PendingOutboundCommand {

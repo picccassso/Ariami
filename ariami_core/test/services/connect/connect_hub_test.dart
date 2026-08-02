@@ -791,6 +791,292 @@ void main() {
     );
   });
 
+  group('slice 8 revision-safe handoffs', () {
+    final semanticChanges = <({String name, WsMessage Function() message})>[
+      (
+        name: 'pause',
+        message: () => _stateMessage(activate: false, isPlaying: false),
+      ),
+      (
+        name: 'seek',
+        message: () => _stateMessage(activate: false, positionMs: 9000),
+      ),
+      (
+        name: 'natural track transition',
+        message: () => _stateMessage(
+              activate: false,
+              tracks: const <Map<String, dynamic>>[
+                <String, dynamic>{'id': 'song-1', 'title': 'Song 1'},
+                <String, dynamic>{'id': 'song-2', 'title': 'Song 2'},
+              ],
+              currentIndex: 1,
+            ),
+      ),
+      (
+        name: 'queue edit',
+        message: () => _stateMessage(
+              activate: false,
+              tracks: const <Map<String, dynamic>>[
+                <String, dynamic>{'id': 'song-1', 'title': 'Song'},
+                <String, dynamic>{'id': 'queued', 'title': 'Queued'},
+              ],
+            ),
+      ),
+      (
+        name: 'shuffle',
+        message: () => _stateMessage(activate: false, shuffle: true),
+      ),
+      (
+        name: 'repeat',
+        message: () => _stateMessage(activate: false, repeatMode: 'all'),
+      ),
+      (
+        name: 'volume',
+        message: () => _stateMessage(activate: false, volume: 0.5),
+      ),
+    ];
+
+    for (final change in semanticChanges) {
+      test(
+          '[handoff_semantic_generation] ${change.name} invalidates an in-flight prepare',
+          () {
+        final hub = AriamiConnectHub();
+        addTearDown(hub.dispose);
+        final owner = _FakeChannel();
+        final target = _FakeChannel();
+        hub.register(owner,
+            userId: 'user',
+            deviceId: 'owner',
+            deviceName: 'Owner',
+            clientType: 'mobile');
+        hub.register(target,
+            userId: 'user',
+            deviceId: 'target',
+            deviceName: 'Target',
+            clientType: 'tv');
+        hub.handle(owner, _stateMessage(activate: true));
+        hub.handle(
+          owner,
+          WsMessage(
+            type: AriamiConnectMessageType.transfer,
+            data: const <String, dynamic>{'targetDeviceId': 'target'},
+          ),
+        );
+        final prepare = _lastMessage(target, AriamiConnectMessageType.transfer);
+
+        hub.handle(owner, change.message());
+        hub.handle(
+          target,
+          WsMessage(
+            type: AriamiConnectMessageType.transferResult,
+            data: <String, dynamic>{
+              'transferId': prepare.data?['transferId'],
+              'ok': true,
+            },
+          ),
+        );
+
+        expect(
+          target.messages.where((message) =>
+              message.type == AriamiConnectMessageType.transfer &&
+              message.data?['phase'] == 'commit'),
+          isEmpty,
+        );
+        expect(
+          _lastMessage(target, AriamiConnectMessageType.transfer)
+              .data?['reason'],
+          'state_changed',
+        );
+      });
+    }
+
+    test(
+        '[handoff_progress_is_not_semantic] ordinary position progress '
+        'does not invalidate a prepare', () {
+      final hub = AriamiConnectHub();
+      addTearDown(hub.dispose);
+      final owner = _FakeChannel();
+      final target = _FakeChannel();
+      hub.register(owner,
+          userId: 'user',
+          deviceId: 'owner',
+          deviceName: 'Owner',
+          clientType: 'mobile');
+      hub.register(target,
+          userId: 'user',
+          deviceId: 'target',
+          deviceName: 'Target',
+          clientType: 'tv');
+      hub.handle(owner, _stateMessage(activate: true));
+      hub.handle(
+        owner,
+        WsMessage(
+          type: AriamiConnectMessageType.transfer,
+          data: const <String, dynamic>{'targetDeviceId': 'target'},
+        ),
+      );
+      final prepare = _lastMessage(target, AriamiConnectMessageType.transfer);
+      hub.handle(owner, _stateMessage(activate: false, positionMs: 1100));
+      hub.handle(
+        target,
+        WsMessage(
+          type: AriamiConnectMessageType.transferResult,
+          data: <String, dynamic>{
+            'transferId': prepare.data?['transferId'],
+            'ok': true,
+          },
+        ),
+      );
+
+      expect(
+        _lastMessage(target, AriamiConnectMessageType.transfer).data?['phase'],
+        'commit',
+      );
+    });
+
+    test(
+        '[handoff_cancel_paths] timeout and rejection explicitly cancel '
+        'target preparation', () async {
+      final hub = AriamiConnectHub(
+        transferTimeout: const Duration(milliseconds: 10),
+      );
+      addTearDown(hub.dispose);
+      final owner = _FakeChannel();
+      final target = _FakeChannel();
+      hub.register(owner,
+          userId: 'user',
+          deviceId: 'owner',
+          deviceName: 'Owner',
+          clientType: 'mobile');
+      hub.register(target,
+          userId: 'user',
+          deviceId: 'target',
+          deviceName: 'Target',
+          clientType: 'tv');
+      hub.handle(owner, _stateMessage(activate: true));
+      hub.handle(
+        owner,
+        WsMessage(
+          type: AriamiConnectMessageType.transfer,
+          data: const <String, dynamic>{'targetDeviceId': 'target'},
+        ),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 25));
+      expect(
+        _lastMessage(target, AriamiConnectMessageType.transfer).data?['reason'],
+        'timeout',
+      );
+
+      hub.handle(
+        owner,
+        WsMessage(
+          type: AriamiConnectMessageType.transfer,
+          data: const <String, dynamic>{'targetDeviceId': 'target'},
+        ),
+      );
+      final prepare = _lastMessage(target, AriamiConnectMessageType.transfer);
+      hub.handle(
+        target,
+        WsMessage(
+          type: AriamiConnectMessageType.transferResult,
+          data: <String, dynamic>{
+            'transferId': prepare.data?['transferId'],
+            'ok': false,
+          },
+        ),
+      );
+      expect(
+        _lastMessage(target, AriamiConnectMessageType.transfer).data?['reason'],
+        'rejected',
+      );
+
+      hub.handle(
+        owner,
+        WsMessage(
+          type: AriamiConnectMessageType.transfer,
+          data: const <String, dynamic>{'targetDeviceId': 'target'},
+        ),
+      );
+      hub.handle(
+        owner,
+        WsMessage(
+          type: AriamiConnectMessageType.transfer,
+          data: const <String, dynamic>{'targetDeviceId': 'target'},
+        ),
+      );
+      expect(
+        target.messages
+            .lastWhere((message) =>
+                message.type == AriamiConnectMessageType.transfer &&
+                message.data?['phase'] == 'cancel')
+            .data?['reason'],
+        'superseded',
+      );
+
+      hub.unregister(owner);
+      expect(
+        target.messages
+            .lastWhere((message) =>
+                message.type == AriamiConnectMessageType.transfer &&
+                message.data?['phase'] == 'cancel')
+            .data?['reason'],
+        'disconnect',
+      );
+    });
+
+    test('a concurrent command invalidates a prepared snapshot', () {
+      final hub = AriamiConnectHub();
+      addTearDown(hub.dispose);
+      final owner = _FakeChannel();
+      final target = _FakeChannel();
+      hub.register(owner,
+          userId: 'user',
+          deviceId: 'owner',
+          deviceName: 'Owner',
+          clientType: 'mobile');
+      hub.register(target,
+          userId: 'user',
+          deviceId: 'target',
+          deviceName: 'Target',
+          clientType: 'tv');
+      hub.handle(owner, _stateMessage(activate: true));
+      hub.handle(
+        owner,
+        WsMessage(
+          type: AriamiConnectMessageType.transfer,
+          data: const <String, dynamic>{'targetDeviceId': 'target'},
+        ),
+      );
+      final prepare = _lastMessage(target, AriamiConnectMessageType.transfer);
+      hub.handle(
+        owner,
+        WsMessage(
+          type: AriamiConnectMessageType.command,
+          data: const <String, dynamic>{
+            'commandId': 'concurrent-pause',
+            'command': AriamiConnectCommand.pause,
+            'ownerEpoch': 1,
+          },
+        ),
+      );
+      hub.handle(
+        target,
+        WsMessage(
+          type: AriamiConnectMessageType.transferResult,
+          data: <String, dynamic>{
+            'transferId': prepare.data?['transferId'],
+            'ok': true,
+          },
+        ),
+      );
+
+      expect(
+        _lastMessage(target, AriamiConnectMessageType.transfer).data?['reason'],
+        'state_changed',
+      );
+    });
+  });
+
   test('remote commands keep ownership and route only to the active device',
       () {
     final hub = AriamiConnectHub();
@@ -1534,22 +1820,34 @@ void main() {
   });
 }
 
-WsMessage _stateMessage({required bool activate, int? ownerEpoch}) => WsMessage(
+WsMessage _stateMessage({
+  required bool activate,
+  int? ownerEpoch,
+  List<Map<String, dynamic>>? tracks,
+  int currentIndex = 0,
+  int positionMs = 1000,
+  bool isPlaying = true,
+  bool shuffle = false,
+  String repeatMode = 'off',
+  double volume = 1,
+}) =>
+    WsMessage(
       type: AriamiConnectMessageType.state,
       data: <String, dynamic>{
         'activate': activate,
         if (ownerEpoch != null) 'ownerEpoch': ownerEpoch,
         'snapshot': AriamiPlaybackSnapshot(
-          queue: <Map<String, dynamic>>[
-            <String, dynamic>{'id': 'song-1', 'title': 'Song'},
-          ],
-          currentIndex: 0,
-          positionMs: 1000,
+          queue: tracks ??
+              const <Map<String, dynamic>>[
+                <String, dynamic>{'id': 'song-1', 'title': 'Song'},
+              ],
+          currentIndex: currentIndex,
+          positionMs: positionMs,
           durationMs: 60000,
-          isPlaying: true,
-          shuffle: false,
-          repeatMode: 'off',
-          volume: 1,
+          isPlaying: isPlaying,
+          shuffle: shuffle,
+          repeatMode: repeatMode,
+          volume: volume,
         ).toJson(),
       },
     );

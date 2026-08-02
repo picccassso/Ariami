@@ -461,6 +461,17 @@ extension _PlaybackManagerConnectImpl on PlaybackManager {
 
   Future<void> _applyConnectSnapshotImpl(
       AriamiPlaybackSnapshot snapshot) async {
+    if (snapshot.queue.isEmpty) {
+      await _clearQueueImpl();
+      _isShuffleEnabled = snapshot.shuffle;
+      _repeatMode = switch (snapshot.repeatMode) {
+        'all' => RepeatMode.all,
+        'one' => RepeatMode.one,
+        _ => RepeatMode.none,
+      };
+      _notifyStateChanged();
+      return;
+    }
     final songs = snapshot.queue
         .map(_songFromConnectJson)
         .whereType<Song>()

@@ -301,14 +301,44 @@
     },
     {
       "slice": 8,
-      "coverage": "representative",
-      "probe": "handoff_overwrites_concurrent_state",
+      "coverage": "complete",
+      "probes": [
+        "handoff_semantic_generation",
+        "handoff_progress_is_not_semantic",
+        "prepared_target_restored",
+        "current_transfer_only",
+        "handoff_actions_idempotent",
+        "handoff_cancel_paths"
+      ],
       "failureModes": [
-        "pause play seek skip queue shuffle repeat or volume change is overwritten",
-        "natural track transition is overwritten",
-        "failed or superseded prepare destroys target local state",
-        "stale transfer id commits",
-        "source relinquishment or target start runs more than once"
+        {
+          "name": "pause play seek skip queue shuffle repeat or volume change is overwritten",
+          "probe": "handoff_semantic_generation"
+        },
+        {
+          "name": "ordinary progress is mistaken for a semantic change",
+          "probe": "handoff_progress_is_not_semantic"
+        },
+        {
+          "name": "natural track transition is overwritten",
+          "probe": "handoff_semantic_generation"
+        },
+        {
+          "name": "failed or superseded prepare destroys target local state",
+          "probe": "prepared_target_restored"
+        },
+        {
+          "name": "stale transfer id commits",
+          "probe": "current_transfer_only"
+        },
+        {
+          "name": "source relinquishment or target start runs more than once",
+          "probe": "handoff_actions_idempotent"
+        },
+        {
+          "name": "timeout rejection supersede or disconnect leaves target prepared",
+          "probe": "handoff_cancel_paths"
+        }
       ]
     },
     {

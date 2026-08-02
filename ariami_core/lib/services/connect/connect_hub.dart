@@ -14,6 +14,7 @@ class AriamiConnectHub {
   AriamiConnectHub({
     this.disconnectGracePeriod = const Duration(seconds: 3),
     this.commandTimeout = const Duration(seconds: 10),
+    this.transferTimeout = const Duration(seconds: 30),
     this.staleTimeout = const Duration(seconds: 90),
     this.sweepInterval = const Duration(seconds: 30),
     this.protocolV3Enabled = true,
@@ -30,6 +31,10 @@ class AriamiConnectHub {
   /// a slow track load, short enough that tapping play on a dead device does
   /// not fail silently.
   final Duration commandTimeout;
+
+  /// Bounds how long a target may remain prepared without a commit. Expiry
+  /// explicitly cancels the prepare so the target can restore local playback.
+  final Duration transferTimeout;
 
   /// Bounded command retention prevents one controller from exhausting the
   /// account-scoped session while results are outstanding.
@@ -132,14 +137,21 @@ class AriamiConnectHub {
     if (peer != null) {
       final session = _sessions[peer.userId];
       final abandoned = session?.pendingTransfers.values
-              .where((transfer) => transfer.targetDeviceId == peer.deviceId)
+              .where((transfer) =>
+                  transfer.targetDeviceId == peer.deviceId ||
+                  identical(transfer.requester, socket))
               .toList(growable: false) ??
           const <_PendingTransfer>[];
       for (final transfer in abandoned) {
-        session!.pendingTransfers.remove(transfer.id);
-        transfer.timeout?.cancel();
+        _cancelTransfer(
+          peer.userId,
+          session!,
+          transfer,
+          reason: 'disconnect',
+          notifyTarget: transfer.targetDeviceId != peer.deviceId,
+        );
         _sendError(transfer.requester, 'DEVICE_OFFLINE',
-            'The target device disconnected during handoff.');
+            'A device disconnected during handoff.');
       }
       if (session?.activeDeviceId == peer.deviceId &&
           session?.snapshot?.queue.isNotEmpty == true) {
@@ -341,7 +353,14 @@ class AriamiConnectHub {
         _sendAuthoritativeState(socket, session);
         return;
       }
+      final previousSnapshot = session.snapshot;
       final queueChanged = _adoptQueue(session, snapshot);
+      _adoptSemanticGeneration(
+        session,
+        data,
+        fallbackChanged:
+            queueChanged || _semanticStateChanged(previousSnapshot, snapshot),
+      );
       session.snapshot = snapshot;
       session.revision++;
       if (queueChanged) _broadcastQueue(peer.userId, session);
@@ -403,8 +422,18 @@ class AriamiConnectHub {
       if (session.queue?.fingerprint != queue.fingerprint) {
         session.queue = queue;
         session.queueCounter++;
+        _adoptSemanticGeneration(
+          session,
+          data,
+          fallbackChanged: true,
+        );
       } else {
         session.queue = queue;
+        _adoptSemanticGeneration(
+          session,
+          data,
+          fallbackChanged: false,
+        );
       }
       // Echo the canonical counter to the owner. The sender deliberately waits
       // for this acknowledgement before publishing state, so a reconnect or
@@ -447,6 +476,11 @@ class AriamiConnectHub {
         'backingOrder': queue.backingOrder,
         if (queue.sourceId != null) 'sourceId': queue.sourceId,
       }).copyWith(updatedAt: DateTime.now().toUtc());
+      _adoptSemanticGeneration(
+        session,
+        data,
+        fallbackChanged: _semanticStateChanged(session.snapshot, snapshot),
+      );
       session.snapshot = snapshot;
       session.revision++;
       _broadcastState(peer.userId, session, except: socket);
@@ -659,6 +693,11 @@ class AriamiConnectHub {
     if (peer.deviceId != session.activeDeviceId) {
       session.lastControllerDeviceId = peer.deviceId;
     }
+    // A validated playback command is semantic work even before the owner has
+    // time to publish its resulting state. Reserving the generation here
+    // prevents a handoff prepared concurrently with pause/seek/skip/queue
+    // control from committing the older snapshot.
+    session.semanticGeneration++;
     final payload = immutableConnectJson(<String, dynamic>{
       'commandId': commandId,
       'command': command,
@@ -666,6 +705,7 @@ class AriamiConnectHub {
       'requestedBy': peer.deviceId,
       'activeDeviceId': session.activeDeviceId,
       'ownerEpoch': session.ownerEpoch,
+      'semanticGeneration': session.semanticGeneration,
     })! as Map<String, dynamic>;
     final pending = _PendingCommand(
       userId: peer.userId,
@@ -882,20 +922,28 @@ class AriamiConnectHub {
     }
     final now = DateTime.now().toUtc();
     final expired = session.pendingTransfers.values
-        .where((transfer) =>
-            now.difference(transfer.createdAt) > const Duration(seconds: 30))
+        .where(
+            (transfer) => now.difference(transfer.createdAt) > transferTimeout)
         .toList(growable: false);
     for (final transfer in expired) {
-      session.pendingTransfers.remove(transfer.id);
-      transfer.timeout?.cancel();
+      _cancelTransfer(
+        peer.userId,
+        session,
+        transfer,
+        reason: 'timeout',
+      );
       _sendError(transfer.requester, 'TRANSFER_TIMEOUT',
           'The target device did not respond to the handoff.');
     }
     // A newer device choice wins over an in-flight picker action.
     final superseded = session.pendingTransfers.values.toList(growable: false);
     for (final transfer in superseded) {
-      session.pendingTransfers.remove(transfer.id);
-      transfer.timeout?.cancel();
+      _cancelTransfer(
+        peer.userId,
+        session,
+        transfer,
+        reason: 'superseded',
+      );
       _sendError(transfer.requester, 'TRANSFER_SUPERSEDED',
           'A newer playback-device choice replaced this handoff.');
     }
@@ -917,12 +965,19 @@ class AriamiConnectHub {
       snapshot: preparedSnapshot,
       createdAt: now,
       ownerEpoch: session.ownerEpoch,
+      queueCounter: session.queueCounter,
+      semanticGeneration: session.semanticGeneration,
       automatic: automatic,
     );
     session.pendingTransfers[transferId] = pending;
-    pending.timeout = Timer(const Duration(seconds: 30), () {
+    pending.timeout = Timer(transferTimeout, () {
       final timedOut = session.pendingTransfers.remove(transferId);
       if (timedOut != null) {
+        _sendTransferCancellation(
+          peer.userId,
+          timedOut,
+          reason: 'timeout',
+        );
         _sendError(timedOut.requester, 'TRANSFER_TIMEOUT',
             'The target device did not respond to the handoff.');
       }
@@ -938,6 +993,7 @@ class AriamiConnectHub {
       ),
       'queueCounter': session.queueCounter,
       'ownerEpoch': session.ownerEpoch,
+      'semanticGeneration': session.semanticGeneration,
     });
   }
 
@@ -951,11 +1007,41 @@ class AriamiConnectHub {
     transfer.timeout?.cancel();
     if (session.ownerEpoch != transfer.ownerEpoch ||
         !_matchesEpoch(data, transfer.ownerEpoch)) {
+      _sendTransferCancellation(
+        peer.userId,
+        transfer,
+        reason: 'stale_owner',
+      );
       _sendError(transfer.requester, 'STALE_OWNER_EPOCH',
           'Playback ownership changed before that handoff completed.');
       return;
     }
+    final requiresRevisionEcho =
+        peer.protocolVersion >= AriamiConnectProtocol.v3;
+    final echoedQueueCounter = (data['queueCounter'] as num?)?.toInt();
+    final echoedSemanticGeneration =
+        (data['semanticGeneration'] as num?)?.toInt();
+    final revisionMismatch = session.queueCounter != transfer.queueCounter ||
+        session.semanticGeneration != transfer.semanticGeneration ||
+        (requiresRevisionEcho &&
+            (echoedQueueCounter != transfer.queueCounter ||
+                echoedSemanticGeneration != transfer.semanticGeneration));
+    if (revisionMismatch) {
+      _sendTransferCancellation(
+        peer.userId,
+        transfer,
+        reason: 'state_changed',
+      );
+      _sendError(transfer.requester, 'TRANSFER_STATE_CHANGED',
+          'Playback changed while that handoff was preparing.');
+      return;
+    }
     if (data['ok'] != true) {
+      _sendTransferCancellation(
+        peer.userId,
+        transfer,
+        reason: 'rejected',
+      );
       _sendError(
           transfer.requester,
           'TRANSFER_FAILED',
@@ -990,6 +1076,7 @@ class AriamiConnectHub {
           else
             'revision': session.revision,
           'ownerEpoch': session.ownerEpoch,
+          'semanticGeneration': session.semanticGeneration,
         });
       }
     }
@@ -1039,6 +1126,7 @@ class AriamiConnectHub {
       else
         'revision': session?.revision ?? 0,
       'ownerEpoch': session?.ownerEpoch ?? 0,
+      'semanticGeneration': session?.semanticGeneration ?? 0,
     });
     if (peer.protocolVersion >= AriamiConnectProtocol.v3 && session != null) {
       if (session.queue != null) _sendQueue(socket, session);
@@ -1086,6 +1174,7 @@ class AriamiConnectHub {
       'devices': _deviceJson(userId),
       'activeDeviceId': _sessions[userId]?.activeDeviceId,
       'ownerEpoch': _sessions[userId]?.ownerEpoch ?? 0,
+      'semanticGeneration': _sessions[userId]?.semanticGeneration ?? 0,
     };
     for (final entry in _peers.entries) {
       if (entry.value.userId == userId && entry.value.canPlay) {
@@ -1121,6 +1210,7 @@ class AriamiConnectHub {
       'activeDeviceId': session.activeDeviceId,
       'ownerEpoch': session.ownerEpoch,
       'queueCounter': session.queueCounter,
+      'semanticGeneration': session.semanticGeneration,
       'tracks': queue.tracks,
       'backingOrder': queue.backingOrder,
       if (queue.sourceId != null) 'sourceId': queue.sourceId,
@@ -1136,6 +1226,7 @@ class AriamiConnectHub {
         'activeDeviceId': session.activeDeviceId,
         'ownerEpoch': session.ownerEpoch,
         'queueCounter': session.queueCounter,
+        'semanticGeneration': session.semanticGeneration,
         'currentIndex': snapshot.currentIndex,
         'positionMs': snapshot.positionMs,
         'durationMs': snapshot.durationMs,
@@ -1154,6 +1245,7 @@ class AriamiConnectHub {
       'snapshot': snapshot.toJson(),
       'revision': session.revision,
       'ownerEpoch': session.ownerEpoch,
+      'semanticGeneration': session.semanticGeneration,
     });
   }
 
@@ -1198,6 +1290,7 @@ class AriamiConnectHub {
 
     session.activeDeviceId = nextDeviceId;
     session.ownerEpoch++;
+    session.semanticGeneration++;
     session.disconnectTimer?.cancel();
     session.disconnectTimer = null;
 
@@ -1231,8 +1324,12 @@ class AriamiConnectHub {
     // owner that already lost the race.
     final pendingTransfers = session.pendingTransfers.values.toList();
     for (final transfer in pendingTransfers) {
-      session.pendingTransfers.remove(transfer.id);
-      transfer.timeout?.cancel();
+      _cancelTransfer(
+        userId,
+        session,
+        transfer,
+        reason: 'stale_owner',
+      );
       _sendError(transfer.requester, 'STALE_OWNER_EPOCH',
           'Playback ownership changed before that handoff completed.');
     }
@@ -1245,6 +1342,75 @@ class AriamiConnectHub {
         requestedBy: requestedBy,
       );
     }
+  }
+
+  void _cancelTransfer(
+    String userId,
+    _ConnectSession session,
+    _PendingTransfer transfer, {
+    required String reason,
+    bool notifyTarget = true,
+  }) {
+    if (session.pendingTransfers.remove(transfer.id) != transfer) return;
+    transfer.timeout?.cancel();
+    if (notifyTarget) {
+      _sendTransferCancellation(userId, transfer, reason: reason);
+    }
+  }
+
+  void _sendTransferCancellation(
+    String userId,
+    _PendingTransfer transfer, {
+    required String reason,
+  }) {
+    final target = _peerForDevice(userId, transfer.targetDeviceId);
+    if (target == null) return;
+    _send(target.socket, AriamiConnectMessageType.transfer, <String, dynamic>{
+      'phase': 'cancel',
+      'transferId': transfer.id,
+      'sourceDeviceId': transfer.sourceDeviceId,
+      'targetDeviceId': transfer.targetDeviceId,
+      'reason': reason,
+      'ownerEpoch': transfer.ownerEpoch,
+      'queueCounter': transfer.queueCounter,
+      'semanticGeneration': transfer.semanticGeneration,
+    });
+  }
+
+  void _adoptSemanticGeneration(
+    _ConnectSession session,
+    Map<String, dynamic> data, {
+    required bool fallbackChanged,
+  }) {
+    final raw = data['semanticGeneration'];
+    if (raw is num && raw == raw.toInt() && raw.toInt() >= 0) {
+      if (raw.toInt() > session.semanticGeneration) {
+        session.semanticGeneration = raw.toInt();
+      }
+      return;
+    }
+    if (fallbackChanged) session.semanticGeneration++;
+  }
+
+  bool _semanticStateChanged(
+    AriamiPlaybackSnapshot? previous,
+    AriamiPlaybackSnapshot next,
+  ) {
+    if (previous == null) return true;
+    if (previous.queueFingerprint != next.queueFingerprint ||
+        previous.currentIndex != next.currentIndex ||
+        previous.isPlaying != next.isPlaying ||
+        previous.shuffle != next.shuffle ||
+        previous.repeatMode != next.repeatMode ||
+        previous.volume != next.volume) {
+      return true;
+    }
+    final elapsedMs = next.updatedAt == null || previous.updatedAt == null
+        ? 0
+        : next.updatedAt!.difference(previous.updatedAt!).inMilliseconds;
+    final expectedPosition = previous.positionMs +
+        (previous.isPlaying && elapsedMs > 0 ? elapsedMs : 0);
+    return (next.positionMs - expectedPosition).abs() > 1500;
   }
 
   void _trackFormerOwnerPause(
@@ -1271,6 +1437,7 @@ class AriamiConnectHub {
       'requestedBy': requestedBy,
       'activeDeviceId': session.activeDeviceId,
       'ownerEpoch': session.ownerEpoch,
+      'semanticGeneration': session.semanticGeneration,
     });
   }
 
@@ -1364,6 +1531,7 @@ class _ConnectSession {
   int queueCounter = 0;
   AriamiPlaybackSnapshot? snapshot;
   int revision = 0;
+  int semanticGeneration = 0;
   Timer? disconnectTimer;
   final Map<String, _PendingCommand> pendingCommands = {};
   final Map<String, _PendingFormerOwnerPause> pendingFormerOwnerPauses = {};
@@ -1442,6 +1610,8 @@ class _PendingTransfer {
     required this.snapshot,
     required this.createdAt,
     required this.ownerEpoch,
+    required this.queueCounter,
+    required this.semanticGeneration,
     this.automatic = false,
   });
   final String id;
@@ -1452,6 +1622,8 @@ class _PendingTransfer {
   final AriamiPlaybackSnapshot snapshot;
   final DateTime createdAt;
   final int ownerEpoch;
+  final int queueCounter;
+  final int semanticGeneration;
   final bool automatic;
   Timer? timeout;
 }

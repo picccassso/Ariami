@@ -136,6 +136,14 @@ void main() {
         hasLength(3),
         reason: 'pause is discrete and must not wait for the progress timer',
       );
+      expect(
+        socket.sentMessages
+            .lastWhere(
+                (message) => message.type == AriamiConnectMessageType.state)
+            .data?['semanticGeneration'],
+        1,
+        reason: 'the first semantic change after welcome must be fenced',
+      );
     });
 
     test(
@@ -853,7 +861,8 @@ void main() {
       );
     });
 
-    test('[small_retry_envelope] a hub that cannot honour the envelope gets '
+    test(
+        '[small_retry_envelope] a hub that cannot honour the envelope gets '
         'the retained payload', () async {
       for (final code in <String>['UNKNOWN_COMMAND', 'UNSUPPORTED_COMMAND']) {
         final clock = _FakeTimerClock();
@@ -1053,6 +1062,253 @@ void main() {
       );
     });
   });
+
+  group('slice 8 reversible handoffs', () {
+    test(
+        '[prepared_target_restored] cancel restores the exact local '
+        'pre-prepare snapshot', () async {
+      final clock = _FakeTimerClock();
+      final socket = _FakeWebSocketChannel();
+      final factory = _SocketFactory(clock, <_FakeWebSocketChannel>[socket]);
+      final local = _snapshot('local', positionMs: 4321, isPlaying: true);
+      var current = local;
+      final applied = <AriamiPlaybackSnapshot>[];
+      final client = _client(
+        factory,
+        clock,
+        snapshotProvider: () => current,
+        applySnapshot: (snapshot) async {
+          applied.add(snapshot);
+          current = snapshot;
+        },
+      );
+      addTearDown(client.dispose);
+      await client.connect(baseUrl: 'http://ariami.test');
+      socket.serverMessage(
+        AriamiConnectMessageType.welcome,
+        <String, dynamic>{
+          ..._authority(epoch: 1, owner: 'source'),
+          'protocolVersion': 3,
+          'queueCounter': 7,
+          'stateRevision': 1,
+          'semanticGeneration': 4,
+        },
+      );
+      await _pumpTwice();
+
+      socket.serverMessage(
+        AriamiConnectMessageType.transfer,
+        _transfer(
+          phase: 'prepare',
+          id: 'transfer-1',
+          epoch: 1,
+          semanticGeneration: 4,
+          snapshot: _snapshot('remote', positionMs: 9000, isPlaying: true),
+        ),
+      );
+      await _pumpTwice();
+      expect(current.currentTrackId, 'remote');
+      expect(current.isPlaying, isFalse);
+      final prepared = socket.sentMessages.lastWhere(
+        (message) =>
+            message.type == AriamiConnectMessageType.transferResult &&
+            message.data?['transferId'] == 'transfer-1',
+      );
+      expect(prepared.data?['queueCounter'], 7);
+      expect(prepared.data?['semanticGeneration'], 4);
+
+      socket.serverMessage(
+        AriamiConnectMessageType.transfer,
+        _transfer(
+          phase: 'cancel',
+          id: 'transfer-1',
+          epoch: 1,
+          semanticGeneration: 4,
+        ),
+      );
+      await _pumpTwice();
+
+      expect(current.currentTrackId, 'local');
+      expect(current.positionMs, 4321);
+      expect(current.isPlaying, isTrue);
+      expect(applied.last.currentTrackId, 'local');
+    });
+
+    test(
+        '[handoff_cancel_paths] disconnect waits for an in-flight prepare '
+        'before restoring local state', () async {
+      final clock = _FakeTimerClock();
+      final socket = _FakeWebSocketChannel();
+      final factory = _SocketFactory(clock, <_FakeWebSocketChannel>[socket]);
+      final local = _snapshot('local', positionMs: 4321, isPlaying: true);
+      var current = local;
+      final prepareApply = Completer<void>();
+      final client = _client(
+        factory,
+        clock,
+        snapshotProvider: () => current,
+        applySnapshot: (snapshot) async {
+          if (snapshot.currentTrackId == 'remote') {
+            await prepareApply.future;
+          }
+          current = snapshot;
+        },
+      );
+      addTearDown(client.dispose);
+      await client.connect(baseUrl: 'http://ariami.test');
+      socket.serverMessage(
+        AriamiConnectMessageType.welcome,
+        <String, dynamic>{
+          ..._authority(epoch: 1, owner: 'source'),
+          'protocolVersion': 3,
+          'queueCounter': 7,
+          'stateRevision': 1,
+          'semanticGeneration': 4,
+        },
+      );
+      await _pumpTwice();
+
+      socket.serverMessage(
+        AriamiConnectMessageType.transfer,
+        _transfer(
+          phase: 'prepare',
+          id: 'transfer-1',
+          epoch: 1,
+          semanticGeneration: 4,
+          snapshot: _snapshot('remote', positionMs: 9000, isPlaying: true),
+        ),
+      );
+      await _pumpTwice();
+      socket.serverClose(1006, 'Network lost');
+      await _pumpTwice();
+
+      prepareApply.complete();
+      await _pumpTwice();
+      await _pumpTwice();
+
+      expect(current.currentTrackId, 'local');
+      expect(current.positionMs, 4321);
+      expect(current.isPlaying, isTrue);
+    });
+
+    test(
+        '[current_transfer_only] [handoff_actions_idempotent] only the current '
+        'transfer commits and target start is idempotent', () async {
+      final clock = _FakeTimerClock();
+      final socket = _FakeWebSocketChannel();
+      final factory = _SocketFactory(clock, <_FakeWebSocketChannel>[socket]);
+      var current = _snapshot('local', isPlaying: false);
+      var seekCalls = 0;
+      var playCalls = 0;
+      final client = _client(
+        factory,
+        clock,
+        snapshotProvider: () => current,
+        applySnapshot: (snapshot) async => current = snapshot,
+        handleCommand: (command, _) async {
+          if (command == AriamiConnectCommand.seek) seekCalls++;
+          if (command == AriamiConnectCommand.play) playCalls++;
+        },
+      );
+      addTearDown(client.dispose);
+      await client.connect(baseUrl: 'http://ariami.test');
+      socket.serverMessage(
+        AriamiConnectMessageType.welcome,
+        <String, dynamic>{
+          ..._authority(epoch: 1, owner: 'source'),
+          'protocolVersion': 3,
+          'queueCounter': 7,
+          'stateRevision': 1,
+          'semanticGeneration': 4,
+        },
+      );
+      await _pumpTwice();
+
+      for (final id in <String>['old-transfer', 'current-transfer']) {
+        socket.serverMessage(
+          AriamiConnectMessageType.transfer,
+          _transfer(
+            phase: 'prepare',
+            id: id,
+            epoch: 1,
+            semanticGeneration: 4,
+            snapshot: _snapshot(id, isPlaying: true),
+          ),
+        );
+        await _pumpTwice();
+      }
+      final staleCommit = _transfer(
+        phase: 'commit',
+        id: 'old-transfer',
+        epoch: 2,
+        semanticGeneration: 5,
+        snapshot: _snapshot('old-transfer', isPlaying: true),
+      );
+      socket.serverMessage(AriamiConnectMessageType.transfer, staleCommit);
+      await _pumpTwice();
+      expect(seekCalls, 0);
+      expect(playCalls, 0);
+
+      final commit = _transfer(
+        phase: 'commit',
+        id: 'current-transfer',
+        epoch: 2,
+        semanticGeneration: 5,
+        snapshot: _snapshot('current-transfer', isPlaying: true),
+      );
+      socket.serverMessage(AriamiConnectMessageType.transfer, commit);
+      await _pumpTwice();
+      socket.serverMessage(AriamiConnectMessageType.transfer, commit);
+      await _pumpTwice();
+
+      expect(seekCalls, 1);
+      expect(playCalls, 1);
+    });
+
+    test(
+        '[handoff_actions_idempotent] duplicate commit relinquishes the '
+        'source once', () async {
+      final clock = _FakeTimerClock();
+      final socket = _FakeWebSocketChannel();
+      final factory = _SocketFactory(clock, <_FakeWebSocketChannel>[socket]);
+      var pauseCalls = 0;
+      final client = _client(
+        factory,
+        clock,
+        pauseForTransfer: () async => pauseCalls++,
+      );
+      addTearDown(client.dispose);
+      await client.connect(baseUrl: 'http://ariami.test');
+      socket.serverMessage(
+        AriamiConnectMessageType.welcome,
+        <String, dynamic>{
+          ..._authority(epoch: 1, owner: 'fault-client'),
+          'protocolVersion': 3,
+          'queueCounter': 7,
+          'stateRevision': 1,
+          'semanticGeneration': 4,
+        },
+      );
+      await _pumpTwice();
+      final commit = <String, dynamic>{
+        ..._transfer(
+          phase: 'commit',
+          id: 'source-commit',
+          epoch: 2,
+          semanticGeneration: 5,
+          snapshot: _snapshot('remote', isPlaying: true),
+        ),
+        'targetDeviceId': 'other-device',
+      };
+
+      socket.serverMessage(AriamiConnectMessageType.transfer, commit);
+      await _pumpTwice();
+      socket.serverMessage(AriamiConnectMessageType.transfer, commit);
+      await _pumpTwice();
+
+      expect(pauseCalls, 1);
+    });
+  });
 }
 
 AriamiConnectClient _client(
@@ -1067,6 +1323,7 @@ AriamiConnectClient _client(
   void Function()? onAuthenticationRequired,
   Future<void> Function()? pauseForTransfer,
   ConnectCommandHandler? handleCommand,
+  Future<void> Function(AriamiPlaybackSnapshot snapshot)? applySnapshot,
   AriamiPlaybackSnapshot Function()? snapshotProvider,
   Set<String> supportedCommands = AriamiConnectCommand.supported,
 }) =>
@@ -1076,7 +1333,7 @@ AriamiConnectClient _client(
       clientType: 'mobile',
       snapshotProvider:
           snapshotProvider ?? () => AriamiPlaybackSnapshot.fromJson(const {}),
-      applySnapshot: (_) async {},
+      applySnapshot: applySnapshot ?? (_) async {},
       handleCommand: handleCommand ?? (_, __) async {},
       pauseForTransfer: pauseForTransfer ?? () async {},
       supportedCommands: supportedCommands,
@@ -1091,6 +1348,42 @@ AriamiConnectClient _client(
       timerFactory: clock.timer,
       periodicTimerFactory: clock.periodic,
     );
+
+AriamiPlaybackSnapshot _snapshot(
+  String trackId, {
+  int positionMs = 0,
+  bool isPlaying = true,
+}) =>
+    AriamiPlaybackSnapshot(
+      queue: <Map<String, dynamic>>[
+        <String, dynamic>{'id': trackId, 'title': trackId},
+      ],
+      currentIndex: 0,
+      positionMs: positionMs,
+      durationMs: 60000,
+      isPlaying: isPlaying,
+      shuffle: false,
+      repeatMode: 'off',
+      volume: 1,
+    );
+
+Map<String, dynamic> _transfer({
+  required String phase,
+  required String id,
+  required int epoch,
+  required int semanticGeneration,
+  AriamiPlaybackSnapshot? snapshot,
+}) =>
+    <String, dynamic>{
+      'phase': phase,
+      'transferId': id,
+      'sourceDeviceId': 'source',
+      'targetDeviceId': 'fault-client',
+      if (snapshot != null) 'snapshot': snapshot.toJson(),
+      'queueCounter': 7,
+      'ownerEpoch': epoch,
+      'semanticGeneration': semanticGeneration,
+    };
 
 Future<void> _pump() => Future<void>.delayed(Duration.zero);
 

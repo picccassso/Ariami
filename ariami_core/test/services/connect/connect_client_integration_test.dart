@@ -557,6 +557,68 @@ void main() {
     playUntilInterrupted.complete();
   });
 
+  test('[handoff_actions_idempotent] successful handoff pauses source once',
+      () async {
+    var sourcePlaying = true;
+    var sourcePauseCalls = 0;
+    final source = AriamiConnectClient(
+      deviceId: 'source',
+      deviceName: 'Source',
+      clientType: 'desktop',
+      snapshotProvider: () => AriamiPlaybackSnapshot(
+        queue: const <Map<String, dynamic>>[
+          <String, dynamic>{'id': 'song-a', 'title': 'A'},
+        ],
+        currentIndex: 0,
+        positionMs: 1000,
+        durationMs: 60000,
+        isPlaying: sourcePlaying,
+        shuffle: false,
+        repeatMode: 'off',
+        volume: 1,
+      ),
+      applySnapshot: (_) async {},
+      handleCommand: (_, __) async {},
+      pauseForTransfer: () async {
+        sourcePauseCalls++;
+        sourcePlaying = false;
+      },
+    );
+    clients.add(source);
+
+    AriamiPlaybackSnapshot? targetSnapshot;
+    var targetPlaying = false;
+    final target = AriamiConnectClient(
+      deviceId: 'target',
+      deviceName: 'Target',
+      clientType: 'tv',
+      snapshotProvider: () =>
+          targetSnapshot?.copyWith(
+            isPlaying: targetPlaying,
+          ) ??
+          AriamiPlaybackSnapshot.fromJson(const <String, dynamic>{}),
+      applySnapshot: (snapshot) async => targetSnapshot = snapshot,
+      handleCommand: (command, _) async {
+        if (command == AriamiConnectCommand.play) targetPlaying = true;
+      },
+      pauseForTransfer: () async => targetPlaying = false,
+    );
+    clients.add(target);
+
+    final baseUrl = 'http://127.0.0.1:${server.port}';
+    await source.connect(baseUrl: baseUrl);
+    await target.connect(baseUrl: baseUrl);
+    await waitFor(() => source.isConnected && target.isConnected);
+    source.publishState(activate: true);
+    await waitFor(() => target.activeDeviceId == 'source');
+
+    source.transferTo('target');
+    await waitFor(() => target.isThisDeviceActive && targetPlaying);
+    await pump(4);
+
+    expect(sourcePauseCalls, 1);
+  });
+
   test('late-joining controller adopts the session from its welcome', () async {
     final tv = AriamiConnectClient(
       deviceId: 'tv',

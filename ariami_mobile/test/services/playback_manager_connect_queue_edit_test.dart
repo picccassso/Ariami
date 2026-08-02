@@ -214,6 +214,26 @@ void main() {
     await manager.stopAndClearQueue();
   });
 
+  test(
+      '[prepared_target_restored] empty pre-prepare state clears a prepared '
+      'Connect queue', () async {
+    final manager = PlaybackManager();
+    manager.setConnectRemoteMirror(null);
+    await manager.stopAndClearQueue();
+    manager.addAllToQueue([_song('prepared-remote')]);
+    expect(manager.queue.songs, isNotEmpty);
+
+    final local = AriamiPlaybackSnapshot.fromJson(<String, dynamic>{
+      'shuffle': true,
+      'repeatMode': 'one',
+    });
+    await manager.applyConnectSnapshot(local);
+
+    expect(manager.queue.songs, isEmpty);
+    expect(manager.connectSnapshot.shuffle, local.shuffle);
+    expect(manager.connectSnapshot.repeatMode, local.repeatMode);
+  });
+
   test('single repeated playback sends one song with repeat-all', () async {
     final manager = PlaybackManager();
     final sent = <(String, Map<String, dynamic>?)>[];

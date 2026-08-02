@@ -91,9 +91,7 @@ void main() {
         isTrue,
       );
       expect(
-        slices.skip(6).map((entry) => entry['probe']).toSet(),
-        hasLength(3),
-      );
+          slices.skip(7).map((entry) => entry['probe']).toSet(), hasLength(2));
 
       final slice2 = slices.first;
       final slice3 = slices[1];
@@ -104,8 +102,9 @@ void main() {
       expect(slices[3]['coverage'], 'complete');
       expect(slices[4]['coverage'], 'complete');
       expect(slices[5]['coverage'], 'complete');
+      expect(slices[6]['coverage'], 'complete');
       expect(
-        slices.skip(6).every((entry) => entry['coverage'] == 'representative'),
+        slices.skip(7).every((entry) => entry['coverage'] == 'representative'),
         isTrue,
       );
       final probes = (slice2['probes'] as List<dynamic>).cast<String>();
@@ -217,6 +216,55 @@ void main() {
         expect(slice7Source, contains('[$probe]'),
             reason: 'Missing probe $probe');
       }
+      final slice8 = slices[6];
+      final slice8Probes = (slice8['probes'] as List<dynamic>).cast<String>();
+      final slice8Modes = (slice8['failureModes'] as List<dynamic>)
+          .map((mode) => Map<String, dynamic>.from(mode as Map))
+          .toList(growable: false);
+      expect(slice8Modes.map((mode) => mode['probe']).toSet(),
+          slice8Probes.toSet());
+      final slice8Source = <String>[
+        _readCoreTestSource('connect_hub_test.dart'),
+        _readCoreTestSource('connect_client_fault_baseline_test.dart'),
+        _readClientTestSource(
+          '../ariami_mobile/test/services/playback_manager_connect_queue_edit_test.dart',
+        ),
+        _readClientTestSource(
+          '../ariami_desktop_premium/test/connect_v2_contract_fixture_test.dart',
+        ),
+        _readClientTestSource(
+          '../ariami_tv/test/connect_v2_contract_fixture_test.dart',
+        ),
+        _readClientTestSource(
+          '../ariami_tvos/AriamiTVOSTests/ConnectTransportPolicyTests.swift',
+        ),
+      ].join('\n');
+      for (final probe in slice8Probes) {
+        expect(slice8Source, contains('[$probe]'),
+            reason: 'Missing probe $probe');
+      }
+      final reversibleClientSources = <String>[
+        _readClientTestSource(
+          '../ariami_mobile/test/services/playback_manager_connect_queue_edit_test.dart',
+        ),
+        _readClientTestSource(
+          '../ariami_desktop_premium/test/connect_v2_contract_fixture_test.dart',
+        ),
+        _readClientTestSource(
+          '../ariami_tv/test/connect_v2_contract_fixture_test.dart',
+        ),
+        _readClientTestSource(
+          '../ariami_tvos/AriamiTVOSTests/ConnectTransportPolicyTests.swift',
+        ),
+      ];
+      expect(
+        reversibleClientSources.where((source) => source.isNotEmpty).every(
+              (source) => source.contains('[prepared_target_restored]'),
+            ),
+        isTrue,
+        reason: 'Every playback client present in this checkout must prove '
+            'empty-state restoration.',
+      );
     });
 
     test('measurements are deterministic and retain the v2 full-queue cost',
@@ -282,12 +330,19 @@ void main() {
       final secondPeerBytes =
           _canonicalWireBytes(secondPeer.rawMessages.single);
       final ownerEpochBytes = utf8.encode(',"ownerEpoch":1').length;
+      final semanticGenerationBytes =
+          utf8.encode(',"semanticGeneration":1').length;
       expect(publicationBytes, expected['ownerPublicationBytes']);
-      expect(firstPeerBytes,
-          (expected['eachPeerBroadcastBytes'] as int) + ownerEpochBytes);
+      expect(
+        firstPeerBytes,
+        (expected['eachPeerBroadcastBytes'] as int) +
+            ownerEpochBytes +
+            semanticGenerationBytes,
+      );
       expect(
         publicationBytes + firstPeerBytes + secondPeerBytes,
-        (expected['totalBytes'] as int) + (ownerEpochBytes * 2),
+        (expected['totalBytes'] as int) +
+            ((ownerEpochBytes + semanticGenerationBytes) * 2),
       );
     });
   });
@@ -462,7 +517,7 @@ void main() {
       expect(result.data?['ok'], isTrue);
     });
 
-    test('slice 8: handoff commit overwrites a concurrent owner pause', () {
+    test('slice 8: concurrent owner pause cancels a prepared handoff', () {
       final hub = AriamiConnectHub();
       addTearDown(hub.dispose);
       final owner = _FakeChannel();
@@ -494,13 +549,28 @@ void main() {
         ),
       );
 
-      final commit = target.messages.lastWhere(
+      expect(
+        target.messages.where(
+          (message) =>
+              message.type == AriamiConnectMessageType.transfer &&
+              message.data?['phase'] == 'commit',
+        ),
+        isEmpty,
+      );
+      final cancel = target.messages.lastWhere(
         (message) =>
             message.type == AriamiConnectMessageType.transfer &&
-            message.data?['phase'] == 'commit',
+            message.data?['phase'] == 'cancel',
       );
-      expect(commit.data?['snapshot']['isPlaying'], isTrue);
-      expect(commit.data?['snapshot']['positionMs'], isNot(9000));
+      expect(cancel.data?['reason'], 'state_changed');
+      expect(
+        owner.messages.lastWhere(
+          (message) =>
+              message.type == AriamiConnectMessageType.error &&
+              message.data?['code'] == 'TRANSFER_STATE_CHANGED',
+        ),
+        isNotNull,
+      );
     });
 
     test('slice 9: an uncontrolled recent peer inherits playing state',
