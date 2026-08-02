@@ -224,21 +224,41 @@ class AriamiConnectController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> stop() async {
+  /// Silences this phone and leaves Connect without publishing a final paused
+  /// snapshot, allowing the hub to continue a playing session elsewhere.
+  Future<void> leave() => stop(stopLocalPlayback: true);
+
+  Future<void> stop({bool stopLocalPlayback = false}) async {
     _generation++;
     _staleStateTimer?.cancel();
     _staleStateTimer = null;
-    _playback?.removeListener(_onPlaybackChanged);
-    _playback?.setConnectRemoteMirror(null);
+    final playback = _playback;
+    final localWasPlaying = playback != null &&
+        !playback.isConnectRemoteActive &&
+        playback.localIsPlaying;
+    playback?.removeListener(_onPlaybackChanged);
+    playback?.setConnectRemoteMirror(null);
     _playback = null;
-    await _serverSubscription?.cancel();
+    final serverSubscription = _serverSubscription;
     _serverSubscription = null;
     final client = _client;
     _client = null;
-    await client?.dispose();
     _connectedBaseUrl = null;
     _started = false;
     _pendingLocalTakeover = false;
+    final serverStop = serverSubscription?.cancel();
+    Future<void>? clientStop;
+    if (stopLocalPlayback && localWasPlaying) {
+      clientStop = client == null
+          ? playback.pauseLocal()
+          : client.relinquishPlayback(playback.pauseLocal);
+    } else {
+      clientStop = client?.dispose();
+    }
+    await Future.wait(<Future<void>>[
+      if (serverStop != null) serverStop,
+      if (clientStop != null) clientStop,
+    ]);
     notifyListeners();
   }
 }

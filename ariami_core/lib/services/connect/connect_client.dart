@@ -1465,7 +1465,19 @@ class AriamiConnectClient {
     _reconnectTimer = timerFactory(Duration(seconds: seconds), _open);
   }
 
-  Future<void> dispose() async {
+  /// Stops this device locally without replacing the hub's last playing
+  /// snapshot with a paused one, then closes the socket so the hub can hand
+  /// that session to another connected player.
+  Future<void> relinquishPlayback(
+    Future<void> Function() stopLocalPlayback,
+  ) =>
+      _dispose(stopLocalPlayback: stopLocalPlayback);
+
+  Future<void> dispose() => _dispose();
+
+  Future<void> _dispose({
+    Future<void> Function()? stopLocalPlayback,
+  }) async {
     _closedByUser = true;
     _connectionGeneration++;
     _reconnectSuppressed = true;
@@ -1487,7 +1499,26 @@ class AriamiConnectClient {
     _subscription = null;
     _channel = null;
     isConnected = false;
+    Future<void>? localStop;
+    if (stopLocalPlayback != null) {
+      try {
+        // Start this before the first await so lifecycle callbacks still
+        // silence a foreground audio service when the OS is closing the UI.
+        localStop = stopLocalPlayback();
+      } catch (error) {
+        _log('Could not stop local playback while relinquishing: $error');
+      }
+    }
     await _restorePreparedTransfer();
+    if (localStop != null) {
+      try {
+        await localStop;
+      } catch (error) {
+        // Closing the socket is more important than retaining a dead owner if
+        // a platform player has already disappeared during app termination.
+        _log('Could not stop local playback while relinquishing: $error');
+      }
+    }
     await Future.wait(<Future<void>>[
       _cancelSubscription(subscription, disposeTimeout),
       _closeChannel(channel, 1000, 'Client closed', disposeTimeout),

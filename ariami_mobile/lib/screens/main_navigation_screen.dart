@@ -36,8 +36,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
     });
   }
 
-  void _exitApp() {
-    SystemNavigator.pop();
+  Future<void> _exitApp() async {
+    await _connect.leave();
+    await SystemNavigator.pop();
   }
 
   @override
@@ -54,7 +55,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _playbackManager.removeListener(_onPlaybackStateChanged);
-    unawaited(_connect.stop());
+    unawaited(_connect.leave());
     _playbackManager.dispose();
     super.dispose();
   }
@@ -79,6 +80,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
       unawaited(
         _castService.stopForAppTermination(reason: 'flutter-detached'),
       );
+      unawaited(_connect.leave());
     }
 
     // Persist playback state when app goes to background/closed

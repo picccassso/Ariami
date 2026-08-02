@@ -737,14 +737,18 @@ void main() {
         phone.activeDeviceId == 'tv' &&
         phone.remoteSnapshot?.currentTrackId == 'song-b');
 
-    // No preparatory command is required: a connected playback-capable phone
-    // should immediately inherit the playing session when the owner vanishes.
-    await tv.dispose();
+    // Freeze Connect publishing before the local engine pauses. The hub must
+    // retain the last playing snapshot and continue it on the phone, while the
+    // departing TV itself is silenced before its socket closes.
+    await tv.relinquishPlayback(() async {
+      tvPlaying = false;
+    });
 
     await waitFor(() =>
         phone.isThisDeviceActive &&
         phoneSnapshot.currentTrackId == 'song-b' &&
         phoneStartedPlaying);
+    expect(tvPlaying, isFalse);
     expect(phoneSnapshot.currentTrackId, isNot('unrelated-local-song'));
     expect(phoneSnapshot.positionMs, greaterThanOrEqualTo(12000));
   });

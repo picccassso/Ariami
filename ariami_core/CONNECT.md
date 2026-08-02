@@ -52,6 +52,11 @@ When the audible owner disconnects:
 4. If every candidate fails or none exist, the session becomes ownerless and
    settles paused.
 
+An audible client that intentionally exits freezes Connect publication, stops
+its local engine, and then closes its socket. It must not publish that local
+pause: the retained playing snapshot is the continuation intent that the hub
+hands to the replacement device.
+
 Handoffs capture the owner epoch, queue identity, and semantic generation.
 Concurrent pause, seek, track, queue, shuffle, repeat, volume, or ownership
 changes cancel a stale preparation. A rejected, timed-out, disconnected, or
