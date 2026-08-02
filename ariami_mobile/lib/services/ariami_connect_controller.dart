@@ -220,9 +220,25 @@ class AriamiConnectController extends ChangeNotifier {
   /// process was suspended in the background.
   Future<void> refresh() async {
     await _connectToCurrentEndpoint();
-    await _client?.refreshState();
+    final client = _client;
+    if (client != null && !_ownsAudibleSession(client)) {
+      await client.refreshState();
+    }
     notifyListeners();
   }
+
+  /// Whether this phone is the audible owner of the Connect session.
+  ///
+  /// [AriamiConnectClient.refreshState] repairs a suspended socket by closing
+  /// and reopening it, which the hub cannot tell apart from the owner dying:
+  /// it fails the playing session over immediately and then pauses this device
+  /// as the former owner the moment it reconnects. An owner that is still
+  /// audible therefore leaves its socket alone and lets the ping/liveness
+  /// timers reconnect if the socket really is dead.
+  bool _ownsAudibleSession(AriamiConnectClient client) =>
+      client.isConnected &&
+      client.isThisDeviceActive &&
+      (_playback?.localIsPlaying ?? false);
 
   /// Silences this phone and leaves Connect without publishing a final paused
   /// snapshot, allowing the hub to continue a playing session elsewhere.

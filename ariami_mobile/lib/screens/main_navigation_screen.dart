@@ -55,7 +55,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _playbackManager.removeListener(_onPlaybackStateChanged);
-    unawaited(_connect.leave());
+    // Widget/view teardown is not proof that the Android process or its
+    // background audio service is exiting. Keep local playback untouched.
+    unawaited(_connect.stop());
     _playbackManager.dispose();
     super.dispose();
   }
@@ -80,7 +82,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
       unawaited(
         _castService.stopForAppTermination(reason: 'flutter-detached'),
       );
-      unawaited(_connect.leave());
+      // Flutter reports detached when all views are detached, including
+      // Android activity recreation. The Connect socket itself is the
+      // authoritative process-death signal, so do not pause playback here.
     }
 
     // Persist playback state when app goes to background/closed

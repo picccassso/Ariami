@@ -21,6 +21,9 @@ class ChromeCastService extends ChangeNotifier {
 
   static const String _defaultCastAppId = 'CC1AD845';
 
+  /// Volume steps below this are indistinguishable to the receiver.
+  static const double _volumeEpsilon = 0.01;
+
   final ConnectionService _connectionService = ConnectionService();
   final QualitySettingsService _qualityService = QualitySettingsService();
 
@@ -43,6 +46,13 @@ class ChromeCastService extends ChangeNotifier {
   DateTime? _lastRemotePositionUpdatedAt;
   CastMediaPlayerState? _lastRemotePlayerState;
   CastSyncPayload? _lastSyncPayload;
+
+  /// Volume we last asked the receiver for, kept until the receiver either
+  /// confirms it or reports a different value of its own (physical buttons,
+  /// another controller). Receiver status echoes lag behind our requests, so
+  /// trusting them directly would snap the level back to a stale value.
+  double? _requestedVolume;
+  double? _reportedVolumeAtRequest;
 
   /// Metadata from the most recent successful cast media load.
   CastSyncPayload? get lastSyncPayload => _lastSyncPayload;
@@ -78,9 +88,27 @@ class ChromeCastService extends ChangeNotifier {
       isSupportedPlatform &&
       !isBusy &&
       (!isBlockedByOffline || isConnected);
-  double get deviceVolume =>
-      GoogleCastSessionManager.instance.currentSession?.currentDeviceVolume ??
-      0.0;
+  double get deviceVolume {
+    final reported =
+        GoogleCastSessionManager.instance.currentSession?.currentDeviceVolume ??
+            0.0;
+    final requested = _requestedVolume;
+    if (requested == null) {
+      return reported;
+    }
+
+    final confirmed = (reported - requested).abs() < _volumeEpsilon;
+    final changedElsewhere =
+        (reported - (_reportedVolumeAtRequest ?? reported)).abs() >=
+            _volumeEpsilon;
+    if (confirmed || changedElsewhere) {
+      _requestedVolume = null;
+      _reportedVolumeAtRequest = null;
+      return reported;
+    }
+
+    return requested;
+  }
   bool get isDeviceMuted =>
       GoogleCastSessionManager.instance.currentSession?.currentDeviceMuted ??
       false;
@@ -351,9 +379,12 @@ class ChromeCastService extends ChangeNotifier {
       return;
     }
 
-    GoogleCastSessionManager.instance.setDeviceVolume(
-      value.clamp(0.0, 1.0).toDouble(),
-    );
+    final target = value.clamp(0.0, 1.0).toDouble();
+    _reportedVolumeAtRequest =
+        GoogleCastSessionManager.instance.currentSession?.currentDeviceVolume;
+    _requestedVolume = target;
+
+    GoogleCastSessionManager.instance.setDeviceVolume(target);
   }
 
   /// Syncs the currently playing song to Chromecast when connected.
@@ -562,6 +593,8 @@ class ChromeCastService extends ChangeNotifier {
       _lastKnownRemotePosition = Duration.zero;
       _lastRemotePositionUpdatedAt = null;
       _lastRemotePlayerState = null;
+      _requestedVolume = null;
+      _reportedVolumeAtRequest = null;
     }
     notifyListeners();
   }

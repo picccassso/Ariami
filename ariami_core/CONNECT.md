@@ -57,6 +57,14 @@ its local engine, and then closes its socket. It must not publish that local
 pause: the retained playing snapshot is the continuation intent that the hub
 hands to the replacement device.
 
+Failover is immediate, so the hub cannot tell a dropped owner apart from one
+that closed its own socket. An audible owner must therefore never reconnect
+voluntarily: reopening the socket to resynchronise — on foreground resume, for
+example — hands the session to another device and earns a former-owner pause
+the moment the reconnect lands, silencing the very playback the client meant to
+keep. An owner that suspects a dead socket waits for ping and liveness timeouts
+instead; a client that is only mirroring may reconnect freely.
+
 Handoffs capture the owner epoch, queue identity, and semantic generation.
 Concurrent pause, seek, track, queue, shuffle, repeat, volume, or ownership
 changes cancel a stale preparation. A rejected, timed-out, disconnected, or
