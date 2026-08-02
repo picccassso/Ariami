@@ -1345,6 +1345,96 @@ void main() {
     });
   });
 
+  group('slice 10 retained-state hygiene', () {
+    test('[idle_session_policy] retains abandoned state for 30 minutes', () {
+      expect(kConnectIdleSessionRetention, const Duration(minutes: 30));
+    });
+
+    test(
+        '[idle_session_expiry] reconnect recovery is bounded and a later '
+        'session starts clean', () {
+      final clock = _FakeClock();
+      final hub = AriamiConnectHub(
+        idleSessionRetention: const Duration(minutes: 1),
+        now: clock.now,
+        timerFactory: clock.createTimer,
+      );
+      addTearDown(hub.dispose);
+      final owner = _FakeChannel();
+      _registerDevice(hub, owner, 'owner');
+      hub.handle(owner, _stateMessage(activate: true));
+      hub.unregister(owner);
+
+      clock.elapse(const Duration(seconds: 59));
+      final recoveringPeer = _FakeChannel();
+      _registerDevice(hub, recoveringPeer, 'recovering-peer');
+      final recovered =
+          _lastMessage(recoveringPeer, AriamiConnectMessageType.welcome);
+      expect(recovered.data?['snapshot'], isNotNull);
+      expect(recovered.data?['ownerEpoch'], 2);
+
+      hub.unregister(recoveringPeer);
+      clock.elapse(const Duration(minutes: 1));
+      final freshPeer = _FakeChannel();
+      _registerDevice(hub, freshPeer, 'fresh-peer');
+      final fresh = _lastMessage(freshPeer, AriamiConnectMessageType.welcome);
+      expect(fresh.data?['snapshot'], isNull);
+      expect(fresh.data?['ownerEpoch'], 0);
+    });
+
+    test(
+        '[pending_transition_retained] owner reclaim outlives a short idle TTL',
+        () {
+      final clock = _FakeClock();
+      final hub = AriamiConnectHub(
+        disconnectGracePeriod: const Duration(seconds: 5),
+        idleSessionRetention: const Duration(seconds: 1),
+        now: clock.now,
+        timerFactory: clock.createTimer,
+      );
+      addTearDown(hub.dispose);
+      final owner = _FakeChannel();
+      _registerDevice(hub, owner, 'owner');
+      hub.handle(owner, _stateMessage(activate: true));
+      hub.unregister(owner);
+
+      clock.elapse(const Duration(seconds: 2));
+      final reclaimed = _FakeChannel();
+      _registerDevice(hub, reclaimed, 'owner');
+      final welcome = _lastMessage(reclaimed, AriamiConnectMessageType.welcome);
+      expect(welcome.data?['activeDeviceId'], 'owner');
+      expect(welcome.data?['ownerEpoch'], 1);
+    });
+
+    test('[equal_name_ordering] stable device id breaks display-name ties', () {
+      final hub = AriamiConnectHub();
+      addTearDown(hub.dispose);
+      final laterId = _FakeChannel();
+      final earlierId = _FakeChannel();
+      hub.register(
+        laterId,
+        userId: 'user',
+        deviceId: 'device-z',
+        deviceName: 'Living Room',
+        clientType: 'tv',
+      );
+      hub.register(
+        earlierId,
+        userId: 'user',
+        deviceId: 'device-a',
+        deviceName: 'Living Room',
+        clientType: 'tv',
+      );
+
+      final devices = _lastMessage(laterId, AriamiConnectMessageType.devices)
+          .data?['devices'] as List;
+      expect(
+        devices.map((device) => (device as Map)['id']),
+        <String>['device-a', 'device-z'],
+      );
+    });
+  });
+
   test('remote commands keep ownership and route only to the active device',
       () {
     final hub = AriamiConnectHub();

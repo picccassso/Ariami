@@ -547,6 +547,7 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
       }
     }
     _webSocketClients.clear();
+    _webSocketSessionTokens.clear();
     _metricsService.stop();
     _tailscalePathDiagnostics.stop();
     _inFlightDownloadTranscodesByUser.clear();

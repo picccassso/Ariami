@@ -109,13 +109,15 @@ extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
         'WebSocket client connected; waiting for identify (${_webSocketClients.length} active)');
     _trackPendingWebSocket(webSocket, remoteIp);
 
-    webSocket.stream.listen(
-      (message) {
-        _handleWebSocketMessage(webSocket, message);
-      },
+    final messages = webSocket.stream.asyncMap(
+      (message) => _handleWebSocketMessage(webSocket, message),
+    );
+    messages.listen(
+      (_) {},
       onDone: () {
         _resolvePendingWebSocket(webSocket);
         _webSocketClients.remove(webSocket);
+        _webSocketSessionTokens.remove(webSocket);
         _connectHub.unregister(webSocket);
         final deviceId = _untrackWebSocketDevice(webSocket);
         if (deviceId == null) {
@@ -128,6 +130,7 @@ extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
       onError: (error) {
         _resolvePendingWebSocket(webSocket);
         _webSocketClients.remove(webSocket);
+        _webSocketSessionTokens.remove(webSocket);
         _connectHub.unregister(webSocket);
         final deviceId = _untrackWebSocketDevice(webSocket);
         if (deviceId == null) {
@@ -155,7 +158,10 @@ extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
   }
 
   /// Handle incoming WebSocket message
-  void _handleWebSocketMessage(WebSocketChannel webSocket, dynamic rawMessage) {
+  Future<void> _handleWebSocketMessage(
+    WebSocketChannel webSocket,
+    dynamic rawMessage,
+  ) async {
     if (rawMessage is! String) {
       _sendWebSocketMessage(
         webSocket,
@@ -206,42 +212,41 @@ extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
             return;
           }
 
-          // Validate session token asynchronously
-          _authService.validateSession(sessionToken).then((session) {
-            if (session == null) {
-              // Close WebSocket with code 4001 (invalid session)
-              webSocket.sink.close(4001, 'Session expired or invalid');
-              return;
-            }
+          final session = await _authService.validateSession(sessionToken);
+          if (session == null) {
+            // Close WebSocket with code 4001 (invalid session)
+            webSocket.sink.close(4001, 'Session expired or invalid');
+            return;
+          }
 
-            // Session valid - register or refresh client (upgrade clientType)
-            if (deviceId.isNotEmpty) {
-              _resolvePendingWebSocket(webSocket);
-              _trackWebSocketClient(webSocket);
-              _webSocketDeviceIds[webSocket] = deviceId;
-              final effectiveType = _effectivePresenceClientType(
-                deviceId: deviceId,
-                deviceName: deviceName,
-                wsClientType: clientType,
-              );
-              final effectiveName = _effectiveDeviceName(deviceId, deviceName);
-              _connectionManager.registerOrRefreshClient(
-                deviceId,
-                effectiveName,
+          // Session valid - register or refresh client (upgrade clientType)
+          if (deviceId.isNotEmpty) {
+            _resolvePendingWebSocket(webSocket);
+            _trackWebSocketClient(webSocket);
+            _webSocketSessionTokens[webSocket] = sessionToken;
+            _webSocketDeviceIds[webSocket] = deviceId;
+            final effectiveType = _effectivePresenceClientType(
+              deviceId: deviceId,
+              deviceName: deviceName,
+              wsClientType: clientType,
+            );
+            final effectiveName = _effectiveDeviceName(deviceId, deviceName);
+            _connectionManager.registerOrRefreshClient(
+              deviceId,
+              effectiveName,
+              userId: session.userId,
+              clientType: effectiveType,
+            );
+            if (const {'desktop', 'mobile', 'tv'}.contains(clientType)) {
+              _connectHub.register(
+                webSocket,
                 userId: session.userId,
-                clientType: effectiveType,
+                deviceId: deviceId,
+                deviceName: effectiveName,
+                clientType: clientType!,
               );
-              if (const {'desktop', 'mobile', 'tv'}.contains(clientType)) {
-                _connectHub.register(
-                  webSocket,
-                  userId: session.userId,
-                  deviceId: deviceId,
-                  deviceName: effectiveName,
-                  clientType: clientType!,
-                );
-              }
             }
-          });
+          }
           return;
         }
 
@@ -249,6 +254,7 @@ extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
         if (deviceId.isNotEmpty) {
           _resolvePendingWebSocket(webSocket);
           _trackWebSocketClient(webSocket);
+          _webSocketSessionTokens.remove(webSocket);
           _webSocketDeviceIds[webSocket] = deviceId;
           final effectiveType = _effectivePresenceClientType(
             deviceId: deviceId,
@@ -276,6 +282,7 @@ extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
 
       // Handle ping
       if (message.type == WsMessageType.ping) {
+        if (!await _revalidateWebSocketSession(webSocket)) return;
         final deviceId = _webSocketDeviceIds[webSocket];
         if (deviceId != null && deviceId.isNotEmpty) {
           _connectionManager.refreshHeartbeatIfRegistered(deviceId);
@@ -306,6 +313,50 @@ extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
           },
         ),
       );
+    }
+  }
+
+  /// Keeps an identified WebSocket's long-lived authority aligned with the
+  /// session store. Successful validation refreshes the normal sliding TTL;
+  /// revoked or expired sessions lose their current hub/presence access before
+  /// close 4001 is sent.
+  Future<bool> _revalidateWebSocketSession(
+    WebSocketChannel webSocket,
+  ) async {
+    final sessionToken = _webSocketSessionTokens[webSocket];
+    if (sessionToken == null) {
+      if (!_hasRegisteredUsers()) return true;
+      _closeWebSocketForAuthentication(webSocket);
+      return false;
+    }
+    try {
+      final session = await _authService.validateSession(sessionToken);
+      if (_webSocketSessionTokens[webSocket] != sessionToken) return false;
+      if (session != null) return true;
+    } catch (_) {
+      // A transient persistence failure must not sign out a valid user. The
+      // next ping or maintenance pass will try again.
+      return true;
+    }
+    _closeWebSocketForAuthentication(webSocket);
+    return false;
+  }
+
+  void _closeWebSocketForAuthentication(WebSocketChannel webSocket) {
+    _webSocketSessionTokens.remove(webSocket);
+    _webSocketClients.remove(webSocket);
+    _connectHub.unregister(webSocket);
+    _untrackWebSocketDevice(webSocket);
+    try {
+      webSocket.sink.close(4001, 'Session expired or revoked');
+    } catch (_) {
+      // Socket teardown raced the revalidation result.
+    }
+  }
+
+  Future<void> _revalidateWebSocketSessions() async {
+    for (final webSocket in List<WebSocketChannel>.of(_webSocketClients)) {
+      await _revalidateWebSocketSession(webSocket);
     }
   }
 
@@ -354,16 +405,16 @@ extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
 
   /// Start timer to cleanup stale connections
   void _startCleanupTimer() {
-    Future.delayed(const Duration(seconds: 30), () {
+    Future.delayed(const Duration(seconds: 30), () async {
       if (_server != null) {
-        _cleanupStaleConnectionsWithBroadcast();
-        _startCleanupTimer();
+        await _cleanupStaleConnectionsWithBroadcast();
+        if (_server != null) _startCleanupTimer();
       }
     });
   }
 
   /// Cleanup stale connections and broadcast to WebSocket clients if any were removed
-  void _cleanupStaleConnectionsWithBroadcast() {
+  Future<void> _cleanupStaleConnectionsWithBroadcast() async {
     final beforeCount = _connectionManager.clientCount;
     _connectionManager.cleanupStaleConnections();
     final afterCount = _connectionManager.clientCount;
@@ -375,6 +426,7 @@ extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
         deviceName: null, // Unknown which specific client was removed
       ));
     }
+    await _revalidateWebSocketSessions();
   }
 
   /// Create static file handler for serving web assets

@@ -113,6 +113,7 @@ class AriamiHttpServer {
   int get _advertisedPort => _advertisedPortOverride ?? _port;
   final List<WebSocketChannel> _webSocketClients = [];
   final Map<WebSocketChannel, String> _webSocketDeviceIds = {};
+  final Map<WebSocketChannel, String> _webSocketSessionTokens = {};
   final AriamiConnectHub _connectHub = AriamiConnectHub();
   final TailscalePathDiagnostics _tailscalePathDiagnostics =
       TailscalePathDiagnostics();

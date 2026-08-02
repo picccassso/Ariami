@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -1667,6 +1668,145 @@ void main() {
       await subscription.cancel();
       expect(ws.closeCode, equals(4001));
       expect(ws.closeReason, contains('Session expired or invalid'));
+    });
+
+    test('websocket serializes a ping sent immediately after identify',
+        () async {
+      final port = await startHttpTestServer(server);
+      final registerResponse = await _sendJsonRequest(
+        method: 'POST',
+        url: Uri.parse('http://127.0.0.1:$port/api/auth/register'),
+        jsonBody: <String, dynamic>{
+          'username': 'ws-serial-user',
+          'password': 'ws-serial-pass',
+        },
+      );
+      expect(registerResponse.statusCode, 200);
+      final loginResponse = await _sendJsonRequest(
+        method: 'POST',
+        url: Uri.parse('http://127.0.0.1:$port/api/auth/login'),
+        jsonBody: <String, dynamic>{
+          'username': 'ws-serial-user',
+          'password': 'ws-serial-pass',
+          'deviceId': 'ws-serial-device',
+          'deviceName': 'WS Serial Device',
+        },
+      );
+      expect(loginResponse.statusCode, 200);
+      final token = loginResponse.jsonBody['sessionToken'] as String;
+
+      final ws = await WebSocket.connect('ws://127.0.0.1:$port/api/ws');
+      final welcome = Completer<void>();
+      final pong = Completer<void>();
+      final subscription = ws.listen((rawMessage) {
+        final decoded =
+            jsonDecode(rawMessage as String) as Map<String, dynamic>;
+        if (decoded['type'] == 'connect_welcome' && !welcome.isCompleted) {
+          welcome.complete();
+        }
+        if (decoded['type'] == 'pong' && !pong.isCompleted) {
+          pong.complete();
+        }
+      });
+
+      ws
+        ..add(
+          jsonEncode(<String, dynamic>{
+            'type': 'identify',
+            'data': <String, dynamic>{
+              'deviceId': 'ws-serial-device',
+              'deviceName': 'WS Serial Device',
+              'sessionToken': token,
+              'clientType': 'mobile',
+            },
+            'timestamp': DateTime.now().toIso8601String(),
+          }),
+        )
+        ..add(
+          jsonEncode(<String, dynamic>{
+            'type': 'ping',
+            'data': null,
+            'timestamp': DateTime.now().toIso8601String(),
+          }),
+        );
+
+      await Future.wait(<Future<void>>[
+        welcome.future,
+        pong.future,
+      ]).timeout(const Duration(seconds: 5));
+      expect(ws.closeCode, isNull);
+
+      await ws.close();
+      await subscription.cancel();
+    });
+
+    test('websocket closes with 4001 when its session is later revoked',
+        () async {
+      final port = await startHttpTestServer(server);
+      final registerResponse = await _sendJsonRequest(
+        method: 'POST',
+        url: Uri.parse('http://127.0.0.1:$port/api/auth/register'),
+        jsonBody: <String, dynamic>{
+          'username': 'ws-revoked-user',
+          'password': 'ws-revoked-pass',
+        },
+      );
+      expect(registerResponse.statusCode, 200);
+      final loginResponse = await _sendJsonRequest(
+        method: 'POST',
+        url: Uri.parse('http://127.0.0.1:$port/api/auth/login'),
+        jsonBody: <String, dynamic>{
+          'username': 'ws-revoked-user',
+          'password': 'ws-revoked-pass',
+          'deviceId': 'ws-revoked-device',
+          'deviceName': 'WS Revoked Device',
+        },
+      );
+      expect(loginResponse.statusCode, 200);
+      final token = loginResponse.jsonBody['sessionToken'] as String;
+
+      final ws = await WebSocket.connect('ws://127.0.0.1:$port/api/ws');
+      final identified = Completer<void>();
+      final subscription = ws.listen((rawMessage) {
+        final decoded =
+            jsonDecode(rawMessage as String) as Map<String, dynamic>;
+        if (decoded['type'] == 'connect_welcome' && !identified.isCompleted) {
+          identified.complete();
+        }
+      });
+      ws.add(
+        jsonEncode(<String, dynamic>{
+          'type': 'identify',
+          'data': <String, dynamic>{
+            'deviceId': 'ws-revoked-device',
+            'deviceName': 'WS Revoked Device',
+            'sessionToken': token,
+            'clientType': 'mobile',
+          },
+          'timestamp': DateTime.now().toIso8601String(),
+        }),
+      );
+      await identified.future.timeout(const Duration(seconds: 5));
+
+      final logoutResponse = await _sendJsonRequest(
+        method: 'POST',
+        url: Uri.parse('http://127.0.0.1:$port/api/auth/logout'),
+        headers: <String, String>{'Authorization': 'Bearer $token'},
+        jsonBody: const <String, dynamic>{},
+      );
+      expect(logoutResponse.statusCode, 200);
+      ws.add(
+        jsonEncode(<String, dynamic>{
+          'type': 'ping',
+          'data': null,
+          'timestamp': DateTime.now().toIso8601String(),
+        }),
+      );
+
+      await ws.done.timeout(const Duration(seconds: 5));
+      await subscription.cancel();
+      expect(ws.closeCode, 4001);
+      expect(ws.closeReason, contains('expired or revoked'));
     });
 
     test('disconnect preserves session token - can reconnect without re-login',

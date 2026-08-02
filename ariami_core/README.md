@@ -79,6 +79,9 @@ Located in `services/connect/`:
 - **connect_client.dart** - Resilient client transport over a dedicated WebSocket
 - **remote_playback.dart** - Read-only view of playback on another Connect device, with controls routed as Connect commands
 
+Connect protocol negotiation, authentication, ownership, mixed-version
+behaviour, and recovery are documented in [CONNECT.md](CONNECT.md).
+
 ## Auth Services
 
 Located in `services/auth/`:

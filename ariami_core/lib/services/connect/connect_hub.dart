@@ -8,6 +8,7 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 
 const kConnectOwnerReclaimGrace = Duration(seconds: 20);
 const kConnectRecentControllerWindow = Duration(seconds: 120);
+const kConnectIdleSessionRetention = Duration(minutes: 30);
 
 DateTime _connectUtcNow() => DateTime.now().toUtc();
 
@@ -19,6 +20,7 @@ class AriamiConnectHub {
   AriamiConnectHub({
     this.disconnectGracePeriod = kConnectOwnerReclaimGrace,
     this.recentControllerWindow = kConnectRecentControllerWindow,
+    this.idleSessionRetention = kConnectIdleSessionRetention,
     this.commandTimeout = const Duration(seconds: 10),
     this.transferTimeout = const Duration(seconds: 30),
     this.staleTimeout = const Duration(seconds: 90),
@@ -38,6 +40,12 @@ class AriamiConnectHub {
   /// How recently a device must have issued an accepted command in this
   /// session before automatic failover may let it inherit playing state.
   final Duration recentControllerWindow;
+
+  /// How long an ownerless account session may retain its last queue and
+  /// playback state after every peer disconnects. Connect state is recovery
+  /// data, not durable playback storage; clients remain responsible for their
+  /// local queues.
+  final Duration idleSessionRetention;
 
   /// How long a relayed command may wait for the active device's result
   /// before the requester is told the device is unreachable. Long enough for
@@ -119,6 +127,8 @@ class AriamiConnectHub {
     // Connect is ever used.
     _sweepTimer ??= Timer.periodic(sweepInterval, (_) => _sweepStalePeers());
     final session = _sessions[userId];
+    session?.idleTimer?.cancel();
+    if (session != null) session.idleTimer = null;
     if (session?.activeDeviceId == deviceId) {
       // The player came back during the grace period. Keep it as the owner and
       // cancel any automatic handoff that raced with its reconnect.
@@ -186,6 +196,9 @@ class AriamiConnectHub {
       } else {
         _broadcastDevices(peer.userId);
       }
+      if (!_hasPeers(peer.userId) && session != null) {
+        _scheduleIdleSessionExpiry(peer.userId, session);
+      }
     }
     if (_peers.isEmpty) {
       _sweepTimer?.cancel();
@@ -222,24 +235,57 @@ class AriamiConnectHub {
     }
   }
 
+  bool _hasPeers(String userId) =>
+      _peers.values.any((peer) => peer.userId == userId);
+
+  bool _hasPendingTransitions(_ConnectSession session) =>
+      session.disconnectTimer?.isActive == true ||
+      session.failover != null ||
+      session.pendingCommands.isNotEmpty ||
+      session.pendingTransfers.isNotEmpty ||
+      session.pendingFormerOwnerPauses.values
+          .any((pending) => pending.timeout?.isActive == true);
+
+  void _scheduleIdleSessionExpiry(
+    String userId,
+    _ConnectSession session,
+  ) {
+    session.idleTimer?.cancel();
+    session.idleTimer = _timerFactory(idleSessionRetention, () {
+      session.idleTimer = null;
+      if (!identical(_sessions[userId], session) || _hasPeers(userId)) return;
+      if (_hasPendingTransitions(session)) {
+        _scheduleIdleSessionExpiry(userId, session);
+        return;
+      }
+      _sessions.remove(userId);
+      _disposeSession(session);
+    });
+  }
+
+  void _disposeSession(_ConnectSession session) {
+    session.idleTimer?.cancel();
+    session.disconnectTimer?.cancel();
+    for (final transfer in session.pendingTransfers.values) {
+      transfer.timeout?.cancel();
+    }
+    for (final pending in session.pendingCommands.values) {
+      pending.timeout?.cancel();
+    }
+    for (final pending in session.pendingFormerOwnerPauses.values) {
+      pending.timeout?.cancel();
+    }
+  }
+
   /// Stops the sweep timer and drops all peers. Call this from the server's
   /// shutdown path so the periodic timer never outlives the server instance.
   void dispose() {
     _sweepTimer?.cancel();
     _sweepTimer = null;
-    // Sessions own a failover timer and a timeout per pending transfer. Those
+    // Sessions own idle/failover timers and timeouts for retained work. Those
     // outlive _peers.clear() and would fire against a torn-down hub.
     for (final session in _sessions.values) {
-      session.disconnectTimer?.cancel();
-      for (final transfer in session.pendingTransfers.values) {
-        transfer.timeout?.cancel();
-      }
-      for (final pending in session.pendingCommands.values) {
-        pending.timeout?.cancel();
-      }
-      for (final pending in session.pendingFormerOwnerPauses.values) {
-        pending.timeout?.cancel();
-      }
+      _disposeSession(session);
     }
     _sessions.clear();
     _pendingHellos.clear();
@@ -1643,7 +1689,12 @@ class AriamiConnectHub {
               'supportedCommands': _sortedCommands(peer.supportedCommands),
             })
         .toList(growable: false);
-    result.sort((a, b) => (a['name'] as String).compareTo(b['name'] as String));
+    result.sort((a, b) {
+      final nameOrder = (a['name'] as String).compareTo(b['name'] as String);
+      return nameOrder != 0
+          ? nameOrder
+          : (a['id'] as String).compareTo(b['id'] as String);
+    });
     return result;
   }
 
@@ -1720,6 +1771,7 @@ class _ConnectSession {
   AriamiPlaybackSnapshot? snapshot;
   int revision = 0;
   int semanticGeneration = 0;
+  Timer? idleTimer;
   Timer? disconnectTimer;
   _PendingFailover? failover;
   final Map<String, _PendingCommand> pendingCommands = {};
