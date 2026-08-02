@@ -1,0 +1,228 @@
+{
+  "schema": "ariami-connect-v2-contract",
+  "protocolVersion": 2,
+  "ownership": {
+    "ownerEpoch": 7,
+    "activeDeviceId": "premium-desktop",
+    "staleOwnerEpoch": 6
+  },
+  "snapshot": {
+    "queue": [
+      {
+        "id": "track-a",
+        "title": "First Track",
+        "artist": "Artist One",
+        "album": "Shared Album",
+        "albumId": "album-shared",
+        "albumArtist": "Various Artists",
+        "trackNumber": 1,
+        "discNumber": 1,
+        "year": 2026,
+        "genre": "Electronic",
+        "duration": 181,
+        "filePath": "/fixture/first.flac",
+        "fileSize": 12345678,
+        "modifiedTime": "2026-01-02T03:04:05.000Z"
+      },
+      {
+        "id": "track-b",
+        "title": "Second Track",
+        "artist": "Artist Two",
+        "album": "Shared Album",
+        "albumId": "album-shared",
+        "albumArtist": "Various Artists",
+        "trackNumber": 2,
+        "discNumber": 1,
+        "year": 2026,
+        "genre": "Electronic",
+        "duration": 202,
+        "filePath": "/fixture/second.flac",
+        "fileSize": 23456789,
+        "modifiedTime": "2026-01-02T03:04:06.000Z"
+      },
+      {
+        "id": "track-a",
+        "title": "First Track (Encore)",
+        "artist": "Artist One",
+        "album": "Shared Album",
+        "albumId": "album-shared",
+        "albumArtist": "Various Artists",
+        "trackNumber": 3,
+        "discNumber": 1,
+        "year": 2026,
+        "genre": "Electronic",
+        "duration": 181,
+        "filePath": "/fixture/encore.flac",
+        "fileSize": 12345679,
+        "modifiedTime": "2026-01-02T03:04:07.000Z"
+      }
+    ],
+    "currentIndex": 1,
+    "positionMs": 45678,
+    "durationMs": 202000,
+    "isPlaying": true,
+    "shuffle": true,
+    "repeatMode": "all",
+    "volume": 0.75,
+    "sourceId": "playlist:shared-fixture",
+    "updatedAt": "2026-01-02T03:04:08.000Z"
+  },
+  "playContext": {
+    "type": "connect_command",
+    "data": {
+      "commandId": "fixture-command-0001",
+      "command": "play_context",
+      "ownerEpoch": 7,
+      "arguments": {
+        "snapshot": {
+          "queue": [
+            {
+              "id": "track-a",
+              "title": "First Track",
+              "artist": "Artist One",
+              "album": "Shared Album",
+              "albumId": "album-shared",
+              "albumArtist": "Various Artists",
+              "trackNumber": 1,
+              "discNumber": 1,
+              "year": 2026,
+              "genre": "Electronic",
+              "duration": 181,
+              "filePath": "/fixture/first.flac",
+              "fileSize": 12345678,
+              "modifiedTime": "2026-01-02T03:04:05.000Z"
+            },
+            {
+              "id": "track-b",
+              "title": "Second Track",
+              "artist": "Artist Two",
+              "album": "Shared Album",
+              "albumId": "album-shared",
+              "albumArtist": "Various Artists",
+              "trackNumber": 2,
+              "discNumber": 1,
+              "year": 2026,
+              "genre": "Electronic",
+              "duration": 202,
+              "filePath": "/fixture/second.flac",
+              "fileSize": 23456789,
+              "modifiedTime": "2026-01-02T03:04:06.000Z"
+            },
+            {
+              "id": "track-a",
+              "title": "First Track (Encore)",
+              "artist": "Artist One",
+              "album": "Shared Album",
+              "albumId": "album-shared",
+              "albumArtist": "Various Artists",
+              "trackNumber": 3,
+              "discNumber": 1,
+              "year": 2026,
+              "genre": "Electronic",
+              "duration": 181,
+              "filePath": "/fixture/encore.flac",
+              "fileSize": 12345679,
+              "modifiedTime": "2026-01-02T03:04:07.000Z"
+            }
+          ],
+          "currentIndex": 1,
+          "positionMs": 45678,
+          "durationMs": 202000,
+          "isPlaying": true,
+          "shuffle": true,
+          "repeatMode": "all",
+          "volume": 0.75,
+          "sourceId": "playlist:shared-fixture",
+          "updatedAt": "2026-01-02T03:04:08.000Z"
+        }
+      }
+    },
+    "timestamp": "2026-01-02T03:04:09.000Z"
+  },
+  "v3Queue": {
+    "type": "connect_queue",
+    "data": {
+      "ownerEpoch": 7,
+      "queueCounter": 3,
+      "tracks": [
+        {
+          "id": "track-a",
+          "title": "First Track",
+          "artist": "Artist One",
+          "album": "Shared Album",
+          "albumId": "album-shared",
+          "albumArtist": "Various Artists",
+          "trackNumber": 1,
+          "discNumber": 1,
+          "year": 2026,
+          "genre": "Electronic",
+          "duration": 181,
+          "filePath": "/fixture/first.flac",
+          "fileSize": 12345678,
+          "modifiedTime": "2026-01-02T03:04:05.000Z"
+        },
+        {
+          "id": "track-b",
+          "title": "Second Track",
+          "artist": "Artist Two",
+          "album": "Shared Album",
+          "albumId": "album-shared",
+          "albumArtist": "Various Artists",
+          "trackNumber": 2,
+          "discNumber": 1,
+          "year": 2026,
+          "genre": "Electronic",
+          "duration": 202,
+          "filePath": "/fixture/second.flac",
+          "fileSize": 23456789,
+          "modifiedTime": "2026-01-02T03:04:06.000Z"
+        },
+        {
+          "id": "track-a",
+          "title": "First Track (Encore)",
+          "artist": "Artist One",
+          "album": "Shared Album",
+          "albumId": "album-shared",
+          "albumArtist": "Various Artists",
+          "trackNumber": 3,
+          "discNumber": 1,
+          "year": 2026,
+          "genre": "Electronic",
+          "duration": 181,
+          "filePath": "/fixture/encore.flac",
+          "fileSize": 12345679,
+          "modifiedTime": "2026-01-02T03:04:07.000Z"
+        }
+      ],
+      "backingOrder": [
+        2,
+        0,
+        1
+      ],
+      "sourceId": "playlist:shared-fixture"
+    },
+    "timestamp": "2026-01-02T03:04:10.000Z"
+  },
+  "clientBaselines": {
+    "mobile": {
+      "clientType": "mobile",
+      "supportsClearQueue": true,
+      "supportsOwnerEpochFencing": true
+    },
+    "premiumDesktop": {
+      "clientType": "desktop",
+      "supportsClearQueue": true,
+      "supportsOwnerEpochFencing": true
+    },
+    "flutterTv": {
+      "clientType": "tv",
+      "supportsClearQueue": true,
+      "supportsOwnerEpochFencing": true
+    },
+    "nativeTvos": {
+      "clientType": "tv",
+      "supportsClearQueue": true,
+      "supportsOwnerEpochFencing": true
+    }
+  }
+}

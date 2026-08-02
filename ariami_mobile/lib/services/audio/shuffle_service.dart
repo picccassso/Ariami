@@ -21,6 +21,54 @@ class ShuffleService<T> {
   /// Get current queue (shuffled or original)
   List<T> get currentQueue => _isShuffled ? _shuffledQueue : _originalQueue;
 
+  /// Positional permutation into [activeQueue] that reconstructs the stored
+  /// pre-shuffle order. Identity matching keeps equal-valued duplicate
+  /// occurrences distinct.
+  List<int> backingOrderFor(List<T> activeQueue) {
+    if (!_isShuffled || _originalQueue.length != activeQueue.length) {
+      return List<int>.generate(activeQueue.length, (index) => index);
+    }
+    final unmatched = activeQueue.indexed.map((entry) => entry.$1).toSet();
+    final order = <int>[];
+    for (final original in _originalQueue) {
+      int? index;
+      for (final candidate in unmatched) {
+        if (identical(activeQueue[candidate], original)) {
+          index = candidate;
+          break;
+        }
+      }
+      if (index == null) {
+        for (final candidate in unmatched) {
+          if (activeQueue[candidate] == original) {
+            index = candidate;
+            break;
+          }
+        }
+      }
+      if (index == null) {
+        return List<int>.generate(activeQueue.length, (value) => value);
+      }
+      unmatched.remove(index);
+      order.add(index);
+    }
+    return order;
+  }
+
+  /// Restores a shuffled queue received over Connect without randomizing it
+  /// again. Both lists must contain the same positional occurrences.
+  void restoreShuffled({
+    required List<T> originalQueue,
+    required List<T> shuffledQueue,
+  }) {
+    _originalQueue = List<T>.from(originalQueue);
+    _shuffledQueue = List<T>.from(shuffledQueue);
+    _isShuffled = true;
+  }
+
+  int indexOfOccurrence(List<T> queue, T item) =>
+      _indexOfOccurrence(queue, item);
+
   /// Enable shuffle
   /// Keeps the current item at position, shuffles the rest
   List<T> enableShuffle(List<T> queue, T? currentItem) {

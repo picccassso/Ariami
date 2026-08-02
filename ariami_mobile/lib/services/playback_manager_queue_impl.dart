@@ -567,7 +567,10 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
       final currentSong = _queue.currentSong;
       int newIndex = 0;
       if (currentSong != null) {
-        final foundIndex = original.indexOf(currentSong);
+        final foundIndex = _shuffleService.indexOfOccurrence(
+          original,
+          currentSong,
+        );
         if (foundIndex != -1) {
           newIndex = foundIndex;
         }

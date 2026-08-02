@@ -204,6 +204,7 @@ class PlaybackManager extends ChangeNotifier {
   AriamiPlaybackSnapshot get connectSnapshot => AriamiPlaybackSnapshot(
         queue:
             _queue.songs.map((song) => song.toJson()).toList(growable: false),
+        backingOrder: _shuffleService.backingOrderFor(_queue.songs),
         currentIndex: _queue.isEmpty ? -1 : _queue.currentIndex,
         positionMs: _localPosition.inMilliseconds,
         durationMs:

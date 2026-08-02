@@ -263,6 +263,8 @@ class AriamiConnectHub {
         peer.protocolVersion = _negotiateProtocolVersion(data);
         _sendWelcome(socket, peer);
         _broadcastDevices(peer.userId);
+      case AriamiConnectMessageType.queue:
+        _handleQueue(socket, peer, data);
       case AriamiConnectMessageType.state:
         _handleState(socket, peer, data);
       case AriamiConnectMessageType.command:
@@ -284,12 +286,18 @@ class AriamiConnectHub {
 
   void _handleState(
       WebSocketChannel socket, _ConnectPeer peer, Map<String, dynamic> data) {
+    if (peer.protocolVersion >= AriamiConnectProtocol.v3) {
+      _handleSplitState(socket, peer, data);
+      return;
+    }
     try {
       final raw = data['snapshot'];
       if (raw is! Map) throw const FormatException('Missing snapshot');
-      final snapshot = AriamiPlaybackSnapshot.fromJson(
+      final parsed = AriamiPlaybackSnapshot.fromJson(
         Map<String, dynamic>.from(raw),
-      ).copyWith(updatedAt: DateTime.now().toUtc());
+      );
+      final snapshot = AriamiPlaybackSnapshot.fromJson(parsed.toJson())
+          .copyWith(updatedAt: DateTime.now().toUtc());
       final activate = data['activate'] as bool? ?? false;
       final session = _sessions.putIfAbsent(peer.userId, _ConnectSession.new);
       if (!_acceptEpoch(session, data)) {
@@ -313,8 +321,10 @@ class AriamiConnectHub {
         _sendAuthoritativeState(socket, session);
         return;
       }
+      final queueChanged = _adoptQueue(session, snapshot);
       session.snapshot = snapshot;
       session.revision++;
+      if (queueChanged) _broadcastQueue(peer.userId, session);
       _broadcastState(peer.userId, session, except: socket);
       if (activate && previousActive != session.activeDeviceId) {
         _broadcastDevices(peer.userId);
@@ -322,6 +332,127 @@ class AriamiConnectHub {
     } on FormatException catch (error) {
       _sendError(socket, 'INVALID_STATE', error.message);
     }
+  }
+
+  void _handleQueue(
+      WebSocketChannel socket, _ConnectPeer peer, Map<String, dynamic> data) {
+    if (peer.protocolVersion < AriamiConnectProtocol.v3) {
+      _sendError(socket, 'UNSUPPORTED_MESSAGE',
+          'Split queue messages require Connect protocol v3.');
+      return;
+    }
+    try {
+      final rawTracks = data['tracks'];
+      if (rawTracks is! List) throw const FormatException('Missing tracks');
+      if (rawTracks.length > AriamiPlaybackSnapshot.maxQueueLength) {
+        throw const FormatException('Connect queue is too large');
+      }
+      final tracks = <Map<String, dynamic>>[];
+      for (final rawTrack in rawTracks) {
+        if (rawTrack is! Map) {
+          throw const FormatException('Invalid Connect track');
+        }
+        final track = Map<String, dynamic>.from(rawTrack);
+        if ((track['id'] as String? ?? '').isEmpty) {
+          throw const FormatException('Invalid Connect track');
+        }
+        tracks.add(track);
+      }
+      final backingOrder =
+          validateConnectBackingOrder(data['backingOrder'], tracks.length);
+      final sourceId = data['sourceId'] as String?;
+      final session = _sessions.putIfAbsent(peer.userId, _ConnectSession.new);
+      if (!_acceptEpoch(session, data)) {
+        _sendAuthoritativeState(socket, session);
+        return;
+      }
+      final activate = data['activate'] as bool? ?? false;
+      final previousActive = session.activeDeviceId;
+      if (session.activeDeviceId == null || activate) {
+        _commitOwnership(
+          peer.userId,
+          session,
+          peer.deviceId,
+          requestedBy: peer.deviceId,
+        );
+      }
+      if (session.activeDeviceId != peer.deviceId) {
+        _sendAuthoritativeState(socket, session);
+        return;
+      }
+
+      final queue = _ConnectQueueData(
+        tracks: List<Map<String, dynamic>>.unmodifiable(tracks),
+        backingOrder: backingOrder,
+        sourceId: sourceId,
+      );
+      if (session.queue?.fingerprint != queue.fingerprint) {
+        session.queue = queue;
+        session.queueCounter++;
+      } else {
+        session.queue = queue;
+      }
+      // Echo the canonical counter to the owner. The sender deliberately waits
+      // for this acknowledgement before publishing state, so a reconnect or
+      // same-fingerprint takeover cannot guess the hub's counter.
+      _broadcastQueue(peer.userId, session);
+      if (activate && previousActive != session.activeDeviceId) {
+        _broadcastDevices(peer.userId);
+      }
+    } on FormatException catch (error) {
+      _sendError(socket, 'INVALID_QUEUE', error.message);
+    } on TypeError {
+      _sendError(socket, 'INVALID_QUEUE', 'Invalid Connect queue metadata.');
+    }
+  }
+
+  void _handleSplitState(
+      WebSocketChannel socket, _ConnectPeer peer, Map<String, dynamic> data) {
+    try {
+      final session = _sessions.putIfAbsent(peer.userId, _ConnectSession.new);
+      if (!_acceptEpoch(session, data)) {
+        _sendAuthoritativeState(socket, session);
+        return;
+      }
+      if (session.activeDeviceId != peer.deviceId) {
+        _sendAuthoritativeState(socket, session);
+        return;
+      }
+      final queue = session.queue;
+      final rawQueueCounter = data['queueCounter'];
+      if (queue == null ||
+          rawQueueCounter is! num ||
+          rawQueueCounter != rawQueueCounter.toInt() ||
+          rawQueueCounter.toInt() != session.queueCounter) {
+        _sendAuthoritativeState(socket, session);
+        return;
+      }
+      final snapshot = AriamiPlaybackSnapshot.fromJson(<String, dynamic>{
+        ...data,
+        'queue': queue.tracks,
+        'backingOrder': queue.backingOrder,
+        if (queue.sourceId != null) 'sourceId': queue.sourceId,
+      }).copyWith(updatedAt: DateTime.now().toUtc());
+      session.snapshot = snapshot;
+      session.revision++;
+      _broadcastState(peer.userId, session, except: socket);
+    } on FormatException catch (error) {
+      _sendError(socket, 'INVALID_STATE', error.message);
+    }
+  }
+
+  bool _adoptQueue(_ConnectSession session, AriamiPlaybackSnapshot snapshot) {
+    final queue = _ConnectQueueData(
+      tracks: snapshot.queue,
+      // A v2 snapshot never establishes backing order; it was not part of the
+      // maintained v2 wire contract and cannot be inferred after shuffling.
+      backingOrder: List<int>.generate(snapshot.queue.length, (index) => index),
+      sourceId: snapshot.sourceId,
+    );
+    final changed = session.queue?.fingerprint != queue.fingerprint;
+    session.queue = queue;
+    if (changed) session.queueCounter++;
+    return changed;
   }
 
   void _handleCommand(
@@ -539,7 +670,11 @@ class AriamiConnectHub {
       'transferId': transferId,
       'sourceDeviceId': session.activeDeviceId,
       'targetDeviceId': targetId,
-      'snapshot': preparedSnapshot.toJson(),
+      'snapshot': preparedSnapshot.toJson(
+        includeBackingOrder:
+            target.peer.protocolVersion >= AriamiConnectProtocol.v3,
+      ),
+      'queueCounter': session.queueCounter,
       'ownerEpoch': session.ownerEpoch,
     });
   }
@@ -575,18 +710,25 @@ class AriamiConnectHub {
     );
     session.snapshot = transfer.snapshot.compensated(DateTime.now().toUtc());
     session.revision++;
-    final payload = <String, dynamic>{
-      'phase': 'commit',
-      'transferId': transfer.id,
-      'sourceDeviceId': transfer.sourceDeviceId,
-      'targetDeviceId': transfer.targetDeviceId,
-      'snapshot': session.snapshot!.toJson(),
-      'revision': session.revision,
-      'ownerEpoch': session.ownerEpoch,
-    };
     for (final entry in _peers.entries) {
       if (entry.value.userId == peer.userId) {
-        _send(entry.key, AriamiConnectMessageType.transfer, payload);
+        _send(entry.key, AriamiConnectMessageType.transfer, <String, dynamic>{
+          'phase': 'commit',
+          'transferId': transfer.id,
+          'sourceDeviceId': transfer.sourceDeviceId,
+          'targetDeviceId': transfer.targetDeviceId,
+          'snapshot': session.snapshot!.toJson(
+            includeBackingOrder:
+                entry.value.protocolVersion >= AriamiConnectProtocol.v3,
+          ),
+          if (entry.value.protocolVersion >= AriamiConnectProtocol.v3)
+            'queueCounter': session.queueCounter,
+          if (entry.value.protocolVersion >= AriamiConnectProtocol.v3)
+            'stateRevision': session.revision
+          else
+            'revision': session.revision,
+          'ownerEpoch': session.ownerEpoch,
+        });
       }
     }
     _broadcastDevices(peer.userId);
@@ -624,10 +766,21 @@ class AriamiConnectHub {
       'protocolVersion': peer.protocolVersion,
       'devices': _deviceJson(peer.userId),
       'activeDeviceId': session?.activeDeviceId,
-      if (session?.snapshot != null) 'snapshot': session!.snapshot!.toJson(),
-      'revision': session?.revision ?? 0,
+      if (peer.protocolVersion < AriamiConnectProtocol.v3 &&
+          session?.snapshot != null)
+        'snapshot': session!.snapshot!.toJson(),
+      if (peer.protocolVersion >= AriamiConnectProtocol.v3)
+        'queueCounter': session?.queueCounter ?? 0,
+      if (peer.protocolVersion >= AriamiConnectProtocol.v3)
+        'stateRevision': session?.revision ?? 0
+      else
+        'revision': session?.revision ?? 0,
       'ownerEpoch': session?.ownerEpoch ?? 0,
     });
+    if (peer.protocolVersion >= AriamiConnectProtocol.v3 && session != null) {
+      if (session.queue != null) _sendQueue(socket, session);
+      if (session.snapshot != null) _sendState(socket, peer, session);
+    }
   }
 
   int _negotiateProtocolVersion(Map<String, dynamic>? hello) {
@@ -661,19 +814,65 @@ class AriamiConnectHub {
 
   void _broadcastState(String userId, _ConnectSession session,
       {WebSocketChannel? except}) {
+    for (final entry in _peers.entries) {
+      if (entry.key != except && entry.value.userId == userId) {
+        _sendState(entry.key, entry.value, session);
+      }
+    }
+  }
+
+  void _broadcastQueue(String userId, _ConnectSession session,
+      {WebSocketChannel? except}) {
+    for (final entry in _peers.entries) {
+      if (entry.key != except &&
+          entry.value.userId == userId &&
+          entry.value.protocolVersion >= AriamiConnectProtocol.v3) {
+        _sendQueue(entry.key, session);
+      }
+    }
+  }
+
+  void _sendQueue(WebSocketChannel socket, _ConnectSession session) {
+    final queue = session.queue;
+    if (queue == null) return;
+    _send(socket, AriamiConnectMessageType.queue, <String, dynamic>{
+      'activeDeviceId': session.activeDeviceId,
+      'ownerEpoch': session.ownerEpoch,
+      'queueCounter': session.queueCounter,
+      'tracks': queue.tracks,
+      'backingOrder': queue.backingOrder,
+      if (queue.sourceId != null) 'sourceId': queue.sourceId,
+    });
+  }
+
+  void _sendState(
+      WebSocketChannel socket, _ConnectPeer peer, _ConnectSession session) {
     final snapshot = session.snapshot;
     if (snapshot == null) return;
-    final payload = <String, dynamic>{
+    if (peer.protocolVersion >= AriamiConnectProtocol.v3) {
+      _send(socket, AriamiConnectMessageType.state, <String, dynamic>{
+        'activeDeviceId': session.activeDeviceId,
+        'ownerEpoch': session.ownerEpoch,
+        'queueCounter': session.queueCounter,
+        'currentIndex': snapshot.currentIndex,
+        'positionMs': snapshot.positionMs,
+        'durationMs': snapshot.durationMs,
+        'isPlaying': snapshot.isPlaying,
+        'shuffle': snapshot.shuffle,
+        'repeatMode': snapshot.repeatMode,
+        'volume': snapshot.volume,
+        'stateRevision': session.revision,
+        'updatedAt':
+            (snapshot.updatedAt ?? DateTime.now().toUtc()).toIso8601String(),
+      });
+      return;
+    }
+    _send(socket, AriamiConnectMessageType.state, <String, dynamic>{
       'activeDeviceId': session.activeDeviceId,
       'snapshot': snapshot.toJson(),
       'revision': session.revision,
       'ownerEpoch': session.ownerEpoch,
-    };
-    for (final entry in _peers.entries) {
-      if (entry.key != except && entry.value.userId == userId) {
-        _send(entry.key, AriamiConnectMessageType.state, payload);
-      }
-    }
+    });
   }
 
   /// Epochs are optional only for rolling compatibility with older v2 peers.
@@ -682,7 +881,9 @@ class AriamiConnectHub {
   bool _acceptEpoch(_ConnectSession session, Map<String, dynamic> data) {
     final raw = data['ownerEpoch'];
     if (raw == null) return true;
-    if (raw is! num || raw != raw.toInt() || raw.toInt() != session.ownerEpoch) {
+    if (raw is! num ||
+        raw != raw.toInt() ||
+        raw.toInt() != session.ownerEpoch) {
       return false;
     }
     return true;
@@ -696,14 +897,12 @@ class AriamiConnectHub {
 
   void _sendAuthoritativeState(
       WebSocketChannel socket, _ConnectSession session) {
-    final snapshot = session.snapshot;
-    if (snapshot == null) return;
-    _send(socket, AriamiConnectMessageType.state, <String, dynamic>{
-      'activeDeviceId': session.activeDeviceId,
-      'snapshot': snapshot.toJson(),
-      'revision': session.revision,
-      'ownerEpoch': session.ownerEpoch,
-    });
+    final peer = _peers[socket];
+    if (peer == null || session.snapshot == null) return;
+    if (peer.protocolVersion >= AriamiConnectProtocol.v3) {
+      _sendQueue(socket, session);
+    }
+    _sendState(socket, peer, session);
   }
 
   void _commitOwnership(
@@ -870,6 +1069,8 @@ class _ConnectSession {
   String? activeDeviceId;
   int ownerEpoch = 0;
   String? lastControllerDeviceId;
+  _ConnectQueueData? queue;
+  int queueCounter = 0;
   AriamiPlaybackSnapshot? snapshot;
   int revision = 0;
   Timer? disconnectTimer;
@@ -878,6 +1079,23 @@ class _ConnectSession {
   final LinkedHashMap<String, Map<String, dynamic>> completedCommands =
       LinkedHashMap<String, Map<String, dynamic>>();
   final Map<String, _PendingTransfer> pendingTransfers = {};
+}
+
+class _ConnectQueueData {
+  _ConnectQueueData({
+    required this.tracks,
+    required this.backingOrder,
+    required this.sourceId,
+  }) : fingerprint = canonicalConnectQueueFingerprint(
+          queue: tracks,
+          backingOrder: backingOrder,
+          sourceId: sourceId,
+        );
+
+  final List<Map<String, dynamic>> tracks;
+  final List<int> backingOrder;
+  final String? sourceId;
+  final String fingerprint;
 }
 
 class _PendingCommand {

@@ -1,0 +1,39 @@
+{
+  "schema": "ariami-connect-p0-measurements",
+  "assumptions": {
+    "protocolVersion": 2,
+    "activeDevices": 1,
+    "peerDevices": 2,
+    "progressIntervalSeconds": 1,
+    "measurementWindowSeconds": 60,
+    "representativeQueueTracks": 500,
+    "realisticMaximumQueueTracks": 5000,
+    "largeMetadataStringLengths": {
+      "id": 64,
+      "title": 200,
+      "artist": 160,
+      "album": 200,
+      "albumId": 64,
+      "albumArtist": 160,
+      "genre": 80,
+      "filePathComponents": 180
+    }
+  },
+  "representative500TrackStatePublish": {
+    "messageCount": 3,
+    "ownerPublicationBytes": 155588,
+    "eachPeerBroadcastBytes": 155617,
+    "totalBytes": 466822
+  },
+  "representative500TrackOneMinuteAt1Hz": {
+    "messageCount": 180,
+    "ownerToHubBytes": 9335280,
+    "hubToPeersBytes": 18674040,
+    "totalBytes": 28009320
+  },
+  "realisticMaximum": {
+    "snapshotJsonBytes": 7629757,
+    "statePublicationBytes": 7629860,
+    "playContextCommandBytes": 7629946
+  }
+}

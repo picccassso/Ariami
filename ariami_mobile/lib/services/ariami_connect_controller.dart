@@ -19,7 +19,6 @@ class AriamiConnectController extends ChangeNotifier {
   AriamiConnectClient? _client;
   PlaybackManager? _playback;
   StreamSubscription<dynamic>? _serverSubscription;
-  Timer? _publishTimer;
   Timer? _staleStateTimer;
   String? _lastTrackId;
   bool _lastPlaying = false;
@@ -128,7 +127,6 @@ class AriamiConnectController extends ChangeNotifier {
     if (activate) {
       // Publish takeovers immediately so the hub pauses the old device and
       // confirms this one as active before stale remote state can flash back.
-      _publishTimer?.cancel();
       if (client == null) {
         _pendingLocalTakeover = true;
       } else {
@@ -136,11 +134,7 @@ class AriamiConnectController extends ChangeNotifier {
       }
       return;
     }
-    if (client == null) return;
-    if (_publishTimer?.isActive ?? false) return;
-    _publishTimer = Timer(const Duration(milliseconds: 500), () {
-      client.publishState();
-    });
+    client?.publishState();
   }
 
   Future<void> _handleCommand(
@@ -228,7 +222,6 @@ class AriamiConnectController extends ChangeNotifier {
 
   Future<void> stop() async {
     _generation++;
-    _publishTimer?.cancel();
     _staleStateTimer?.cancel();
     _staleStateTimer = null;
     _playback?.removeListener(_onPlaybackChanged);

@@ -63,7 +63,9 @@ void main() {
 
     test(
         '[per_peer_protocol_selection] [v3_preserves_v2_snapshots] '
-        'v3 and v2 are selected independently with identical snapshots', () {
+        '[mixed_v2_v3_convergence] '
+        'v3 receives split state while v2 receives reconstructed snapshots',
+        () {
       final hub = AriamiConnectHub();
       addTearDown(hub.dispose);
       final v3Peer = _FakeChannel();
@@ -115,15 +117,92 @@ void main() {
         2,
       );
 
-      hub.handle(v3Peer, _stateMessage(activate: true));
+      hub.handle(v3Peer, _v3QueueMessage(activate: true, ownerEpoch: 0));
+      hub.handle(v3Peer, _v3StateMessage(ownerEpoch: 1, queueCounter: 1));
       final v2State = _lastMessage(v2Peer, AriamiConnectMessageType.state);
       expect(v2State.data?['snapshot']['queue'], hasLength(1));
       expect(v2State.data?.containsKey('snapshot'), isTrue);
 
       hub.handle(v2Peer, _stateMessage(activate: true, ownerEpoch: 1));
       final v3State = _lastMessage(v3Peer, AriamiConnectMessageType.state);
-      expect(v3State.data?['snapshot']['queue'], hasLength(1));
-      expect(v3State.data?.containsKey('snapshot'), isTrue);
+      final v3Queue = _lastMessage(v3Peer, AriamiConnectMessageType.queue);
+      expect(v3Queue.data?['tracks'], hasLength(1));
+      expect(v3Queue.data?['backingOrder'], <int>[0]);
+      expect(v3State.data?['currentIndex'], 0);
+      expect(v3State.data?.containsKey('snapshot'), isFalse);
+    });
+
+    test('[v3_queue_crosses_once] progress never repeats a 500-track queue',
+        () {
+      final hub = AriamiConnectHub();
+      addTearDown(hub.dispose);
+      final owner = _FakeChannel();
+      final peer = _FakeChannel();
+      for (final entry in <(_FakeChannel, String)>[
+        (owner, 'owner'),
+        (peer, 'peer'),
+      ]) {
+        hub.handle(
+          entry.$1,
+          WsMessage(
+            type: AriamiConnectMessageType.hello,
+            data: const <String, dynamic>{
+              'protocolVersions': <int>[3, 2],
+              'canPlay': true,
+            },
+          ),
+        );
+        hub.register(
+          entry.$1,
+          userId: 'user',
+          deviceId: entry.$2,
+          deviceName: entry.$2,
+          clientType: 'mobile',
+        );
+      }
+      final tracks = List<Map<String, dynamic>>.generate(
+        500,
+        (index) => <String, dynamic>{
+          'id': 'track-$index',
+          'title': 'Track $index',
+        },
+      );
+      hub.handle(
+        owner,
+        _v3QueueMessage(
+          activate: true,
+          ownerEpoch: 0,
+          tracks: tracks,
+        ),
+      );
+      for (var tick = 0; tick < 4; tick++) {
+        hub.handle(
+          owner,
+          _v3StateMessage(
+            ownerEpoch: 1,
+            queueCounter: 1,
+            positionMs: tick * 1000,
+          ),
+        );
+      }
+
+      final queues = peer.messages
+          .where((message) => message.type == AriamiConnectMessageType.queue);
+      final states = peer.messages
+          .where((message) => message.type == AriamiConnectMessageType.state);
+      expect(queues, hasLength(1));
+      expect(queues.single.data?['tracks'], hasLength(500));
+      expect(states, hasLength(4));
+      final queueBytes = utf8.encode(jsonEncode(queues.single.toJson())).length;
+      final stateBytes = utf8.encode(jsonEncode(states.last.toJson())).length;
+      expect(stateBytes, lessThan(1000));
+      expect(stateBytes * 20, lessThan(queueBytes));
+      expect(
+          states.every((message) =>
+              message.data?['queueCounter'] == 1 &&
+              !message.data!.containsKey('snapshot') &&
+              !message.data!.containsKey('tracks')),
+          isTrue);
     });
 
     test(
@@ -1074,6 +1153,50 @@ WsMessage _stateMessage({required bool activate, int? ownerEpoch}) => WsMessage(
           repeatMode: 'off',
           volume: 1,
         ).toJson(),
+      },
+    );
+
+WsMessage _v3QueueMessage({
+  required bool activate,
+  required int ownerEpoch,
+  List<Map<String, dynamic>>? tracks,
+  List<int>? backingOrder,
+}) {
+  final resolved = tracks ??
+      const <Map<String, dynamic>>[
+        <String, dynamic>{'id': 'song-1', 'title': 'Song'},
+      ];
+  return WsMessage(
+    type: AriamiConnectMessageType.queue,
+    data: <String, dynamic>{
+      'activate': activate,
+      'ownerEpoch': ownerEpoch,
+      'queueCounter': 1,
+      'tracks': resolved,
+      'backingOrder':
+          backingOrder ?? List<int>.generate(resolved.length, (index) => index),
+    },
+  );
+}
+
+WsMessage _v3StateMessage({
+  required int ownerEpoch,
+  required int queueCounter,
+  int positionMs = 1000,
+}) =>
+    WsMessage(
+      type: AriamiConnectMessageType.state,
+      data: <String, dynamic>{
+        'ownerEpoch': ownerEpoch,
+        'queueCounter': queueCounter,
+        'currentIndex': 0,
+        'positionMs': positionMs,
+        'durationMs': 60000,
+        'isPlaying': true,
+        'shuffle': false,
+        'repeatMode': 'off',
+        'volume': 1,
+        'stateRevision': positionMs,
       },
     );
 

@@ -32,6 +32,24 @@ void main() {
     expect(service.originalQueue, [a, b, c, added]);
     expect(service.shuffledQueue, [b, c, a, added]);
   });
+
+  test('Connect restoration keeps positional duplicate backing order', () {
+    final firstA = _Item('a', 'first');
+    final secondA = _Item('a', 'second');
+    final c = _Item('c', 'c');
+    final resolved = <_Item>[c, firstA, secondA];
+    final service = ShuffleService<_Item>()
+      ..restoreShuffled(
+        originalQueue: <_Item>[firstA, secondA, c],
+        shuffledQueue: resolved,
+      );
+
+    expect(service.backingOrderFor(resolved), <int>[1, 2, 0]);
+    final restored = service.disableShuffle(c);
+    expect(restored.map((item) => item.occurrence),
+        <String>['first', 'second', 'c']);
+    expect(service.indexOfOccurrence(restored, c), 2);
+  });
 }
 
 class _Item {

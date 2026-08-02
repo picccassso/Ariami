@@ -12,6 +12,25 @@ typedef ConnectCommandHandler = Future<void> Function(
   Map<String, dynamic> arguments,
 );
 
+typedef ConnectWebSocketFactory = WebSocketChannel Function(Uri uri);
+typedef ConnectTimerFactory = Timer Function(
+  Duration duration,
+  void Function() callback,
+);
+typedef ConnectPeriodicTimerFactory = Timer Function(
+  Duration duration,
+  void Function(Timer timer) callback,
+);
+
+WebSocketChannel _connectWebSocket(Uri uri) => WebSocketChannel.connect(uri);
+Timer _startTimer(Duration duration, void Function() callback) =>
+    Timer(duration, callback);
+Timer _startPeriodicTimer(
+  Duration duration,
+  void Function(Timer timer) callback,
+) =>
+    Timer.periodic(duration, callback);
+
 /// Resilient client transport for Ariami Connect.
 ///
 /// It uses a dedicated WebSocket so library-sync reconnects and playback
@@ -30,12 +49,16 @@ class AriamiConnectClient {
     this.onAuthenticationRequired,
     this.commandAckTimeout = const Duration(seconds: 4),
     this.maxCommandAttempts = 4,
+    this.connectTimeout = const Duration(seconds: 8),
+    this.livenessTimeout = const Duration(seconds: 60),
+    this.backoffResetAfter = const Duration(seconds: 60),
+    this.refreshCloseTimeout = const Duration(seconds: 1),
+    this.disposeTimeout = const Duration(seconds: 1),
+    this.progressPublishInterval = const Duration(seconds: 1),
+    this.webSocketFactory = _connectWebSocket,
+    this.timerFactory = _startTimer,
+    this.periodicTimerFactory = _startPeriodicTimer,
   });
-
-  static const Duration _connectTimeout = Duration(seconds: 8);
-  static const Duration _livenessTimeout = Duration(seconds: 60);
-  static const Duration _backoffResetAfter = Duration(seconds: 60);
-  static const Duration _closeTimeout = Duration(seconds: 1);
 
   /// Optional diagnostics sink (e.g. debugPrint). Connect state flows across
   /// three devices and a hub; when a session desyncs in the field, these
@@ -58,6 +81,18 @@ class AriamiConnectClient {
   final void Function()? onAuthenticationRequired;
   final Duration commandAckTimeout;
   final int maxCommandAttempts;
+  final Duration connectTimeout;
+  final Duration livenessTimeout;
+  final Duration backoffResetAfter;
+  final Duration refreshCloseTimeout;
+  final Duration disposeTimeout;
+  final Duration progressPublishInterval;
+
+  /// Transport and timer seams keep fault tests deterministic. Production
+  /// callers use the hardened default deadlines above.
+  final ConnectWebSocketFactory webSocketFactory;
+  final ConnectTimerFactory timerFactory;
+  final ConnectPeriodicTimerFactory periodicTimerFactory;
 
   WebSocketChannel? _channel;
   StreamSubscription<dynamic>? _subscription;
@@ -66,6 +101,7 @@ class AriamiConnectClient {
   Timer? _welcomeTimer;
   Timer? _livenessTimer;
   Timer? _backoffResetTimer;
+  Timer? _progressPublishTimer;
   Future<void>? _refreshFuture;
   String? _baseUrl;
   String? _sessionToken;
@@ -79,6 +115,15 @@ class AriamiConnectClient {
   bool _takeoverSentOnCurrentConnection = false;
   int _hubProtocolVersion = 1;
   int _lastRevision = -1;
+  int _queueCounter = 0;
+  int _outboundStateRevision = 0;
+  List<Map<String, dynamic>> _remoteQueue = const <Map<String, dynamic>>[];
+  List<int> _remoteBackingOrder = const <int>[];
+  String? _remoteSourceId;
+  String? _lastPublishedQueueFingerprint;
+  String? _lastPublishedDiscreteFingerprint;
+  String? _awaitingQueueFingerprint;
+  DateTime? _lastStatePublishedAt;
   Future<void> _inboundQueue = Future<void>.value();
   Future<void>? _formerOwnerPauseFuture;
   int _lastPausedOwnerEpoch = -1;
@@ -129,6 +174,7 @@ class AriamiConnectClient {
     _reconnectSuppressed = false;
     _reconnectAttempt = 0;
     _hubProtocolVersion = 1;
+    _resetSplitState();
     ownerEpoch = 0;
     activeDeviceId = null;
     _lastPausedOwnerEpoch = -1;
@@ -154,7 +200,7 @@ class AriamiConnectClient {
         query: null,
         fragment: null,
       );
-      final channel = WebSocketChannel.connect(wsUri);
+      final channel = webSocketFactory(wsUri);
       openingChannel = channel;
       _channel = channel;
       _connectionGeneration++;
@@ -164,14 +210,14 @@ class AriamiConnectClient {
         onDone: () => _handleDisconnect(channel),
         cancelOnError: false,
       );
-      await channel.ready.timeout(_connectTimeout);
+      await channel.ready.timeout(connectTimeout);
       if (_channel != channel || _closedByUser) return;
       isConnected = true;
       _receivedInboundOnCurrentConnection = false;
       errorMessage = null;
       _armLivenessWatchdog(channel);
       _backoffResetTimer?.cancel();
-      _backoffResetTimer = Timer(_backoffResetAfter, () {
+      _backoffResetTimer = timerFactory(backoffResetAfter, () {
         if (identical(_channel, channel) &&
             isConnected &&
             _receivedInboundOnCurrentConnection) {
@@ -198,14 +244,14 @@ class AriamiConnectClient {
         },
       ));
       _welcomeTimer?.cancel();
-      _welcomeTimer = Timer(const Duration(seconds: 5), () {
+      _welcomeTimer = timerFactory(const Duration(seconds: 5), () {
         if (devices.isEmpty && activeDeviceId == null) {
           errorMessage = 'This Ariami server does not support Connect yet.';
           onChanged?.call();
         }
       });
       _pingTimer?.cancel();
-      _pingTimer = Timer.periodic(const Duration(seconds: 20), (_) {
+      _pingTimer = periodicTimerFactory(const Duration(seconds: 20), (_) {
         _send(PingMessage());
         if (isThisDeviceActive) publishState();
       });
@@ -244,7 +290,15 @@ class AriamiConnectClient {
           _isWelcomed = true;
           _hubProtocolVersion = (data['protocolVersion'] as num?)?.toInt() ?? 1;
           errorMessage = null;
-          if (!await _readDevices(data) || !await _readState(data)) return;
+          if (!await _readDevices(data)) return;
+          if (_hubProtocolVersion >= AriamiConnectProtocol.v3) {
+            final counter = data['queueCounter'];
+            if (counter is num && counter == counter.toInt()) {
+              _queueCounter = counter.toInt();
+            }
+          } else if (!await _readState(data)) {
+            return;
+          }
           // A local play intent can happen while this socket is still opening.
           // It must win over the stale remote snapshot carried by welcome,
           // otherwise local audio keeps playing underneath a remote UI mirror.
@@ -258,6 +312,8 @@ class AriamiConnectClient {
           _flushPendingCommands();
         case AriamiConnectMessageType.devices:
           await _readDevices(data);
+        case AriamiConnectMessageType.queue:
+          await _readQueue(data);
         case AriamiConnectMessageType.state:
           await _readState(data);
         case AriamiConnectMessageType.command:
@@ -292,14 +348,14 @@ class AriamiConnectClient {
 
   void _armLivenessWatchdog(WebSocketChannel channel) {
     _livenessTimer?.cancel();
-    _livenessTimer = Timer(_livenessTimeout, () {
+    _livenessTimer = timerFactory(livenessTimeout, () {
       if (!identical(_channel, channel) ||
           !isConnected ||
           _closedByUser ||
           _reconnectSuppressed) {
         return;
       }
-      _log('No inbound Connect traffic for ${_livenessTimeout.inSeconds}s; '
+      _log('No inbound Connect traffic for ${livenessTimeout.inSeconds}s; '
           'replacing the socket');
       unawaited(refreshState());
     });
@@ -326,24 +382,92 @@ class AriamiConnectClient {
   Future<bool> _readState(Map<String, dynamic> data) async {
     final authority = await _acceptAuthority(data);
     if (!authority.accepted) return false;
-    final revision = (data['revision'] as num?)?.toInt() ?? 0;
+    final revision = (data[_hubProtocolVersion >= AriamiConnectProtocol.v3
+                ? 'stateRevision'
+                : 'revision'] as num?)
+            ?.toInt() ??
+        0;
     if (revision < _lastRevision) {
       _log('state rejected: revision $revision < $_lastRevision');
       return false;
     }
-    _lastRevision = revision;
     _reconcileTakeoverRequest();
-    final raw = data['snapshot'];
-    if (raw is Map) {
-      remoteSnapshot = AriamiPlaybackSnapshot.fromJson(
-        Map<String, dynamic>.from(raw),
-      );
-      remoteSnapshotAt = DateTime.now();
+    if (_hubProtocolVersion >= AriamiConnectProtocol.v3) {
+      final rawCounter = data['queueCounter'];
+      if (rawCounter is! num ||
+          rawCounter != rawCounter.toInt() ||
+          rawCounter.toInt() != _queueCounter) {
+        _log('state rejected: queue counter $rawCounter != $_queueCounter');
+        return false;
+      }
+      remoteSnapshot = AriamiPlaybackSnapshot.fromJson(<String, dynamic>{
+        ...data,
+        'queue': _remoteQueue,
+        'backingOrder': _remoteBackingOrder,
+        if (_remoteSourceId != null) 'sourceId': _remoteSourceId,
+      });
+    } else {
+      final raw = data['snapshot'];
+      if (raw is Map) {
+        remoteSnapshot = AriamiPlaybackSnapshot.fromJson(
+          Map<String, dynamic>.from(raw),
+        );
+      }
     }
+    _lastRevision = revision;
+    remoteSnapshotAt = DateTime.now();
     _log('state applied: revision $revision, active $activeDeviceId, '
         'track ${remoteSnapshot?.currentTrackId}, '
         'playing ${remoteSnapshot?.isPlaying}');
     onChanged?.call();
+    return true;
+  }
+
+  Future<bool> _readQueue(Map<String, dynamic> data) async {
+    if (_hubProtocolVersion < AriamiConnectProtocol.v3) return false;
+    final previousEpoch = ownerEpoch;
+    final authority = await _acceptAuthority(data);
+    if (!authority.accepted) return false;
+    final rawCounter = data['queueCounter'];
+    if (rawCounter is! num ||
+        rawCounter != rawCounter.toInt() ||
+        rawCounter.toInt() < 0) {
+      return false;
+    }
+    final counter = rawCounter.toInt();
+    if (ownerEpoch == previousEpoch && counter < _queueCounter) return false;
+    final rawTracks = data['tracks'];
+    if (rawTracks is! List ||
+        rawTracks.length > AriamiPlaybackSnapshot.maxQueueLength) {
+      return false;
+    }
+    final tracks = <Map<String, dynamic>>[];
+    for (final rawTrack in rawTracks) {
+      if (rawTrack is! Map) return false;
+      final track = Map<String, dynamic>.from(rawTrack);
+      if ((track['id'] as String? ?? '').isEmpty) return false;
+      tracks.add(track);
+    }
+    final backingOrder =
+        validateConnectBackingOrder(data['backingOrder'], tracks.length);
+    _remoteQueue = List<Map<String, dynamic>>.unmodifiable(tracks);
+    _remoteBackingOrder = backingOrder;
+    _remoteSourceId = data['sourceId'] as String?;
+    _queueCounter = counter;
+    _log('queue applied: counter $counter, tracks ${tracks.length}, '
+        'active $activeDeviceId');
+    if (isThisDeviceActive) {
+      final fingerprint = canonicalConnectQueueFingerprint(
+        queue: _remoteQueue,
+        backingOrder: _remoteBackingOrder,
+        sourceId: _remoteSourceId,
+      );
+      _lastPublishedQueueFingerprint = fingerprint;
+      if (_awaitingQueueFingerprint == fingerprint) {
+        _awaitingQueueFingerprint = null;
+        _sendSplitState(snapshotProvider());
+      }
+    }
     return true;
   }
 
@@ -536,13 +660,22 @@ class AriamiConnectClient {
     if (snapshot != null) {
       remoteSnapshot = snapshot;
       remoteSnapshotAt = DateTime.now();
+      if (_hubProtocolVersion >= AriamiConnectProtocol.v3) {
+        _remoteQueue = snapshot.queue;
+        _remoteBackingOrder = snapshot.backingOrder;
+        _remoteSourceId = snapshot.sourceId;
+      }
     }
-    final revision = (data['revision'] as num?)?.toInt();
+    final queueCounter = (data['queueCounter'] as num?)?.toInt();
+    if (queueCounter != null) _queueCounter = queueCounter;
+    final revision = (data['stateRevision'] as num?)?.toInt() ??
+        (data['revision'] as num?)?.toInt();
     if (revision != null && revision > _lastRevision) {
       _lastRevision = revision;
     }
     if (targetId == deviceId) {
       if (snapshot == null) return;
+      _lastPublishedQueueFingerprint = snapshot.queueFingerprint;
       isApplyingRemoteState = true;
       try {
         await handleCommand(AriamiConnectCommand.seek,
@@ -584,7 +717,7 @@ class AriamiConnectClient {
       requestLocalTakeover();
       return;
     }
-    _publishState(activate: false);
+    _scheduleStatePublish(activate: false);
   }
 
   /// Remembers a user-initiated local play until the hub confirms that this
@@ -625,8 +758,85 @@ class AriamiConnectClient {
   void _publishState({required bool activate}) {
     if (!isConnected || isApplyingRemoteState) return;
     final snapshot = snapshotProvider();
+    final discreteFingerprint = _discreteFingerprint(snapshot);
+    final queueChanged =
+        snapshot.queueFingerprint != _lastPublishedQueueFingerprint;
+    final discreteChanged =
+        discreteFingerprint != _lastPublishedDiscreteFingerprint;
+    if (activate || queueChanged || discreteChanged) {
+      _progressPublishTimer?.cancel();
+      _progressPublishTimer = null;
+      _publishSnapshot(snapshot, activate: activate);
+      return;
+    }
+    _scheduleStatePublish(activate: false, snapshot: snapshot);
+  }
+
+  void _scheduleStatePublish({
+    required bool activate,
+    AriamiPlaybackSnapshot? snapshot,
+  }) {
+    if (!isConnected || isApplyingRemoteState) return;
+    final current = snapshot ?? snapshotProvider();
+    if (activate) {
+      _publishSnapshot(current, activate: true);
+      return;
+    }
+    final discreteFingerprint = _discreteFingerprint(current);
+    if (current.queueFingerprint != _lastPublishedQueueFingerprint ||
+        discreteFingerprint != _lastPublishedDiscreteFingerprint) {
+      _progressPublishTimer?.cancel();
+      _progressPublishTimer = null;
+      _publishSnapshot(current, activate: false);
+      return;
+    }
+    final last = _lastStatePublishedAt;
+    final elapsed = last == null
+        ? progressPublishInterval
+        : DateTime.now().difference(last);
+    if (elapsed >= progressPublishInterval) {
+      _publishSnapshot(current, activate: false);
+      return;
+    }
+    if (_progressPublishTimer?.isActive ?? false) return;
+    _progressPublishTimer = timerFactory(progressPublishInterval - elapsed, () {
+      _progressPublishTimer = null;
+      if (!isConnected || isApplyingRemoteState) return;
+      _publishSnapshot(snapshotProvider(), activate: false);
+    });
+  }
+
+  void _publishSnapshot(AriamiPlaybackSnapshot snapshot,
+      {required bool activate}) {
     _log('publish: activate $activate, track ${snapshot.currentTrackId}, '
         'playing ${snapshot.isPlaying}, thinksActive $isThisDeviceActive');
+    if (_hubProtocolVersion >= AriamiConnectProtocol.v3) {
+      final fingerprint = snapshot.queueFingerprint;
+      final queueChanged = fingerprint != _lastPublishedQueueFingerprint;
+      if (activate || queueChanged) {
+        // The hub echoes connect_queue to acknowledge its canonical counter.
+        // Repeating the whole queue on every tick until that echo arrives
+        // would restore the per-progress full-queue cost this slice removes.
+        // Takeovers still resend, because the hub commits ownership from the
+        // queue message itself.
+        if (!activate && _awaitingQueueFingerprint == fingerprint) return;
+        _awaitingQueueFingerprint = fingerprint;
+        _send(WsMessage(
+          type: AriamiConnectMessageType.queue,
+          data: <String, dynamic>{
+            'activate': activate,
+            'tracks': snapshot.queue,
+            'backingOrder': snapshot.backingOrder,
+            if (snapshot.sourceId != null) 'sourceId': snapshot.sourceId,
+            'queueCounter': queueChanged ? _queueCounter + 1 : _queueCounter,
+            'ownerEpoch': ownerEpoch,
+          },
+        ));
+        return;
+      }
+      _sendSplitState(snapshot);
+      return;
+    }
     _send(WsMessage(
       type: AriamiConnectMessageType.state,
       data: <String, dynamic>{
@@ -635,6 +845,59 @@ class AriamiConnectClient {
         'ownerEpoch': ownerEpoch,
       },
     ));
+    _recordPublishedState(snapshot);
+  }
+
+  void _sendSplitState(AriamiPlaybackSnapshot snapshot) {
+    _outboundStateRevision++;
+    _send(WsMessage(
+      type: AriamiConnectMessageType.state,
+      data: <String, dynamic>{
+        'queueCounter': _queueCounter,
+        'currentIndex': snapshot.currentIndex,
+        'positionMs': snapshot.positionMs,
+        'durationMs': snapshot.durationMs,
+        'isPlaying': snapshot.isPlaying,
+        'shuffle': snapshot.shuffle,
+        'repeatMode': snapshot.repeatMode,
+        'volume': snapshot.volume,
+        'stateRevision': _outboundStateRevision,
+        'ownerEpoch': ownerEpoch,
+      },
+    ));
+    _recordPublishedState(snapshot);
+  }
+
+  void _recordPublishedState(AriamiPlaybackSnapshot snapshot) {
+    _lastPublishedQueueFingerprint = snapshot.queueFingerprint;
+    _lastPublishedDiscreteFingerprint = _discreteFingerprint(snapshot);
+    _lastStatePublishedAt = DateTime.now();
+  }
+
+  String _discreteFingerprint(AriamiPlaybackSnapshot snapshot) => jsonEncode(
+        <String, dynamic>{
+          'queue': snapshot.queueFingerprint,
+          'currentIndex': snapshot.currentIndex,
+          'durationMs': snapshot.durationMs,
+          'isPlaying': snapshot.isPlaying,
+          'shuffle': snapshot.shuffle,
+          'repeatMode': snapshot.repeatMode,
+          'volume': snapshot.volume,
+        },
+      );
+
+  void _resetSplitState() {
+    _progressPublishTimer?.cancel();
+    _progressPublishTimer = null;
+    _queueCounter = 0;
+    _outboundStateRevision = 0;
+    _remoteQueue = const <Map<String, dynamic>>[];
+    _remoteBackingOrder = const <int>[];
+    _remoteSourceId = null;
+    _lastPublishedQueueFingerprint = null;
+    _lastPublishedDiscreteFingerprint = null;
+    _awaitingQueueFingerprint = null;
+    _lastStatePublishedAt = null;
   }
 
   void sendCommand(String command, [Map<String, dynamic>? arguments]) {
@@ -723,6 +986,7 @@ class AriamiConnectClient {
     _connectionGeneration++;
     _lastRevision = -1;
     _hubProtocolVersion = 1;
+    _resetSplitState();
     ownerEpoch = 0;
     activeDeviceId = null;
     _lastPausedOwnerEpoch = -1;
@@ -734,8 +998,13 @@ class AriamiConnectClient {
     _subscription = null;
     _channel = null;
     await Future.wait(<Future<void>>[
-      _cancelSubscription(subscription),
-      _closeChannel(channel, 1000, 'Refreshing Connect state'),
+      _cancelSubscription(subscription, refreshCloseTimeout),
+      _closeChannel(
+        channel,
+        1000,
+        'Refreshing Connect state',
+        refreshCloseTimeout,
+      ),
     ]);
     await _open();
   }
@@ -803,7 +1072,7 @@ class AriamiConnectClient {
     }
     pending.attempts += 1;
     _send(pending.message);
-    pending.retryTimer = Timer(commandAckTimeout, () {
+    pending.retryTimer = timerFactory(commandAckTimeout, () {
       if (_pendingCommands[commandId] != pending) return;
       if (!isConnected || !_isWelcomed) return;
       if (pending.attempts < maxCommandAttempts && _hubDeduplicatesCommands) {
@@ -851,11 +1120,12 @@ class AriamiConnectClient {
     final subscription = _subscription;
     _subscription = null;
     _channel = null;
-    unawaited(_cancelSubscription(subscription));
+    unawaited(_cancelSubscription(subscription, disposeTimeout));
     unawaited(_closeChannel(
       source,
       1001,
       'Connect transport disconnected',
+      disposeTimeout,
     ));
     for (final pending in _pendingCommands.values) {
       pending.retryTimer?.cancel();
@@ -868,6 +1138,7 @@ class AriamiConnectClient {
     // mirrors while commands kept working.
     _lastRevision = -1;
     _hubProtocolVersion = 1;
+    _resetSplitState();
     ownerEpoch = 0;
     activeDeviceId = null;
     _lastPausedOwnerEpoch = -1;
@@ -887,7 +1158,7 @@ class AriamiConnectClient {
     if (_closedByUser || _reconnectSuppressed) return;
     _reconnectTimer?.cancel();
     final seconds = min(30, 1 << min(_reconnectAttempt++, 5));
-    _reconnectTimer = Timer(Duration(seconds: seconds), _open);
+    _reconnectTimer = timerFactory(Duration(seconds: seconds), _open);
   }
 
   Future<void> dispose() async {
@@ -899,6 +1170,7 @@ class AriamiConnectClient {
     _welcomeTimer?.cancel();
     _livenessTimer?.cancel();
     _backoffResetTimer?.cancel();
+    _progressPublishTimer?.cancel();
     for (final pending in _pendingCommands.values) {
       pending.retryTimer?.cancel();
     }
@@ -911,17 +1183,18 @@ class AriamiConnectClient {
     _channel = null;
     isConnected = false;
     await Future.wait(<Future<void>>[
-      _cancelSubscription(subscription),
-      _closeChannel(channel, 1000, 'Client closed'),
+      _cancelSubscription(subscription, disposeTimeout),
+      _closeChannel(channel, 1000, 'Client closed', disposeTimeout),
     ]);
   }
 
   Future<void> _cancelSubscription(
     StreamSubscription<dynamic>? subscription,
+    Duration timeout,
   ) async {
     if (subscription == null) return;
     try {
-      await subscription.cancel().timeout(_closeTimeout);
+      await subscription.cancel().timeout(timeout);
     } catch (_) {
       // Teardown is best-effort. A replacement socket must not wait forever for
       // a transport that has already stopped delivering events.
@@ -932,10 +1205,11 @@ class AriamiConnectClient {
     WebSocketChannel? channel,
     int code,
     String reason,
+    Duration timeout,
   ) async {
     if (channel == null) return;
     try {
-      await channel.sink.close(code, reason).timeout(_closeTimeout);
+      await channel.sink.close(code, reason).timeout(timeout);
     } catch (_) {
       // See [_cancelSubscription]: close acknowledgement is bounded as well.
     }

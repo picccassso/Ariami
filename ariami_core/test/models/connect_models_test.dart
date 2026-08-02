@@ -46,6 +46,72 @@ void main() {
       expect(restored.volume, 0.75);
     });
 
+    test(
+        '[positional_duplicate_backing_order] positional backing order '
+        'preserves duplicate occurrences', () {
+      final snapshot = AriamiPlaybackSnapshot(
+        queue: const <Map<String, dynamic>>[
+          {'id': 'duplicate', 'title': 'Second occurrence'},
+          {'id': 'unique', 'title': 'Unique'},
+          {'id': 'duplicate', 'title': 'First occurrence'},
+        ],
+        backingOrder: const <int>[2, 0, 1],
+        currentIndex: 0,
+        positionMs: 0,
+        durationMs: 60000,
+        isPlaying: true,
+        shuffle: true,
+        repeatMode: 'off',
+        volume: 1,
+      );
+
+      final restored = AriamiPlaybackSnapshot.fromJson(
+        snapshot.toJson(includeBackingOrder: true),
+      );
+      expect(restored.backingOrder, <int>[2, 0, 1]);
+      expect(
+        restored.backingOrder.map((index) => restored.queue[index]['title']),
+        <String>['First occurrence', 'Second occurrence', 'Unique'],
+      );
+      expect(snapshot.toJson().containsKey('backingOrder'), isFalse,
+          reason: 'v2 reconstruction must retain its established shape');
+    });
+
+    test('rejects malformed backing-order permutations', () {
+      for (final order in <List<int>>[
+        <int>[0, 0],
+        <int>[0],
+        <int>[0, 2],
+      ]) {
+        expect(
+          () => AriamiPlaybackSnapshot.fromJson(<String, dynamic>{
+            'queue': const <Map<String, dynamic>>[
+              {'id': 'a'},
+              {'id': 'b'},
+            ],
+            'backingOrder': order,
+          }),
+          throwsFormatException,
+        );
+      }
+    });
+
+    test(
+        '[canonical_queue_fingerprint] canonical queue fingerprints ignore '
+        'map key insertion order', () {
+      final first = AriamiPlaybackSnapshot.fromJson(<String, dynamic>{
+        'queue': <Map<String, dynamic>>[
+          <String, dynamic>{'id': 'a', 'title': 'A'},
+        ],
+      });
+      final second = AriamiPlaybackSnapshot.fromJson(<String, dynamic>{
+        'queue': <Map<String, dynamic>>[
+          <String, dynamic>{'title': 'A', 'id': 'a'},
+        ],
+      });
+      expect(first.queueFingerprint, second.queueFingerprint);
+    });
+
     test('compensates a playing handoff for transport time', () {
       final updatedAt = DateTime.utc(2026, 1, 1, 12);
       final snapshot = AriamiPlaybackSnapshot(

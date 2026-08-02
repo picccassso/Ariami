@@ -1,0 +1,263 @@
+{
+  "schema": "ariami-connect-p0-fault-matrix",
+  "slices": [
+    {
+      "slice": 2,
+      "coverage": "complete",
+      "probes": [
+        "half_open_socket",
+        "bounded_connect_wait",
+        "bounded_refresh_close",
+        "unbounded_dispose_wait",
+        "stale_socket_callback",
+        "authentication_4001_reconnects",
+        "reconnect_backoff_resets",
+        "replaced_4000_reconnects"
+      ],
+      "failureModes": [
+        {
+          "name": "half-open socket remains connected",
+          "probe": "half_open_socket"
+        },
+        {
+          "name": "connect readiness never completes",
+          "probe": "bounded_connect_wait"
+        },
+        {
+          "name": "refresh close never completes",
+          "probe": "bounded_refresh_close"
+        },
+        {
+          "name": "dispose close never completes",
+          "probe": "unbounded_dispose_wait"
+        },
+        {
+          "name": "old socket callback closes its replacement",
+          "probe": "stale_socket_callback"
+        },
+        {
+          "name": "authentication close 4001 reconnects forever",
+          "probe": "authentication_4001_reconnects"
+        },
+        {
+          "name": "repeated transient reconnect never increases backoff",
+          "probe": "reconnect_backoff_resets"
+        },
+        {
+          "name": "close 4000 replacement starts a reconnect fight",
+          "probe": "replaced_4000_reconnects"
+        }
+      ]
+    },
+    {
+      "slice": 3,
+      "coverage": "complete",
+      "probes": [
+        "monotonic_owner_epoch",
+        "same_owner_reclaim_retains_epoch",
+        "stale_state_rejected",
+        "simultaneous_takeovers_converge",
+        "stale_command_rejected",
+        "epoch_change_fails_pending_command",
+        "stale_transfer_rejected",
+        "former_owner_pauses_before_mirror",
+        "controller_observer_keeps_playing",
+        "stale_client_work_rejected",
+        "epoch_wire_propagation",
+        "legacy_v2_epoch_omission"
+      ],
+      "failureModes": [
+        {
+          "name": "hub does not mint a monotonic epoch on committed ownership",
+          "probe": "monotonic_owner_epoch"
+        },
+        {
+          "name": "same owner reconnect or grace reclaim advances the epoch",
+          "probe": "same_owner_reclaim_retains_epoch"
+        },
+        {
+          "name": "stale owner publishes queue or state",
+          "probe": "stale_state_rejected"
+        },
+        {
+          "name": "simultaneous takeovers do not converge to one owner",
+          "probe": "simultaneous_takeovers_converge"
+        },
+        {
+          "name": "stale controller sends a command",
+          "probe": "stale_command_rejected"
+        },
+        {
+          "name": "ownership change leaves a pending command ambiguous",
+          "probe": "epoch_change_fails_pending_command"
+        },
+        {
+          "name": "stale target commits a transfer",
+          "probe": "stale_transfer_rejected"
+        },
+        {
+          "name": "former owner adopts the mirror before local audio pauses",
+          "probe": "former_owner_pauses_before_mirror"
+        },
+        {
+          "name": "controller-only observer is paused by another device handoff",
+          "probe": "controller_observer_keeps_playing"
+        },
+        {
+          "name": "upgraded client accepts stale state or command work",
+          "probe": "stale_client_work_rejected"
+        },
+        {
+          "name": "state command or transfer omits the owner epoch",
+          "probe": "epoch_wire_propagation"
+        },
+        {
+          "name": "epoch enforcement disconnects an older v2 peer",
+          "probe": "legacy_v2_epoch_omission"
+        }
+      ]
+    },
+    {
+      "slice": 4,
+      "coverage": "complete",
+      "probes": [
+        "client_protocol_advertisement",
+        "pre_auth_hello_retained",
+        "per_peer_protocol_selection",
+        "v3_preserves_v2_snapshots",
+        "v3_negotiation_disabled",
+        "legacy_v2_negotiation_fallback",
+        "malformed_protocol_offer"
+      ],
+      "failureModes": [
+        {
+          "name": "upgraded client does not advertise v3 and v2",
+          "probe": "client_protocol_advertisement"
+        },
+        {
+          "name": "hello racing asynchronous authentication is discarded",
+          "probe": "pre_auth_hello_retained"
+        },
+        {
+          "name": "protocol version is not negotiated per peer",
+          "probe": "per_peer_protocol_selection"
+        },
+        {
+          "name": "v3 negotiation changes v2 snapshot semantics",
+          "probe": "v3_preserves_v2_snapshots"
+        },
+        {
+          "name": "v3 cannot be disabled independently",
+          "probe": "v3_negotiation_disabled"
+        },
+        {
+          "name": "legacy v2 peer no longer receives the established welcome",
+          "probe": "legacy_v2_negotiation_fallback"
+        },
+        {
+          "name": "a malformed protocol offer prevents the peer from registering",
+          "probe": "malformed_protocol_offer"
+        }
+      ]
+    },
+    {
+      "slice": 5,
+      "coverage": "complete",
+      "probes": [
+        "v3_queue_crosses_once",
+        "progress_coalesced_one_second",
+        "canonical_queue_fingerprint",
+        "positional_duplicate_backing_order",
+        "mixed_v2_v3_convergence",
+        "queue_not_resent_before_ack"
+      ],
+      "failureModes": [
+        {
+          "name": "progress resends the complete queue",
+          "probe": "v3_queue_crosses_once"
+        },
+        {
+          "name": "ordinary progress is not coalesced to approximately one hertz",
+          "probe": "progress_coalesced_one_second"
+        },
+        {
+          "name": "queue identity changes without a canonical queue change",
+          "probe": "canonical_queue_fingerprint"
+        },
+        {
+          "name": "duplicate track occurrences corrupt positional backing order",
+          "probe": "positional_duplicate_backing_order"
+        },
+        {
+          "name": "mixed v2 and v3 reconstruction diverges",
+          "probe": "mixed_v2_v3_convergence"
+        },
+        {
+          "name": "progress repeats a queue awaiting hub acknowledgement",
+          "probe": "queue_not_resent_before_ack"
+        }
+      ]
+    },
+    {
+      "slice": 6,
+      "coverage": "representative",
+      "probe": "capabilities_are_not_advertised",
+      "failureModes": [
+        "unsupported command reports success or times out",
+        "set_volume differs across clients",
+        "clear_queue capability drifts across clients",
+        "takeover listener timing differs across clients",
+        "pending takeover is dropped or cannot be cancelled"
+      ]
+    },
+    {
+      "slice": 7,
+      "coverage": "representative",
+      "probe": "command_is_lost_on_target_replacement",
+      "failureModes": [
+        "raw message is decoded before a size limit",
+        "queue strings nesting or arguments are unbounded",
+        "play_context overflow has no explicit failure",
+        "target socket replacement loses a command",
+        "retry executes a command more than once",
+        "ownership change leaves command result ambiguous",
+        "timeout or retry exhaustion leaves optimistic state sticky"
+      ]
+    },
+    {
+      "slice": 8,
+      "coverage": "representative",
+      "probe": "handoff_overwrites_concurrent_state",
+      "failureModes": [
+        "pause play seek skip queue shuffle repeat or volume change is overwritten",
+        "natural track transition is overwritten",
+        "failed or superseded prepare destroys target local state",
+        "stale transfer id commits",
+        "source relinquishment or target start runs more than once"
+      ]
+    },
+    {
+      "slice": 9,
+      "coverage": "representative",
+      "probe": "uncontrolled_candidate_inherits_playing",
+      "failureModes": [
+        "owner grace is not centralized",
+        "connection recency selects a playing replacement",
+        "inactive controller older than policy inherits playing",
+        "failed candidate prevents trying the next candidate",
+        "candidate exhaustion does not settle paused"
+      ]
+    },
+    {
+      "slice": 10,
+      "coverage": "representative",
+      "probe": "empty_session_is_retained",
+      "failureModes": [
+        "idle session is retained without peers or transitions",
+        "long-lived authentication is not revalidated",
+        "equal display names have unstable ordering",
+        "recovery failover or mixed-version behavior is undocumented"
+      ]
+    }
+  ]
+}

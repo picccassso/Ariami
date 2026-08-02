@@ -473,6 +473,13 @@ extension _PlaybackManagerConnectImpl on PlaybackManager {
     _oneShotQueuedSongs.clear();
     _shuffleService.reset();
     _isShuffleEnabled = snapshot.shuffle;
+    if (snapshot.shuffle) {
+      _shuffleService.restoreShuffled(
+        originalQueue:
+            snapshot.backingOrder.map((index) => songs[index]).toList(),
+        shuffledQueue: songs,
+      );
+    }
     _repeatMode = switch (snapshot.repeatMode) {
       'all' => RepeatMode.all,
       'one' => RepeatMode.one,
