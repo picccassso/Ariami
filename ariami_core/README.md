@@ -80,7 +80,7 @@ Located in `services/connect/`:
 - **remote_playback.dart** - Read-only view of playback on another Connect device, with controls routed as Connect commands
 
 Connect protocol negotiation, authentication, ownership, mixed-version
-behaviour, and recovery are documented in [CONNECT.md](CONNECT.md).
+behaviour, and recovery are documented in [docs/connect/](../docs/connect/README.md).
 
 ## Auth Services
 
