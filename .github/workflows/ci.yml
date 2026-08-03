@@ -1,7 +1,11 @@
 name: CI
 
+# Branches only. A bare `push:` also matches tags, so cutting a release re-ran
+# the whole suite against a commit that had already passed it on main.
 on:
   push:
+    branches:
+      - '**'
   pull_request:
 
 permissions:

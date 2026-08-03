@@ -1,10 +1,11 @@
 name: CLI Artifacts
 
+# Dispatch only. Tagging a release used to trigger this, but the artifacts are
+# only ever uploaded as workflow artifacts — nothing attaches them to the
+# release — so a tag push just rebuilt what the release build had already
+# produced. Run it by hand when artifacts are actually wanted.
 on:
   workflow_dispatch:
-  push:
-    tags:
-      - 'v*'
 
 permissions:
   contents: read
