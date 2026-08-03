@@ -6,6 +6,69 @@ Thank you for those that actually support and use this project at all! :D
 
 ---
 
+## 5.1.0
+
+Ariami 5.1.0 is the Ariami Connect release. 5.0.0 shipped Connect as a first
+version; this one takes it apart and rebuilds it to survive real households —
+devices that sleep, drop off Wi-Fi, get force-quit, or run three different
+Ariami versions at once. Alongside that, the premium desktop player picks up
+the library tools it was missing: an All Songs view, multi-select, and sidebar
+search.
+
+### Highlights
+- Ariami Connect is now version-negotiated per peer, so a phone on 5.1.0 and a
+  TV still on 5.0.0 agree on what they can ask of each other instead of
+  guessing.
+- Connect ownership is fenced and revision-safe — handoffs no longer race,
+  stale devices can't reclaim a queue they've lost, and playback continues when
+  the controlling client exits.
+- Connect commands are bounded and reliably delivered rather than fire-and-forget.
+- The desktop player gains an All Songs view, multi-select with queue and
+  playlist actions, and sidebar library search.
+- Song likes are now available from the overflow menu on both desktop and mobile.
+- Albums whose tracks were scattered across inconsistent tags are grouped back
+  into one album.
+
+### Full changes
+
+- Negotiated the Ariami Connect protocol version per peer, so mixed-version households agree on a common command set
+- Advertised per-client Connect command capabilities so controllers only offer what the target can actually do
+- Split Connect queue and progress state so a progress tick no longer republishes the whole queue
+- Made Connect handoffs revision-safe, ending races where two devices both believed they held the queue
+- Fenced stale Connect ownership work so a device that lost ownership stops acting on it
+- Bounded and reliably delivered Connect commands instead of dropping them silently
+- Hardened the Connect transport
+- Made Connect failover safe, and resumed playback after owner loss
+- Continued Connect playback when the controlling client exits
+- Kept the Connect owner audible across foreground resumes
+- Kept Connect controllers uninterrupted while another device is being driven
+- Made Ariami Connect say which device is which, instead of showing anonymous entries
+- Hardened Connect queue ownership across desktop, mobile and TV
+- Sent single-song queue additions to the active Connect device rather than the local queue
+- Cleared the active Connect device's queue from the desktop controller
+- Prevented cleared queues from returning
+- Kept mobile handoffs playing
+- Mirrored Connect playback in the mobile notification
+- Held the requested Cast volume until the receiver confirms it
+- Measured and characterized Connect with a fixture-backed baseline before hardening it
+- Documented Ariami Connect in one place
+- Added an All Songs view and multi-select to the desktop player
+- Added Premium sidebar library search
+- Added queue and playlist actions to library multi-select on mobile
+- Made the multi-select tick visible on every theme
+- Added song like menu actions to desktop and mobile
+- Remembered the Premium desktop window state across restarts
+- Hid the batch Download action when this machine hosts the library
+- Grouped tag-scattered compilations into one album
+- Reduced playback progress UI work
+- Advertised the port clients can actually reach
+- Hardened Docker port and endpoint discovery, and clarified custom-port mappings
+- Bundled JACK in the Linux AppImage and fixed its desktop library compatibility
+- Shipped a thank-you note inside the desktop disk image
+- Stopped CI rebuilding the desktop on every push
+
+---
+
 ## 5.0.0
 
 Ariami 5.0.0 is the largest release yet. It makes Ariami feel genuinely connected across devices with shared playback, synced statistics, pins, profile pictures, and playlist edits, then builds a whole listening-history experience on top of it — credited artists, period views, Recently Played, offline caching, and Spotify history imports. Mobile gains a graphic equalizer, gapless playback, and a proper tablet layout, the server gains zero-config LAN discovery and a serious security pass, and the CLI becomes something you can genuinely run headless or in Docker.
