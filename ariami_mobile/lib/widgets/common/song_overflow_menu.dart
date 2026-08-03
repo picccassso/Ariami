@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../models/api_models.dart';
@@ -6,9 +8,11 @@ import '../../screens/playlist/add_to_playlist_screen.dart';
 import '../../services/api/connection_service.dart';
 import '../../services/download/download_manager.dart';
 import '../../services/playback_manager.dart';
+import '../../services/playlist_service.dart';
 import 'mini_player_aware_bottom_sheet.dart';
 
-/// Per-track overflow menu (Play, Play Next, Add to Queue, Add to Playlist, Download).
+/// Per-track overflow menu (Play, Like, Play Next, Add to Queue, Add to
+/// Playlist, Download).
 class SongOverflowMenu extends StatelessWidget {
   final SongModel song;
   final bool enabled;
@@ -68,6 +72,7 @@ class SongOverflowMenu extends StatelessWidget {
                 }
               : null,
         ),
+        SongLikeMenuItem(song: song),
         ListTile(
           leading: const Icon(Icons.skip_next),
           title: const Text('Play Next'),
@@ -169,6 +174,61 @@ class SongOverflowMenu extends StatelessWidget {
       duration: song.duration,
       trackNumber: song.trackNumber,
       totalBytes: 0,
+    );
+  }
+}
+
+/// Menu action for adding or removing a song from the account-owned Liked
+/// Songs playlist.
+class SongLikeMenuItem extends StatefulWidget {
+  final SongModel song;
+
+  const SongLikeMenuItem({super.key, required this.song});
+
+  @override
+  State<SongLikeMenuItem> createState() => _SongLikeMenuItemState();
+}
+
+class _SongLikeMenuItemState extends State<SongLikeMenuItem> {
+  final PlaylistService _playlistService = PlaylistService();
+  late final Future<void> _playlistsLoaded;
+
+  @override
+  void initState() {
+    super.initState();
+    _playlistsLoaded = _playlistService.loadPlaylists();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: _playlistService,
+      builder: (context, _) {
+        final isLiked = _playlistService.isLikedSong(widget.song.id);
+        return ListTile(
+          leading: Icon(
+            isLiked
+                ? Icons.thumb_down_alt_outlined
+                : Icons.thumb_up_alt_outlined,
+          ),
+          title: Text(isLiked ? 'Dislike song' : 'Like song'),
+          onTap: () {
+            Navigator.pop(context);
+            unawaited(_toggleLike());
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _toggleLike() async {
+    await _playlistsLoaded;
+    await _playlistService.toggleLikedSong(
+      widget.song.id,
+      widget.song.albumId,
+      title: widget.song.title,
+      artist: widget.song.artist,
+      duration: widget.song.duration,
     );
   }
 }

@@ -6,6 +6,7 @@ import '../../services/api/connection_service.dart';
 import '../../services/playback_manager.dart';
 import '../common/cached_artwork.dart';
 import '../common/mini_player_aware_bottom_sheet.dart';
+import '../common/song_overflow_menu.dart';
 import '../common/swipe_to_queue.dart';
 
 /// Search result item for songs with optional swipe-to-delete and remove from recent
@@ -202,6 +203,7 @@ class _SearchResultSongItemState extends State<SearchResultSongItem> {
             widget.onTap();
           },
         ),
+        SongLikeMenuItem(song: widget.song),
         ListTile(
           leading: const Icon(Icons.skip_next),
           title: const Text('Play Next'),

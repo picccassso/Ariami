@@ -7,6 +7,7 @@ import '../../services/playback_manager.dart';
 import '../../services/download/download_manager.dart';
 import '../../services/api/connection_service.dart';
 import '../common/cached_artwork.dart';
+import '../common/song_overflow_menu.dart';
 import '../common/swipe_to_queue.dart';
 
 /// Song list item widget
@@ -338,6 +339,7 @@ class SongListItem extends StatelessWidget {
                 }
               : null,
         ),
+        SongLikeMenuItem(song: song),
         ListTile(
           leading: const Icon(Icons.skip_next),
           title: const Text('Play Next'),
