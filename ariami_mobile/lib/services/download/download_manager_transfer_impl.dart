@@ -5,6 +5,18 @@ part of 'download_manager.dart';
 /// main isolate isn't flooded at network-chunk cadence.
 const Duration _progressEmitInterval = Duration(milliseconds: 150);
 
+/// How long a transfer may go without receiving a single byte before it is
+/// treated as stalled.
+///
+/// Nothing below this layer notices a connection that stops delivering without
+/// erroring — dio's `receiveTimeout` only bounds the wait for response headers,
+/// not the body stream — so a half-open socket (the phone leaving Wi-Fi range,
+/// a Tailscale route flip) would otherwise hold its slot forever with the
+/// progress bar frozen and no error for the retry path to act on. Generous
+/// enough that a slow link never trips it; the transfer resumes from its
+/// `.partial` file on the retry, so a false positive costs nothing.
+const Duration _downloadStallTimeout = Duration(seconds: 60);
+
 extension _DownloadManagerTransferImpl on DownloadManager {
   /// Active-slot ceiling: the server's advertised per-user limit, halved to at
   /// most 2 when cooler downloads mode is on.
@@ -47,25 +59,31 @@ extension _DownloadManagerTransferImpl on DownloadManager {
 
     _queue.beginBatch();
     try {
-      while (_activeDownloadCount < _effectiveMaxConcurrentDownloads) {
+      while (_slotHolders.length < _effectiveMaxConcurrentDownloads) {
         final nextTask = _getNextPendingScoped();
         if (nextTask == null) {
-          if (_activeDownloadCount == 0) {
+          if (_slotHolders.isEmpty) {
             print('No more pending downloads');
           }
           return;
         }
 
-        // Mark as downloading BEFORE incrementing to prevent double-pickup
+        // Mark as downloading BEFORE claiming the slot to prevent double-pickup
         nextTask.status = DownloadStatus.downloading;
         _queue.updateTask(nextTask);
 
-        _activeDownloadCount++;
+        _slotHolders.add(nextTask.id);
         _downloadTask(nextTask);
       }
     } finally {
       _queue.endBatch();
     }
+  }
+
+  /// Release [taskId]'s concurrency slot. Safe to call more than once, and
+  /// safe to call for a task that never held one.
+  void _releaseSlot(String taskId) {
+    _slotHolders.remove(taskId);
   }
 
   /// Download a specific task
@@ -108,6 +126,15 @@ extension _DownloadManagerTransferImpl on DownloadManager {
       final headers = <String, String>{};
       if (requestedRange) {
         headers[HttpHeaders.rangeHeader] = 'bytes=$resumeOffset-';
+        // If-Range (RFC 9110): the server serves the whole body with 200
+        // instead of the range when the file no longer matches this
+        // validator, so a resume can never splice bytes of two different
+        // versions of the file. A same-length replacement is exactly the case
+        // the Content-Range total check below cannot catch on its own.
+        final etag = task.downloadEtag;
+        if (etag != null && etag.isNotEmpty) {
+          headers[HttpHeaders.ifRangeHeader] = etag;
+        }
       }
 
       final response = await _dio.get<ResponseBody>(
@@ -138,11 +165,18 @@ extension _DownloadManagerTransferImpl on DownloadManager {
         );
       }
 
-      // Server ignored range resume; reset stale partial and write full body.
+      // A 200 to a range request means the range did not apply — either the
+      // If-Range validator no longer matches or the server does not do ranges.
+      // Either way the full body is coming and the old partial is void.
       if (requestedRange && response.statusCode == 200 && resumeOffset > 0) {
         await partialFile.delete();
         resumeOffset = 0;
       }
+
+      // Remember the validator this body was served with, so the next attempt
+      // can resume against it. Null when the server withheld one (a
+      // per-request transcode), which correctly clears any stale value.
+      task.downloadEtag = response.headers.value(HttpHeaders.etagHeader);
 
       final writeMode =
           resumeOffset > 0 ? FileMode.writeOnlyAppend : FileMode.writeOnly;
@@ -165,8 +199,26 @@ extension _DownloadManagerTransferImpl on DownloadManager {
       var receivedThisResponse = 0;
       final emitStopwatch = Stopwatch()..start();
       var lastEmitMs = -_progressEmitInterval.inMilliseconds;
+      // Idle watchdog: the timer restarts on every chunk, so this fires only
+      // when the connection goes quiet without closing. Cancelling the token
+      // tears the socket down rather than leaving it parked, and the error
+      // unwinds into the normal retry path, which resumes from the partial.
+      final stalledStream = response.data!.stream.timeout(
+        _downloadStallTimeout,
+        onTimeout: (sink) {
+          cancelToken.cancel('download-stalled');
+          sink.addError(
+            TimeoutException(
+              'Download stalled: no data for '
+              '${_downloadStallTimeout.inSeconds}s',
+              _downloadStallTimeout,
+            ),
+          );
+          sink.close();
+        },
+      );
       try {
-        await for (final chunk in response.data!.stream) {
+        await for (final chunk in stalledStream) {
           await raf.writeFrom(chunk);
           receivedThisResponse += chunk.length;
 
@@ -225,6 +277,7 @@ extension _DownloadManagerTransferImpl on DownloadManager {
       task.bytesDownloaded = fileSize;
       task.totalBytes = fileSize;
       task.errorMessage = null;
+      task.downloadEtag = null;
       _queue.updateTask(task); // Update queue on status change
 
       _progressController.add(DownloadProgress(
@@ -237,8 +290,8 @@ extension _DownloadManagerTransferImpl on DownloadManager {
       _activeDownloads.remove(task.id);
       _activeProgress.remove(task.id); // Cleanup progress tracking
 
-      // Decrement active count and fill available slots
-      _activeDownloadCount--;
+      // Release the slot and fill whatever that frees up
+      _releaseSlot(task.id);
       await Future.delayed(_slotRefillRest);
       _fillDownloadSlots();
 
@@ -246,7 +299,7 @@ extension _DownloadManagerTransferImpl on DownloadManager {
       // download throughput or queue status updates.
       _queueArtworkCaching(task);
     } on DioException catch (e) {
-      _activeDownloadCount--;
+      _releaseSlot(task.id);
       _handleDownloadError(task, e);
     } catch (e) {
       final partialPath = _getPartialSongFilePath(task.songId);
@@ -254,8 +307,13 @@ extension _DownloadManagerTransferImpl on DownloadManager {
       if (await partialFile.exists()) {
         task.bytesDownloaded = await partialFile.length();
       }
-      _activeDownloadCount--;
+      _releaseSlot(task.id);
       _handleDownloadError(task, Exception('Unknown error: $e'));
+    } finally {
+      // Backstop for any path that unwinds without releasing above — notably
+      // a throw from the post-completion work, which used to land in the
+      // generic catch and decrement the count a second time.
+      _releaseSlot(task.id);
     }
   }
 
@@ -367,7 +425,7 @@ extension _DownloadManagerTransferImpl on DownloadManager {
 
     _activeDownloads.remove(task.id);
     _activeProgress.remove(task.id);
-    _activeDownloadCount--;
+    _releaseSlot(task.id);
     await Future.delayed(_slotRefillRest);
     _fillDownloadSlots();
 
@@ -397,6 +455,18 @@ extension _DownloadManagerTransferImpl on DownloadManager {
 
     if (_isNetworkInterruptionError(error)) {
       _pauseScopedDownloadsForInterruption();
+      await Future.delayed(const Duration(milliseconds: 50));
+      _fillDownloadSlots();
+      return;
+    }
+
+    final terminalMessage = _terminalDownloadFailureMessage(error);
+    if (terminalMessage != null) {
+      task.status = DownloadStatus.failed;
+      task.errorMessage = terminalMessage;
+      _queue.updateTask(task);
+      print('Download failed permanently (not retryable): ${task.title}');
+
       await Future.delayed(const Duration(milliseconds: 50));
       _fillDownloadSlots();
       return;
@@ -532,6 +602,30 @@ extension _DownloadManagerTransferImpl on DownloadManager {
 
     for (final taskId in taskIdsToCancel) {
       _activeDownloads[taskId]?.cancel('connection-lost');
+    }
+  }
+
+  /// A message for a failure no amount of retrying can fix, or null when the
+  /// error is worth another attempt.
+  ///
+  /// Retrying these cost 3 attempts and 15s each and always ended in the same
+  /// failure — which adds up on a library that has drifted, where every song
+  /// deleted server-side is one of these.
+  String? _terminalDownloadFailureMessage(dynamic error) {
+    if (error is! DioException) return null;
+    switch (error.response?.statusCode) {
+      case 400:
+        return 'The server rejected this download request';
+      case 403:
+        return 'The server refused this download';
+      case 404:
+      case 410:
+        return 'This song is no longer in the library';
+      default:
+        // Everything else — 429, 500, 503, and every network failure — can
+        // still come good on a retry. 401 is deliberately left retryable: a
+        // lapsed session can be restored between attempts.
+        return null;
     }
   }
 

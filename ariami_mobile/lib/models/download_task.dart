@@ -40,6 +40,13 @@ class DownloadTask {
   String? nativeBackend;
   String? nativeTaskId;
 
+  /// Validator the server served this file with, kept so a resumed transfer
+  /// can prove with `If-Range` that it is splicing onto the same bytes.
+  ///
+  /// Only present when the server sent one — it withholds the header for
+  /// per-request transcodes, which have no stable identity across runs.
+  String? downloadEtag;
+
   static const int maxRetries = 3;
 
   DownloadTask({
@@ -66,6 +73,7 @@ class DownloadTask {
     this.retryCount = 0,
     this.nativeBackend,
     this.nativeTaskId,
+    this.downloadEtag,
   });
 
   /// Convert to JSON for storage
@@ -94,6 +102,7 @@ class DownloadTask {
       'retryCount': retryCount,
       'nativeBackend': nativeBackend,
       'nativeTaskId': nativeTaskId,
+      'downloadEtag': downloadEtag,
     };
   }
 
@@ -131,6 +140,7 @@ class DownloadTask {
       retryCount: json['retryCount'] as int? ?? 0,
       nativeBackend: json['nativeBackend'] as String?,
       nativeTaskId: json['nativeTaskId'] as String?,
+      downloadEtag: json['downloadEtag'] as String?,
     );
   }
 

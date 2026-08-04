@@ -1,13 +1,21 @@
-part of 'http_server.dart';
+/// Concurrency limiters guarding the server's download and artwork work.
+///
+/// Split out of `http_server.dart` so the fairness and queue bookkeeping
+/// can be unit tested directly — it is the kind of counting that drifts
+/// silently when it is only ever exercised through a live HTTP server.
+library;
 
-enum _FairAcquireResult {
+import 'dart:async';
+import 'dart:collection';
+
+enum FairAcquireResult {
   acquired,
   userQuotaExceeded,
   queueFull,
 }
 
-class _SimpleLimiter {
-  _SimpleLimiter({
+class SimpleLimiter {
+  SimpleLimiter({
     required this.maxConcurrent,
     required this.maxQueue,
   });
@@ -52,18 +60,28 @@ class _SimpleLimiter {
   }
 }
 
-class _WeightedFairDownloadLimiter {
-  _WeightedFairDownloadLimiter({
+class WeightedFairDownloadLimiter {
+  WeightedFairDownloadLimiter({
     required this.maxConcurrent,
     required this.maxQueue,
     required this.maxConcurrentPerUser,
     required this.maxQueuePerUser,
+    this.maxQueueWait = const Duration(seconds: 30),
   });
 
   final int maxConcurrent;
   final int maxQueue;
   final int maxConcurrentPerUser;
   final int maxQueuePerUser;
+
+  /// How long a request may wait for a slot before it is turned away with a
+  /// retryable 503 instead of parking indefinitely.
+  ///
+  /// A queued request holds an open connection the client cannot see progress
+  /// on, so an unbounded wait turns a busy moment into a client that appears
+  /// hung. Giving up and saying "retry shortly" lets the client back off and
+  /// come back, which is both visible and self-correcting.
+  final Duration maxQueueWait;
 
   int _active = 0;
   int _queued = 0;
@@ -84,11 +102,11 @@ class _WeightedFairDownloadLimiter {
     return snapshot;
   }
 
-  Map<String, _DownloadLimiterUserSnapshot> get userLoadByUser {
-    final snapshot = <String, _DownloadLimiterUserSnapshot>{};
+  Map<String, DownloadLimiterUserSnapshot> get userLoadByUser {
+    final snapshot = <String, DownloadLimiterUserSnapshot>{};
     _states.forEach((userId, state) {
       if (state.active > 0 || state.queued > 0) {
-        snapshot[userId] = _DownloadLimiterUserSnapshot(
+        snapshot[userId] = DownloadLimiterUserSnapshot(
           active: state.active,
           queued: state.queued,
         );
@@ -97,7 +115,7 @@ class _WeightedFairDownloadLimiter {
     return snapshot;
   }
 
-  Future<_FairAcquireResult> acquire(String userId) async {
+  Future<FairAcquireResult> acquire(String userId) async {
     final state =
         _states.putIfAbsent(userId, () => _PerUserDownloadQueueState());
 
@@ -107,15 +125,15 @@ class _WeightedFairDownloadLimiter {
     if (canAcquireImmediately) {
       _active += 1;
       state.active += 1;
-      return _FairAcquireResult.acquired;
+      return FairAcquireResult.acquired;
     }
 
     if (state.queued >= maxQueuePerUser) {
-      return _FairAcquireResult.userQuotaExceeded;
+      return FairAcquireResult.userQuotaExceeded;
     }
 
     if (_queued >= maxQueue) {
-      return _FairAcquireResult.queueFull;
+      return FairAcquireResult.queueFull;
     }
 
     final completer = Completer<void>();
@@ -128,8 +146,32 @@ class _WeightedFairDownloadLimiter {
       _rotation.addLast(userId);
     }
 
-    await completer.future;
-    return _FairAcquireResult.acquired;
+    try {
+      await completer.future.timeout(maxQueueWait);
+    } on TimeoutException {
+      // The grant can land in the same turn the timeout fires. A completed
+      // completer means the slot is already ours and has been counted as
+      // active — take it, or it would be leaked with nothing to release it.
+      if (completer.isCompleted) {
+        return FairAcquireResult.acquired;
+      }
+      _abandonWaiter(userId, completer);
+      return FairAcquireResult.queueFull;
+    }
+    return FairAcquireResult.acquired;
+  }
+
+  /// Drop a waiter that gave up, so it stops counting against the queue depth
+  /// its user is allowed.
+  void _abandonWaiter(String userId, Completer<void> completer) {
+    final state = _states[userId];
+    if (state == null) return;
+    if (!state.waiters.remove(completer)) return;
+    state.queued -= 1;
+    _queued -= 1;
+    // The rotation entry is left alone: _grantNextQueuedRequest already drops
+    // users it finds with no waiters left.
+    _cleanupUserState(userId);
   }
 
   void release(String userId) {
@@ -221,8 +263,8 @@ class _PerUserDownloadQueueState {
   final Queue<Completer<void>> waiters = Queue<Completer<void>>();
 }
 
-class _DownloadLimiterUserSnapshot {
-  const _DownloadLimiterUserSnapshot({
+class DownloadLimiterUserSnapshot {
+  const DownloadLimiterUserSnapshot({
     required this.active,
     required this.queued,
   });

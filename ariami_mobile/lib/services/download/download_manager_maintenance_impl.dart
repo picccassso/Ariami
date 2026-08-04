@@ -738,7 +738,7 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
     }
     _activeDownloads.clear();
     _activeProgress.clear(); // Cleanup all progress tracking
-    _activeDownloadCount = 0;
+    _slotHolders.clear();
 
     final deletedFileCount = await _clearAllDownloadFilesFromDisk();
 

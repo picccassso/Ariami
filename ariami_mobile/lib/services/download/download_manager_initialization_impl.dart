@@ -42,8 +42,22 @@ extension _DownloadManagerInitializationImpl on DownloadManager {
       }
     }
 
-    // Setup HTTP client
-    _dio = Dio();
+    // Setup HTTP client.
+    //
+    // These bound the phases the stall watchdog cannot see. That watchdog
+    // covers the body stream; everything before the first byte — connecting,
+    // and waiting for response headers — is separate, and dio applies
+    // `receiveTimeout` only to the wait for headers, never to the body.
+    //
+    // The header wait has to stay generous: medium/low downloads block on a
+    // server-side transcode of the whole file before the response begins, so
+    // this matches the 5 minutes the desktop client already allows for the
+    // same reason. It exists for the case the server's own queue limit cannot
+    // help with — when the network is gone, its "retry shortly" never arrives.
+    _dio = Dio(BaseOptions(
+      connectTimeout: const Duration(seconds: 20),
+      receiveTimeout: const Duration(minutes: 5),
+    ));
 
     // Load quality settings (for download quality/original)
     await _qualityService.initialize();
@@ -95,11 +109,23 @@ extension _DownloadManagerInitializationImpl on DownloadManager {
     // scoped queue now so early-built consumers converge on the real state.
     _refreshScopedQueueBroadcastImpl();
 
-    // Remove stale local files that no longer have queue metadata.
-    unawaited(_cleanupStaleDownloadFiles());
+    // Stale-file cleanup and the one-time artwork backfill both run off the
+    // await path so a large library cannot slow startup. Each is guarded
+    // individually: they are best-effort maintenance, and an unhandled async
+    // error here would otherwise surface as a startup crash.
+    Future<void> guarded(Future<void> Function() work, String label) async {
+      try {
+        await work();
+      } catch (e) {
+        print('[DownloadManager] $label failed: $e');
+      }
+    }
 
-    // Run one-time artwork backfill for existing downloads (non-blocking)
-    unawaited(_backfillArtworkForExistingDownloads());
+    _startupWork = Future.wait(<Future<void>>[
+      guarded(_cleanupStaleDownloadFiles, 'Stale download cleanup'),
+      guarded(_backfillArtworkForExistingDownloads, 'Artwork backfill'),
+    ]);
+    unawaited(_startupWork);
   }
 
   void _setMaxConcurrentDownloadsImpl(int maxConcurrent) {
@@ -348,6 +374,7 @@ extension _DownloadManagerInitializationImpl on DownloadManager {
       task.retryCount.toString(),
       task.nativeBackend ?? '',
       task.nativeTaskId ?? '',
+      task.downloadEtag ?? '',
     ].join('|');
   }
 
@@ -387,8 +414,20 @@ extension _DownloadManagerInitializationImpl on DownloadManager {
         task.progress = snapshot.bytesDownloaded / snapshot.totalBytes;
       }
       _queue.updateTask(task);
-      _activeDownloadCount++;
-      unawaited(_pollNativeDownload(task, _getSongFilePath(task.songId)));
+      _slotHolders.add(task.id);
+      // The poll throws when the native snapshot comes back failed/cancelled/
+      // unavailable. Unguarded, that skipped the slot release inside the poll
+      // and stranded the slot for the rest of the session — enough stale
+      // WorkManager tasks on one launch and the queue wedged with no free
+      // slots at all. Route it through the same handler a live transfer uses.
+      unawaited(() async {
+        try {
+          await _pollNativeDownload(task, _getSongFilePath(task.songId));
+        } catch (e) {
+          _releaseSlot(task.id);
+          await _handleDownloadError(task, Exception('Unknown error: $e'));
+        }
+      }());
       return;
     }
 

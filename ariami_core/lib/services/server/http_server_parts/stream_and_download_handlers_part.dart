@@ -359,7 +359,7 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
     // Enforce weighted-fair download limits across users.
     final userKey = userId;
     final acquireResult = await _downloadLimiter.acquire(userKey);
-    if (acquireResult == _FairAcquireResult.userQuotaExceeded) {
+    if (acquireResult == FairAcquireResult.userQuotaExceeded) {
       print(
           '[HttpServer] Download rejected (user queue full) userId=$userKey songId=$path');
       return _retryableErrorResponse(
@@ -368,7 +368,7 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
         message: 'Per-user download queue is full',
       );
     }
-    if (acquireResult == _FairAcquireResult.queueFull) {
+    if (acquireResult == FairAcquireResult.queueFull) {
       print(
           '[HttpServer] Download rejected (queue full) userId=$userKey songId=$path '
           'active=${_downloadLimiter.activeCount} queue=${_downloadLimiter.queueLength}');
@@ -487,22 +487,52 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
       Stream<List<int>> createFileStream() async* {
         const int chunkSize = 64 * 1024; // 64 KB chunks
         var remaining = contentLength;
+        var slotReleased = false;
+        // A yield only returns once the client has taken the chunk, so a
+        // connection that dies without closing (a phone going out of range,
+        // a route flip) parks this generator indefinitely — and, before this
+        // watchdog, held its download slot with it. Enough of those and the
+        // user is stuck on 429 until the server restarts.
+        //
+        // Releasing the slot is what has to happen promptly; the file handle
+        // and temp file still wait for the dead socket to be reaped, which
+        // costs one handle rather than everyone else's throughput.
+        Timer? stallTimer;
+        void releaseSlotOnce() {
+          if (slotReleased) return;
+          slotReleased = true;
+          _releaseDownloadSlot(userKey);
+        }
+
+        void armStallTimer() {
+          stallTimer?.cancel();
+          stallTimer = Timer(AriamiHttpServer._downloadSlotStallTimeout, () {
+            print(
+                '[HttpServer] Download slot reclaimed from a stalled transfer '
+                'userId=$userKey songId=$path');
+            releaseSlotOnce();
+          });
+        }
+
         try {
+          armStallTimer();
           while (remaining > 0) {
             final toRead = remaining < chunkSize ? remaining : chunkSize;
             final chunk = await raf.read(toRead);
             if (chunk.isEmpty) break;
             yield chunk;
             remaining -= chunk.length;
+            armStallTimer();
           }
         } finally {
+          stallTimer?.cancel();
           await raf.close();
           // Clean up temp file after download completes
           if (tempResult != null) {
             await tempResult.cleanup();
             print('[HttpServer] Cleaned up temp transcode file');
           }
-          _releaseDownloadSlot(userKey);
+          releaseSlotOnce();
         }
       }
 

@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:collection';
 import 'dart:math';
 import 'dart:typed_data';
 import 'package:shelf/shelf.dart';
@@ -12,6 +11,7 @@ import 'package:shelf_static/shelf_static.dart';
 import 'package:path/path.dart' as p;
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:crypto/crypto.dart';
+import 'package:ariami_core/services/server/http_server_limiters.dart';
 import 'package:ariami_core/services/server/connection_manager.dart';
 import 'package:ariami_core/services/server/streaming_service.dart';
 import 'package:ariami_core/services/server/response_compression.dart';
@@ -55,7 +55,6 @@ import 'package:ariami_core/services/playlists/playlist_edit_store.dart';
 import 'package:ariami_core/services/playlists/playlist_image_store.dart';
 import 'package:ariami_core/services/license/license_file_store.dart';
 
-part 'http_server_limiters.dart';
 part 'http_server_parts/lifecycle_and_config_part.dart';
 part 'http_server_parts/router_registration_part.dart';
 part 'http_server_parts/middleware_and_metrics_part.dart';
@@ -80,7 +79,7 @@ class AriamiHttpServer {
   static final AriamiHttpServer _instance = AriamiHttpServer._internal();
   factory AriamiHttpServer() => _instance;
   AriamiHttpServer._internal() {
-    _downloadLimiter = _WeightedFairDownloadLimiter(
+    _downloadLimiter = WeightedFairDownloadLimiter(
       maxConcurrent: _maxConcurrentDownloads,
       maxQueue: _maxDownloadQueue,
       maxConcurrentPerUser: _maxConcurrentDownloadsPerUser,
@@ -152,17 +151,23 @@ class AriamiHttpServer {
   static const int _defaultMaxConcurrentDownloadsPerUser = 2;
   static const int _defaultMaxDownloadQueuePerUser = 10000;
   static const int _defaultMaxDownloadJobQueuePerUser = 10000;
+
+  /// How long an active download may make no progress before its concurrency
+  /// slot is reclaimed. Long enough that a genuinely slow client is never
+  /// penalised — this exists to free slots held by connections that are gone
+  /// but have not been reaped yet.
+  static const Duration _downloadSlotStallTimeout = Duration(minutes: 2);
   int _maxConcurrentDownloads = _defaultMaxConcurrentDownloads;
   int _maxDownloadQueue = _defaultMaxDownloadQueue;
   int _maxConcurrentDownloadsPerUser = _defaultMaxConcurrentDownloadsPerUser;
   int _maxDownloadQueuePerUser = _defaultMaxDownloadQueuePerUser;
-  late _WeightedFairDownloadLimiter _downloadLimiter;
+  late WeightedFairDownloadLimiter _downloadLimiter;
   final Map<String, int> _inFlightDownloadTranscodesByUser = <String, int>{};
 
   // Artwork request quotas (only enforced for server-managed artwork resizing).
   static const int _defaultMaxConcurrentArtworkPerUser = 2;
   static const int _defaultMaxArtworkQueuePerUser = 8;
-  final Map<String, _SimpleLimiter> _artworkUserLimiters = {};
+  final Map<String, SimpleLimiter> _artworkUserLimiters = {};
   static const int _defaultRetryAfterSeconds = 5;
   static const String _desktopDashboardAdminDeviceId =
       'desktop_dashboard_admin';

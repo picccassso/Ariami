@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:ariami_mobile/models/download_task.dart';
+import 'package:ariami_mobile/services/cache/cache_manager.dart';
 import 'package:ariami_mobile/services/download/download_manager.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -122,6 +123,14 @@ void main() {
   });
 
   tearDownAll(() async {
+    // Both singletons kick off fire-and-forget work during initialization
+    // that keeps reading and writing inside docsDir. Deleting the directory
+    // while those passes are still running fails the teardown outright
+    // ("Directory not empty") and takes any database still open in there
+    // down with it, so let them finish before the directory goes.
+    await DownloadManager().settleBackgroundWork();
+    await CacheManager().settleBackgroundWork();
+
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(pathProviderChannel, null);
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger

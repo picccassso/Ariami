@@ -712,7 +712,7 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
     _maxDownloadQueue = maxQueue;
     _maxConcurrentDownloadsPerUser = maxConcurrentPerUser;
     _maxDownloadQueuePerUser = maxQueuePerUser;
-    _downloadLimiter = _WeightedFairDownloadLimiter(
+    _downloadLimiter = WeightedFairDownloadLimiter(
       maxConcurrent: _maxConcurrentDownloads,
       maxQueue: _maxDownloadQueue,
       maxConcurrentPerUser: _maxConcurrentDownloadsPerUser,

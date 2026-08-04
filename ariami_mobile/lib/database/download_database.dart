@@ -13,7 +13,7 @@ class DownloadDatabase {
       'download_auto_resume_interrupted_on_launch';
   static const String _sqliteMigrationKey = 'download_queue_sqlite_migrated_v1';
   static const String _databaseName = 'downloads.db';
-  static const int _databaseVersion = 2;
+  static const int _databaseVersion = 3;
   static const String _tasksTable = 'download_tasks';
 
   final SharedPreferences _prefs;
@@ -74,7 +74,8 @@ class DownloadDatabase {
         error_message TEXT,
         retry_count INTEGER NOT NULL DEFAULT 0,
         native_backend TEXT,
-        native_task_id TEXT
+        native_task_id TEXT,
+        download_etag TEXT
       )
     ''');
 
@@ -92,6 +93,10 @@ class DownloadDatabase {
           .execute('ALTER TABLE $_tasksTable ADD COLUMN native_backend TEXT');
       await db
           .execute('ALTER TABLE $_tasksTable ADD COLUMN native_task_id TEXT');
+    }
+    if (oldVersion < 3) {
+      await db
+          .execute('ALTER TABLE $_tasksTable ADD COLUMN download_etag TEXT');
     }
   }
 
@@ -159,6 +164,7 @@ class DownloadDatabase {
       'retry_count': task.retryCount,
       'native_backend': task.nativeBackend,
       'native_task_id': task.nativeTaskId,
+      'download_etag': task.downloadEtag,
     };
   }
 
@@ -187,6 +193,7 @@ class DownloadDatabase {
       'retryCount': row['retry_count'] as int? ?? 0,
       'nativeBackend': row['native_backend'] as String?,
       'nativeTaskId': row['native_task_id'] as String?,
+      'downloadEtag': row['download_etag'] as String?,
     });
   }
 

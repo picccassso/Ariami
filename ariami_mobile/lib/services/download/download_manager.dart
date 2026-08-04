@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:isolate';
 import 'dart:math' as math;
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/api_models.dart';
@@ -45,7 +46,16 @@ class DownloadManager {
   final Map<String, CancelToken> _activeDownloads = {};
   final Map<String, double> _activeProgress =
       {}; // Track progress separately to avoid queue updates
-  int _activeDownloadCount = 0; // Track number of concurrent downloads
+
+  /// IDs of the tasks currently occupying a concurrency slot.
+  ///
+  /// Keyed by task rather than counted, so acquiring and releasing are both
+  /// idempotent: a transfer that unwinds through more than one path (an error
+  /// thrown after the success path already released, a native poll that both
+  /// falls through and throws) can no longer double-release and let the queue
+  /// run above its limit, and a path that forgets to release leaks one slot
+  /// for that task instead of corrupting the count for every later download.
+  final Set<String> _slotHolders = <String>{};
   int _maxConcurrentDownloads = 10; // Max concurrent downloads allowed
   final StreamController<DownloadProgress> _progressController =
       StreamController<DownloadProgress>.broadcast();
@@ -71,6 +81,9 @@ class DownloadManager {
   /// Tail of the serialized artwork-caching worker; extraction jobs chain
   /// onto it so at most one embedded-art parse runs at a time.
   Future<void> _artworkWorkTail = Future.value();
+
+  /// Fire-and-forget maintenance kicked off by [initialize].
+  Future<void>? _startupWork;
   final QualitySettingsService _qualityService = QualitySettingsService();
   final NativeDownloadService _nativeDownloadService = NativeDownloadService();
 
@@ -95,7 +108,7 @@ class DownloadManager {
   void refreshScopedQueueBroadcast() => _refreshScopedQueueBroadcastImpl();
 
   /// Authoritative count of downloads currently occupying a concurrency slot.
-  int get activeDownloadCount => _activeDownloadCount;
+  int get activeDownloadCount => _slotHolders.length;
 
   /// Tasks observed in pending/downloading/paused state during this app
   /// session. Used by the downloads screen to anchor "X / Y" totals so old
@@ -372,6 +385,25 @@ class DownloadManager {
     if (_initialized && !enabled) {
       _fillDownloadSlots();
     }
+  }
+
+  /// Completes once the background work [initialize] starts — stale-file
+  /// cleanup, the artwork backfill, and any queued artwork extraction — has
+  /// settled.
+  ///
+  /// Production never waits on this; running it off the startup path is the
+  /// point. Tests do: a suite that deletes its temp directory while these
+  /// passes are still writing inside it fails on the directory vanishing
+  /// mid-write, and takes any database still open in there down with it.
+  ///
+  /// The artwork backfill reaches into [CacheManager], which starts warm-up
+  /// work of its own; a test tearing down a shared directory has to settle
+  /// that separately rather than have this class own another singleton's
+  /// lifecycle.
+  @visibleForTesting
+  Future<void> settleBackgroundWork() async {
+    await _startupWork;
+    await _artworkWorkTail;
   }
 
   /// Dispose resources

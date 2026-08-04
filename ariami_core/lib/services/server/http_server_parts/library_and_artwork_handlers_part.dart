@@ -69,13 +69,13 @@ extension AriamiHttpServerLibraryAndArtworkHandlersMethods on AriamiHttpServer {
         _artworkService != null &&
         _hasRegisteredUsers();
     String? artworkUserId;
-    _SimpleLimiter? artworkLimiter;
+    SimpleLimiter? artworkLimiter;
     if (shouldApplyArtworkQuota) {
       artworkUserId = _resolveRequestUserId(request);
       if (artworkUserId != null) {
         artworkLimiter = _artworkUserLimiters.putIfAbsent(
           artworkUserId,
-          () => _SimpleLimiter(
+          () => SimpleLimiter(
             maxConcurrent: AriamiHttpServer._defaultMaxConcurrentArtworkPerUser,
             maxQueue: AriamiHttpServer._defaultMaxArtworkQueuePerUser,
           ),
@@ -171,13 +171,13 @@ extension AriamiHttpServerLibraryAndArtworkHandlersMethods on AriamiHttpServer {
         _artworkService != null &&
         _hasRegisteredUsers();
     String? artworkUserId;
-    _SimpleLimiter? artworkLimiter;
+    SimpleLimiter? artworkLimiter;
     if (shouldApplyArtworkQuota) {
       artworkUserId = _resolveRequestUserId(request);
       if (artworkUserId != null) {
         artworkLimiter = _artworkUserLimiters.putIfAbsent(
           artworkUserId,
-          () => _SimpleLimiter(
+          () => SimpleLimiter(
             maxConcurrent: AriamiHttpServer._defaultMaxConcurrentArtworkPerUser,
             maxQueue: AriamiHttpServer._defaultMaxArtworkQueuePerUser,
           ),

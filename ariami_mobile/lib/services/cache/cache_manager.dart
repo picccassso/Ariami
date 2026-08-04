@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import '../../database/cache_database.dart';
 import '../../models/cache_entry.dart';
@@ -37,6 +38,7 @@ class CacheManager {
 
   bool _initialized = false;
   Future<void>? _initFuture;
+  Future<void>? _warmUpWork;
   String? _artworkCachePath;
   String? _songCachePath;
 
@@ -111,8 +113,23 @@ class CacheManager {
     // size, so keeping them off the await path stops a large cache from
     // slowing startup. Sync artwork lookups fall back to the async DB path
     // until pre-population finishes.
-    unawaited(_warmCachesInBackground());
+    _warmUpWork = _warmCachesInBackground().catchError((Object e) {
+      // Warm-up is best effort; a failure must not surface as an unhandled
+      // async error, and must still let [settleBackgroundWork] complete.
+      print('[CacheManager] Background warm-up failed: $e');
+    });
+    unawaited(_warmUpWork);
   }
+
+  /// Completes once the fire-and-forget warm-up started by [initialize] has
+  /// settled.
+  ///
+  /// Production never waits on this — that is the whole point of running the
+  /// warm-up off the startup path. Tests do: a suite that deletes its temp
+  /// directory while these passes are still reading and writing inside it
+  /// fails on the directory going out from under them.
+  @visibleForTesting
+  Future<void> settleBackgroundWork() => _warmUpWork ?? Future<void>.value();
 
   /// Background warm-up: populate the artwork path cache, drop orphaned
   /// entries, and reindex any on-disk artwork missing from metadata. Runs
