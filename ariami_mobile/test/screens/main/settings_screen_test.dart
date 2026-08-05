@@ -1,7 +1,6 @@
 import 'package:ariami_mobile/screens/main/settings_screen.dart';
 import 'package:ariami_mobile/services/audio/gapless_playback_service.dart';
 import 'package:ariami_mobile/utils/shared_preferences_cache.dart';
-import 'package:ariami_mobile/widgets/settings/settings_tile.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -41,40 +40,20 @@ void main() {
     );
   });
 
-  testWidgets('shows the gapless switch above the equalizer and persists it',
+  testWidgets('collects the playback controls behind one Playback entry',
       (tester) async {
     await tester.pumpWidget(
       const MaterialApp(home: SettingsScreen()),
     );
     await tester.pumpAndSettle();
 
-    final gaplessLabel = find.text('Gapless Playback');
-    final equalizerLabel = find.text('Equalizer');
-    expect(gaplessLabel, findsOneWidget);
-    expect(equalizerLabel, findsOneWidget);
-    expect(
-      tester.getTopLeft(gaplessLabel).dy,
-      lessThan(tester.getTopLeft(equalizerLabel).dy),
-    );
-
-    final gaplessTile = find.ancestor(
-      of: gaplessLabel,
-      matching: find.byType(SettingsTile),
-    );
-    final gaplessSwitch = find.descendant(
-      of: gaplessTile,
-      matching: find.byType(Switch),
-    );
-    expect(tester.widget<Switch>(gaplessSwitch).value, isTrue);
-
-    await tester.tap(gaplessSwitch);
-    await tester.pump();
-
-    expect(tester.widget<Switch>(gaplessSwitch).value, isFalse);
-    expect(
-      sharedPrefs.getBool(GaplessPlaybackService.preferenceKey),
-      isFalse,
-    );
+    // The individual controls live on the Playback screen now, so this list
+    // stays short enough to scan.
+    expect(find.text('Playback'), findsOneWidget);
+    expect(find.text('Gapless Playback'), findsNothing);
+    expect(find.text('Equalizer'), findsNothing);
+    // Changed often enough to stay one tap away.
+    expect(find.text('Streaming Quality'), findsOneWidget);
   });
 
   testWidgets('places Recently Played below Listening Statistics',

@@ -3,6 +3,16 @@ part of '../playlist_detail_screen.dart';
 /// Handles user-initiated playlist, download, playback, and navigation actions.
 abstract class _PlaylistDetailActionsState
     extends _PlaylistSongResolutionState {
+  /// What this playlist is called when playback is published over Connect.
+  ///
+  /// Imported playlists are local copies of a server playlist, so the server's
+  /// id is the one other devices recognise; a purely local playlist only ever
+  /// has its own.
+  String get _playbackSourceId => PlaybackManager.playlistSource(
+        _playlistService.getServerPlaylistId(widget.playlistId) ??
+            widget.playlistId,
+      );
+
   @override
   Future<void> _showOfflineCopyNoticeIfNeeded() async {
     if (!_isOfflineCopy ||
@@ -145,7 +155,11 @@ abstract class _PlaylistDetailActionsState
     final songs =
         songsToPlay.map((s) => songModelToSong(s, _albumInfoMap)).toList();
     unawaited(_libraryController.markPlaylistPlayed(widget.playlistId));
-    await _playbackManager.playSongs(songs, startIndex: 0);
+    await _playbackManager.playSongs(
+      songs,
+      startIndex: 0,
+      sourceId: _playbackSourceId,
+    );
   }
 
   /// Shuffle play all songs
@@ -164,7 +178,7 @@ abstract class _PlaylistDetailActionsState
     final songs =
         songsToPlay.map((s) => songModelToSong(s, _albumInfoMap)).toList();
     unawaited(_libraryController.markPlaylistPlayed(widget.playlistId));
-    await _playbackManager.playShuffled(songs);
+    await _playbackManager.playShuffled(songs, sourceId: _playbackSourceId);
   }
 
   /// Play a specific track
@@ -185,7 +199,11 @@ abstract class _PlaylistDetailActionsState
     final songs =
         songsToPlay.map((s) => songModelToSong(s, _albumInfoMap)).toList();
     unawaited(_libraryController.markPlaylistPlayed(widget.playlistId));
-    await _playbackManager.playSongs(songs, startIndex: startIndex);
+    await _playbackManager.playSongs(
+      songs,
+      startIndex: startIndex,
+      sourceId: _playbackSourceId,
+    );
   }
 
   /// Edit playlist name/description/image

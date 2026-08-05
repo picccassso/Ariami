@@ -18,6 +18,7 @@ extension _PlaybackManagerPersistenceImpl on PlaybackManager {
       repeatMode: _repeatMode,
       position: position,
       originalQueue: originalQueue,
+      sourceId: _sourceId,
       userId: _connectionService.userId,
     );
   }
@@ -49,6 +50,8 @@ extension _PlaybackManagerPersistenceImpl on PlaybackManager {
         return;
       }
       _queue = restoredQueue;
+
+      _sourceId = savedState.sourceId;
 
       // Restore shuffle state and original queue
       _isShuffleEnabled = savedState.isShuffleEnabled;

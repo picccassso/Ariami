@@ -16,6 +16,9 @@ extension _PlaybackManagerLifecycleImpl on PlaybackManager {
     _pendingUiPosition = null;
     _gaplessPlayback.initialize();
     _gaplessPlayback.addListener(_onGaplessPreferenceChanged);
+    // Loaded here rather than in Settings, so the collection buttons honour a
+    // saved preference on a launch where Settings is never opened.
+    PlayButtonsFollowPlaybackService().initialize();
 
     _castService.initialize();
     _castService.addListener(_onCastStateChanged);

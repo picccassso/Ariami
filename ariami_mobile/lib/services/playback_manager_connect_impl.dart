@@ -203,6 +203,7 @@ extension _PlaybackManagerConnectImpl on PlaybackManager {
     required bool shuffle,
     List<int>? backingOrder,
     bool forceRepeatAll = false,
+    String? sourceId,
   }) {
     final remote = _connectRemote;
     if (remote == null || songs.isEmpty) return;
@@ -219,6 +220,7 @@ extension _PlaybackManagerConnectImpl on PlaybackManager {
           ? 'all'
           : repeatModeAfterExplicitTrackChange(remote.snapshot.repeatMode),
       volume: remote.snapshot.volume,
+      sourceId: sourceId,
     );
     _sendConnect(AriamiConnectCommand.playContext, <String, dynamic>{
       'snapshot': snapshot.toJson(includeBackingOrder: true),
@@ -491,6 +493,7 @@ extension _PlaybackManagerConnectImpl on PlaybackManager {
       AriamiPlaybackSnapshot snapshot) async {
     if (snapshot.queue.isEmpty) {
       await _clearQueueImpl();
+      _sourceId = null;
       _isShuffleEnabled = snapshot.shuffle;
       _repeatMode = switch (snapshot.repeatMode) {
         'all' => RepeatMode.all,
@@ -513,6 +516,9 @@ extension _PlaybackManagerConnectImpl on PlaybackManager {
     );
     _oneShotQueuedSongs.clear();
     _shuffleService.reset();
+    // Adopt the collection the handing-over device was playing, so this
+    // device keeps publishing it and the marker doesn't move or vanish.
+    _sourceId = snapshot.sourceId;
     _isShuffleEnabled = snapshot.shuffle;
     if (snapshot.shuffle) {
       _shuffleService.restoreShuffled(

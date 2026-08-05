@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
+import '../../services/playback_manager.dart';
+import '../collection_play_buttons.dart';
 import '../download/collection_download_button.dart';
 
 /// Row of album-level actions (download, queue, shuffle, play).
 class AlbumActionButtons extends StatelessWidget {
+  /// Identifies this album as a playback source, so its Play button can show
+  /// what's playing when the user has asked for that.
+  final String albumId;
   final bool isAlbumFullyDownloaded;
   final bool hasSongs;
   final bool isPinned;
@@ -17,6 +22,7 @@ class AlbumActionButtons extends StatelessWidget {
 
   const AlbumActionButtons({
     super.key,
+    required this.albumId,
     required this.isAlbumFullyDownloaded,
     required this.hasSongs,
     required this.isPinned,
@@ -71,26 +77,14 @@ class AlbumActionButtons extends StatelessWidget {
           ),
           Row(
             children: [
-              IconButton(
-                icon: const Icon(Icons.shuffle_rounded),
-                onPressed: hasSongs ? onShuffleAll : null,
-                iconSize: 28,
-                color: Theme.of(context).colorScheme.primary,
+              CollectionShuffleButton(
+                sourceId: PlaybackManager.albumSource(albumId),
+                onShuffle: hasSongs ? onShuffleAll : null,
               ),
               const SizedBox(width: 8),
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-                child: IconButton(
-                  icon: const Icon(Icons.play_arrow_rounded),
-                  color: Colors.black,
-                  iconSize: 36,
-                  onPressed: hasSongs ? onPlayAll : null,
-                ),
+              CollectionPlayButton(
+                sourceId: PlaybackManager.albumSource(albumId),
+                onPlay: hasSongs ? onPlayAll : null,
               ),
             ],
           ),

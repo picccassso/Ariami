@@ -19,6 +19,7 @@ class PlaybackStateManager {
   static const String _keyShuffle = 'playback_shuffle';
   static const String _keyRepeat = 'playback_repeat';
   static const String _keyOriginalQueue = 'playback_original_queue';
+  static const String _keySourceId = 'playback_source_id';
   static const String _keyStateVersion = 'playback_state_version';
   static const int _currentVersion = 1;
 
@@ -92,6 +93,7 @@ class PlaybackStateManager {
     required RepeatMode repeatMode,
     required Duration position,
     List<Song>? originalQueue,
+    String? sourceId,
     String? userId,
   }) async {
     try {
@@ -102,6 +104,7 @@ class PlaybackStateManager {
       final repeatKey = _scopedKey(_keyRepeat, userId);
       final positionKey = _scopedKey(_keyPosition, userId);
       final originalQueueKey = _scopedKey(_keyOriginalQueue, userId);
+      final sourceIdKey = _scopedKey(_keySourceId, userId);
 
       // Save version
       await prefs.setInt(stateVersionKey, _currentVersion);
@@ -134,6 +137,14 @@ class PlaybackStateManager {
       } else {
         await prefs.remove(originalQueueKey);
       }
+
+      // Save the collection the queue came from, so the "now playing" marker
+      // on that album/playlist survives a restart.
+      if (sourceId != null) {
+        await prefs.setString(sourceIdKey, sourceId);
+      } else {
+        await prefs.remove(sourceIdKey);
+      }
     } catch (e) {
       print('[PlaybackStateManager] Error saving complete state: $e');
     }
@@ -151,6 +162,7 @@ class PlaybackStateManager {
       final repeatKey = _scopedKey(_keyRepeat, userId);
       final positionKey = _scopedKey(_keyPosition, userId);
       final originalQueueKey = _scopedKey(_keyOriginalQueue, userId);
+      final sourceIdKey = _scopedKey(_keySourceId, userId);
 
       // Check version (for future migrations)
       final version = prefs.getInt(stateVersionKey);
@@ -202,6 +214,7 @@ class PlaybackStateManager {
         repeatMode: repeatMode,
         position: position,
         originalQueue: originalQueue,
+        sourceId: prefs.getString(sourceIdKey),
       );
     } catch (e) {
       print('[PlaybackStateManager] Error loading complete state: $e');
@@ -220,6 +233,7 @@ class PlaybackStateManager {
     await prefs.remove(_scopedKey(_keyRepeat, userId));
     await prefs.remove(_scopedKey(_keyPosition, userId));
     await prefs.remove(_scopedKey(_keyOriginalQueue, userId));
+    await prefs.remove(_scopedKey(_keySourceId, userId));
   }
 
   /// One-time migration path from legacy global playback state to a user scope.
@@ -353,11 +367,15 @@ class CompletePlaybackState {
   final Duration position;
   final List<Song>? originalQueue;
 
+  /// The album/playlist the queue was started from, if it came from one.
+  final String? sourceId;
+
   CompletePlaybackState({
     required this.queue,
     required this.isShuffleEnabled,
     required this.repeatMode,
     required this.position,
     this.originalQueue,
+    this.sourceId,
   });
 }

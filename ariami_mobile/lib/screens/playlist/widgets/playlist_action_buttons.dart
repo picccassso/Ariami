@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
+import '../../../widgets/collection_play_buttons.dart';
 import '../../../widgets/download/collection_download_button.dart';
 
 /// Action buttons for playlist (Download, Reorder, Add, Shuffle, Play).
 class PlaylistActionButtons extends StatelessWidget {
+  /// Identifies this playlist as a playback source, so its Play button can
+  /// show what's playing when the user has asked for that. Imported playlists
+  /// must pass the server's id — that is what other devices publish.
+  final String sourceId;
+
   /// Whether all playlist songs are downloaded
   final bool isPlaylistFullyDownloaded;
 
@@ -41,6 +47,7 @@ class PlaylistActionButtons extends StatelessWidget {
 
   const PlaylistActionButtons({
     super.key,
+    required this.sourceId,
     required this.isPlaylistFullyDownloaded,
     required this.hasSongs,
     required this.canReorder,
@@ -100,27 +107,14 @@ class PlaylistActionButtons extends StatelessWidget {
           // Right side: Play and Shuffle
           Row(
             children: [
-              IconButton(
-                icon: const Icon(Icons.shuffle_rounded),
-                onPressed: hasSongs ? onShuffle : null,
-                iconSize: 28,
-                color: Theme.of(context).colorScheme.primary,
+              CollectionShuffleButton(
+                sourceId: sourceId,
+                onShuffle: hasSongs ? onShuffle : null,
               ),
               const SizedBox(width: 8),
-              // Big Play Button
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-                child: IconButton(
-                  icon: const Icon(Icons.play_arrow_rounded),
-                  color: Theme.of(context).colorScheme.onPrimary,
-                  iconSize: 36,
-                  onPressed: hasSongs ? onPlay : null,
-                ),
+              CollectionPlayButton(
+                sourceId: sourceId,
+                onPlay: hasSongs ? onPlay : null,
               ),
             ],
           ),

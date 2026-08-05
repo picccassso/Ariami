@@ -307,6 +307,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
         // Action buttons
         SliverToBoxAdapter(
           child: AlbumActionButtons(
+            albumId: widget.album.id,
             isAlbumFullyDownloaded: _albumDetail != null &&
                 _albumDetail!.songs
                     .every((song) => _downloadedSongIds.contains(song.id)),
@@ -540,7 +541,10 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
 
     try {
       unawaited(_libraryController.markAlbumPlayed(widget.album.id));
-      await _playbackManager.playSongs(allSongs);
+      await _playbackManager.playSongs(
+        allSongs,
+        sourceId: PlaybackManager.albumSource(widget.album.id),
+      );
     } catch (e) {
       print('[AlbumDetailScreen] Error playing all: $e');
     }
@@ -583,7 +587,10 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
 
     try {
       unawaited(_libraryController.markAlbumPlayed(widget.album.id));
-      await _playbackManager.playShuffled(allSongs);
+      await _playbackManager.playShuffled(
+        allSongs,
+        sourceId: PlaybackManager.albumSource(widget.album.id),
+      );
     } catch (e) {
       print('[AlbumDetailScreen] Error shuffling: $e');
     }
@@ -706,7 +713,11 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
     try {
       // Play songs starting from clicked track
       unawaited(_libraryController.markAlbumPlayed(widget.album.id));
-      await _playbackManager.playSongs(allSongs, startIndex: startIndex);
+      await _playbackManager.playSongs(
+        allSongs,
+        startIndex: startIndex,
+        sourceId: PlaybackManager.albumSource(widget.album.id),
+      );
       print('[AlbumDetailScreen] ✅ Playback started successfully!');
     } catch (e, stackTrace) {
       print('[AlbumDetailScreen] ❌ ERROR: $e');

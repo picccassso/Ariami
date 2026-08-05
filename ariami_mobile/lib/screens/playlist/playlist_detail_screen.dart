@@ -93,6 +93,7 @@ class _PlaylistDetailScreenState extends _PlaylistDetailActionsState {
         // Action buttons
         SliverToBoxAdapter(
           child: PlaylistActionButtons(
+            sourceId: _playbackSourceId,
             isPlaylistFullyDownloaded: _isPlaylistFullyDownloaded,
             hasSongs: _songs.isNotEmpty,
             canReorder: _songs.length > 1,

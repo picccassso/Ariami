@@ -4,6 +4,7 @@ import '../settings/connection_settings_screen.dart';
 import '../settings/downloads/downloads_screen.dart';
 import '../settings/equalizer_screen.dart';
 import '../settings/import_export_screen.dart';
+import '../settings/playback_settings_screen.dart';
 import '../settings/quality_settings_screen.dart';
 import '../settings/recently_played_screen.dart';
 import '../settings/stats/streaming_stats_screen.dart';
@@ -50,6 +51,9 @@ class SettingsNavigator extends StatelessWidget {
             break;
           case '/import-export':
             page = const ImportExportScreen();
+            break;
+          case '/playback':
+            page = const PlaybackSettingsScreen();
             break;
           case '/quality':
             page = const QualitySettingsScreen();

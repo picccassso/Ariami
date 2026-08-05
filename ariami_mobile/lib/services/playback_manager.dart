@@ -15,6 +15,7 @@ import '../models/download_task.dart';
 import 'audio/audio_player_service.dart';
 import 'audio/audio_handler.dart';
 import 'audio/gapless_playback_service.dart';
+import 'audio/play_buttons_follow_playback_service.dart';
 import 'audio/shuffle_service.dart';
 import 'audio/playback_state_manager.dart';
 import 'api/connection_service.dart';
@@ -74,6 +75,13 @@ class PlaybackManager extends ChangeNotifier {
   final HashSet<Song> _oneShotQueuedSongs = HashSet<Song>.identity();
   bool _isShuffleEnabled = false;
   RepeatMode _repeatMode = RepeatMode.none;
+
+  /// Identifies the collection (album/playlist) the current queue was started
+  /// from. Published with the Connect snapshot so whichever device is playing,
+  /// every other one can show a "now playing" marker on that collection. Null
+  /// when playback didn't come from a known collection (a single song from
+  /// search, say).
+  String? _sourceId;
 
   // Stream subscriptions
   StreamSubscription<Duration>? _positionSubscription;
@@ -198,6 +206,21 @@ class PlaybackManager extends ChangeNotifier {
   Song? get localCurrentSong => _localCurrentSong;
   bool get localIsPlaying => _localIsPlaying;
 
+  /// The album/playlist the playing queue came from, mirroring the active
+  /// Connect device while one owns the session.
+  String? get sourceId =>
+      _connectRemote != null ? _connectRemote!.snapshot.sourceId : _sourceId;
+
+  /// This device's own queue source, unaffected by a remote mirror.
+  String? get localSourceId => _sourceId;
+
+  /// Builds the [sourceId] key for an album. Must match every other client's
+  /// format, since they compare the value published over Connect.
+  static String albumSource(String albumId) => 'album:$albumId';
+
+  /// Builds the [sourceId] key for a playlist.
+  static String playlistSource(String playlistId) => 'playlist:$playlistId';
+
   Song? get _localCurrentSong => _queue.currentSong;
   bool get _localIsPlaying => _castService.isConnected
       ? _castService.isRemotePlaying
@@ -237,6 +260,7 @@ class PlaybackManager extends ChangeNotifier {
           (_localDuration ?? _localCurrentSong?.duration ?? Duration.zero)
               .inMilliseconds,
       isPlaying: _localIsPlaying,
+      sourceId: _sourceId,
       shuffle: _isShuffleEnabled,
       repeatMode: _repeatMode == RepeatMode.none ? 'off' : _repeatMode.name,
       volume: 1,
@@ -314,6 +338,8 @@ class PlaybackManager extends ChangeNotifier {
       return Future.value();
     }
     _suppressConnectMirror();
+    // One song on its own is not a collection.
+    _sourceId = null;
     return _playSongImpl(song);
   }
 
@@ -331,21 +357,35 @@ class PlaybackManager extends ChangeNotifier {
       return Future.value();
     }
     _suppressConnectMirror();
+    _sourceId = null;
     return _playSongImpl(song, forceRepeatAll: true);
   }
 
-  /// Play a list of songs starting at a specific index
-  Future<void> playSongs(List<Song> songs, {int startIndex = 0}) {
+  /// Play a list of songs starting at a specific index.
+  ///
+  /// [sourceId] names the collection they came from (see [albumSource] /
+  /// [playlistSource]) so it can be shown as playing on every device.
+  Future<void> playSongs(
+    List<Song> songs, {
+    int startIndex = 0,
+    String? sourceId,
+  }) {
     if (_connectRemote != null) {
-      _sendConnectPlayContext(songs, currentIndex: startIndex, shuffle: false);
+      _sendConnectPlayContext(
+        songs,
+        currentIndex: startIndex,
+        shuffle: false,
+        sourceId: sourceId,
+      );
       return Future.value();
     }
     _suppressConnectMirror();
+    _sourceId = sourceId;
     return _playSongsImpl(songs, startIndex: startIndex);
   }
 
   /// Play all songs and shuffle if requested
-  Future<void> playShuffled(List<Song> songs) {
+  Future<void> playShuffled(List<Song> songs, {String? sourceId}) {
     if (_connectRemote != null) {
       final resolvedOrder = List<int>.generate(songs.length, (index) => index)
         ..shuffle();
@@ -353,10 +393,12 @@ class PlaybackManager extends ChangeNotifier {
         resolvedOrder.map((index) => songs[index]).toList(growable: false),
         shuffle: true,
         backingOrder: connectBackingOrderFor(resolvedOrder, songs.length),
+        sourceId: sourceId,
       );
       return Future.value();
     }
     _suppressConnectMirror();
+    _sourceId = sourceId;
     return _playShuffledImpl(songs);
   }
 

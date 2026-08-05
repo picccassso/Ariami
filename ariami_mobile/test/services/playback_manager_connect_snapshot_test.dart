@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:ariami_core/models/connect_models.dart';
 import 'package:ariami_core/services/connect/remote_playback.dart';
+import 'package:ariami_mobile/models/song.dart';
 import 'package:ariami_mobile/services/playback_manager.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -16,6 +17,7 @@ AriamiPlaybackSnapshot _duplicateSnapshot({
   required bool shuffle,
   List<int>? backingOrder,
   int currentIndex = 0,
+  String? sourceId,
 }) =>
     AriamiPlaybackSnapshot(
       queue: const <Map<String, dynamic>>[
@@ -31,6 +33,7 @@ AriamiPlaybackSnapshot _duplicateSnapshot({
       shuffle: shuffle,
       repeatMode: 'off',
       volume: 1,
+      sourceId: sourceId,
     );
 
 /// [PlaybackManager.applyConnectSnapshot] adopts the queue, shuffle service
@@ -44,6 +47,26 @@ Future<void> _adopt(
     await manager.applyConnectSnapshot(snapshot);
   } on Exception {
     // Starting playback is out of scope for the snapshot contract.
+  }
+}
+
+Song _song(String id, String title) => Song(
+      id: id,
+      title: title,
+      artist: 'Artist',
+      duration: const Duration(seconds: 1),
+      filePath: id,
+      fileSize: 0,
+      modifiedTime: DateTime(2026),
+    );
+
+/// Same reasoning as [_adopt]: starting the audio itself needs a server these
+/// tests don't have, but the queue state under test is set before that.
+Future<void> _play(Future<void> Function() start) async {
+  try {
+    await start();
+  } on Exception {
+    // Streaming is out of scope for the snapshot contract.
   }
 }
 
@@ -144,6 +167,41 @@ void main() {
     final edited = manager.connectSnapshot;
     expect(identical(progressOnly.queue, edited.queue), isFalse);
     expect(edited.queue, hasLength(4));
+  });
+
+  test('a handoff keeps publishing the collection it came from', () async {
+    final manager = PlaybackManager();
+    await _adopt(
+      manager,
+      _duplicateSnapshot(shuffle: false, sourceId: 'playlist:p1'),
+    );
+
+    expect(manager.sourceId, 'playlist:p1');
+    expect(
+      manager.connectSnapshot.sourceId,
+      'playlist:p1',
+      reason: 'other devices mark the playing collection from this field',
+    );
+  });
+
+  test('playing a collection publishes it; a lone song clears it', () async {
+    final manager = PlaybackManager();
+    final songs = <Song>[
+      _song('song-a', 'A'),
+      _song('song-b', 'B'),
+    ];
+
+    await _play(
+      () => manager.playSongs(
+        songs,
+        sourceId: PlaybackManager.albumSource('al-1'),
+      ),
+    );
+    expect(manager.connectSnapshot.sourceId, 'album:al-1');
+
+    await _play(() => manager.playSong(songs.first));
+    expect(manager.connectSnapshot.sourceId, isNull,
+        reason: 'one song on its own is not a collection');
   });
 
   test('remote progress does not notify the whole playback manager', () {

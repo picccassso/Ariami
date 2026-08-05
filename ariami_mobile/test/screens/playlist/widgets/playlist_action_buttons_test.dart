@@ -2,7 +2,12 @@ import 'package:ariami_mobile/screens/playlist/widgets/playlist_action_buttons.d
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../../test_support/sqflite_mock.dart';
+
 void main() {
+  // The play/shuffle buttons read PlaybackManager, which reaches the database.
+  installSqfliteTestMocks();
+
   group('PlaylistActionButtons', () {
     Widget buildButtons({
       bool isPlaylistFullyDownloaded = false,
@@ -19,6 +24,7 @@ void main() {
       return MaterialApp(
         home: Scaffold(
           body: PlaylistActionButtons(
+            sourceId: 'playlist:test',
             isPlaylistFullyDownloaded: isPlaylistFullyDownloaded,
             hasSongs: hasSongs,
             canReorder: canReorder,

@@ -166,7 +166,11 @@ class _ServerPlaylistDetailScreenState
     final songs =
         _songs.map((song) => songModelToSong(song, _albumInfoMap)).toList();
     unawaited(_libraryController.markPlaylistPlayed(widget.playlistId));
-    await _playbackManager.playSongs(songs, startIndex: 0);
+    await _playbackManager.playSongs(
+      songs,
+      startIndex: 0,
+      sourceId: PlaybackManager.playlistSource(widget.playlistId),
+    );
   }
 
   Future<void> _shuffleAll() async {
@@ -174,14 +178,21 @@ class _ServerPlaylistDetailScreenState
     final songs =
         _songs.map((song) => songModelToSong(song, _albumInfoMap)).toList();
     unawaited(_libraryController.markPlaylistPlayed(widget.playlistId));
-    await _playbackManager.playShuffled(songs);
+    await _playbackManager.playShuffled(
+      songs,
+      sourceId: PlaybackManager.playlistSource(widget.playlistId),
+    );
   }
 
   Future<void> _playTrack(SongModel track, int index) async {
     final songs =
         _songs.map((song) => songModelToSong(song, _albumInfoMap)).toList();
     unawaited(_libraryController.markPlaylistPlayed(widget.playlistId));
-    await _playbackManager.playSongs(songs, startIndex: index);
+    await _playbackManager.playSongs(
+      songs,
+      startIndex: index,
+      sourceId: PlaybackManager.playlistSource(widget.playlistId),
+    );
   }
 
   Future<void> _addSongs() async {
@@ -368,6 +379,7 @@ class _ServerPlaylistDetailScreenState
         ),
         SliverToBoxAdapter(
           child: PlaylistActionButtons(
+            sourceId: PlaybackManager.playlistSource(widget.playlistId),
             isPlaylistFullyDownloaded: false,
             hasSongs: _songs.isNotEmpty,
             canReorder: _songs.length > 1,

@@ -8,7 +8,6 @@ import 'package:package_info_plus/package_info_plus.dart';
 import '../../models/download_task.dart';
 import '../../services/api/connection_service.dart';
 import '../../services/ariami_connect_controller.dart';
-import '../../services/audio/gapless_playback_service.dart';
 import '../../services/download/download_manager.dart';
 import '../../services/library/library_repository.dart';
 import '../../services/offline/offline_manual_reconnect.dart';
@@ -30,8 +29,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final OfflinePlaybackService _offlineService = OfflinePlaybackService();
   final ConnectionService _connectionService = ConnectionService();
   final ProfileImageService _profileImageService = ProfileImageService();
-  final GaplessPlaybackService _gaplessPlaybackService =
-      GaplessPlaybackService();
   final AriamiConnectController _connectController = AriamiConnectController();
   bool _isOfflineModeEnabled = false;
   bool _isReconnecting = false;
@@ -42,7 +39,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     super.initState();
     _loadVersion();
     _initOfflineService();
-    _gaplessPlaybackService.initialize();
     unawaited(_profileImageService.initialize());
   }
 
@@ -364,7 +360,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           child: ListenableBuilder(
         listenable: Listenable.merge([
           _profileImageService,
-          _gaplessPlaybackService,
           _connectController,
         ]),
         builder: (context, _) {
@@ -422,32 +417,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ],
               ),
 
-              // Audio section
+              // Audio section — the individual playback controls live on
+              // their own screen so this list stays scannable.
               SettingsSection(
                 title: 'AUDIO',
                 tiles: [
                   SettingsTile(
-                    icon: Icons.playlist_play_rounded,
-                    title: 'Gapless Playback',
-                    subtitle: 'Play consecutive tracks without pauses',
-                    onTap: () => _gaplessPlaybackService.setEnabled(
-                      !_gaplessPlaybackService.isEnabled,
-                    ),
-                    trailing: Switch(
-                      value: _gaplessPlaybackService.isEnabled,
-                      activeThumbColor: colorScheme.onPrimary,
-                      activeTrackColor: colorScheme.primary,
-                      inactiveThumbColor: colorScheme.onSurfaceVariant,
-                      inactiveTrackColor: colorScheme.surfaceContainerHighest,
-                      onChanged: _gaplessPlaybackService.setEnabled,
-                    ),
-                  ),
-                  SettingsTile(
-                    icon: Icons.equalizer_rounded,
-                    title: 'Equalizer',
-                    subtitle: 'Presets and frequency bands',
+                    icon: Icons.play_circle_outline_rounded,
+                    title: 'Playback',
+                    subtitle: 'Gapless, play button behaviour and equalizer',
                     onTap: () {
-                      Navigator.of(context).pushNamed('/equalizer');
+                      Navigator.of(context).pushNamed('/playback');
                     },
                   ),
                   SettingsTile(
