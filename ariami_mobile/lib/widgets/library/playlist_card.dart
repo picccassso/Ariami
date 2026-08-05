@@ -2,7 +2,9 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../models/api_models.dart';
 import '../../services/api/connection_service.dart';
+import '../../services/playback_manager.dart';
 import '../common/cached_artwork.dart';
+import 'playing_collection_builder.dart';
 
 /// Playlist card widget
 /// Displays playlist with premium styling and dynamic artwork
@@ -18,6 +20,7 @@ class PlaylistCard extends StatefulWidget {
   final bool isPinned;
   final bool isSelectionMode;
   final bool isSelected;
+  final String? sourceId;
 
   const PlaylistCard({
     super.key,
@@ -32,6 +35,7 @@ class PlaylistCard extends StatefulWidget {
     this.isPinned = false,
     this.isSelectionMode = false,
     this.isSelected = false,
+    this.sourceId,
   });
 
   @override
@@ -40,6 +44,9 @@ class PlaylistCard extends StatefulWidget {
 
 class _PlaylistCardState extends State<PlaylistCard> {
   bool? _customImageExists;
+
+  String get _sourceId => widget.sourceId ??
+      PlaybackManager.playlistSource(widget.playlist.id);
 
   @override
   void initState() {
@@ -100,6 +107,17 @@ class _PlaylistCardState extends State<PlaylistCard> {
                       color: Colors.black26,
                     ),
                   ),
+
+                Positioned(
+                  left: 8,
+                  bottom: 8,
+                  child: PlayingCollectionIndicator(
+                    sourceId: _sourceId,
+                    enabled: !widget.isSelectionMode,
+                    size: 16,
+                    artworkBadge: true,
+                  ),
+                ),
                 if (widget.hasDownloadedSongs && !widget.isSelectionMode)
                   Positioned(
                     top: 8,
@@ -203,16 +221,16 @@ class _PlaylistCardState extends State<PlaylistCard> {
                         const SizedBox(width: 4),
                       ],
                       Expanded(
-                        child: Text(
-                          widget.playlist.name,
+                        child: PlayingCollectionTitle(
+                          sourceId: _sourceId,
+                          text: widget.playlist.name,
+                          enabled: !widget.isSelectionMode,
                           style:
                               Theme.of(context).textTheme.titleMedium?.copyWith(
                                     fontWeight: FontWeight.w600,
                                     fontSize: 14,
                                     letterSpacing: -0.2,
                                   ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ],

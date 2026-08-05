@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../models/api_models.dart';
+import '../../services/playback_manager.dart';
 import '../../utils/artwork_url.dart';
 import '../common/cached_artwork.dart';
+import 'playing_collection_builder.dart';
 
 /// Album grid item widget
 /// Displays album artwork, title, and artist in a premium layout
@@ -66,6 +68,17 @@ class AlbumGridItem extends StatelessWidget {
                         color: Colors.black26,
                       ),
                     ),
+
+                  Positioned(
+                    left: 8,
+                    bottom: 8,
+                    child: PlayingCollectionIndicator(
+                      sourceId: PlaybackManager.albumSource(album.id),
+                      enabled: !isSelectionMode,
+                      size: 16,
+                      artworkBadge: true,
+                    ),
+                  ),
 
                   // Interactive Overlay (highlight on press - implicit via InkWell usually, but manual here for custom look if needed)
                   // For now, simple standard interaction is fine, effectively handled by GestureDetector
@@ -163,16 +176,16 @@ class AlbumGridItem extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    album.title,
+                  PlayingCollectionTitle(
+                    sourceId: PlaybackManager.albumSource(album.id),
+                    text: album.title,
+                    enabled: isAvailable && !isSelectionMode,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.w600,
                           fontSize: 14,
                           letterSpacing:
                               -0.2, // Tighter tracking for modern look
                         ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
                   Text(

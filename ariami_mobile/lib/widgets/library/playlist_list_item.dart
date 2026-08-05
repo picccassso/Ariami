@@ -2,7 +2,9 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../models/api_models.dart';
 import '../../services/api/connection_service.dart';
+import '../../services/playback_manager.dart';
 import '../common/cached_artwork.dart';
+import 'playing_collection_builder.dart';
 
 /// Playlist list item widget
 /// Displays playlist artwork, title, and song count in a list layout
@@ -18,6 +20,7 @@ class PlaylistListItem extends StatefulWidget {
   final bool isPinned;
   final bool isSelectionMode;
   final bool isSelected;
+  final String? sourceId;
 
   const PlaylistListItem({
     super.key,
@@ -32,6 +35,7 @@ class PlaylistListItem extends StatefulWidget {
     this.isPinned = false,
     this.isSelectionMode = false,
     this.isSelected = false,
+    this.sourceId,
   });
 
   @override
@@ -40,6 +44,9 @@ class PlaylistListItem extends StatefulWidget {
 
 class _PlaylistListItemState extends State<PlaylistListItem> {
   bool? _customImageExists;
+
+  String get _sourceId => widget.sourceId ??
+      PlaybackManager.playlistSource(widget.playlist.id);
 
   @override
   void initState() {
@@ -195,8 +202,10 @@ class _PlaylistListItemState extends State<PlaylistListItem> {
                             const SizedBox(width: 4),
                           ],
                           Expanded(
-                            child: Text(
-                              widget.playlist.name,
+                            child: PlayingCollectionTitle(
+                              sourceId: _sourceId,
+                              text: widget.playlist.name,
+                              enabled: !widget.isSelectionMode,
                               style: Theme.of(context)
                                   .textTheme
                                   .titleMedium
@@ -204,8 +213,6 @@ class _PlaylistListItemState extends State<PlaylistListItem> {
                                     fontWeight: FontWeight.w600,
                                     fontSize: 16,
                                   ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                         ],
@@ -229,6 +236,13 @@ class _PlaylistListItemState extends State<PlaylistListItem> {
                       ),
                     ],
                   ),
+                ),
+
+                PlayingCollectionIndicator(
+                  sourceId: _sourceId,
+                  enabled: !widget.isSelectionMode,
+                  leadingSpacing: 8,
+                  trailingSpacing: 8,
                 ),
 
                 if (!widget.isSelectionMode)

@@ -1,6 +1,7 @@
 import '../../../../utils/responsive.dart';
 import 'package:flutter/material.dart';
 import '../../../../models/api_models.dart';
+import '../../../../services/playback_manager.dart';
 import '../../../../services/playlist_service.dart';
 import '../../../../widgets/library/album_grid_item.dart';
 import '../../../../widgets/library/album_list_item.dart';
@@ -128,6 +129,10 @@ class _MixedSectionState extends State<MixedSection> {
     return artworkIds;
   }
 
+  String _sourceId(PlaylistModel playlist) => PlaybackManager.playlistSource(
+        widget.playlistService.getServerPlaylistId(playlist.id) ?? playlist.id,
+      );
+
   Widget _buildGridView(BuildContext context, List<_MixedItem> items) {
     return SliverPadding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -143,6 +148,7 @@ class _MixedSectionState extends State<MixedSection> {
                 return PlaylistCard(
                   key: ValueKey('playlist-${playlist.id}'),
                   playlist: playlist,
+                  sourceId: _sourceId(playlist),
                   onTap: () => widget.onPlaylistTap(playlist),
                   onLongPress: () => widget.onPlaylistLongPress(playlist),
                   albumIds: _getPlaylistArtworkIds(playlist),
@@ -193,6 +199,7 @@ class _MixedSectionState extends State<MixedSection> {
               return PlaylistListItem(
                 key: ValueKey('playlist-${playlist.id}'),
                 playlist: playlist,
+                sourceId: _sourceId(playlist),
                 onTap: () => widget.onPlaylistTap(playlist),
                 onLongPress: () => widget.onPlaylistLongPress(playlist),
                 albumIds: _getPlaylistArtworkIds(playlist),

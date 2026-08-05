@@ -1,6 +1,7 @@
 import '../../../../utils/responsive.dart';
 import 'package:flutter/material.dart';
 import '../../../../models/api_models.dart';
+import '../../../../services/playback_manager.dart';
 import '../../../../services/playlist_service.dart';
 import '../../../../widgets/library/playlist_card.dart';
 import '../../../../widgets/library/playlist_list_item.dart';
@@ -64,6 +65,10 @@ class PlaylistsSection extends StatelessWidget {
     return artworkIds;
   }
 
+  String _sourceId(PlaylistModel playlist) => PlaybackManager.playlistSource(
+        playlistService.getServerPlaylistId(playlist.id) ?? playlist.id,
+      );
+
   List<PlaylistModel> _sortedRegularPlaylists() {
     final list = playlistService.playlists
         .where((p) => p.id != PlaylistService.likedSongsId)
@@ -102,6 +107,7 @@ class PlaylistsSection extends StatelessWidget {
               return PlaylistCard(
                 key: ValueKey('playlist-${likedSongsPlaylist.id}'),
                 playlist: likedSongsPlaylist,
+                sourceId: _sourceId(likedSongsPlaylist),
                 onTap: () => onPlaylistTap(likedSongsPlaylist),
                 onLongPress: () => onPlaylistLongPress(likedSongsPlaylist),
                 albumIds: _getPlaylistArtworkIds(likedSongsPlaylist),
@@ -120,6 +126,7 @@ class PlaylistsSection extends StatelessWidget {
             return PlaylistCard(
               key: ValueKey('playlist-${playlist.id}'),
               playlist: playlist,
+              sourceId: _sourceId(playlist),
               onTap: () => onPlaylistTap(playlist),
               onLongPress: () => onPlaylistLongPress(playlist),
               albumIds: _getPlaylistArtworkIds(playlist),
@@ -196,6 +203,7 @@ class PlaylistsSection extends StatelessWidget {
             return PlaylistCard(
               key: ValueKey('playlist-${likedSongsPlaylist.id}'),
               playlist: likedSongsPlaylist,
+              sourceId: _sourceId(likedSongsPlaylist),
               onTap: () => onPlaylistTap(likedSongsPlaylist),
               onLongPress: () => onPlaylistLongPress(likedSongsPlaylist),
               albumIds: _getPlaylistArtworkIds(likedSongsPlaylist),
@@ -212,6 +220,7 @@ class PlaylistsSection extends StatelessWidget {
           return PlaylistCard(
             key: ValueKey('playlist-${playlist.id}'),
             playlist: playlist,
+            sourceId: _sourceId(playlist),
             onTap: () => onPlaylistTap(playlist),
             onLongPress: () => onPlaylistLongPress(playlist),
             albumIds: _getPlaylistArtworkIds(playlist),
@@ -249,6 +258,7 @@ class PlaylistsSection extends StatelessWidget {
             return PlaylistListItem(
               key: ValueKey('playlist-${likedSongsPlaylist.id}'),
               playlist: likedSongsPlaylist,
+              sourceId: _sourceId(likedSongsPlaylist),
               onTap: () => onPlaylistTap(likedSongsPlaylist),
               onLongPress: () => onPlaylistLongPress(likedSongsPlaylist),
               albumIds: _getPlaylistArtworkIds(likedSongsPlaylist),
@@ -267,6 +277,7 @@ class PlaylistsSection extends StatelessWidget {
           return PlaylistListItem(
             key: ValueKey('playlist-${playlist.id}'),
             playlist: playlist,
+            sourceId: _sourceId(playlist),
             onTap: () => onPlaylistTap(playlist),
             onLongPress: () => onPlaylistLongPress(playlist),
             albumIds: _getPlaylistArtworkIds(playlist),
@@ -330,6 +341,7 @@ class PlaylistsSection extends StatelessWidget {
           return PlaylistListItem(
             key: ValueKey('playlist-${likedSongsPlaylist.id}'),
             playlist: likedSongsPlaylist,
+            sourceId: _sourceId(likedSongsPlaylist),
             onTap: () => onPlaylistTap(likedSongsPlaylist),
             onLongPress: () => onPlaylistLongPress(likedSongsPlaylist),
             albumIds: _getPlaylistArtworkIds(likedSongsPlaylist),
@@ -346,6 +358,7 @@ class PlaylistsSection extends StatelessWidget {
         return PlaylistListItem(
           key: ValueKey('playlist-${playlist.id}'),
           playlist: playlist,
+          sourceId: _sourceId(playlist),
           onTap: () => onPlaylistTap(playlist),
           onLongPress: () => onPlaylistLongPress(playlist),
           albumIds: _getPlaylistArtworkIds(playlist),

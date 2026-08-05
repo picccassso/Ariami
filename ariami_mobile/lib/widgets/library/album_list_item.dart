@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../models/api_models.dart';
+import '../../services/playback_manager.dart';
 import '../../utils/artwork_url.dart';
 import '../common/cached_artwork.dart';
+import 'playing_collection_builder.dart';
 
 /// Album list item widget
 /// Displays album artwork, title, and artist in a list layout
@@ -155,8 +157,11 @@ class AlbumListItem extends StatelessWidget {
                               const SizedBox(width: 4),
                             ],
                             Expanded(
-                              child: Text(
-                                album.title,
+                              child: PlayingCollectionTitle(
+                                sourceId:
+                                    PlaybackManager.albumSource(album.id),
+                                text: album.title,
+                                enabled: isAvailable && !isSelectionMode,
                                 style: Theme.of(context)
                                     .textTheme
                                     .titleMedium
@@ -169,8 +174,6 @@ class AlbumListItem extends StatelessWidget {
                                               .onSurface
                                           : Colors.grey,
                                     ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
                           ],
@@ -211,6 +214,12 @@ class AlbumListItem extends StatelessWidget {
                                 .withValues(alpha: 0.4),
                           ),
                     ),
+                  ),
+
+                  PlayingCollectionIndicator(
+                    sourceId: PlaybackManager.albumSource(album.id),
+                    enabled: !isSelectionMode,
+                    leadingSpacing: 8,
                   ),
 
                   if (!isSelectionMode) ...[
