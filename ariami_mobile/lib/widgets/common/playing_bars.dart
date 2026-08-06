@@ -25,31 +25,47 @@ class PlayingBars extends StatefulWidget {
 }
 
 class _PlayingBarsState extends State<PlayingBars>
-    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   late final AnimationController _controller;
+  // 1 while dancing, 0 while settled. Cross-fading between the two shapes
+  // stops the bars jumping when playback is paused or resumed.
+  late final AnimationController _blend;
   late final List<double> _phases;
-  late final List<double> _speeds;
+  late final List<double> _cycles;
   bool _foreground = true;
+
+  static const Duration _blendDuration = Duration(milliseconds: 260);
 
   @override
   void initState() {
     super.initState();
     final random = Random(widget.barCount * 7 + 13);
     _phases = List.generate(widget.barCount, (_) => random.nextDouble());
-    _speeds = List.generate(
+    // Whole sine cycles per controller period. A fractional count would leave
+    // each bar part-way through its wave when the controller wraps back to 0,
+    // jumping every bar to a new height once a period. Three to six cycles
+    // across four seconds keeps the per-bar rhythm at 0.75-1.5 Hz.
+    _cycles = List.generate(
       widget.barCount,
-      (_) => 0.7 + random.nextDouble(),
+      (_) => (3 + random.nextInt(4)).toDouble(),
     );
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 1),
+      duration: const Duration(seconds: 4),
     );
     WidgetsBinding.instance.addObserver(this);
     final lifecycleState = WidgetsBinding.instance.lifecycleState;
     _foreground =
         lifecycleState == null || lifecycleState == AppLifecycleState.resumed;
+    _blend = AnimationController(
+      vsync: this,
+      duration: _blendDuration,
+      value: _shouldDance ? 1 : 0,
+    );
     _syncAnimation();
   }
+
+  bool get _shouldDance => widget.playing && _foreground;
 
   @override
   void didUpdateWidget(PlayingBars oldWidget) {
@@ -62,20 +78,36 @@ class _PlayingBarsState extends State<PlayingBars>
     final foreground = state == AppLifecycleState.resumed;
     if (_foreground == foreground) return;
     _foreground = foreground;
-    _syncAnimation();
+    // Nobody can see a fade the app is no longer showing, and leaving one
+    // running would keep a repaint loop alive off-screen.
+    _syncAnimation(fade: foreground);
   }
 
-  void _syncAnimation() {
-    if (widget.playing && _foreground) {
+  void _syncAnimation({bool fade = true}) {
+    if (_shouldDance) {
       if (!_controller.isAnimating) _controller.repeat();
+      if (fade) {
+        _blend.forward();
+      } else {
+        _blend.value = 1;
+      }
+      return;
+    }
+
+    // The wave freezes where it stopped and the settled shape grows out of
+    // that exact frame, so the hand-off has no seam in either direction.
+    _controller.stop();
+    if (fade) {
+      _blend.reverse();
     } else {
-      _controller.stop();
+      _blend.value = 0;
     }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _blend.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -88,10 +120,10 @@ class _PlayingBarsState extends State<PlayingBars>
         child: CustomPaint(
           painter: _BarsPainter(
             animation: _controller,
+            blend: _blend,
             phases: _phases,
-            speeds: _speeds,
+            cycles: _cycles,
             color: widget.color,
-            animating: widget.playing && _foreground,
           ),
         ),
       ),
@@ -102,17 +134,17 @@ class _PlayingBarsState extends State<PlayingBars>
 class _BarsPainter extends CustomPainter {
   _BarsPainter({
     required this.animation,
+    required this.blend,
     required this.phases,
-    required this.speeds,
+    required this.cycles,
     required this.color,
-    required this.animating,
-  }) : super(repaint: animation);
+  }) : super(repaint: Listenable.merge([animation, blend]));
 
   final Animation<double> animation;
+  final Animation<double> blend;
   final List<double> phases;
-  final List<double> speeds;
+  final List<double> cycles;
   final Color color;
-  final bool animating;
 
   static const _minimumHeight = 0.28;
 
@@ -125,15 +157,12 @@ class _BarsPainter extends CustomPainter {
     final paint = Paint()..color = color;
 
     for (var i = 0; i < phases.length; i++) {
-      final factor = animating
-          ? _minimumHeight +
-              (1 - _minimumHeight) *
-                  (0.5 +
-                      0.5 *
-                          sin((animation.value * speeds[i] + phases[i]) *
-                              2 *
-                              pi))
-          : _minimumHeight + (1 - _minimumHeight) * 0.18 * (1 + (i % 2));
+      final wave = 0.5 +
+          0.5 * sin((animation.value * cycles[i] + phases[i]) * 2 * pi);
+      // Settled: a gentle static profile so it still reads as an equalizer.
+      final settled = 0.18 * (1 + (i % 2));
+      final level = settled + (wave - settled) * blend.value;
+      final factor = _minimumHeight + (1 - _minimumHeight) * level;
       final height = size.height * factor;
       final rect = Rect.fromLTWH(
         gap + i * (barWidth + gap),
@@ -151,6 +180,6 @@ class _BarsPainter extends CustomPainter {
   @override
   bool shouldRepaint(_BarsPainter oldDelegate) =>
       oldDelegate.color != color ||
-      oldDelegate.animating != animating ||
-      oldDelegate.animation != animation;
+      oldDelegate.animation != animation ||
+      oldDelegate.blend != blend;
 }

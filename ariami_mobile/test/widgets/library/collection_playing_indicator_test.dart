@@ -204,4 +204,27 @@ void main() {
       AppLifecycleState.resumed,
     );
   });
+
+  testWidgets('pausing settles the bars over a fade instead of snapping',
+      (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: PlayingBars(playing: true, color: Colors.blue),
+      ),
+    );
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: PlayingBars(playing: false, color: Colors.blue),
+      ),
+    );
+    await tester.pump();
+
+    // The dancing controller has stopped, so anything still running is the
+    // cross-fade into the settled profile.
+    expect(tester.hasRunningAnimations, isTrue);
+
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(tester.hasRunningAnimations, isFalse);
+  });
 }
