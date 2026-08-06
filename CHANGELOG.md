@@ -6,6 +6,57 @@ Thank you for those that actually support and use this project at all! :D
 
 ---
 
+## 5.1.5
+
+Ariami 5.1.5 is a reliability release for downloads. Every layer of the
+download path — the server's queue, the desktop client and mobile — could hang
+forever on a connection that went quiet without ever closing, and each one now
+bounds its waits, reclaims the slot, and resumes from where the bytes stopped
+instead of starting over. On top of that, every client now agrees on which
+album or playlist is playing regardless of which device started it, Discord can
+show what you're listening to, and the desktop queue picks up the menus and
+drag reordering the library rows already had.
+
+### Highlights
+- Downloads no longer stall silently. A connection that stops delivering
+  mid-file is failed after 60 seconds and resumed, rather than sitting at a
+  frozen progress bar forever.
+- Failed desktop downloads now retry themselves, up to three attempts, picking
+  up from the partial file instead of restarting from zero.
+- The server stops handing out download slots it can never get back, ending the
+  permanent "429" that previously needed a restart to clear.
+- Album and playlist buttons can show what's playing, Spotify-style, and the
+  marker now survives a restart — including for a queue started on another
+  device.
+- Discord Rich Presence, opt-in, showing the playing track with album art.
+- The desktop queue gains per-song right-click actions and multi-select drag
+  reordering, and the library sidebar gains hover play buttons.
+
+### Full changes
+
+- Bounded the server's download queue waits and reclaimed slots held by dead connections, ending the permanent 429 that needed a restart to clear
+- Stopped desktop downloads hanging forever on a connection that goes silent mid-transfer
+- Capped desktop download memory when a fast connection outruns a slow disk
+- Retried failed desktop downloads automatically, resuming from the partial file rather than restarting
+- Backed off properly when the server is busy, instead of every queued track retrying at once
+- Stopped desktop and mobile retrying downloads that can never succeed, such as songs deleted from the library
+- Bounded every wait in mobile downloads, so a half-open connection fails and resumes instead of holding its slot
+- Fixed mobile download slots leaking, which could wedge the queue with no free slots until the app restarted
+- Made mobile download resumes verify the file has not changed underneath them
+- Published the playing album or playlist from mobile, so other devices show what a phone started
+- Showed the playing album and playlist in the mobile library
+- Added an optional Spotify-style Play/Pause and live shuffle on album and playlist buttons, off by default
+- Kept the playing-collection marker across a restart, and after playing a single track from inside a collection
+- Added opt-in Discord Rich Presence, showing the playing track as "Listening to Ariami" with album art
+- Added right-click actions and multi-select drag reordering to the desktop queue
+- Added hover play buttons and queue menus to the sidebar's album, playlist and All Songs tiles
+- Hover-highlighted album and playlist tiles in the library sidebar
+- Queued a collection by shift- or cmd-clicking any Play control
+- Stopped the playing bars hitching once a second, and cross-faded them between playing and paused
+- Fixed the Linux app segfaulting on quit, which made a successful update look like a crash
+
+---
+
 ## 5.1.0
 
 Ariami 5.1.0 is the Ariami Connect release. 5.0.0 shipped Connect as a first
