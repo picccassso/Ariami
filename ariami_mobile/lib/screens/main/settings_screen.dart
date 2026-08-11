@@ -483,6 +483,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     },
                   ),
                   SettingsTile(
+                    icon: Icons.explore_rounded,
+                    title: 'Discover Music',
+                    subtitle: 'Recommendations from your Ariami listening',
+                    onTap: () {
+                      Navigator.of(context).pushNamed('/discover');
+                    },
+                  ),
+                  SettingsTile(
                     icon: Icons.history_rounded,
                     title: 'Recently Played',
                     subtitle: 'Revisit your listening history',

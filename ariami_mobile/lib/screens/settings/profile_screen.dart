@@ -760,6 +760,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
           onTap: () => Navigator.of(context).pushNamed('/stats'),
         ),
         SettingsTile(
+          icon: Icons.explore_rounded,
+          title: 'Discover Music',
+          subtitle: 'Find music based on your Ariami listening',
+          onTap: () => Navigator.of(context).pushNamed('/discover'),
+        ),
+        SettingsTile(
           icon: Icons.cloud_done_rounded,
           title: 'Connection Settings',
           subtitle: 'Manage connection, account and server',

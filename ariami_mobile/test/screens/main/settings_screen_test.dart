@@ -56,7 +56,7 @@ void main() {
     expect(find.text('Streaming Quality'), findsOneWidget);
   });
 
-  testWidgets('places Recently Played below Listening Statistics',
+  testWidgets('places discovery and history below Listening Statistics',
       (tester) async {
     await tester.pumpWidget(
       const MaterialApp(home: SettingsScreen()),
@@ -64,13 +64,19 @@ void main() {
     await tester.pumpAndSettle();
 
     final stats = find.text('Listening Statistics');
+    final discover = find.text('Discover Music');
     final recent = find.text('Recently Played');
     await tester.scrollUntilVisible(recent, 300);
     expect(stats, findsOneWidget);
+    expect(discover, findsOneWidget);
     expect(recent, findsOneWidget);
     expect(find.text('Reset Statistics'), findsNothing);
     expect(
       tester.getTopLeft(stats).dy,
+      lessThan(tester.getTopLeft(discover).dy),
+    );
+    expect(
+      tester.getTopLeft(discover).dy,
       lessThan(tester.getTopLeft(recent).dy),
     );
   });

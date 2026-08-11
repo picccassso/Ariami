@@ -4,6 +4,7 @@ import '../settings/connection_settings_screen.dart';
 import '../settings/downloads/downloads_screen.dart';
 import '../settings/equalizer_screen.dart';
 import '../settings/import_export_screen.dart';
+import '../settings/music_discovery_screen.dart';
 import '../settings/playback_settings_screen.dart';
 import '../settings/quality_settings_screen.dart';
 import '../settings/recently_played_screen.dart';
@@ -45,6 +46,9 @@ class SettingsNavigator extends StatelessWidget {
             break;
           case '/stats':
             page = const StreamingStatsScreen();
+            break;
+          case '/discover':
+            page = const MusicDiscoveryScreen();
             break;
           case '/recently-played':
             page = const RecentlyPlayedScreen();

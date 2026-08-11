@@ -202,6 +202,37 @@ class StatsRange {
     }
   }
 
+  /// Stable round-trip token: `kind`, or `kind:yyyy-mm-dd` when anchored.
+  ///
+  /// Callers that persist a picked range or build a per-range cache key must
+  /// use this rather than `kind.name` alone — the week of the 3rd and the
+  /// week of the 10th are different ranges and must not share a cache entry.
+  ///
+  /// The anchor is normalised to the period's first day, so two dates inside
+  /// one calendar period produce the same token and therefore share it. That
+  /// makes the token idempotent (`tryParse(t).token == t`) rather than an
+  /// exact field round-trip: parsing back a mid-period anchor yields an
+  /// equivalent range, not an identical one.
+  String get token {
+    if (day == null) return kind.name;
+    final start = bounds()?.from;
+    return start == null ? kind.name : '${kind.name}:$start';
+  }
+
+  /// Parses a [token] produced by [token]; null when absent or malformed.
+  static StatsRange? tryParse(String? token) {
+    if (token == null || token.isEmpty) return null;
+    final separator = token.indexOf(':');
+    final kindName = separator < 0 ? token : token.substring(0, separator);
+    final kind = StatsRangeKind.values
+        .where((value) => value.name == kindName)
+        .firstOrNull;
+    if (kind == null) return null;
+    if (separator < 0) return StatsRange._(kind);
+    final day = DateTime.tryParse(token.substring(separator + 1));
+    return day == null ? null : StatsRange._(kind, _dateOnly(day));
+  }
+
   @override
   bool operator ==(Object other) =>
       other is StatsRange && other.kind == kind && other.day == day;

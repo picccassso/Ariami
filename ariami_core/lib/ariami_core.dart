@@ -73,6 +73,12 @@ export 'services/stats/listening_stats_syncer.dart';
 export 'services/stats/period_stats_overlay.dart';
 export 'services/stats/stats_local_day.dart';
 export 'services/stats/stats_range.dart';
+// Privacy-conscious music recommendations
+export 'services/recommendations/lastfm_recommendation_client.dart';
+export 'services/recommendations/music_recommendation_models.dart';
+export 'services/recommendations/music_recommendation_seeds.dart';
+export 'services/recommendations/music_recommendation_service.dart';
+export 'services/recommendations/musicbrainz_identity_client.dart';
 // Spotify Extended Streaming History import
 export 'services/stats/spotify_import/spotify_import_models.dart';
 export 'services/stats/spotify_import/library_track_matcher.dart';
