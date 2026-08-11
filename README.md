@@ -3,8 +3,13 @@
   <h1>Ariami</h1>
   <p><strong>Your music. Your server. One playback session across your devices.</strong></p>
   <p>
+    <a href="https://apps.apple.com/us/app/ariami/id6789298823"><img src="https://img.shields.io/badge/App%20Store-Ariami%20Mobile-0D96F6?logo=apple&logoColor=white" alt="Download Ariami Mobile on the App Store"></a>
+    <a href="https://www.amazon.com/gp/mas/dl/android?asin=B0GZFT53WL"><img src="https://img.shields.io/badge/Amazon%20Appstore-Ariami%20for%20Fire%20TV-FF9900?logo=amazon&logoColor=white" alt="Get Ariami for Fire TV on the Amazon Appstore"></a>
+  </p>
+  <p>
     <a href="https://ariami.xyz/">Website</a> ·
     <a href="https://github.com/picccassso/Ariami/releases">Downloads</a> ·
+    <a href="#get-the-apps">Get the apps</a> ·
     <a href="#quick-start">Quick Start</a> ·
     <a href="#documentation">Docs</a> ·
     <a href="docs/connect/README.md">Ariami Connect</a>
@@ -40,6 +45,27 @@ built together and speak their own protocol, which is how features like Ariami C
 end to end. That protocol is not a black box: **Ariami Connect is fully documented** in
 [`docs/connect/`](docs/connect/README.md), including a
 [build-a-client guide](docs/connect/06-third-party-clients.md) for third-party apps.
+
+---
+
+## Get the apps
+
+Ariami is on the stores. Both downloads are free; the TV app needs a licence key from
+[ariami.xyz](https://ariami.xyz/) to unlock.
+
+| Store | App | |
+| --- | --- | --- |
+| **Apple App Store** | Ariami for iPhone and iPad — free | [Download →](https://apps.apple.com/us/app/ariami/id6789298823) |
+| **Amazon Appstore** | Ariami TV for Fire TV — free download, licence unlocks it | [Get it →](https://www.amazon.com/gp/mas/dl/android?asin=B0GZFT53WL) |
+
+Android phones and Android TV are still served by the APKs in
+[releases](https://github.com/picccassso/Ariami/releases); a Play Store release is in progress.
+The Desktop Player is bought and downloaded from [ariami.xyz](https://ariami.xyz/), and every
+server (Desktop Server, CLI, Docker) is free from
+[releases](https://github.com/picccassso/Ariami/releases).
+
+You still need to run a server — the apps stream from your own machine, not from a cloud
+service. See [Quick Start](#quick-start).
 
 ---
 
@@ -190,9 +216,9 @@ All three are free, run the same core, and expose the same admin features.
 
 | App | Platforms | Availability |
 | --- | --- | --- |
-| **Mobile** | Android, iOS (phones and tablets) | Free. Android APK in [releases](https://github.com/picccassso/Ariami/releases); iOS is built from source for now — there is no App Store release yet. |
+| **Mobile** | Android, iOS (phones and tablets) | Free. iOS/iPadOS on the [App Store](https://apps.apple.com/us/app/ariami/id6789298823); Android APK in [releases](https://github.com/picccassso/Ariami/releases), with a Play Store release in progress. |
 | **Desktop Player** | macOS, Windows, Linux | One-time purchase. Bought and downloaded from [ariami.xyz](https://ariami.xyz/). A full player, separate from the Desktop Server above. |
-| **TV** | Android TV, Fire TV | One-time purchase, side-load the APK from [releases](https://github.com/picccassso/Ariami/releases). Amazon Appstore and Play Store releases are in progress. LAN-only by design. |
+| **TV** | Fire TV, Android TV | One-time licence, bought at [ariami.xyz](https://ariami.xyz/). The app itself is a free download from the [Amazon Appstore](https://www.amazon.com/gp/mas/dl/android?asin=B0GZFT53WL) on Fire TV; for Android TV, side-load the APK from [releases](https://github.com/picccassso/Ariami/releases) — a Play Store release is in progress. LAN-only by design. |
 
 The Desktop Server can host your library on the same machine that runs the Desktop Player —
 they are separate apps and either can be used on its own.
@@ -329,7 +355,8 @@ hard Sonic transcoding: about 68 °C.
 - **Ariami Core, the servers (Desktop Server, CLI, Docker) and the mobile app are free**, and
   the source in this repository is MIT licensed.
 - **The Desktop Player and the TV app are one-time purchases**, available separately or as a
-  bundle that activates both. There is no subscription. Buy them at [ariami.xyz](https://ariami.xyz/); current prices are listed there.
+  bundle that activates both. There is no subscription. Buy them at [ariami.xyz](https://ariami.xyz/); current prices are listed there. Store downloads never charge you:
+  the Fire TV app installs free from the Amazon Appstore and is unlocked by the licence key.
 - A purchase gives you a licence key. TV licences are activated once and stored on the server,
   so every TV in the household picks the licence up automatically.
 - Paid clients help fund continued development. Core and mobile stay free.
@@ -387,8 +414,9 @@ developer setup.
 runs, but low/medium-quality transcoding is unavailable. FFmpeg is optional and used for
 artwork resizing.
 
-**iOS:** there is no App Store release yet. Build and install on your own device with
-`flutter build ios` (requires macOS and Xcode). Currently waiting on app approval from Apple for Ariami.
+**iOS:** Ariami is on the [App Store](https://apps.apple.com/us/app/ariami/id6789298823), so
+you only need to build it yourself if you are developing against it — `flutter build ios`
+(requires macOS and Xcode).
 
 Clone with submodules if you need the Sonic transcoder for desktop builds:
 
