@@ -24,6 +24,16 @@ class CacheUpdateEvent {
       cleared || type == null || type == CacheType.artwork;
 }
 
+class ArtworkRevalidationResult {
+  const ArtworkRevalidationResult({
+    required this.changed,
+    this.path,
+  });
+
+  final bool changed;
+  final String? path;
+}
+
 /// Manages caching of artwork and songs with LRU eviction
 class CacheManager {
   // Singleton pattern
@@ -44,6 +54,9 @@ class CacheManager {
 
   // Track ongoing cache operations to avoid duplicates
   final Map<String, Future<String?>> _inFlightArtworkRequests = {};
+  final Map<String, Future<_ArtworkRevalidationOutcome>>
+      _inFlightArtworkRevalidations = {};
+  final Set<String> _revalidatedArtworkUrls = {};
   final Set<String> _pendingSongs = {};
   final Map<String, CancelToken> _songCacheCancelTokens = {};
 
@@ -130,6 +143,11 @@ class CacheManager {
   /// fails on the directory going out from under them.
   @visibleForTesting
   Future<void> settleBackgroundWork() => _warmUpWork ?? Future<void>.value();
+
+  @visibleForTesting
+  void setHttpClientAdapterForTests(HttpClientAdapter adapter) {
+    _dio.httpClientAdapter = adapter;
+  }
 
   /// Background warm-up: populate the artwork path cache, drop orphaned
   /// entries, and reindex any on-disk artwork missing from metadata. Runs
@@ -259,9 +277,8 @@ class CacheManager {
         }
       });
 
-      await _dio.download(
+      final response = await _dio.get<List<int>>(
         artworkUrl,
-        filePath,
         options: Options(
           responseType: ResponseType.bytes,
           receiveTimeout: const Duration(seconds: 15),
@@ -269,6 +286,9 @@ class CacheManager {
         ),
         cancelToken: dioCancelToken,
       );
+      final bytes = response.data;
+      if (bytes == null || bytes.isEmpty) return null;
+      await _writeArtworkAtomically(filePath, bytes);
 
       // Get file size
       final file = File(filePath);
@@ -281,6 +301,7 @@ class CacheManager {
         path: filePath,
         size: size,
         lastAccessed: DateTime.now(),
+        etag: response.headers.value('etag'),
       );
 
       // Save entry (artwork is not constrained by the song cache limit)
@@ -315,6 +336,149 @@ class CacheManager {
         _releaseArtworkSlot();
       }
     }
+  }
+
+  /// Revalidate a cached artwork file once per URL during this app session.
+  ///
+  /// Existing bytes remain available while the conditional request runs. A
+  /// 304 keeps the file untouched; a changed 200 response atomically replaces
+  /// it. Legacy entries without an ETag receive one normal refresh, which
+  /// repairs covers cached before ETag metadata was introduced.
+  Future<ArtworkRevalidationResult> revalidateCachedArtwork(
+    String cacheKey,
+    String artworkUrl,
+  ) async {
+    await _ensureInitialized();
+
+    final identity = '$cacheKey|$artworkUrl';
+    if (_revalidatedArtworkUrls.contains(identity)) {
+      return const ArtworkRevalidationResult(changed: false);
+    }
+
+    final existing = _inFlightArtworkRevalidations[identity];
+    final future = existing ??
+        _revalidateCachedArtworkDirect(cacheKey, artworkUrl).whenComplete(
+          () {
+            _inFlightArtworkRevalidations.remove(identity);
+          },
+        );
+    _inFlightArtworkRevalidations[identity] = future;
+
+    final outcome = await future;
+    if (outcome.succeeded) {
+      _revalidatedArtworkUrls.add(identity);
+    }
+    return ArtworkRevalidationResult(
+      changed: outcome.changed,
+      path: outcome.path,
+    );
+  }
+
+  Future<_ArtworkRevalidationOutcome> _revalidateCachedArtworkDirect(
+    String cacheKey,
+    String artworkUrl,
+  ) async {
+    if (!_database.isCacheEnabled()) {
+      return const _ArtworkRevalidationOutcome.failed();
+    }
+
+    final entry = await _database.getCacheEntry(cacheKey, CacheType.artwork);
+    final headers = <String, String>{
+      ...?_connectionService.authHeaders,
+    };
+    if (entry?.etag case final etag? when etag.isNotEmpty) {
+      headers['If-None-Match'] = etag;
+    }
+
+    var acquiredSlot = false;
+    try {
+      acquiredSlot = await _acquireArtworkSlot();
+      if (!acquiredSlot) {
+        return const _ArtworkRevalidationOutcome.failed();
+      }
+
+      final response = await _dio.get<List<int>>(
+        artworkUrl,
+        options: Options(
+          responseType: ResponseType.bytes,
+          receiveTimeout: const Duration(seconds: 15),
+          headers: headers,
+          validateStatus: (status) =>
+              status == HttpStatus.ok ||
+              status == HttpStatus.notModified ||
+              status == HttpStatus.notFound,
+        ),
+      );
+
+      if (response.statusCode == HttpStatus.notModified) {
+        if (entry != null) {
+          await _database.upsertCacheEntry(
+            entry.copyWith(
+              lastAccessed: DateTime.now(),
+              etag: response.headers.value('etag') ?? entry.etag,
+            ),
+          );
+        }
+        return const _ArtworkRevalidationOutcome.unchanged();
+      }
+
+      if (response.statusCode == HttpStatus.notFound) {
+        if (entry != null) {
+          _artworkPathCache.remove(cacheKey);
+          await _database.removeCacheEntry(cacheKey, CacheType.artwork);
+          final file = File(entry.path);
+          if (await file.exists()) await file.delete();
+          _cacheUpdateController.add(
+            const CacheUpdateEvent(type: CacheType.artwork),
+          );
+          return const _ArtworkRevalidationOutcome.changed(null);
+        }
+        return const _ArtworkRevalidationOutcome.unchanged();
+      }
+
+      final bytes = response.data;
+      if (bytes == null || bytes.isEmpty) {
+        return const _ArtworkRevalidationOutcome.failed();
+      }
+
+      final filePath = entry?.path ?? '$_artworkCachePath/$cacheKey.jpg';
+      await _writeArtworkAtomically(filePath, bytes);
+      final updatedEntry = CacheEntry(
+        id: cacheKey,
+        type: CacheType.artwork,
+        path: filePath,
+        size: bytes.length,
+        lastAccessed: DateTime.now(),
+        createdAt: entry?.createdAt,
+        etag: response.headers.value('etag'),
+      );
+      await _database.upsertCacheEntry(updatedEntry);
+      _artworkPathCache[cacheKey] = filePath;
+      _cacheUpdateController.add(
+        const CacheUpdateEvent(type: CacheType.artwork),
+      );
+      return _ArtworkRevalidationOutcome.changed(filePath);
+    } on DioException catch (e) {
+      print('[CacheManager] Failed to revalidate artwork $cacheKey: $e');
+      return const _ArtworkRevalidationOutcome.failed();
+    } catch (e) {
+      print('[CacheManager] Failed to revalidate artwork $cacheKey: $e');
+      return const _ArtworkRevalidationOutcome.failed();
+    } finally {
+      if (acquiredSlot) _releaseArtworkSlot();
+    }
+  }
+
+  Future<void> _writeArtworkAtomically(
+    String filePath,
+    List<int> bytes,
+  ) async {
+    final target = File(filePath);
+    final temporary = File(
+      '$filePath.${DateTime.now().microsecondsSinceEpoch}.tmp',
+    );
+    await temporary.writeAsBytes(bytes, flush: true);
+    await temporary.rename(target.path);
   }
 
   Future<String?> _awaitInFlightArtworkRequest(
@@ -1011,6 +1175,8 @@ class CacheManager {
     _activeArtworkDownloads = 0;
 
     _inFlightArtworkRequests.clear();
+    _inFlightArtworkRevalidations.clear();
+    _revalidatedArtworkUrls.clear();
     _pendingSongs.clear();
     _artworkPathCache.clear();
     _cachedSongSize = 0;
@@ -1030,4 +1196,25 @@ class CacheManager {
     _artworkCachePath = null;
     _songCachePath = null;
   }
+}
+
+class _ArtworkRevalidationOutcome {
+  const _ArtworkRevalidationOutcome._({
+    required this.succeeded,
+    required this.changed,
+    this.path,
+  });
+
+  const _ArtworkRevalidationOutcome.failed()
+      : this._(succeeded: false, changed: false);
+
+  const _ArtworkRevalidationOutcome.unchanged()
+      : this._(succeeded: true, changed: false);
+
+  const _ArtworkRevalidationOutcome.changed(String? path)
+      : this._(succeeded: true, changed: true, path: path);
+
+  final bool succeeded;
+  final bool changed;
+  final String? path;
 }

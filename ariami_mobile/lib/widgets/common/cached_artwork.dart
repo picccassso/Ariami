@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../services/api/connection_service.dart';
@@ -105,6 +106,7 @@ class _CachedArtworkState extends State<CachedArtwork> {
     if (memoryPath != null) {
       _localPath = memoryPath;
       _isLoading = false;
+      _revalidateCachedArtwork(memoryPath);
     } else {
       _loadArtwork();
     }
@@ -216,6 +218,7 @@ class _CachedArtworkState extends State<CachedArtwork> {
             _isLoading = false;
             _networkFallbackUrl = null;
           });
+          _revalidateCachedArtwork(cachedPath);
         }
         return;
       }
@@ -331,6 +334,27 @@ class _CachedArtworkState extends State<CachedArtwork> {
       priority: _requestPriority,
       cancellationToken: requestToken,
     );
+  }
+
+  void _revalidateCachedArtwork(String displayedPath) {
+    final effectiveUrl = _effectiveUrl;
+    if (_offlineService.isOffline || effectiveUrl == null) return;
+
+    unawaited(() async {
+      final result = await _cacheManager.revalidateCachedArtwork(
+        _cacheKey,
+        effectiveUrl,
+      );
+      if (!result.changed) return;
+
+      await FileImage(File(displayedPath)).evict();
+      if (!mounted || _localPath != displayedPath) return;
+      setState(() {
+        _localPath = result.path;
+        _networkFallbackUrl = null;
+        _isLoading = false;
+      });
+    }());
   }
 
   MediaRequestPriority get _requestPriority {

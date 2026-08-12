@@ -15,6 +15,7 @@ class CacheEntry {
   final int size; // Size in bytes
   final DateTime lastAccessed;
   final DateTime createdAt;
+  final String? etag;
 
   CacheEntry({
     required this.id,
@@ -23,6 +24,7 @@ class CacheEntry {
     required this.size,
     required this.lastAccessed,
     DateTime? createdAt,
+    this.etag,
   }) : createdAt = createdAt ?? DateTime.now();
 
   /// Convert to JSON for storage
@@ -34,6 +36,7 @@ class CacheEntry {
       'size': size,
       'lastAccessed': lastAccessed.toIso8601String(),
       'createdAt': createdAt.toIso8601String(),
+      'etag': etag,
     };
   }
 
@@ -48,6 +51,7 @@ class CacheEntry {
       createdAt: json['createdAt'] != null
           ? DateTime.parse(json['createdAt'] as String)
           : DateTime.now(),
+      etag: json['etag'] as String?,
     );
   }
 
@@ -68,6 +72,7 @@ class CacheEntry {
       size: size,
       lastAccessed: DateTime.now(),
       createdAt: createdAt,
+      etag: etag,
     );
   }
 
@@ -79,6 +84,7 @@ class CacheEntry {
     int? size,
     DateTime? lastAccessed,
     DateTime? createdAt,
+    String? etag,
   }) {
     return CacheEntry(
       id: id ?? this.id,
@@ -87,6 +93,7 @@ class CacheEntry {
       size: size ?? this.size,
       lastAccessed: lastAccessed ?? this.lastAccessed,
       createdAt: createdAt ?? this.createdAt,
+      etag: etag ?? this.etag,
     );
   }
 
@@ -109,10 +116,3 @@ class CacheEntry {
   @override
   int get hashCode => id.hashCode ^ type.hashCode;
 }
-
-
-
-
-
-
-

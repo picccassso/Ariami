@@ -16,7 +16,7 @@ class CacheDatabase {
   static const String _cacheLimitKey = 'cache_limit_mb';
   static const String _cacheEnabledKey = 'cache_enabled';
   static const String _databaseName = 'cache_metadata.db';
-  static const int _databaseVersion = 1;
+  static const int _databaseVersion = 2;
   static const String _entriesTable = 'cache_entries';
 
   final SharedPreferences _prefs;
@@ -44,6 +44,7 @@ class CacheDatabase {
       path,
       version: _databaseVersion,
       onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
     );
 
     await _migrateFromSharedPreferencesIfNeeded(db);
@@ -60,6 +61,7 @@ class CacheDatabase {
         size INTEGER NOT NULL,
         last_accessed TEXT NOT NULL,
         created_at TEXT NOT NULL,
+        etag TEXT,
         PRIMARY KEY (id, type)
       )
     ''');
@@ -70,6 +72,12 @@ class CacheDatabase {
     await db.execute(
       'CREATE INDEX idx_cache_entries_last_accessed ON $_entriesTable(last_accessed)',
     );
+  }
+
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await db.execute('ALTER TABLE $_entriesTable ADD COLUMN etag TEXT');
+    }
   }
 
   Future<void> _migrateFromSharedPreferencesIfNeeded(Database db) async {
@@ -143,6 +151,7 @@ class CacheDatabase {
       'size': entry.size,
       'last_accessed': entry.lastAccessed.toIso8601String(),
       'created_at': entry.createdAt.toIso8601String(),
+      'etag': entry.etag,
     };
   }
 
@@ -154,6 +163,7 @@ class CacheDatabase {
       size: row['size'] as int? ?? 0,
       lastAccessed: DateTime.parse(row['last_accessed'] as String),
       createdAt: DateTime.parse(row['created_at'] as String),
+      etag: row['etag'] as String?,
     );
   }
 

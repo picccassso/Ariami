@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:crypto/crypto.dart';
+
 import '../../models/artwork_size.dart';
 
 /// Service for processing and caching album artwork at different sizes.
@@ -87,9 +89,21 @@ class ArtworkService {
     final cachedFile = _getCachedFile(albumId, size);
     if (await cachedFile.exists()) {
       try {
-        print('[ArtworkService] Cache hit for $albumId at ${size.name}');
-        await _touchFile(cachedFile);
-        return await cachedFile.readAsBytes();
+        final sourceDigest = _sourceDigest(originalBytes);
+        final digestFile = _getSourceDigestFile(cachedFile);
+        final cachedDigest = await digestFile.exists()
+            ? (await digestFile.readAsString()).trim()
+            : null;
+        if (cachedDigest == sourceDigest) {
+          print('[ArtworkService] Cache hit for $albumId at ${size.name}');
+          await _touchFile(cachedFile);
+          return await cachedFile.readAsBytes();
+        }
+
+        print('[ArtworkService] Source changed for $albumId at ${size.name}; '
+            'regenerating cached artwork');
+        await cachedFile.delete();
+        if (await digestFile.exists()) await digestFile.delete();
       } catch (e) {
         print('[ArtworkService] Error reading cached file: $e');
         // Fall through to regenerate
@@ -172,6 +186,12 @@ class ArtworkService {
     return File('${sizeDir.path}/$safeId.jpg');
   }
 
+  File _getSourceDigestFile(File cachedFile) {
+    return File('${cachedFile.path}.source-md5');
+  }
+
+  String _sourceDigest(List<int> bytes) => md5.convert(bytes).toString();
+
   /// Update file access time for LRU tracking.
   Future<void> _touchFile(File file) async {
     if (!touchOnCacheHit) return;
@@ -243,6 +263,10 @@ class ArtworkService {
 
         // Save to cache
         await outputFile.writeAsBytes(thumbnailBytes);
+        await _getSourceDigestFile(outputFile).writeAsString(
+          _sourceDigest(originalArtwork),
+          flush: true,
+        );
 
         return thumbnailBytes;
       }
@@ -309,6 +333,8 @@ class ArtworkService {
 
         try {
           await fileInfo.file.delete();
+          final digestFile = _getSourceDigestFile(fileInfo.file);
+          if (await digestFile.exists()) await digestFile.delete();
           totalSize -= fileInfo.size;
           print('[ArtworkService] Evicted ${fileInfo.file.path}');
         } catch (e) {
@@ -366,6 +392,8 @@ class ArtworkService {
       if (await cachedFile.exists()) {
         try {
           await cachedFile.delete();
+          final digestFile = _getSourceDigestFile(cachedFile);
+          if (await digestFile.exists()) await digestFile.delete();
           print('[ArtworkService] Invalidated $albumId at ${size.name}');
         } catch (e) {
           print('[ArtworkService] Failed to invalidate $albumId: $e');

@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:ariami_mobile/models/cache_entry.dart';
 import 'package:ariami_mobile/services/cache/cache_manager.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
@@ -153,4 +154,144 @@ void main() {
       expect(await cacheManager.getTotalCacheSize(), greaterThan(limitBytes));
     });
   });
+
+  group('CacheManager artwork revalidation', () {
+    test('upgrades version-one cache metadata without losing artwork',
+        () async {
+      final dbPath = p.join(await getDatabasesPath(), 'cache_metadata.db');
+      final artworkPath = p.join(
+        docsDir.path,
+        'cache',
+        'artwork',
+        'legacy-cover.jpg',
+      );
+      final artworkFile = File(artworkPath);
+      await artworkFile.parent.create(recursive: true);
+      await artworkFile.writeAsBytes(<int>[7, 8, 9]);
+      final legacyDb = await openDatabase(
+        dbPath,
+        version: 1,
+        onCreate: (db, _) async {
+          await db.execute('''
+            CREATE TABLE cache_entries (
+              id TEXT NOT NULL,
+              type TEXT NOT NULL,
+              path TEXT NOT NULL,
+              size INTEGER NOT NULL,
+              last_accessed TEXT NOT NULL,
+              created_at TEXT NOT NULL,
+              PRIMARY KEY (id, type)
+            )
+          ''');
+        },
+      );
+      final now = DateTime.now().toIso8601String();
+      await legacyDb.insert('cache_entries', <String, Object>{
+        'id': 'legacy-cover',
+        'type': CacheType.artwork.toString(),
+        'path': artworkPath,
+        'size': 3,
+        'last_accessed': now,
+        'created_at': now,
+      });
+      await legacyDb.close();
+
+      await cacheManager.initialize();
+      expect(await cacheManager.getArtworkPath('legacy-cover'), artworkPath);
+      expect(
+        await cacheManager.cacheArtworkFromBytes(
+          'post-upgrade-cover',
+          <int>[1, 2, 3],
+        ),
+        isNotNull,
+      );
+    });
+
+    test('uses ETags and refreshes changed or legacy cached artwork', () async {
+      await cacheManager.initialize();
+      final adapter = _ArtworkAdapter(
+        bytes: <int>[1, 2, 3],
+        etag: '"art-v1"',
+      );
+      cacheManager.setHttpClientAdapterForTests(adapter);
+      const baseUrl = 'https://ariami.test/artwork';
+
+      final path = await cacheManager.cacheArtwork('album-1', baseUrl);
+      expect(path, isNotNull);
+      expect(await File(path!).readAsBytes(), <int>[1, 2, 3]);
+
+      final unchanged =
+          await cacheManager.revalidateCachedArtwork('album-1', baseUrl);
+      expect(unchanged.changed, isFalse);
+      expect(adapter.receivedValidators.last, '"art-v1"');
+
+      adapter
+        ..bytes = <int>[4, 5, 6]
+        ..etag = '"art-v2"';
+      final changed = await cacheManager.revalidateCachedArtwork(
+        'album-1',
+        '$baseUrl?catalog=2',
+      );
+      expect(changed.changed, isTrue);
+      expect(changed.path, path);
+      expect(adapter.receivedValidators.last, '"art-v1"');
+      expect(await File(path).readAsBytes(), <int>[4, 5, 6]);
+
+      final requestsBeforeRepeat = adapter.requestCount;
+      final repeated = await cacheManager.revalidateCachedArtwork(
+        'album-1',
+        '$baseUrl?catalog=2',
+      );
+      expect(repeated.changed, isFalse);
+      expect(adapter.requestCount, requestsBeforeRepeat);
+
+      final legacyPath = await cacheManager.cacheArtworkFromBytes(
+        'song_legacy_thumb',
+        <int>[7, 8, 9],
+      );
+      final legacyRefresh = await cacheManager.revalidateCachedArtwork(
+        'song_legacy_thumb',
+        '$baseUrl?legacy=1',
+      );
+      expect(legacyRefresh.changed, isTrue);
+      expect(adapter.receivedValidators.last, isNull);
+      expect(await File(legacyPath!).readAsBytes(), <int>[4, 5, 6]);
+    });
+  });
+}
+
+class _ArtworkAdapter implements HttpClientAdapter {
+  _ArtworkAdapter({required this.bytes, required this.etag});
+
+  List<int> bytes;
+  String etag;
+  int requestCount = 0;
+  final List<String?> receivedValidators = <String?>[];
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    requestCount++;
+    String? validator;
+    for (final header in options.headers.entries) {
+      if (header.key.toLowerCase() == 'if-none-match') {
+        validator = header.value as String?;
+      }
+    }
+    receivedValidators.add(validator);
+    return ResponseBody.fromBytes(
+      validator == etag ? const <int>[] : bytes,
+      validator == etag ? HttpStatus.notModified : HttpStatus.ok,
+      headers: <String, List<String>>{
+        Headers.contentTypeHeader: <String>['image/jpeg'],
+        'etag': <String>[etag],
+      },
+    );
+  }
+
+  @override
+  void close({bool force = false}) {}
 }
