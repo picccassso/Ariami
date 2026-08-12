@@ -46,6 +46,8 @@ extension _LibraryControllerLocalState on LibraryController {
         ..write(task.id)
         ..write(':')
         ..write(task.albumId ?? '')
+        ..write(':')
+        ..write(task.genre ?? '')
         ..write('|');
     }
 
@@ -159,7 +161,7 @@ extension _LibraryControllerLocalState on LibraryController {
           trackNumber: task.trackNumber,
           discNumber: null,
           year: null,
-          genre: null,
+          genre: task.genre,
           duration: Duration(seconds: task.duration),
           filePath: task.songId,
           fileSize: task.bytesDownloaded,
@@ -169,6 +171,9 @@ extension _LibraryControllerLocalState on LibraryController {
     }
 
     final albums = _buildAlbumsFromDownloadGroups(albumMap);
+    final genreIndex = _buildDownloadGenreIndex(completedTasks);
+    final keepGenreFilter = _state.genreFilter != null &&
+        genreIndex.genreAlbums.containsKey(_state.genreFilter);
 
     songs.sort((a, b) => a.title.compareTo(b.title));
 
@@ -176,6 +181,8 @@ extension _LibraryControllerLocalState on LibraryController {
       offlineSongs: songs,
       offlineCopySongs: const [],
       albums: albums,
+      genreIndex: genreIndex,
+      clearGenreFilter: !keepGenreFilter,
       offlineCopyAlbumIds: _offlineCopyService.retainedAlbumIds,
       offlineCopyPlaylistIds: _offlineCopyService.retainedPlaylistIds,
       isOfflineMode: true,
@@ -205,6 +212,7 @@ extension _LibraryControllerLocalState on LibraryController {
               id: task.songId,
               title: task.title,
               artist: task.artist,
+              genre: task.genre,
               duration: task.duration,
               trackNumber: task.trackNumber,
             ))
@@ -236,5 +244,18 @@ extension _LibraryControllerLocalState on LibraryController {
 
     albums.sort((a, b) => a.title.compareTo(b.title));
     return albums;
+  }
+
+  LibraryGenreIndex _buildDownloadGenreIndex(
+    Iterable<DownloadTask> tasks,
+  ) {
+    return LibraryGenreIndex.build(
+      tasks.where((task) => task.albumId != null).map(
+            (task) => LibraryGenreSource(
+              albumId: task.albumId!,
+              genre: task.genre,
+            ),
+          ),
+    );
   }
 }

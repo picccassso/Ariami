@@ -1,6 +1,7 @@
 import 'package:ariami_mobile/models/api_models.dart';
 import 'package:ariami_mobile/models/song.dart';
 import 'package:ariami_mobile/screens/main/library/library_state.dart';
+import 'package:ariami_mobile/services/library/library_genre_index.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -154,6 +155,35 @@ void main() {
 
       expect(state.albumsToShow.length, 1);
       expect(state.albumsToShow.first.id, '1');
+    });
+
+    test('albumsToShow combines genre and download filters', () {
+      final albums = [
+        AlbumModel(
+            id: '1',
+            title: 'Album 1',
+            artist: 'Artist',
+            songCount: 1,
+            duration: 100),
+        AlbumModel(
+            id: '2',
+            title: 'Album 2',
+            artist: 'Artist',
+            songCount: 1,
+            duration: 100),
+      ];
+      final state = const LibraryState().copyWith(
+        albums: albums,
+        showDownloadedOnly: true,
+        albumsWithDownloads: {'1', '2'},
+        genreIndex: LibraryGenreIndex.build(const [
+          LibraryGenreSource(albumId: '1', genre: 'Rock'),
+          LibraryGenreSource(albumId: '2', genre: 'Jazz'),
+        ]),
+        genreFilter: 'jazz',
+      );
+
+      expect(state.albumsToShow.map((album) => album.id), ['2']);
     });
 
     test('onlineSongsToShow should return all songs when not filtering', () {

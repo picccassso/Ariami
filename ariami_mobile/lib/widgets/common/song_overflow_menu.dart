@@ -146,6 +146,7 @@ class SongOverflowMenu extends StatelessWidget {
       id: song.id,
       title: song.title,
       artist: song.artist,
+      genre: song.genre,
       album: null,
       albumId: song.albumId,
       duration: Duration(seconds: song.duration),

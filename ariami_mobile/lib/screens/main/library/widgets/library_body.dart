@@ -9,6 +9,7 @@ import '../library_state.dart';
 import 'albums_section.dart';
 import 'empty_state.dart';
 import 'error_state.dart';
+import 'genre_filter_bar.dart';
 import 'mixed_section.dart';
 import 'playlists_section.dart';
 import 'section_header.dart';
@@ -41,12 +42,14 @@ class LibraryBody extends StatelessWidget {
   final Set<String> selectedAlbumIds;
   final Set<String> selectedSongIds;
   final ScrollController scrollController;
+  final ValueChanged<String?>? onGenreFilterChanged;
 
   const LibraryBody({
     super.key,
     required this.state,
     required this.isOffline,
     required this.scrollController,
+    this.onGenreFilterChanged,
     required this.onRefresh,
     required this.onRetry,
     required this.onToggleAlbumsExpanded,
@@ -167,6 +170,7 @@ class LibraryBody extends StatelessWidget {
         isSelectionMode: isSelectionMode,
         selectedPlaylistIds: selectedPlaylistIds,
         selectedAlbumIds: selectedAlbumIds,
+        onGenreFilterChanged: onGenreFilterChanged,
       ),
 
       // Songs Section
@@ -225,6 +229,13 @@ class LibraryBody extends StatelessWidget {
         isExpanded: state.albumsExpanded,
         onTap: onToggleAlbumsExpanded,
       ),
+      if (state.albumsExpanded)
+        SliverToBoxAdapter(
+          child: GenreFilterBar(
+            state: state,
+            onChanged: onGenreFilterChanged ?? (_) {},
+          ),
+        ),
       if (state.albumsExpanded)
         AlbumsSection(
           state: state,

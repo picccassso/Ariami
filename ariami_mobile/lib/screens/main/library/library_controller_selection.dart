@@ -289,6 +289,7 @@ extension _LibraryControllerSelection on LibraryController {
         String? title;
         String? artist;
         String? albumId;
+        String? genre;
         var duration = 0;
         int? trackNumber;
 
@@ -297,6 +298,7 @@ extension _LibraryControllerSelection on LibraryController {
           title = song.title;
           artist = song.artist;
           albumId = song.albumId;
+          genre = song.genre;
           duration = song.duration;
           trackNumber = song.trackNumber;
         } else {
@@ -337,6 +339,7 @@ extension _LibraryControllerSelection on LibraryController {
             songId: songId,
             title: title,
             artist: artist,
+            genre: genre,
             albumId: albumId,
             albumName: albumName,
             albumArtist: albumArtist,

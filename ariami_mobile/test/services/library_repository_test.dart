@@ -117,6 +117,10 @@ CREATE TABLE $table (
       expect(playlists.length, equals(1));
       expect(playlists.single.songIds, equals(<String>['song-2', 'song-1']));
       expect((await repository.getSongs()).first.genre, 'Jazz/Fusion');
+      expect(
+        (await repository.getGenreIndex()).albumGenres['album-1'],
+        ['fusion', 'jazz'],
+      );
     });
 
     test('bootstrap normalizes playlist songCount from membership rows',

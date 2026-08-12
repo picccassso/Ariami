@@ -216,6 +216,10 @@ class LibrarySyncDatabase {
     return _reads.listSongsByAlbumId(albumId);
   }
 
+  Future<List<LibraryAlbumGenreRow>> listAlbumGenres() {
+    return _reads.listAlbumGenres();
+  }
+
   Future<List<LibraryPlaylistRow>> listPlaylists() {
     return _reads.listPlaylists();
   }

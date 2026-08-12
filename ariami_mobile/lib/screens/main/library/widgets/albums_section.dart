@@ -3,6 +3,7 @@ import '../../../../models/api_models.dart';
 import '../../../../utils/responsive.dart';
 import '../../../../widgets/library/album_grid_item.dart';
 import '../../../../widgets/library/album_list_item.dart';
+import '../../../../widgets/library/genre_label.dart';
 import '../library_state.dart';
 
 /// Widget that displays the albums section in grid or list view.
@@ -72,6 +73,7 @@ class AlbumsSection extends StatelessWidget {
                 isPinned: state.isAlbumPinned(album.id),
                 isSelectionMode: isSelectionMode,
                 isSelected: selectedAlbumIds.contains(album.id),
+                genre: genreSummary(state.albumGenres(album.id)),
               );
             },
             childCount: albumsToShow.length,
@@ -99,6 +101,7 @@ class AlbumsSection extends StatelessWidget {
             isPinned: state.isAlbumPinned(album.id),
             isSelectionMode: isSelectionMode,
             isSelected: selectedAlbumIds.contains(album.id),
+            genre: genreSummary(state.albumGenres(album.id)),
           );
         },
         childCount: albumsToShow.length,

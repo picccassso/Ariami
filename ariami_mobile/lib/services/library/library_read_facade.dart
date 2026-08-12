@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../../models/api_models.dart';
 import '../sync/library_sync_engine.dart';
 import 'library_repository.dart';
+import 'library_genre_index.dart';
 
 enum LibraryReadSource {
   v2LocalStore,
@@ -23,6 +24,7 @@ class LibraryReadBundle {
     required this.albums,
     required this.songs,
     required this.serverPlaylists,
+    required this.genreIndex,
     required this.durationsReady,
     required this.source,
     required this.sourceReason,
@@ -33,6 +35,7 @@ class LibraryReadBundle {
   final List<AlbumModel> albums;
   final List<SongModel> songs;
   final List<ServerPlaylist> serverPlaylists;
+  final LibraryGenreIndex genreIndex;
   final bool durationsReady;
   final LibraryReadSource source;
   final String sourceReason;
@@ -160,6 +163,7 @@ class LibraryReadFacade {
       albums: localBundle.albums,
       songs: localBundle.songs,
       serverPlaylists: localBundle.serverPlaylists,
+      genreIndex: localBundle.genreIndex,
       durationsReady: _durationsReady(localBundle.songs),
       source: decision.source,
       sourceReason: decision.reason,
@@ -168,9 +172,9 @@ class LibraryReadFacade {
     );
   }
 
-  Future<LibrarySyncHealth> _defaultSyncHealth(LibraryReadDecision decision) async {
-    final bootstrapComplete =
-        decision.reason.contains('bootstrap is complete');
+  Future<LibrarySyncHealth> _defaultSyncHealth(
+      LibraryReadDecision decision) async {
+    final bootstrapComplete = decision.reason.contains('bootstrap is complete');
     final mismatchReason = bootstrapComplete
         ? null
         : await _libraryRepository.getBootstrapPendingReason();

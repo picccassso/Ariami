@@ -19,6 +19,7 @@ class DownloadTask {
   String? serverId;
   final String title;
   final String artist;
+  final String? genre;
   final String? albumId;
   final String? albumName;
   final String?
@@ -56,6 +57,7 @@ class DownloadTask {
     this.userId,
     required this.title,
     required this.artist,
+    this.genre,
     this.albumId,
     this.albumName,
     this.albumArtist,
@@ -85,6 +87,7 @@ class DownloadTask {
       'userId': userId,
       'title': title,
       'artist': artist,
+      'genre': genre,
       'albumId': albumId,
       'albumName': albumName,
       'albumArtist': albumArtist,
@@ -123,6 +126,7 @@ class DownloadTask {
           json['title'] as String,
       artist: EncodingUtils.fixEncoding(json['artist'] as String) ??
           json['artist'] as String,
+      genre: EncodingUtils.fixEncoding(json['genre'] as String?),
       albumId: json['albumId'] as String?,
       albumName: EncodingUtils.fixEncoding(json['albumName'] as String?),
       albumArtist: EncodingUtils.fixEncoding(json['albumArtist'] as String?),

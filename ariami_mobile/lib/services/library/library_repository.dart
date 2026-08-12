@@ -3,17 +3,20 @@ import 'package:flutter/foundation.dart';
 import '../../database/library_sync_database.dart';
 import '../../models/api_models.dart';
 import 'package:sqflite/sqflite.dart';
+import 'library_genre_index.dart';
 
 class LibraryRepositoryBundle {
   const LibraryRepositoryBundle({
     required this.albums,
     required this.songs,
     required this.serverPlaylists,
+    this.genreIndex = LibraryGenreIndex.empty,
   });
 
   final List<AlbumModel> albums;
   final List<SongModel> songs;
   final List<ServerPlaylist> serverPlaylists;
+  final LibraryGenreIndex genreIndex;
 }
 
 /// Repository for normalized local library sync storage.
@@ -104,12 +107,14 @@ class LibraryRepository {
       getAlbums(),
       getSongs(),
       getServerPlaylists(),
+      getGenreIndex(),
     ]);
 
     return LibraryRepositoryBundle(
       albums: results[0] as List<AlbumModel>,
       songs: results[1] as List<SongModel>,
       serverPlaylists: results[2] as List<ServerPlaylist>,
+      genreIndex: results[3] as LibraryGenreIndex,
     );
   }
 
@@ -325,6 +330,18 @@ class LibraryRepository {
           ),
         )
         .toList();
+  }
+
+  Future<LibraryGenreIndex> getGenreIndex() async {
+    final rows = await (await _database).listAlbumGenres();
+    return LibraryGenreIndex.build(
+      rows.map(
+        (row) => LibraryGenreSource(
+          albumId: row.albumId,
+          genre: row.genre,
+        ),
+      ),
+    );
   }
 
   Future<List<V2PlaylistModel>> getPlaylists() async {

@@ -80,6 +80,16 @@ extension _DownloadManagerOperationsImpl on DownloadManager {
     final requestedQuality =
         (resolvedOriginal ? StreamingQuality.high : resolvedQuality)
             .toApiParam();
+    Map<String, SongModel> localSongsById = const <String, SongModel>{};
+    try {
+      final localSongs = await ConnectionService().libraryReadFacade.getSongs();
+      localSongsById = <String, SongModel>{
+        for (final song in localSongs) song.id: song,
+      };
+    } catch (_) {
+      // Download jobs remain usable during a partial local bootstrap. Genre is
+      // hydrated on the next successful library load in that case.
+    }
 
     final createResponse = await apiClient.createV2DownloadJob(
       DownloadJobCreateRequest(
@@ -107,8 +117,18 @@ extension _DownloadManagerOperationsImpl on DownloadManager {
       final existingTasks = <DownloadTask>[];
       for (final item in page.items) {
         if (item.status.toLowerCase() != 'pending') continue;
-        final existing = _getScopedTask('song_${item.songId}');
+        var existing = _getScopedTask('song_${item.songId}');
         if (existing != null) {
+          final genre = localSongsById[item.songId]?.genre;
+          if (genre != null && genre != existing.genre) {
+            final replacement = _buildDownloadTaskWithMetadata(
+              existing,
+              genre: genre,
+            );
+            if (_queue.replaceTask(existing.id, replacement)) {
+              existing = replacement;
+            }
+          }
           existingTasks.add(existing);
           continue;
         }
@@ -117,6 +137,7 @@ extension _DownloadManagerOperationsImpl on DownloadManager {
           item: item,
           downloadQuality: jobQuality,
           downloadOriginal: createResponse.downloadOriginal,
+          genre: localSongsById[item.songId]?.genre,
         );
         if (task != null) {
           batch.add(task);
@@ -162,6 +183,7 @@ extension _DownloadManagerOperationsImpl on DownloadManager {
     required String songId,
     required String title,
     required String artist,
+    String? genre,
     String? albumId,
     String? albumName,
     String? albumArtist,
@@ -201,12 +223,15 @@ extension _DownloadManagerOperationsImpl on DownloadManager {
     // downloading, pending, or completed one is left alone.
     var existing = _getScopedTask(taskId);
     if (existing != null) {
-      if (resolvedAlbum != null &&
+      final albumMetadataMissing = resolvedAlbum != null &&
           ((existing.albumName?.trim().isEmpty ?? true) ||
-              (existing.albumArtist?.trim().isEmpty ?? true))) {
-        final replacement = _buildDownloadTaskWithAlbumMetadata(
+              (existing.albumArtist?.trim().isEmpty ?? true));
+      final genreChanged = genre != null && genre != existing.genre;
+      if (albumMetadataMissing || genreChanged) {
+        final replacement = _buildDownloadTaskWithMetadata(
           existing,
-          resolvedAlbum,
+          album: resolvedAlbum,
+          genre: genre,
         );
         if (_queue.replaceTask(existing.id, replacement)) {
           existing = replacement;
@@ -229,6 +254,7 @@ extension _DownloadManagerOperationsImpl on DownloadManager {
       userId: userId,
       title: title,
       artist: artist,
+      genre: genre,
       albumId: albumId,
       albumName: albumName,
       albumArtist: albumArtist,
@@ -294,6 +320,7 @@ extension _DownloadManagerOperationsImpl on DownloadManager {
         userId: userId,
         title: song['title'] as String,
         artist: song['artist'] as String,
+        genre: song['genre'] as String?,
         albumId: albumId ?? song['albumId'] as String?,
         albumName: albumName ?? song['albumName'] as String?,
         albumArtist: albumArtist ?? song['albumArtist'] as String?,
@@ -534,6 +561,7 @@ extension _DownloadManagerOperationsImpl on DownloadManager {
     required DownloadJobItemModel item,
     required StreamingQuality downloadQuality,
     required bool downloadOriginal,
+    String? genre,
   }) {
     final taskId = 'song_${item.songId}';
     if (_getScopedTask(taskId) != null) {
@@ -553,6 +581,7 @@ extension _DownloadManagerOperationsImpl on DownloadManager {
       userId: _getCurrentUserId(),
       title: title,
       artist: artist,
+      genre: genre,
       albumId: item.albumId,
       albumName: item.albumName,
       albumArtist: item.albumArtist,

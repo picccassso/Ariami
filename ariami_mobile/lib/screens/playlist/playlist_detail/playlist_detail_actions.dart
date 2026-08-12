@@ -81,6 +81,7 @@ abstract class _PlaylistDetailActionsState
         songId: song.id,
         title: song.title,
         artist: song.artist,
+        genre: song.genre,
         albumId: albumId,
         albumName: albumName,
         albumArtist: albumArtist,

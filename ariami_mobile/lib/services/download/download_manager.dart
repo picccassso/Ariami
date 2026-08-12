@@ -165,6 +165,7 @@ class DownloadManager {
     required String songId,
     required String title,
     required String artist,
+    String? genre,
     String? albumId,
     String? albumName,
     String? albumArtist,
@@ -179,6 +180,7 @@ class DownloadManager {
         songId: songId,
         title: title,
         artist: artist,
+        genre: genre,
         albumId: albumId,
         albumName: albumName,
         albumArtist: albumArtist,
@@ -326,8 +328,8 @@ class DownloadManager {
         libraryAlbums: libraryAlbums,
       );
 
-  /// Refresh saved album metadata while an authoritative library snapshot is
-  /// available, so offline copies retain the server's title and artist.
+  /// Refresh saved album and genre metadata from an authoritative library
+  /// snapshot so offline copies retain the server's labels.
   Future<int> refreshDownloadAlbumMetadata({
     required List<AlbumModel> libraryAlbums,
     List<SongModel> librarySongs = const <SongModel>[],

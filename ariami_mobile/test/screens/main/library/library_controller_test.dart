@@ -79,10 +79,12 @@ void main() {
         songId: 'album-song',
         title: 'Album Song',
         albumId: 'album-1',
+        genre: 'Jazz/Fusion',
       ),
       _completedDownload(
         songId: 'standalone-song',
         title: 'Standalone Song',
+        genre: 'Rock',
       ),
     ]);
 
@@ -96,6 +98,11 @@ void main() {
       {'album-song', 'standalone-song'},
     );
     expect(controller.state.albumsWithDownloads, {'album-1'});
+    expect(controller.state.offlineSongs.single.genre, 'Rock');
+    expect(
+      controller.state.albumGenres('album-1'),
+      ['fusion', 'jazz'],
+    );
   });
 
   group('Batch download summary', () {
@@ -362,12 +369,14 @@ DownloadTask _completedDownload({
   required String songId,
   required String title,
   String? albumId,
+  String? genre,
 }) {
   return DownloadTask(
     id: 'song_$songId',
     songId: songId,
     title: title,
     artist: 'Artist',
+    genre: genre,
     albumId: albumId,
     albumName: albumId == null ? null : 'Album',
     albumArtist: albumId == null ? null : 'Album Artist',

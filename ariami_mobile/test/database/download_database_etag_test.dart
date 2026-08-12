@@ -54,7 +54,7 @@ void main() {
     await tempDir.delete(recursive: true);
   });
 
-  DownloadTask buildTask({String? etag}) {
+  DownloadTask buildTask({String? etag, String? genre}) {
     return DownloadTask(
       id: 'song_track-1',
       songId: 'track-1',
@@ -62,6 +62,7 @@ void main() {
       userId: 'alex',
       title: 'Track One',
       artist: 'Artist',
+      genre: genre,
       albumArt: '',
       downloadUrl: 'http://127.0.0.1:8080/api/download/track-1',
       totalBytes: 1024,
@@ -91,11 +92,19 @@ void main() {
     expect(tasks.single.downloadEtag, isNull);
   });
 
+  test('genre survives a save and reload', () async {
+    final database = await DownloadDatabase.create();
+    await database.upsertTask(buildTask(genre: 'Jazz/Fusion'));
+
+    final tasks = await (await DownloadDatabase.create()).loadDownloadQueue();
+    expect(tasks.single.genre, 'Jazz/Fusion');
+  });
+
   test('an existing v2 install upgrades without losing its queue', () async {
     // A broken migration here would not degrade downloads — it would throw on
     // open and take the whole feature out for every upgrading user.
-    final dbPath = p.join(await databaseFactory.getDatabasesPath(),
-        'downloads.db');
+    final dbPath =
+        p.join(await databaseFactory.getDatabasesPath(), 'downloads.db');
     await Directory(p.dirname(dbPath)).create(recursive: true);
     final legacy = await databaseFactory.openDatabase(
       dbPath,
@@ -128,13 +137,18 @@ void main() {
         reason: 'the pre-existing partial must still be resumable');
     expect(tasks.single.downloadEtag, isNull,
         reason: 'rows written before the column exists have no validator');
+    expect(tasks.single.genre, isNull,
+        reason: 'rows written before the column exists have no genre');
 
     // And the new column is writable on the upgraded schema.
-    await upgraded.upsertTask(buildTask(etag: '"dl-1024-7"'));
+    await upgraded.upsertTask(
+      buildTask(etag: '"dl-1024-7"', genre: 'Rock'),
+    );
     final after = await upgraded.loadDownloadQueue();
     expect(
       after.firstWhere((t) => t.songId == 'track-1').downloadEtag,
       '"dl-1024-7"',
     );
+    expect(after.firstWhere((t) => t.songId == 'track-1').genre, 'Rock');
   });
 }

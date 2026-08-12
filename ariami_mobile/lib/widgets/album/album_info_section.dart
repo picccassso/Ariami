@@ -7,6 +7,7 @@ class AlbumInfoSection extends StatelessWidget {
   final String? year;
   final int songCount;
   final int totalDurationSeconds;
+  final String? genre;
 
   const AlbumInfoSection({
     super.key,
@@ -15,6 +16,7 @@ class AlbumInfoSection extends StatelessWidget {
     required this.year,
     required this.songCount,
     required this.totalDurationSeconds,
+    this.genre,
   });
 
   @override
@@ -40,38 +42,17 @@ class AlbumInfoSection extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              if (year != null) ...[
-                Text(
-                  year!,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey[600],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text('•', style: TextStyle(color: Colors.grey[600])),
-                const SizedBox(width: 8),
-              ],
-              Text(
-                '$songCount ${songCount == 1 ? 'song' : 'songs'}',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[600],
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text('•', style: TextStyle(color: Colors.grey[600])),
-              const SizedBox(width: 8),
-              Text(
-                _formatDuration(totalDurationSeconds),
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[600],
-                ),
-              ),
-            ],
+          Text(
+            [
+              if (year != null) year!,
+              '$songCount ${songCount == 1 ? 'song' : 'songs'}',
+              _formatDuration(totalDurationSeconds),
+              if (genre != null) genre!,
+            ].join(' • '),
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey[600],
+            ),
           ),
         ],
       ),

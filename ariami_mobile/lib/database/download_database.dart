@@ -13,7 +13,7 @@ class DownloadDatabase {
       'download_auto_resume_interrupted_on_launch';
   static const String _sqliteMigrationKey = 'download_queue_sqlite_migrated_v1';
   static const String _databaseName = 'downloads.db';
-  static const int _databaseVersion = 3;
+  static const int _databaseVersion = 4;
   static const String _tasksTable = 'download_tasks';
 
   final SharedPreferences _prefs;
@@ -58,6 +58,7 @@ class DownloadDatabase {
         user_id TEXT,
         title TEXT NOT NULL,
         artist TEXT NOT NULL,
+        genre TEXT,
         album_id TEXT,
         album_name TEXT,
         album_artist TEXT,
@@ -97,6 +98,9 @@ class DownloadDatabase {
     if (oldVersion < 3) {
       await db
           .execute('ALTER TABLE $_tasksTable ADD COLUMN download_etag TEXT');
+    }
+    if (oldVersion < 4) {
+      await db.execute('ALTER TABLE $_tasksTable ADD COLUMN genre TEXT');
     }
   }
 
@@ -147,6 +151,7 @@ class DownloadDatabase {
       'user_id': task.userId,
       'title': task.title,
       'artist': task.artist,
+      'genre': task.genre,
       'album_id': task.albumId,
       'album_name': task.albumName,
       'album_artist': task.albumArtist,
@@ -176,6 +181,7 @@ class DownloadDatabase {
       'userId': row['user_id'] as String?,
       'title': row['title'] as String,
       'artist': row['artist'] as String,
+      'genre': row['genre'] as String?,
       'albumId': row['album_id'] as String?,
       'albumName': row['album_name'] as String?,
       'albumArtist': row['album_artist'] as String?,

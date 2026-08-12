@@ -478,8 +478,7 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
         if (song == null) continue;
         if (song.albumId == task.albumId) continue;
 
-        final album =
-            song.albumId == null ? null : albumsById[song.albumId];
+        final album = song.albumId == null ? null : albumsById[song.albumId];
         final replacement =
             _buildAlbumIdMigratedTask(task, song.albumId, album);
         if (_queue.replaceTask(task.id, replacement)) {
@@ -506,9 +505,10 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
     List<SongModel> librarySongs = const <SongModel>[],
   }) async {
     await _ensureInitialized();
-    if (libraryAlbums.isEmpty) return 0;
+    if (libraryAlbums.isEmpty && librarySongs.isEmpty) return 0;
 
     final albumsById = {for (final album in libraryAlbums) album.id: album};
+    final songsById = {for (final song in librarySongs) song.id: song};
     final albumIdBySongId = {
       for (final song in librarySongs)
         if (song.albumId != null) song.id: song.albumId!,
@@ -519,20 +519,24 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
     _queue.beginBatch();
     try {
       for (final task in tasks) {
+        final song = songsById[task.songId];
         final albumId = task.albumId ?? albumIdBySongId[task.songId];
         final album = albumId == null ? null : albumsById[albumId];
-        if (album == null ||
-            (task.albumId == album.id &&
+        final genreChanged = song?.genre != null && task.genre != song!.genre;
+        final albumChanged = album != null &&
+            !(task.albumId == album.id &&
                 task.albumName == album.title &&
                 task.albumArtist == album.artist &&
-                (album.coverArt == null || task.albumArt == album.coverArt))) {
+                (album.coverArt == null || task.albumArt == album.coverArt));
+        if (!genreChanged && !albumChanged) {
           continue;
         }
 
-        final replacement = _buildDownloadTaskWithAlbumMetadata(
+        final replacement = _buildDownloadTaskWithMetadata(
           task,
-          album,
-          albumId: album.id,
+          album: album,
+          albumId: album?.id,
+          genre: song?.genre,
         );
         if (_queue.replaceTask(task.id, replacement)) {
           refreshedCount++;
@@ -638,6 +642,7 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
       userId: task.userId,
       title: song.title,
       artist: song.artist,
+      genre: song.genre,
       albumId: song.albumId,
       albumName: album?.title ?? task.albumName,
       albumArtist: album?.artist ?? task.albumArtist,
@@ -662,6 +667,7 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
       retryCount: task.retryCount,
       nativeBackend: task.nativeBackend,
       nativeTaskId: task.nativeTaskId,
+      downloadEtag: task.downloadEtag,
     );
   }
 
@@ -677,6 +683,7 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
       userId: task.userId,
       title: task.title,
       artist: task.artist,
+      genre: task.genre,
       albumId: newAlbumId,
       albumName: album?.title ?? task.albumName,
       albumArtist: album?.artist ?? task.albumArtist,
@@ -694,13 +701,15 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
       retryCount: task.retryCount,
       nativeBackend: task.nativeBackend,
       nativeTaskId: task.nativeTaskId,
+      downloadEtag: task.downloadEtag,
     );
   }
 
-  DownloadTask _buildDownloadTaskWithAlbumMetadata(
-    DownloadTask task,
-    AlbumModel album, {
+  DownloadTask _buildDownloadTaskWithMetadata(
+    DownloadTask task, {
+    AlbumModel? album,
     String? albumId,
+    String? genre,
   }) {
     return DownloadTask(
       id: task.id,
@@ -709,10 +718,11 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
       userId: task.userId,
       title: task.title,
       artist: task.artist,
+      genre: genre ?? task.genre,
       albumId: albumId ?? task.albumId,
-      albumName: album.title,
-      albumArtist: album.artist,
-      albumArt: album.coverArt ?? task.albumArt,
+      albumName: album?.title ?? task.albumName,
+      albumArtist: album?.artist ?? task.albumArtist,
+      albumArt: album?.coverArt ?? task.albumArt,
       downloadUrl: task.downloadUrl,
       downloadQuality: task.downloadQuality,
       downloadOriginal: task.downloadOriginal,
@@ -726,6 +736,7 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
       retryCount: task.retryCount,
       nativeBackend: task.nativeBackend,
       nativeTaskId: task.nativeTaskId,
+      downloadEtag: task.downloadEtag,
     );
   }
 

@@ -17,6 +17,7 @@ class AlbumListItem extends StatelessWidget {
   final bool isPinned;
   final bool isSelectionMode;
   final bool isSelected;
+  final String? genre;
 
   const AlbumListItem({
     super.key,
@@ -29,6 +30,7 @@ class AlbumListItem extends StatelessWidget {
     this.isPinned = false,
     this.isSelectionMode = false,
     this.isSelected = false,
+    this.genre,
   });
 
   @override
@@ -158,8 +160,7 @@ class AlbumListItem extends StatelessWidget {
                             ],
                             Expanded(
                               child: PlayingCollectionTitle(
-                                sourceId:
-                                    PlaybackManager.albumSource(album.id),
+                                sourceId: PlaybackManager.albumSource(album.id),
                                 text: album.title,
                                 enabled: isAvailable && !isSelectionMode,
                                 style: Theme.of(context)
@@ -180,9 +181,11 @@ class AlbumListItem extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          isOfflineCopy
-                              ? '${album.artist} · Offline copy'
-                              : album.artist,
+                          [
+                            album.artist,
+                            if (genre != null) genre!,
+                            if (isOfflineCopy) 'Offline copy',
+                          ].join(' · '),
                           style: Theme.of(context)
                               .textTheme
                               .bodyMedium

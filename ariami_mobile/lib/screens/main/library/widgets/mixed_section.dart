@@ -7,7 +7,9 @@ import '../../../../widgets/library/album_grid_item.dart';
 import '../../../../widgets/library/album_list_item.dart';
 import '../../../../widgets/library/playlist_card.dart';
 import '../../../../widgets/library/playlist_list_item.dart';
+import '../../../../widgets/library/genre_label.dart';
 import '../library_state.dart';
+import 'genre_filter_bar.dart';
 import 'section_header.dart';
 
 /// Combined widget that displays playlists and albums mixed together.
@@ -27,6 +29,7 @@ class MixedSection extends StatefulWidget {
   final bool isSelectionMode;
   final Set<String> selectedPlaylistIds;
   final Set<String> selectedAlbumIds;
+  final ValueChanged<String?>? onGenreFilterChanged;
 
   const MixedSection({
     super.key,
@@ -43,6 +46,7 @@ class MixedSection extends StatefulWidget {
     this.isSelectionMode = false,
     this.selectedPlaylistIds = const {},
     this.selectedAlbumIds = const {},
+    this.onGenreFilterChanged,
   });
 
   @override
@@ -67,6 +71,13 @@ class _MixedSectionState extends State<MixedSection> {
           isExpanded: _isExpanded,
           onTap: () => setState(() => _isExpanded = !_isExpanded),
         ),
+        if (_isExpanded)
+          SliverToBoxAdapter(
+            child: GenreFilterBar(
+              state: widget.state,
+              onChanged: widget.onGenreFilterChanged ?? (_) {},
+            ),
+          ),
         if (_isExpanded)
           widget.isGridView
               ? _buildGridView(context, mixedItems)
@@ -178,6 +189,7 @@ class _MixedSectionState extends State<MixedSection> {
                   isPinned: item.isPinned,
                   isSelectionMode: widget.isSelectionMode,
                   isSelected: widget.selectedAlbumIds.contains(album.id),
+                  genre: genreSummary(widget.state.albumGenres(album.id)),
                 );
               },
             );
@@ -228,6 +240,7 @@ class _MixedSectionState extends State<MixedSection> {
                 isPinned: item.isPinned,
                 isSelectionMode: widget.isSelectionMode,
                 isSelected: widget.selectedAlbumIds.contains(album.id),
+                genre: genreSummary(widget.state.albumGenres(album.id)),
               );
             },
           );

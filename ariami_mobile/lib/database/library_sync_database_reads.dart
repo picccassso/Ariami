@@ -60,6 +60,25 @@ class _LibrarySyncDatabaseReads {
     return rows.map(_songFromMap).toList();
   }
 
+  Future<List<LibraryAlbumGenreRow>> listAlbumGenres() async {
+    final db = await _owner.database;
+    final rows = await db.query(
+      LibrarySyncDatabase._songsTable,
+      columns: const <String>['album_id', 'genre'],
+      where: "is_deleted = 0 AND album_id IS NOT NULL "
+          "AND genre IS NOT NULL AND TRIM(genre) != ''",
+      orderBy: 'album_id ASC, id ASC',
+    );
+    return rows
+        .map(
+          (row) => LibraryAlbumGenreRow(
+            albumId: row['album_id'] as String,
+            genre: row['genre'] as String,
+          ),
+        )
+        .toList();
+  }
+
   Future<List<LibraryPlaylistRow>> listPlaylists() async {
     final db = await _owner.database;
     final rows = await db.query(

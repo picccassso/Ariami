@@ -12,6 +12,7 @@ import '../../../services/api/connection_service.dart';
 import '../../../services/cache/cache_manager.dart';
 import '../../../services/download/download_manager.dart';
 import '../../../services/library/library_read_facade.dart';
+import '../../../services/library/library_genre_index.dart';
 import '../../../services/library/library_pin_storage.dart';
 import '../../../services/offline/offline_manual_reconnect.dart';
 import '../../../services/offline/offline_copy_service.dart';
@@ -149,6 +150,14 @@ class LibraryController extends ChangeNotifier {
   Future<void> markPlaylistPlayed(String playlistId) =>
       _markItemPlayed('playlist:$playlistId');
   void toggleShowDownloadedOnly() => _toggleShowDownloadedOnly();
+  void setGenreFilter(String? genre) {
+    if (_state.genreFilter == genre) return;
+    _updateState(_state.copyWith(
+      genreFilter: genre,
+      clearGenreFilter: genre == null,
+    ));
+  }
+
   Future<void> togglePinAlbum(String albumId) => _togglePinAlbum(albumId);
   Future<void> togglePinPlaylist(String playlistId) =>
       _togglePinPlaylist(playlistId);

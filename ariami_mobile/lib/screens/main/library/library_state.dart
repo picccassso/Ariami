@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import '../../../models/api_models.dart';
 import '../../../models/song.dart';
+import '../../../services/library/library_genre_index.dart';
 
 /// Immutable state class for the library screen.
 /// Contains all the data needed to render the library UI.
@@ -14,6 +15,8 @@ class LibraryState {
   /// Offline mode state built from downloads
   final List<Song> offlineSongs;
   final bool isOfflineMode;
+  final LibraryGenreIndex genreIndex;
+  final String? genreFilter;
 
   /// Loading and error states
   final bool isLoading;
@@ -47,6 +50,8 @@ class LibraryState {
     this.offlineCopySongs = const [],
     this.offlineSongs = const [],
     this.isOfflineMode = false,
+    this.genreIndex = LibraryGenreIndex.empty,
+    this.genreFilter,
     this.isLoading = true,
     this.isRefreshing = false,
     this.errorMessage,
@@ -74,6 +79,8 @@ class LibraryState {
     List<SongModel>? offlineCopySongs,
     List<Song>? offlineSongs,
     bool? isOfflineMode,
+    LibraryGenreIndex? genreIndex,
+    String? genreFilter,
     bool? isLoading,
     bool? isRefreshing,
     String? errorMessage,
@@ -94,6 +101,7 @@ class LibraryState {
     Set<String>? pinnedItemIds,
     bool clearError = false,
     bool clearSyncWarning = false,
+    bool clearGenreFilter = false,
   }) {
     return LibraryState(
       albums: albums ?? this.albums,
@@ -101,6 +109,8 @@ class LibraryState {
       offlineCopySongs: offlineCopySongs ?? this.offlineCopySongs,
       offlineSongs: offlineSongs ?? this.offlineSongs,
       isOfflineMode: isOfflineMode ?? this.isOfflineMode,
+      genreIndex: genreIndex ?? this.genreIndex,
+      genreFilter: clearGenreFilter ? null : (genreFilter ?? this.genreFilter),
       isLoading: isLoading ?? this.isLoading,
       isRefreshing: isRefreshing ?? this.isRefreshing,
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
@@ -135,11 +145,22 @@ class LibraryState {
 
   /// Returns the list of albums to show based on download filter
   List<AlbumModel> get albumsToShow {
-    if (!showDownloadedOnly) return albums;
-    return albums
-        .where((album) => albumsWithDownloads.contains(album.id))
-        .toList();
+    final genreAlbumIds =
+        genreFilter == null ? null : genreIndex.genreAlbums[genreFilter!];
+    return albums.where((album) {
+      if (showDownloadedOnly && !albumsWithDownloads.contains(album.id)) {
+        return false;
+      }
+      return genreFilter == null ||
+          (genreAlbumIds?.contains(album.id) ?? false);
+    }).toList();
   }
+
+  List<String> albumGenres(String albumId) =>
+      genreIndex.albumGenres[albumId] ?? const <String>[];
+
+  int genreAlbumCount(String genre) =>
+      genreIndex.genreAlbums[genre]?.length ?? 0;
 
   bool get hasOfflineCopies =>
       offlineCopyAlbumIds.isNotEmpty ||
@@ -207,6 +228,8 @@ class LibraryState {
         listEquals(other.offlineCopySongs, offlineCopySongs) &&
         listEquals(other.offlineSongs, offlineSongs) &&
         other.isOfflineMode == isOfflineMode &&
+        other.genreIndex == genreIndex &&
+        other.genreFilter == genreFilter &&
         other.isLoading == isLoading &&
         other.isRefreshing == isRefreshing &&
         other.errorMessage == errorMessage &&
@@ -234,6 +257,8 @@ class LibraryState {
         Object.hashAll(offlineCopySongs),
         Object.hashAll(offlineSongs),
         isOfflineMode,
+        genreIndex,
+        genreFilter,
         isLoading,
         isRefreshing,
         errorMessage,

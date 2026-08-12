@@ -231,6 +231,7 @@ extension _LibraryControllerLoading on LibraryController {
         ),
         ...library.albums,
       ],
+      librarySongs: library.songs,
     );
     await _offlineCopyService.reconcileAlbums(
       tasks: _downloadManager.queue,
@@ -239,12 +240,29 @@ extension _LibraryControllerLoading on LibraryController {
     );
     final retainedAlbums = _buildRetainedOfflineAlbums();
     final retainedSongs = _buildRetainedOfflineSongs();
+    final retainedGenreIndex = _buildDownloadGenreIndex(
+      _downloadManager.queue.where(
+        (task) =>
+            task.status == DownloadStatus.completed &&
+            task.albumId != null &&
+            _offlineCopyService.isRetainedAlbum(task.albumId!),
+      ),
+    );
+    final genreIndex = LibraryGenreIndex.merge(
+      <LibraryGenreIndex>[library.genreIndex, retainedGenreIndex],
+    );
+    final selectedGenre = _state.genreFilter;
+    final keepGenreFilter = selectedGenre != null &&
+        genreIndex.genreAlbums.containsKey(selectedGenre);
     _hasLoadedOnlineLibrary = true;
 
     _updateState(_state.copyWith(
       albums: [...library.albums, ...retainedAlbums],
       songs: library.songs,
       offlineCopySongs: retainedSongs,
+      genreIndex: genreIndex,
+      genreFilter: keepGenreFilter ? selectedGenre : null,
+      clearGenreFilter: !keepGenreFilter,
       offlineCopyAlbumIds: _offlineCopyService.retainedAlbumIds,
       isOfflineMode: false,
       isLoading: false,

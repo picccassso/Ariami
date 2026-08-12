@@ -23,6 +23,7 @@ import '../widgets/album/album_playlist_picker_sheet.dart';
 import '../widgets/album/track_list.dart';
 import '../widgets/common/queue_action_confirmation.dart';
 import '../utils/responsive.dart';
+import '../widgets/library/genre_label.dart';
 
 /// Album detail screen with track listing and album actions
 class AlbumDetailScreen extends StatefulWidget {
@@ -214,6 +215,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
               id: t.songId,
               title: t.title,
               artist: t.artist,
+              genre: t.genre,
               albumId: t.albumId,
               duration: t.duration,
               trackNumber: t.trackNumber,
@@ -296,6 +298,9 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
                 ? _albumDetail!.songs
                     .fold<int>(0, (sum, song) => sum + song.duration)
                 : widget.album.duration,
+            genre: genreDetail(
+              _libraryController.state.albumGenres(widget.album.id),
+            ),
           ),
         ),
 
@@ -448,6 +453,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
         songId: song.id,
         title: song.title,
         artist: song.artist,
+        genre: song.genre,
         albumId: song.albumId,
         albumName: widget.album.title,
         albumArtist: widget.album.artist,

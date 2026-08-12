@@ -58,6 +58,16 @@ class LibrarySongRow {
   });
 }
 
+class LibraryAlbumGenreRow {
+  final String albumId;
+  final String genre;
+
+  const LibraryAlbumGenreRow({
+    required this.albumId,
+    required this.genre,
+  });
+}
+
 class LibraryPlaylistRow {
   final String id;
   final String name;

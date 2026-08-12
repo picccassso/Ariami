@@ -17,6 +17,7 @@ class AlbumGridItem extends StatelessWidget {
   final bool isPinned;
   final bool isSelectionMode;
   final bool isSelected;
+  final String? genre;
 
   const AlbumGridItem({
     super.key,
@@ -29,6 +30,7 @@ class AlbumGridItem extends StatelessWidget {
     this.isPinned = false,
     this.isSelectionMode = false,
     this.isSelected = false,
+    this.genre,
   });
 
   @override
@@ -189,9 +191,11 @@ class AlbumGridItem extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    isOfflineCopy
-                        ? '${album.artist} · Offline copy'
-                        : album.artist,
+                    [
+                      album.artist,
+                      if (genre != null) genre!,
+                      if (isOfflineCopy) 'Offline copy',
+                    ].join(' · '),
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: isOfflineCopy
                               ? Theme.of(context).colorScheme.secondary
