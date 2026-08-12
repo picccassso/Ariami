@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../models/api_models.dart';
 import '../album_detail_screen.dart';
@@ -6,16 +7,24 @@ import 'search_screen.dart';
 import 'nested_tab_navigator.dart';
 
 /// A navigator key for the search tab's nested navigation
-final GlobalKey<NavigatorState> searchNavigatorKey = GlobalKey<NavigatorState>();
+final GlobalKey<NavigatorState> searchNavigatorKey =
+    GlobalKey<NavigatorState>();
 
 /// Wrapper widget that provides nested navigation for the Search tab.
 /// This allows album/playlist detail screens to be shown within the tab
 /// while keeping the bottom navigation bar and mini player visible.
 class SearchNavigator extends StatelessWidget {
-  const SearchNavigator({super.key, this.onBackAtRoot});
+  const SearchNavigator({
+    super.key,
+    this.onBackAtRoot,
+    this.reselectionRequests,
+  });
 
   /// Called when user presses back at the root of this navigator
   final VoidCallback? onBackAtRoot;
+
+  /// Changes whenever the already-selected Search destination is tapped.
+  final ValueListenable<int>? reselectionRequests;
 
   @override
   Widget build(BuildContext context) {
@@ -27,7 +36,10 @@ class SearchNavigator extends StatelessWidget {
 
         switch (settings.name) {
           case '/':
-            page = const SearchScreen();
+            page = SearchScreen(
+              focusOnOpen: true,
+              reselectionRequests: reselectionRequests,
+            );
             break;
           case '/album':
             final album = settings.arguments as AlbumModel;
@@ -38,7 +50,10 @@ class SearchNavigator extends StatelessWidget {
             page = PlaylistDetailScreen(playlistId: playlistId);
             break;
           default:
-            page = const SearchScreen();
+            page = SearchScreen(
+              focusOnOpen: true,
+              reselectionRequests: reselectionRequests,
+            );
         }
 
         return MaterialPageRoute(

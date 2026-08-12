@@ -28,6 +28,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
   final PlaybackManager _playbackManager = PlaybackManager();
   final ChromeCastService _castService = ChromeCastService();
   final AriamiConnectController _connect = AriamiConnectController();
+  final ValueNotifier<int> _searchTabReselections = ValueNotifier<int>(0);
   bool _refreshConnectOnResume = false;
 
   void _goToLibrary() {
@@ -55,6 +56,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _playbackManager.removeListener(_onPlaybackStateChanged);
+    _searchTabReselections.dispose();
     // Widget/view teardown is not proof that the Android process or its
     // background audio service is exiting. Keep local playback untouched.
     unawaited(_connect.stop());
@@ -113,7 +115,12 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
           libraryNavigatorKey.currentState?.popUntil((route) => route.isFirst);
           break;
         case 1:
-          searchNavigatorKey.currentState?.popUntil((route) => route.isFirst);
+          final navigator = searchNavigatorKey.currentState;
+          if (navigator?.canPop() ?? false) {
+            navigator?.popUntil((route) => route.isFirst);
+          } else {
+            _searchTabReselections.value++;
+          }
           break;
         case 2:
           settingsNavigatorKey.currentState?.popUntil((route) => route.isFirst);
@@ -140,7 +147,10 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
       case 0:
         return LibraryNavigator(onBackAtRoot: _exitApp);
       case 1:
-        return SearchNavigator(onBackAtRoot: _goToLibrary);
+        return SearchNavigator(
+          onBackAtRoot: _goToLibrary,
+          reselectionRequests: _searchTabReselections,
+        );
       case 2:
         return SettingsNavigator(onBackAtRoot: _goToLibrary);
       default:

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
@@ -40,7 +41,14 @@ class _SearchListItem {
 
 /// Search screen with real-time search and recent searches
 class SearchScreen extends StatefulWidget {
-  const SearchScreen({super.key});
+  const SearchScreen({
+    super.key,
+    this.focusOnOpen = false,
+    this.reselectionRequests,
+  });
+
+  final bool focusOnOpen;
+  final ValueListenable<int>? reselectionRequests;
 
   @override
   State<SearchScreen> createState() => _SearchScreenState();
@@ -55,6 +63,7 @@ class _SearchScreenState extends State<SearchScreen> {
   final PlaylistService _playlistService = PlaylistService();
   final DebouncedSearch _debouncer = DebouncedSearch();
   final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
 
   List<SongModel> _allSongs = [];
   List<AlbumModel> _allAlbums = [];
@@ -87,6 +96,12 @@ class _SearchScreenState extends State<SearchScreen> {
     unawaited(_playlistService.loadPlaylists());
     _playlistService.addListener(_onPlaylistsChanged);
     _searchController.addListener(_onSearchChanged);
+    widget.reselectionRequests?.addListener(_onSearchTabReselected);
+    if (widget.focusOnOpen) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _searchFocusNode.requestFocus();
+      });
+    }
 
     // Listen to offline state changes
     _offlineSubscription = _offlineService.offlineModeStream.listen((_) {
@@ -106,15 +121,36 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   @override
+  void didUpdateWidget(covariant SearchScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.reselectionRequests != widget.reselectionRequests) {
+      oldWidget.reselectionRequests?.removeListener(_onSearchTabReselected);
+      widget.reselectionRequests?.addListener(_onSearchTabReselected);
+    }
+  }
+
+  @override
   void dispose() {
     _downloadStateWatcher.dispose();
     _playlistService.removeListener(_onPlaylistsChanged);
     _searchController.removeListener(_onSearchChanged);
+    widget.reselectionRequests?.removeListener(_onSearchTabReselected);
     _searchController.dispose();
+    _searchFocusNode.dispose();
     _debouncer.cancel();
     _offlineSubscription?.cancel();
     _webSocketSubscription?.cancel();
     super.dispose();
+  }
+
+  void _onSearchTabReselected() {
+    if (_searchController.text.isNotEmpty) {
+      _clearSearch();
+      _searchFocusNode.unfocus();
+      return;
+    }
+
+    _searchFocusNode.requestFocus();
   }
 
   void _onDownloadStateChanged(Set<String> _) {
@@ -402,7 +438,9 @@ class _SearchScreenState extends State<SearchScreen> {
                         ),
                         child: TextField(
                           controller: _searchController,
-                          autofocus: false,
+                          focusNode: _searchFocusNode,
+                          textInputAction: TextInputAction.search,
+                          onSubmitted: (_) => _searchFocusNode.unfocus(),
                           style: const TextStyle(fontSize: 16),
                           decoration: InputDecoration(
                             hintText: _isOffline
