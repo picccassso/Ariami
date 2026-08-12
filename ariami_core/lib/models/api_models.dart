@@ -165,6 +165,7 @@ class SongModel {
   final String id;
   final String title;
   final String artist;
+  final String? genre;
   final String? albumId;
   final int duration; // in seconds
   final int? trackNumber;
@@ -173,6 +174,7 @@ class SongModel {
     required this.id,
     required this.title,
     required this.artist,
+    this.genre,
     this.albumId,
     required this.duration,
     this.trackNumber,
@@ -183,6 +185,7 @@ class SongModel {
       id: json['id'] as String,
       title: json['title'] as String,
       artist: json['artist'] as String,
+      genre: json['genre'] as String?,
       albumId: json['albumId'] as String?,
       duration: json['duration'] as int,
       trackNumber: json['trackNumber'] as int?,
@@ -194,6 +197,7 @@ class SongModel {
       'id': id,
       'title': title,
       'artist': artist,
+      if (genre != null) 'genre': genre,
       'albumId': albumId,
       'duration': duration,
       'trackNumber': trackNumber,

@@ -20,6 +20,45 @@ void main() {
   });
 
   group('LibraryRepository', () {
+    test('version 6 preserves cached songs while adding genre columns',
+        () async {
+      final dbPath = p.join(await getDatabasesPath(), 'library_sync.db');
+      final legacy = await openDatabase(
+        dbPath,
+        version: 5,
+        onCreate: (db, _) async {
+          for (final table in <String>['songs', 'bootstrap_staging_songs']) {
+            await db.execute('''
+CREATE TABLE $table (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  artist TEXT NOT NULL
+)
+''');
+          }
+          await db.insert('songs', <String, Object?>{
+            'id': 'song-1',
+            'title': 'Existing Song',
+            'artist': 'Existing Artist',
+          });
+        },
+      );
+      await legacy.close();
+
+      final database = await LibrarySyncDatabase.create();
+      addTearDown(database.close);
+      final upgraded = await database.database;
+
+      for (final table in <String>['songs', 'bootstrap_staging_songs']) {
+        final columns = await upgraded.rawQuery('PRAGMA table_info($table)');
+        expect(columns.map((column) => column['name']), contains('genre'));
+      }
+      expect(
+        (await upgraded.query('songs')).single['title'],
+        'Existing Song',
+      );
+    });
+
     test('bootstrap stores playlists with playlist-song membership', () async {
       final repository = LibraryRepository();
       addTearDown(repository.close);
@@ -41,6 +80,7 @@ void main() {
               id: 'song-1',
               title: 'Song 1',
               artist: 'Artist 1',
+              genre: 'Jazz/Fusion',
               albumId: 'album-1',
               duration: 180,
               trackNumber: 1,
@@ -76,6 +116,7 @@ void main() {
       final playlists = await repository.getServerPlaylists();
       expect(playlists.length, equals(1));
       expect(playlists.single.songIds, equals(<String>['song-2', 'song-1']));
+      expect((await repository.getSongs()).first.genre, 'Jazz/Fusion');
     });
 
     test('bootstrap normalizes playlist songCount from membership rows',

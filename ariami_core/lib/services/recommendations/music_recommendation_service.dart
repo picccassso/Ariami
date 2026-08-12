@@ -11,6 +11,7 @@ class MusicRecommendationService {
     this.trackSeedLimit = MusicDiscoveryPreferences.maxSeedDepth,
     this.musicBrainzLookupLimit = 4,
     this.artworkLookupLimit = 36,
+    this.metadataLookupLimit = 72,
   });
 
   final LastFmRecommendationClient lastFm;
@@ -23,18 +24,33 @@ class MusicRecommendationService {
   final int trackSeedLimit;
   final int musicBrainzLookupLimit;
   final int artworkLookupLimit;
+  final int metadataLookupLimit;
 
   Future<MusicRecommendationSnapshot> discover({
     required Iterable<MusicRecommendationSeed> seeds,
     required Iterable<OwnedMusicTrack> ownedTracks,
     int limit = 24,
     MusicDiscoveryMix mix = MusicDiscoveryMix.balanced,
+    Set<String> preferredTags = const <String>{},
+    Set<String> libraryTags = const <String>{},
+    bool instrumentalOnly = false,
   }) async {
+    final effectiveMix = instrumentalOnly ? MusicDiscoveryMix.tracks : mix;
+    final requestedTags = preferredTags
+        .map(normalizeMusicDiscoveryTag)
+        .where((tag) => tag.isNotEmpty)
+        .toSet();
+    final localTasteTags = libraryTags
+        .map(normalizeMusicDiscoveryTag)
+        .where((tag) => tag.isNotEmpty)
+        .toSet();
     final selectedArtists =
         _selectSeeds(seeds.where((seed) => !seed.isTrack), artistSeedLimit);
     final selectedTracks =
         _selectSeeds(seeds.where((seed) => seed.isTrack), trackSeedLimit);
-    if (selectedArtists.isEmpty && selectedTracks.isEmpty) {
+    if (selectedArtists.isEmpty &&
+        selectedTracks.isEmpty &&
+        requestedTags.isEmpty) {
       throw const LastFmRecommendationException(
         'Listen to a few songs first so Ariami can choose recommendation seeds.',
       );
@@ -72,7 +88,7 @@ class MusicRecommendationService {
         unresolvedSeeds++;
       }
     }
-    if (accumulators.isEmpty && unresolvedSeeds > 0) {
+    if (accumulators.isEmpty && unresolvedSeeds > 0 && requestedTags.isEmpty) {
       throw const LastFmRecommendationException(
         'Last.fm did not recognise any of your top artists or tracks for that '
         'period. Try a wider taste period, or a greater taste depth.',
@@ -80,13 +96,52 @@ class MusicRecommendationService {
       );
     }
 
-    var candidates = accumulators.values
+    final tagCandidates = <String, _CandidateAccumulator>{};
+    for (final tag in requestedTags) {
+      try {
+        if (effectiveMix == MusicDiscoveryMix.tracks ||
+            effectiveMix == MusicDiscoveryMix.balanced) {
+          _mergeTag(
+            tagCandidates,
+            await lastFm.topTracksForTag(tag, limit: candidateLimit * 2),
+            tag,
+          );
+        }
+        if (effectiveMix == MusicDiscoveryMix.artists ||
+            effectiveMix == MusicDiscoveryMix.albums ||
+            effectiveMix == MusicDiscoveryMix.balanced) {
+          _mergeTag(
+            tagCandidates,
+            await lastFm.topArtistsForTag(tag, limit: candidateLimit * 2),
+            tag,
+          );
+        }
+      } on LastFmRecommendationException catch (error) {
+        if (!error.isNotFound) rethrow;
+      }
+    }
+    if (requestedTags.isNotEmpty && tagCandidates.isEmpty) {
+      throw LastFmRecommendationException(
+        'Last.fm found no music tagged ${requestedTags.map(musicDiscoveryTagLabel).join(' or ')}. '
+        'Try another tag.',
+        apiCode: 6,
+      );
+    }
+    if (tagCandidates.isNotEmpty) {
+      for (final entry in tagCandidates.entries) {
+        final tasteCandidate = accumulators[entry.key];
+        if (tasteCandidate != null) entry.value.absorb(tasteCandidate);
+      }
+    }
+
+    var candidates = (requestedTags.isEmpty ? accumulators : tagCandidates)
+        .values
         .where((candidate) => !_isSeed(candidate, <MusicRecommendationSeed>[
               ...selectedArtists,
               ...selectedTracks,
             ]))
         .where((candidate) =>
-            mix == MusicDiscoveryMix.albums ||
+            effectiveMix == MusicDiscoveryMix.albums ||
             !owned.contains(candidate.kind, candidate.name, candidate.artist))
         .toList()
       ..sort(_compareCandidates);
@@ -115,7 +170,7 @@ class MusicRecommendationService {
     // Last.fm spellings. Merge once more, then re-run the owned-library filter.
     final identified = <String, _CandidateAccumulator>{};
     for (final candidate in candidates) {
-      if (mix != MusicDiscoveryMix.albums &&
+      if (effectiveMix != MusicDiscoveryMix.albums &&
           owned.contains(candidate.kind, candidate.name, candidate.artist)) {
         continue;
       }
@@ -134,7 +189,20 @@ class MusicRecommendationService {
     }
     candidates = identified.values.toList()..sort(_compareCandidates);
 
-    candidates = switch (mix) {
+    if (localTasteTags.isNotEmpty) {
+      await _enrichMetadata(
+        candidates.take(metadataLookupLimit),
+        rethrowFailures: false,
+      );
+      for (final candidate in candidates) {
+        if (_tagsMatch(candidate.tags, localTasteTags)) {
+          candidate.boostForLibraryTaste();
+        }
+      }
+      candidates.sort(_compareCandidates);
+    }
+
+    candidates = switch (effectiveMix) {
       MusicDiscoveryMix.tracks => candidates
           .where((item) => item.kind == MusicRecommendationKind.track)
           .toList(),
@@ -144,7 +212,23 @@ class MusicRecommendationService {
       MusicDiscoveryMix.balanced => candidates,
     };
 
-    if (mix == MusicDiscoveryMix.albums) {
+    if (instrumentalOnly) {
+      await _enrichMetadata(candidates.take(metadataLookupLimit));
+      candidates = candidates
+          .where((candidate) =>
+              _tagsMatch(candidate.tags, const <String>{'instrumental'}))
+          .toList();
+      if (candidates.isEmpty) {
+        throw LastFmRecommendationException(
+          requestedTags.isEmpty
+              ? 'Last.fm found no explicitly instrumental matches for your taste. Try a wider taste period or depth.'
+              : 'Last.fm found no explicitly instrumental ${requestedTags.map(musicDiscoveryTagLabel).join(' or ')} matches. Try another tag.',
+          apiCode: 6,
+        );
+      }
+    }
+
+    if (effectiveMix == MusicDiscoveryMix.albums) {
       final recommendations = await _albumsFromArtists(
         candidates,
         owned: owned,
@@ -276,6 +360,8 @@ class MusicRecommendationService {
           imageUrl: album.imageUrl,
           sourceSeeds: entry.candidate.sourceSeeds.toList(growable: false)
             ..sort(),
+          sourceTags: entry.candidate.sourceTags.toList(growable: false)
+            ..sort(),
         ));
         if (recommendations.length >= limit) break;
       }
@@ -289,7 +375,8 @@ class MusicRecommendationService {
     final missing = <_CandidateAccumulator>[
       ...candidates.where((candidate) =>
           candidate.kind == MusicRecommendationKind.track &&
-          candidate.imageUrl == null),
+          candidate.imageUrl == null &&
+          !candidate.metadataLoaded),
       ...candidates.where((candidate) =>
           candidate.kind == MusicRecommendationKind.artist &&
           candidate.imageUrl == null),
@@ -312,6 +399,59 @@ class MusicRecommendationService {
         }
       }));
     }
+  }
+
+  Future<void> _enrichMetadata(Iterable<_CandidateAccumulator> source,
+      {bool rethrowFailures = true}) async {
+    final candidates = source
+        .where((candidate) => !candidate.metadataLoaded)
+        .toList(growable: false);
+    for (var offset = 0; offset < candidates.length; offset += 4) {
+      final end =
+          offset + 4 < candidates.length ? offset + 4 : candidates.length;
+      await Future.wait(candidates.sublist(offset, end).map((candidate) async {
+        try {
+          final metadata = candidate.kind == MusicRecommendationKind.artist
+              ? await lastFm.artistMetadata(candidate.name)
+              : await lastFm.trackMetadata(
+                  artist: candidate.artist ?? '',
+                  track: candidate.name,
+                );
+          candidate.metadataLoaded = true;
+          candidate.tags = metadata.tags;
+          candidate.imageUrl ??= metadata.imageUrl;
+        } on LastFmRecommendationException catch (error) {
+          if (!error.isNotFound) {
+            if (rethrowFailures) rethrow;
+            return;
+          }
+          candidate.metadataLoaded = true;
+          // An individual track or artist can be absent from Last.fm's info
+          // catalogue even when it appeared in a similarity response.
+        } catch (_) {
+          if (rethrowFailures) rethrow;
+          // A local-genre boost is optional. Instrumental mode retries failed
+          // metadata because it needs positive evidence before including one.
+        }
+      }));
+    }
+  }
+
+  static bool _tagsMatch(Set<String>? tags, Set<String> aliases) {
+    if (tags == null || tags.isEmpty) return false;
+    for (final rawTag in tags) {
+      final tag = SearchNormalizer.normalizeString(rawTag);
+      for (final rawAlias in aliases) {
+        final alias = SearchNormalizer.normalizeString(rawAlias);
+        if (tag == alias ||
+            tag.startsWith('$alias ') ||
+            tag.endsWith(' $alias') ||
+            tag.contains(' $alias ')) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 
   static List<MusicRecommendationSeed> _selectSeeds(
@@ -362,6 +502,31 @@ class MusicRecommendationService {
         );
       } else {
         existing.addEvidence(weightedScore, seed.label);
+      }
+    }
+  }
+
+  static void _mergeTag(
+    Map<String, _CandidateAccumulator> target,
+    Iterable<LastFmRecommendationCandidate> candidates,
+    String tag,
+  ) {
+    for (final candidate in candidates) {
+      if (candidate.match <= 0) continue;
+      final key = _identityKey(
+        candidate.kind,
+        candidate.name,
+        candidate.artist,
+        candidate.musicBrainzId,
+      );
+      final existing = target[key];
+      if (existing == null) {
+        target[key] = _CandidateAccumulator.fromTag(
+          candidate,
+          tag: tag,
+        );
+      } else {
+        existing.addTagEvidence(candidate.match, tag);
       }
     }
   }
@@ -427,6 +592,7 @@ class _CandidateAccumulator {
     required this.imageUrl,
     required this.score,
     required this.sourceSeeds,
+    required this.sourceTags,
   });
 
   factory _CandidateAccumulator.fromLastFm(
@@ -443,6 +609,23 @@ class _CandidateAccumulator {
         imageUrl: candidate.imageUrl,
         score: weightedScore,
         sourceSeeds: <String>{seed},
+        sourceTags: <String>{},
+      );
+
+  factory _CandidateAccumulator.fromTag(
+    LastFmRecommendationCandidate candidate, {
+    required String tag,
+  }) =>
+      _CandidateAccumulator(
+        kind: candidate.kind,
+        name: candidate.name,
+        artist: candidate.artist,
+        lastFmUrl: candidate.url,
+        musicBrainzId: candidate.musicBrainzId,
+        imageUrl: candidate.imageUrl,
+        score: candidate.match,
+        sourceSeeds: <String>{},
+        sourceTags: <String>{tag},
       );
 
   final MusicRecommendationKind kind;
@@ -453,6 +636,9 @@ class _CandidateAccumulator {
   Uri? imageUrl;
   double score;
   final Set<String> sourceSeeds;
+  final Set<String> sourceTags;
+  Set<String>? tags;
+  bool metadataLoaded = false;
 
   void addEvidence(double weightedScore, String seed) {
     // The strongest relationship leads, with corroborating seeds adding a
@@ -463,9 +649,24 @@ class _CandidateAccumulator {
     sourceSeeds.add(seed);
   }
 
+  void addTagEvidence(double tagScore, String tag) {
+    score =
+        score > tagScore ? score + tagScore * 0.15 : tagScore + score * 0.15;
+    sourceTags.add(tag);
+  }
+
+  void boostForLibraryTaste() => score *= 1.15;
+
   void absorb(_CandidateAccumulator other) {
-    addEvidence(other.score, other.sourceSeeds.first);
+    if (other.sourceSeeds.isNotEmpty) {
+      addEvidence(other.score, other.sourceSeeds.first);
+    } else {
+      score = score > other.score
+          ? score + other.score * 0.25
+          : other.score + score * 0.25;
+    }
     sourceSeeds.addAll(other.sourceSeeds);
+    sourceTags.addAll(other.sourceTags);
     musicBrainzId ??= other.musicBrainzId;
     imageUrl ??= other.imageUrl;
     if (!lastFmUrl.hasScheme) lastFmUrl = other.lastFmUrl;
@@ -480,6 +681,7 @@ class _CandidateAccumulator {
         musicBrainzId: musicBrainzId,
         imageUrl: imageUrl,
         sourceSeeds: sourceSeeds.toList(growable: false)..sort(),
+        sourceTags: sourceTags.toList(growable: false)..sort(),
       );
 }
 

@@ -59,7 +59,17 @@ class LastFmTopAlbum {
   final Uri? imageUrl;
 }
 
-/// Small, unauthenticated Last.fm client for the two similarity endpoints.
+class LastFmRecommendationMetadata {
+  const LastFmRecommendationMetadata({
+    this.imageUrl,
+    this.tags = const <String>{},
+  });
+
+  final Uri? imageUrl;
+  final Set<String> tags;
+}
+
+/// Small, unauthenticated Last.fm client for discovery and tag metadata.
 class LastFmRecommendationClient {
   LastFmRecommendationClient({
     required this.apiKey,
@@ -112,6 +122,48 @@ class LastFmRecommendationClient {
         .toList(growable: false);
   }
 
+  Future<List<LastFmRecommendationCandidate>> topTracksForTag(
+    String tag, {
+    int limit = 50,
+  }) async {
+    final json = await _request(<String, String>{
+      'method': 'tag.gettoptracks',
+      'tag': normalizeMusicDiscoveryTag(tag),
+      'limit': '$limit',
+    });
+    final root = json['tracks'];
+    final rows = root is Map<String, dynamic>
+        ? _asMaps(root['track']).toList(growable: false)
+        : const <Map<String, dynamic>>[];
+    return <LastFmRecommendationCandidate>[
+      for (var i = 0; i < rows.length; i++)
+        if (_parseTrack(rows[i], fallbackMatch: _rankMatch(i, rows.length))
+            case final candidate?)
+          candidate,
+    ];
+  }
+
+  Future<List<LastFmRecommendationCandidate>> topArtistsForTag(
+    String tag, {
+    int limit = 50,
+  }) async {
+    final json = await _request(<String, String>{
+      'method': 'tag.gettopartists',
+      'tag': normalizeMusicDiscoveryTag(tag),
+      'limit': '$limit',
+    });
+    final root = json['topartists'];
+    final rows = root is Map<String, dynamic>
+        ? _asMaps(root['artist']).toList(growable: false)
+        : const <Map<String, dynamic>>[];
+    return <LastFmRecommendationCandidate>[
+      for (var i = 0; i < rows.length; i++)
+        if (_parseArtist(rows[i], fallbackMatch: _rankMatch(i, rows.length))
+            case final candidate?)
+          candidate,
+    ];
+  }
+
   Future<LastFmTopAlbum?> topAlbum(String artist) async {
     // Last.fm currently replaces artist portraits with its generic placeholder.
     // A top album gives the recommendation a truthful visual identity with one
@@ -141,7 +193,22 @@ class LastFmRecommendationClient {
   Future<Uri?> artistImage(String artist) async =>
       (await topAlbum(artist))?.imageUrl;
 
-  Future<Uri?> trackImage({
+  Future<LastFmRecommendationMetadata> artistMetadata(String artist) async {
+    final json = await _request(<String, String>{
+      'method': 'artist.getinfo',
+      'artist': artist,
+    });
+    final root = json['artist'];
+    if (root is! Map<String, dynamic>) {
+      return const LastFmRecommendationMetadata();
+    }
+    return LastFmRecommendationMetadata(
+      imageUrl: _imageUrl(root['image']),
+      tags: _tags((root['tags'] as Map<String, dynamic>?)?['tag']),
+    );
+  }
+
+  Future<LastFmRecommendationMetadata> trackMetadata({
     required String artist,
     required String track,
   }) async {
@@ -151,12 +218,23 @@ class LastFmRecommendationClient {
       'track': track,
     });
     final root = json['track'];
-    if (root is! Map<String, dynamic>) return null;
+    if (root is! Map<String, dynamic>) {
+      return const LastFmRecommendationMetadata();
+    }
     final album = root['album'];
     final albumImage =
         album is Map<String, dynamic> ? _imageUrl(album['image']) : null;
-    return albumImage ?? _imageUrl(root['image']);
+    return LastFmRecommendationMetadata(
+      imageUrl: albumImage ?? _imageUrl(root['image']),
+      tags: _tags((root['toptags'] as Map<String, dynamic>?)?['tag']),
+    );
   }
+
+  Future<Uri?> trackImage({
+    required String artist,
+    required String track,
+  }) async =>
+      (await trackMetadata(artist: artist, track: track)).imageUrl;
 
   Future<Map<String, dynamic>> _request(Map<String, String> query) async {
     final uri = endpoint.replace(queryParameters: <String, String>{
@@ -200,20 +278,28 @@ class LastFmRecommendationClient {
     return decoded;
   }
 
-  LastFmRecommendationCandidate? _parseArtist(Map<String, dynamic> json) {
+  LastFmRecommendationCandidate? _parseArtist(
+    Map<String, dynamic> json, {
+    double? fallbackMatch,
+  }) {
     final name = (json['name'] as String? ?? '').trim();
     if (name.isEmpty) return null;
     return LastFmRecommendationCandidate(
       kind: MusicRecommendationKind.artist,
       name: name,
-      match: _match(json['match']),
+      match: json.containsKey('match')
+          ? _match(json['match'])
+          : fallbackMatch ?? 0,
       url: _safeUrl(json['url'], artist: name),
       musicBrainzId: _nonEmpty(json['mbid']),
       imageUrl: _imageUrl(json['image']),
     );
   }
 
-  LastFmRecommendationCandidate? _parseTrack(Map<String, dynamic> json) {
+  LastFmRecommendationCandidate? _parseTrack(
+    Map<String, dynamic> json, {
+    double? fallbackMatch,
+  }) {
     final name = (json['name'] as String? ?? '').trim();
     final artistJson = json['artist'];
     final artist = artistJson is Map<String, dynamic>
@@ -224,7 +310,9 @@ class LastFmRecommendationClient {
       kind: MusicRecommendationKind.track,
       name: name,
       artist: artist,
-      match: _match(json['match']),
+      match: json.containsKey('match')
+          ? _match(json['match'])
+          : fallbackMatch ?? 0,
       url: _safeUrl(json['url'], artist: artist, track: name),
       musicBrainzId: _nonEmpty(json['mbid']),
       imageUrl: _imageUrl(json['image']),
@@ -243,10 +331,18 @@ class LastFmRecommendationClient {
     return value.clamp(0, 1);
   }
 
+  static double _rankMatch(int index, int total) =>
+      total <= 1 ? 1 : 1 - (index / total) * 0.45;
+
   static String? _nonEmpty(Object? raw) {
     final value = raw is String ? raw.trim() : '';
     return value.isEmpty ? null : value;
   }
+
+  static Set<String> _tags(Object? raw) => _asMaps(raw)
+      .map((tag) => _nonEmpty(tag['name'])?.toLowerCase())
+      .whereType<String>()
+      .toSet();
 
   static Uri? _imageUrl(Object? raw) {
     const sizePriority = <String, int>{

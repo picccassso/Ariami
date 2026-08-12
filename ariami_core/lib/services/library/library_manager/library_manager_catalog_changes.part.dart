@@ -58,6 +58,7 @@ INSERT INTO library_changes (
       'id': record.id,
       'title': record.title,
       'artist': record.artist,
+      'genre': record.genre,
       'albumId': record.albumId,
       'duration': record.durationSeconds,
       'trackNumber': record.trackNumber,

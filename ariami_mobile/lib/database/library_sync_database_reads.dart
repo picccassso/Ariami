@@ -246,6 +246,7 @@ class _LibrarySyncDatabaseReads {
       id: row['id'] as String,
       title: row['title'] as String,
       artist: row['artist'] as String,
+      genre: row['genre'] as String?,
       albumId: row['album_id'] as String?,
       duration: row['duration'] as int? ?? 0,
       trackNumber: row['track_number'] as int?,

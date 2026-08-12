@@ -109,6 +109,7 @@ void main() {
           filePath: '/tmp/song-1.mp3',
           title: 'Song 1',
           artist: 'Artist',
+          genre: 'Jazz/Fusion',
           albumId: null,
           durationSeconds: 190,
           updatedToken: 1,
@@ -130,6 +131,7 @@ void main() {
           repository.listSongsPage(limit: 2);
       expect(firstPage.items.map((item) => item.id).toList(),
           equals(<String>['song-1', 'song-2']));
+      expect(firstPage.items.first.genre, 'Jazz/Fusion');
       expect(firstPage.hasMore, isTrue);
       expect(firstPage.nextCursor, equals('song-2'));
 

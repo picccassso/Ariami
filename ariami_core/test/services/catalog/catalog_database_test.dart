@@ -116,6 +116,33 @@ INSERT INTO albums (
       database.close();
     });
 
+    test('version 6 adds song genres without replacing existing rows', () {
+      final rawDb = sqlite.sqlite3.open(databasePath);
+      rawDb.execute('''
+CREATE TABLE songs (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  artist TEXT NOT NULL
+);
+''');
+      rawDb.execute(
+        'INSERT INTO songs (id, title, artist) VALUES (?, ?, ?);',
+        <Object?>['song-1', 'Existing Song', 'Existing Artist'],
+      );
+      rawDb.userVersion = 5;
+
+      CatalogMigrations.migrate(rawDb);
+
+      final columns = rawDb
+          .select('PRAGMA table_info(songs);')
+          .map((row) => row['name'])
+          .toSet();
+      expect(columns, contains('genre'));
+      expect(rawDb.select('SELECT id FROM songs;').single['id'], 'song-1');
+      expect(rawDb.userVersion, CatalogMigrations.currentVersion);
+      rawDb.dispose();
+    });
+
     test('initialize applies microSD-friendly runtime pragmas', () {
       final database = CatalogDatabase(databasePath: databasePath);
       database.initialize();

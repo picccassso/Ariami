@@ -128,6 +128,7 @@ extension _LibraryManagerApiPart on LibraryManager {
       'id': songId,
       'title': song.title ?? _getFilenameWithoutExtension(song.filePath),
       'artist': song.artist ?? 'Unknown Artist',
+      'genre': song.genre,
       'albumId': albumId,
       'duration': duration,
       'trackNumber': song.trackNumber,

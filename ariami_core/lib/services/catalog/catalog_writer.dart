@@ -181,6 +181,7 @@ ON CONFLICT(artwork_key, variant) DO UPDATE SET
             filePath: snapshot.filePath,
             title: snapshot.title,
             artist: snapshot.artist,
+            genre: snapshot.genre,
             albumId: snapshot.albumId,
             durationSeconds: snapshot.durationSeconds,
             trackNumber: snapshot.trackNumber,
@@ -428,6 +429,7 @@ ON CONFLICT(artwork_key, variant) DO UPDATE SET
       filePath: song.filePath,
       title: title,
       artist: artist,
+      genre: song.genre,
       albumId: albumId,
       durationSeconds: song.duration ?? 0,
       trackNumber: song.trackNumber,
@@ -560,6 +562,7 @@ INSERT INTO library_changes (
       'id': snapshot.id,
       'title': snapshot.title,
       'artist': snapshot.artist,
+      'genre': snapshot.genre,
       'albumId': snapshot.albumId,
       'duration': snapshot.durationSeconds,
       'trackNumber': snapshot.trackNumber,
@@ -619,6 +622,7 @@ class _SongSnapshot {
     required this.filePath,
     required this.title,
     required this.artist,
+    required this.genre,
     required this.albumId,
     required this.durationSeconds,
     required this.trackNumber,
@@ -631,6 +635,7 @@ class _SongSnapshot {
   final String filePath;
   final String title;
   final String artist;
+  final String? genre;
   final String? albumId;
   final int durationSeconds;
   final int? trackNumber;

@@ -16,7 +16,10 @@ import 'package:ariami_core/ariami_core.dart'
         OwnedMusicTrack,
         StatsRange,
         TasteSeedEntry,
-        buildTasteSeeds;
+        buildTasteSeeds,
+        musicDiscoveryTagLabel,
+        normalizeMusicDiscoveryTag,
+        splitMusicDiscoveryGenreTags;
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -46,7 +49,7 @@ class _MusicDiscoveryScreenState extends State<MusicDiscoveryScreen> {
   static const _apiKeyStorageKey = 'ariami_lastfm_api_key_v1';
   static const _enabledKey = 'mobile_music_discovery_enabled_v1';
   static const _preferencesKey = 'mobile_music_discovery_preferences_v1';
-  static const _cachePrefix = 'mobile_music_discovery_cache_v6_';
+  static const _cachePrefix = 'mobile_music_discovery_cache_v7_';
   static const _legacyCachePrefixes = <String>[
     'mobile_music_discovery_cache_v1_',
     'mobile_music_discovery_cache_v2_',
@@ -54,6 +57,8 @@ class _MusicDiscoveryScreenState extends State<MusicDiscoveryScreen> {
     'mobile_music_discovery_cache_v4_',
     // v5 keyed the taste period as recent/allTime; ranges changed the format.
     'mobile_music_discovery_cache_v5_',
+    // v6 treated genres as a soft rank instead of a candidate source.
+    'mobile_music_discovery_cache_v6_',
   ];
   static const _refreshAge = Duration(hours: 24);
 
@@ -211,10 +216,10 @@ class _MusicDiscoveryScreenState extends State<MusicDiscoveryScreen> {
       if (!mounted) return;
       setState(() => _error =
           'Ariami could not load your listening stats for ${_preferences.tasteRange.title().toLowerCase()}. '
-          'Try again when connected to your server.');
+              'Try again when connected to your server.');
       return;
     }
-    if (seeds.isEmpty) {
+    if (seeds.isEmpty && _preferences.preferredTags.isEmpty) {
       setState(() => _error = _preferences.tasteRange.isAllTime
           ? 'Listen to a few songs first so Ariami can learn your taste.'
           : 'No listening was recorded in ${_preferences.tasteRange.title()}. '
@@ -245,6 +250,11 @@ class _MusicDiscoveryScreenState extends State<MusicDiscoveryScreen> {
         }),
         limit: _preferences.resultLimit,
         mix: _preferences.mix,
+        preferredTags: _preferences.preferredTags,
+        libraryTags: splitMusicDiscoveryGenreTags(
+          _librarySongs.map((song) => song.genre),
+        ),
+        instrumentalOnly: _preferences.instrumentalOnly,
       );
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(cacheKey, jsonEncode(result.toJson()));
@@ -320,6 +330,11 @@ class _MusicDiscoveryScreenState extends State<MusicDiscoveryScreen> {
         ? _preferences.tasteRange
         : StatsRange.all;
     var selectedDepth = _preferences.seedDepth;
+    final selectedTags = <String>{..._preferences.preferredTags};
+    final libraryTags = splitMusicDiscoveryGenreTags(
+      _librarySongs.map((song) => song.genre),
+    );
+    var instrumentalOnly = _preferences.instrumentalOnly;
     final result = await showDialog<_SetupResult>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
@@ -331,9 +346,10 @@ class _MusicDiscoveryScreenState extends State<MusicDiscoveryScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Ariami sends only a handful of favourite artist and track '
-                  'names to Last.fm. Listening history, playlists, account '
-                  'details, and your full library stay private.',
+                  'Ariami sends only your selected exploration tags and a '
+                  'handful of favourite artist and track names to Last.fm. '
+                  'Listening history, playlists, account details, and your '
+                  'full library stay private.',
                 ),
                 const SizedBox(height: 14),
                 if (_embeddedLastFmApiKey.isEmpty) ...[
@@ -378,6 +394,7 @@ class _MusicDiscoveryScreenState extends State<MusicDiscoveryScreen> {
                     style: TextStyle(fontWeight: FontWeight.w700)),
                 const SizedBox(height: 10),
                 DropdownButtonFormField<MusicDiscoveryMix>(
+                  key: ValueKey(selectedMix),
                   initialValue: selectedMix,
                   decoration: const InputDecoration(labelText: 'Show'),
                   items: MusicDiscoveryMix.values
@@ -388,7 +405,12 @@ class _MusicDiscoveryScreenState extends State<MusicDiscoveryScreen> {
                       .toList(),
                   onChanged: (value) {
                     if (value != null) {
-                      setDialogState(() => selectedMix = value);
+                      setDialogState(() {
+                        selectedMix = value;
+                        if (value != MusicDiscoveryMix.tracks) {
+                          instrumentalOnly = false;
+                        }
+                      });
                     }
                   },
                 ),
@@ -408,6 +430,38 @@ class _MusicDiscoveryScreenState extends State<MusicDiscoveryScreen> {
                       setDialogState(() => selectedLimit = value);
                     }
                   },
+                ),
+                const SizedBox(height: 14),
+                const Text('Refine suggestions',
+                    style: TextStyle(fontWeight: FontWeight.w700)),
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Instrumental only'),
+                  subtitle: const Text(
+                    'Shows only tracks explicitly tagged as instrumental.',
+                  ),
+                  value: instrumentalOnly,
+                  onChanged: (value) => setDialogState(() {
+                    instrumentalOnly = value;
+                    if (value) selectedMix = MusicDiscoveryMix.tracks;
+                  }),
+                ),
+                Text(
+                  'Explore tags',
+                  style: Theme.of(context).textTheme.labelLarge,
+                ),
+                const SizedBox(height: 8),
+                _MusicTagPicker(
+                  selectedTags: selectedTags,
+                  libraryTags: libraryTags,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Tags choose the Last.fm music Ariami explores. Multiple '
+                  'tags broaden the results; Instrumental remains an extra '
+                  'requirement. Library genres gently rank matching results '
+                  'and appear here as suggestions; they never limit you.',
+                  style: Theme.of(context).textTheme.bodySmall,
                 ),
                 const SizedBox(height: 10),
                 DropdownButtonFormField<StatsRange>(
@@ -486,6 +540,8 @@ class _MusicDiscoveryScreenState extends State<MusicDiscoveryScreen> {
                       resultLimit: selectedLimit,
                       tasteRange: selectedRange,
                       seedDepth: selectedDepth,
+                      preferredTags: selectedTags,
+                      instrumentalOnly: instrumentalOnly,
                     ),
                   ),
                 );
@@ -715,7 +771,8 @@ class _MusicDiscoveryScreenState extends State<MusicDiscoveryScreen> {
               const SizedBox(height: 10),
               Text(
                 'Ariami calculates favourites privately and sends only a few '
-                'selected names. There is no scrobbling and no Last.fm account connection.',
+                'selected names or exploration tags. There is no scrobbling '
+                'and no Last.fm account connection.',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
@@ -833,7 +890,7 @@ class _RecommendationGroup extends StatelessWidget {
                   subtitle: Text(
                     <String>[
                       if (item.displaySubtitle != null) item.displaySubtitle!,
-                      'Because you like ${item.sourceSeeds.take(2).join(' and ')}',
+                      item.discoveryReason,
                     ].join('\n'),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
@@ -879,9 +936,127 @@ String _preferenceSummary(MusicDiscoveryPreferences preferences) {
     MusicDiscoveryMix.artists => 'Artists',
     MusicDiscoveryMix.albums => 'Albums',
   };
-  return '$mix · ${preferences.resultLimit} max · '
+  final tags = preferences.preferredTags.toList()..sort();
+  final refinement = <String>[
+    if (preferences.instrumentalOnly) 'Instrumental',
+    if (tags.isNotEmpty)
+      tags.length <= 2
+          ? tags.map(musicDiscoveryTagLabel).join(', ')
+          : '${tags.take(2).map(musicDiscoveryTagLabel).join(', ')} '
+              '+${tags.length - 2}',
+  ];
+  return '$mix${refinement.isEmpty ? '' : ' · ${refinement.join(' · ')}'} · '
+      '${preferences.resultLimit} max · '
       '${MusicDiscoveryPreferences.tasteRangeLabel(preferences.tasteRange)} · '
       'depth ${preferences.seedDepth}';
+}
+
+class _MusicTagPicker extends StatefulWidget {
+  const _MusicTagPicker({
+    required this.selectedTags,
+    required this.libraryTags,
+  });
+
+  final Set<String> selectedTags;
+  final Set<String> libraryTags;
+
+  @override
+  State<_MusicTagPicker> createState() => _MusicTagPickerState();
+}
+
+class _MusicTagPickerState extends State<_MusicTagPicker> {
+  final _controller = TextEditingController();
+  String _query = '';
+
+  void _add(String value) {
+    final tag = normalizeMusicDiscoveryTag(value);
+    if (tag.isEmpty) return;
+    setState(() {
+      widget.selectedTags.add(tag);
+      _controller.clear();
+      _query = '';
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final suggestions = <String>{
+      ...widget.libraryTags,
+      ...MusicDiscoveryPreferences.commonTags,
+    }
+        .where((tag) {
+          return !widget.selectedTags.contains(tag) &&
+              (_query.isEmpty || tag.contains(_query));
+        })
+        .take(18)
+        .toList()
+      ..sort();
+    final selected = widget.selectedTags.toList()..sort();
+    final entered = normalizeMusicDiscoveryTag(_controller.text);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextField(
+          controller: _controller,
+          textInputAction: TextInputAction.done,
+          decoration: InputDecoration(
+            labelText: 'Search or add any Last.fm tag',
+            hintText: 'For example: fusion',
+            suffixIcon: IconButton(
+              tooltip: 'Add tag',
+              onPressed: entered.isEmpty ? null : () => _add(entered),
+              icon: const Icon(Icons.add_rounded),
+            ),
+          ),
+          onChanged: (value) => setState(
+            () => _query = normalizeMusicDiscoveryTag(value),
+          ),
+          onSubmitted: _add,
+        ),
+        if (selected.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            children: selected
+                .map((tag) => InputChip(
+                      label: Text(musicDiscoveryTagLabel(tag)),
+                      onDeleted: () => setState(
+                        () => widget.selectedTags.remove(tag),
+                      ),
+                    ))
+                .toList(),
+          ),
+        ],
+        if (suggestions.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            children: suggestions
+                .map((tag) => ActionChip(
+                      avatar: widget.libraryTags.contains(tag)
+                          ? const Icon(Icons.library_music_rounded, size: 16)
+                          : null,
+                      label: Text(musicDiscoveryTagLabel(tag)),
+                      tooltip: widget.libraryTags.contains(tag)
+                          ? 'Found in your library metadata'
+                          : 'Common Last.fm tag',
+                      onPressed: () => _add(tag),
+                    ))
+                .toList(),
+          ),
+        ],
+      ],
+    );
+  }
 }
 
 class _ErrorCard extends StatelessWidget {
@@ -912,6 +1087,11 @@ class _EmptyDiscovery extends StatelessWidget {
             const SizedBox(height: 12),
             const Text('No unowned matches yet',
                 style: TextStyle(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 6),
+            Text(
+              'Try changing your refinements or refresh later.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
             const SizedBox(height: 12),
             OutlinedButton(
                 onPressed: onRefresh, child: const Text('Try again')),

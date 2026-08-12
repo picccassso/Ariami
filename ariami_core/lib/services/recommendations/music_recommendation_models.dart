@@ -7,12 +7,59 @@ enum MusicRecommendationKind { artist, track, album }
 
 enum MusicDiscoveryMix { balanced, tracks, artists, albums }
 
+/// Canonical Last.fm tag text used in preferences, cache keys and requests.
+String normalizeMusicDiscoveryTag(String value) =>
+    value.trim().replaceAll(RegExp(r'\s+'), ' ').toLowerCase();
+
+String musicDiscoveryTagLabel(String tag) {
+  const special = <String, String>{
+    'edm': 'EDM',
+    'r&b': 'R&B',
+    'hip-hop': 'Hip-hop',
+  };
+  final normalized = normalizeMusicDiscoveryTag(tag);
+  return special[normalized] ??
+      normalized
+          .split(' ')
+          .map((word) => word.isEmpty
+              ? word
+              : '${word[0].toUpperCase()}${word.substring(1)}')
+          .join(' ');
+}
+
+/// Turns embedded file values such as `Blues/Rock` into useful Last.fm tag
+/// suggestions. Ambiguous ampersands split except for established genre names.
+Set<String> splitMusicDiscoveryGenreTags(Iterable<String?> values) {
+  const protectedAmpersands = <String>{
+    'country & western',
+    'drum & bass',
+    'r&b',
+    'rhythm & blues',
+    'rock & roll',
+  };
+  final result = <String>{};
+  for (final raw in values) {
+    for (final section in (raw ?? '').split(RegExp(r'[,;/|]+'))) {
+      final normalized = normalizeMusicDiscoveryTag(section);
+      if (normalized.isEmpty) continue;
+      final parts = normalized.contains(' & ') &&
+              !protectedAmpersands.contains(normalized)
+          ? normalized.split(RegExp(r'\s+&\s+'))
+          : <String>[normalized];
+      result.addAll(parts.where((part) => part.length > 1));
+    }
+  }
+  return result;
+}
+
 class MusicDiscoveryPreferences {
   const MusicDiscoveryPreferences({
     this.mix = MusicDiscoveryMix.balanced,
     this.resultLimit = 24,
     this.tasteRange = StatsRange.all,
     this.seedDepth = 3,
+    this.preferredTags = const <String>{},
+    this.instrumentalOnly = false,
   });
 
   /// Selectable result counts and seed depths, shared by both clients so the
@@ -23,6 +70,26 @@ class MusicDiscoveryPreferences {
   /// The deepest selectable seed count, and the fan-out ceiling the
   /// recommendation service defaults to.
   static const int maxSeedDepth = 10;
+
+  static const List<String> commonTags = <String>[
+    'rock',
+    'pop',
+    'electronic',
+    'hip-hop',
+    'indie',
+    'metal',
+    'jazz',
+    'fusion',
+    'classical',
+    'folk',
+    'blues',
+    'soul',
+    'funk',
+    'punk',
+    'ambient',
+    'country',
+    'reggae',
+  ];
 
   /// Taste ranges the discovery pickers offer, deliberately un-anchored: each
   /// resolves against "now" at refresh time, so a saved preference keeps
@@ -57,23 +124,40 @@ class MusicDiscoveryPreferences {
   /// one Last.fm request, so this is the main lever on both breadth and time.
   final int seedDepth;
 
+  /// Open-ended Last.fm tags used to source the discovery pool. Embedded
+  /// library genres can suggest these values but never restrict the picker.
+  final Set<String> preferredTags;
+
+  /// Only include tracks explicitly carrying an instrumental Last.fm tag.
+  /// Unknown or untagged tracks are excluded rather than guessed.
+  final bool instrumentalOnly;
+
   /// Every field that changes the result set, so a cache entry is never
   /// reused across different settings. [StatsRange.token] carries the anchor,
   /// keeping two different weeks (or months) in separate entries.
-  String get cacheKey =>
-      '${mix.name}_${resultLimit}_${tasteRange.token}_$seedDepth';
+  String get cacheKey {
+    final base = '${mix.name}_${resultLimit}_${tasteRange.token}_$seedDepth';
+    if (preferredTags.isEmpty && !instrumentalOnly) return base;
+    final tags = preferredTags.map(normalizeMusicDiscoveryTag).toList()..sort();
+    return '${base}_${instrumentalOnly ? 'instrumental' : 'anyVocals'}_'
+        '${tags.join('-')}';
+  }
 
   MusicDiscoveryPreferences copyWith({
     MusicDiscoveryMix? mix,
     int? resultLimit,
     StatsRange? tasteRange,
     int? seedDepth,
+    Set<String>? preferredTags,
+    bool? instrumentalOnly,
   }) =>
       MusicDiscoveryPreferences(
         mix: mix ?? this.mix,
         resultLimit: resultLimit ?? this.resultLimit,
         tasteRange: tasteRange ?? this.tasteRange,
         seedDepth: seedDepth ?? this.seedDepth,
+        preferredTags: preferredTags ?? this.preferredTags,
+        instrumentalOnly: instrumentalOnly ?? this.instrumentalOnly,
       );
 
   Map<String, dynamic> toJson() => <String, dynamic>{
@@ -81,6 +165,8 @@ class MusicDiscoveryPreferences {
         'resultLimit': resultLimit,
         'tasteRange': tasteRange.token,
         'seedDepth': seedDepth,
+        'preferredTags': preferredTags.toList()..sort(),
+        'instrumentalOnly': instrumentalOnly,
       };
 
   factory MusicDiscoveryPreferences.fromJson(Map<String, dynamic> json) {
@@ -98,7 +184,41 @@ class MusicDiscoveryPreferences {
       tasteRange: StatsRange.tryParse(json['tasteRange'] as String?) ??
           _migratedRange(json['tastePeriod'] as String?),
       seedDepth: choice(json['seedDepth'], seedDepthChoices, 3),
+      preferredTags: _readPreferredTags(json),
+      instrumentalOnly: json['instrumentalOnly'] == true,
     );
+  }
+
+  static Set<String> _readPreferredTags(Map<String, dynamic> json) {
+    final current = (json['preferredTags'] as List<dynamic>?)
+        ?.whereType<String>()
+        .map(normalizeMusicDiscoveryTag)
+        .where((tag) => tag.isNotEmpty)
+        .toSet();
+    if (current != null) return current;
+    const retiredGenres = <String, String>{
+      'rock': 'rock',
+      'pop': 'pop',
+      'electronic': 'electronic',
+      'hipHop': 'hip-hop',
+      'indie': 'indie',
+      'metal': 'metal',
+      'jazz': 'jazz',
+      'classical': 'classical',
+      'folk': 'folk',
+      'blues': 'blues',
+      'soul': 'soul',
+      'funk': 'funk',
+      'punk': 'punk',
+      'ambient': 'ambient',
+      'country': 'country',
+      'reggae': 'reggae',
+    };
+    return (json['preferredGenres'] as List<dynamic>? ?? const <dynamic>[])
+        .whereType<String>()
+        .map((name) => retiredGenres[name])
+        .whereType<String>()
+        .toSet();
   }
 
   /// Preferences saved before ranges replaced the recent/all-time pair. The
@@ -150,6 +270,7 @@ class MusicRecommendation {
     required this.score,
     required this.lastFmUrl,
     required this.sourceSeeds,
+    this.sourceTags = const <String>[],
     this.artist,
     this.musicBrainzId,
     this.imageUrl,
@@ -165,6 +286,14 @@ class MusicRecommendation {
   final String? musicBrainzId;
   final Uri? imageUrl;
   final List<String> sourceSeeds;
+  final List<String> sourceTags;
+
+  String get discoveryReason {
+    if (sourceTags.isNotEmpty) {
+      return 'Matches ${sourceTags.take(2).map(musicDiscoveryTagLabel).join(' and ')}';
+    }
+    return 'Because you like ${sourceSeeds.take(2).join(' and ')}';
+  }
 
   String get displayTitle => name;
   String? get displaySubtitle => switch (kind) {
@@ -209,6 +338,7 @@ class MusicRecommendation {
         if (musicBrainzId != null) 'musicBrainzId': musicBrainzId,
         if (imageUrl != null) 'imageUrl': imageUrl.toString(),
         'sourceSeeds': sourceSeeds,
+        if (sourceTags.isNotEmpty) 'sourceTags': sourceTags,
       };
 
   factory MusicRecommendation.fromJson(Map<String, dynamic> json) {
@@ -226,6 +356,9 @@ class MusicRecommendation {
       musicBrainzId: json['musicBrainzId'] as String?,
       imageUrl: parsedImageUrl?.hasScheme == true ? parsedImageUrl : null,
       sourceSeeds: (json['sourceSeeds'] as List<dynamic>? ?? const <dynamic>[])
+          .whereType<String>()
+          .toList(growable: false),
+      sourceTags: (json['sourceTags'] as List<dynamic>? ?? const <dynamic>[])
           .whereType<String>()
           .toList(growable: false),
     );

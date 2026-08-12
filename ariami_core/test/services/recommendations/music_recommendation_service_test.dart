@@ -152,6 +152,98 @@ void main() {
         ),
       );
     });
+
+    test('parses track and artist community tags from info responses',
+        () async {
+      final client = LastFmRecommendationClient(
+        apiKey: 'key',
+        endpoint: Uri.https('example.test', '/2.0/'),
+        httpClient: MockClient((request) async {
+          if (request.url.queryParameters['method'] == 'artist.getinfo') {
+            return _jsonResponse(<String, dynamic>{
+              'artist': <String, dynamic>{
+                'tags': <String, dynamic>{
+                  'tag': <Map<String, dynamic>>[
+                    <String, dynamic>{'name': 'Jazz'},
+                    <String, dynamic>{'name': 'Funk'},
+                  ],
+                },
+              },
+            });
+          }
+          return _jsonResponse(<String, dynamic>{
+            'track': <String, dynamic>{
+              'toptags': <String, dynamic>{
+                'tag': <Map<String, dynamic>>[
+                  <String, dynamic>{'name': 'Instrumental Rock'},
+                ],
+              },
+              'album': <String, dynamic>{
+                'image': <Map<String, dynamic>>[
+                  <String, dynamic>{
+                    '#text': 'https://images.example/instrumental.jpg',
+                    'size': 'large',
+                  },
+                ],
+              },
+            },
+          });
+        }),
+      );
+
+      final artist = await client.artistMetadata('Artist');
+      final track = await client.trackMetadata(
+        artist: 'Artist',
+        track: 'Instrumental',
+      );
+
+      expect(artist.tags, <String>{'jazz', 'funk'});
+      expect(track.tags, <String>{'instrumental rock'});
+      expect(
+          track.imageUrl, Uri.parse('https://images.example/instrumental.jpg'));
+    });
+
+    test('loads ranked track and artist candidates from an arbitrary tag',
+        () async {
+      final methods = <String>[];
+      final client = LastFmRecommendationClient(
+        apiKey: 'key',
+        endpoint: Uri.https('example.test', '/2.0/'),
+        httpClient: MockClient((request) async {
+          final method = request.url.queryParameters['method']!;
+          methods.add(method);
+          expect(request.url.queryParameters['tag'], 'fusion');
+          if (method == 'tag.gettoptracks') {
+            return _jsonResponse(<String, dynamic>{
+              'tracks': <String, dynamic>{
+                'track': <Map<String, dynamic>>[
+                  _tagTrack('Fusion Track', 'Fusion Artist'),
+                ],
+              },
+            });
+          }
+          return _jsonResponse(<String, dynamic>{
+            'topartists': <String, dynamic>{
+              'artist': <Map<String, dynamic>>[
+                <String, dynamic>{
+                  'name': 'Fusion Artist',
+                  'url': 'https://www.last.fm/music/Fusion+Artist',
+                },
+              ],
+            },
+          });
+        }),
+      );
+
+      final tracks = await client.topTracksForTag(' Fusion ');
+      final artists = await client.topArtistsForTag('Fusion');
+
+      expect(tracks.single.name, 'Fusion Track');
+      expect(tracks.single.match, 1);
+      expect(artists.single.name, 'Fusion Artist');
+      expect(artists.single.match, 1);
+      expect(methods, <String>['tag.gettoptracks', 'tag.gettopartists']);
+    });
   });
 
   group('MusicRecommendationService', () {
@@ -384,6 +476,241 @@ void main() {
       expect(result.albums.single.imageUrl, isNotNull);
     });
 
+    test('instrumental mode keeps only explicitly tagged tracks', () async {
+      final metadataRequests = <String>[];
+      final service = _serviceWith(MockClient((request) async {
+        final query = request.url.queryParameters;
+        if (query['method'] == 'track.getsimilar') {
+          return _jsonResponse(<String, dynamic>{
+            'similartracks': <String, dynamic>{
+              'track': <Map<String, dynamic>>[
+                _track('Instrumental Song', 'Artist A', 0.8),
+                _track('Vocal Song', 'Artist B', 0.9),
+                _track('Unknown Song', 'Artist C', 0.7),
+              ],
+            },
+          });
+        }
+        if (query['method'] == 'track.getinfo') {
+          final track = query['track']!;
+          metadataRequests.add(track);
+          final tags = switch (track) {
+            'Instrumental Song' => <Map<String, dynamic>>[
+                <String, dynamic>{'name': 'Instrumental Rock'},
+              ],
+            'Vocal Song' => <Map<String, dynamic>>[
+                <String, dynamic>{'name': 'Rock'},
+              ],
+            _ => <Map<String, dynamic>>[],
+          };
+          return _jsonResponse(<String, dynamic>{
+            'track': <String, dynamic>{
+              'toptags': <String, dynamic>{'tag': tags},
+            },
+          });
+        }
+        return _jsonResponse(<String, dynamic>{});
+      }));
+
+      final result = await service.discover(
+        seeds: const <MusicRecommendationSeed>[
+          MusicRecommendationSeed.track(
+            artist: 'Seed Artist',
+            title: 'Seed Song',
+          ),
+        ],
+        ownedTracks: const <OwnedMusicTrack>[],
+        mix: MusicDiscoveryMix.balanced,
+        instrumentalOnly: true,
+      );
+
+      expect(result.recommendations.map((item) => item.name),
+          <String>['Instrumental Song']);
+      expect(result.recommendations.single.kind, MusicRecommendationKind.track);
+      expect(
+          metadataRequests,
+          containsAll(
+              <String>['Instrumental Song', 'Vocal Song', 'Unknown Song']));
+    });
+
+    test('a selected tag sources candidates instead of reranking taste',
+        () async {
+      final service = _serviceWith(MockClient((request) async {
+        final query = request.url.queryParameters;
+        if (query['method'] == 'track.getsimilar') {
+          return _jsonResponse(<String, dynamic>{
+            'similartracks': <String, dynamic>{
+              'track': <Map<String, dynamic>>[
+                _track('NF Neighbour', 'Rap Artist', 0.95),
+              ],
+            },
+          });
+        }
+        if (query['method'] == 'tag.gettoptracks') {
+          expect(query['tag'], 'country');
+          return _jsonResponse(<String, dynamic>{
+            'tracks': <String, dynamic>{
+              'track': <Map<String, dynamic>>[
+                _tagTrack('Country Road', 'Country Artist'),
+                _tagTrack('Honky Tonk', 'Another Country Artist'),
+              ],
+            },
+          });
+        }
+        return _jsonResponse(<String, dynamic>{});
+      }));
+
+      final result = await service.discover(
+        seeds: const <MusicRecommendationSeed>[
+          MusicRecommendationSeed.track(
+            artist: 'Seed Artist',
+            title: 'Seed Song',
+          ),
+        ],
+        ownedTracks: const <OwnedMusicTrack>[],
+        limit: 2,
+        mix: MusicDiscoveryMix.tracks,
+        preferredTags: const <String>{'country'},
+      );
+
+      expect(result.recommendations.map((item) => item.name),
+          <String>['Country Road', 'Honky Tonk']);
+      expect(
+        result.recommendations,
+        everyElement(
+          isA<MusicRecommendation>().having(
+            (item) => item.sourceTags,
+            'source tags',
+            contains('country'),
+          ),
+        ),
+      );
+      expect(result.recommendations.first.discoveryReason, 'Matches Country');
+    });
+
+    test('embedded library genres boost taste results without limiting them',
+        () async {
+      final service = _serviceWith(MockClient((request) async {
+        final query = request.url.queryParameters;
+        if (query['method'] == 'track.getsimilar') {
+          return _jsonResponse(<String, dynamic>{
+            'similartracks': <String, dynamic>{
+              'track': <Map<String, dynamic>>[
+                _track('Jazz Candidate', 'Jazz Artist', 0.85),
+                _track('Rock Candidate', 'Rock Artist', 0.80),
+              ],
+            },
+          });
+        }
+        if (query['method'] == 'track.getinfo') {
+          final tag = query['track'] == 'Rock Candidate' ? 'Rock' : 'Jazz';
+          return _jsonResponse(<String, dynamic>{
+            'track': <String, dynamic>{
+              'toptags': <String, dynamic>{
+                'tag': <Map<String, dynamic>>[
+                  <String, dynamic>{'name': tag},
+                ],
+              },
+            },
+          });
+        }
+        return _jsonResponse(<String, dynamic>{});
+      }));
+
+      final result = await service.discover(
+        seeds: const <MusicRecommendationSeed>[
+          MusicRecommendationSeed.track(
+            artist: 'Seed Artist',
+            title: 'Seed Song',
+          ),
+        ],
+        ownedTracks: const <OwnedMusicTrack>[],
+        limit: 2,
+        mix: MusicDiscoveryMix.tracks,
+        libraryTags: const <String>{'rock'},
+      );
+
+      expect(result.tracks.map((item) => item.name),
+          <String>['Rock Candidate', 'Jazz Candidate']);
+    });
+
+    test('tag-only Fusion discovery intersects with Instrumental', () async {
+      final service = _serviceWith(MockClient((request) async {
+        final query = request.url.queryParameters;
+        if (query['method'] == 'tag.gettoptracks') {
+          return _jsonResponse(<String, dynamic>{
+            'tracks': <String, dynamic>{
+              'track': <Map<String, dynamic>>[
+                _tagTrack('Fusion Instrumental', 'Guitarist'),
+                _tagTrack('Fusion Vocal', 'Singer'),
+              ],
+            },
+          });
+        }
+        if (query['method'] == 'track.getinfo') {
+          final instrumental = query['track'] == 'Fusion Instrumental';
+          return _jsonResponse(<String, dynamic>{
+            'track': <String, dynamic>{
+              'toptags': <String, dynamic>{
+                'tag': <Map<String, dynamic>>[
+                  <String, dynamic>{
+                    'name': instrumental ? 'Instrumental' : 'Fusion',
+                  },
+                ],
+              },
+            },
+          });
+        }
+        return _jsonResponse(<String, dynamic>{});
+      }));
+
+      final result = await service.discover(
+        seeds: const <MusicRecommendationSeed>[],
+        ownedTracks: const <OwnedMusicTrack>[],
+        preferredTags: const <String>{'fusion'},
+        instrumentalOnly: true,
+      );
+
+      expect(result.tracks.map((item) => item.name),
+          <String>['Fusion Instrumental']);
+      expect(result.tracks.single.sourceTags, <String>['fusion']);
+    });
+
+    test('refinement metadata rate limits still reach the caller', () async {
+      final service = _serviceWith(MockClient((request) async {
+        if (request.url.queryParameters['method'] == 'track.getsimilar') {
+          return _jsonResponse(<String, dynamic>{
+            'similartracks': <String, dynamic>{
+              'track': <Map<String, dynamic>>[
+                _track('Candidate', 'Artist', 0.9),
+              ],
+            },
+          });
+        }
+        return _jsonResponse(<String, dynamic>{
+          'error': 29,
+          'message': 'Rate limit exceeded',
+        });
+      }));
+
+      await expectLater(
+        service.discover(
+          seeds: const <MusicRecommendationSeed>[
+            MusicRecommendationSeed.track(
+              artist: 'Seed Artist',
+              title: 'Seed Song',
+            ),
+          ],
+          ownedTracks: const <OwnedMusicTrack>[],
+          preferredTags: const <String>{'rock'},
+        ),
+        throwsA(
+          isA<LastFmRecommendationException>()
+              .having((error) => error.isRateLimited, 'rate limited', isTrue),
+        ),
+      );
+    });
+
     test('skips seeds Last.fm cannot resolve and keeps the rest', () async {
       final asked = <String>[];
       final httpClient = MockClient((request) async {
@@ -519,6 +846,8 @@ void main() {
           resultLimit: 36,
           tasteRange: StatsRange.monthOf(DateTime(2026, 3, 14)),
           seedDepth: 10,
+          preferredTags: const <String>{'jazz', 'fusion'},
+          instrumentalOnly: true,
         ).toJson(),
       );
       expect(restored.mix, MusicDiscoveryMix.albums);
@@ -526,6 +855,8 @@ void main() {
       // Anchors normalise to the start of their period on the way through.
       expect(restored.tasteRange, StatsRange.monthOf(DateTime(2026, 3, 1)));
       expect(restored.seedDepth, 10);
+      expect(restored.preferredTags, <String>{'jazz', 'fusion'});
+      expect(restored.instrumentalOnly, isTrue);
       expect(
         MusicDiscoveryPreferences.fromJson(
           <String, dynamic>{'resultLimit': 999, 'seedDepth': 500},
@@ -561,6 +892,32 @@ void main() {
         ).tasteRange,
         StatsRange.all,
       );
+      expect(
+        MusicDiscoveryPreferences.fromJson(<String, dynamic>{
+          'preferredGenres': <String>['hipHop', 'country'],
+        }).preferredTags,
+        <String>{'hip-hop', 'country'},
+      );
+    });
+
+    test('embedded genre text becomes normalized tag suggestions', () {
+      expect(
+        splitMusicDiscoveryGenreTags(const <String?>[
+          'Blues/Rock',
+          'Jazz & Fusion',
+          'Rock & Roll',
+          'R&B; Soul',
+        ]),
+        <String>{
+          'blues',
+          'rock',
+          'jazz',
+          'fusion',
+          'rock & roll',
+          'r&b',
+          'soul',
+        },
+      );
     });
 
     test('cache keys separate ranges, anchors and depths', () {
@@ -580,6 +937,14 @@ void main() {
         base.copyWith(tasteRange: StatsRange.week).cacheKey,
         isNot(base.copyWith(tasteRange: StatsRange.month).cacheKey),
       );
+      expect(
+        base.copyWith(
+          preferredTags: const <String>{'rock'},
+        ).cacheKey,
+        isNot(base.cacheKey),
+      );
+      expect(
+          base.copyWith(instrumentalOnly: true).cacheKey, isNot(base.cacheKey));
     });
 
     test('snapshot cache round-trips defensively', () {
@@ -595,6 +960,7 @@ void main() {
             musicBrainzId: 'recording-id',
             imageUrl: Uri.https('images.example', '/track.jpg'),
             sourceSeeds: const <String>['Seed'],
+            sourceTags: const <String>['fusion'],
           ),
         ],
         artistSeeds: const <String>['Artist Seed'],
@@ -609,6 +975,7 @@ void main() {
       expect(restored.tracks.single.musicBrainzId, 'recording-id');
       expect(restored.tracks.single.imageUrl,
           Uri.https('images.example', '/track.jpg'));
+      expect(restored.tracks.single.sourceTags, <String>['fusion']);
       expect(restored.artistSeeds, <String>['Artist Seed']);
     });
   });
@@ -646,6 +1013,13 @@ Map<String, dynamic> _track(String name, String artist, double match) =>
     <String, dynamic>{
       'name': name,
       'match': '$match',
+      'url': 'https://www.last.fm/music/${Uri.encodeComponent(artist)}/_/'
+          '${Uri.encodeComponent(name)}',
+      'artist': <String, dynamic>{'name': artist},
+    };
+
+Map<String, dynamic> _tagTrack(String name, String artist) => <String, dynamic>{
+      'name': name,
       'url': 'https://www.last.fm/music/${Uri.encodeComponent(artist)}/_/'
           '${Uri.encodeComponent(name)}',
       'artist': <String, dynamic>{'name': artist},

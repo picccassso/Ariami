@@ -40,6 +40,7 @@ class LibrarySongRow {
   final String id;
   final String title;
   final String artist;
+  final String? genre;
   final String? albumId;
   final int duration;
   final int? trackNumber;
@@ -49,6 +50,7 @@ class LibrarySongRow {
     required this.id,
     required this.title,
     required this.artist,
+    this.genre,
     this.albumId,
     required this.duration,
     this.trackNumber,

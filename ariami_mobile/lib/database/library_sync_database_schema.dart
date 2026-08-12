@@ -23,6 +23,7 @@ class _LibrarySyncDatabaseSchema {
         id TEXT PRIMARY KEY,
         title TEXT NOT NULL,
         artist TEXT NOT NULL,
+        genre TEXT,
         album_id TEXT,
         duration INTEGER NOT NULL DEFAULT 0,
         track_number INTEGER,
@@ -104,6 +105,19 @@ class _LibrarySyncDatabaseSchema {
     if (oldVersion < 5) {
       await _migratePlaylistSongTablesToPositionPrimaryKey(db);
     }
+    if (oldVersion < 6) {
+      await _addGenreColumnIfMissing(db, LibrarySyncDatabase._songsTable);
+      await _addGenreColumnIfMissing(
+        db,
+        LibrarySyncDatabase._bootstrapSongsTable,
+      );
+    }
+  }
+
+  Future<void> _addGenreColumnIfMissing(Database db, String table) async {
+    final columns = await db.rawQuery('PRAGMA table_info($table)');
+    if (columns.any((column) => column['name'] == 'genre')) return;
+    await db.execute('ALTER TABLE $table ADD COLUMN genre TEXT');
   }
 
   Future<void> _migrateToVersion3(Database db) async {
@@ -152,6 +166,7 @@ class _LibrarySyncDatabaseSchema {
         id TEXT PRIMARY KEY,
         title TEXT NOT NULL,
         artist TEXT NOT NULL,
+        genre TEXT,
         album_id TEXT,
         duration INTEGER NOT NULL DEFAULT 0,
         track_number INTEGER,

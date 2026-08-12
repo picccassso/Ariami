@@ -30,6 +30,7 @@ class CatalogSongRecord {
     required this.filePath,
     required this.title,
     required this.artist,
+    this.genre,
     this.albumId,
     required this.durationSeconds,
     this.trackNumber,
@@ -45,6 +46,7 @@ class CatalogSongRecord {
   final String filePath;
   final String title;
   final String artist;
+  final String? genre;
   final String? albumId;
   final int durationSeconds;
   final int? trackNumber;
@@ -191,6 +193,7 @@ INSERT INTO songs (
   file_path,
   title,
   artist,
+  genre,
   album_id,
   duration_seconds,
   track_number,
@@ -200,11 +203,12 @@ INSERT INTO songs (
   artwork_key,
   updated_token,
   is_deleted
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET
   file_path = excluded.file_path,
   title = excluded.title,
   artist = excluded.artist,
+  genre = excluded.genre,
   album_id = excluded.album_id,
   duration_seconds = excluded.duration_seconds,
   track_number = excluded.track_number,
@@ -220,6 +224,7 @@ ON CONFLICT(id) DO UPDATE SET
         song.filePath,
         song.title,
         song.artist,
+        song.genre,
         song.albumId,
         song.durationSeconds,
         song.trackNumber,
@@ -414,6 +419,7 @@ SELECT
   file_path,
   title,
   artist,
+  genre,
   album_id,
   duration_seconds,
   track_number,
@@ -437,6 +443,7 @@ SELECT
   file_path,
   title,
   artist,
+  genre,
   album_id,
   duration_seconds,
   track_number,
@@ -477,6 +484,7 @@ SELECT
   file_path,
   title,
   artist,
+  genre,
   album_id,
   duration_seconds,
   track_number,
@@ -509,6 +517,7 @@ SELECT
   file_path,
   title,
   artist,
+  genre,
   album_id,
   duration_seconds,
   track_number,
@@ -541,6 +550,7 @@ SELECT
   file_path,
   title,
   artist,
+  genre,
   album_id,
   duration_seconds,
   track_number,
@@ -827,6 +837,7 @@ WHERE token < ?;
       filePath: row['file_path'] as String,
       title: row['title'] as String,
       artist: row['artist'] as String,
+      genre: row['genre'] as String?,
       albumId: row['album_id'] as String?,
       durationSeconds: row['duration_seconds'] as int,
       trackNumber: row['track_number'] as int?,

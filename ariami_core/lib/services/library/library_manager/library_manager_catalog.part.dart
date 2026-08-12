@@ -147,6 +147,7 @@ extension _LibraryManagerCatalogPart on LibraryManager {
             filePath: record.filePath,
             title: record.title,
             artist: record.artist,
+            genre: record.genre,
             albumId: record.albumId,
             durationSeconds: record.durationSeconds,
             trackNumber: record.trackNumber,

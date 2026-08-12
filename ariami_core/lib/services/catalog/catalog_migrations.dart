@@ -7,7 +7,7 @@ import 'package:ariami_core/utils/text_sanitizer.dart';
 
 /// Forward-only schema migrations for the catalog database.
 class CatalogMigrations {
-  static const int currentVersion = 5;
+  static const int currentVersion = 6;
 
   static void migrate(Database database) {
     final existingVersion = database.userVersion;
@@ -45,6 +45,10 @@ class CatalogMigrations {
         _applyVersion5(database);
         database.userVersion = 5;
       }
+      if (existingVersion < 6) {
+        _applyVersion6(database);
+        database.userVersion = 6;
+      }
 
       database.execute('COMMIT;');
     } catch (_) {
@@ -74,6 +78,7 @@ CREATE TABLE IF NOT EXISTS songs (
   file_path TEXT NOT NULL UNIQUE,
   title TEXT NOT NULL,
   artist TEXT NOT NULL,
+  genre TEXT NULL,
   album_id TEXT NULL,
   duration_seconds INTEGER NOT NULL,
   track_number INTEGER NULL,
@@ -255,6 +260,18 @@ ADD COLUMN bitrate_kbps INTEGER NULL;
     _scrubTextColumn(database, table: 'songs', columns: ['title', 'artist']);
     _scrubTextColumn(database, table: 'albums', columns: ['title', 'artist']);
     _scrubTextColumn(database, table: 'playlists', columns: ['name']);
+  }
+
+  static void _applyVersion6(Database database) {
+    final existingColumns = database
+        .select('PRAGMA table_info(songs);')
+        .map((row) => row['name'] as String)
+        .toSet();
+    if (existingColumns.contains('genre')) return;
+    database.execute('''
+ALTER TABLE songs
+ADD COLUMN genre TEXT NULL;
+''');
   }
 
   static void _scrubTextColumn(
