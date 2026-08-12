@@ -70,9 +70,16 @@ class PeriodStatsLoader {
   }) async {
     final bounds = range.bounds(now: now);
     if (bounds == null) return null;
+    // The UI still labels the full calendar period, but future days cannot
+    // contain listening data and some servers reject them in period queries.
+    final today = StatsRange.formatLocalDay(now ?? DateTime.now());
+    final queryTo =
+        bounds.from.compareTo(today) <= 0 && bounds.to.compareTo(today) > 0
+            ? today
+            : bounds.to;
     Future<Map<String, dynamic>> fetch(int limit) => range.isSingleDay
         ? fetchDay(bounds.from, limit)
-        : fetchPeriod(bounds.from, bounds.to, limit);
+        : fetchPeriod(bounds.from, queryTo, limit);
     try {
       Map<String, dynamic> json;
       try {

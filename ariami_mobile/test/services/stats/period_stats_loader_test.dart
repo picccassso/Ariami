@@ -230,15 +230,35 @@ void main() {
       expect(periodCalls, isEmpty);
     });
 
-    test('week/month/year call the period endpoint with the range', () async {
+    test('current week/month/year stop their server query at today', () async {
       await loader.load(StatsRange.week, now: now);
       await loader.load(StatsRange.month, now: now);
       await loader.load(StatsRange.year, now: now);
       expect(dayCalls, isEmpty);
       expect(periodCalls, [
-        ('2026-07-06', '2026-07-12'),
-        ('2026-07-01', '2026-07-31'),
-        ('2026-01-01', '2026-12-31'),
+        ('2026-07-06', '2026-07-09'),
+        ('2026-07-01', '2026-07-09'),
+        ('2026-01-01', '2026-07-09'),
+      ]);
+    });
+
+    test('completed periods keep their full calendar bounds', () async {
+      await loader.load(
+        StatsRange.weekOf(DateTime(2026, 6, 24)),
+        now: now,
+      );
+      await loader.load(
+        StatsRange.monthOf(DateTime(2026, 6, 1)),
+        now: now,
+      );
+      await loader.load(
+        StatsRange.yearOf(DateTime(2025, 1, 1)),
+        now: now,
+      );
+      expect(periodCalls, [
+        ('2026-06-22', '2026-06-28'),
+        ('2026-06-01', '2026-06-30'),
+        ('2025-01-01', '2025-12-31'),
       ]);
     });
 
