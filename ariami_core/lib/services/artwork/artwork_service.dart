@@ -6,6 +6,11 @@ import 'package:crypto/crypto.dart';
 
 import '../../models/artwork_size.dart';
 
+typedef ArtworkProcessRunner = Future<ProcessResult> Function(
+  String executable,
+  List<String> arguments,
+);
+
 /// Service for processing and caching album artwork at different sizes.
 ///
 /// Uses FFmpeg for image resizing and maintains a cache of processed images
@@ -26,6 +31,8 @@ class ArtworkService {
   /// Whether FFmpeg is available on this system
   bool? _ffmpegAvailable;
 
+  final ArtworkProcessRunner _processRunner;
+
   /// Lock to prevent concurrent processing of the same artwork
   final Map<String, Completer<Uint8List?>> _processingLocks = {};
 
@@ -38,14 +45,17 @@ class ArtworkService {
     int maxCacheSizeMB = 256,
     this.touchOnCacheHit = true,
     this.touchThrottle = Duration.zero,
-  }) : maxCacheSizeBytes = maxCacheSizeMB * 1024 * 1024;
+    ArtworkProcessRunner? processRunner,
+  })  : maxCacheSizeBytes = maxCacheSizeMB * 1024 * 1024,
+        _processRunner = processRunner ??
+            ((executable, arguments) => Process.run(executable, arguments));
 
   /// Check if FFmpeg is available on the system.
   Future<bool> isFFmpegAvailable() async {
     if (_ffmpegAvailable != null) return _ffmpegAvailable!;
 
     try {
-      final result = await Process.run('ffmpeg', ['-version']);
+      final result = await _processRunner('ffmpeg', ['-version']);
       _ffmpegAvailable = result.exitCode == 0;
       if (_ffmpegAvailable!) {
         print('[ArtworkService] FFmpeg is available');
@@ -244,7 +254,7 @@ class ArtworkService {
 
       print('[ArtworkService] Running: ffmpeg ${args.join(' ')}');
 
-      final result = await Process.run('ffmpeg', args).timeout(
+      final result = await _processRunner('ffmpeg', args).timeout(
         const Duration(seconds: 10),
         onTimeout: () {
           print('[ArtworkService] Resize timeout');

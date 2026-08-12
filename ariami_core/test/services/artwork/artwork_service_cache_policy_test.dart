@@ -11,6 +11,21 @@ void main() {
     '/9j/4AAQSkZJRgABAQAAAQABAAD/2wCEAAkGBxAQEBAQEBAPEA8PDw8QDw8QDw8PDw8PFREWFhURFRUYHSggGBolGxUVITEhJSkrLi4uFx8zODMtNygtLisBCgoKDQ0NDg0NDisZFRkrKysrKysrKysrKysrKysrKysrKysrKysrKysrKysrKysrKysrKysrKysrKysrKysrK//AABEIABQAFAMBIgACEQEDEQH/xAAXAAADAQAAAAAAAAAAAAAAAAAAAQID/8QAFhABAQEAAAAAAAAAAAAAAAAAAQAC/8QAFQEBAQAAAAAAAAAAAAAAAAAAAwX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCfAAH/2Q==',
   );
 
+  Future<ProcessResult> fakeFfmpeg(
+    String executable,
+    List<String> arguments,
+  ) async {
+    expect(executable, 'ffmpeg');
+    if (arguments.length == 1 && arguments.single == '-version') {
+      return ProcessResult(1, 0, 'ffmpeg test double', '');
+    }
+
+    final inputPath = arguments[arguments.indexOf('-i') + 1];
+    final outputPath = arguments.last;
+    await File(outputPath).writeAsBytes(await File(inputPath).readAsBytes());
+    return ProcessResult(2, 0, '', '');
+  }
+
   group('ArtworkService cache write policy', () {
     late Directory tempDir;
 
@@ -89,7 +104,10 @@ void main() {
       await cachedFile.parent.create(recursive: true);
       await cachedFile.writeAsBytes(<int>[1, 2, 3]);
 
-      final service = ArtworkService(cacheDirectory: tempDir.path);
+      final service = ArtworkService(
+        cacheDirectory: tempDir.path,
+        processRunner: fakeFfmpeg,
+      );
       final bytes = await service.getArtwork(
         'song-1',
         validJpeg,
@@ -109,7 +127,10 @@ void main() {
       await File('${cachedFile.path}.source-md5')
           .writeAsString(md5.convert(<int>[8, 8, 8]).toString());
 
-      final service = ArtworkService(cacheDirectory: tempDir.path);
+      final service = ArtworkService(
+        cacheDirectory: tempDir.path,
+        processRunner: fakeFfmpeg,
+      );
       final bytes = await service.getArtwork(
         'song-2',
         validJpeg,
