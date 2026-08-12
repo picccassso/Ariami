@@ -406,6 +406,112 @@ void main() {
         );
       });
 
+      test('survive a bulk retag that rewrites the deduped copy', () async {
+        final currentLibrary = libraryWithDedupedPlaylistCopy();
+
+        // A tagger pass rewrites both files. The bytes change, the recording
+        // does not — the mapping must be revalidated and kept, not discarded.
+        final update = LibraryUpdate(
+          addedSongIds: {},
+          removedSongIds: {},
+          modifiedSongIds: {
+            _songId(canonicalPath),
+            _songId(dedupedCopyPath),
+          },
+          affectedAlbumIds: {},
+          timestamp: DateTime.now(),
+          extractedMetadata: {
+            canonicalPath: _song(
+              path: canonicalPath,
+              album: 'Test Album',
+              artist: 'Test Artist',
+              title: 'One',
+            ),
+            dedupedCopyPath: _song(
+              path: dedupedCopyPath,
+              album: 'Test Album',
+              artist: 'Test Artist',
+              title: 'One',
+            ),
+          },
+        );
+
+        final updatedLibrary = await processor.applyUpdates(
+          update,
+          currentLibrary,
+          sourceChanges: [
+            FileChange(
+              path: canonicalPath,
+              type: FileChangeType.modified,
+              timestamp: DateTime.now(),
+            ),
+            FileChange(
+              path: dedupedCopyPath,
+              type: FileChangeType.modified,
+              timestamp: DateTime.now(),
+            ),
+          ],
+        );
+
+        expect(
+          updatedLibrary.duplicateToOriginalPath,
+          {dedupedCopyPath: canonicalPath},
+          reason: 'rewriting a file must not strip its duplicate mapping',
+        );
+        expect(
+          updatedLibrary.folderPlaylists.first.songIds,
+          [_songId(canonicalPath)],
+          reason: 'the playlist entry must still resolve to the canonical song',
+        );
+        expect(
+          updatedLibrary.standaloneSongs
+              .any((song) => song.filePath == dedupedCopyPath),
+          isFalse,
+          reason: 'the still-duplicate copy must not resurface as its own song',
+        );
+      });
+
+      test('are dropped when a retag makes the copy a different recording',
+          () async {
+        final currentLibrary = libraryWithDedupedPlaylistCopy();
+
+        final update = LibraryUpdate(
+          addedSongIds: {},
+          removedSongIds: {},
+          modifiedSongIds: {_songId(dedupedCopyPath)},
+          affectedAlbumIds: {},
+          timestamp: DateTime.now(),
+          extractedMetadata: {
+            // Retagged as a genuinely different track: the old mapping is
+            // now wrong and must not be carried forward.
+            dedupedCopyPath: _song(
+              path: dedupedCopyPath,
+              album: 'Other Album',
+              artist: 'Other Artist',
+              title: 'Something Else',
+            ),
+          },
+        );
+
+        final updatedLibrary = await processor.applyUpdates(
+          update,
+          currentLibrary,
+          sourceChanges: [
+            FileChange(
+              path: dedupedCopyPath,
+              type: FileChangeType.modified,
+              timestamp: DateTime.now(),
+            ),
+          ],
+        );
+
+        expect(
+          updatedLibrary.duplicateToOriginalPath,
+          isEmpty,
+          reason: 'a copy that no longer matches must lose the mapping',
+        );
+      });
+
       test('are dropped when the deduped copy file is removed', () async {
         final currentLibrary = libraryWithDedupedPlaylistCopy();
 

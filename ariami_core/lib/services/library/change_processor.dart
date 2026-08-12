@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:ariami_core/models/file_change.dart';
 import 'package:ariami_core/models/song_metadata.dart';
 import 'package:ariami_core/models/library_structure.dart';
+import 'package:ariami_core/services/library/duplicate_detector.dart';
 import 'package:ariami_core/services/library/metadata_extractor.dart';
 import 'package:ariami_core/services/library/library_playlist_builder.dart';
 
@@ -204,20 +205,49 @@ class ChangeProcessor {
     }
 
     // Carry the full-scan duplicate mapping forward so playlist entries whose
-    // folder copy was deduped keep pointing at the surviving song ID. Entries
-    // touched by this change batch are dropped: a removed or rewritten file
-    // can no longer be assumed to be a duplicate of its old original.
-    final duplicateToOriginalPath = <String, String>{
-      for (final entry in currentLibrary.duplicateToOriginalPath.entries)
-        if (!changedPaths.contains(entry.key) &&
-            !removedPaths.contains(entry.key) &&
-            !removedPaths.contains(entry.value))
-          entry.key: entry.value,
+    // folder copy was deduped keep pointing at the surviving song ID. A
+    // removed file drops out outright. A rewritten one can no longer be
+    // *assumed* to duplicate its old original, so it is revalidated against
+    // the freshly extracted metadata rather than discarded: a bulk retag
+    // rewrites every file without changing which recording it holds, and
+    // dropping those mappings silently strips playlists of every deduped
+    // entry until someone runs a full scan.
+    final songsByPath = <String, SongMetadata>{
+      for (final song in allSongs) song.filePath: song,
     };
+    final detector = DuplicateDetector();
+    final duplicateToOriginalPath = <String, String>{};
+    for (final entry in currentLibrary.duplicateToOriginalPath.entries) {
+      if (removedPaths.contains(entry.key) ||
+          removedPaths.contains(entry.value)) {
+        continue;
+      }
+      if (changedPaths.contains(entry.key) ||
+          changedPaths.contains(entry.value)) {
+        final candidate = songsByPath[entry.key];
+        final original = songsByPath[entry.value];
+        if (candidate == null ||
+            original == null ||
+            !detector.stillDuplicates(candidate, original)) {
+          continue;
+        }
+      }
+      duplicateToOriginalPath[entry.key] = entry.value;
+    }
+
+    // A path that is still mapped to an original must not also stand as its
+    // own song: re-extracting a changed file adds it back to [allSongs], which
+    // would otherwise resurrect the copy that deduplication removed.
+    final uniqueSongs = duplicateToOriginalPath.isEmpty
+        ? allSongs
+        : allSongs
+            .where((song) =>
+                !duplicateToOriginalPath.containsKey(song.filePath))
+            .toList();
 
     // Rebuild library structure, preserving and updating folder playlists.
     return buildLibraryWithPlaylistsAsync(
-      allSongs: allSongs,
+      allSongs: uniqueSongs,
       existingPlaylists: currentLibrary.folderPlaylists,
       generateSongId: _generateSongId,
       duplicateToOriginalPath: duplicateToOriginalPath,

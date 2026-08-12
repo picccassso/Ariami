@@ -294,6 +294,28 @@ class DuplicateDetector {
     return groups;
   }
 
+  /// Whether [candidate] still looks like a duplicate of [original].
+  ///
+  /// Incremental rebuilds carry a duplicate mapping forward from the last full
+  /// scan. Rewriting a file (a tagger pass, say) invalidates the assumption
+  /// behind that mapping but not necessarily the mapping itself, so callers
+  /// revalidate here instead of discarding the relationship and leaving the
+  /// copy unmapped until the next full scan.
+  ///
+  /// Metadata-only: it deliberately performs no I/O, so it is cheap enough to
+  /// run per changed file during a watcher update.
+  bool stillDuplicates(
+    SongMetadata candidate,
+    SongMetadata original, {
+    Set<String> preferredPaths = const <String>{},
+  }) {
+    if (!_isMetadataDuplicateCandidate(candidate) ||
+        !_isMetadataDuplicateCandidate(original)) {
+      return false;
+    }
+    return _isDetailedMetadataMatch(candidate, original, preferredPaths);
+  }
+
   /// Generates a normalized key for grouping potential duplicates
   ///
   /// Key is based on normalized artist + title for initial grouping
