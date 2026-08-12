@@ -427,9 +427,13 @@ void main() {
               artist: 'Test Artist',
               title: 'One',
             ),
+            // The playlist copy is tagged to a *different* release than the
+            // canonical file — the normal case once a tagger has been near
+            // both. A differing album must not disqualify the match here, or
+            // revalidation rejects the very copies it exists to preserve.
             dedupedCopyPath: _song(
               path: dedupedCopyPath,
-              album: 'Test Album',
+              album: 'Some Christmas Compilation',
               artist: 'Test Artist',
               title: 'One',
             ),

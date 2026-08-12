@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:ariami_core/models/file_change.dart';
 import 'package:ariami_core/models/song_metadata.dart';
 import 'package:ariami_core/models/library_structure.dart';
+import 'package:ariami_core/services/library/album_grouping.dart';
 import 'package:ariami_core/services/library/duplicate_detector.dart';
 import 'package:ariami_core/services/library/metadata_extractor.dart';
 import 'package:ariami_core/services/library/library_playlist_builder.dart';
@@ -215,6 +216,19 @@ class ChangeProcessor {
     final songsByPath = <String, SongMetadata>{
       for (final song in allSongs) song.filePath: song,
     };
+    // Mirror the full scan's preferred set. It governs whether a differing
+    // album disqualifies a metadata match: two canonical album files with the
+    // same title are separate tracks (an album and its deluxe edition), but a
+    // playlist-folder copy is routinely tagged to a different release than the
+    // canonical file it duplicates. Passing an empty set here would treat
+    // every pair as canonical and reject exactly the copies this revalidation
+    // exists to preserve.
+    final albumCandidatePaths = <String>{
+      for (final song in allSongs)
+        if (detectPlaylistFolderPath(song.filePath) == null ||
+            detectAlbumFolderPath(song.filePath) != null)
+          song.filePath,
+    };
     final detector = DuplicateDetector();
     final duplicateToOriginalPath = <String, String>{};
     for (final entry in currentLibrary.duplicateToOriginalPath.entries) {
@@ -228,7 +242,11 @@ class ChangeProcessor {
         final original = songsByPath[entry.value];
         if (candidate == null ||
             original == null ||
-            !detector.stillDuplicates(candidate, original)) {
+            !detector.stillDuplicates(
+              candidate,
+              original,
+              preferredPaths: albumCandidatePaths,
+            )) {
           continue;
         }
       }
