@@ -675,9 +675,11 @@ void main() {
     });
 
     test('tag-only Fusion discovery intersects with Instrumental', () async {
+      final requestedTags = <String>[];
       final service = _serviceWith(MockClient((request) async {
         final query = request.url.queryParameters;
         if (query['method'] == 'tag.gettoptracks') {
+          requestedTags.add(query['tag']!);
           final tracks = query['tag'] == 'fusion'
               ? <Map<String, dynamic>>[
                   _tagTrack('Fusion Instrumental', 'Guitarist'),
@@ -724,6 +726,66 @@ void main() {
           <String>['Fusion Instrumental', 'Instrumental Fusion']);
       expect(result.tracks.first.sourceTags, <String>['fusion']);
       expect(result.tracks.last.sourceTags, <String>['instrumental']);
+      expect(requestedTags, <String>['fusion', 'instrumental']);
+    });
+
+    test('instrumental style falls back to compound Last.fm tags', () async {
+      final requestedTags = <String>[];
+      final service = _serviceWith(MockClient((request) async {
+        final query = request.url.queryParameters;
+        if (query['method'] == 'tag.gettoptracks') {
+          final tag = query['tag']!;
+          requestedTags.add(tag);
+          final tracks = switch (tag) {
+            'fusion' => <Map<String, dynamic>>[
+                _tagTrack('Fusion Vocal', 'Singer'),
+              ],
+            'instrumental' => <Map<String, dynamic>>[
+                _tagTrack('Instrumental Rock', 'Guitarist'),
+              ],
+            'instrumental fusion' => <Map<String, dynamic>>[
+                _tagTrack('Compound Jam', 'Fusion Band'),
+              ],
+            _ => <Map<String, dynamic>>[],
+          };
+          return _jsonResponse(<String, dynamic>{
+            'tracks': <String, dynamic>{'track': tracks},
+          });
+        }
+        if (query['method'] == 'track.getinfo') {
+          final tag = switch (query['track']) {
+            'Fusion Vocal' => 'Fusion',
+            'Instrumental Rock' => 'Rock',
+            _ => 'Jazz',
+          };
+          return _jsonResponse(<String, dynamic>{
+            'track': <String, dynamic>{
+              'toptags': <String, dynamic>{
+                'tag': <Map<String, dynamic>>[
+                  <String, dynamic>{'name': tag},
+                ],
+              },
+            },
+          });
+        }
+        return _jsonResponse(<String, dynamic>{});
+      }));
+
+      final result = await service.discover(
+        seeds: const <MusicRecommendationSeed>[],
+        ownedTracks: const <OwnedMusicTrack>[],
+        preferredTags: const <String>{'fusion'},
+        instrumentalOnly: true,
+      );
+
+      expect(result.tracks.single.name, 'Compound Jam');
+      expect(result.tracks.single.sourceTags, <String>['instrumental fusion']);
+      expect(requestedTags, <String>[
+        'fusion',
+        'instrumental',
+        'instrumental fusion',
+        'fusion instrumental',
+      ]);
     });
 
     test('refinement metadata rate limits still reach the caller', () async {
@@ -950,9 +1012,13 @@ void main() {
       );
     });
 
-    test('embedded genre text becomes normalized tag suggestions', () {
+    test('corroborated genre text becomes normalized tag suggestions', () {
       expect(
         splitMusicDiscoveryGenreTags(const <String?>[
+          'Blues/Rock',
+          'Jazz & Fusion',
+          'Rock & Roll',
+          'R&B; Soul',
           'Blues/Rock',
           'Jazz & Fusion',
           'Rock & Roll',
@@ -967,6 +1033,22 @@ void main() {
           'r&b',
           'soul',
         },
+      );
+    });
+
+    test('generic and one-off downloader genres are not suggested', () {
+      expect(
+        splitMusicDiscoveryGenreTags(const <String?>[
+          'Music',
+          'Music',
+          'People & Blogs',
+          'Entertainment',
+          'Lil Wayne, I Am Music, A Milli',
+          'Big, Inf, Mic, Handz, Ali, Believe',
+          'Fusion',
+          'Fusion',
+        ]),
+        <String>{'fusion'},
       );
     });
 

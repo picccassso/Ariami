@@ -52,6 +52,10 @@ class MusicRecommendationService {
         _selectSeeds(seeds.where((seed) => !seed.isTrack), artistSeedLimit);
     final selectedTracks =
         _selectSeeds(seeds.where((seed) => seed.isTrack), trackSeedLimit);
+    final selectedSeeds = <MusicRecommendationSeed>[
+      ...selectedArtists,
+      ...selectedTracks,
+    ];
     if (selectedArtists.isEmpty &&
         selectedTracks.isEmpty &&
         discoveryTags.isEmpty) {
@@ -101,27 +105,33 @@ class MusicRecommendationService {
     }
 
     final tagCandidates = <String, _CandidateAccumulator>{};
-    for (final tag in discoveryTags) {
-      try {
-        if (effectiveMix == MusicDiscoveryMix.tracks ||
-            effectiveMix == MusicDiscoveryMix.balanced) {
-          _mergeTag(
-            tagCandidates,
-            await lastFm.topTracksForTag(tag, limit: candidateLimit * 2),
-            tag,
-          );
-        }
-        if (effectiveMix == MusicDiscoveryMix.artists ||
-            effectiveMix == MusicDiscoveryMix.albums ||
-            effectiveMix == MusicDiscoveryMix.balanced) {
-          _mergeTag(
-            tagCandidates,
-            await lastFm.topArtistsForTag(tag, limit: candidateLimit * 2),
-            tag,
-          );
-        }
-      } on LastFmRecommendationException catch (error) {
-        if (!error.isNotFound) rethrow;
+    await _mergeTopTagCandidates(
+      tagCandidates,
+      discoveryTags,
+      mix: effectiveMix,
+      limit: candidateLimit * 2,
+    );
+
+    if (instrumentalOnly && requestedTags.isNotEmpty) {
+      final styleTags =
+          requestedTags.difference(const <String>{'instrumental'});
+      await _enrichMetadata(tagCandidates.values.take(metadataLookupLimit));
+      final hasStrictMatch = tagCandidates.values.any(
+        (candidate) =>
+            !_isSeed(candidate, selectedSeeds) &&
+            !owned.contains(candidate.kind, candidate.name, candidate.artist) &&
+            _matchesInstrumentalStyle(candidate, styleTags),
+      );
+      if (!hasStrictMatch) {
+        // Last.fm has no multi-tag query. Its compound community tags often
+        // carry the intended intersection even when the separate top charts
+        // and per-track tags do not overlap.
+        await _mergeTopTagCandidates(
+          tagCandidates,
+          _instrumentalCompoundTags(styleTags),
+          mix: effectiveMix,
+          limit: candidateLimit * 2,
+        );
       }
     }
     if (requestedTags.isNotEmpty && tagCandidates.isEmpty) {
@@ -147,10 +157,7 @@ class MusicRecommendationService {
       }
     }
     var candidates = candidatePool.values
-        .where((candidate) => !_isSeed(candidate, <MusicRecommendationSeed>[
-              ...selectedArtists,
-              ...selectedTracks,
-            ]))
+        .where((candidate) => !_isSeed(candidate, selectedSeeds))
         .where((candidate) =>
             effectiveMix == MusicDiscoveryMix.albums ||
             !owned.contains(candidate.kind, candidate.name, candidate.artist))
@@ -227,15 +234,9 @@ class MusicRecommendationService {
       await _enrichMetadata(candidates.take(metadataLookupLimit));
       final styleTags =
           requestedTags.difference(const <String>{'instrumental'});
-      candidates = candidates.where((candidate) {
-        final explicitlyInstrumental = _hasTagEvidence(
-          candidate,
-          const <String>{'instrumental'},
-        );
-        final matchesRequestedStyle =
-            styleTags.isEmpty || _hasTagEvidence(candidate, styleTags);
-        return explicitlyInstrumental && matchesRequestedStyle;
-      }).toList();
+      candidates = candidates
+          .where((candidate) => _matchesInstrumentalStyle(candidate, styleTags))
+          .toList();
       if (candidates.isEmpty) {
         throw LastFmRecommendationException(
           requestedTags.isEmpty
@@ -308,6 +309,37 @@ class MusicRecommendationService {
         track: base,
         limit: limit,
       );
+    }
+  }
+
+  Future<void> _mergeTopTagCandidates(
+    Map<String, _CandidateAccumulator> target,
+    Iterable<String> tags, {
+    required MusicDiscoveryMix mix,
+    required int limit,
+  }) async {
+    for (final tag in tags) {
+      try {
+        if (mix == MusicDiscoveryMix.tracks ||
+            mix == MusicDiscoveryMix.balanced) {
+          _mergeTag(
+            target,
+            await lastFm.topTracksForTag(tag, limit: limit),
+            tag,
+          );
+        }
+        if (mix == MusicDiscoveryMix.artists ||
+            mix == MusicDiscoveryMix.albums ||
+            mix == MusicDiscoveryMix.balanced) {
+          _mergeTag(
+            target,
+            await lastFm.topArtistsForTag(tag, limit: limit),
+            tag,
+          );
+        }
+      } on LastFmRecommendationException catch (error) {
+        if (!error.isNotFound) rethrow;
+      }
     }
   }
 
@@ -478,6 +510,22 @@ class MusicRecommendationService {
   ) =>
       _tagsMatch(candidate.sourceTags, aliases) ||
       _tagsMatch(candidate.tags, aliases);
+
+  static bool _matchesInstrumentalStyle(
+    _CandidateAccumulator candidate,
+    Set<String> styleTags,
+  ) =>
+      _hasTagEvidence(candidate, const <String>{'instrumental'}) &&
+      (styleTags.isEmpty || _hasTagEvidence(candidate, styleTags));
+
+  static Set<String> _instrumentalCompoundTags(Set<String> styleTags) =>
+      <String>{
+        for (final tag in styleTags)
+          if (!_tagsMatch(<String>{tag}, const <String>{'instrumental'})) ...[
+            'instrumental $tag',
+            '$tag instrumental',
+          ],
+      };
 
   static List<MusicRecommendationSeed> _selectSeeds(
     Iterable<MusicRecommendationSeed> source,

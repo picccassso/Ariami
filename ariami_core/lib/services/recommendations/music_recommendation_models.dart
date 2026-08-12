@@ -27,8 +27,9 @@ String musicDiscoveryTagLabel(String tag) {
           .join(' ');
 }
 
-/// Turns embedded file values such as `Blues/Rock` into useful Last.fm tag
-/// suggestions. Ambiguous ampersands split except for established genre names.
+/// Turns corroborated embedded values such as `Blues/Rock` into useful Last.fm
+/// tag suggestions. One-off values are often downloader categories or other
+/// fields accidentally written as genre, so a tag must occur on two files.
 Set<String> splitMusicDiscoveryGenreTags(Iterable<String?> values) {
   const protectedAmpersands = <String>{
     'country & western',
@@ -37,8 +38,16 @@ Set<String> splitMusicDiscoveryGenreTags(Iterable<String?> values) {
     'rhythm & blues',
     'rock & roll',
   };
-  final result = <String>{};
+  const ignored = <String>{
+    'entertainment',
+    'music',
+    'other',
+    'people & blogs',
+    'unknown',
+  };
+  final occurrences = <String, int>{};
   for (final raw in values) {
+    final fileTags = <String>{};
     for (final section in (raw ?? '').split(RegExp(r'[,;/|]+'))) {
       final normalized = normalizeMusicDiscoveryTag(section);
       if (normalized.isEmpty) continue;
@@ -46,10 +55,18 @@ Set<String> splitMusicDiscoveryGenreTags(Iterable<String?> values) {
               !protectedAmpersands.contains(normalized)
           ? normalized.split(RegExp(r'\s+&\s+'))
           : <String>[normalized];
-      result.addAll(parts.where((part) => part.length > 1));
+      fileTags.addAll(
+        parts.where((part) => part.length > 1 && !ignored.contains(part)),
+      );
+    }
+    for (final tag in fileTags) {
+      occurrences.update(tag, (count) => count + 1, ifAbsent: () => 1);
     }
   }
-  return result;
+  return occurrences.entries
+      .where((entry) => entry.value >= 2)
+      .map((entry) => entry.key)
+      .toSet();
 }
 
 class MusicDiscoveryPreferences {
