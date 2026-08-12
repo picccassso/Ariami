@@ -61,7 +61,9 @@ const _ignoredGenreTags = <String>{
 /// labelling one album or track there is no corpus to corroborate against.
 Set<String> musicGenreTags(String? value) {
   final tags = <String>{};
-  for (final section in (value ?? '').split(RegExp(r'[,;/|]+'))) {
+  // `+` joins genres in some tagging conventions (`Jazz+Funk`) and appears in
+  // no real genre name, so it separates like the rest.
+  for (final section in (value ?? '').split(RegExp(r'[,;/|+]+'))) {
     final normalized = normalizeMusicDiscoveryTag(section);
     // Ignored values are checked before the ampersand split as well as after,
     // or a junk category like `People & Blogs` survives as `people`+`blogs`.

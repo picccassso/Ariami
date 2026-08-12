@@ -1080,6 +1080,19 @@ void main() {
       expect(musicDiscoveryTagLabel('drum & bass'), 'Drum & Bass');
     });
 
+    test('real-world jazz library genre spellings normalize together', () {
+      // Values observed verbatim in a hand-tagged Herbie Hancock collection.
+      expect(musicGenreTags('Jazz+Funk'), <String>{'jazz', 'funk'});
+      expect(musicGenreTags('Fusion & Jazz rock'),
+          <String>{'fusion', 'jazz rock'});
+      expect(musicGenreTags('Soul, Funk, R&B'),
+          <String>{'soul', 'funk', 'r&b'});
+      // Case differences must collapse to one facet, not two.
+      expect(musicGenreTags('Jazz funk'), musicGenreTags('Jazz Funk'));
+      // No delimiter means no split: this is one tag, not three.
+      expect(musicGenreTags('Fusion Jazz rock'), <String>{'fusion jazz rock'});
+    });
+
     test('an artist list dumped into the genre field yields no tags', () {
       // Real values observed in a YouTube-sourced library. Without the
       // per-field cap each of these becomes a fistful of one-album facets
