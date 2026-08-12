@@ -1052,6 +1052,58 @@ void main() {
       );
     });
 
+    test('single-value genre tags keep one-off occurrences', () {
+      // Labelling one album or track has no corpus to corroborate against, so
+      // musicGenreTags deliberately skips the two-file rule that
+      // splitMusicDiscoveryGenreTags applies to tag suggestions.
+      expect(musicGenreTags('Blues/Rock'), <String>{'blues', 'rock'});
+      expect(musicGenreTags('Jazz & Fusion'), <String>{'jazz', 'fusion'});
+      expect(musicGenreTags('Drum & Bass'), <String>{'drum & bass'});
+      expect(splitMusicDiscoveryGenreTags(const <String?>['Blues/Rock']),
+          isEmpty,
+          reason: 'the corroborated path still requires two files');
+    });
+
+    test('single-value genre tags still drop junk and empty values', () {
+      expect(musicGenreTags(null), isEmpty);
+      expect(musicGenreTags(''), isEmpty);
+      expect(musicGenreTags('Music'), isEmpty);
+      expect(musicGenreTags('People & Blogs'), isEmpty);
+    });
+
+    test('tag labels special-case acronyms inside compound genres', () {
+      expect(musicDiscoveryTagLabel('r&b'), 'R&B');
+      expect(musicDiscoveryTagLabel('alternative r&b'), 'Alternative R&B');
+      expect(musicDiscoveryTagLabel('edm'), 'EDM');
+      expect(musicDiscoveryTagLabel('progressive edm'), 'Progressive EDM');
+      expect(musicDiscoveryTagLabel('indie pop'), 'Indie Pop');
+      expect(musicDiscoveryTagLabel('drum & bass'), 'Drum & Bass');
+    });
+
+    test('an artist list dumped into the genre field yields no tags', () {
+      // Real values observed in a YouTube-sourced library. Without the
+      // per-field cap each of these becomes a fistful of one-album facets
+      // named after performers.
+      expect(
+        musicGenreTags('Lil Wayne, リルウェイン, リル・ウェイン, I Am Music, '
+            'A Milli, ア・ミリ－オレハミリオネア'),
+        isEmpty,
+      );
+      expect(
+        musicGenreTags('Big, Inf, Mic, Handz, Ali, Vegas, Fantom, of, '
+            'the, Beat, Believe'),
+        isEmpty,
+      );
+      expect(
+        musicGenreTags('Vali Vijelie, Adi De La Valcea, O Cariera De Succes, '
+            'Aseara Te-Am Sunat (feat. Adi De La Valcea)'),
+        isEmpty,
+      );
+      // A genuinely multi-genre file stays under the cap and survives.
+      expect(musicGenreTags('Jazz, Funk, Soul'),
+          <String>{'jazz', 'funk', 'soul'});
+    });
+
     test('cache keys separate ranges, anchors and depths', () {
       const base = MusicDiscoveryPreferences();
       final march = base.copyWith(

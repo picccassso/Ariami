@@ -18,48 +18,74 @@ String musicDiscoveryTagLabel(String tag) {
     'hip-hop': 'Hip-hop',
   };
   final normalized = normalizeMusicDiscoveryTag(tag);
+  // Special casing applies per word as well as to the whole tag, or a
+  // compound like `alternative r&b` title-cases into `Alternative R&b`.
   return special[normalized] ??
       normalized
           .split(' ')
           .map((word) => word.isEmpty
               ? word
-              : '${word[0].toUpperCase()}${word.substring(1)}')
+              : special[word] ??
+                  '${word[0].toUpperCase()}${word.substring(1)}')
           .join(' ');
+}
+
+const _protectedGenreAmpersands = <String>{
+  'country & western',
+  'drum & bass',
+  'r&b',
+  'rhythm & blues',
+  'rock & roll',
+};
+
+/// A single genre field yielding more than this many tags is an artist or
+/// title list written into the genre frame by a downloader — real genre
+/// fields carry one value, occasionally two or three. The cap is per file, so
+/// an album still accumulates as many genres as its tracks legitimately span.
+const _maxGenreTagsPerField = 3;
+
+const _ignoredGenreTags = <String>{
+  'entertainment',
+  'music',
+  'other',
+  'people & blogs',
+  'unknown',
+};
+
+/// Splits one embedded genre value such as `Blues/Rock` into its individual
+/// tags, in the order they appear. Compound separators are split apart, ` & `
+/// too unless the whole value is a genre that legitimately contains one, and
+/// junk values written into the genre field by downloaders are dropped.
+///
+/// Unlike [splitMusicDiscoveryGenreTags] this keeps single occurrences: when
+/// labelling one album or track there is no corpus to corroborate against.
+Set<String> musicGenreTags(String? value) {
+  final tags = <String>{};
+  for (final section in (value ?? '').split(RegExp(r'[,;/|]+'))) {
+    final normalized = normalizeMusicDiscoveryTag(section);
+    // Ignored values are checked before the ampersand split as well as after,
+    // or a junk category like `People & Blogs` survives as `people`+`blogs`.
+    if (normalized.isEmpty || _ignoredGenreTags.contains(normalized)) continue;
+    final parts = normalized.contains(' & ') &&
+            !_protectedGenreAmpersands.contains(normalized)
+        ? normalized.split(RegExp(r'\s+&\s+'))
+        : <String>[normalized];
+    tags.addAll(
+      parts.where(
+        (part) => part.length > 1 && !_ignoredGenreTags.contains(part),
+      ),
+    );
+  }
+  return tags.length > _maxGenreTagsPerField ? const <String>{} : tags;
 }
 
 /// Turns corroborated embedded values such as `Blues/Rock` into useful Last.fm
 /// tag suggestions. One-off values are often downloader categories or other
 /// fields accidentally written as genre, so a tag must occur on two files.
 Set<String> splitMusicDiscoveryGenreTags(Iterable<String?> values) {
-  const protectedAmpersands = <String>{
-    'country & western',
-    'drum & bass',
-    'r&b',
-    'rhythm & blues',
-    'rock & roll',
-  };
-  const ignored = <String>{
-    'entertainment',
-    'music',
-    'other',
-    'people & blogs',
-    'unknown',
-  };
   final occurrences = <String, int>{};
   for (final raw in values) {
-    final fileTags = <String>{};
-    for (final section in (raw ?? '').split(RegExp(r'[,;/|]+'))) {
-      final normalized = normalizeMusicDiscoveryTag(section);
-      if (normalized.isEmpty) continue;
-      final parts = normalized.contains(' & ') &&
-              !protectedAmpersands.contains(normalized)
-          ? normalized.split(RegExp(r'\s+&\s+'))
-          : <String>[normalized];
-      fileTags.addAll(
-        parts.where((part) => part.length > 1 && !ignored.contains(part)),
-      );
-    }
-    for (final tag in fileTags) {
+    for (final tag in musicGenreTags(raw)) {
       occurrences.update(tag, (count) => count + 1, ifAbsent: () => 1);
     }
   }
