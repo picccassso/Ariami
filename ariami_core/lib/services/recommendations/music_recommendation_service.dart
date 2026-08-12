@@ -40,6 +40,10 @@ class MusicRecommendationService {
         .map(normalizeMusicDiscoveryTag)
         .where((tag) => tag.isNotEmpty)
         .toSet();
+    final discoveryTags = <String>{
+      ...requestedTags,
+      if (instrumentalOnly) 'instrumental',
+    };
     final localTasteTags = libraryTags
         .map(normalizeMusicDiscoveryTag)
         .where((tag) => tag.isNotEmpty)
@@ -50,7 +54,7 @@ class MusicRecommendationService {
         _selectSeeds(seeds.where((seed) => seed.isTrack), trackSeedLimit);
     if (selectedArtists.isEmpty &&
         selectedTracks.isEmpty &&
-        requestedTags.isEmpty) {
+        discoveryTags.isEmpty) {
       throw const LastFmRecommendationException(
         'Listen to a few songs first so Ariami can choose recommendation seeds.',
       );
@@ -97,7 +101,7 @@ class MusicRecommendationService {
     }
 
     final tagCandidates = <String, _CandidateAccumulator>{};
-    for (final tag in requestedTags) {
+    for (final tag in discoveryTags) {
       try {
         if (effectiveMix == MusicDiscoveryMix.tracks ||
             effectiveMix == MusicDiscoveryMix.balanced) {
@@ -134,8 +138,15 @@ class MusicRecommendationService {
       }
     }
 
-    var candidates = (requestedTags.isEmpty ? accumulators : tagCandidates)
-        .values
+    final candidatePool = <String, _CandidateAccumulator>{...tagCandidates};
+    if (requestedTags.isEmpty) {
+      // Instrumental mode remains taste-aware, but the explicit tag pool also
+      // makes it useful when similarity candidates have sparse metadata.
+      for (final entry in accumulators.entries) {
+        candidatePool.putIfAbsent(entry.key, () => entry.value);
+      }
+    }
+    var candidates = candidatePool.values
         .where((candidate) => !_isSeed(candidate, <MusicRecommendationSeed>[
               ...selectedArtists,
               ...selectedTracks,
@@ -214,10 +225,17 @@ class MusicRecommendationService {
 
     if (instrumentalOnly) {
       await _enrichMetadata(candidates.take(metadataLookupLimit));
-      candidates = candidates
-          .where((candidate) =>
-              _tagsMatch(candidate.tags, const <String>{'instrumental'}))
-          .toList();
+      final styleTags =
+          requestedTags.difference(const <String>{'instrumental'});
+      candidates = candidates.where((candidate) {
+        final explicitlyInstrumental = _hasTagEvidence(
+          candidate,
+          const <String>{'instrumental'},
+        );
+        final matchesRequestedStyle =
+            styleTags.isEmpty || _hasTagEvidence(candidate, styleTags);
+        return explicitlyInstrumental && matchesRequestedStyle;
+      }).toList();
       if (candidates.isEmpty) {
         throw LastFmRecommendationException(
           requestedTags.isEmpty
@@ -453,6 +471,13 @@ class MusicRecommendationService {
     }
     return false;
   }
+
+  static bool _hasTagEvidence(
+    _CandidateAccumulator candidate,
+    Set<String> aliases,
+  ) =>
+      _tagsMatch(candidate.sourceTags, aliases) ||
+      _tagsMatch(candidate.tags, aliases);
 
   static List<MusicRecommendationSeed> _selectSeeds(
     Iterable<MusicRecommendationSeed> source,

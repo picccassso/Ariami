@@ -533,6 +533,46 @@ void main() {
               <String>['Instrumental Song', 'Vocal Song', 'Unknown Song']));
     });
 
+    test('instrumental mode sources its tag pool without taste seeds',
+        () async {
+      final requestedTags = <String>[];
+      final service = _serviceWith(MockClient((request) async {
+        final query = request.url.queryParameters;
+        if (query['method'] == 'tag.gettoptracks') {
+          requestedTags.add(query['tag']!);
+          return _jsonResponse(<String, dynamic>{
+            'tracks': <String, dynamic>{
+              'track': <Map<String, dynamic>>[
+                _tagTrack('Direct Instrumental', 'Instrumentalist'),
+              ],
+            },
+          });
+        }
+        if (query['method'] == 'track.getinfo') {
+          return _jsonResponse(<String, dynamic>{
+            'track': <String, dynamic>{
+              'toptags': <String, dynamic>{
+                'tag': <Map<String, dynamic>>[
+                  <String, dynamic>{'name': 'Rock'},
+                ],
+              },
+            },
+          });
+        }
+        return _jsonResponse(<String, dynamic>{});
+      }));
+
+      final result = await service.discover(
+        seeds: const <MusicRecommendationSeed>[],
+        ownedTracks: const <OwnedMusicTrack>[],
+        instrumentalOnly: true,
+      );
+
+      expect(requestedTags, <String>['instrumental']);
+      expect(result.tracks.single.name, 'Direct Instrumental');
+      expect(result.tracks.single.sourceTags, <String>['instrumental']);
+    });
+
     test('a selected tag sources candidates instead of reranking taste',
         () async {
       final service = _serviceWith(MockClient((request) async {
@@ -638,24 +678,33 @@ void main() {
       final service = _serviceWith(MockClient((request) async {
         final query = request.url.queryParameters;
         if (query['method'] == 'tag.gettoptracks') {
+          final tracks = query['tag'] == 'fusion'
+              ? <Map<String, dynamic>>[
+                  _tagTrack('Fusion Instrumental', 'Guitarist'),
+                  _tagTrack('Fusion Vocal', 'Singer'),
+                ]
+              : <Map<String, dynamic>>[
+                  _tagTrack('Instrumental Fusion', 'Keyboardist'),
+                  _tagTrack('Instrumental Rock', 'Rock Guitarist'),
+                ];
           return _jsonResponse(<String, dynamic>{
             'tracks': <String, dynamic>{
-              'track': <Map<String, dynamic>>[
-                _tagTrack('Fusion Instrumental', 'Guitarist'),
-                _tagTrack('Fusion Vocal', 'Singer'),
-              ],
+              'track': tracks,
             },
           });
         }
         if (query['method'] == 'track.getinfo') {
-          final instrumental = query['track'] == 'Fusion Instrumental';
+          final tag = switch (query['track']) {
+            'Fusion Instrumental' => 'Instrumental',
+            'Instrumental Fusion' => 'Fusion',
+            'Instrumental Rock' => 'Rock',
+            _ => 'Fusion',
+          };
           return _jsonResponse(<String, dynamic>{
             'track': <String, dynamic>{
               'toptags': <String, dynamic>{
                 'tag': <Map<String, dynamic>>[
-                  <String, dynamic>{
-                    'name': instrumental ? 'Instrumental' : 'Fusion',
-                  },
+                  <String, dynamic>{'name': tag},
                 ],
               },
             },
@@ -672,8 +721,9 @@ void main() {
       );
 
       expect(result.tracks.map((item) => item.name),
-          <String>['Fusion Instrumental']);
-      expect(result.tracks.single.sourceTags, <String>['fusion']);
+          <String>['Fusion Instrumental', 'Instrumental Fusion']);
+      expect(result.tracks.first.sourceTags, <String>['fusion']);
+      expect(result.tracks.last.sourceTags, <String>['instrumental']);
     });
 
     test('refinement metadata rate limits still reach the caller', () async {

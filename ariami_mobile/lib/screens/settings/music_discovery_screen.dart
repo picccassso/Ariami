@@ -49,7 +49,7 @@ class _MusicDiscoveryScreenState extends State<MusicDiscoveryScreen> {
   static const _apiKeyStorageKey = 'ariami_lastfm_api_key_v1';
   static const _enabledKey = 'mobile_music_discovery_enabled_v1';
   static const _preferencesKey = 'mobile_music_discovery_preferences_v1';
-  static const _cachePrefix = 'mobile_music_discovery_cache_v7_';
+  static const _cachePrefix = 'mobile_music_discovery_cache_v8_';
   static const _legacyCachePrefixes = <String>[
     'mobile_music_discovery_cache_v1_',
     'mobile_music_discovery_cache_v2_',
@@ -59,6 +59,8 @@ class _MusicDiscoveryScreenState extends State<MusicDiscoveryScreen> {
     'mobile_music_discovery_cache_v5_',
     // v6 treated genres as a soft rank instead of a candidate source.
     'mobile_music_discovery_cache_v6_',
+    // v7 only filtered taste/tag candidates instead of sourcing instrumentals.
+    'mobile_music_discovery_cache_v7_',
   ];
   static const _refreshAge = Duration(hours: 24);
 
@@ -219,7 +221,9 @@ class _MusicDiscoveryScreenState extends State<MusicDiscoveryScreen> {
               'Try again when connected to your server.');
       return;
     }
-    if (seeds.isEmpty && _preferences.preferredTags.isEmpty) {
+    if (seeds.isEmpty &&
+        _preferences.preferredTags.isEmpty &&
+        !_preferences.instrumentalOnly) {
       setState(() => _error = _preferences.tasteRange.isAllTime
           ? 'Listen to a few songs first so Ariami can learn your taste.'
           : 'No listening was recorded in ${_preferences.tasteRange.title()}. '
@@ -438,7 +442,8 @@ class _MusicDiscoveryScreenState extends State<MusicDiscoveryScreen> {
                   contentPadding: EdgeInsets.zero,
                   title: const Text('Instrumental only'),
                   subtitle: const Text(
-                    'Shows only tracks explicitly tagged as instrumental.',
+                    "Explores Last.fm's instrumental pool and keeps only "
+                    'tracks with explicit instrumental evidence.',
                   ),
                   value: instrumentalOnly,
                   onChanged: (value) => setDialogState(() {
