@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'main/artist_page_opener.dart';
 import 'main/library_navigator.dart';
 import 'main/search_navigator.dart';
 import 'main/settings_navigator.dart';
@@ -37,6 +38,17 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
     });
   }
 
+  /// Opens an artist's page in the Library tab. The tab's nested navigator
+  /// only exists while the tab is mounted, so the push waits for the frame
+  /// that mounts it (or stays put when it is already mounted).
+  void _openArtistPage(String artistName) {
+    _goToLibrary();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      libraryNavigatorKey.currentState
+          ?.pushNamed('/artist', arguments: artistName);
+    });
+  }
+
   Future<void> _exitApp() async {
     await _connect.leave();
     await SystemNavigator.pop();
@@ -46,6 +58,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    ArtistPageOpener().register(_openArtistPage);
     // Initialize playback manager and listen to changes
     _playbackManager.initialize();
     unawaited(_connect.start(_playbackManager));
@@ -56,6 +69,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _playbackManager.removeListener(_onPlaybackStateChanged);
+    ArtistPageOpener().unregister(_openArtistPage);
     _searchTabReselections.dispose();
     // Widget/view teardown is not proof that the Android process or its
     // background audio service is exiting. Keep local playback untouched.

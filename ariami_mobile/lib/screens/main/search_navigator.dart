@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../models/api_models.dart';
 import '../album_detail_screen.dart';
+import '../artist_detail_screen.dart';
 import '../playlist/playlist_detail_screen.dart';
 import 'search_screen.dart';
 import 'nested_tab_navigator.dart';
@@ -48,6 +49,10 @@ class SearchNavigator extends StatelessWidget {
           case '/playlist':
             final playlistId = settings.arguments as String;
             page = PlaylistDetailScreen(playlistId: playlistId);
+            break;
+          case '/artist':
+            final artistName = settings.arguments as String;
+            page = ArtistDetailScreen(artistName: artistName);
             break;
           default:
             page = SearchScreen(

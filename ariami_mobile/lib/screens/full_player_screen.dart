@@ -19,6 +19,7 @@ import '../widgets/common/mini_player_aware_bottom_sheet.dart';
 import '../widgets/common/queue_action_confirmation.dart';
 import 'playlist/add_to_playlist_screen.dart';
 import 'queue_screen.dart';
+import 'main/artist_page_opener.dart';
 
 class FullPlayerScreen extends StatefulWidget {
   const FullPlayerScreen({super.key});
@@ -437,6 +438,7 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
     return PlayerInfo(
       song: _playbackManager.currentSong!,
       isFavorite: _isFavorite,
+      onArtistTap: _openArtistPage,
       onToggleFavorite: () async {
         final song = _playbackManager.currentSong;
         if (song != null) {
@@ -450,6 +452,16 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
         }
       },
     );
+  }
+
+  /// Closes the full player and opens the artist's page in the Library tab.
+  /// The `/artist` route lives in that tab's nested navigator, and leaving
+  /// this full-screen route up would hide the page underneath it.
+  void _openArtistPage() {
+    final artist = _playbackManager.currentSong?.artist;
+    if (artist == null) return;
+    Navigator.of(context).pop();
+    ArtistPageOpener().open(artist);
   }
 
   Widget _buildSeekBar() {

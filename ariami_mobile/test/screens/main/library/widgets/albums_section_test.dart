@@ -209,7 +209,8 @@ void main() {
       await tester.pump();
 
       expect(find.text('Test Album 1'), findsOneWidget);
-      expect(find.text('Test Artist 1 · Offline copy'), findsOneWidget);
+      expect(find.text('Test Artist 1'), findsOneWidget);
+      expect(find.text(' · Offline copy'), findsOneWidget);
       expect(find.byIcon(Icons.cloud_off_rounded), findsOneWidget);
       expect(find.byIcon(Icons.download_done), findsNothing);
     });

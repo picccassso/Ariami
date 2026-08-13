@@ -221,6 +221,9 @@ class PlaybackManager extends ChangeNotifier {
   /// Builds the [sourceId] key for a playlist.
   static String playlistSource(String playlistId) => 'playlist:$playlistId';
 
+  /// Builds the [sourceId] key for an artist page.
+  static String artistSource(String name) => 'artist:$name';
+
   Song? get _localCurrentSong => _queue.currentSong;
   bool get _localIsPlaying => _castService.isConnected
       ? _castService.isRemotePlaying

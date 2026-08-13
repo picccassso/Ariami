@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../models/api_models.dart';
 import '../../services/playback_manager.dart';
 import '../../utils/artwork_url.dart';
+import '../common/artist_link.dart';
 import '../common/cached_artwork.dart';
 import 'playing_collection_builder.dart';
 
@@ -190,23 +191,41 @@ class AlbumGridItem extends StatelessWidget {
                         ),
                   ),
                   const SizedBox(height: 4),
-                  Text(
-                    [
-                      album.artist,
-                      if (genre != null) genre!,
-                      if (isOfflineCopy) 'Offline copy',
-                    ].join(' · '),
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: isOfflineCopy
-                              ? Theme.of(context).colorScheme.secondary
-                              : Theme.of(context)
-                                  .colorScheme
-                                  .onSurface
-                                  .withValues(alpha: 0.6),
-                          fontSize: 12,
+                  Row(
+                    children: [
+                      Flexible(
+                        child: ArtistLink(
+                          name: album.artist,
+                          enabled: !isSelectionMode,
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodyMedium
+                              ?.copyWith(
+                                color: isOfflineCopy
+                                    ? Theme.of(context).colorScheme.secondary
+                                    : Theme.of(context)
+                                        .colorScheme
+                                        .onSurface
+                                        .withValues(alpha: 0.6),
+                                fontSize: 12,
+                              ),
                         ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                      ),
+                      if (genre != null)
+                        Text(
+                          ' · $genre',
+                          style: _subtitleStyle(context),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      if (isOfflineCopy)
+                        Text(
+                          ' · Offline copy',
+                          style: _subtitleStyle(context),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                    ],
                   ),
                 ],
               ),
@@ -215,6 +234,16 @@ class AlbumGridItem extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  /// Shared style for the artist/genre/offline-copy subtitle suffixes.
+  TextStyle? _subtitleStyle(BuildContext context) {
+    return Theme.of(context).textTheme.bodyMedium?.copyWith(
+          color: isOfflineCopy
+              ? Theme.of(context).colorScheme.secondary
+              : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+          fontSize: 12,
+        );
   }
 
   /// Build album artwork with loading and fallback (using CachedArtwork)

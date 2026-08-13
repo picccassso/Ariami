@@ -96,7 +96,8 @@ void main() {
       await tester.pump();
 
       expect(find.text('Saved Single'), findsOneWidget);
-      expect(find.text('Saved Artist · Offline copy'), findsOneWidget);
+      expect(find.text('Saved Artist'), findsOneWidget);
+      expect(find.text(' · Offline copy'), findsOneWidget);
       expect(find.byIcon(Icons.cloud_off_rounded), findsOneWidget);
     });
 

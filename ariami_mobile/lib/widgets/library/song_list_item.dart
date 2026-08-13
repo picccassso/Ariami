@@ -6,6 +6,7 @@ import '../../screens/playlist/add_to_playlist_screen.dart';
 import '../../services/playback_manager.dart';
 import '../../services/download/download_manager.dart';
 import '../../services/api/connection_service.dart';
+import '../common/artist_link.dart';
 import '../common/cached_artwork.dart';
 import '../common/song_overflow_menu.dart';
 import '../common/swipe_to_queue.dart';
@@ -25,6 +26,10 @@ class SongListItem extends StatelessWidget {
   final bool isSelectionMode;
   final bool isSelected;
 
+  /// Whether the artist name links to the artist page. Disable on screens
+  /// whose navigator has no `/artist` route.
+  final bool artistLinkEnabled;
+
   const SongListItem({
     super.key,
     required this.song,
@@ -38,6 +43,7 @@ class SongListItem extends StatelessWidget {
     this.albumArtist,
     this.isSelectionMode = false,
     this.isSelected = false,
+    this.artistLinkEnabled = true,
   });
 
   @override
@@ -125,24 +131,45 @@ class SongListItem extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                           ),
                           const SizedBox(height: 4),
-                          Text(
-                            isOfflineCopy
-                                ? '${song.artist} · Offline copy'
-                                : song.artist,
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodyMedium
-                                ?.copyWith(
-                                  fontSize: 14,
-                                  color: isOfflineCopy
-                                      ? Theme.of(context).colorScheme.secondary
-                                      : Theme.of(context)
-                                          .colorScheme
-                                          .onSurface
-                                          .withValues(alpha: 0.6),
+                          Row(
+                            children: [
+                              Flexible(
+                                child: ArtistLink(
+                                  name: song.artist,
+                                  enabled: artistLinkEnabled &&
+                                      !isSelectionMode,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodyMedium
+                                      ?.copyWith(
+                                        fontSize: 14,
+                                        color: isOfflineCopy
+                                            ? Theme.of(context)
+                                                .colorScheme
+                                                .secondary
+                                            : Theme.of(context)
+                                                .colorScheme
+                                                .onSurface
+                                                .withValues(alpha: 0.6),
+                                      ),
                                 ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                              ),
+                              if (isOfflineCopy)
+                                Text(
+                                  ' · Offline copy',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodyMedium
+                                      ?.copyWith(
+                                        fontSize: 14,
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .secondary,
+                                      ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                            ],
                           ),
                         ],
                       ),

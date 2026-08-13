@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:ariami_core/services/playlists/created_playlist_id.dart';
+import 'package:ariami_core/services/stats/credited_artist_splitter.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -11,8 +12,9 @@ import '../../../models/websocket_models.dart';
 import '../../../services/api/connection_service.dart';
 import '../../../services/cache/cache_manager.dart';
 import '../../../services/download/download_manager.dart';
-import '../../../services/library/library_read_facade.dart';
+import '../../../services/library/library_artist_index.dart';
 import '../../../services/library/library_genre_index.dart';
+import '../../../services/library/library_read_facade.dart';
 import '../../../services/library/library_pin_storage.dart';
 import '../../../services/offline/offline_manual_reconnect.dart';
 import '../../../services/offline/offline_copy_service.dart';
@@ -26,6 +28,7 @@ import '../../../utils/downloaded_album_metadata.dart';
 import 'library_album_remap.dart';
 import 'library_state.dart';
 
+part 'library_controller_artists.dart';
 part 'library_controller_loading.dart';
 part 'library_controller_local_state.dart';
 part 'library_controller_preferences.dart';
@@ -58,6 +61,13 @@ class LibraryController extends ChangeNotifier {
 
   LibraryState _state = const LibraryState();
   LibraryState get state => _state;
+
+  // Artist index memoization: rebuilt only when the underlying catalog lists
+  // change (see library_controller_artists.dart).
+  List<SongModel>? _artistIndexSongsRef;
+  List<AlbumModel>? _artistIndexAlbumsRef;
+  int? _artistIndexPlaylistRevision;
+  LibraryArtistIndex _artistIndexCache = LibraryArtistIndex.empty;
 
   bool _isSelectionModeActive = false;
   bool get isSelectionModeActive => _isSelectionModeActive;
@@ -140,6 +150,25 @@ class LibraryController extends ChangeNotifier {
 
   /// Library songs belonging to [albumId], in track order.
   List<SongModel> albumSongsFor(String albumId) => _albumSongsFor(albumId);
+
+  /// Albums by [name]: every album whose artist string, or a credited artist
+  /// within it, normalizes to [name] — so case, whitespace and
+  /// collaboration-credit differences resolve to the same page. Title-sorted.
+  List<AlbumModel> artistAlbums(String name) => _artistAlbums(name);
+
+  /// Songs credited to [name], in library order. Multi-artist credits
+  /// ("A, B") count for every artist in the credit, mirroring the
+  /// listening-stats derivation.
+  List<SongModel> artistTracks(String name) => _artistTracks(name);
+
+  /// Albums where [name] is credited on at least one track but is not the
+  /// album artist — compilations, soundtracks and features. Sorted by title.
+  List<AlbumModel> artistAppearsOn(String name) => _artistAppearsOn(name);
+
+  /// Playlists containing at least one song credited to [name], in library
+  /// order.
+  List<PlaylistModel> playlistsWithArtist(String name) =>
+      _playlistsWithArtist(name);
 
   Future<void> toggleViewMode() => _toggleViewMode();
   Future<void> toggleAlbumsExpanded() => _toggleAlbumsExpanded();
