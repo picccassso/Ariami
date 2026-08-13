@@ -46,6 +46,8 @@ class ArtistDetailScreen extends StatelessWidget {
     final tracks = library.artistTracks(artistName);
     final appearsOn = library.artistAppearsOn(artistName);
     final topTracks = _topTracks(tracks, StreamingStatsService().getAllStats());
+    final artworkAlbum = _firstAlbumWithArtwork([...albums, ...appearsOn]);
+    final artworkSong = tracks.isEmpty ? null : tracks.first;
 
     if (albums.isEmpty && playlists.isEmpty && tracks.isEmpty) {
       return Scaffold(
@@ -62,14 +64,15 @@ class ArtistDetailScreen extends StatelessWidget {
     return Scaffold(
       body: CustomScrollView(
         slivers: [
-          // Pinned header showing the first album's artwork as the artist art.
+          // Prefer a known album cover, then fall back to embedded song art.
           SliverAppBar(
             pinned: true,
             expandedHeight: detailHeaderHeight(context),
             title: Text(artistName),
             flexibleSpace: FlexibleSpaceBar(
               background: _ArtistHeaderArtwork(
-                album: albums.isEmpty ? null : albums.first,
+                album: artworkAlbum,
+                song: artworkSong,
               ),
             ),
           ),
@@ -395,16 +398,38 @@ class _EmptyLine extends StatelessWidget {
   }
 }
 
-/// First album's artwork as the artist header, or a plain placeholder.
+AlbumModel? _firstAlbumWithArtwork(Iterable<AlbumModel> albums) {
+  for (final album in albums) {
+    if (album.coverArt?.trim().isNotEmpty == true) return album;
+  }
+  return null;
+}
+
+/// Best available local artwork as the artist header, or a plain placeholder.
 class _ArtistHeaderArtwork extends StatelessWidget {
-  const _ArtistHeaderArtwork({required this.album});
+  const _ArtistHeaderArtwork({required this.album, required this.song});
 
   final AlbumModel? album;
+  final SongModel? song;
 
   @override
   Widget build(BuildContext context) {
     final apiClient = ConnectionService().apiClient;
     final artworkSize = isExpandedWidth(context) ? 280.0 : 200.0;
+    final songArtwork = song == null
+        ? _buildPlaceholder()
+        : CachedArtwork(
+            key: ValueKey('artist-header-song-${song!.id}'),
+            albumId: 'song_${song!.id}',
+            artworkUrl: apiClient == null
+                ? null
+                : '${apiClient.baseUrl}/song-artwork/${song!.id}',
+            fit: BoxFit.cover,
+            width: double.infinity,
+            height: double.infinity,
+            fallback: _buildPlaceholder(),
+            fallbackIcon: Icons.music_note,
+          );
 
     return Stack(
       fit: StackFit.expand,
@@ -437,16 +462,15 @@ class _ArtistHeaderArtwork extends StatelessWidget {
                 ],
               ),
               child: album == null
-                  ? _buildPlaceholder()
+                  ? songArtwork
                   : CachedArtwork(
+                      key: ValueKey('artist-header-album-${album!.id}'),
                       albumId: album!.id,
-                      artworkUrl: apiClient != null
-                          ? '${apiClient.baseUrl}/artwork/${album!.id}'
-                          : null,
+                      artworkUrl: album!.coverArt,
                       fit: BoxFit.cover,
                       width: double.infinity,
                       height: double.infinity,
-                      fallback: _buildPlaceholder(),
+                      fallback: songArtwork,
                       fallbackIcon: Icons.music_note,
                     ),
             ),

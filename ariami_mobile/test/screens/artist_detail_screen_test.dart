@@ -23,10 +23,17 @@ void main() {
 
   tearDownAll(uninstallSqfliteTestMocks);
 
-  AlbumModel album(String id, String title, String artist) => AlbumModel(
+  AlbumModel album(
+    String id,
+    String title,
+    String artist, {
+    bool hasArtwork = true,
+  }) =>
+      AlbumModel(
         id: id,
         title: title,
         artist: artist,
+        coverArt: hasArtwork ? '/api/artwork/$id' : null,
         songCount: 1,
         duration: 180,
       );
@@ -84,8 +91,7 @@ void main() {
       expect(find.text("This artist isn't in your library."), findsOneWidget);
     });
 
-    testWidgets('top songs ranked by play count, capped at 10',
-        (tester) async {
+    testWidgets('top songs ranked by play count, capped at 10', (tester) async {
       await resetSingletons();
 
       LibraryController().setStateForTest(
@@ -161,6 +167,41 @@ void main() {
       expect(find.text('Own Album A'), findsOneWidget);
       expect(find.text('Own Album B'), findsOneWidget);
       expect(find.text('Now That Compilation'), findsOneWidget);
+    });
+
+    testWidgets('header skips coverless albums and falls back to song art',
+        (tester) async {
+      await resetSingletons();
+
+      LibraryController().setStateForTest(
+        LibraryState(
+          albums: [
+            album('a1', 'Coverless', 'Test Artist', hasArtwork: false),
+            album('a2', 'With Art', 'Test Artist'),
+          ],
+          songs: [track('s1', 'Song 1', 'Test Artist', 'a1')],
+          isLoading: false,
+        ),
+      );
+
+      await pumpArtistPage(tester, 'Test Artist');
+
+      expect(
+          find.byKey(const ValueKey('artist-header-album-a2')), findsOneWidget);
+
+      LibraryController().setStateForTest(
+        LibraryState(
+          albums: [
+            album('a1', 'Coverless', 'Test Artist', hasArtwork: false),
+          ],
+          songs: [track('s1', 'Song 1', 'Test Artist', 'a1')],
+          isLoading: false,
+        ),
+      );
+      await tester.pump();
+
+      expect(
+          find.byKey(const ValueKey('artist-header-song-s1')), findsOneWidget);
     });
 
     testWidgets('shows only playlists containing the artist songs',
