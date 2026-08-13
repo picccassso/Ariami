@@ -20,6 +20,7 @@ class WsMessageType {
   static const String clientDisconnected = 'client_disconnected';
   static const String listeningStatsUpdated = 'listening_stats_updated';
   static const String pinsChanged = 'pins_changed';
+  static const String hiddenChanged = 'hidden_changed';
   static const String playlistEditsChanged = 'playlist_edits_changed';
 }
 

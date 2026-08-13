@@ -48,7 +48,9 @@ import 'package:ariami_core/app_version.dart';
 import 'package:ariami_core/services/setup/music_folder_path_helper.dart';
 import 'package:ariami_core/models/listening_stats_models.dart';
 import 'package:ariami_core/services/stats/listening_stats_store.dart';
+import 'package:ariami_core/models/hidden_item.dart';
 import 'package:ariami_core/models/pinned_item.dart';
+import 'package:ariami_core/services/hidden/hidden_item_store.dart';
 import 'package:ariami_core/services/pins/pinned_item_store.dart';
 import 'package:ariami_core/services/playlists/created_playlist_id.dart';
 import 'package:ariami_core/services/playlists/playlist_edit_store.dart';
@@ -69,6 +71,7 @@ part 'http_server_parts/stream_and_download_handlers_part.dart';
 part 'http_server_parts/websocket_and_static_part.dart';
 part 'http_server_parts/listening_stats_handlers_part.dart';
 part 'http_server_parts/pins_handlers_part.dart';
+part 'http_server_parts/hidden_handlers_part.dart';
 part 'http_server_parts/playlist_edits_handlers_part.dart';
 part 'http_server_parts/license_handlers_part.dart';
 part 'http_server_parts/playlist_suggestions_handlers_part.dart';
@@ -129,6 +132,10 @@ class AriamiHttpServer {
   /// Account-scoped album/playlist shortcuts. This database is deliberately
   /// separate from the catalog so a library rescan cannot remove user data.
   PinnedItemStore? _pinnedItemStore;
+
+  /// Account-scoped "keep this out of my library lists" choices. Separate from
+  /// the catalog for the same reason as the pins above.
+  HiddenItemStore? _hiddenItemStore;
 
   /// Account-scoped server playlist edits. This database is deliberately
   /// separate from the catalog so a library rescan cannot remove user data.

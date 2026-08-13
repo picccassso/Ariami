@@ -19,6 +19,7 @@ extension AriamiHttpServerRouterMethods on AriamiHttpServer {
     _registerSetupAndStatsRoutes(router);
     _registerListeningStatsRoutes(router);
     _registerPinsRoutes(router);
+    _registerHiddenRoutes(router);
     _registerPlaylistSuggestionRoutes(router);
     _registerPlaylistEditRoutes(router);
     _registerAuthAndAdminRoutes(router);
@@ -57,6 +58,28 @@ extension AriamiHttpServerRouterMethods on AriamiHttpServer {
     router.post(
       '/api/pins/import',
       (request) => _handleProtectedV2Request(request, _handlePinsImport),
+    );
+  }
+
+  void _registerHiddenRoutes(Router router) {
+    router.get(
+      '/api/hidden',
+      (request) => _handleProtectedV2Request(request, _handleHiddenGet),
+    );
+    router.post(
+      '/api/hidden',
+      (request) => _handleProtectedV2Request(request, _handleHiddenPost),
+    );
+    router.delete(
+      '/api/hidden/<type>/<targetId>',
+      (request, type, targetId) => _handleProtectedV2Request(
+        request,
+        (securedRequest) => _handleHiddenDelete(
+          securedRequest,
+          type,
+          targetId,
+        ),
+      ),
     );
   }
 

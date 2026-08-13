@@ -191,6 +191,8 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
       _deviceNameStore.resetForTesting();
       _pinnedItemStore?.close();
       _pinnedItemStore = null;
+      _hiddenItemStore?.close();
+      _hiddenItemStore = null;
       _playlistEditStore?.close();
       _playlistEditStore = null;
       _playlistImageStore?.close();
@@ -241,6 +243,18 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
       _pinnedItemStore = store;
     } catch (e) {
       print('[HttpServer] Pinned items store unavailable: $e');
+    }
+
+    // Hidden items are durable account data and live beside the auth stores.
+    // A schema creation here is the migration for existing installations.
+    try {
+      final hiddenDbPath = '${File(usersFilePath).parent.path}/hidden_items.db';
+      final store =
+          _hiddenItemStore ?? HiddenItemStore(databasePath: hiddenDbPath);
+      store.initialize();
+      _hiddenItemStore = store;
+    } catch (e) {
+      print('[HttpServer] Hidden items store unavailable: $e');
     }
 
     // Playlist edits are durable account data and live beside the auth stores.
