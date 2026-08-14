@@ -3,9 +3,12 @@ import 'dart:async';
 import 'package:ariami_core/services/connect/connect_client.dart';
 import 'package:ariami_core/services/connect/remote_playback.dart';
 import 'package:ariami_core/models/connect_models.dart';
+import 'package:ariami_core/models/websocket_models.dart';
 import 'package:flutter/foundation.dart';
 
+import '../models/websocket_models.dart' as mobile_ws;
 import 'api/connection_service.dart';
+import 'artist_image_service.dart';
 import 'playback_manager.dart';
 import 'stats/account_stats_service.dart';
 
@@ -88,10 +91,20 @@ class AriamiConnectController extends ChangeNotifier {
       onChanged: _onClientChanged,
       onAuthenticationRequired: () =>
           unawaited(_connection.handleSessionExpired()),
-      // Stats pushes for this account arrive on the Connect socket; refresh
-      // the account-wide view when another device uploads listening activity.
-      onServerNotification: (_) =>
-          unawaited(AccountStatsService().refreshSummary()),
+      onServerNotification: (message) {
+        if (message.type == WsMessageType.listeningStatsUpdated) {
+          unawaited(AccountStatsService().refreshSummary());
+        } else if (message.type == WsMessageType.artistImagesChanged) {
+          unawaited(ArtistImageService().loadArtistImages());
+        }
+        _connection.forwardWebSocketMessage(
+          mobile_ws.WsMessage(
+            type: message.type,
+            data: message.data,
+            timestamp: message.timestamp,
+          ),
+        );
+      },
     );
     _client = client;
     if (_pendingLocalTakeover) {

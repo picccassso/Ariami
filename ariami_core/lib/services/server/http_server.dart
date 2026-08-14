@@ -55,6 +55,9 @@ import 'package:ariami_core/services/pins/pinned_item_store.dart';
 import 'package:ariami_core/services/playlists/created_playlist_id.dart';
 import 'package:ariami_core/services/playlists/playlist_edit_store.dart';
 import 'package:ariami_core/services/playlists/playlist_image_store.dart';
+import 'package:ariami_core/models/artist_image_info.dart';
+import 'package:ariami_core/services/artists/artist_image_store.dart';
+import 'package:ariami_core/services/stats/credited_artist_splitter.dart';
 import 'package:ariami_core/services/license/license_file_store.dart';
 
 part 'http_server_parts/lifecycle_and_config_part.dart';
@@ -73,6 +76,7 @@ part 'http_server_parts/listening_stats_handlers_part.dart';
 part 'http_server_parts/pins_handlers_part.dart';
 part 'http_server_parts/hidden_handlers_part.dart';
 part 'http_server_parts/playlist_edits_handlers_part.dart';
+part 'http_server_parts/artist_images_handlers_part.dart';
 part 'http_server_parts/license_handlers_part.dart';
 part 'http_server_parts/playlist_suggestions_handlers_part.dart';
 
@@ -144,6 +148,10 @@ class AriamiHttpServer {
   /// Account-scoped custom playlist cover images. Lives beside the edit
   /// store so a library rescan cannot remove user data.
   PlaylistImageStore? _playlistImageStore;
+
+  /// Account-scoped custom artist photos. Lives beside the other user data
+  /// stores so a library rescan cannot remove user data.
+  ArtistImageStore? _artistImageStore;
 
   /// Opaque client-uploaded license file, relayed verbatim to other
   /// devices on this server. Clients verify it themselves.

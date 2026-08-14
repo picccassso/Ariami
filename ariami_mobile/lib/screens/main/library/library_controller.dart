@@ -21,6 +21,7 @@ import '../../../services/offline/offline_copy_service.dart';
 import '../../../services/offline/offline_playback_service.dart';
 import '../../../services/playback_manager.dart';
 import '../../../services/playlist_service.dart';
+import '../../../services/artist_image_service.dart';
 import '../../../services/stats/streaming_stats_service.dart';
 import '../../../services/migrations/album_metadata_repair_migration.dart';
 import '../../../utils/artwork_url.dart';
@@ -231,6 +232,7 @@ class LibraryController extends ChangeNotifier {
     // subscribing so a connection completed during initialization cannot fall
     // into the gap between the initial load and the connection-state stream.
     await _loadServerPlaylistEditsIfConnected();
+    await ArtistImageService().loadArtistImages();
   }
 
   /// Returns true once when the UI should restore scroll after a library update.

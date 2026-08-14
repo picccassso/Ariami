@@ -22,6 +22,7 @@ extension AriamiHttpServerRouterMethods on AriamiHttpServer {
     _registerHiddenRoutes(router);
     _registerPlaylistSuggestionRoutes(router);
     _registerPlaylistEditRoutes(router);
+    _registerArtistImageRoutes(router);
     _registerAuthAndAdminRoutes(router);
     _registerLibraryAndArtworkRoutes(router);
     _registerConnectionRoutes(router);
@@ -143,6 +144,43 @@ extension AriamiHttpServerRouterMethods on AriamiHttpServer {
         (securedRequest) => _handlePlaylistImageDelete(
           securedRequest,
           playlistId,
+        ),
+      ),
+    );
+  }
+
+  void _registerArtistImageRoutes(Router router) {
+    router.get(
+      '/api/v2/artists/images',
+      (request) => _handleProtectedV2Request(request, _handleArtistImagesGet),
+    );
+    router.get(
+      '/api/artists/<artistName>/image',
+      (request, artistName) => _handleProtectedV2Request(
+        request,
+        (securedRequest) => _handleArtistImageGet(
+          securedRequest,
+          artistName,
+        ),
+      ),
+    );
+    router.put(
+      '/api/artists/<artistName>/image',
+      (request, artistName) => _handleProtectedV2Request(
+        request,
+        (securedRequest) => _handleArtistImagePut(
+          securedRequest,
+          artistName,
+        ),
+      ),
+    );
+    router.delete(
+      '/api/artists/<artistName>/image',
+      (request, artistName) => _handleProtectedV2Request(
+        request,
+        (securedRequest) => _handleArtistImageDelete(
+          securedRequest,
+          artistName,
         ),
       ),
     );

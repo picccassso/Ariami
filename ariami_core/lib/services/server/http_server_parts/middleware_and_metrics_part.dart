@@ -515,7 +515,8 @@ extension AriamiHttpServerMiddlewareAndMetricsMethods on AriamiHttpServer {
 
   int _maxRequestBodyBytesForPath(String path) {
     if (path == '/api/me/avatar' ||
-        (path.startsWith('/api/playlists/') && path.endsWith('/image'))) {
+        (path.startsWith('/api/playlists/') && path.endsWith('/image')) ||
+        (path.startsWith('/api/artists/') && path.endsWith('/image'))) {
       return _uploadMaxRequestBodyBytes;
     }
     return _defaultMaxRequestBodyBytes;

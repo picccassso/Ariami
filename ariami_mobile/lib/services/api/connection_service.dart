@@ -117,7 +117,7 @@ class ConnectionService {
       deviceNameProvider: _deviceInfoManager.getDeviceName,
       sessionTokenProvider: () async => _authManager.sessionToken,
     );
-    _webSocketHandler.messages.listen(_forwardWebSocketMessage);
+    _webSocketHandler.messages.listen(forwardWebSocketMessage);
 
     // Initialize endpoint switch handler
     _endpointSwitchHandler = EndpointSwitchHandler(
@@ -807,7 +807,7 @@ class ConnectionService {
     );
   }
 
-  void _forwardWebSocketMessage(WsMessage message) {
+  void forwardWebSocketMessage(WsMessage message) {
     if (_messageController.isClosed) return;
     _messageController.add(message);
   }

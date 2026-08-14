@@ -551,6 +551,75 @@ class ApiClient {
     await _delete('/playlists/${Uri.encodeComponent(playlistId)}/image');
   }
 
+  /// Fetches the user's custom artist image versions manifest. Returns a map of
+  /// normalized artistKey -> updatedAt.
+  Future<Map<String, int>> getArtistImages() async {
+    try {
+      final json = await _get('/v2/artists/images');
+      final list = json['images'];
+      if (list is! List) return const <String, int>{};
+      final result = <String, int>{};
+      for (final item in list) {
+        if (item is Map) {
+          final key = item['artistKey'] as String? ?? '';
+          final version = (item['updatedAt'] as num?)?.toInt();
+          if (key.isNotEmpty && version != null) {
+            result[key] = version;
+          }
+        }
+      }
+      return result;
+    } catch (_) {
+      return const <String, int>{};
+    }
+  }
+
+  /// Builds the URL for an artist's synced custom image. [version]
+  /// (the updatedAt timestamp) cache-busts replaced images.
+  String artistImageUrl(String artistName, {int? version}) {
+    final uri = Uri.parse(
+      '$baseUrl/artists/${Uri.encodeComponent(artistName)}/image',
+    );
+    if (version == null) return uri.toString();
+    return uri.replace(queryParameters: {'v': '$version'}).toString();
+  }
+
+  /// Upload/replace an artist's custom image. Returns the server's new
+  /// image version (updatedAt milliseconds), or null.
+  Future<int?> putArtistImage(
+    String artistName, {
+    required Uint8List bytes,
+    required String contentType,
+  }) async {
+    try {
+      final uri = _withDeviceParams(Uri.parse(
+        '$baseUrl/artists/${Uri.encodeComponent(artistName)}/image',
+      ));
+      final headers = <String, String>{'Content-Type': contentType};
+      if (sessionToken != null) {
+        headers['Authorization'] = 'Bearer $sessionToken';
+      }
+      final response = await _client
+          .put(uri, headers: headers, body: bytes)
+          .timeout(timeout);
+      final json = _handleResponse(response);
+      final image = json['image'];
+      if (image is! Map) return null;
+      return (image['updatedAt'] as num?)?.toInt();
+    } catch (e) {
+      if (e is ApiException) rethrow;
+      throw ApiException(
+        code: ApiErrorCodes.serverError,
+        message: 'Network error: $e',
+      );
+    }
+  }
+
+  /// Remove an artist's custom image.
+  Future<void> deleteArtistImage(String artistName) async {
+    await _delete('/artists/${Uri.encodeComponent(artistName)}/image');
+  }
+
   // ============================================================================
   // LICENSE RELAY
   // ============================================================================

@@ -6,6 +6,7 @@ export 'app_version.dart';
 // Models
 export 'models/album.dart';
 export 'models/api_models.dart';
+export 'models/artist_image_info.dart';
 export 'models/artwork_size.dart';
 export 'models/auth_models.dart';
 export 'models/connect_models.dart';
@@ -88,6 +89,7 @@ export 'services/stats/spotify_import/spotify_event_builder.dart';
 export 'services/stats/spotify_import/spotify_importer.dart';
 export 'services/hidden/hidden_item_store.dart';
 export 'services/pins/pinned_item_store.dart';
+export 'services/artists/artist_image_store.dart';
 export 'services/license/license_file_store.dart';
 export 'services/license/license_key_activator.dart';
 

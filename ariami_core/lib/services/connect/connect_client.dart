@@ -372,6 +372,7 @@ class AriamiConnectClient {
         case WsMessageType.listeningStatsUpdated:
         case WsMessageType.pinsChanged:
         case WsMessageType.playlistEditsChanged:
+        case WsMessageType.artistImagesChanged:
         case WsMessageType.syncTokenAdvanced:
           onServerNotification?.call(message);
       }

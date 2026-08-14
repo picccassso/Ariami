@@ -1,8 +1,12 @@
+import 'package:ariami_core/services/stats/credited_artist_splitter.dart';
+
 import '../../models/album_stats.dart';
 import '../../models/api_models.dart';
 import '../../models/artist_stats.dart';
 import '../../models/song_stats.dart';
 import '../../utils/artwork_url.dart';
+import '../api/connection_service.dart';
+import '../artist_image_service.dart';
 
 /// A stable cache identity plus the best available server artwork URL.
 class StatsArtworkIdentity {
@@ -83,6 +87,22 @@ class StatsArtworkResolver {
   }
 
   StatsArtworkIdentity forArtist(ArtistStats stat) {
+    final customVersion =
+        ArtistImageService().artistImageVersion(stat.artistName);
+    if (customVersion != null) {
+      final client = ConnectionService().apiClient;
+      if (client != null) {
+        return StatsArtworkIdentity(
+          cacheId:
+              'artist_${normalizeArtistKey(stat.artistName)}_v$customVersion',
+          artworkUrl: client.artistImageUrl(
+            stat.artistName,
+            version: customVersion,
+          ),
+        );
+      }
+    }
+
     final recordedAlbumId = stat.randomAlbumId?.trim();
     if (recordedAlbumId != null &&
         recordedAlbumId.isNotEmpty &&

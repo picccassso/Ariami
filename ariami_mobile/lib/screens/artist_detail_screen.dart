@@ -1,3 +1,7 @@
+import 'dart:typed_data';
+
+import 'package:ariami_core/services/stats/credited_artist_splitter.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../models/api_models.dart';
@@ -5,6 +9,7 @@ import '../models/song.dart';
 import '../models/song_stats.dart';
 import '../screens/main/library/library_controller.dart';
 import '../services/api/connection_service.dart';
+import '../services/artist_image_service.dart';
 import '../services/offline/offline_playback_service.dart';
 import '../services/playback_manager.dart';
 import '../services/playlist_service.dart';
@@ -34,6 +39,7 @@ class ArtistDetailScreen extends StatelessWidget {
         LibraryController(),
         PlaylistService(),
         StreamingStatsService(),
+        ArtistImageService(),
       ]),
       builder: (context, _) => _buildContent(context),
     );
@@ -64,13 +70,14 @@ class ArtistDetailScreen extends StatelessWidget {
     return Scaffold(
       body: CustomScrollView(
         slivers: [
-          // Prefer a known album cover, then fall back to embedded song art.
+          // Prefer a custom artist photo, then known album cover, then song art.
           SliverAppBar(
             pinned: true,
             expandedHeight: detailHeaderHeight(context),
             title: Text(artistName),
             flexibleSpace: FlexibleSpaceBar(
               background: _ArtistHeaderArtwork(
+                artistName: artistName,
                 album: artworkAlbum,
                 song: artworkSong,
               ),
@@ -111,6 +118,8 @@ class ArtistDetailScreen extends StatelessWidget {
                         onShuffle:
                             tracks.isEmpty ? null : () => _shuffleAll(tracks),
                       ),
+                      const SizedBox(width: 8),
+                      _ArtistPhotoMenu(artistName: artistName),
                     ],
                   ),
                 ],
@@ -405,10 +414,15 @@ AlbumModel? _firstAlbumWithArtwork(Iterable<AlbumModel> albums) {
   return null;
 }
 
-/// Best available local artwork as the artist header, or a plain placeholder.
+/// Best available artwork as the artist header (custom photo, then album art, then song art, then placeholder).
 class _ArtistHeaderArtwork extends StatelessWidget {
-  const _ArtistHeaderArtwork({required this.album, required this.song});
+  const _ArtistHeaderArtwork({
+    required this.artistName,
+    required this.album,
+    required this.song,
+  });
 
+  final String artistName;
   final AlbumModel? album;
   final SongModel? song;
 
@@ -416,6 +430,9 @@ class _ArtistHeaderArtwork extends StatelessWidget {
   Widget build(BuildContext context) {
     final apiClient = ConnectionService().apiClient;
     final artworkSize = isExpandedWidth(context) ? 280.0 : 200.0;
+    final customImageVersion =
+        ArtistImageService().artistImageVersion(artistName);
+
     final songArtwork = song == null
         ? _buildPlaceholder()
         : CachedArtwork(
@@ -428,8 +445,39 @@ class _ArtistHeaderArtwork extends StatelessWidget {
             width: double.infinity,
             height: double.infinity,
             fallback: _buildPlaceholder(),
-            fallbackIcon: Icons.music_note,
+            fallbackIcon: Icons.person_rounded,
           );
+
+    final albumArtwork = album == null
+        ? songArtwork
+        : CachedArtwork(
+            key: ValueKey('artist-header-album-${album!.id}'),
+            albumId: album!.id,
+            artworkUrl: album!.coverArt,
+            fit: BoxFit.cover,
+            width: double.infinity,
+            height: double.infinity,
+            fallback: songArtwork,
+            fallbackIcon: Icons.person_rounded,
+          );
+
+    final artworkWidget = customImageVersion != null
+        ? CachedArtwork(
+            key: ValueKey(
+                'artist-header-custom-$artistName-$customImageVersion'),
+            albumId:
+                'artist_${normalizeArtistKey(artistName)}_v$customImageVersion',
+            artworkUrl: apiClient?.artistImageUrl(
+              artistName,
+              version: customImageVersion,
+            ),
+            fit: BoxFit.cover,
+            width: double.infinity,
+            height: double.infinity,
+            fallback: albumArtwork,
+            fallbackIcon: Icons.person_rounded,
+          )
+        : albumArtwork;
 
     return Stack(
       fit: StackFit.expand,
@@ -453,6 +501,7 @@ class _ArtistHeaderArtwork extends StatelessWidget {
               width: artworkSize,
               height: artworkSize,
               decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withValues(alpha: 0.5),
@@ -461,18 +510,10 @@ class _ArtistHeaderArtwork extends StatelessWidget {
                   ),
                 ],
               ),
-              child: album == null
-                  ? songArtwork
-                  : CachedArtwork(
-                      key: ValueKey('artist-header-album-${album!.id}'),
-                      albumId: album!.id,
-                      artworkUrl: album!.coverArt,
-                      fit: BoxFit.cover,
-                      width: double.infinity,
-                      height: double.infinity,
-                      fallback: songArtwork,
-                      fallbackIcon: Icons.music_note,
-                    ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: artworkWidget,
+              ),
             ),
           ),
         ),
@@ -484,7 +525,162 @@ class _ArtistHeaderArtwork extends StatelessWidget {
     return Container(
       color: Colors.grey[800],
       child: const Center(
-        child: Icon(Icons.music_note, size: 80, color: Colors.white),
+        child: Icon(Icons.person_rounded, size: 80, color: Colors.white),
+      ),
+    );
+  }
+}
+
+class _ArtistPhotoMenu extends StatelessWidget {
+  const _ArtistPhotoMenu({required this.artistName});
+  final String artistName;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasCustomPhoto =
+        ArtistImageService().artistImageVersion(artistName) != null;
+
+    return PopupMenuButton<String>(
+      icon: const Icon(Icons.more_vert_rounded),
+      tooltip: 'Artist options',
+      onSelected: (value) async {
+        if (value == 'change_photo') {
+          await _pickAndUploadPhoto(context, artistName);
+        } else if (value == 'remove_photo') {
+          await _removePhoto(context, artistName);
+        }
+      },
+      itemBuilder: (context) => [
+        const PopupMenuItem(
+          value: 'change_photo',
+          child: Row(
+            children: [
+              Icon(Icons.photo_camera_rounded, size: 20),
+              SizedBox(width: 12),
+              Text('Change photo'),
+            ],
+          ),
+        ),
+        if (hasCustomPhoto)
+          const PopupMenuItem(
+            value: 'remove_photo',
+            child: Row(
+              children: [
+                Icon(Icons.delete_outline_rounded, size: 20),
+                SizedBox(width: 12),
+                Text('Remove photo'),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
+  Future<void> _pickAndUploadPhoto(
+    BuildContext context,
+    String artistName,
+  ) async {
+    PlatformFile? file;
+    try {
+      file = await FilePicker.pickFile(type: FileType.image);
+    } catch (_) {
+      if (!context.mounted) return;
+      _showToast(context, 'Could not open photo picker.');
+      return;
+    }
+    if (file == null || !context.mounted) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      _showToast(context, 'Photo is too large (max 5 MB).');
+      return;
+    }
+
+    Uint8List? bytes;
+    try {
+      bytes = await file.readAsBytes();
+    } catch (_) {
+      bytes = null;
+    }
+
+    if (bytes == null || bytes.isEmpty) {
+      if (context.mounted) _showToast(context, 'Could not read that photo.');
+      return;
+    }
+
+    final contentType = _detectImageContentType(bytes, file.name);
+    if (contentType == null) {
+      if (context.mounted) {
+        _showToast(context, 'Choose a JPG, PNG or WebP image.');
+      }
+      return;
+    }
+
+    try {
+      await ArtistImageService().putArtistPhoto(
+        artistName,
+        bytes,
+        contentType,
+      );
+      if (context.mounted) _showToast(context, 'Artist photo updated');
+    } catch (_) {
+      if (context.mounted) {
+        _showToast(context, 'Could not update artist photo.');
+      }
+    }
+  }
+
+  Future<void> _removePhoto(BuildContext context, String artistName) async {
+    try {
+      await ArtistImageService().deleteArtistPhoto(artistName);
+      if (context.mounted) _showToast(context, 'Artist photo removed');
+    } catch (_) {
+      if (context.mounted) {
+        _showToast(context, 'Could not remove artist photo.');
+      }
+    }
+  }
+
+  String? _detectImageContentType(Uint8List bytes, String? fileName) {
+    if (bytes.length >= 3 &&
+        bytes[0] == 0xFF &&
+        bytes[1] == 0xD8 &&
+        bytes[2] == 0xFF) {
+      return 'image/jpeg';
+    }
+    if (bytes.length >= 4 &&
+        bytes[0] == 0x89 &&
+        bytes[1] == 0x50 &&
+        bytes[2] == 0x4E &&
+        bytes[3] == 0x47) {
+      return 'image/png';
+    }
+    if (bytes.length >= 12 &&
+        bytes[0] == 0x52 &&
+        bytes[1] == 0x49 &&
+        bytes[2] == 0x46 &&
+        bytes[3] == 0x46 &&
+        bytes[8] == 0x57 &&
+        bytes[9] == 0x45 &&
+        bytes[10] == 0x42 &&
+        bytes[11] == 0x50) {
+      return 'image/webp';
+    }
+    final lower = fileName?.toLowerCase() ?? '';
+    if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
+    if (lower.endsWith('.png')) return 'image/png';
+    if (lower.endsWith('.webp')) return 'image/webp';
+    return null;
+  }
+
+  void _showToast(BuildContext context, String message) {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (messenger == null) return;
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 3),
       ),
     );
   }

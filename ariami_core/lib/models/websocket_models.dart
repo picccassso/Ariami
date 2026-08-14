@@ -22,6 +22,7 @@ class WsMessageType {
   static const String pinsChanged = 'pins_changed';
   static const String hiddenChanged = 'hidden_changed';
   static const String playlistEditsChanged = 'playlist_edits_changed';
+  static const String artistImagesChanged = 'artist_images_changed';
 }
 
 // ============================================================================

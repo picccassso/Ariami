@@ -12,6 +12,7 @@ extension _LibraryControllerSync on LibraryController {
         unawaited(_loadLibrary(background: true));
         unawaited(_loadDownloadedSongs());
         unawaited(_loadServerPlaylistEditsIfConnected());
+        unawaited(ArtistImageService().loadArtistImages());
       }
     });
 
@@ -36,6 +37,10 @@ extension _LibraryControllerSync on LibraryController {
     }
     if (message.type == WsMessageType.playlistEditsChanged) {
       unawaited(_loadServerPlaylistEditsIfConnected());
+      return;
+    }
+    if (message.type == WsMessageType.artistImagesChanged) {
+      unawaited(ArtistImageService().loadArtistImages());
       return;
     }
     if (message.type == WsMessageType.syncTokenAdvanced) {

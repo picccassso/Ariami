@@ -197,6 +197,8 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
       _playlistEditStore = null;
       _playlistImageStore?.close();
       _playlistImageStore = null;
+      _artistImageStore?.close();
+      _artistImageStore = null;
       _licenseFileStore?.close();
       _licenseFileStore = null;
       _userAvatarsDirectoryPath = null;
@@ -282,6 +284,19 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
       _playlistImageStore = store;
     } catch (e) {
       print('[HttpServer] Playlist image store unavailable: $e');
+    }
+
+    // Custom artist photos are durable account data too; they overlay
+    // artist pages and avatars across all connected devices.
+    try {
+      final artistImagesDbPath =
+          '${File(usersFilePath).parent.path}/artist_images.db';
+      final store = _artistImageStore ??
+          ArtistImageStore(databasePath: artistImagesDbPath);
+      store.initialize();
+      _artistImageStore = store;
+    } catch (e) {
+      print('[HttpServer] Artist image store unavailable: $e');
     }
 
     // A client-uploaded license file is durable household data kept beside
