@@ -20,8 +20,8 @@ while Desktop and TV pick up the same artist-first navigation.
   albums, credited appearances and direct navigation from the player.
 - Added editable artist photos that sync through the server, with album and
   embedded-artwork fallbacks when no custom image exists.
-- Added genre filtering to the Mobile library and improved per-item genre
-  parsing, including stricter instrumental discovery suggestions.
+- Added genre filtering to Mobile and Premium Desktop, including album genre
+  labels, compact long-tail filters and safer per-item genre parsing.
 - Added account-synced hidden library items and shared Last.fm discovery keys
   across household clients.
 - Improved duplicate revalidation so incremental scans make the same preferred
@@ -37,10 +37,14 @@ while Desktop and TV pick up the same artist-first navigation.
 - Added editable, server-synced artist photos across clients
 - Added album and embedded-song artwork fallbacks for artists without a photo
 - Added Mobile library genre filtering and safer multi-value genre parsing
+- Added Premium Desktop album genre labels and filtering, with long genre lists collapsed behind a compact toggle
 - Treated plus signs as genre separators when reading library metadata
 - Improved genre-tag discovery and sourced instrumental suggestions from Last.fm tags
 - Shared Last.fm API configuration across signed-in household clients
+- Stopped Last.fm discovery setup repeatedly prompting for macOS Keychain access
 - Added account-synced hiding for library items
+- Added persisted Premium Desktop sidebar filter toggles and artist fallback artwork
+- Refreshed cached artwork when its source image changes
 - Fixed current-period Mobile listening-stat queries
 - Made Mobile search navigation behave correctly when the keyboard is open
 - Revalidated duplicate mappings during incremental library rebuilds
