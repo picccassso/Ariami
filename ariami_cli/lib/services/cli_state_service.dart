@@ -53,6 +53,11 @@ class CliStateService {
     return path.join(getConfigDir(), 'sessions.json');
   }
 
+  /// Get the household-wide music discovery config file path.
+  static String getMusicDiscoveryConfigFilePath() {
+    return path.join(getConfigDir(), 'music_discovery.json');
+  }
+
   /// Get the persistent library metadata cache file path.
   static String getMetadataCacheFilePath() {
     return path.join(getConfigDir(), 'metadata_cache.json');

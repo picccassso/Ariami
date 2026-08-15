@@ -59,6 +59,7 @@ import 'package:ariami_core/models/artist_image_info.dart';
 import 'package:ariami_core/services/artists/artist_image_store.dart';
 import 'package:ariami_core/services/stats/credited_artist_splitter.dart';
 import 'package:ariami_core/services/license/license_file_store.dart';
+import 'package:ariami_core/services/recommendations/household_music_discovery_store.dart';
 
 part 'http_server_parts/lifecycle_and_config_part.dart';
 part 'http_server_parts/router_registration_part.dart';
@@ -78,6 +79,7 @@ part 'http_server_parts/hidden_handlers_part.dart';
 part 'http_server_parts/playlist_edits_handlers_part.dart';
 part 'http_server_parts/artist_images_handlers_part.dart';
 part 'http_server_parts/license_handlers_part.dart';
+part 'http_server_parts/music_discovery_config_handlers_part.dart';
 part 'http_server_parts/playlist_suggestions_handlers_part.dart';
 
 /// HTTP server for Ariami desktop application (Singleton)
@@ -156,6 +158,9 @@ class AriamiHttpServer {
   /// Opaque client-uploaded license file, relayed verbatim to other
   /// devices on this server. Clients verify it themselves.
   LicenseFileStore? _licenseFileStore;
+
+  /// Household Last.fm application key shared by authenticated clients.
+  HouseholdMusicDiscoveryStore? _householdMusicDiscoveryStore;
 
   /// User profile pictures stored beside auth/account data.
   String? _userAvatarsDirectoryPath;

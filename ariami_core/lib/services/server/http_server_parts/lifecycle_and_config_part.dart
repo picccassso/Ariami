@@ -201,6 +201,8 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
       _artistImageStore = null;
       _licenseFileStore?.close();
       _licenseFileStore = null;
+      _householdMusicDiscoveryStore?.close();
+      _householdMusicDiscoveryStore = null;
       _userAvatarsDirectoryPath = null;
     }
 
@@ -311,6 +313,19 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
       _licenseFileStore = store;
     } catch (e) {
       print('[HttpServer] License file store unavailable: $e');
+    }
+
+    // The Last.fm API key is household configuration fetched by signed-in
+    // clients. It lives beside auth data and never includes the API secret.
+    try {
+      final configPath =
+          '${File(usersFilePath).parent.path}/music_discovery.json';
+      final store = _householdMusicDiscoveryStore ??
+          HouseholdMusicDiscoveryStore(filePath: configPath);
+      store.initialize();
+      _householdMusicDiscoveryStore = store;
+    } catch (e) {
+      print('[HttpServer] Music discovery config store unavailable: $e');
     }
 
     // Initialize StreamTracker (starts cleanup timer)

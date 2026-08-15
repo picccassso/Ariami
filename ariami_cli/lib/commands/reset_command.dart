@@ -94,6 +94,7 @@ class ResetCommand {
       files.addAll([
         CliStateService.getUsersFilePath(),
         CliStateService.getSessionsFilePath(),
+        CliStateService.getMusicDiscoveryConfigFilePath(),
         CliStateService.getMetadataCacheFilePath(),
         CliStateService.getAutostartLogFilePath(),
       ]);

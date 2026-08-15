@@ -81,6 +81,9 @@ export 'services/recommendations/music_recommendation_models.dart';
 export 'services/recommendations/music_recommendation_seeds.dart';
 export 'services/recommendations/music_recommendation_service.dart';
 export 'services/recommendations/musicbrainz_identity_client.dart';
+export 'services/recommendations/music_discovery_api_key_config.dart';
+export 'services/recommendations/music_discovery_api_key_sync.dart';
+export 'services/recommendations/household_music_discovery_store.dart';
 // Spotify Extended Streaming History import
 export 'services/stats/spotify_import/spotify_import_models.dart';
 export 'services/stats/spotify_import/library_track_matcher.dart';

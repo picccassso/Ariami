@@ -6,6 +6,8 @@ import 'package:ariami_core/ariami_core.dart'
         LastFmRecommendationClient,
         LastFmRecommendationException,
         MusicBrainzIdentityClient,
+        MusicDiscoveryApiKeySync,
+        MusicDiscoveryApiKeySyncState,
         MusicDiscoveryMix,
         MusicDiscoveryPreferences,
         MusicRecommendation,
@@ -28,6 +30,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../models/api_models.dart';
 import '../../services/api/api_client.dart';
 import '../../services/api/connection_service.dart';
+import '../../services/music_discovery_api_key_store.dart';
 import '../../services/stats/account_stats_service.dart';
 import '../../services/stats/period_stats_cache.dart';
 import '../../services/stats/period_stats_loader.dart';
@@ -46,7 +49,6 @@ class MusicDiscoveryScreen extends StatefulWidget {
 }
 
 class _MusicDiscoveryScreenState extends State<MusicDiscoveryScreen> {
-  static const _apiKeyStorageKey = 'ariami_lastfm_api_key_v1';
   static const _enabledKey = 'mobile_music_discovery_enabled_v1';
   static const _preferencesKey = 'mobile_music_discovery_preferences_v1';
   static const _cachePrefix = 'mobile_music_discovery_cache_v8_';
@@ -65,6 +67,8 @@ class _MusicDiscoveryScreenState extends State<MusicDiscoveryScreen> {
   static const _refreshAge = Duration(hours: 24);
 
   final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
+  final MusicDiscoveryApiKeyStore _apiKeyStore =
+      const MusicDiscoveryApiKeyStore();
   final StreamingStatsService _stats = StreamingStatsService();
   final ConnectionService _connection = ConnectionService();
   final PeriodStatsCache _periodCache = PeriodStatsCache();
@@ -73,7 +77,14 @@ class _MusicDiscoveryScreenState extends State<MusicDiscoveryScreen> {
   List<SongModel> _librarySongs = const <SongModel>[];
   List<AlbumModel> _libraryAlbums = const <AlbumModel>[];
   MusicRecommendationSnapshot? _snapshot;
-  String? _storedApiKey;
+  MusicDiscoveryApiKeySync? _apiKeySync;
+  MusicDiscoveryApiKeySyncState _apiKeyState =
+      const MusicDiscoveryApiKeySyncState(
+    embeddedKey: null,
+    localKey: null,
+    householdKey: null,
+    remoteConfig: null,
+  );
   String? _error;
   bool _enabled = false;
   bool _libraryReady = false;
@@ -81,9 +92,7 @@ class _MusicDiscoveryScreenState extends State<MusicDiscoveryScreen> {
   bool _refreshing = false;
   MusicDiscoveryPreferences _preferences = const MusicDiscoveryPreferences();
 
-  String get _effectiveApiKey => (_storedApiKey?.trim().isNotEmpty ?? false)
-      ? _storedApiKey!.trim()
-      : _embeddedLastFmApiKey.trim();
+  String get _effectiveApiKey => _apiKeyState.effectiveKey ?? '';
 
   bool get _hasApiKey => _effectiveApiKey.isNotEmpty;
 
@@ -129,6 +138,16 @@ class _MusicDiscoveryScreenState extends State<MusicDiscoveryScreen> {
         serverInfo: _connection.serverInfo,
       );
 
+  String get _apiKeyCacheScope {
+    final server = _connection.serverInfo;
+    final identity = server?.publicOrigin ??
+        server?.lanServer ??
+        server?.tailscaleServer ??
+        server?.server ??
+        'offline';
+    return '$identity|${_connection.userId ?? 'guest'}';
+  }
+
   Future<void> _initialize() async {
     await _stats.initialize();
     unawaited(AccountStatsService().refreshSummary());
@@ -136,7 +155,37 @@ class _MusicDiscoveryScreenState extends State<MusicDiscoveryScreen> {
     await _removeLegacyCaches(prefs);
     final preferences = _readPreferences(prefs);
     _preferences = preferences;
-    final storedKeyFuture = _secureStorage.read(key: _apiKeyStorageKey);
+    final client = _connection.apiClient;
+    final apiKeyScope = _apiKeyCacheScope;
+    final apiKeySync = MusicDiscoveryApiKeySync(
+      readLocalKey: () => _embeddedLastFmApiKey.isNotEmpty
+          ? Future<String?>.value()
+          : _apiKeyStore.readAndMigrate(
+              prefs,
+              readLegacyKey: () => _secureStorage.read(
+                key: MusicDiscoveryApiKeyStore.key,
+              ),
+            ),
+      writeLocalKey: (value) => _apiKeyStore.write(prefs, value),
+      readHouseholdCache: () =>
+          _apiKeyStore.readHouseholdCache(prefs, apiKeyScope),
+      writeHouseholdCache: (value) =>
+          _apiKeyStore.writeHouseholdCache(prefs, apiKeyScope, value),
+      deleteHouseholdCache: () =>
+          _apiKeyStore.deleteHouseholdCache(prefs, apiKeyScope),
+      fetchRemoteConfig: client?.getMusicDiscoveryApiKeyConfig,
+      putRemoteKey: client?.putMusicDiscoveryApiKey,
+      putRemoteKeyIfMissing: client == null
+          ? null
+          : (value) => client.putMusicDiscoveryApiKey(
+                value,
+                onlyIfMissing: true,
+              ),
+      deleteRemoteKey: client?.deleteMusicDiscoveryApiKey,
+    );
+    final apiKeyStateFuture = apiKeySync.load(
+      embeddedKey: _embeddedLastFmApiKey,
+    );
     var librarySongs = const <SongModel>[];
     var libraryAlbums = const <AlbumModel>[];
     var libraryReady = false;
@@ -149,7 +198,7 @@ class _MusicDiscoveryScreenState extends State<MusicDiscoveryScreen> {
     } catch (_) {
       // Discovery remains usable; owned-library filtering retries next visit.
     }
-    final storedKey = await storedKeyFuture;
+    final apiKeyState = await apiKeyStateFuture;
     final rawCache = prefs.getString(_cacheKey);
     MusicRecommendationSnapshot? cached;
     if (rawCache != null) {
@@ -164,7 +213,8 @@ class _MusicDiscoveryScreenState extends State<MusicDiscoveryScreen> {
     }
     if (!mounted) return;
     setState(() {
-      _storedApiKey = storedKey;
+      _apiKeySync = apiKeySync;
+      _apiKeyState = apiKeyState;
       _enabled = prefs.getBool(_enabledKey) ?? false;
       _librarySongs = librarySongs;
       _libraryAlbums = libraryAlbums;
@@ -323,7 +373,8 @@ class _MusicDiscoveryScreenState extends State<MusicDiscoveryScreen> {
   }
 
   Future<void> _showSetup() async {
-    final controller = TextEditingController(text: _storedApiKey ?? '');
+    final controller =
+        TextEditingController(text: _apiKeyState.effectiveKey ?? '');
     var obscure = true;
     var selectedMix = _preferences.mix;
     var selectedLimit = _preferences.resultLimit;
@@ -360,10 +411,17 @@ class _MusicDiscoveryScreenState extends State<MusicDiscoveryScreen> {
                   TextField(
                     controller: controller,
                     obscureText: obscure,
+                    readOnly: _apiKeyState.isHouseholdManaged &&
+                        !_apiKeyState.canManageHousehold,
                     decoration: InputDecoration(
                       labelText: 'Last.fm API key',
-                      helperText:
-                          'Stored in this device’s secure credential store.',
+                      helperText: _apiKeyState.isHouseholdManaged
+                          ? _apiKeyState.canManageHousehold
+                              ? 'Shared by your Ariami server with signed-in devices.'
+                              : 'Synced from this Ariami server by its owner.'
+                          : _apiKeyState.canManageHousehold
+                              ? 'Saving shares this key with your signed-in Ariami devices.'
+                              : 'Stored locally unless the server owner shares a key.',
                       suffixIcon: IconButton(
                         tooltip: obscure ? 'Show API key' : 'Hide API key',
                         onPressed: () =>
@@ -386,6 +444,16 @@ class _MusicDiscoveryScreenState extends State<MusicDiscoveryScreen> {
                     'key; Ariami never signs into it.',
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
+                  if (_apiKeyState.canManageHousehold &&
+                      _apiKeyState.isHouseholdManaged)
+                    TextButton.icon(
+                      onPressed: () => Navigator.pop(
+                        dialogContext,
+                        const _SetupResult.removeHouseholdKey(),
+                      ),
+                      icon: const Icon(Icons.link_off_rounded, size: 16),
+                      label: const Text('Remove shared key'),
+                    ),
                 ] else
                   const Text(
                     'This build includes an Ariami Last.fm API key. Enabling '
@@ -560,25 +628,45 @@ class _MusicDiscoveryScreenState extends State<MusicDiscoveryScreen> {
     controller.dispose();
     if (result == null) return;
     final prefs = await SharedPreferences.getInstance();
-    if (!result.enabled) {
+    if (result.action == _SetupAction.removeHouseholdKey) {
+      final sync = _apiKeySync;
+      if (sync == null) return;
+      final removal = await sync.removeHouseholdKey(_apiKeyState);
+      if (!mounted) return;
+      setState(() {
+        _apiKeyState = removal.state;
+        _error = removal.syncSucceeded
+            ? null
+            : 'Ariami could not remove the shared API key. Try again when connected as the server owner.';
+      });
+      return;
+    }
+    if (result.action == _SetupAction.disable) {
       await prefs.setBool(_enabledKey, false);
       await prefs.remove(_cacheKey);
-      if (_embeddedLastFmApiKey.isEmpty) {
-        await _secureStorage.delete(key: _apiKeyStorageKey);
-      }
       if (!mounted) return;
       setState(() {
         _enabled = false;
         _snapshot = null;
-        if (_embeddedLastFmApiKey.isEmpty) _storedApiKey = null;
       });
       return;
     }
+    String? syncWarning;
     if (_embeddedLastFmApiKey.isEmpty) {
-      await _secureStorage.write(
-        key: _apiKeyStorageKey,
-        value: result.apiKey,
-      );
+      try {
+        final saved = await _apiKeySync!.save(_apiKeyState, result.apiKey);
+        _apiKeyState = saved.state;
+        if (saved.syncAttempted && !saved.syncSucceeded) {
+          syncWarning = 'The API key was saved on this device, but Ariami '
+              'could not share it with the server. Try saving again when connected.';
+        }
+      } catch (_) {
+        if (!mounted) return;
+        setState(() {
+          _error = 'Ariami could not save the API key locally. Try again.';
+        });
+        return;
+      }
     }
     await prefs.setString(
       _preferencesKey,
@@ -592,7 +680,7 @@ class _MusicDiscoveryScreenState extends State<MusicDiscoveryScreen> {
       _enabled = true;
       _preferences = result.preferences;
       if (preferencesChanged) _snapshot = null;
-      if (_embeddedLastFmApiKey.isEmpty) _storedApiKey = result.apiKey;
+      _error = syncWarning;
     });
     unawaited(_refresh());
   }
@@ -785,9 +873,9 @@ class _MusicDiscoveryScreenState extends State<MusicDiscoveryScreen> {
               FilledButton.icon(
                 onPressed: _showSetup,
                 icon: const Icon(Icons.lock_outline_rounded),
-                label: Text(_embeddedLastFmApiKey.isEmpty
-                    ? 'Add API key and enable'
-                    : 'Enable music discovery'),
+                label: Text(_hasApiKey
+                    ? 'Enable music discovery'
+                    : 'Add API key and enable'),
               ),
             ],
           ),
@@ -796,16 +884,23 @@ class _MusicDiscoveryScreenState extends State<MusicDiscoveryScreen> {
 }
 
 class _SetupResult {
-  const _SetupResult.enable(this.apiKey, this.preferences) : enabled = true;
+  const _SetupResult.enable(this.apiKey, this.preferences)
+      : action = _SetupAction.enable;
   const _SetupResult.disable()
-      : enabled = false,
+      : action = _SetupAction.disable,
+        apiKey = '',
+        preferences = const MusicDiscoveryPreferences();
+  const _SetupResult.removeHouseholdKey()
+      : action = _SetupAction.removeHouseholdKey,
         apiKey = '',
         preferences = const MusicDiscoveryPreferences();
 
-  final bool enabled;
+  final _SetupAction action;
   final String apiKey;
   final MusicDiscoveryPreferences preferences;
 }
+
+enum _SetupAction { enable, disable, removeHouseholdKey }
 
 class _DiscoveryIntro extends StatelessWidget {
   const _DiscoveryIntro({required this.snapshot, required this.preferences});

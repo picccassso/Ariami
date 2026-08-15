@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:typed_data';
+import 'package:ariami_core/services/recommendations/music_discovery_api_key_config.dart';
 import 'package:http/http.dart' as http;
 import '../../models/api_models.dart';
 import '../../models/auth_models.dart';
@@ -629,6 +630,35 @@ class ApiClient {
   /// sessions only — others get an ApiException with FORBIDDEN_ADMIN.
   Future<void> putLicenseFile(String licenseFile) async {
     await _put('/license', <String, dynamic>{'licenseFile': licenseFile});
+  }
+
+  // ============================================================================
+  // HOUSEHOLD MUSIC-DISCOVERY CONFIGURATION
+  // ============================================================================
+
+  /// Fetches the Last.fm application key shared by this Ariami household.
+  Future<MusicDiscoveryApiKeyConfig> getMusicDiscoveryApiKeyConfig() async {
+    return MusicDiscoveryApiKeyConfig.fromJson(
+      await _get('/music-discovery/config'),
+    );
+  }
+
+  /// Owner-only: creates or replaces the household Last.fm application key.
+  Future<MusicDiscoveryApiKeyConfig> putMusicDiscoveryApiKey(String apiKey,
+      {bool onlyIfMissing = false}) async {
+    return MusicDiscoveryApiKeyConfig.fromJson(
+      await _put('/music-discovery/config', <String, dynamic>{
+        'lastFmApiKey': apiKey,
+        if (onlyIfMissing) 'onlyIfMissing': true,
+      }),
+    );
+  }
+
+  /// Owner-only: removes the household key. Per-device preferences remain.
+  Future<MusicDiscoveryApiKeyConfig> deleteMusicDiscoveryApiKey() async {
+    return MusicDiscoveryApiKeyConfig.fromJson(
+      await _delete('/music-discovery/config'),
+    );
   }
 
   // ============================================================================

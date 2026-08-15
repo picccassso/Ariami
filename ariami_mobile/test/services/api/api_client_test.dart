@@ -130,6 +130,31 @@ void main() {
           uri.queryParameters['downloadToken'], equals(ticket.downloadToken));
       expect(uri.queryParameters['quality'], equals('medium'));
     });
+
+    test('supports household music-discovery get, migrate, and delete',
+        () async {
+      final fetched = await client.getMusicDiscoveryApiKeyConfig();
+      final migrated = await client.putMusicDiscoveryApiKey(
+        'shared-key',
+        onlyIfMissing: true,
+      );
+      final deleted = await client.deleteMusicDiscoveryApiKey();
+
+      expect(fetched.lastFmApiKey, 'server-key');
+      expect(fetched.canManage, isTrue);
+      expect(migrated.lastFmApiKey, 'shared-key');
+      expect(deleted.lastFmApiKey, isNull);
+      expect(capturedRequests, hasLength(3));
+      expect(capturedRequests[0].method, 'GET');
+      expect(capturedRequests[1].method, 'PUT');
+      expect(capturedRequests[1].body['lastFmApiKey'], 'shared-key');
+      expect(capturedRequests[1].body['onlyIfMissing'], isTrue);
+      expect(capturedRequests[2].method, 'DELETE');
+      for (final request in capturedRequests) {
+        expect(request.path, '/api/music-discovery/config');
+        expect(request.authorizationHeader, 'Bearer test-session');
+      }
+    });
   });
 }
 
@@ -158,6 +183,22 @@ void _startMockApiServer(
 
       final path = request.uri.path;
       final method = request.method;
+
+      if (path == '/api/music-discovery/config') {
+        await _writeJson(
+          request.response,
+          <String, dynamic>{
+            'schemaVersion': 1,
+            'lastFmApiKey': method == 'DELETE'
+                ? null
+                : method == 'PUT'
+                    ? decodedBody['lastFmApiKey']
+                    : 'server-key',
+            'canManage': true,
+          },
+        );
+        return;
+      }
 
       if (path == '/api/download-ticket' && method == 'POST') {
         await _writeJson(
