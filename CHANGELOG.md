@@ -6,6 +6,51 @@ Thank you for those that actually support and use this project at all! :D
 
 ---
 
+## 5.2.0
+
+Ariami 5.2.0 makes the library feel more complete across every screen. Artists
+now have proper destinations with top songs and album credits, artwork can be
+corrected once and shared across the household, and Mobile gains practical
+genre browsing. Discovery and library maintenance are also more accurate,
+while Desktop and TV pick up the same artist-first navigation.
+
+### Highlights
+
+- Added artist pages across Premium Desktop, Mobile and TV, with top songs,
+  albums, credited appearances and direct navigation from the player.
+- Added editable artist photos that sync through the server, with album and
+  embedded-artwork fallbacks when no custom image exists.
+- Added genre filtering to the Mobile library and improved per-item genre
+  parsing, including stricter instrumental discovery suggestions.
+- Added account-synced hidden library items and shared Last.fm discovery keys
+  across household clients.
+- Improved duplicate revalidation so incremental scans make the same preferred
+  choice as a full library rebuild.
+- Hardened Discord Rich Presence across Windows and Linux desktop environments,
+  with clearer connection and rejection diagnostics.
+
+### Full changes
+
+- Added artist pages to Premium Desktop, Mobile and TV
+- Added top songs, albums and appears-on sections to artist pages
+- Opened artist pages from full-player credits and library navigation
+- Added editable, server-synced artist photos across clients
+- Added album and embedded-song artwork fallbacks for artists without a photo
+- Added Mobile library genre filtering and safer multi-value genre parsing
+- Treated plus signs as genre separators when reading library metadata
+- Improved genre-tag discovery and sourced instrumental suggestions from Last.fm tags
+- Shared Last.fm API configuration across signed-in household clients
+- Added account-synced hiding for library items
+- Fixed current-period Mobile listening-stat queries
+- Made Mobile search navigation behave correctly when the keyboard is open
+- Revalidated duplicate mappings during incremental library rebuilds
+- Matched incremental duplicate selection to full-scan preference rules
+- Added the refreshed web dashboard icon set
+- Added configurable Premium Desktop close behavior
+- Improved Discord IPC discovery, reconnects and compatibility diagnostics on Windows and Linux
+
+---
+
 ## 5.1.5
 
 Ariami 5.1.5 is a reliability release for downloads. Every layer of the
