@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:ariami_core/ariami_core.dart';
 
 import '../services/autostart_service.dart';
+import '../services/cli_reset_plan.dart';
 import '../services/cli_state_service.dart';
 import '../services/daemon_service.dart';
 
@@ -65,7 +66,7 @@ class ResetCommand {
     }
 
     final musicFolderGuard = await _stateService.getMusicFolderPath();
-    final plan = _buildPlan(chosen, musicFolderGuard);
+    final plan = buildCliResetPlan(chosen, musicFolderGuard);
     final result = await _resetService.execute(plan);
 
     if (chosen == ResetScope.factoryReset && _autostartService.isSupported) {
@@ -76,41 +77,6 @@ class ResetCommand {
     }
 
     _printSummary(chosen, result);
-  }
-
-  ResetPlan _buildPlan(ResetScope scope, String? musicFolderGuard) {
-    // Always-cleared setup/config state.
-    final files = <String>[
-      CliStateService.getConfigFilePath(),
-      CliStateService.getServerStateFilePath(),
-      CliStateService.getLogFilePath(),
-      CliStateService.getPidFilePath(),
-    ];
-    final directories = <String>[];
-
-    final sqliteDatabases = <String>[];
-
-    if (scope == ResetScope.factoryReset) {
-      files.addAll([
-        CliStateService.getUsersFilePath(),
-        CliStateService.getSessionsFilePath(),
-        CliStateService.getMusicDiscoveryConfigFilePath(),
-        CliStateService.getMetadataCacheFilePath(),
-        CliStateService.getAutostartLogFilePath(),
-      ]);
-      sqliteDatabases.add(CliStateService.getCatalogDbFilePath());
-      directories.addAll([
-        CliStateService.getArtworkCacheDirPath(),
-        CliStateService.getTranscodedCacheDirPath(),
-      ]);
-    }
-
-    return ResetPlan(
-      files: files,
-      directories: directories,
-      sqliteDatabases: sqliteDatabases,
-      musicFolderPathGuard: musicFolderGuard,
-    );
   }
 
   Future<ResetScope?> _promptScope() async {

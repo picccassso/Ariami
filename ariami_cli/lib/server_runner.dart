@@ -13,6 +13,7 @@ import 'services/container_networking_guidance.dart';
 import 'services/daemon_service.dart';
 import 'services/server_daemon_transition_service.dart';
 import 'services/server_feature_flag_service.dart';
+import 'services/server_host_controls.dart';
 import 'services/server_http_ready_notifier.dart';
 import 'services/server_lifecycle_service.dart';
 import 'services/server_media_services_configurator.dart';
@@ -48,6 +49,10 @@ class ServerRunner {
     );
     _mediaServicesConfigurator =
         ServerMediaServicesConfigurator(httpServer: _httpServer);
+    _hostControls = ServerHostControls(
+      httpServer: _httpServer,
+      stateService: _stateService,
+    );
   }
 
   final AriamiHttpServer _httpServer = AriamiHttpServer();
@@ -64,6 +69,7 @@ class ServerRunner {
   late final ServerLifecycleService _lifecycleService;
   late final ServerDaemonTransitionService _daemonTransitionService;
   late final ServerMediaServicesConfigurator _mediaServicesConfigurator;
+  late final ServerHostControls _hostControls;
 
   int _serverPort = 8080;
 
@@ -132,6 +138,7 @@ class ServerRunner {
       await _configureWebAssets();
       _configureNetworkCallbacks();
       _setupCallbacks.register();
+      _hostControls.register();
 
       if (isSetupMode) {
         _httpServer.setTransitionToBackgroundCallback(
