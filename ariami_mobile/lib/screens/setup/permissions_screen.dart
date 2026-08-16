@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../../services/permissions_service.dart';
 import '../../utils/responsive.dart';
+import '../../widgets/common/setup_dark_theme.dart';
 
 class PermissionsScreen extends StatefulWidget {
   const PermissionsScreen({super.key});
@@ -140,28 +141,33 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Setup Permissions'),
-      ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: ContentWidthLimiter(
-            maxWidth: kSetupContentMaxWidth,
-            child: Column(
-              children: [
-                // Progress indicator
-                _buildProgressIndicator(),
-                const SizedBox(height: 32),
+    return SetupDarkTheme(
+      builder: (context) => Scaffold(
+        backgroundColor: Colors.black,
+        appBar: AppBar(
+          title: const Text('Setup Permissions'),
+          backgroundColor: Colors.black,
+          foregroundColor: Colors.white,
+        ),
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: ContentWidthLimiter(
+              maxWidth: kSetupContentMaxWidth,
+              child: Column(
+                children: [
+                  // Progress indicator
+                  _buildProgressIndicator(),
+                  const SizedBox(height: 32),
 
-                // Content
-                Expanded(
-                  child: _currentStep == 0
-                      ? _buildNotificationPermissionScreen()
-                      : _buildStoragePermissionScreen(),
-                ),
-              ],
+                  // Content
+                  Expanded(
+                    child: _currentStep == 0
+                        ? _buildNotificationPermissionScreen()
+                        : _buildStoragePermissionScreen(),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -177,9 +183,9 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
       children: [
         Text(
           'Step ${_currentStep + 1} of $totalSteps',
-          style: TextStyle(
+          style: const TextStyle(
             fontSize: 16,
-            color: Colors.grey[600],
+            color: Colors.white70,
           ),
         ),
       ],
@@ -205,17 +211,18 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
             style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
+              color: Colors.white,
             ),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 12),
 
           // Description
-          Text(
+          const Text(
             'Show playback controls in notification panel',
             style: TextStyle(
               fontSize: 16,
-              color: Colors.grey[700],
+              color: Colors.white70,
               height: 1.5,
             ),
             textAlign: TextAlign.center,
@@ -226,10 +233,13 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.blue[100],
-              borderRadius: BorderRadius.circular(12),
+              color: Colors.white.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.12),
+              ),
             ),
-            child: Column(
+            child: const Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
@@ -237,16 +247,19 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: Colors.blue[900],
+                    color: Colors.white,
                   ),
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 Text(
                   '• Control playback without opening the app\n'
                   '• See what\'s currently playing\n'
                   '• Quick access to pause/play, skip tracks',
                   style: TextStyle(
-                      fontSize: 14, height: 1.5, color: Colors.blue[900]),
+                    fontSize: 14,
+                    height: 1.5,
+                    color: Colors.white70,
+                  ),
                 ),
               ],
             ),
@@ -283,17 +296,18 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
             style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
+              color: Colors.white,
             ),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 12),
 
           // Description
-          Text(
+          const Text(
             'Download music for offline playback',
             style: TextStyle(
               fontSize: 16,
-              color: Colors.grey[700],
+              color: Colors.white70,
               height: 1.5,
             ),
             textAlign: TextAlign.center,
@@ -304,10 +318,13 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.blue[100],
-              borderRadius: BorderRadius.circular(12),
+              color: Colors.white.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.12),
+              ),
             ),
-            child: Column(
+            child: const Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
@@ -315,16 +332,19 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: Colors.blue[900],
+                    color: Colors.white,
                   ),
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 Text(
                   '• Download songs for offline listening\n'
                   '• Save mobile data\n'
                   '• Listen without internet connection',
                   style: TextStyle(
-                      fontSize: 14, height: 1.5, color: Colors.blue[900]),
+                    fontSize: 14,
+                    height: 1.5,
+                    color: Colors.white70,
+                  ),
                 ),
               ],
             ),
@@ -356,8 +376,10 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
           child: ElevatedButton(
             onPressed: _isProcessing ? null : onAllow,
             style: ElevatedButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.primary,
+              foregroundColor: Theme.of(context).colorScheme.onPrimary,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(28),
               ),
             ),
             child: _isProcessing
@@ -383,6 +405,9 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
         // Skip button
         TextButton(
           onPressed: _isProcessing ? null : onSkip,
+          style: TextButton.styleFrom(
+            foregroundColor: Colors.white70,
+          ),
           child: const Text(
             'Skip',
             style: TextStyle(fontSize: 16),

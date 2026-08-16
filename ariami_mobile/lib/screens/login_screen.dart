@@ -132,7 +132,7 @@ class _LoginScreenState extends State<LoginScreen> {
     // keyboard is dismissed).
     final isKeyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
     return SetupDarkTheme(
-      child: Scaffold(
+      builder: (context) => Scaffold(
         backgroundColor: Colors.black,
         body: Container(
           color: Colors.black,
@@ -234,6 +234,8 @@ class _LoginScreenState extends State<LoginScreen> {
                               // Username field
                               TextFormField(
                                 controller: _usernameController,
+                                style: const TextStyle(
+                                    color: Colors.white, fontSize: 16),
                                 decoration: InputDecoration(
                                   labelText: 'Username',
                                   prefixIcon: const Icon(Icons.person_outline),
@@ -241,8 +243,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                     borderRadius: BorderRadius.circular(16),
                                   ),
                                   filled: true,
-                                  fillColor:
-                                      Theme.of(context).colorScheme.surface,
+                                  fillColor: const Color(0xFF1E1E1E),
                                 ),
                                 textInputAction: TextInputAction.next,
                                 autocorrect: false,
@@ -258,6 +259,8 @@ class _LoginScreenState extends State<LoginScreen> {
                               // Password field
                               TextFormField(
                                 controller: _passwordController,
+                                style: const TextStyle(
+                                    color: Colors.white, fontSize: 16),
                                 decoration: InputDecoration(
                                   labelText: 'Password',
                                   prefixIcon: const Icon(Icons.lock_outline),
@@ -277,8 +280,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                     borderRadius: BorderRadius.circular(16),
                                   ),
                                   filled: true,
-                                  fillColor:
-                                      Theme.of(context).colorScheme.surface,
+                                  fillColor: const Color(0xFF1E1E1E),
                                 ),
                                 obscureText: _obscurePassword,
                                 textInputAction: TextInputAction.done,
@@ -336,8 +338,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
                               // Register link
                               if (widget.serverInfo.canRegister)
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
+                                Wrap(
+                                  alignment: WrapAlignment.center,
+                                  crossAxisAlignment:
+                                      WrapCrossAlignment.center,
                                   children: [
                                     Text(
                                       "Don't have an account? ",

@@ -132,7 +132,7 @@ class _ManualServerEntryScreenState extends State<ManualServerEntryScreen> {
   @override
   Widget build(BuildContext context) {
     return SetupDarkTheme(
-      child: Scaffold(
+      builder: (context) => Scaffold(
         backgroundColor: Colors.black,
         appBar: AppBar(
           title: const Text('Manual entry'),
@@ -225,6 +225,8 @@ class _ManualServerEntryScreenState extends State<ManualServerEntryScreen> {
                       // Address field
                       TextFormField(
                         controller: _addressController,
+                        style:
+                            const TextStyle(color: Colors.white, fontSize: 16),
                         decoration: InputDecoration(
                           labelText: 'Server address',
                           hintText: '192.168.1.50:8080',
@@ -233,7 +235,7 @@ class _ManualServerEntryScreenState extends State<ManualServerEntryScreen> {
                             borderRadius: BorderRadius.circular(16),
                           ),
                           filled: true,
-                          fillColor: Theme.of(context).colorScheme.surface,
+                          fillColor: const Color(0xFF1E1E1E),
                         ),
                         autocorrect: false,
                         enableSuggestions: false,
@@ -265,6 +267,8 @@ class _ManualServerEntryScreenState extends State<ManualServerEntryScreen> {
                         const SizedBox(height: 16),
                         TextFormField(
                           controller: _inviteCodeController,
+                          style: const TextStyle(
+                              color: Colors.white, fontSize: 16),
                           decoration: InputDecoration(
                             labelText: 'Invite code (optional)',
                             hintText: '4F9K-2QX7',
@@ -275,7 +279,7 @@ class _ManualServerEntryScreenState extends State<ManualServerEntryScreen> {
                               borderRadius: BorderRadius.circular(16),
                             ),
                             filled: true,
-                            fillColor: Theme.of(context).colorScheme.surface,
+                            fillColor: const Color(0xFF1E1E1E),
                           ),
                           autocorrect: false,
                           enableSuggestions: false,

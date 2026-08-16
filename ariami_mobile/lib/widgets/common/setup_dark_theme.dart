@@ -8,9 +8,12 @@ import '../../services/theme_service.dart';
 /// makes them black-on-black and invisible, so these screens must always
 /// render with the dark palette regardless of system brightness.
 class SetupDarkTheme extends StatelessWidget {
-  const SetupDarkTheme({super.key, required this.child});
+  const SetupDarkTheme({super.key, this.child, this.builder})
+      : assert(child != null || builder != null,
+            'Either child or builder must be provided');
 
-  final Widget child;
+  final Widget? child;
+  final WidgetBuilder? builder;
 
   @override
   Widget build(BuildContext context) {
@@ -18,7 +21,10 @@ class SetupDarkTheme extends StatelessWidget {
       listenable: ThemeService(),
       builder: (context, _) => Theme(
         data: ThemeService().darkTheme,
-        child: child,
+        child: Builder(
+          builder: (themedContext) =>
+              builder != null ? builder!(themedContext) : child!,
+        ),
       ),
     );
   }

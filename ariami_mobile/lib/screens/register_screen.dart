@@ -101,7 +101,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     return SetupDarkTheme(
-      child: Scaffold(
+      builder: (context) => Scaffold(
         backgroundColor: Colors.black,
         body: Container(
           color: Colors.black,
@@ -194,6 +194,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         // Username field
                         TextFormField(
                           controller: _usernameController,
+                          style: const TextStyle(
+                              color: Colors.white, fontSize: 16),
                           decoration: InputDecoration(
                             labelText: 'Username',
                             prefixIcon: const Icon(Icons.person_outline),
@@ -201,7 +203,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               borderRadius: BorderRadius.circular(16),
                             ),
                             filled: true,
-                            fillColor: Theme.of(context).colorScheme.surface,
+                            fillColor: const Color(0xFF1E1E1E),
                           ),
                           textInputAction: TextInputAction.next,
                           autocorrect: false,
@@ -224,6 +226,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         // Password field
                         TextFormField(
                           controller: _passwordController,
+                          style: const TextStyle(
+                              color: Colors.white, fontSize: 16),
                           decoration: InputDecoration(
                             labelText: 'Password',
                             prefixIcon: const Icon(Icons.lock_outline),
@@ -243,7 +247,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               borderRadius: BorderRadius.circular(16),
                             ),
                             filled: true,
-                            fillColor: Theme.of(context).colorScheme.surface,
+                            fillColor: const Color(0xFF1E1E1E),
                           ),
                           obscureText: _obscurePassword,
                           textInputAction: TextInputAction.next,
@@ -262,6 +266,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         // Confirm password field
                         TextFormField(
                           controller: _confirmPasswordController,
+                          style: const TextStyle(
+                              color: Colors.white, fontSize: 16),
                           decoration: InputDecoration(
                             labelText: 'Confirm Password',
                             prefixIcon: const Icon(Icons.lock_outline),
@@ -282,7 +288,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               borderRadius: BorderRadius.circular(16),
                             ),
                             filled: true,
-                            fillColor: Theme.of(context).colorScheme.surface,
+                            fillColor: const Color(0xFF1E1E1E),
                           ),
                           obscureText: _obscureConfirmPassword,
                           textInputAction: TextInputAction.done,
@@ -342,8 +348,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         const SizedBox(height: 24),
 
                         // Login link
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
+                        Wrap(
+                          alignment: WrapAlignment.center,
+                          crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
                             Text(
                               'Already have an account? ',

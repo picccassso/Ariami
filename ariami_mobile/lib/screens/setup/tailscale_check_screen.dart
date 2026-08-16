@@ -48,7 +48,7 @@ class _TailscaleCheckScreenState extends State<TailscaleCheckScreen> {
   Widget build(BuildContext context) {
     // The hard-coded white body text below requires the dark palette.
     return SetupDarkTheme(
-      child: Scaffold(
+      builder: (context) => Scaffold(
         appBar: AppBar(
           title: const Text('Connect to Your Server'),
         ),

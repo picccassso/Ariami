@@ -4,6 +4,7 @@ import 'package:permission_handler/permission_handler.dart';
 import '../../services/api/connection_service.dart';
 import '../../utils/qr_payload_parser.dart';
 import '../../utils/setup_error_messages.dart';
+import '../../widgets/common/setup_dark_theme.dart';
 import 'server_connection_router.dart';
 
 class QRScannerScreen extends StatefulWidget {
@@ -228,160 +229,162 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        title: const Text('Scan QR Code'),
+    return SetupDarkTheme(
+      builder: (context) => Scaffold(
         backgroundColor: Colors.black,
-        foregroundColor: Colors.white,
-        actions: [
-          IconButton(
-            icon: Icon(_torchEnabled ? Icons.flash_on : Icons.flash_off),
-            onPressed: _toggleTorch,
-            tooltip: 'Toggle Flash',
-          ),
-        ],
-      ),
-      body: Stack(
-        children: [
-          // Camera preview
-          MobileScanner(
-            controller: _cameraController,
-            errorBuilder: _buildCameraError,
-            onDetect: (capture) {
-              final List<Barcode> barcodes = capture.barcodes;
-              for (final barcode in barcodes) {
-                final value = barcode.rawValue;
-                if (value != null && !_isProcessing) {
-                  _processQRCode(value);
-                  break;
+        appBar: AppBar(
+          title: const Text('Scan QR Code'),
+          backgroundColor: Colors.black,
+          foregroundColor: Colors.white,
+          actions: [
+            IconButton(
+              icon: Icon(_torchEnabled ? Icons.flash_on : Icons.flash_off),
+              onPressed: _toggleTorch,
+              tooltip: 'Toggle Flash',
+            ),
+          ],
+        ),
+        body: Stack(
+          children: [
+            // Camera preview
+            MobileScanner(
+              controller: _cameraController,
+              errorBuilder: _buildCameraError,
+              onDetect: (capture) {
+                final List<Barcode> barcodes = capture.barcodes;
+                for (final barcode in barcodes) {
+                  final value = barcode.rawValue;
+                  if (value != null && !_isProcessing) {
+                    _processQRCode(value);
+                    break;
+                  }
                 }
-              }
-            },
-          ),
+              },
+            ),
 
-          // Scanning frame overlay
-          Center(
-            child: Container(
-              width: 300,
-              height: 300,
-              decoration: BoxDecoration(
-                border: Border.all(
-                  color: Colors.white,
-                  width: 3,
+            // Scanning frame overlay
+            Center(
+              child: Container(
+                width: 300,
+                height: 300,
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    color: Colors.white,
+                    width: 3,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                borderRadius: BorderRadius.circular(12),
               ),
             ),
-          ),
 
-          // Status: connecting spinner, error, or instructions
-          Positioned(
-            bottom: 100,
-            left: 20,
-            right: 20,
-            child: Column(
-              children: [
-                if (_isProcessing)
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.black87,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor:
-                                AlwaysStoppedAnimation<Color>(Colors.white),
-                          ),
-                        ),
-                        SizedBox(width: 12),
-                        Text(
-                          'Connecting...',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                else if (_errorMessage != null)
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.black87,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: Colors.redAccent.withValues(alpha: 0.6),
+            // Status: connecting spinner, error, or instructions
+            Positioned(
+              bottom: 100,
+              left: 20,
+              right: 20,
+              child: Column(
+                children: [
+                  if (_isProcessing)
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.black87,
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.error_outline,
-                            color: Colors.redAccent, size: 20),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            _errorMessage!,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                              height: 1.35,
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor:
+                                  AlwaysStoppedAnimation<Color>(Colors.white),
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-                  )
-                else
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.black87,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Text(
-                      'Position the QR code within the frame',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
+                          SizedBox(width: 12),
+                          Text(
+                            'Connecting...',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ],
                       ),
-                      textAlign: TextAlign.center,
+                    )
+                  else if (_errorMessage != null)
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.black87,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: Colors.redAccent.withValues(alpha: 0.6),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.error_outline,
+                              color: Colors.redAccent, size: 20),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              _errorMessage!,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                height: 1.35,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.black87,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Text(
+                        'Position the QR code within the frame',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
-          ),
 
-          // Manual entry fallback (for when a QR code isn't available)
-          Positioned(
-            bottom: 24,
-            left: 20,
-            right: 20,
-            child: SizedBox(
-              height: 52,
-              child: OutlinedButton.icon(
-                onPressed: _isProcessing ? null : _openManualEntry,
-                icon: const Icon(Icons.keyboard),
-                label: const Text('Manual entry'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.white,
-                  side: const BorderSide(color: Colors.white70),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(28),
+            // Manual entry fallback (for when a QR code isn't available)
+            Positioned(
+              bottom: 24,
+              left: 20,
+              right: 20,
+              child: SizedBox(
+                height: 52,
+                child: OutlinedButton.icon(
+                  onPressed: _isProcessing ? null : _openManualEntry,
+                  icon: const Icon(Icons.keyboard),
+                  label: const Text('Manual entry'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    side: const BorderSide(color: Colors.white70),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(28),
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
