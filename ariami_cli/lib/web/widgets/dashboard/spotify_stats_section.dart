@@ -2,6 +2,8 @@ import 'package:ariami_core/models/listening_stats_models.dart';
 import 'package:flutter/material.dart';
 
 import '../../utils/constants.dart';
+import '../ui/info_row.dart';
+import '../ui/section.dart';
 
 /// The signed-in account's Spotify import: what it currently holds, plus the
 /// actions that change it.
@@ -24,76 +26,61 @@ class SpotifyStatsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final status = importStatus;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'LISTENING STATISTICS',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w800,
-            color: AppTheme.textSecondary,
-            letterSpacing: 1.5,
-          ),
-        ),
-        const SizedBox(height: 16),
-        Text(
-          status == null
-              ? 'Checking for an imported Spotify history…'
-              : status.hasImport
-                  ? '${formatPlayCount(status.plays)} imported '
-                      '${status.plays == 1 ? 'play' : 'plays'} · last import '
-                      '${formatStatsDateTime(status.lastImportedAtMs)}'
-                  : 'No Spotify plays imported.',
-          style: const TextStyle(fontSize: 15, height: 1.4),
-        ),
-        if (status != null && status.hasImport) ...[
-          const SizedBox(height: 4),
-          Text(
-            'Covering ${formatStatsDate(status.oldestPlayAtMs)} – '
-            '${formatStatsDate(status.newestPlayAtMs)}',
-            style: const TextStyle(
-              fontSize: 14,
-              color: AppTheme.textSecondary,
-            ),
-          ),
-        ],
-        const SizedBox(height: 20),
-        Wrap(
-          spacing: 16,
-          runSpacing: 16,
+    final hasImport = status?.hasImport ?? false;
+
+    return Section(
+      title: 'Listening history',
+      description: 'Bring your Spotify history in so Ariami can build on it.',
+      child: AppCard(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: Column(
           children: [
-            SizedBox(
-              height: 56,
-              child: ElevatedButton.icon(
-                onPressed: onImportSpotifyStats,
-                icon: const Icon(Icons.history_rounded),
-                label: const Text('IMPORT SPOTIFY STATS'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.surfaceBlack,
-                  foregroundColor: Colors.white,
-                  side: const BorderSide(color: AppTheme.borderGrey),
-                ),
-              ),
+            InfoRow(
+              icon: Icons.history_rounded,
+              label: 'Imported plays',
+              isActive: hasImport,
+              value: status == null
+                  ? 'Checking…'
+                  : hasImport
+                      ? '${formatPlayCount(status.plays)} '
+                          '${status.plays == 1 ? 'play' : 'plays'}'
+                      : 'None imported',
+              subtitle: status != null && hasImport
+                  ? 'Covering ${formatStatsDate(status.oldestPlayAtMs)} – '
+                      '${formatStatsDate(status.newestPlayAtMs)} · '
+                      'last import ${formatStatsDateTime(status.lastImportedAtMs)}'
+                  : null,
             ),
-            SizedBox(
-              height: 56,
-              child: ElevatedButton.icon(
-                onPressed: status != null && !status.hasImport
-                    ? null
-                    : onRemoveSpotifyStats,
-                icon: const Icon(Icons.delete_outline_rounded),
-                label: const Text('REMOVE SPOTIFY STATS'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.surfaceBlack,
-                  foregroundColor: Colors.white,
-                  side: const BorderSide(color: AppTheme.borderGrey),
-                ),
+            const CardDivider(),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: onImportSpotifyStats,
+                    icon: const Icon(Icons.upload_file_rounded, size: 18),
+                    label: const Text('Import Spotify history'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed:
+                        status != null && !hasImport ? null : onRemoveSpotifyStats,
+                    icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                    label: const Text('Remove import'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppTheme.danger,
+                      side: BorderSide(
+                        color: AppTheme.danger.withValues(alpha: 0.45),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
         ),
-      ],
+      ),
     );
   }
 }

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:ariami_core/models/playlist_suggestion.dart';
 
 import '../../utils/constants.dart';
+import '../ui/section.dart';
 
 /// Dashboard card for likely-playlist folders found by the scanner.
 ///
@@ -29,46 +30,26 @@ class SuggestedPlaylistsSection extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    return Container(
-      decoration: BoxDecoration(
-        color: AppTheme.surfaceBlack,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppTheme.borderGrey),
-      ),
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'SUGGESTED PLAYLISTS',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w800,
-              color: AppTheme.textSecondary,
-              letterSpacing: 1.5,
-            ),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'These folders look like playlists. Import treats a folder like '
-            'a [PLAYLIST] folder on every scan; Ignore hides it for good.',
-            style: TextStyle(
-              fontSize: 13,
-              color: AppTheme.textSecondary,
-            ),
-          ),
-          const SizedBox(height: 16),
-          for (final suggestion in suggestions) ...[
-            _SuggestionRow(
-              suggestion: suggestion,
-              isDeciding:
-                  decidingFolderPaths.contains(suggestion.folderPath),
-              onImport: () => onImport(suggestion),
-              onIgnore: () => onIgnore(suggestion),
-            ),
-            if (suggestion != suggestions.last) const SizedBox(height: 12),
+    return Section(
+      title: 'Suggested playlists',
+      description: 'These folders look like playlists. Import treats a folder '
+          'like a [PLAYLIST] folder on every scan; Ignore hides it for good.',
+      child: AppCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (final suggestion in suggestions) ...[
+              _SuggestionRow(
+                suggestion: suggestion,
+                isDeciding:
+                    decidingFolderPaths.contains(suggestion.folderPath),
+                onImport: () => onImport(suggestion),
+                onIgnore: () => onIgnore(suggestion),
+              ),
+              if (suggestion != suggestions.last) const SizedBox(height: 12),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -100,8 +81,8 @@ class _SuggestionRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: AppTheme.pureBlack.withValues(alpha: 0.4),
-        borderRadius: BorderRadius.circular(14),
+        color: AppTheme.surfaceRaised,
+        borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
         border: Border.all(color: AppTheme.borderGrey),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -110,7 +91,7 @@ class _SuggestionRow extends StatelessWidget {
           const Icon(
             Icons.queue_music_rounded,
             color: AppTheme.textSecondary,
-            size: 28,
+            size: 22,
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -125,8 +106,8 @@ class _SuggestionRow extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.textPrimary,
                         ),
                       ),
                     ),
@@ -172,12 +153,12 @@ class _SuggestionRow extends StatelessWidget {
               style: TextButton.styleFrom(
                 foregroundColor: AppTheme.textSecondary,
               ),
-              child: const Text('IGNORE'),
+              child: const Text('Ignore'),
             ),
             const SizedBox(width: 8),
             ElevatedButton(
               onPressed: onImport,
-              child: const Text('IMPORT'),
+              child: const Text('Import'),
             ),
           ],
         ],
@@ -194,17 +175,16 @@ class _MissingTagsBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-        color: Colors.orange.withValues(alpha: 0.15),
+        color: AppTheme.warning.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: Colors.orange.withValues(alpha: 0.6)),
+        border: Border.all(color: AppTheme.warning.withValues(alpha: 0.45)),
       ),
       child: const Text(
-        'TAGS MISSING — REVIEW BEFORE IMPORTING',
+        'Tags missing — review before importing',
         style: TextStyle(
-          fontSize: 10,
-          fontWeight: FontWeight.w800,
-          color: Colors.orange,
-          letterSpacing: 0.8,
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: AppTheme.warning,
         ),
       ),
     );

@@ -172,7 +172,7 @@ class _QRCodeScreenState extends State<QRCodeScreen>
               : 'Could not copy automatically — tap the code to select it, '
                   'then copy.',
         ),
-        backgroundColor: copied ? AppTheme.surfaceBlack : Colors.redAccent,
+        backgroundColor: copied ? AppTheme.surfaceRaised : AppTheme.danger,
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -370,7 +370,7 @@ class _QRCodeScreenState extends State<QRCodeScreen>
               backgroundColor: Colors.transparent,
               elevation: 0,
               automaticallyImplyLeading: false,
-              title: const Text('CONNECT'),
+              title: const Text('Connect a device'),
               actions: [
                 const SetupHelpButton(topic: CliOnboardingCopy.connect),
                 IconButton(
@@ -423,22 +423,22 @@ class _QRCodeScreenState extends State<QRCodeScreen>
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(
-                                Icons.qr_code_2_rounded,
-                                size: isShort ? 34 : 42,
-                                color: Colors.white,
-                              ),
-                              const SizedBox(height: 14),
                               Text(
-                                'CONNECT MOBILE APP',
+                                'Scan to connect',
                                 textAlign: TextAlign.center,
                                 style: Theme.of(context)
                                     .textTheme
                                     .headlineMedium
                                     ?.copyWith(
                                       fontSize: isNarrow ? 24 : 28,
-                                      letterSpacing: 0,
                                     ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Open Ariami on your phone or TV and scan '
+                                'this code.',
+                                textAlign: TextAlign.center,
+                                style: AppTheme.meta.copyWith(fontSize: 14),
                               ),
                               SizedBox(height: isShort ? 24 : 40),
                               if (_errorMessage != null)
@@ -498,22 +498,14 @@ class _QRCodeScreenState extends State<QRCodeScreen>
   Widget _buildServerInfoCard({required bool isNarrow}) {
     return Container(
       width: double.infinity,
-      decoration: AppTheme.glassDecoration,
-      padding: EdgeInsets.all(isNarrow ? 20.0 : 32.0),
+      decoration: AppTheme.cardDecoration(),
+      padding: EdgeInsets.all(isNarrow ? 20.0 : 28.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'SERVER INFORMATION',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-              color: AppTheme.textSecondary,
-              letterSpacing: 1.5,
-            ),
-          ),
-          const SizedBox(height: 24),
-          _buildInfoRow('NAME', _serverName),
+          const Text('This server', style: AppTheme.sectionTitle),
+          const SizedBox(height: 18),
+          _buildInfoRow('Name', _serverName),
           const SizedBox(height: 16),
           ..._buildEndpointSection(),
           if (_lastEndpointRefresh != null) ...[
@@ -522,50 +514,37 @@ class _QRCodeScreenState extends State<QRCodeScreen>
               children: [
                 const Icon(
                   Icons.schedule_rounded,
-                  size: 14,
-                  color: AppTheme.textSecondary,
+                  size: 13,
+                  color: AppTheme.textTertiary,
                 ),
                 const SizedBox(width: 6),
                 Text(
                   'Updated ${_formatEndpointRefreshTime()}',
-                  style: const TextStyle(
-                    color: AppTheme.textSecondary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: AppTheme.meta,
                 ),
               ],
             ),
           ],
           const SizedBox(height: 16),
-          _buildInfoRow('PORT', '$_serverPort'),
+          _buildInfoRow('Port', '$_serverPort'),
           const SizedBox(height: 16),
-          _buildInfoRow('AUTH', _authRequired ? 'REQUIRED' : 'OPEN'),
-          const SizedBox(height: 24),
-          const Divider(color: Colors.white10),
-          const SizedBox(height: 24),
-          const Text(
-            'INSTRUCTIONS',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-              color: AppTheme.textSecondary,
-              letterSpacing: 1.5,
-            ),
-          ),
+          _buildInfoRow(
+              'Sign-in', _authRequired ? 'Required' : 'Not required'),
+          const SizedBox(height: 22),
+          const Divider(color: AppTheme.borderGrey),
+          const SizedBox(height: 22),
+          const Text('How to connect', style: AppTheme.sectionTitle),
           const SizedBox(height: 12),
-          const Text(
-            '1. Open Ariami Mobile App\n2. Scan the QR code\n3. Register or sign in\n\nYou can skip this for now and connect devices later from the dashboard.',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.white70,
-              height: 1.6,
-              fontWeight: FontWeight.w500,
-            ),
+          Text(
+            '1. Open Ariami on your device\n'
+            '2. Scan the QR code\n'
+            '3. Sign in or create an account\n\n'
+            'You can skip this and connect devices later from the dashboard.',
+            style: AppTheme.meta.copyWith(fontSize: 14, height: 1.7),
           ),
-          const SizedBox(height: 24),
-          const Divider(color: Colors.white10),
-          const SizedBox(height: 24),
+          const SizedBox(height: 22),
+          const Divider(color: AppTheme.borderGrey),
+          const SizedBox(height: 22),
           ..._buildManualEntrySection(),
         ],
       ),
@@ -615,7 +594,7 @@ class _QRCodeScreenState extends State<QRCodeScreen>
               ),
               const SizedBox(width: 12),
               const Text(
-                'WAITING...',
+                'Waiting…',
                 style: TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.w900,
@@ -643,7 +622,7 @@ class _QRCodeScreenState extends State<QRCodeScreen>
           foregroundColor: Colors.white,
           side: const BorderSide(color: AppTheme.borderGrey),
         ),
-        child: const Text('GO TO DASHBOARD'),
+        child: const Text('Go to dashboard'),
       ),
     );
   }
@@ -655,19 +634,11 @@ class _QRCodeScreenState extends State<QRCodeScreen>
 
     if (lan != null || ts != null) {
       return [
-        const Text(
-          'AVAILABLE ENDPOINTS',
-          style: TextStyle(
-            color: AppTheme.textSecondary,
-            fontSize: 10,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 1.0,
-          ),
-        ),
+        Text('Addresses', style: AppTheme.fieldLabel),
         const SizedBox(height: 12),
         if (lan != null) ...[
           EndpointDisplay(
-            label: 'Local Network',
+            label: 'Local network',
             value: lan,
             badgeLabel: 'LAN',
             dense: true,
@@ -686,45 +657,33 @@ class _QRCodeScreenState extends State<QRCodeScreen>
 
     if (primary != null && primary.isNotEmpty) {
       return [
-        _buildInfoRow('ADDRESS', primary),
+        _buildInfoRow('Address', primary),
       ];
     }
 
     return [
-      _buildInfoRow('ADDRESS', 'Unknown'),
+      _buildInfoRow('Address', 'Unknown'),
     ];
   }
 
   List<Widget> _buildManualEntrySection() {
     final code = _inviteCode;
     return [
-      const Text(
-        "CAN'T SCAN? MANUAL ENTRY",
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w800,
-          color: AppTheme.textSecondary,
-          letterSpacing: 1.5,
-        ),
-      ),
+      const Text("Can't scan?", style: AppTheme.sectionTitle),
       const SizedBox(height: 12),
-      const Text(
+      Text(
         'In the app, tap "Manual entry", type the address above, then this '
         'one-time invite code:',
-        style: TextStyle(
-          fontSize: 14,
-          color: Colors.white70,
-          height: 1.6,
-          fontWeight: FontWeight.w500,
-        ),
+        style: AppTheme.meta.copyWith(fontSize: 14, height: 1.7),
       ),
       const SizedBox(height: 16),
       if (_inviteError != null) ...[
         Text(
           _inviteError!,
           style: const TextStyle(
-            color: Colors.redAccent,
-            fontWeight: FontWeight.w600,
+            color: AppTheme.danger,
+            fontWeight: FontWeight.w500,
+            fontSize: 13.5,
           ),
         ),
         const SizedBox(height: 12),
@@ -749,7 +708,7 @@ class _QRCodeScreenState extends State<QRCodeScreen>
                     ),
                   )
                 : const Icon(Icons.vpn_key_rounded, size: 18),
-            label: const Text('GENERATE INVITE CODE'),
+            label: const Text('Generate invite code'),
           ),
         )
       else ...[
@@ -781,7 +740,8 @@ class _QRCodeScreenState extends State<QRCodeScreen>
                   ),
                 ),
                 const SizedBox(width: 8),
-                const Icon(Icons.copy_rounded, color: Colors.white70),
+                const Icon(Icons.copy_rounded,
+                    size: 18, color: AppTheme.textSecondary),
               ],
             ),
           ),
@@ -793,7 +753,7 @@ class _QRCodeScreenState extends State<QRCodeScreen>
           child: ElevatedButton.icon(
             onPressed: _copyInviteCode,
             icon: const Icon(Icons.copy_rounded, size: 18),
-            label: const Text('COPY CODE'),
+            label: const Text('Copy code'),
           ),
         ),
         const SizedBox(height: 8),
@@ -828,24 +788,25 @@ class _QRCodeScreenState extends State<QRCodeScreen>
       constraints: const BoxConstraints(maxWidth: 500),
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: Colors.redAccent.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: Colors.redAccent.withValues(alpha: 0.2),
-        ),
+        color: AppTheme.danger.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
+        border: Border.all(color: AppTheme.danger.withValues(alpha: 0.3)),
       ),
       child: Column(
         children: [
           const Icon(Icons.error_outline_rounded,
-              color: Colors.redAccent, size: 48),
-          const SizedBox(height: 16),
+              color: AppTheme.danger, size: 36),
+          const SizedBox(height: 14),
           Text(
             _errorMessage!,
             style: const TextStyle(
-                color: Colors.redAccent, fontWeight: FontWeight.bold),
+              color: AppTheme.textPrimary,
+              fontSize: 14,
+              height: 1.5,
+            ),
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
           ElevatedButton(
             onPressed: () {
               setState(() {
@@ -854,8 +815,7 @@ class _QRCodeScreenState extends State<QRCodeScreen>
               });
               _loadServerInfo();
             },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-            child: const Text('RETRY'),
+            child: const Text('Try again'),
           ),
         ],
       ),
@@ -881,23 +841,15 @@ class _QRCodeScreenState extends State<QRCodeScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        Text(label, style: AppTheme.fieldLabel),
+        const SizedBox(height: 3),
         Text(
-          label,
+          value,
           style: const TextStyle(
-            color: AppTheme.textSecondary,
-            fontSize: 10,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 1.0,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          value.toUpperCase(),
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 16,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 0,
+            color: AppTheme.textPrimary,
+            fontSize: 15.5,
+            fontWeight: FontWeight.w600,
+            letterSpacing: -0.2,
           ),
         ),
       ],

@@ -82,6 +82,7 @@ extension _DashboardRefresh on _DashboardScreenState {
           await _loadTranscodeSlots(showLoading: false);
           await _loadUserPicker();
           await _loadPlaylistSuggestions();
+          await _loadHostControls();
         } else {
           _applyOwnerRequiredPanelState();
         }
@@ -119,6 +120,8 @@ extension _DashboardRefresh on _DashboardScreenState {
       _isLoadingTranscodeSlots = false;
       _userPickerEnabled = null;
       _playlistSuggestions = const <PlaylistSuggestion>[];
+      _hostControls = null;
+      _isLoadingHostControls = false;
     });
   }
 
@@ -228,7 +231,7 @@ extension _DashboardRefresh on _DashboardScreenState {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(e.message),
-          backgroundColor: Colors.redAccent,
+          backgroundColor: AppTheme.danger,
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -237,7 +240,7 @@ extension _DashboardRefresh on _DashboardScreenState {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Failed to update the account picker setting.'),
-          backgroundColor: Colors.redAccent,
+          backgroundColor: AppTheme.danger,
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -295,7 +298,7 @@ extension _DashboardRefresh on _DashboardScreenState {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(e.message),
-          backgroundColor: Colors.redAccent,
+          backgroundColor: AppTheme.danger,
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -304,7 +307,7 @@ extension _DashboardRefresh on _DashboardScreenState {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Failed to save transcode slots.'),
-          backgroundColor: Colors.redAccent,
+          backgroundColor: AppTheme.danger,
           behavior: SnackBarBehavior.floating,
         ),
       );

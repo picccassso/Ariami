@@ -54,7 +54,7 @@ Future<Map<String, String>?> showChangePasswordDialog(
                       child: Text(
                         dialogError!,
                         style: const TextStyle(
-                          color: Colors.redAccent,
+                          color: AppTheme.danger,
                           fontSize: 12,
                         ),
                       ),

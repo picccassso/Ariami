@@ -3,7 +3,10 @@ import 'package:flutter/material.dart';
 import '../services/web_auth_service.dart';
 import '../services/web_setup_service.dart';
 import '../utils/constants.dart';
+import '../utils/layout.dart';
 import '../utils/web_navigation.dart';
+import '../widgets/ui/page_shell.dart';
+import '../widgets/ui/status_pill.dart';
 import 'owner_setup_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -109,79 +112,65 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: AppTheme.backgroundGradient,
-        ),
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    'LOGIN REQUIRED',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.headlineMedium,
-                  ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'Authenticate to access the Ariami CLI dashboard.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: AppTheme.textSecondary,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 28),
-                  TextField(
-                    controller: _usernameController,
-                    enabled: !_isLoading,
-                    decoration: const InputDecoration(
-                      labelText: 'USERNAME',
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: _passwordController,
-                    enabled: !_isLoading,
-                    obscureText: true,
-                    decoration: const InputDecoration(
-                      labelText: 'PASSWORD',
-                    ),
-                    onSubmitted: (_) => _submit(),
-                  ),
-                  if (_errorMessage != null) ...[
-                    const SizedBox(height: 16),
-                    Text(
-                      _errorMessage!,
-                      style: const TextStyle(color: Colors.redAccent),
-                    ),
-                  ],
-                  const SizedBox(height: 24),
-                  SizedBox(
-                    height: 52,
-                    child: ElevatedButton(
-                      onPressed: _isLoading ? null : _submit,
-                      child: _isLoading
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.black,
-                              ),
-                            )
-                          : const Text('Login'),
-                    ),
-                  ),
-                ],
+      body: PageShell(
+        maxWidth: AppLayout.formMaxWidth,
+        centerVertically: true,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Sign in to Ariami',
+              style: Theme.of(context).textTheme.headlineMedium,
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'Use the account you created on this server.',
+              style: TextStyle(
+                color: AppTheme.textSecondary,
+                fontSize: 15,
+                height: 1.5,
               ),
             ),
-          ),
+            const SizedBox(height: 28),
+            TextField(
+              controller: _usernameController,
+              enabled: !_isLoading,
+              autofocus: true,
+              textInputAction: TextInputAction.next,
+              decoration: const InputDecoration(labelText: 'Username'),
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: _passwordController,
+              enabled: !_isLoading,
+              obscureText: true,
+              decoration: const InputDecoration(labelText: 'Password'),
+              onSubmitted: (_) => _submit(),
+            ),
+            if (_errorMessage != null) ...[
+              const SizedBox(height: 18),
+              NoticeBanner(
+                icon: Icons.error_outline_rounded,
+                tone: StatusTone.negative,
+                message: _errorMessage!,
+              ),
+            ],
+            const SizedBox(height: 24),
+            SizedBox(
+              height: 52,
+              child: ElevatedButton(
+                onPressed: _isLoading ? null : _submit,
+                child: _isLoading
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Sign in'),
+              ),
+            ),
+          ],
         ),
       ),
     );

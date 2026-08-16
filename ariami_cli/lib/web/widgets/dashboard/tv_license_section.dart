@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 
 import '../../services/web_api_client.dart';
 import '../../utils/constants.dart';
+import '../ui/section.dart';
+import '../ui/status_pill.dart';
 
 /// Admin card that activates an Ariami TV license key on the TVs' behalf.
 ///
@@ -107,186 +109,122 @@ class _TvLicenseSectionState extends State<TvLicenseSection> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'ARIAMI TV',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w800,
-            color: AppTheme.textSecondary,
-            letterSpacing: 1.5,
-          ),
-        ),
-        const SizedBox(height: 24),
-        Container(
-          decoration: BoxDecoration(
-            color: AppTheme.surfaceBlack,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppTheme.borderGrey),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.05),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(Icons.tv_rounded, color: Colors.white),
+    return Section(
+      title: 'Ariami TV',
+      child: AppCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: AppTheme.surfaceRaised,
+                    borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                    border: Border.all(color: AppTheme.borderGrey),
                   ),
-                  const SizedBox(width: 20),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'ACTIVATE TV LICENSE',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            color: AppTheme.textSecondary,
-                            letterSpacing: 1.2,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          // The stored blob is opaque here (only the TV can
-                          // verify what it covers), so never promise it
-                          // unlocks TVs.
-                          _hasStoredLicense
-                              ? 'A license file is already stored on this '
-                                  'server. If it includes Ariami TV, your '
-                                  'TVs unlock automatically when they '
-                                  'connect.'
-                              : 'Paste the TV license key from your '
-                                  'purchase email. It\'s stored on this '
-                                  'server and every TV unlocks '
-                                  'automatically on its next connect.',
-                          style: const TextStyle(
-                            color: AppTheme.textSecondary,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                            height: 1.45,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _keyController,
-                      enabled: !_busy,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: InputDecoration(
-                        hintText: 'XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX',
-                        hintStyle: TextStyle(
-                          color: AppTheme.textSecondary
-                              .withValues(alpha: 0.5),
-                        ),
-                        isDense: true,
-                        filled: true,
-                        fillColor: Colors.white.withValues(alpha: 0.05),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide:
-                              const BorderSide(color: AppTheme.borderGrey),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide:
-                              const BorderSide(color: AppTheme.borderGrey),
+                  child: const Icon(Icons.tv_rounded,
+                      size: 19, color: AppTheme.textPrimary),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'TV licence',
+                        style: TextStyle(
+                          fontSize: 15.5,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.textPrimary,
                         ),
                       ),
-                      onChanged: (_) {
-                        if (_error != null || _activated) {
-                          setState(() {
-                            _error = null;
-                            _activated = false;
-                          });
-                        }
-                      },
-                      onSubmitted: (_) => _busy ? null : _activate(),
-                    ),
+                      const SizedBox(height: 5),
+                      Text(
+                        // The stored blob is opaque here (only the TV can
+                        // verify what it covers), so never promise it
+                        // unlocks TVs.
+                        _hasStoredLicense
+                            ? 'A licence file is already stored on this '
+                                'server. If it includes Ariami TV, your TVs '
+                                'unlock automatically when they connect.'
+                            : 'Paste the TV licence key from your purchase '
+                                'email. It is stored on this server and every '
+                                'TV unlocks automatically on its next '
+                                'connect.',
+                        style: AppTheme.meta,
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 16),
-                  FilledButton(
-                    onPressed: _busy ? null : _activate,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: Colors.black,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _keyController,
+                    enabled: !_busy,
+                    style: const TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 13.5,
+                    ),
+                    decoration: const InputDecoration(
+                      hintText: 'XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX',
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 16,
                         vertical: 16,
                       ),
                     ),
-                    child: _busy
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.black,
-                            ),
-                          )
-                        : const Text(
-                            'Activate',
-                            style: TextStyle(fontWeight: FontWeight.w700),
-                          ),
+                    onChanged: (_) {
+                      if (_error != null || _activated) {
+                        setState(() {
+                          _error = null;
+                          _activated = false;
+                        });
+                      }
+                    },
+                    onSubmitted: (_) => _busy ? null : _activate(),
                   ),
-                ],
+                ),
+                const SizedBox(width: 12),
+                ElevatedButton(
+                  onPressed: _busy ? null : _activate,
+                  child: _busy
+                      ? const SizedBox(
+                          width: 17,
+                          height: 17,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Activate'),
+                ),
+              ],
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: 14),
+              NoticeBanner(
+                icon: Icons.error_outline_rounded,
+                tone: StatusTone.negative,
+                message: _error!,
               ),
-              if (_error != null) ...[
-                const SizedBox(height: 12),
-                Text(
-                  _error!,
-                  style: const TextStyle(
-                    color: Colors.redAccent,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    height: 1.4,
-                  ),
-                ),
-              ],
-              if (_activated) ...[
-                const SizedBox(height: 12),
-                const Row(
-                  children: [
-                    Icon(
-                      Icons.check_circle_rounded,
-                      size: 16,
-                      color: Colors.greenAccent,
-                    ),
-                    SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'TV license activated and stored on this server. '
-                        'Your TV will unlock the next time it connects.',
-                        style: TextStyle(
-                          color: Colors.greenAccent,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          height: 1.4,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
             ],
-          ),
+            if (_activated) ...[
+              const SizedBox(height: 14),
+              const NoticeBanner(
+                icon: Icons.check_circle_rounded,
+                tone: StatusTone.positive,
+                message: 'TV licence activated and stored on this server. '
+                    'Your TV will unlock the next time it connects.',
+              ),
+            ],
+          ],
         ),
-      ],
+      ),
     );
   }
 }

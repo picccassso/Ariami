@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../../services/web_api_client.dart';
 import '../../utils/constants.dart';
+import '../../utils/layout.dart';
+import '../ui/data_section.dart';
+import '../ui/section.dart';
 import 'dashboard_keep_alive_tab.dart';
-import 'owner_access_error_panel.dart';
 
 class DashboardUsersTab extends StatelessWidget {
   const DashboardUsersTab({
@@ -43,85 +45,123 @@ class DashboardUsersTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final gap = AppLayout.sectionGap(AppLayout.of(context));
+
     return DashboardKeepAliveTab(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            alignment: WrapAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Registered Users',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: -0.5,
+          Section(
+            title: 'Accounts',
+            description: 'Everyone who can sign in to this server.',
+            trailing: OutlinedButton.icon(
+              onPressed: isCreatingUser || isLoading || error != null
+                  ? null
+                  : onCreateUser,
+              icon: isCreatingUser
+                  ? const SizedBox(
+                      width: 15,
+                      height: 15,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.person_add_alt_1_rounded, size: 18),
+              label: const Text('Add account'),
+              style: OutlinedButton.styleFrom(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+              ),
+            ),
+            child: AppCard(
+              child: DataSectionBody(
+                isLoading: isLoading,
+                error: error,
+                showOwnerSignInCta: showOwnerSignInCta,
+                onSignInAsOwner: onSignInAsOwner,
+                isEmpty: rows.isEmpty,
+                emptyMessage: 'No accounts yet.',
+                child: AppDataTable(
+                  columns: const [
+                    DataColumn(label: Text('User')),
+                    DataColumn(label: Text('Role')),
+                    DataColumn(label: Text('Created')),
+                    DataColumn(label: Text('Devices')),
+                    DataColumn(label: Text('')),
+                  ],
+                  rows: rows.map((row) {
+                    return DataRow(
+                      cells: [
+                        DataCell(Text(
+                          row.username,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        )),
+                        DataCell(_RoleChip(isAdmin: row.isAdmin)),
+                        DataCell(Text(
+                          _formatDateTime(row.createdAt),
+                          style:
+                              const TextStyle(color: AppTheme.textSecondary),
+                        )),
+                        DataCell(Text(
+                          '${row.connectedDeviceCount}',
+                          style:
+                              const TextStyle(color: AppTheme.textSecondary),
+                        )),
+                        DataCell(
+                          _UserActionsButton(
+                            row: row,
+                            isChangingPassword: isChangingPassword,
+                            isDeleting: deletingUserIds.contains(row.userId),
+                            canDeleteUser: !(row.isAdmin && rows.length == 1),
+                            onChangePassword: onChangePassword,
+                            onDeleteUser: onDeleteUser,
+                          ),
+                        ),
+                      ],
+                    );
+                  }).toList(growable: false),
                 ),
               ),
-              OutlinedButton.icon(
-                onPressed: isCreatingUser || isLoading || error != null
-                    ? null
-                    : onCreateUser,
-                icon: isCreatingUser
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.person_add_alt_1_rounded),
-                label: const Text('Add User'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Container(
-            width: double.infinity,
-            decoration: BoxDecoration(
-              color: AppTheme.surfaceBlack,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: AppTheme.borderGrey),
             ),
-            padding: const EdgeInsets.all(16),
-            child: _buildBody(),
           ),
           if (userPickerEnabled != null) ...[
-            const SizedBox(height: 24),
-            const Text(
-              'Sign-in Privacy',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                letterSpacing: -0.5,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: AppTheme.surfaceBlack,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppTheme.borderGrey),
-              ),
-              child: SwitchListTile(
-                value: userPickerEnabled!,
-                onChanged: isSavingUserPicker ? null : onToggleUserPicker,
-                title: const Text(
-                  'Show account picker on TV sign-in',
-                  style: TextStyle(fontWeight: FontWeight.w600),
+            SizedBox(height: gap),
+            Section(
+              title: 'Sign-in privacy',
+              child: AppCard(
+                padding: const EdgeInsets.fromLTRB(20, 16, 12, 16),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Show account picker on TV sign-in',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Lets Ariami TV list this server\'s accounts on '
+                            'its sign-in screen. While enabled, any device on '
+                            'your network can see the account names and '
+                            'photos (passwords are always required). When '
+                            'off, TV users type their username instead.',
+                            style: AppTheme.meta,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Switch(
+                      value: userPickerEnabled!,
+                      onChanged: isSavingUserPicker ? null : onToggleUserPicker,
+                    ),
+                  ],
                 ),
-                subtitle: const Text(
-                  'Lets Ariami TV list this server\'s accounts on its '
-                  'sign-in screen. While enabled, any device on your network '
-                  'can see the account names and photos (passwords are '
-                  'always required). When off, TV users type their username '
-                  'instead.',
-                  style: TextStyle(color: Colors.white70, height: 1.35),
-                ),
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               ),
             ),
           ],
@@ -129,88 +169,33 @@ class DashboardUsersTab extends StatelessWidget {
       ),
     );
   }
+}
 
-  Widget _buildBody() {
-    if (isLoading) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 16),
-        child: Center(child: CircularProgressIndicator(color: Colors.white)),
-      );
+class _RoleChip extends StatelessWidget {
+  const _RoleChip({required this.isAdmin});
+
+  final bool isAdmin;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!isAdmin) {
+      return const Text('User', style: TextStyle(color: AppTheme.textSecondary));
     }
-
-    if (error != null) {
-      if (showOwnerSignInCta && onSignInAsOwner != null) {
-        return OwnerAccessErrorPanel(
-          message: error!,
-          onSignInAsOwner: onSignInAsOwner!,
-        );
-      }
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.red.withValues(alpha: 0.15),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+      decoration: BoxDecoration(
+        color: AppTheme.surfaceRaised,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: AppTheme.borderStrong),
+      ),
+      child: const Text(
+        'Owner',
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: AppTheme.textPrimary,
         ),
-        child: Text(error!, style: const TextStyle(color: Colors.redAccent)),
-      );
-    }
-
-    if (rows.isEmpty) {
-      return const Text(
-        'No registered users yet.',
-        style: TextStyle(color: Colors.white70),
-      );
-    }
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minWidth: constraints.maxWidth),
-            child: DataTable(
-              columns: const [
-                DataColumn(label: Text('User')),
-                DataColumn(label: Text('Role')),
-                DataColumn(label: Text('Created')),
-                DataColumn(label: Text('Connected Devices')),
-                DataColumn(label: Text('Actions')),
-              ],
-              rows: rows.map((row) {
-                return DataRow(
-                  cells: [
-                    DataCell(Text(row.username)),
-                    DataCell(
-                      Text(
-                        row.isAdmin ? 'Admin' : 'User',
-                        style: TextStyle(
-                          color: row.isAdmin ? Colors.orange.shade200 : null,
-                          fontWeight:
-                              row.isAdmin ? FontWeight.w700 : FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                    DataCell(Text(_formatDateTime(row.createdAt))),
-                    DataCell(Text('${row.connectedDeviceCount}')),
-                    DataCell(
-                      _UserActionsButton(
-                        row: row,
-                        isChangingPassword: isChangingPassword,
-                        isDeleting: deletingUserIds.contains(row.userId),
-                        canDeleteUser: !(row.isAdmin && rows.length == 1),
-                        onChangePassword: onChangePassword,
-                        onDeleteUser: onDeleteUser,
-                      ),
-                    ),
-                  ],
-                );
-              }).toList(growable: false),
-            ),
-          ),
-        );
-      },
+      ),
     );
   }
 }
@@ -243,7 +228,8 @@ class _UserActionsButton extends StatelessWidget {
     final canDelete = canChangePassword && canDeleteUser;
     return PopupMenuButton<_UserAction>(
       enabled: canChangePassword || canDelete,
-      tooltip: 'User actions',
+      tooltip: 'Account actions',
+      position: PopupMenuPosition.under,
       onSelected: (action) {
         switch (action) {
           case _UserAction.changePassword:
@@ -258,46 +244,52 @@ class _UserActionsButton extends StatelessWidget {
         PopupMenuItem(
           value: _UserAction.changePassword,
           enabled: canChangePassword,
-          child: const Text('Change Password'),
+          child: const Text('Change password'),
         ),
         PopupMenuItem(
           value: _UserAction.deleteUser,
           enabled: canDelete,
           child: Text(
-            'Delete User',
+            'Delete account',
             style: TextStyle(
-              color: canDelete ? Colors.redAccent : Colors.white38,
+              color: canDelete ? AppTheme.danger : AppTheme.textTertiary,
             ),
           ),
         ),
       ],
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: const Color(0xFF181818),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: const Color(0xFF333333)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (isDeleting) ...[
-              const SizedBox(
-                width: 14,
-                height: 14,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-              const SizedBox(width: 8),
-              const Text('Deleting...'),
-            ] else ...[
-              const Text(
-                'Actions',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(width: 4),
-              const Icon(Icons.expand_more_rounded, size: 18),
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: AppTheme.surfaceRaised,
+            borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+            border: Border.all(color: AppTheme.borderStrong),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (isDeleting) ...[
+                const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                const SizedBox(width: 8),
+                const Text('Deleting…'),
+              ] else ...[
+                const Text(
+                  'Manage',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                const Icon(Icons.expand_more_rounded, size: 17),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );

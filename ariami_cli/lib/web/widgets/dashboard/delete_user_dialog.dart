@@ -26,7 +26,7 @@ Future<bool> showDeleteUserDialog(
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.redAccent,
+              backgroundColor: AppTheme.danger,
               foregroundColor: Colors.white,
             ),
             onPressed: () => Navigator.of(dialogContext).pop(true),

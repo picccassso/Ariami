@@ -6,7 +6,9 @@ import '../services/web_api_client.dart';
 import '../services/web_auth_service.dart';
 import '../services/web_setup_service.dart';
 import '../onboarding/setup_help.dart';
-import '../utils/constants.dart';
+import '../utils/layout.dart';
+import '../widgets/ui/setup_scaffold.dart';
+import '../widgets/ui/status_pill.dart';
 import 'qr_code_screen.dart';
 
 /// First-run owner account creation before QR / dashboard handoff.
@@ -250,236 +252,156 @@ class _OwnerSetupScreenState extends State<OwnerSetupScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      floatingActionButton:
-          const SetupHelpButton(topic: CliOnboardingCopy.owner),
-      floatingActionButtonLocation: FloatingActionButtonLocation.endTop,
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: AppTheme.backgroundGradient,
-        ),
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 520),
-              child: _isInitializing
-                  ? const Center(
-                      child: CircularProgressIndicator(color: Colors.white),
-                    )
-                  : Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text(
-                          'CREATE OWNER ACCOUNT',
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.headlineMedium,
-                        ),
-                        const SizedBox(height: 12),
-                        const Text(
-                          'This is the account you will use across your Ariami devices. '
-                          'As the first account, it is also the server owner: it can manage '
-                          'users, connected devices, and settings. Your password stays on this server.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: AppTheme.textSecondary,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                            height: 1.5,
-                          ),
-                        ),
-                        const SizedBox(height: 28),
-                        Container(
-                          padding: const EdgeInsets.all(20),
-                          decoration: BoxDecoration(
-                            color: AppTheme.surfaceBlack,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: AppTheme.borderGrey),
-                          ),
-                          child: _hasOwner
-                              ? Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Row(
-                                      children: [
-                                        Icon(
-                                          Icons.check_circle_rounded,
-                                          color: Colors.greenAccent,
-                                        ),
-                                        SizedBox(width: 10),
-                                        Text(
-                                          'OWNER ACCOUNT ALREADY CONFIGURED',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.w800,
-                                            fontSize: 13,
-                                            letterSpacing: 0.5,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 10),
-                                    Text(
-                                      _hasSession && _isOwnerSession
-                                          ? 'You are signed in as the owner. Continue to connect your mobile app.'
-                                          : _hasSession
-                                              ? 'Signed in, but this account is not the owner. Sign in as the owner to continue.'
-                                              : 'Sign in as the owner to continue setup.',
-                                      style: const TextStyle(
-                                        color: AppTheme.textSecondary,
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                  ],
-                                )
-                              : Form(
-                                  key: _formKey,
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.stretch,
-                                    children: [
-                                      TextFormField(
-                                        controller: _usernameController,
-                                        enabled: !_isSubmitting,
-                                        decoration: const InputDecoration(
-                                          labelText: 'OWNER USERNAME',
-                                        ),
-                                        validator: (value) {
-                                          final v = (value ?? '').trim();
-                                          if (v.isEmpty) {
-                                            return 'Username is required.';
-                                          }
-                                          if (v.length < 3) {
-                                            return 'Username must be at least 3 characters.';
-                                          }
-                                          return null;
-                                        },
-                                      ),
-                                      const SizedBox(height: 16),
-                                      TextFormField(
-                                        controller: _passwordController,
-                                        enabled: !_isSubmitting,
-                                        obscureText: true,
-                                        decoration: const InputDecoration(
-                                          labelText: 'OWNER PASSWORD',
-                                        ),
-                                        validator: (value) {
-                                          final v = value ?? '';
-                                          if (v.isEmpty) {
-                                            return 'Password is required.';
-                                          }
-                                          if (v.length < 10) {
-                                            return 'Password must be at least 10 characters.';
-                                          }
-                                          return null;
-                                        },
-                                      ),
-                                      const SizedBox(height: 16),
-                                      TextFormField(
-                                        controller: _confirmPasswordController,
-                                        enabled: !_isSubmitting,
-                                        obscureText: true,
-                                        decoration: const InputDecoration(
-                                          labelText: 'CONFIRM PASSWORD',
-                                        ),
-                                        validator: (value) {
-                                          if ((value ?? '') !=
-                                              _passwordController.text) {
-                                            return 'Passwords do not match.';
-                                          }
-                                          return null;
-                                        },
-                                      ),
-                                      const SizedBox(height: 16),
-                                      TextFormField(
-                                        controller: _setupCodeController,
-                                        enabled: !_isSubmitting,
-                                        decoration: const InputDecoration(
-                                          labelText: 'SETUP CODE (IF REMOTE)',
-                                          helperText:
-                                              'Shown in the server terminal at '
-                                              'startup. Only needed when this '
-                                              'page is opened from another '
-                                              'device.',
-                                          helperMaxLines: 3,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                        ),
-                        if (_inlineError != null) ...[
-                          const SizedBox(height: 16),
-                          Text(
-                            _inlineError!,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(color: Colors.redAccent),
-                          ),
-                        ],
-                        const SizedBox(height: 24),
-                        if (_hasOwner) ...[
-                          if (_hasSession && _isOwnerSession)
-                            SizedBox(
-                              height: 52,
-                              child: ElevatedButton(
-                                onPressed: _isSubmitting
-                                    ? null
-                                    : _finishSetupAndContinue,
-                                child: _isSubmitting
-                                    ? const SizedBox(
-                                        width: 20,
-                                        height: 20,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          color: Colors.black,
-                                        ),
-                                      )
-                                    : const Text('CONTINUE TO QR CODE'),
-                              ),
-                            ),
-                          if (!_hasSession || !_isOwnerSession) ...[
-                            SizedBox(
-                              height: 52,
-                              child: ElevatedButton(
-                                onPressed:
-                                    _isSubmitting ? null : () => _goToLogin(),
-                                child: const Text('SIGN IN AS OWNER'),
-                              ),
-                            ),
-                          ],
-                          const SizedBox(height: 10),
-                          OutlinedButton(
-                            onPressed: _isSubmitting
-                                ? null
-                                : () => _goToLogin(switchAccount: true),
-                            child: Text(
-                              _hasSession
-                                  ? 'SWITCH ACCOUNT'
-                                  : 'USE A DIFFERENT ACCOUNT',
-                            ),
-                          ),
-                        ] else
-                          SizedBox(
-                            height: 52,
-                            child: ElevatedButton(
-                              onPressed: _isSubmitting ? null : _createOwner,
-                              child: _isSubmitting
-                                  ? const SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: Colors.black,
-                                      ),
-                                    )
-                                  : const Text('CREATE OWNER ACCOUNT'),
-                            ),
-                          ),
-                      ],
+    if (_isInitializing) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    return SetupScaffold(
+      step: 4,
+      icon: Icons.person_add_alt_1_rounded,
+      title: _hasOwner ? 'Owner account' : 'Create the owner account',
+      description: _hasOwner
+          ? 'This server already has an owner account.'
+          : 'This is the account you will use across your Ariami devices. As '
+              'the first account it also owns this server: it manages '
+              'accounts, devices and settings. Your password stays here.',
+      helpTopic: CliOnboardingCopy.owner,
+      maxWidth: AppLayout.formMaxWidth,
+      primaryAction: _primaryAction(),
+      secondaryAction: _hasOwner
+          ? TextButton(
+              onPressed:
+                  _isSubmitting ? null : () => _goToLogin(switchAccount: true),
+              child: Text(
+                _hasSession ? 'Switch account' : 'Use a different account',
+              ),
+            )
+          : null,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (_hasOwner)
+            NoticeBanner(
+              icon: Icons.check_circle_rounded,
+              tone: _hasSession && _isOwnerSession
+                  ? StatusTone.positive
+                  : StatusTone.caution,
+              message: _hasSession && _isOwnerSession
+                  ? 'You are signed in as the owner. Continue to connect your '
+                      'first device.'
+                  : _hasSession
+                      ? 'Signed in, but this account is not the owner. Sign '
+                          'in as the owner to continue.'
+                      : 'Sign in as the owner to continue setup.',
+            )
+          else
+            Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  TextFormField(
+                    controller: _usernameController,
+                    enabled: !_isSubmitting,
+                    decoration: const InputDecoration(labelText: 'Username'),
+                    validator: (value) {
+                      final v = (value ?? '').trim();
+                      if (v.isEmpty) return 'Username is required.';
+                      if (v.length < 3) {
+                        return 'Username must be at least 3 characters.';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 14),
+                  TextFormField(
+                    controller: _passwordController,
+                    enabled: !_isSubmitting,
+                    obscureText: true,
+                    decoration: const InputDecoration(labelText: 'Password'),
+                    validator: (value) {
+                      final v = value ?? '';
+                      if (v.isEmpty) return 'Password is required.';
+                      if (v.length < 10) {
+                        return 'Password must be at least 10 characters.';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 14),
+                  TextFormField(
+                    controller: _confirmPasswordController,
+                    enabled: !_isSubmitting,
+                    obscureText: true,
+                    decoration:
+                        const InputDecoration(labelText: 'Confirm password'),
+                    validator: (value) {
+                      if ((value ?? '') != _passwordController.text) {
+                        return 'Passwords do not match.';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 14),
+                  TextFormField(
+                    controller: _setupCodeController,
+                    enabled: !_isSubmitting,
+                    decoration: const InputDecoration(
+                      labelText: 'Setup code',
+                      helperText: 'Shown in the server terminal at startup. '
+                          'Only needed when this page is open on another '
+                          'device.',
+                      helperMaxLines: 3,
                     ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ),
+          if (_inlineError != null) ...[
+            const SizedBox(height: 16),
+            NoticeBanner(
+              icon: Icons.error_outline_rounded,
+              tone: StatusTone.negative,
+              message: _inlineError!,
+            ),
+          ],
+        ],
       ),
+    );
+  }
+
+  Widget _primaryAction() {
+    if (!_hasOwner) {
+      return ElevatedButton(
+        onPressed: _isSubmitting ? null : _createOwner,
+        child: _isSubmitting
+            ? const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : const Text('Create account'),
+      );
+    }
+
+    if (_hasSession && _isOwnerSession) {
+      return ElevatedButton.icon(
+        onPressed: _isSubmitting ? null : _finishSetupAndContinue,
+        icon: const Icon(Icons.arrow_forward_rounded, size: 19),
+        iconAlignment: IconAlignment.end,
+        label: _isSubmitting
+            ? const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : const Text('Continue'),
+      );
+    }
+
+    return ElevatedButton(
+      onPressed: _isSubmitting ? null : () => _goToLogin(),
+      child: const Text('Sign in as owner'),
     );
   }
 }

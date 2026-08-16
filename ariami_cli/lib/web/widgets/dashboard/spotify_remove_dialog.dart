@@ -62,12 +62,12 @@ class _SpotifyRemoveDialogState extends State<SpotifyRemoveDialog> {
           onPressed: _phase == _RemovePhase.removing
               ? null
               : () => Navigator.pop(context),
-          child: Text(_phase == _RemovePhase.done ? 'CLOSE' : 'CANCEL'),
+          child: Text(_phase == _RemovePhase.done ? 'Close' : 'Cancel'),
         ),
         if (_phase == _RemovePhase.confirm || _phase == _RemovePhase.error)
           ElevatedButton(
             onPressed: _remove,
-            child: const Text('REMOVE IMPORT'),
+            child: const Text('Remove import'),
           ),
       ],
     );
@@ -97,7 +97,7 @@ class _SpotifyRemoveDialogState extends State<SpotifyRemoveDialog> {
         return Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(Icons.error_outline_rounded, color: Colors.redAccent),
+            const Icon(Icons.error_outline_rounded, color: AppTheme.danger),
             const SizedBox(width: 12),
             Expanded(child: Text(_message)),
           ],
@@ -106,7 +106,7 @@ class _SpotifyRemoveDialogState extends State<SpotifyRemoveDialog> {
         return Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(Icons.check_circle_rounded, color: Colors.greenAccent),
+            const Icon(Icons.check_circle_rounded, color: AppTheme.success),
             const SizedBox(width: 12),
             Expanded(
               child: Text(

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import '../services/web_tailscale_service.dart';
 import '../onboarding/setup_help.dart';
-import '../utils/constants.dart';
 import '../widgets/endpoint_display.dart';
+import '../widgets/ui/section.dart';
+import '../widgets/ui/setup_scaffold.dart';
+import '../widgets/ui/status_pill.dart';
 
 class TailscaleCheckScreen extends StatefulWidget {
   const TailscaleCheckScreen({super.key});
@@ -86,184 +88,92 @@ class _TailscaleCheckScreenState extends State<TailscaleCheckScreen>
     final lanEndpoint = _advertisedLanHost ?? _lanServer;
     final tailscaleEndpoint =
         _advertisedTailscaleHost ?? _tailscaleServer ?? _tailscaleIp;
+    final hasEndpoints = lanEndpoint != null || tailscaleEndpoint != null;
 
-    return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: AppTheme.backgroundGradient,
-        ),
-        child: Column(
-          children: [
-            AppBar(
-              backgroundColor: Colors.transparent,
-              elevation: 0,
-              title: const Text('SETUP'),
-              actions: const [
-                SetupHelpButton(topic: CliOnboardingCopy.tailscale),
-                SizedBox(width: 8),
-              ],
+    return SetupScaffold(
+      step: 1,
+      icon: Icons.vpn_lock_rounded,
+      title: 'Remote access',
+      description: _statusMessage(),
+      helpTopic: CliOnboardingCopy.tailscale,
+      secondaryAction: TextButton(
+        onPressed: () {
+          Navigator.pushReplacementNamed(context, '/');
+        },
+        child: const Text('Back'),
+      ),
+      primaryAction: ElevatedButton.icon(
+        onPressed: () {
+          Navigator.pushReplacementNamed(context, '/folder-selection');
+        },
+        icon: const Icon(Icons.arrow_forward_rounded, size: 19),
+        iconAlignment: IconAlignment.end,
+        label: const Text('Continue'),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Align(
+            alignment: Alignment.centerLeft,
+            child: StatusPill(
+              label: _isChecking
+                  ? 'Checking Tailscale'
+                  : _isRunning
+                      ? 'Tailscale active'
+                      : _isInstalled
+                          ? 'Tailscale installed, not running'
+                          : 'Tailscale not detected',
+              tone: _isRunning
+                  ? StatusTone.positive
+                  : _isInstalled
+                      ? StatusTone.caution
+                      : StatusTone.neutral,
+              busy: _isChecking,
+              pulse: _isRunning ? _pulseController : null,
             ),
-            Expanded(
-              child: Center(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(24.0),
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 600),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        // Pulse Status Icon
-                        FadeTransition(
-                          opacity: _pulseController,
-                          child: Container(
-                            padding: const EdgeInsets.all(24),
-                            decoration: BoxDecoration(
-                              color: _isRunning
-                                  ? Colors.white.withValues(alpha: 0.05)
-                                  : (_isInstalled
-                                      ? Colors.amberAccent
-                                          .withValues(alpha: 0.05)
-                                      : Colors.redAccent
-                                          .withValues(alpha: 0.05)),
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: _isRunning
-                                    ? Colors.white.withValues(alpha: 0.1)
-                                    : (_isInstalled
-                                        ? Colors.amberAccent
-                                            .withValues(alpha: 0.1)
-                                        : Colors.redAccent
-                                            .withValues(alpha: 0.1)),
-                              ),
-                            ),
-                            child: Icon(
-                              _isRunning
-                                  ? Icons.vpn_lock_rounded
-                                  : (_isInstalled
-                                      ? Icons.info_rounded
-                                      : Icons.info_outline_rounded),
-                              size: 64,
-                              color: _isRunning
-                                  ? Colors.white
-                                  : (_isInstalled
-                                      ? Colors.amberAccent
-                                      : Colors.redAccent),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 32),
-                        Text(
-                          'OPTIONAL REMOTE ACCESS',
-                          style: Theme.of(context).textTheme.headlineMedium,
-                        ),
-                        const SizedBox(height: 16),
-                        SizedBox(
-                          width: double.infinity,
-                          child: Text(
-                            _statusMessage(),
-                            style: const TextStyle(
-                              fontSize: 16,
-                              color: AppTheme.textSecondary,
-                              height: 1.5,
-                              fontWeight: FontWeight.w500,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                        const SizedBox(height: 56),
-
-                        if (_isChecking)
-                          const CircularProgressIndicator(color: Colors.white)
-                        else if (lanEndpoint != null ||
-                            tailscaleEndpoint != null)
-                          ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 440),
-                            child: Column(
-                              children: [
-                                if (lanEndpoint != null)
-                                  Container(
-                                    width: double.infinity,
-                                    decoration: AppTheme.glassDecoration,
-                                    padding: const EdgeInsets.all(24.0),
-                                    child: EndpointDisplay(
-                                      label: 'Local Network',
-                                      value: lanEndpoint,
-                                      badgeLabel: 'LAN',
-                                    ),
-                                  ),
-                                if (lanEndpoint != null &&
-                                    tailscaleEndpoint != null)
-                                  const SizedBox(height: 16),
-                                if (tailscaleEndpoint != null)
-                                  Container(
-                                    width: double.infinity,
-                                    decoration: AppTheme.glassDecoration,
-                                    padding: const EdgeInsets.all(24.0),
-                                    child: EndpointDisplay(
-                                      label: 'Tailscale',
-                                      value: tailscaleEndpoint,
-                                      badgeLabel: 'REMOTE',
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          )
-                        else if (!_isRunning)
-                          const SizedBox(
-                            width: double.infinity,
-                            child: Text(
-                              'Tailscale is optional. Continue for local-network access, or add it later for private remote access.',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: AppTheme.textSecondary,
-                                fontStyle: FontStyle.italic,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-
-                        const SizedBox(height: 64),
-                        Wrap(
-                          alignment: WrapAlignment.center,
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          spacing: 32,
-                          runSpacing: 12,
-                          children: [
-                            TextButton(
-                              onPressed: () {
-                                Navigator.pushReplacementNamed(context, '/');
-                              },
-                              child: const Text('BACK'),
-                            ),
-                            SizedBox(
-                              height: 60,
-                              width: 200,
-                              child: ElevatedButton(
-                                onPressed: () {
-                                  Navigator.pushReplacementNamed(
-                                      context, '/folder-selection');
-                                },
-                                child: const Text('NEXT STEP'),
-                              ),
-                            ),
-                          ],
-                        ),
-                        if (!_isRunning && !_isChecking) ...[
-                          const SizedBox(height: 32),
-                          TextButton.icon(
-                            onPressed: _checkTailscale,
-                            icon: const Icon(Icons.refresh_rounded, size: 20),
-                            label: const Text('RECHECK STATUS'),
-                          ),
-                        ],
-                      ],
+          ),
+          if (hasEndpoints) ...[
+            const SizedBox(height: 20),
+            AppCard(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Column(
+                children: [
+                  if (lanEndpoint != null)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      child: EndpointDisplay(
+                        label: 'Local network',
+                        value: lanEndpoint,
+                        badgeLabel: 'LAN',
+                      ),
                     ),
-                  ),
-                ),
+                  if (lanEndpoint != null && tailscaleEndpoint != null)
+                    const CardDivider(),
+                  if (tailscaleEndpoint != null)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      child: EndpointDisplay(
+                        label: 'Tailscale',
+                        value: tailscaleEndpoint,
+                        badgeLabel: 'REMOTE',
+                      ),
+                    ),
+                ],
               ),
             ),
           ],
-        ),
+          if (!_isRunning && !_isChecking) ...[
+            const SizedBox(height: 16),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: _checkTailscale,
+                icon: const Icon(Icons.refresh_rounded, size: 18),
+                label: const Text('Check again'),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

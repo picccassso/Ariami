@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../ui/status_pill.dart';
+
 /// Inline error for owner-only dashboard sections with sign-in CTA.
 class OwnerAccessErrorPanel extends StatelessWidget {
   const OwnerAccessErrorPanel({
@@ -13,30 +15,13 @@ class OwnerAccessErrorPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.red.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            message,
-            style: const TextStyle(
-              color: Colors.redAccent,
-              fontSize: 13,
-            ),
-          ),
-          const SizedBox(height: 12),
-          OutlinedButton(
-            onPressed: onSignInAsOwner,
-            child: const Text('SIGN IN AS OWNER'),
-          ),
-        ],
+    return NoticeBanner(
+      icon: Icons.lock_outline_rounded,
+      tone: StatusTone.caution,
+      message: message,
+      action: OutlinedButton(
+        onPressed: onSignInAsOwner,
+        child: const Text('Sign in as owner'),
       ),
     );
   }

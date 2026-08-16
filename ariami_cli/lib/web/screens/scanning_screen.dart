@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../services/web_setup_service.dart';
 import '../onboarding/setup_help.dart';
 import '../utils/constants.dart';
+import '../widgets/ui/setup_scaffold.dart';
+import '../widgets/ui/status_pill.dart';
 
 class ScanningScreen extends StatefulWidget {
   const ScanningScreen({super.key});
@@ -16,7 +18,7 @@ class _ScanningScreenState extends State<ScanningScreen>
   final WebSetupService _setupService = WebSetupService();
 
   double _progress = 0.0;
-  String _statusMessage = 'INITIALIZING SCAN...';
+  String _statusMessage = 'Starting scan…';
   int _songsFound = 0;
   int _albumsFound = 0;
   int _scannedFileCount = 0;
@@ -55,7 +57,7 @@ class _ScanningScreenState extends State<ScanningScreen>
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Failed to start scan'),
-              backgroundColor: Colors.redAccent,
+              backgroundColor: AppTheme.danger,
               behavior: SnackBarBehavior.floating,
             ),
           );
@@ -72,7 +74,7 @@ class _ScanningScreenState extends State<ScanningScreen>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error starting scan: $e'),
-            backgroundColor: Colors.redAccent,
+            backgroundColor: AppTheme.danger,
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -129,7 +131,7 @@ class _ScanningScreenState extends State<ScanningScreen>
     setState(() {
       _isTransitioning = true;
       _transitionError = null;
-      _statusMessage = 'MOVING SERVER TO BACKGROUND...';
+      _statusMessage = 'Moving the server to background mode…';
     });
 
     final result = await _setupService.transitionToBackground();
@@ -144,7 +146,7 @@ class _ScanningScreenState extends State<ScanningScreen>
     if (expectedDisconnect) {
       setState(() {
         _statusMessage =
-            alreadyInForeground ? 'FINISHING SETUP...' : 'RECONNECTING...';
+            alreadyInForeground ? 'Finishing setup…' : 'Reconnecting…';
       });
       await Future.delayed(
         alreadyInForeground
@@ -162,7 +164,7 @@ class _ScanningScreenState extends State<ScanningScreen>
       _transitionError = message.isNotEmpty
           ? message
           : 'Could not move the server to background mode.';
-      _statusMessage = 'TRANSITION FAILED';
+      _statusMessage = 'Could not move to background mode';
     });
   }
 
@@ -183,313 +185,132 @@ class _ScanningScreenState extends State<ScanningScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: AppTheme.backgroundGradient,
-        ),
-        child: Column(
-          children: [
-            AppBar(
-              backgroundColor: Colors.transparent,
-              elevation: 0,
-              automaticallyImplyLeading: false,
-              title: const Text('INDEXING'),
-              actions: const [
-                SetupHelpButton(topic: CliOnboardingCopy.scanning),
-                SizedBox(width: 8),
-              ],
+    return SetupScaffold(
+      step: 3,
+      icon: _isComplete ? Icons.check_rounded : Icons.search_rounded,
+      title: _isComplete ? 'Library ready' : 'Building your library',
+      description: _isComplete
+          ? 'Ariami read the tags and artwork in your music folder and grouped '
+              'everything into albums and artists.'
+          : 'Ariami is reading the tags and artwork in your music folder. '
+              'Keep this page open until it finishes.',
+      helpTopic: CliOnboardingCopy.scanning,
+      primaryAction: _isComplete && !_isTransitioning && _transitionError == null
+          ? ElevatedButton.icon(
+              onPressed: _transitionToBackground,
+              icon: const Icon(Icons.arrow_forward_rounded, size: 19),
+              iconAlignment: IconAlignment.end,
+              label: const Text('Continue'),
+            )
+          : null,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              value: _progress,
+              minHeight: 6,
+              backgroundColor: AppTheme.surfaceRaised,
+              valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
             ),
-            Expanded(
-              child: Center(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(24.0),
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 600),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        // Pulse Icon
-                        FadeTransition(
-                          opacity: _pulseController,
-                          child: Container(
-                            padding: const EdgeInsets.all(32),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.05),
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                  color: Colors.white.withValues(alpha: 0.1)),
-                            ),
-                            child: Icon(
-                              _isComplete
-                                  ? Icons.check_rounded
-                                  : Icons.search_rounded,
-                              size: 64,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 48),
-                        Text(
-                          _isComplete ? 'SCAN COMPLETE' : 'BUILDING LIBRARY',
-                          style: Theme.of(context).textTheme.headlineMedium,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          _statusMessage,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w800,
-                            color: AppTheme.textSecondary,
-                            letterSpacing: 2.0,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 64),
-
-                        // Progress Bar Container
-                        SizedBox(
-                          width: double.infinity,
-                          child: Column(
-                            children: [
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(10),
-                                child: LinearProgressIndicator(
-                                  value: _progress,
-                                  minHeight: 12,
-                                  backgroundColor:
-                                      Colors.white.withValues(alpha: 0.05),
-                                  valueColor:
-                                      const AlwaysStoppedAnimation<Color>(
-                                          Colors.white),
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    '${(_progress * 100).toInt()}% COMPLETE',
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w900,
-                                      color: Colors.white,
-                                      letterSpacing: 1.0,
-                                    ),
-                                  ),
-                                  if (!_isComplete)
-                                    const Text(
-                                      'STAY ON THIS PAGE',
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w700,
-                                        color: AppTheme.textSecondary,
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 64),
-
-                        // Stats Grid
-                        SizedBox(
-                          width: double.infinity,
-                          child: Column(
-                            children: [
-                              if (_isComplete) ...[
-                                _buildCountCard(
-                                  icon: Icons.folder_open_rounded,
-                                  count: '$_scannedFileCount',
-                                  label: 'FILES SCANNED',
-                                ),
-                                const SizedBox(height: 24),
-                              ],
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: _buildCountCard(
-                                      icon: Icons.audiotrack_rounded,
-                                      count: '$_songsFound',
-                                      label: 'SONGS FOUND',
-                                    ),
-                                  ),
-                                  const SizedBox(width: 24),
-                                  Expanded(
-                                    child: _buildCountCard(
-                                      icon: Icons.album_rounded,
-                                      count: '$_albumsFound',
-                                      label: 'ALBUMS INDEXED',
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                        if (_isComplete && _skippedFileCount > 0) ...[
-                          const SizedBox(height: 32),
-                          SizedBox(
-                            width: double.infinity,
-                            child: Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: Colors.amber.withValues(alpha: 0.08),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: Colors.amber.withValues(alpha: 0.35),
-                                ),
-                              ),
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    Icons.warning_amber_rounded,
-                                    color: Colors.amber.shade300,
-                                    size: 22,
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Text(
-                                      '$_skippedFileCount FILE(S) WERE SKIPPED. This is usually informational; the rest of your library is unaffected.',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w800,
-                                        color: Colors.amber.shade100,
-                                        letterSpacing: 0.8,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                        if (_isComplete &&
-                            !_isTransitioning &&
-                            _transitionError == null) ...[
-                          const SizedBox(height: 40),
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton(
-                              onPressed: _transitionToBackground,
-                              child: const Padding(
-                                padding: EdgeInsets.symmetric(vertical: 16),
-                                child: Text('CONTINUE'),
-                              ),
-                            ),
-                          ),
-                        ],
-                        if (_isComplete && _isTransitioning) ...[
-                          const SizedBox(height: 64),
-                          SizedBox(
-                            width: double.infinity,
-                            child: Column(
-                              children: [
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    const SizedBox(
-                                      width: 16,
-                                      height: 16,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: Colors.white70,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 16),
-                                    Text(
-                                      _statusMessage,
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w800,
-                                        color: AppTheme.textSecondary,
-                                        letterSpacing: 1.5,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 16),
-                                const Text(
-                                  'The page may disconnect briefly while the server moves to background mode.',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    color: AppTheme.textSecondary,
-                                    height: 1.5,
-                                  ),
-                                  textAlign: TextAlign.center,
-                                ),
-                                const SizedBox(height: 8),
-                                const Text(
-                                  'Refresh if it does not reconnect automatically.',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    color: AppTheme.textSecondary,
-                                    height: 1.5,
-                                  ),
-                                  textAlign: TextAlign.center,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                        if (_transitionError != null) ...[
-                          const SizedBox(height: 32),
-                          SizedBox(
-                            width: double.infinity,
-                            child: Container(
-                              padding: const EdgeInsets.all(20),
-                              decoration: BoxDecoration(
-                                color: Colors.redAccent.withValues(alpha: 0.08),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color:
-                                      Colors.redAccent.withValues(alpha: 0.35),
-                                ),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  Text(
-                                    _transitionError!,
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      color: Colors.white,
-                                      height: 1.5,
-                                    ),
-                                    textAlign: TextAlign.center,
-                                  ),
-                                  const SizedBox(height: 20),
-                                  Wrap(
-                                    alignment: WrapAlignment.center,
-                                    spacing: 16,
-                                    runSpacing: 12,
-                                    children: [
-                                      OutlinedButton(
-                                        onPressed: _transitionToBackground,
-                                        child: const Text('RETRY'),
-                                      ),
-                                      ElevatedButton(
-                                        onPressed: _continueInForeground,
-                                        child: const Text(
-                                            'CONTINUE IN FOREGROUND'),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '${(_progress * 100).toInt()}%',
+                style: const TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.textPrimary,
                 ),
               ),
+              Flexible(
+                child: Text(
+                  _statusMessage,
+                  style: AppTheme.meta,
+                  textAlign: TextAlign.right,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          Row(
+            children: [
+              Expanded(
+                child: _buildCountCard(
+                  icon: Icons.audiotrack_rounded,
+                  count: '$_songsFound',
+                  label: 'Songs',
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildCountCard(
+                  icon: Icons.album_rounded,
+                  count: '$_albumsFound',
+                  label: 'Albums',
+                ),
+              ),
+              if (_isComplete) ...[
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildCountCard(
+                    icon: Icons.folder_open_rounded,
+                    count: '$_scannedFileCount',
+                    label: 'Files scanned',
+                  ),
+                ),
+              ],
+            ],
+          ),
+          if (_isComplete && _skippedFileCount > 0) ...[
+            const SizedBox(height: 16),
+            NoticeBanner(
+              icon: Icons.warning_amber_rounded,
+              tone: StatusTone.caution,
+              message: '$_skippedFileCount file(s) were skipped. This is '
+                  'usually informational; the rest of your library is '
+                  'unaffected.',
             ),
           ],
-        ),
+          if (_isComplete && _isTransitioning) ...[
+            const SizedBox(height: 20),
+            const NoticeBanner(
+              icon: Icons.sync_rounded,
+              tone: StatusTone.neutral,
+              message: 'Moving the server to background mode. This page may '
+                  'disconnect briefly — refresh if it does not come back on '
+                  'its own.',
+            ),
+          ],
+          if (_transitionError != null) ...[
+            const SizedBox(height: 20),
+            NoticeBanner(
+              icon: Icons.error_outline_rounded,
+              tone: StatusTone.negative,
+              message: _transitionError!,
+            ),
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                OutlinedButton(
+                  onPressed: _transitionToBackground,
+                  child: const Text('Try again'),
+                ),
+                ElevatedButton(
+                  onPressed: _continueInForeground,
+                  child: const Text('Continue in foreground'),
+                ),
+              ],
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -500,31 +321,24 @@ class _ScanningScreenState extends State<ScanningScreen>
     required String label,
   }) {
     return Container(
-      decoration: AppTheme.glassDecoration,
-      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+      decoration: AppTheme.cardDecoration(),
+      padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 24, color: AppTheme.textSecondary),
-          const SizedBox(height: 16),
+          Icon(icon, size: 18, color: AppTheme.textSecondary),
+          const SizedBox(height: 12),
           Text(
             count,
             style: const TextStyle(
-              fontSize: 32,
-              fontWeight: FontWeight.w900,
-              color: Colors.white,
-              letterSpacing: -0.5,
+              fontSize: 26,
+              fontWeight: FontWeight.w700,
+              color: AppTheme.textPrimary,
+              letterSpacing: -1,
+              height: 1.15,
             ),
           ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w800,
-              color: AppTheme.textSecondary,
-              letterSpacing: 1.2,
-            ),
-          ),
+          Text(label, style: AppTheme.fieldLabel),
         ],
       ),
     );

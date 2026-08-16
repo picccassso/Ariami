@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../ui/page_shell.dart';
+
 /// Scrollable tab body that preserves scroll position when switching tabs.
+///
+/// Wraps its content in the shared [PageShell] so every tab keeps the same
+/// reading column as the header above it.
 class DashboardKeepAliveTab extends StatefulWidget {
   const DashboardKeepAliveTab({super.key, required this.child});
 
@@ -18,13 +23,6 @@ class _DashboardKeepAliveTabState extends State<DashboardKeepAliveTab>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    final isNarrow = MediaQuery.of(context).size.width < 600;
-    return SingleChildScrollView(
-      padding: EdgeInsets.symmetric(
-        horizontal: isNarrow ? 16 : 24,
-        vertical: isNarrow ? 20 : 32,
-      ),
-      child: widget.child,
-    );
+    return PageShell(child: widget.child);
   }
 }

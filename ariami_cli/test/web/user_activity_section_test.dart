@@ -21,7 +21,10 @@ void main() {
       ),
     );
 
-    expect(find.text('No active download/transcode activity.'), findsOneWidget);
+    expect(
+      find.text('Nothing downloading or transcoding right now.'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('renders activity row values', (tester) async {

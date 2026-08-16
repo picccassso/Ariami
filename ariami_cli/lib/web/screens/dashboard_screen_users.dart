@@ -186,7 +186,7 @@ extension _DashboardUsers on _DashboardScreenState {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(e.message),
-          backgroundColor: Colors.redAccent,
+          backgroundColor: AppTheme.danger,
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -195,7 +195,7 @@ extension _DashboardUsers on _DashboardScreenState {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Failed to disconnect selected device.'),
-          backgroundColor: Colors.redAccent,
+          backgroundColor: AppTheme.danger,
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -244,7 +244,7 @@ extension _DashboardUsers on _DashboardScreenState {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(e.message),
-          backgroundColor: Colors.redAccent,
+          backgroundColor: AppTheme.danger,
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -253,7 +253,7 @@ extension _DashboardUsers on _DashboardScreenState {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Failed to change password.'),
-          backgroundColor: Colors.redAccent,
+          backgroundColor: AppTheme.danger,
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -298,7 +298,7 @@ extension _DashboardUsers on _DashboardScreenState {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(e.message),
-          backgroundColor: Colors.redAccent,
+          backgroundColor: AppTheme.danger,
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -307,7 +307,7 @@ extension _DashboardUsers on _DashboardScreenState {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Failed to create user.'),
-          backgroundColor: Colors.redAccent,
+          backgroundColor: AppTheme.danger,
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -350,7 +350,7 @@ extension _DashboardUsers on _DashboardScreenState {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(e.message),
-          backgroundColor: Colors.redAccent,
+          backgroundColor: AppTheme.danger,
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -359,7 +359,7 @@ extension _DashboardUsers on _DashboardScreenState {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Failed to delete user.'),
-          backgroundColor: Colors.redAccent,
+          backgroundColor: AppTheme.danger,
           behavior: SnackBarBehavior.floating,
         ),
       );

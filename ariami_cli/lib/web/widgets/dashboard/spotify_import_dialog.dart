@@ -116,17 +116,17 @@ class _SpotifyImportDialogState extends State<SpotifyImportDialog> {
           onPressed: _phase == _ImportPhase.uploading
               ? null
               : () => Navigator.pop(context),
-          child: Text(_phase == _ImportPhase.done ? 'CLOSE' : 'CANCEL'),
+          child: Text(_phase == _ImportPhase.done ? 'Close' : 'Cancel'),
         ),
         if (_phase == _ImportPhase.intro || _phase == _ImportPhase.error)
           ElevatedButton(
             onPressed: _selectAndAnalyze,
-            child: const Text('CHOOSE FILES'),
+            child: const Text('Choose files'),
           ),
         if (_phase == _ImportPhase.preview)
           ElevatedButton(
             onPressed: _upload,
-            child: const Text('IMPORT PLAYS'),
+            child: const Text('Import plays'),
           ),
       ],
     );
@@ -149,7 +149,7 @@ class _SpotifyImportDialogState extends State<SpotifyImportDialog> {
         return Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(Icons.error_outline_rounded, color: Colors.redAccent),
+            const Icon(Icons.error_outline_rounded, color: AppTheme.danger),
             const SizedBox(width: 12),
             Expanded(child: Text(_message)),
           ],
@@ -183,7 +183,7 @@ class _SpotifyImportDialogState extends State<SpotifyImportDialog> {
           children: [
             const Row(
               children: [
-                Icon(Icons.check_circle_rounded, color: Colors.greenAccent),
+                Icon(Icons.check_circle_rounded, color: AppTheme.success),
                 SizedBox(width: 12),
                 Text('Spotify listening stats imported.'),
               ],

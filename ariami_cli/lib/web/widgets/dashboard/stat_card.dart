@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../../utils/constants.dart';
 
+/// Compact metric tile: icon, number, label.
+///
+/// Sized by its own content rather than a grid aspect ratio, so a wide window
+/// makes the tiles wider without making them taller.
 class StatCard extends StatelessWidget {
   const StatCard({
     super.key,
@@ -17,46 +21,41 @@ class StatCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: BoxDecoration(
-        color: AppTheme.surfaceBlack,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppTheme.borderGrey),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+      decoration: AppTheme.cardDecoration(),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(12),
+            width: 38,
+            height: 38,
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.05),
-              borderRadius: BorderRadius.circular(12),
+              color: AppTheme.surfaceRaised,
+              borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+              border: Border.all(color: AppTheme.borderGrey),
             ),
-            child: Icon(icon, size: 28, color: Colors.white),
+            child: Icon(icon, size: 18, color: AppTheme.textPrimary),
           ),
-          const SizedBox(width: 20),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   count,
                   style: const TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.w900,
-                    color: Colors.white,
+                    fontSize: 26,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.textPrimary,
                     letterSpacing: -1,
+                    height: 1.15,
                   ),
                 ),
-                const SizedBox(height: 2),
                 Text(
                   label,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    color: AppTheme.textSecondary,
-                    letterSpacing: 1.2,
-                  ),
+                  style: AppTheme.fieldLabel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),

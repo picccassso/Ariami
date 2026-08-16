@@ -17,9 +17,11 @@ void main() {
 
     expect(
       find.text(
-          'You are signed in. Authentication is enabled for this server.'),
+        'Sign-in is required on this server. '
+        'Everyone connecting needs an account.',
+      ),
       findsOneWidget,
     );
-    expect(find.text('SIGN IN'), findsNothing);
+    expect(find.text('Sign in'), findsNothing);
   });
 }

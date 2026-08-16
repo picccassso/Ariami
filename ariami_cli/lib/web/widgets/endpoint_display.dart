@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import '../utils/constants.dart';
 
 /// Single LAN or Tailscale endpoint row (matches Desktop connection UX).
+///
+/// The address is the point of the row, so it is set in a monospace face and
+/// stays selectable — people copy it into a phone or a browser bar.
 class EndpointDisplay extends StatelessWidget {
   const EndpointDisplay({
     super.key,
@@ -21,51 +24,48 @@ class EndpointDisplay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final titleSize = dense ? 10.0 : 11.0;
-    final valueSize = dense ? 16.0 : 20.0;
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
             Text(
-              label.toUpperCase(),
+              label,
               style: TextStyle(
-                fontSize: titleSize,
-                fontWeight: FontWeight.w700,
+                fontSize: dense ? 12 : 13,
+                fontWeight: FontWeight.w500,
                 color: AppTheme.textSecondary,
-                letterSpacing: 0.6,
               ),
             ),
             const SizedBox(width: 8),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.06),
+                color: AppTheme.surfaceRaised,
                 borderRadius: BorderRadius.circular(999),
                 border: Border.all(color: AppTheme.borderGrey),
               ),
               child: Text(
                 badgeLabel,
                 style: TextStyle(
-                  fontSize: dense ? 9 : 10,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white70,
-                  letterSpacing: 0.8,
+                  fontSize: dense ? 9.5 : 10.5,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.textSecondary,
+                  letterSpacing: 0.4,
                 ),
               ),
             ),
           ],
         ),
-        SizedBox(height: dense ? 6 : 8),
+        SizedBox(height: dense ? 5 : 7),
         SelectableText(
           value,
           style: TextStyle(
-            fontSize: valueSize,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-            letterSpacing: 0,
+            fontSize: dense ? 15 : 18,
+            fontWeight: FontWeight.w600,
+            color: AppTheme.textPrimary,
+            fontFamily: 'monospace',
+            letterSpacing: -0.2,
           ),
         ),
       ],

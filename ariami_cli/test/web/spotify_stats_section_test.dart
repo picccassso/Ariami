@@ -24,8 +24,8 @@ void main() {
     );
   }
 
-  ElevatedButton removeButton(WidgetTester tester) => tester.widget(
-        find.widgetWithText(ElevatedButton, 'REMOVE SPOTIFY STATS'),
+  OutlinedButton removeButton(WidgetTester tester) => tester.widget(
+        find.widgetWithText(OutlinedButton, 'Remove import'),
       );
 
   testWidgets('describes an existing import and enables removal',
@@ -41,19 +41,19 @@ void main() {
     );
 
     expect(
-      find.textContaining('12,431 imported plays'),
+      find.text('12,431 plays'),
       findsOneWidget,
       reason: 'six-figure imports need thousands separators',
     );
     expect(find.textContaining('last import 24/7/2026 18:05'), findsOneWidget);
-    expect(find.text('Covering 3/1/2019 – 14/3/2026'), findsOneWidget);
+    expect(find.textContaining('Covering 3/1/2019 – 14/3/2026'), findsOneWidget);
     expect(removeButton(tester).onPressed, isNotNull);
   });
 
   testWidgets('disables removal when nothing is imported', (tester) async {
     await pumpSection(tester, SpotifyImportStatus.none);
 
-    expect(find.text('No Spotify plays imported.'), findsOneWidget);
+    expect(find.text('None imported'), findsOneWidget);
     expect(find.textContaining('Covering'), findsNothing);
     expect(removeButton(tester).onPressed, isNull);
   });
@@ -62,10 +62,7 @@ void main() {
       (tester) async {
     await pumpSection(tester, null);
 
-    expect(
-      find.text('Checking for an imported Spotify history…'),
-      findsOneWidget,
-    );
+    expect(find.text('Checking…'), findsOneWidget);
     expect(removeButton(tester).onPressed, isNotNull);
   });
 }

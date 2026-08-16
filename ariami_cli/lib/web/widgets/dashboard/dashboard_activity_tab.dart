@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../services/web_api_client.dart';
+import '../../utils/layout.dart';
 import 'connected_clients_section.dart';
 import 'dashboard_keep_alive_tab.dart';
 import 'user_activity_section.dart';
@@ -45,18 +46,12 @@ class DashboardActivityTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final gap = AppLayout.sectionGap(AppLayout.of(context));
+
     return DashboardKeepAliveTab(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          UserActivitySection(
-            rows: userActivityRows,
-            isLoading: isLoadingUserActivity,
-            error: userActivityError,
-            showOwnerSignInCta: userActivityOwnerForbidden,
-            onSignInAsOwner: onSignInAsOwner,
-          ),
-          const SizedBox(height: 48),
           ConnectedClientsSection(
             clients: connectedClientRows,
             isLoading: isLoadingConnectedClients,
@@ -70,6 +65,14 @@ class DashboardActivityTab extends StatelessWidget {
             onChangePasswordForUser: onChangePasswordForUser,
             formatClientTime: formatClientTime,
             formatDeviceLabel: formatDeviceLabel,
+          ),
+          SizedBox(height: gap),
+          UserActivitySection(
+            rows: userActivityRows,
+            isLoading: isLoadingUserActivity,
+            error: userActivityError,
+            showOwnerSignInCta: userActivityOwnerForbidden,
+            onSignInAsOwner: onSignInAsOwner,
           ),
         ],
       ),

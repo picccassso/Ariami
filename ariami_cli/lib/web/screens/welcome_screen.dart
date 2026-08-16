@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:ariami_core/models/auth_models.dart';
 import 'package:ariami_core/services/server/server_port_policy.dart';
 import 'package:flutter/material.dart';
@@ -6,7 +5,9 @@ import '../services/web_api_client.dart';
 import '../services/web_auth_service.dart';
 import '../onboarding/setup_help.dart';
 import '../utils/constants.dart';
+import '../utils/layout.dart';
 import '../utils/web_navigation.dart';
+import '../widgets/ui/page_shell.dart';
 
 class WelcomeScreen extends StatefulWidget {
   const WelcomeScreen({super.key});
@@ -114,11 +115,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> with RouteAware {
   @override
   Widget build(BuildContext context) {
     if (_isCheckingStatus) {
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(color: Colors.white),
-        ),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     return Scaffold(
@@ -127,8 +124,13 @@ class _WelcomeScreenState extends State<WelcomeScreen> with RouteAware {
           if (_portFallbackMessage != null)
             MaterialBanner(
               content: Text(_portFallbackMessage!),
-              leading: const Icon(Icons.info_outline),
-              backgroundColor: Colors.amber.shade100,
+              leading: const Icon(Icons.info_outline_rounded),
+              backgroundColor: AppTheme.surfaceRaised,
+              dividerColor: AppTheme.borderGrey,
+              contentTextStyle: const TextStyle(
+                color: AppTheme.textPrimary,
+                fontSize: 13.5,
+              ),
               actions: [
                 TextButton(
                   onPressed: () {
@@ -141,88 +143,60 @@ class _WelcomeScreenState extends State<WelcomeScreen> with RouteAware {
               ],
             ),
           Expanded(
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: AppTheme.backgroundGradient,
-              ),
-              child: Stack(
+            child: PageShell(
+              maxWidth: AppLayout.proseMaxWidth,
+              centerVertically: true,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Positioned(
-                    top: 12,
-                    right: 12,
-                    child: SetupHelpButton(topic: CliOnboardingCopy.welcome),
+                  Row(
+                    children: [
+                      const _WelcomeMark(),
+                      const Spacer(),
+                      SetupHelpButton(topic: CliOnboardingCopy.welcome),
+                    ],
                   ),
-                  Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        // Glass Logo Container
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(100),
-                          child: BackdropFilter(
-                            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                            child: Container(
-                              padding: const EdgeInsets.all(40),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.05),
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                    color: Colors.white.withValues(alpha: 0.1)),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.white.withValues(alpha: 0.05),
-                                    blurRadius: 40,
-                                    spreadRadius: 10,
-                                  ),
-                                ],
-                              ),
-                              child: const Icon(
-                                Icons.music_note_rounded,
-                                size: 80,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 48),
-                        Text(
-                          'Ariami',
-                          style: Theme.of(context).textTheme.headlineLarge,
-                        ),
-                        const SizedBox(height: 16),
-                        const Text(
-                          'Your personal music service',
-                          style: TextStyle(
-                            fontSize: 18,
-                            color: AppTheme.textSecondary,
-                            letterSpacing: 0.5,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        const SizedBox(
-                          width: 440,
-                          child: Text(
-                            'Host the music you already own on this server, then listen and manage it from your own devices. Setup explains each choice as you go.',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                                color: AppTheme.textSecondary, height: 1.5),
-                          ),
-                        ),
-                        const SizedBox(height: 48),
-                        SizedBox(
-                          width: 240,
-                          height: 56,
-                          child: ElevatedButton(
-                            onPressed: () {
-                              Navigator.pushReplacementNamed(
-                                  context, '/tailscale-check');
-                            },
-                            child: const Text('Get Started'),
-                          ),
-                        ),
-                      ],
+                  const SizedBox(height: 36),
+                  Text(
+                    'Your own music service',
+                    style: Theme.of(context).textTheme.headlineLarge,
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Host the music you already own on this server, then '
+                    'listen and manage it from your own devices. Setup '
+                    'explains each choice as you go.',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: AppTheme.textSecondary,
+                      height: 1.6,
                     ),
+                  ),
+                  const SizedBox(height: 36),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.pushReplacementNamed(
+                            context, '/tailscale-check');
+                      },
+                      icon: const Icon(Icons.arrow_forward_rounded, size: 19),
+                      iconAlignment: IconAlignment.end,
+                      label: const Text('Get started'),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 28,
+                          vertical: 18,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+                  Text(
+                    'Takes about a minute. Your files are never moved, '
+                    'changed or uploaded.',
+                    style: AppTheme.meta,
                   ),
                 ],
               ),
@@ -230,6 +204,43 @@ class _WelcomeScreenState extends State<WelcomeScreen> with RouteAware {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Ariami wordmark used as the setup flow's masthead.
+class _WelcomeMark extends StatelessWidget {
+  const _WelcomeMark();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 30,
+          height: 30,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: const Icon(
+            Icons.music_note_rounded,
+            size: 18,
+            color: AppTheme.pureBlack,
+          ),
+        ),
+        const SizedBox(width: 11),
+        const Text(
+          'Ariami',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.4,
+            color: AppTheme.textPrimary,
+          ),
+        ),
+      ],
     );
   }
 }

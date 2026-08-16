@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:ariami_core/models/auth_models.dart';
+import 'package:ariami_core/models/host_controls.dart';
 import 'package:ariami_core/services/transcoding/transcode_slots_policy.dart';
 import 'package:http/http.dart' as http;
 
@@ -329,6 +330,59 @@ class WebApiClient {
     }
 
     return TranscodeSlotsSnapshot.fromJson(
+      response.jsonBody ?? <String, dynamic>{},
+    );
+  }
+
+  /// Machine-level server settings: music folder, start at boot, and whether
+  /// this host can reset itself. Admin only.
+  ///
+  /// Answers 503 `NOT_CONFIGURED` on hosts that do not offer them, which the
+  /// Server tab treats as "hide these controls".
+  Future<HostControlsSnapshot> getHostControls() async {
+    final response = await get(
+      '/api/admin/host-controls',
+      includeDeviceIdentity: true,
+    );
+    if (!response.isSuccess) {
+      throw WebApiException(response);
+    }
+
+    return HostControlsSnapshot.fromJson(
+      response.jsonBody ?? <String, dynamic>{},
+    );
+  }
+
+  /// Turn start-at-boot on or off for the machine running the server.
+  Future<HostControlsSnapshot> setAutostartEnabled(bool enabled) async {
+    final response = await post(
+      '/api/admin/autostart',
+      body: <String, dynamic>{'enabled': enabled},
+      includeDeviceIdentity: true,
+    );
+    if (!response.isSuccess) {
+      throw WebApiException(response);
+    }
+
+    return HostControlsSnapshot.fromJson(
+      response.jsonBody ?? <String, dynamic>{},
+    );
+  }
+
+  /// Clear this server's Ariami data. [factory] false keeps the library and
+  /// accounts and clears setup/config only. The server stops itself once the
+  /// reset finishes, so no further requests will succeed.
+  Future<HostResetOutcome> resetHost({required bool factory}) async {
+    final response = await post(
+      '/api/admin/reset',
+      body: <String, dynamic>{'scope': factory ? 'factory' : 'setup'},
+      includeDeviceIdentity: true,
+    );
+    if (!response.isSuccess) {
+      throw WebApiException(response);
+    }
+
+    return HostResetOutcome.fromJson(
       response.jsonBody ?? <String, dynamic>{},
     );
   }

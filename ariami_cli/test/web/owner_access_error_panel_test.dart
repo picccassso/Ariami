@@ -19,7 +19,7 @@ void main() {
       ),
     );
 
-    await tester.tap(find.text('SIGN IN AS OWNER'));
+    await tester.tap(find.text('Sign in as owner'));
     await tester.pump();
 
     expect(tapped, isTrue);

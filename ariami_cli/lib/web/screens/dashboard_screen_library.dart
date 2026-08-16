@@ -56,7 +56,7 @@ extension _DashboardLibrary on _DashboardScreenState {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Failed to start library rescan'),
-            backgroundColor: Colors.redAccent,
+            backgroundColor: AppTheme.danger,
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -66,7 +66,7 @@ extension _DashboardLibrary on _DashboardScreenState {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error starting rescan: $e'),
-          backgroundColor: Colors.redAccent,
+          backgroundColor: AppTheme.danger,
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -135,7 +135,7 @@ extension _DashboardLibrary on _DashboardScreenState {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to $decision "${suggestion.name}"'),
-            backgroundColor: Colors.redAccent,
+            backgroundColor: AppTheme.danger,
             behavior: SnackBarBehavior.floating,
           ),
         );
