@@ -12,6 +12,7 @@ export 'models/auth_models.dart';
 export 'models/connect_models.dart';
 export 'models/file_change.dart';
 export 'models/folder_playlist.dart';
+export 'models/host_controls.dart';
 export 'models/library_structure.dart';
 export 'models/listening_stats_models.dart';
 export 'models/hidden_item.dart';

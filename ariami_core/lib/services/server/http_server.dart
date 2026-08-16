@@ -25,6 +25,7 @@ import 'package:ariami_core/models/server_origin.dart';
 import 'package:ariami_core/models/websocket_models.dart';
 import 'package:ariami_core/models/connect_models.dart';
 import 'package:ariami_core/models/feature_flags.dart';
+import 'package:ariami_core/models/host_controls.dart';
 import 'package:ariami_core/services/library/library_manager.dart';
 import 'package:ariami_core/services/library/playlist_decision_store.dart';
 import 'package:ariami_core/services/catalog/catalog_repository.dart';
@@ -46,6 +47,7 @@ import 'package:ariami_core/services/server/v2_handlers.dart';
 import 'package:ariami_core/services/connect/connect_hub.dart';
 import 'package:ariami_core/app_version.dart';
 import 'package:ariami_core/services/setup/music_folder_path_helper.dart';
+import 'package:ariami_core/services/reset/reset_service.dart' show ResetScope;
 import 'package:ariami_core/models/listening_stats_models.dart';
 import 'package:ariami_core/services/stats/listening_stats_store.dart';
 import 'package:ariami_core/models/hidden_item.dart';
@@ -357,6 +359,12 @@ class AriamiHttpServer {
   Future<TranscodeSlotsSnapshot> Function()? _getTranscodeSlotsSnapshotCallback;
   Future<TranscodeSlotsSnapshot> Function(int? slots)?
       _setTranscodeSlotsOverrideCallback;
+
+  // Callbacks for host-level controls: start-at-boot and self-reset (CLI use).
+  // Desktop manages both in-process and leaves these unset.
+  Future<HostControlsSnapshot> Function()? _getHostControlsCallback;
+  Future<HostControlsSnapshot> Function(bool enabled)? _setAutostartCallback;
+  Future<HostResetOutcome> Function(ResetScope scope)? _resetHostCallback;
 
   String _generateRegistrationTokenValue() {
     final buffer = StringBuffer();

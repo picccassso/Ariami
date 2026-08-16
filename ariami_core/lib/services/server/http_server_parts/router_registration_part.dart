@@ -306,6 +306,9 @@ extension AriamiHttpServerRouterMethods on AriamiHttpServer {
     router.post('/api/admin/delete-user', _handleAdminDeleteUser);
     router.get('/api/admin/transcode-slots', _handleAdminGetTranscodeSlots);
     router.post('/api/admin/transcode-slots', _handleAdminPostTranscodeSlots);
+    router.get('/api/admin/host-controls', _handleAdminGetHostControls);
+    router.post('/api/admin/autostart', _handleAdminPostAutostart);
+    router.post('/api/admin/reset', _handleAdminPostReset);
   }
 
   void _registerLibraryAndArtworkRoutes(Router router) {

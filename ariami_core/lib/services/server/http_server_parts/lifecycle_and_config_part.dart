@@ -175,6 +175,21 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
     _setTranscodeSlotsOverrideCallback = setOverride;
   }
 
+  /// Set callbacks for host-level controls exposed to the web dashboard:
+  /// the configured music folder, start-at-boot, and self-reset (CLI use).
+  ///
+  /// Hosts that leave these unset (Ariami Desktop) answer the matching
+  /// endpoints with `NOT_CONFIGURED` rather than exposing the controls.
+  void setHostControlCallbacks({
+    Future<HostControlsSnapshot> Function()? getSnapshot,
+    Future<HostControlsSnapshot> Function(bool enabled)? setAutostartEnabled,
+    Future<HostResetOutcome> Function(ResetScope scope)? reset,
+  }) {
+    _getHostControlsCallback = getSnapshot;
+    _setAutostartCallback = setAutostartEnabled;
+    _resetHostCallback = reset;
+  }
+
   /// Initialize auth services for multi-user support.
   /// Must be called before server start if auth is needed.
   ///

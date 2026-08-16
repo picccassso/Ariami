@@ -254,6 +254,112 @@ extension AriamiHttpServerAdminHandlersMethods on AriamiHttpServer {
     }
   }
 
+  /// `NOT_CONFIGURED` body for hosts that never registered host controls.
+  Response _hostControlsUnavailable() {
+    return _jsonResponse(HttpStatus.serviceUnavailable, {
+      'error': {
+        'code': 'NOT_CONFIGURED',
+        'message': 'Host controls are not available on this server',
+      },
+    });
+  }
+
+  Future<Response> _handleAdminGetHostControls(Request request) async {
+    final authResponse = _authorizeAdminRequest(request);
+    if (authResponse != null) return authResponse;
+
+    final callback = _getHostControlsCallback;
+    if (callback == null) return _hostControlsUnavailable();
+
+    try {
+      final snapshot = await callback();
+      return _jsonOk(snapshot.toJson());
+    } catch (e) {
+      return _jsonInternalServerError({
+        'error': {
+          'code': 'INTERNAL_ERROR',
+          'message': e.toString(),
+        },
+      });
+    }
+  }
+
+  Future<Response> _handleAdminPostAutostart(Request request) async {
+    final authResponse = _authorizeAdminRequest(request);
+    if (authResponse != null) return authResponse;
+
+    final callback = _setAutostartCallback;
+    if (callback == null) return _hostControlsUnavailable();
+
+    try {
+      final body = await request.readAsString();
+      final data = body.trim().isEmpty
+          ? <String, dynamic>{}
+          : jsonDecode(body) as Map<String, dynamic>;
+
+      final enabled = data['enabled'];
+      if (enabled is! bool) {
+        return _jsonBadRequest({
+          'error': {
+            'code': 'INVALID_REQUEST',
+            'message': 'enabled must be a boolean',
+          },
+        });
+      }
+
+      final snapshot = await callback(enabled);
+      return _jsonOk(snapshot.toJson());
+    } catch (e) {
+      return _jsonInternalServerError({
+        'error': {
+          'code': 'INTERNAL_ERROR',
+          'message': e.toString(),
+        },
+      });
+    }
+  }
+
+  Future<Response> _handleAdminPostReset(Request request) async {
+    final authResponse = _authorizeAdminRequest(request);
+    if (authResponse != null) return authResponse;
+
+    final callback = _resetHostCallback;
+    if (callback == null) return _hostControlsUnavailable();
+
+    try {
+      final body = await request.readAsString();
+      final data = body.trim().isEmpty
+          ? <String, dynamic>{}
+          : jsonDecode(body) as Map<String, dynamic>;
+
+      // The scope is spelled out rather than defaulted: a reset that clears
+      // more than the caller intended is not recoverable.
+      final scope = switch (data['scope']) {
+        'setup' => ResetScope.setupOnly,
+        'factory' => ResetScope.factoryReset,
+        _ => null,
+      };
+      if (scope == null) {
+        return _jsonBadRequest({
+          'error': {
+            'code': 'INVALID_REQUEST',
+            'message': 'scope must be "setup" or "factory"',
+          },
+        });
+      }
+
+      final outcome = await callback(scope);
+      return _jsonOk(outcome.toJson());
+    } catch (e) {
+      return _jsonInternalServerError({
+        'error': {
+          'code': 'INTERNAL_ERROR',
+          'message': e.toString(),
+        },
+      });
+    }
+  }
+
   Future<Response> _handleAdminCreateUser(Request request) async {
     final authResponse = _authorizeAdminRequest(request);
     if (authResponse != null) return authResponse;
