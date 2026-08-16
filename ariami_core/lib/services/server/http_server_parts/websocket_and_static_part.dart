@@ -429,13 +429,45 @@ extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
     await _revalidateWebSocketSessions();
   }
 
+  /// Client-side routes owned by the web dashboard's router.
+  ///
+  /// The dashboard is a single-page app: it reads the initial route from the
+  /// URL, so a reload or a bookmark of `/dashboard` must return the app shell
+  /// instead of a 404 from the static handler.
+  static const Set<String> _webAppRoutes = {
+    '/welcome',
+    '/tailscale-check',
+    '/folder-selection',
+    '/scanning',
+    '/owner-setup',
+    '/qr-code',
+    '/dashboard',
+    '/login',
+  };
+
   /// Create static file handler for serving web assets
   Handler _createStaticHandler() {
-    return createStaticHandler(
+    final staticHandler = createStaticHandler(
       _webAssetsPath!,
       defaultDocument: 'index.html',
       listDirectories: false,
     );
+
+    return (Request request) {
+      final path = '/${request.url.path}';
+      if (_webAppRoutes.contains(path)) {
+        // Rewrite to the app shell; the SPA router takes it from there.
+        return staticHandler(
+          Request(
+            request.method,
+            request.requestedUri.replace(path: '/'),
+            headers: request.headers,
+            context: request.context,
+          ),
+        );
+      }
+      return staticHandler(request);
+    };
   }
 
   /// Fallback handler when no web assets are configured
