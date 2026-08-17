@@ -96,6 +96,7 @@ class _SearchScreenState extends State<SearchScreen> {
     unawaited(_playlistService.loadPlaylists());
     _playlistService.addListener(_onPlaylistsChanged);
     _searchController.addListener(_onSearchChanged);
+    _searchFocusNode.addListener(_onFocusChanged);
     widget.reselectionRequests?.addListener(_onSearchTabReselected);
     if (widget.focusOnOpen) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -134,6 +135,7 @@ class _SearchScreenState extends State<SearchScreen> {
     _downloadStateWatcher.dispose();
     _playlistService.removeListener(_onPlaylistsChanged);
     _searchController.removeListener(_onSearchChanged);
+    _searchFocusNode.removeListener(_onFocusChanged);
     widget.reselectionRequests?.removeListener(_onSearchTabReselected);
     _searchController.dispose();
     _searchFocusNode.dispose();
@@ -141,6 +143,10 @@ class _SearchScreenState extends State<SearchScreen> {
     _offlineSubscription?.cancel();
     _webSocketSubscription?.cancel();
     super.dispose();
+  }
+
+  void _onFocusChanged() {
+    if (mounted) setState(() {});
   }
 
   void _onSearchTabReselected() {
@@ -372,6 +378,12 @@ class _SearchScreenState extends State<SearchScreen> {
     });
   }
 
+  /// Cancel search and dismiss focus
+  void _cancelSearch() {
+    _clearSearch();
+    _searchFocusNode.unfocus();
+  }
+
   /// Save song to recent songs
   Future<void> _saveSong(SongModel song) async {
     await _searchService.addRecentSong(song);
@@ -413,101 +425,122 @@ class _SearchScreenState extends State<SearchScreen> {
       resizeToAvoidBottomInset: false,
       body: SafeArea(
         child: ContentWidthLimiter(
-          child: Column(
-            children: [
-              // Floating-style Search Bar
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Container(
-                        height: 50,
-                        decoration: BoxDecoration(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .surfaceContainerHighest
-                              .withValues(alpha: 0.5),
-                          borderRadius: BorderRadius.circular(25),
-                          border: Border.all(
+          child: GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTap: () {
+              if (_searchFocusNode.hasFocus) {
+                _searchFocusNode.unfocus();
+              }
+            },
+            child: Column(
+              children: [
+                // Floating-style Search Bar
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Container(
+                          height: 50,
+                          decoration: BoxDecoration(
                             color: Theme.of(context)
                                 .colorScheme
-                                .outline
-                                .withValues(alpha: 0.1),
+                                .surfaceContainerHighest
+                                .withValues(alpha: 0.5),
+                            borderRadius: BorderRadius.circular(25),
+                            border: Border.all(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .outline
+                                  .withValues(alpha: 0.1),
+                            ),
                           ),
-                        ),
-                        child: TextField(
-                          controller: _searchController,
-                          focusNode: _searchFocusNode,
-                          textInputAction: TextInputAction.search,
-                          onSubmitted: (_) => _searchFocusNode.unfocus(),
-                          style: const TextStyle(fontSize: 16),
-                          decoration: InputDecoration(
-                            hintText: _isOffline
-                                ? 'Search downloaded music...'
-                                : 'Search songs, albums & playlists',
-                            hintStyle: TextStyle(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurfaceVariant
-                                  .withValues(alpha: 0.7),
+                          child: TextField(
+                            controller: _searchController,
+                            focusNode: _searchFocusNode,
+                            textInputAction: TextInputAction.search,
+                            onSubmitted: (_) => _searchFocusNode.unfocus(),
+                            onTapOutside: (_) => _searchFocusNode.unfocus(),
+                            style: const TextStyle(fontSize: 16),
+                            decoration: InputDecoration(
+                              hintText: _isOffline
+                                  ? 'Search downloaded music...'
+                                  : 'Search songs, albums & playlists',
+                              hintStyle: TextStyle(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant
+                                    .withValues(alpha: 0.7),
+                              ),
+                              prefixIcon: Icon(
+                                Icons.search_rounded,
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant,
+                              ),
+                              suffixIcon: _searchController.text.isNotEmpty
+                                  ? IconButton(
+                                      icon: const Icon(Icons.clear_rounded),
+                                      onPressed: _clearSearch,
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurfaceVariant,
+                                    )
+                                  : null,
+                              border: InputBorder.none,
+                              contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 20, vertical: 12),
                             ),
-                            prefixIcon: Icon(
-                              Icons.search_rounded,
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurfaceVariant,
-                            ),
-                            suffixIcon: _searchController.text.isNotEmpty
-                                ? IconButton(
-                                    icon: const Icon(Icons.clear_rounded),
-                                    onPressed: _clearSearch,
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onSurfaceVariant,
-                                  )
-                                : null,
-                            border: InputBorder.none,
-                            contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 20, vertical: 12),
                           ),
                         ),
                       ),
-                    ),
-                    if (_isOffline) ...[
-                      const SizedBox(width: 12),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .onSurface
-                              .withValues(alpha: 0.08),
-                          shape: BoxShape.circle,
-                          border: Border.all(
+                      if (_isOffline) ...[
+                        const SizedBox(width: 12),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
                             color: Theme.of(context)
                                 .colorScheme
                                 .onSurface
-                                .withValues(alpha: 0.16),
-                            width: 1,
+                                .withValues(alpha: 0.08),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurface
+                                  .withValues(alpha: 0.16),
+                              width: 1,
+                            ),
+                          ),
+                          child: Icon(
+                            Icons.wifi_off_rounded,
+                            color: Theme.of(context).colorScheme.onSurface,
+                            size: 20,
                           ),
                         ),
-                        child: Icon(
-                          Icons.wifi_off_rounded,
-                          color: Theme.of(context).colorScheme.onSurface,
-                          size: 20,
+                      ],
+                      if (_searchFocusNode.hasFocus ||
+                          _searchController.text.isNotEmpty) ...[
+                        const SizedBox(width: 8),
+                        TextButton(
+                          onPressed: _cancelSearch,
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                          child: const Text('Cancel'),
                         ),
-                      ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
-              ),
 
-              // Main Content
-              Expanded(
-                child: _buildBody(),
-              ),
-            ],
+                // Main Content
+                Expanded(
+                  child: _buildBody(),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -551,6 +584,7 @@ class _SearchScreenState extends State<SearchScreen> {
     return MiniPlayerScrollPaddingBuilder(
       builder: (context, bottomPadding) {
         return ListView.builder(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           padding: EdgeInsets.only(bottom: bottomPadding),
           itemCount: items.length,
           itemBuilder: (context, index) => _buildSearchResultItem(items[index]),
@@ -719,6 +753,8 @@ class _SearchScreenState extends State<SearchScreen> {
             ),
             Expanded(
               child: ListView.builder(
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
                 padding: EdgeInsets.only(
                   bottom: bottomPadding,
                 ),

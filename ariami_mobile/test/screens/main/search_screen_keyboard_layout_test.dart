@@ -63,4 +63,60 @@ void main() {
       reselectionRequests.dispose();
     },
   );
+
+  testWidgets(
+    'cancel button is visible when focused and tapping it clears and unfocuses',
+    (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: SearchScreen(focusOnOpen: true),
+        ),
+      );
+      await tester.pump();
+
+      TextField searchField() => tester.widget<TextField>(
+            find.byType(TextField),
+          );
+
+      expect(searchField().focusNode?.hasFocus, isTrue);
+      expect(find.widgetWithText(TextButton, 'Cancel'), findsOneWidget);
+
+      await tester.enterText(find.byType(TextField), 'Test query');
+      await tester.pump();
+      expect(searchField().controller?.text, 'Test query');
+
+      // Tap Cancel
+      await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+      await tester.pump();
+
+      expect(searchField().controller?.text, isEmpty);
+      expect(searchField().focusNode?.hasFocus, isFalse);
+      expect(find.widgetWithText(TextButton, 'Cancel'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'tapping blank space outside search field dismisses focus',
+    (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: SearchScreen(focusOnOpen: true),
+        ),
+      );
+      await tester.pump();
+
+      TextField searchField() => tester.widget<TextField>(
+            find.byType(TextField),
+          );
+
+      expect(searchField().focusNode?.hasFocus, isTrue);
+
+      // Tap the empty space below search bar
+      await tester.tapAt(const Offset(200, 400));
+      await tester.pump();
+
+      expect(searchField().focusNode?.hasFocus, isFalse);
+      expect(find.widgetWithText(TextButton, 'Cancel'), findsNothing);
+    },
+  );
 }
