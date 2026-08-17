@@ -4,6 +4,9 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import '../models/api_models.dart';
+import '../models/song.dart';
+import '../services/api/connection_service.dart';
 import '../services/playback_manager.dart';
 import '../services/playlist_service.dart';
 import '../services/color_extraction_service.dart';
@@ -19,6 +22,7 @@ import '../widgets/common/mini_player_aware_bottom_sheet.dart';
 import '../widgets/common/queue_action_confirmation.dart';
 import 'playlist/add_to_playlist_screen.dart';
 import 'queue_screen.dart';
+import 'main/album_page_opener.dart';
 import 'main/artist_page_opener.dart';
 
 class FullPlayerScreen extends StatefulWidget {
@@ -32,6 +36,7 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
   final PlaybackManager _playbackManager = PlaybackManager();
   final PlaylistService _playlistService = PlaylistService();
   final ColorExtractionService _colorService = ColorExtractionService();
+  final ConnectionService _connectionService = ConnectionService();
   final PlayerArtworkController _artworkController = PlayerArtworkController();
 
   /// Optimistic queue index while rapid skip taps are in flight.
@@ -435,23 +440,93 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
   }
 
   Widget _buildPlayerInfo() {
+    final song = _playbackManager.currentSong!;
     return PlayerInfo(
-      song: _playbackManager.currentSong!,
+      song: song,
       isFavorite: _isFavorite,
+      onAlbumTap: _hasAlbum(song) ? _openAlbumPage : null,
       onArtistTap: _openArtistPage,
       onToggleFavorite: () async {
-        final song = _playbackManager.currentSong;
-        if (song != null) {
+        final currentSong = _playbackManager.currentSong;
+        if (currentSong != null) {
           await _playlistService.toggleLikedSong(
-            song.id,
-            song.albumId,
-            title: song.title,
-            artist: song.artist,
-            duration: song.duration.inSeconds,
+            currentSong.id,
+            currentSong.albumId,
+            title: currentSong.title,
+            artist: currentSong.artist,
+            duration: currentSong.duration.inSeconds,
           );
         }
       },
     );
+  }
+
+  bool _hasAlbum(Song song) {
+    final albumId = song.albumId;
+    if (albumId != null && albumId.isNotEmpty) return true;
+    final album = song.album;
+    if (album != null &&
+        album.trim().isNotEmpty &&
+        album.trim() != 'Unknown Album') {
+      return true;
+    }
+    return false;
+  }
+
+  /// Closes the full player and opens the album's page in the Library tab.
+  /// The `/album` route lives in that tab's nested navigator, and leaving
+  /// this full-screen route up would hide the page underneath it.
+  Future<void> _openAlbumPage() async {
+    final song = _playbackManager.currentSong;
+    if (song == null || !_hasAlbum(song)) return;
+
+    final album = await _resolveAlbum(song);
+    if (album == null) return;
+    if (!mounted) return;
+
+    Navigator.of(context).pop();
+    AlbumPageOpener().open(album);
+  }
+
+  Future<AlbumModel?> _resolveAlbum(Song song) async {
+    final albumId = song.albumId;
+    if (albumId != null && albumId.isNotEmpty) {
+      final fetched =
+          await _connectionService.libraryReadFacade.getAlbumById(albumId);
+      if (fetched != null) return fetched;
+      return AlbumModel(
+        id: albumId,
+        title: song.album ?? 'Unknown Album',
+        artist: song.albumArtist ?? song.artist,
+        songCount: 0,
+        duration: 0,
+      );
+    }
+
+    final albumName = song.album?.trim();
+    if (albumName != null &&
+        albumName.isNotEmpty &&
+        albumName != 'Unknown Album') {
+      final albums = await _connectionService.libraryReadFacade.getAlbums();
+      for (final a in albums) {
+        if (a.title.toLowerCase() == albumName.toLowerCase()) {
+          if (song.albumArtist != null &&
+              a.artist.toLowerCase() == song.albumArtist!.toLowerCase()) {
+            return a;
+          }
+          if (a.artist.toLowerCase() == song.artist.toLowerCase()) {
+            return a;
+          }
+        }
+      }
+      final matches = albums
+          .where((a) => a.title.toLowerCase() == albumName.toLowerCase())
+          .toList();
+      if (matches.isNotEmpty) {
+        return matches.first;
+      }
+    }
+    return null;
   }
 
   /// Closes the full player and opens the artist's page in the Library tab.

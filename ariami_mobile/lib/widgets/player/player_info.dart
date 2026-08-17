@@ -12,16 +12,29 @@ class PlayerInfo extends StatelessWidget {
   /// Opens the artist's page; when null the artist name is plain text.
   final VoidCallback? onArtistTap;
 
+  /// Opens the album's page; when null the song title is plain text.
+  final VoidCallback? onAlbumTap;
+
   const PlayerInfo({
     super.key,
     required this.song,
     required this.isFavorite,
     required this.onToggleFavorite,
     this.onArtistTap,
+    this.onAlbumTap,
   });
 
   @override
   Widget build(BuildContext context) {
+    final title = AdaptiveMarqueeText(
+      key: ValueKey('title-${song.id}-${song.title}'),
+      text: song.title,
+      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+      height: 32,
+    );
+
     final artist = AdaptiveMarqueeText(
       key: ValueKey('artist-${song.id}-${song.artist}'),
       text: song.artist,
@@ -41,13 +54,10 @@ class PlayerInfo extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                AdaptiveMarqueeText(
-                  key: ValueKey('title-${song.id}-${song.title}'),
-                  text: song.title,
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                  height: 32,
+                GestureDetector(
+                  onTap: onAlbumTap,
+                  behavior: HitTestBehavior.opaque,
+                  child: title,
                 ),
                 const SizedBox(height: 4),
                 GestureDetector(
