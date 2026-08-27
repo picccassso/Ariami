@@ -235,6 +235,24 @@ class _SearchResultSongItemState extends State<SearchResultSongItem> {
             );
           },
         ),
+        if (widget.song.albumId != null)
+          ListTile(
+            leading: const Icon(Icons.album_outlined),
+            title: const Text('Show in album'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.of(context).pushNamed(
+                '/album',
+                arguments: AlbumModel(
+                  id: widget.song.albumId!,
+                  title: widget.albumName ?? 'Unknown Album',
+                  artist: widget.albumArtist ?? widget.song.artist,
+                  songCount: 0,
+                  duration: 0,
+                ),
+              );
+            },
+          ),
         if (widget.showRemoveFromRecent && widget.onRemove != null)
           ListTile(
             leading: const Icon(Icons.delete_outline, color: Colors.red),
