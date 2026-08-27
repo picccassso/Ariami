@@ -1,5 +1,6 @@
 import 'package:ariami_mobile/screens/main/settings_screen.dart';
 import 'package:ariami_mobile/services/audio/gapless_playback_service.dart';
+import 'package:ariami_mobile/services/settings/search_settings_service.dart';
 import 'package:ariami_mobile/utils/shared_preferences_cache.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -14,6 +15,7 @@ void main() {
 
   const pathProviderChannel = MethodChannel('plugins.flutter.io/path_provider');
   final gapless = GaplessPlaybackService();
+  final searchSettings = SearchSettingsService();
 
   setUpAll(() {
     installSqfliteTestMocks();
@@ -31,6 +33,7 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     await initializeSharedPrefs();
     gapless.resetForTesting();
+    searchSettings.resetForTesting();
     PackageInfo.setMockInitialValues(
       appName: 'Ariami',
       packageName: 'com.example.ariamiMobile',
@@ -79,5 +82,32 @@ void main() {
       tester.getTopLeft(discover).dy,
       lessThan(tester.getTopLeft(recent).dy),
     );
+  });
+
+  testWidgets('displays Search Mode setting and allows changing mode',
+      (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(home: SettingsScreen()),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('GENERAL'), findsOneWidget);
+    expect(find.text('Search Mode'), findsOneWidget);
+    expect(find.text('Spotify Mode'), findsOneWidget);
+
+    // Tap Search Mode tile to open dialog
+    await tester.tap(find.text('Search Mode'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Standard'), findsOneWidget);
+    expect(find.text('Spotify Mode'), findsWidgets);
+
+    // Select Standard mode
+    await tester.tap(find.text('Standard'));
+    await tester.pumpAndSettle();
+
+    // Dialog should be dismissed and subtitle updated to Standard
+    expect(find.text('Standard'), findsOneWidget);
+    expect(searchSettings.mode, SearchMode.standard);
   });
 }

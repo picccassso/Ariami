@@ -38,7 +38,6 @@ class SearchNavigator extends StatelessWidget {
         switch (settings.name) {
           case '/':
             page = SearchScreen(
-              focusOnOpen: true,
               reselectionRequests: reselectionRequests,
             );
             break;
@@ -56,7 +55,6 @@ class SearchNavigator extends StatelessWidget {
             break;
           default:
             page = SearchScreen(
-              focusOnOpen: true,
               reselectionRequests: reselectionRequests,
             );
         }

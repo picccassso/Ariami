@@ -1,11 +1,22 @@
 import 'package:ariami_mobile/screens/main/search_screen.dart';
+import 'package:ariami_mobile/services/settings/search_settings_service.dart';
+import 'package:ariami_mobile/utils/shared_preferences_cache.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../test_support/sqflite_mock.dart';
 
 void main() {
+  final searchSettings = SearchSettingsService();
+
   setUpAll(installSqfliteTestMocks);
+
+  setUp(() async {
+    SharedPreferences.setMockInitialValues({});
+    await initializeSharedPrefs();
+    searchSettings.resetForTesting();
+  });
 
   testWidgets('search scaffold does not resize above the keyboard', (
     tester,
@@ -18,6 +29,42 @@ void main() {
 
     final scaffold = tester.widget<Scaffold>(find.byType(Scaffold).first);
     expect(scaffold.resizeToAvoidBottomInset, isFalse);
+  });
+
+  testWidgets('SearchScreen autofocuses by default in Spotify Mode', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: SearchScreen(),
+      ),
+    );
+    await tester.pump();
+
+    TextField searchField() => tester.widget<TextField>(
+          find.byType(TextField),
+        );
+
+    expect(searchField().focusNode?.hasFocus, isTrue);
+  });
+
+  testWidgets('SearchScreen does not autofocus on open in Standard Mode', (
+    tester,
+  ) async {
+    await searchSettings.setMode(SearchMode.standard);
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: SearchScreen(),
+      ),
+    );
+    await tester.pump();
+
+    TextField searchField() => tester.widget<TextField>(
+          find.byType(TextField),
+        );
+
+    expect(searchField().focusNode?.hasFocus, isFalse);
   });
 
   testWidgets(

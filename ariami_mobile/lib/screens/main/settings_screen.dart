@@ -14,6 +14,7 @@ import '../../services/offline/offline_manual_reconnect.dart';
 import '../../services/offline/offline_playback_service.dart';
 import '../../services/playlist_service.dart';
 import '../../services/profile_image_service.dart';
+import '../../services/settings/search_settings_service.dart';
 import '../../widgets/settings/settings_section.dart';
 import '../../widgets/settings/settings_tile.dart';
 
@@ -30,6 +31,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final ConnectionService _connectionService = ConnectionService();
   final ProfileImageService _profileImageService = ProfileImageService();
   final AriamiConnectController _connectController = AriamiConnectController();
+  final SearchSettingsService _searchSettingsService = SearchSettingsService();
   bool _isOfflineModeEnabled = false;
   bool _isReconnecting = false;
   StreamSubscription<OfflineMode>? _offlineSubscription;
@@ -39,6 +41,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     super.initState();
     _loadVersion();
     _initOfflineService();
+    _searchSettingsService.initialize();
     unawaited(_profileImageService.initialize());
   }
 
@@ -213,6 +216,52 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  /// Displays a dialog to choose the search keyboard focus mode.
+  Future<void> _showSearchModeDialog() async {
+    final colorScheme = Theme.of(context).colorScheme;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Search Mode'),
+        content: RadioGroup<SearchMode>(
+          groupValue: _searchSettingsService.mode,
+          onChanged: (newMode) {
+            if (newMode == null) return;
+            _searchSettingsService.setMode(newMode);
+            Navigator.of(dialogContext).pop();
+          },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: SearchMode.values.map((mode) {
+              return RadioListTile<SearchMode>(
+                title: Text(
+                  mode.label,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                subtitle: Text(
+                  mode.description,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: colorScheme.onSurface.withValues(alpha: 0.7),
+                  ),
+                ),
+                value: mode,
+                activeColor: colorScheme.primary,
+                contentPadding: EdgeInsets.zero,
+              );
+            }).toList(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+  }
+
   /// Get subtitle text based on current offline mode state
   String _getOfflineModeSubtitle() {
     final mode = _offlineService.offlineMode;
@@ -361,6 +410,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         listenable: Listenable.merge([
           _profileImageService,
           _connectController,
+          _searchSettingsService,
         ]),
         builder: (context, _) {
           return ListView(
@@ -369,6 +419,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             children: [
               _buildUserProfileHeader(),
+              // General section
+              SettingsSection(
+                title: 'GENERAL',
+                tiles: [
+                  SettingsTile(
+                    icon: Icons.search_rounded,
+                    title: 'Search Mode',
+                    subtitle: _searchSettingsService.mode.label,
+                    onTap: _showSearchModeDialog,
+                  ),
+                ],
+              ),
+
               // Connection section
               SettingsSection(
                 title: 'CONNECTION',

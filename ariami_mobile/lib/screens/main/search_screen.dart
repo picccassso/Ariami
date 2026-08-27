@@ -13,6 +13,7 @@ import '../../services/search_service.dart';
 import '../../services/playback_manager.dart';
 import '../../services/download/download_manager.dart';
 import '../../services/offline/offline_playback_service.dart';
+import '../../services/settings/search_settings_service.dart';
 import '../../utils/download_state_watcher.dart';
 import '../../utils/downloaded_album_metadata.dart';
 import '../../services/playlist_service.dart';
@@ -43,11 +44,11 @@ class _SearchListItem {
 class SearchScreen extends StatefulWidget {
   const SearchScreen({
     super.key,
-    this.focusOnOpen = false,
+    this.focusOnOpen,
     this.reselectionRequests,
   });
 
-  final bool focusOnOpen;
+  final bool? focusOnOpen;
   final ValueListenable<int>? reselectionRequests;
 
   @override
@@ -61,6 +62,7 @@ class _SearchScreenState extends State<SearchScreen> {
   final OfflinePlaybackService _offlineService = OfflinePlaybackService();
   final DownloadManager _downloadManager = DownloadManager();
   final PlaylistService _playlistService = PlaylistService();
+  final SearchSettingsService _searchSettingsService = SearchSettingsService();
   final DebouncedSearch _debouncer = DebouncedSearch();
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
@@ -88,6 +90,7 @@ class _SearchScreenState extends State<SearchScreen> {
     );
     _downloadStateWatcher.start();
     _isOffline = _offlineService.isOfflineModeEnabled;
+    _searchSettingsService.initialize();
     _loadLibrary();
     _loadRecentSongs();
     _loadDownloadedSongIds();
@@ -98,7 +101,9 @@ class _SearchScreenState extends State<SearchScreen> {
     _searchController.addListener(_onSearchChanged);
     _searchFocusNode.addListener(_onFocusChanged);
     widget.reselectionRequests?.addListener(_onSearchTabReselected);
-    if (widget.focusOnOpen) {
+    final shouldFocus =
+        widget.focusOnOpen ?? _searchSettingsService.isSpotifyMode;
+    if (shouldFocus) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _searchFocusNode.requestFocus();
       });
