@@ -266,7 +266,9 @@ class PlaybackManager extends ChangeNotifier {
       sourceId: _sourceId,
       shuffle: _isShuffleEnabled,
       repeatMode: _repeatMode == RepeatMode.none ? 'off' : _repeatMode.name,
-      volume: 1,
+      volume: _castService.isConnected ? _castService.deviceVolume : 1,
+      castDeviceName:
+          _castService.isConnected ? _castService.connectedDeviceName : null,
     );
   }
 

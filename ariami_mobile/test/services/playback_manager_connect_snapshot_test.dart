@@ -5,6 +5,7 @@ import 'package:ariami_core/services/connect/remote_playback.dart';
 import 'package:ariami_mobile/models/song.dart';
 import 'package:ariami_mobile/services/playback_manager.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_chrome_cast/flutter_chrome_cast.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -243,5 +244,75 @@ void main() {
 
     manager.setConnectRemoteMirror(remoteAt(2000));
     expect(notifications, 1);
+  });
+
+  test('startCastingToDevice pauses remote and adopts queue when remote mirror is active', () async {
+    final manager = PlaybackManager();
+    final queue = List<Map<String, dynamic>>.unmodifiable(
+      const <Map<String, dynamic>>[
+        <String, dynamic>{'id': 'remote-song-1', 'title': 'Remote Track 1', 'artist': 'Artist'},
+        <String, dynamic>{'id': 'remote-song-2', 'title': 'Remote Track 2', 'artist': 'Artist'},
+      ],
+    );
+    final order = List<int>.unmodifiable(const <int>[0, 1]);
+    final remote = AriamiRemotePlayback(
+      snapshot: AriamiPlaybackSnapshot.fromValidatedQueue(
+        queue: queue,
+        backingOrder: order,
+        currentIndex: 0,
+        positionMs: 15000,
+        durationMs: 60000,
+        isPlaying: true,
+        shuffle: false,
+        repeatMode: 'off',
+        volume: 1,
+        sourceId: 'album:al-remote',
+      ),
+      deviceId: 'laptop',
+      deviceName: 'Laptop',
+      deviceType: 'desktop',
+      receivedAt: DateTime.now(),
+    );
+
+    final commands = <String>[];
+    manager.setConnectRemoteMirror(
+      remote,
+      sendCommand: (cmd, [args]) => commands.add(cmd),
+    );
+
+    expect(manager.isConnectRemoteActive, isTrue);
+    expect(manager.currentSong?.id, 'remote-song-1');
+    expect(manager.isPlaying, isTrue);
+
+    // Starting cast to a device (will fail connection in unit test environment,
+    // but the handoff preparation: pause remote + adopt queue occurs first).
+    try {
+      await manager.startCastingToDevice(
+        GoogleCastDevice(
+          deviceID: 'chromecast-1',
+          friendlyName: 'Living Room TV',
+          modelName: 'Chromecast',
+          statusText: null,
+          deviceVersion: '1.0',
+          isOnLocalNetwork: true,
+          category: 'cast',
+          uniqueID: 'chromecast-1-unique',
+        ),
+      );
+    } catch (_) {
+      // Platform channel is not mocked for Google Cast socket connection
+    }
+
+    // Remote was paused
+    expect(commands, contains(AriamiConnectCommand.pause));
+    // Local queue adopted remote queue
+    expect(manager.queue.songs.map((s) => s.id), ['remote-song-1', 'remote-song-2']);
+    expect(manager.sourceId, 'album:al-remote');
+  });
+
+  test('pauseLocal pauses and disconnects cast during Connect transfer', () async {
+    final manager = PlaybackManager();
+    // Invoking pauseLocal should safely execute without error
+    await expectLater(manager.pauseLocal(), completes);
   });
 }

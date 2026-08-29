@@ -120,6 +120,7 @@ class AriamiConnectHub {
       lastSeen: _now(),
       protocolVersion: _negotiateProtocolVersion(hello),
       supportedCommands: _readSupportedCommands(hello),
+      supportedFeatures: _readSupportedFeatures(hello),
     );
     _peers[socket] = peer;
     // Lazily start the sweep on the first peer instead of in the constructor:
@@ -446,6 +447,7 @@ class AriamiConnectHub {
         peer.canPlay = data['canPlay'] as bool? ?? true;
         peer.protocolVersion = _negotiateProtocolVersion(data);
         peer.supportedCommands = _readSupportedCommands(data);
+        peer.supportedFeatures = _readSupportedFeatures(data);
         _sendWelcome(socket, peer);
         _broadcastDevices(peer.userId);
       case AriamiConnectMessageType.queue:
@@ -481,6 +483,11 @@ class AriamiConnectHub {
       final parsed = AriamiPlaybackSnapshot.fromJson(
         normalized,
       );
+      if (parsed.castDeviceName != null &&
+          !peer.supportedFeatures
+              .contains(AriamiConnectFeature.preserveCastHandoff)) {
+        throw const FormatException('Cast handoff was not negotiated');
+      }
       final snapshot = AriamiPlaybackSnapshot.fromJson(parsed.toJson())
           .copyWith(updatedAt: _now());
       final activate = data['activate'] as bool? ?? false;
@@ -605,6 +612,11 @@ class AriamiConnectHub {
   void _handleSplitState(
       WebSocketChannel socket, _ConnectPeer peer, Map<String, dynamic> data) {
     try {
+      if (data['castDeviceName'] != null &&
+          !peer.supportedFeatures
+              .contains(AriamiConnectFeature.preserveCastHandoff)) {
+        throw const FormatException('Cast handoff was not negotiated');
+      }
       final session = _sessions.putIfAbsent(peer.userId, _ConnectSession.new);
       if (!_acceptEpoch(session, data)) {
         _sendAuthoritativeState(socket, session);
@@ -1105,6 +1117,20 @@ class AriamiConnectHub {
           'There is no playback session to transfer yet.');
       return;
     }
+    if (snapshot.castDeviceName != null &&
+        !target.peer.supportedFeatures
+            .contains(AriamiConnectFeature.preserveCastHandoff)) {
+      if (automatic) {
+        _tryNextFailoverCandidate(peer.userId, session);
+        return;
+      }
+      _sendError(
+        socket,
+        'UNSUPPORTED_CAST_HANDOFF',
+        'That device needs an Ariami update before it can take over casting.',
+      );
+      return;
+    }
     if (!automatic) {
       // Choosing a playback device is controller intent just like a routed
       // command. If that target later disappears, prefer the device that made
@@ -1238,7 +1264,9 @@ class AriamiConnectHub {
           'transferId': transfer.id,
           'sourceDeviceId': transfer.sourceDeviceId,
           'targetDeviceId': transfer.targetDeviceId,
-          'snapshot': session.snapshot!.toJson(
+          'snapshot': _snapshotJsonForPeer(
+            session.snapshot!,
+            entry.value,
             includeBackingOrder:
                 entry.value.protocolVersion >= AriamiConnectProtocol.v3,
           ),
@@ -1287,11 +1315,12 @@ class AriamiConnectHub {
     _send(socket, AriamiConnectMessageType.welcome, <String, dynamic>{
       'protocolVersion': peer.protocolVersion,
       'supportedCommands': _sortedCommands(peer.supportedCommands),
+      'features': _sortedFeatures(peer.supportedFeatures),
       'devices': _deviceJson(peer.userId),
       'activeDeviceId': session?.activeDeviceId,
       if (peer.protocolVersion < AriamiConnectProtocol.v3 &&
           session?.snapshot != null)
-        'snapshot': session!.snapshot!.toJson(),
+        'snapshot': _snapshotJsonForPeer(session!.snapshot!, peer),
       if (peer.protocolVersion >= AriamiConnectProtocol.v3)
         'queueCounter': session?.queueCounter ?? 0,
       if (peer.protocolVersion >= AriamiConnectProtocol.v3)
@@ -1339,8 +1368,21 @@ class AriamiConnectHub {
     );
   }
 
+  Set<String> _readSupportedFeatures(Map<String, dynamic>? hello) {
+    final offered = hello?['features'];
+    if (offered is! List) return const <String>{};
+    return Set<String>.unmodifiable(
+      offered
+          .whereType<String>()
+          .where(AriamiConnectFeature.supported.contains),
+    );
+  }
+
   List<String> _sortedCommands(Set<String> commands) =>
       commands.toList(growable: false)..sort();
+
+  List<String> _sortedFeatures(Set<String> features) =>
+      features.toList(growable: false)..sort();
 
   void _broadcastDevices(String userId) {
     final payload = <String, dynamic>{
@@ -1407,6 +1449,10 @@ class AriamiConnectHub {
         'shuffle': snapshot.shuffle,
         'repeatMode': snapshot.repeatMode,
         'volume': snapshot.volume,
+        if (peer.supportedFeatures
+                .contains(AriamiConnectFeature.preserveCastHandoff) &&
+            snapshot.castDeviceName != null)
+          'castDeviceName': snapshot.castDeviceName,
         'stateRevision': session.revision,
         'updatedAt': (snapshot.updatedAt ?? _now()).toIso8601String(),
       });
@@ -1414,11 +1460,24 @@ class AriamiConnectHub {
     }
     _send(socket, AriamiConnectMessageType.state, <String, dynamic>{
       'activeDeviceId': session.activeDeviceId,
-      'snapshot': snapshot.toJson(),
+      'snapshot': _snapshotJsonForPeer(snapshot, peer),
       'revision': session.revision,
       'ownerEpoch': session.ownerEpoch,
       'semanticGeneration': session.semanticGeneration,
     });
+  }
+
+  Map<String, dynamic> _snapshotJsonForPeer(
+    AriamiPlaybackSnapshot snapshot,
+    _ConnectPeer peer, {
+    bool includeBackingOrder = false,
+  }) {
+    final json = snapshot.toJson(includeBackingOrder: includeBackingOrder);
+    if (!peer.supportedFeatures
+        .contains(AriamiConnectFeature.preserveCastHandoff)) {
+      json.remove('castDeviceName');
+    }
+    return json;
   }
 
   /// Epochs are optional only for rolling compatibility with older v2 peers.
@@ -1433,6 +1492,47 @@ class AriamiConnectHub {
       return false;
     }
     return true;
+  }
+
+  void _adoptSemanticGeneration(
+    _ConnectSession session,
+    Map<String, dynamic> data, {
+    required bool fallbackChanged,
+  }) {
+    final raw = data['semanticGeneration'];
+    if (raw is num && raw == raw.toInt() && raw.toInt() >= 0) {
+      if (raw.toInt() > session.semanticGeneration) {
+        session.semanticGeneration = raw.toInt();
+      }
+      return;
+    }
+    if (fallbackChanged) session.semanticGeneration++;
+  }
+
+  bool _semanticStateChanged(
+    AriamiPlaybackSnapshot? previous,
+    AriamiPlaybackSnapshot next,
+  ) {
+    if (previous == null) return true;
+    if (previous.queueFingerprint != next.queueFingerprint ||
+        previous.currentIndex != next.currentIndex ||
+        previous.isPlaying != next.isPlaying ||
+        previous.shuffle != next.shuffle ||
+        previous.repeatMode != next.repeatMode ||
+        previous.volume != next.volume ||
+        previous.castDeviceName != next.castDeviceName) {
+      return true;
+    }
+    final elapsedMs = next.updatedAt == null || previous.updatedAt == null
+        ? 0
+        : next.updatedAt!.difference(previous.updatedAt!).inMilliseconds;
+    final expectedPosition = previous.positionMs +
+        (previous.isPlaying && elapsedMs > 0 ? elapsedMs : 0);
+    final seekThreshold =
+        next.castDeviceName != null || previous.castDeviceName != null
+            ? 10000
+            : 1500;
+    return (next.positionMs - expectedPosition).abs() > seekThreshold;
   }
 
   bool _matchesEpoch(Map<String, dynamic> data, int expected) {
@@ -1557,42 +1657,6 @@ class AriamiConnectHub {
     });
   }
 
-  void _adoptSemanticGeneration(
-    _ConnectSession session,
-    Map<String, dynamic> data, {
-    required bool fallbackChanged,
-  }) {
-    final raw = data['semanticGeneration'];
-    if (raw is num && raw == raw.toInt() && raw.toInt() >= 0) {
-      if (raw.toInt() > session.semanticGeneration) {
-        session.semanticGeneration = raw.toInt();
-      }
-      return;
-    }
-    if (fallbackChanged) session.semanticGeneration++;
-  }
-
-  bool _semanticStateChanged(
-    AriamiPlaybackSnapshot? previous,
-    AriamiPlaybackSnapshot next,
-  ) {
-    if (previous == null) return true;
-    if (previous.queueFingerprint != next.queueFingerprint ||
-        previous.currentIndex != next.currentIndex ||
-        previous.isPlaying != next.isPlaying ||
-        previous.shuffle != next.shuffle ||
-        previous.repeatMode != next.repeatMode ||
-        previous.volume != next.volume) {
-      return true;
-    }
-    final elapsedMs = next.updatedAt == null || previous.updatedAt == null
-        ? 0
-        : next.updatedAt!.difference(previous.updatedAt!).inMilliseconds;
-    final expectedPosition = previous.positionMs +
-        (previous.isPlaying && elapsedMs > 0 ? elapsedMs : 0);
-    return (next.positionMs - expectedPosition).abs() > 1500;
-  }
-
   void _trackFormerOwnerPause(
     String userId,
     _ConnectSession session,
@@ -1695,6 +1759,7 @@ class AriamiConnectHub {
               'connectedAt': peer.connectedAt.toIso8601String(),
               'isActive': peer.deviceId == activeId,
               'supportedCommands': _sortedCommands(peer.supportedCommands),
+              'features': _sortedFeatures(peer.supportedFeatures),
             })
         .toList(growable: false);
     result.sort((a, b) {
@@ -1756,7 +1821,8 @@ class _ConnectPeer {
       required this.connectedAt,
       required this.lastSeen,
       required this.protocolVersion,
-      required this.supportedCommands});
+      required this.supportedCommands,
+      required this.supportedFeatures});
   final String userId;
   final String deviceId;
   String deviceName;
@@ -1765,6 +1831,7 @@ class _ConnectPeer {
   bool canPlay = false;
   int protocolVersion;
   Set<String> supportedCommands;
+  Set<String> supportedFeatures;
   // Not part of the wire model: server-internal liveness bookkeeping for the
   // stale-peer sweep. Never serialize this into AriamiConnectDevice/_deviceJson.
   DateTime lastSeen;

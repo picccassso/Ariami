@@ -45,6 +45,7 @@ class AriamiConnectClient {
     required this.handleCommand,
     required this.pauseForTransfer,
     Set<String> supportedCommands = AriamiConnectCommand.supported,
+    Set<String> supportedFeatures = const <String>{},
     this.onChanged,
     this.onServerNotification,
     this.onAuthenticationRequired,
@@ -59,8 +60,11 @@ class AriamiConnectClient {
     this.webSocketFactory = _connectWebSocket,
     this.timerFactory = _startTimer,
     this.periodicTimerFactory = _startPeriodicTimer,
-  }) : supportedCommands = Set<String>.unmodifiable(
+  })  : supportedCommands = Set<String>.unmodifiable(
           supportedCommands.where(AriamiConnectCommand.supported.contains),
+        ),
+        supportedFeatures = Set<String>.unmodifiable(
+          supportedFeatures.where(AriamiConnectFeature.supported.contains),
         );
 
   /// Optional diagnostics sink (e.g. debugPrint). Connect state flows across
@@ -76,6 +80,7 @@ class AriamiConnectClient {
   final ConnectCommandHandler handleCommand;
   final Future<void> Function() pauseForTransfer;
   final Set<String> supportedCommands;
+  final Set<String> supportedFeatures;
   final void Function()? onChanged;
 
   /// Receives account-scoped server pushes that arrive on the Connect socket
@@ -119,6 +124,7 @@ class AriamiConnectClient {
   bool _takeoverSentOnCurrentConnection = false;
   bool _takeoverCancelledAfterSend = false;
   int _hubProtocolVersion = 1;
+  Set<String> _negotiatedFeatures = const <String>{};
   int _lastRevision = -1;
   int _queueCounter = 0;
   int _outboundStateRevision = 0;
@@ -190,6 +196,7 @@ class AriamiConnectClient {
     _reconnectSuppressed = false;
     _reconnectAttempt = 0;
     _hubProtocolVersion = 1;
+    _negotiatedFeatures = const <String>{};
     _resetSplitState();
     ownerEpoch = 0;
     activeDeviceId = null;
@@ -250,6 +257,7 @@ class AriamiConnectClient {
           'canPlay': true,
           'supportedCommands': supportedCommands.toList(growable: false)
             ..sort(),
+          'features': supportedFeatures.toList(growable: false)..sort(),
         },
       ));
       _send(WsMessage(
@@ -312,6 +320,14 @@ class AriamiConnectClient {
           _welcomeTimer?.cancel();
           _isWelcomed = true;
           _hubProtocolVersion = (data['protocolVersion'] as num?)?.toInt() ?? 1;
+          final rawFeatures = data['features'];
+          _negotiatedFeatures = rawFeatures is List
+              ? Set<String>.unmodifiable(
+                  rawFeatures
+                      .whereType<String>()
+                      .where(supportedFeatures.contains),
+                )
+              : const <String>{};
           errorMessage = null;
           errorCode = null;
           if (!await _readDevices(data)) return;
@@ -789,9 +805,14 @@ class AriamiConnectClient {
       _lastPublishedQueueFingerprint = _queueFingerprint(snapshot);
       isApplyingRemoteState = true;
       try {
-        await handleCommand(AriamiConnectCommand.seek,
-            <String, dynamic>{'positionMs': snapshot.positionMs});
-        if (snapshot.isPlaying) {
+        // A Cast-preserving prepare joins the receiver's existing media
+        // session. Re-seeking or replaying it here would introduce the very
+        // audible interruption this handoff mode is designed to avoid.
+        if (snapshot.castDeviceName == null) {
+          await handleCommand(AriamiConnectCommand.seek,
+              <String, dynamic>{'positionMs': snapshot.positionMs});
+        }
+        if (snapshot.castDeviceName == null && snapshot.isPlaying) {
           // Playback APIs such as just_audio return a play() future that does
           // not complete until the track ends, pauses, or stops. Starting the
           // target must not keep the whole transfer in "applying" state for
@@ -807,7 +828,7 @@ class AriamiConnectClient {
               onChanged?.call();
             }),
           );
-        } else {
+        } else if (snapshot.castDeviceName == null) {
           await handleCommand(
             AriamiConnectCommand.pause,
             const <String, dynamic>{},
@@ -1010,7 +1031,7 @@ class AriamiConnectClient {
       type: AriamiConnectMessageType.state,
       data: <String, dynamic>{
         'activate': activate,
-        'snapshot': snapshot.toJson(),
+        'snapshot': _snapshotJsonForHub(snapshot),
         'ownerEpoch': ownerEpoch,
         'semanticGeneration': _semanticGeneration,
       },
@@ -1031,12 +1052,25 @@ class AriamiConnectClient {
         'shuffle': snapshot.shuffle,
         'repeatMode': snapshot.repeatMode,
         'volume': snapshot.volume,
+        if (_negotiatedFeatures
+                .contains(AriamiConnectFeature.preserveCastHandoff) &&
+            snapshot.castDeviceName != null)
+          'castDeviceName': snapshot.castDeviceName,
         'stateRevision': _outboundStateRevision,
         'ownerEpoch': ownerEpoch,
         'semanticGeneration': _semanticGeneration,
       },
     ));
     _recordPublishedState(snapshot);
+  }
+
+  Map<String, dynamic> _snapshotJsonForHub(AriamiPlaybackSnapshot snapshot) {
+    final json = snapshot.toJson();
+    if (!_negotiatedFeatures
+        .contains(AriamiConnectFeature.preserveCastHandoff)) {
+      json.remove('castDeviceName');
+    }
+    return json;
   }
 
   void _recordPublishedState(AriamiPlaybackSnapshot snapshot) {
@@ -1055,7 +1089,12 @@ class AriamiConnectClient {
           observedAt.difference(previous.observedAt).inMilliseconds;
       final expectedPosition = previous.snapshot.positionMs +
           (previous.snapshot.isPlaying && elapsedMs > 0 ? elapsedMs : 0);
-      final seeked = (snapshot.positionMs - expectedPosition).abs() > 1500;
+      final seekThreshold = snapshot.castDeviceName != null ||
+              previous.snapshot.castDeviceName != null
+          ? 10000
+          : 1500;
+      final seeked =
+          (snapshot.positionMs - expectedPosition).abs() > seekThreshold;
       if (changed || seeked) _semanticGeneration++;
     }
     _lastObservedSemanticSnapshot = _ObservedSemanticSnapshot(
@@ -1088,6 +1127,7 @@ class AriamiConnectClient {
           'shuffle': snapshot.shuffle,
           'repeatMode': snapshot.repeatMode,
           'volume': snapshot.volume,
+          'castDeviceName': snapshot.castDeviceName,
         },
       );
 
@@ -1100,6 +1140,7 @@ class AriamiConnectClient {
           'shuffle': snapshot.shuffle,
           'repeatMode': snapshot.repeatMode,
           'volume': snapshot.volume,
+          'castDeviceName': snapshot.castDeviceName,
         },
       );
 
@@ -1266,6 +1307,7 @@ class AriamiConnectClient {
     _connectionGeneration++;
     _lastRevision = -1;
     _hubProtocolVersion = 1;
+    _negotiatedFeatures = const <String>{};
     _resetSplitState();
     ownerEpoch = 0;
     activeDeviceId = null;
@@ -1467,6 +1509,7 @@ class AriamiConnectClient {
     // mirrors while commands kept working.
     _lastRevision = -1;
     _hubProtocolVersion = 1;
+    _negotiatedFeatures = const <String>{};
     _resetSplitState();
     ownerEpoch = 0;
     activeDeviceId = null;

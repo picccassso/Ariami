@@ -32,6 +32,90 @@ void main() {
     );
   });
 
+  test('Cast handoff stays hidden from legacy peers and fails safely', () {
+    final hub = AriamiConnectHub();
+    addTearDown(hub.dispose);
+    final phone = _FakeChannel();
+    final legacyDesktop = _FakeChannel();
+    hub.handle(
+      phone,
+      WsMessage(
+        type: AriamiConnectMessageType.hello,
+        data: const <String, dynamic>{
+          'protocolVersions': <int>[2],
+          'features': <String>[
+            AriamiConnectFeature.preserveCastHandoff,
+          ],
+        },
+      ),
+    );
+    hub.register(
+      phone,
+      userId: 'user',
+      deviceId: 'phone',
+      deviceName: 'Phone',
+      clientType: 'mobile',
+    );
+    final castSnapshot = AriamiPlaybackSnapshot(
+      queue: const <Map<String, dynamic>>[
+        <String, dynamic>{'id': 'song-1'},
+      ],
+      currentIndex: 0,
+      positionMs: 10000,
+      durationMs: 60000,
+      isPlaying: true,
+      shuffle: false,
+      repeatMode: 'off',
+      volume: 0.7,
+      castDeviceName: 'Home Mini',
+    );
+    hub.handle(
+      phone,
+      WsMessage(
+        type: AriamiConnectMessageType.state,
+        data: <String, dynamic>{
+          'activate': true,
+          'snapshot': castSnapshot.toJson(),
+          'ownerEpoch': 0,
+        },
+      ),
+    );
+
+    hub.register(
+      legacyDesktop,
+      userId: 'user',
+      deviceId: 'desktop',
+      deviceName: 'Desktop',
+      clientType: 'desktop',
+    );
+    final legacyWelcome =
+        _lastMessage(legacyDesktop, AriamiConnectMessageType.welcome);
+    expect(
+      (legacyWelcome.data?['snapshot'] as Map)['castDeviceName'],
+      isNull,
+    );
+
+    hub.handle(
+      phone,
+      WsMessage(
+        type: AriamiConnectMessageType.transfer,
+        data: const <String, dynamic>{
+          'targetDeviceId': 'desktop',
+          'ownerEpoch': 1,
+        },
+      ),
+    );
+    expect(
+      _lastMessage(phone, AriamiConnectMessageType.error).data?['code'],
+      'UNSUPPORTED_CAST_HANDOFF',
+    );
+    expect(
+      legacyDesktop.messages.where(
+          (message) => message.type == AriamiConnectMessageType.transfer),
+      isEmpty,
+    );
+  });
+
   group('slice 6 command capabilities', () {
     test(
         '[capabilities_advertised] hello capabilities are narrowed by the '

@@ -14,42 +14,81 @@ extension _PlaybackManagerCastingImpl on PlaybackManager {
     _isCastTransitionInProgress = true;
     _notifyStateChanged();
 
+    final wasRemote = _connectRemote != null;
+    final remote = _connectRemote;
+    final remoteSnapshot = remote?.snapshot;
+
     var snapshot = _PlaybackHandoffState(
       song: currentSong,
-      position: _pendingUiPosition ?? _audioPlayer.position,
-      wasPlaying: _audioPlayer.isPlaying,
+      position: _pendingUiPosition ?? position,
+      wasPlaying: isPlaying,
     );
     final initialSongId = snapshot.song?.id;
-    final shouldFreezeLocal = snapshot.wasPlaying || _audioPlayer.isLoading;
 
     try {
-      if (shouldFreezeLocal) {
-        await _audioPlayer.pause();
-        await Future.delayed(const Duration(milliseconds: 120));
+      if (wasRemote && remoteSnapshot != null) {
+        // Pause remote device so it stops playing through its own output
+        _sendConnect(AriamiConnectCommand.pause);
 
-        final frozenSong = currentSong;
-        if (initialSongId != null && frozenSong?.id != initialSongId) {
-          throw StateError(
-            'Playback changed during Chromecast handoff; aborting cast.',
+        final songs = List<Song>.from(_connectRemoteSongs);
+        if (songs.isNotEmpty) {
+          _queue = PlaybackQueue(
+            songs: songs,
+            currentIndex:
+                remoteSnapshot.currentIndex.clamp(0, songs.length - 1),
           );
+          _oneShotQueuedSongs.clear();
+          _shuffleService.reset();
+          _sourceId = remoteSnapshot.sourceId;
+          _isShuffleEnabled = remoteSnapshot.shuffle;
+          if (remoteSnapshot.shuffle) {
+            _shuffleService.restoreShuffled(
+              originalQueue: remoteSnapshot.backingOrder
+                  .map((index) => songs[index])
+                  .toList(),
+              shuffledQueue: songs,
+            );
+          }
+          _repeatMode = switch (remoteSnapshot.repeatMode) {
+            'all' => RepeatMode.all,
+            'one' => RepeatMode.one,
+            _ => RepeatMode.none,
+          };
         }
-
-        final frozenPosition = _pendingUiPosition ?? _audioPlayer.position;
-        snapshot = _PlaybackHandoffState(
-          song: frozenSong ?? snapshot.song,
-          position: frozenPosition > snapshot.position
-              ? frozenPosition
-              : snapshot.position,
-          wasPlaying: snapshot.wasPlaying,
-        );
+        _suppressConnectMirror();
+        await _audioPlayer.pause();
         _pendingUiPosition = snapshot.position;
-        print(
-          '[PlaybackManager] Frozen local playback for cast: '
-          'song=${snapshot.song?.id}/${snapshot.song?.title} '
-          'position=${snapshot.position.inMilliseconds}ms '
-          'wasPlaying=${snapshot.wasPlaying}',
-        );
         _notifyStateChanged();
+      } else {
+        final shouldFreezeLocal = snapshot.wasPlaying || _audioPlayer.isLoading;
+        if (shouldFreezeLocal) {
+          await _audioPlayer.pause();
+          await Future.delayed(const Duration(milliseconds: 120));
+
+          final frozenSong = currentSong;
+          if (initialSongId != null && frozenSong?.id != initialSongId) {
+            throw StateError(
+              'Playback changed during Chromecast handoff; aborting cast.',
+            );
+          }
+
+          final frozenPosition = _pendingUiPosition ?? _audioPlayer.position;
+          snapshot = _PlaybackHandoffState(
+            song: frozenSong ?? snapshot.song,
+            position: frozenPosition > snapshot.position
+                ? frozenPosition
+                : snapshot.position,
+            wasPlaying: snapshot.wasPlaying,
+          );
+          _pendingUiPosition = snapshot.position;
+          print(
+            '[PlaybackManager] Frozen local playback for cast: '
+            'song=${snapshot.song?.id}/${snapshot.song?.title} '
+            'position=${snapshot.position.inMilliseconds}ms '
+            'wasPlaying=${snapshot.wasPlaying}',
+          );
+          _notifyStateChanged();
+        }
       }
 
       await _castService.connectToDevice(device);

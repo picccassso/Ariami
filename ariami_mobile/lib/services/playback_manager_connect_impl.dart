@@ -486,7 +486,23 @@ extension _PlaybackManagerConnectImpl on PlaybackManager {
   /// Always pauses this device's own playback (local or cast), bypassing the
   /// remote mirror; used for Connect handoffs.
   Future<void> _pauseLocalImpl() async {
-    if (_localIsPlaying) await _togglePlayPauseImpl();
+    if (_castService.isConnected || _castService.hasActiveSession) {
+      try {
+        await _castService.disconnect(stopCasting: false);
+      } catch (e) {
+        debugPrint(
+          '[PlaybackManager] Error disconnecting cast during handoff: $e',
+        );
+      }
+    }
+    try {
+      if (_audioPlayer.isPlaying) {
+        await _audioPlayer.pauseLocal();
+      }
+    } catch (e) {
+      debugPrint(
+          '[PlaybackManager] Error pausing local audio during handoff: $e');
+    }
   }
 
   Future<void> _applyConnectSnapshotImpl(
@@ -534,7 +550,68 @@ extension _PlaybackManagerConnectImpl on PlaybackManager {
     };
     _restoredPosition = Duration(milliseconds: snapshot.positionMs);
     _pendingUiPosition = _restoredPosition;
-    await _playCurrentSong(autoPlay: snapshot.isPlaying);
+
+    if (snapshot.castDeviceName == null &&
+        _castService.attachedToExistingPlayback) {
+      await _castService.disconnect(stopCasting: false);
+    }
+
+    var preservedExistingCast = false;
+    if (snapshot.castDeviceName != null) {
+      final targetName = snapshot.castDeviceName!.trim().toLowerCase();
+      if (_castService.isConnected) {
+        final sameReceiver =
+            _castService.connectedDeviceName?.trim().toLowerCase() ==
+                targetName;
+        if (!sameReceiver || !_castService.attachedToExistingPlayback) {
+          throw StateError(
+            'Stop this phone\'s current Cast session before handing off.',
+          );
+        }
+        preservedExistingCast = true;
+      } else {
+        var device = _castService.devices.cast<GoogleCastDevice?>().firstWhere(
+              (d) => d?.friendlyName.trim().toLowerCase() == targetName,
+              orElse: () => null,
+            );
+        if (device == null) {
+          final wasDiscoveryActive = _castService.isDiscoveryActive;
+          if (!wasDiscoveryActive) {
+            await _castService.startDiscovery();
+          }
+          final deadline =
+              DateTime.now().add(const Duration(milliseconds: 5000));
+          while (DateTime.now().isBefore(deadline) && device == null) {
+            await Future.delayed(const Duration(milliseconds: 100));
+            device = _castService.devices.cast<GoogleCastDevice?>().firstWhere(
+                  (d) => d?.friendlyName.trim().toLowerCase() == targetName,
+                  orElse: () => null,
+                );
+          }
+          if (!wasDiscoveryActive) {
+            unawaited(_castService.stopDiscovery());
+          }
+        }
+        if (device == null) {
+          throw StateError(
+            'Could not find ${snapshot.castDeviceName} for Cast handoff.',
+          );
+        }
+        await _castService.attachToExistingPlayback(device);
+        preservedExistingCast = true;
+      }
+    }
+
+    // Joining an existing receiver must not write the snapshot volume back to
+    // it. Older Mobile snapshots reported the local fixed volume (1.0), which
+    // made a successful handoff jump the speaker to full volume.
+    if (_castService.isConnected && !preservedExistingCast) {
+      _castService.setDeviceVolume(snapshot.volume);
+    }
+
+    if (!preservedExistingCast) {
+      await _playCurrentSong(autoPlay: snapshot.isPlaying);
+    }
     await _saveState();
     _notifyStateChanged();
   }

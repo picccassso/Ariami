@@ -33,6 +33,16 @@ class AriamiConnectMessageType {
   static const error = 'connect_error';
 }
 
+/// Optional playback behaviours negotiated independently of the wire version.
+///
+/// Feature negotiation lets upgraded peers add fields without sending them to
+/// older strict snapshot decoders that still speak the same Connect version.
+class AriamiConnectFeature {
+  static const preserveCastHandoff = 'preserve_cast_handoff';
+
+  static const supported = <String>{preserveCastHandoff};
+}
+
 /// The P0 corpus measured the largest supported 5,000-track state and
 /// `play_context` messages at about 7.63 MB. Eight MiB keeps that measured
 /// maximum valid while putting a hard ceiling in front of JSON decoding.
@@ -258,6 +268,7 @@ Map<String, dynamic> validateConnectSnapshotPayload(Object? raw) {
     'repeatMode',
     'volume',
     'sourceId',
+    'castDeviceName',
     'updatedAt',
   };
   if (!allowed.containsAll(snapshot.keys)) {
@@ -278,6 +289,11 @@ Map<String, dynamic> validateConnectSnapshotPayload(Object? raw) {
   if (sourceId != null &&
       (sourceId is! String || sourceId.length > kMaxConnectSourceIdLength)) {
     throw const FormatException('Invalid Connect source');
+  }
+  final castDeviceName = snapshot['castDeviceName'];
+  if (castDeviceName != null &&
+      (castDeviceName is! String || castDeviceName.length > 256)) {
+    throw const FormatException('Invalid Connect cast device name');
   }
   bool isBoundedInt(Object? value, int min, int max) =>
       value is num &&
@@ -502,6 +518,7 @@ class AriamiPlaybackSnapshot {
     required String repeatMode,
     required double volume,
     String? sourceId,
+    String? castDeviceName,
     DateTime? updatedAt,
   }) {
     return AriamiPlaybackSnapshot._validated(
@@ -515,6 +532,7 @@ class AriamiPlaybackSnapshot {
       repeatMode: repeatMode,
       volume: volume,
       sourceId: sourceId,
+      castDeviceName: castDeviceName,
       updatedAt: updatedAt,
     );
   }
@@ -530,6 +548,7 @@ class AriamiPlaybackSnapshot {
     required this.repeatMode,
     required this.volume,
     required this.sourceId,
+    this.castDeviceName,
     required this.updatedAt,
   });
 
@@ -547,6 +566,7 @@ class AriamiPlaybackSnapshot {
     required String repeatMode,
     required double volume,
     String? sourceId,
+    String? castDeviceName,
     DateTime? updatedAt,
   }) {
     if (queue.length > maxQueueLength || backingOrder.length != queue.length) {
@@ -563,6 +583,7 @@ class AriamiPlaybackSnapshot {
       repeatMode: repeatMode,
       volume: volume,
       sourceId: sourceId,
+      castDeviceName: castDeviceName,
       updatedAt: updatedAt,
     );
   }
@@ -583,6 +604,7 @@ class AriamiPlaybackSnapshot {
   final String repeatMode;
   final double volume;
   final String? sourceId;
+  final String? castDeviceName;
   final DateTime? updatedAt;
 
   String? get currentTrackId {
@@ -623,6 +645,7 @@ class AriamiPlaybackSnapshot {
       },
       volume: ((json['volume'] as num?)?.toDouble() ?? 1).clamp(0.0, 1.0),
       sourceId: json['sourceId'] as String?,
+      castDeviceName: json['castDeviceName'] as String?,
       updatedAt: DateTime.tryParse(json['updatedAt'] as String? ?? ''),
     );
   }
@@ -638,6 +661,7 @@ class AriamiPlaybackSnapshot {
     required List<Map<String, dynamic>> queue,
     required List<int> backingOrder,
     required String? sourceId,
+    String? castDeviceName,
   }) {
     if (queue.length > maxQueueLength || backingOrder.length != queue.length) {
       throw const FormatException('Invalid Connect queue state');
@@ -660,6 +684,7 @@ class AriamiPlaybackSnapshot {
       },
       volume: ((json['volume'] as num?)?.toDouble() ?? 1).clamp(0.0, 1.0),
       sourceId: sourceId,
+      castDeviceName: castDeviceName ?? json['castDeviceName'] as String?,
       updatedAt: DateTime.tryParse(json['updatedAt'] as String? ?? ''),
     );
   }
@@ -686,6 +711,7 @@ class AriamiPlaybackSnapshot {
     bool? isPlaying,
     String? repeatMode,
     double? volume,
+    String? castDeviceName,
     DateTime? updatedAt,
   }) =>
       AriamiPlaybackSnapshot._validated(
@@ -699,6 +725,7 @@ class AriamiPlaybackSnapshot {
         repeatMode: repeatMode ?? this.repeatMode,
         volume: volume ?? this.volume,
         sourceId: sourceId,
+        castDeviceName: castDeviceName ?? this.castDeviceName,
         updatedAt: updatedAt ?? this.updatedAt,
       );
 
@@ -717,6 +744,7 @@ class AriamiPlaybackSnapshot {
         'repeatMode': repeatMode,
         'volume': volume,
         if (sourceId != null) 'sourceId': sourceId,
+        if (castDeviceName != null) 'castDeviceName': castDeviceName,
         'updatedAt': (updatedAt ?? DateTime.now().toUtc()).toIso8601String(),
       };
 

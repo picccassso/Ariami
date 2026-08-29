@@ -38,6 +38,93 @@ void main() {
     });
   });
 
+  group('Cast-preserving handoff negotiation', () {
+    test('advertises the feature and skips transport commands after attach',
+        () async {
+      final clock = _FakeTimerClock();
+      final socket = _FakeWebSocketChannel();
+      final factory = _SocketFactory(clock, <_FakeWebSocketChannel>[socket]);
+      final commands = <String>[];
+      final castSnapshot = AriamiPlaybackSnapshot(
+        queue: const <Map<String, dynamic>>[
+          <String, dynamic>{'id': 'song-1'},
+        ],
+        currentIndex: 0,
+        positionMs: 15000,
+        durationMs: 60000,
+        isPlaying: true,
+        shuffle: false,
+        repeatMode: 'off',
+        volume: 0.7,
+        castDeviceName: 'Home Mini',
+      );
+      final client = _client(
+        factory,
+        clock,
+        supportedFeatures: const <String>{
+          AriamiConnectFeature.preserveCastHandoff,
+        },
+        snapshotProvider: () => AriamiPlaybackSnapshot.fromJson(const {}),
+        applySnapshot: (_) async {},
+        handleCommand: (command, _) async => commands.add(command),
+      );
+      addTearDown(client.dispose);
+      await client.connect(baseUrl: 'http://ariami.test');
+
+      expect(
+        socket.sentMessages.first.data?['features'],
+        <String>[AriamiConnectFeature.preserveCastHandoff],
+      );
+      socket.serverMessage(
+        AriamiConnectMessageType.welcome,
+        <String, dynamic>{
+          ..._authority(epoch: 4, owner: 'phone'),
+          'protocolVersion': 3,
+          'queueCounter': 2,
+          'stateRevision': 2,
+          'semanticGeneration': 7,
+          'features': <String>[
+            AriamiConnectFeature.preserveCastHandoff,
+          ],
+        },
+      );
+      await _pumpTwice();
+
+      socket.serverMessage(
+        AriamiConnectMessageType.transfer,
+        <String, dynamic>{
+          'phase': 'prepare',
+          'transferId': 'cast-transfer',
+          'sourceDeviceId': 'phone',
+          'targetDeviceId': 'fault-client',
+          'snapshot': castSnapshot.toJson(),
+          'queueCounter': 2,
+          'ownerEpoch': 4,
+          'semanticGeneration': 7,
+        },
+      );
+      await _pumpTwice();
+      socket.serverMessage(
+        AriamiConnectMessageType.transfer,
+        <String, dynamic>{
+          'phase': 'commit',
+          'transferId': 'cast-transfer',
+          'sourceDeviceId': 'phone',
+          'targetDeviceId': 'fault-client',
+          'snapshot': castSnapshot.toJson(),
+          'queueCounter': 2,
+          'stateRevision': 3,
+          'ownerEpoch': 5,
+          'semanticGeneration': 8,
+        },
+      );
+      await _pumpTwice();
+
+      expect(commands, isEmpty,
+          reason: 'the attached receiver is already playing continuously');
+    });
+  });
+
   group('slice 5 split queue and progress', () {
     test(
         '[progress_coalesced_one_second] 500 tracks publish once while '
@@ -1326,6 +1413,7 @@ AriamiConnectClient _client(
   Future<void> Function(AriamiPlaybackSnapshot snapshot)? applySnapshot,
   AriamiPlaybackSnapshot Function()? snapshotProvider,
   Set<String> supportedCommands = AriamiConnectCommand.supported,
+  Set<String> supportedFeatures = const <String>{},
 }) =>
     AriamiConnectClient(
       deviceId: 'fault-client',
@@ -1337,6 +1425,7 @@ AriamiConnectClient _client(
       handleCommand: handleCommand ?? (_, __) async {},
       pauseForTransfer: pauseForTransfer ?? () async {},
       supportedCommands: supportedCommands,
+      supportedFeatures: supportedFeatures,
       commandAckTimeout: commandAckTimeout,
       maxCommandAttempts: maxCommandAttempts,
       connectTimeout: connectTimeout,

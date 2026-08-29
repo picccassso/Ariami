@@ -88,6 +88,9 @@ class AriamiConnectController extends ChangeNotifier {
       handleCommand: _handleCommand,
       pauseForTransfer: playback.pauseLocal,
       supportedCommands: PlaybackManager.connectSupportedCommands,
+      supportedFeatures: const <String>{
+        AriamiConnectFeature.preserveCastHandoff,
+      },
       onChanged: _onClientChanged,
       onAuthenticationRequired: () =>
           unawaited(_connection.handleSessionExpired()),

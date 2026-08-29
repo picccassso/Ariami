@@ -411,5 +411,30 @@ void main() {
         throwsFormatException,
       );
     });
+
+    test('preserves and validates castDeviceName across serialization', () {
+      final snapshot = AriamiPlaybackSnapshot(
+        queue: <Map<String, dynamic>>[
+          <String, dynamic>{'id': 'song-1'},
+        ],
+        currentIndex: 0,
+        positionMs: 5000,
+        durationMs: 60000,
+        isPlaying: true,
+        shuffle: false,
+        repeatMode: 'all',
+        volume: 0.8,
+        castDeviceName: 'Living Room TV',
+      );
+
+      final json = snapshot.toJson();
+      expect(json['castDeviceName'], 'Living Room TV');
+
+      final deserialized = AriamiPlaybackSnapshot.fromJson(json);
+      expect(deserialized.castDeviceName, 'Living Room TV');
+
+      final copy = snapshot.copyWith(castDeviceName: 'Bedroom Speaker');
+      expect(copy.castDeviceName, 'Bedroom Speaker');
+    });
   });
 }

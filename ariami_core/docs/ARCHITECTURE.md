@@ -302,6 +302,10 @@ Connect message/command vocabulary lives in
 `cycle_repeat`, `play_queue_index`, and a queue-replace command). Connect
 messages intentionally never carry stream URLs or session tokens — every
 playback device requests its own short-lived stream ticket.
+Optional behaviours are negotiated through the hello/welcome `features` list.
+`preserve_cast_handoff` carries only the receiver's friendly name, is withheld
+from legacy peers, and lets capable Mobile/Desktop targets join an existing
+Cast media session without replacing its media.
 
 ## `services/discovery/` — LAN/mDNS server discovery
 

@@ -42,6 +42,7 @@ class ChromeCastService extends ChangeNotifier {
   bool? _lastSentPlaying;
   bool _isSyncing = false;
   bool _forceLocalPlayback = false;
+  bool _attachedToExistingPlayback = false;
   Duration _lastKnownRemotePosition = Duration.zero;
   DateTime? _lastRemotePositionUpdatedAt;
   CastMediaPlayerState? _lastRemotePlayerState;
@@ -64,6 +65,7 @@ class ChromeCastService extends ChangeNotifier {
   bool get isDiscoveryActive => _isDiscoveryActive;
   List<GoogleCastDevice> get devices => List.unmodifiable(_devices);
   String? get connectedDeviceName => _connectedDeviceName;
+  bool get attachedToExistingPlayback => _attachedToExistingPlayback;
 
   GoogleCastConnectState get connectionState =>
       GoogleCastSessionManager.instance.connectionState;
@@ -85,9 +87,7 @@ class ChromeCastService extends ChangeNotifier {
     required bool isConnected,
     required bool isBusy,
   }) =>
-      isSupportedPlatform &&
-      !isBusy &&
-      (!isBlockedByOffline || isConnected);
+      isSupportedPlatform && !isBusy && (!isBlockedByOffline || isConnected);
   double get deviceVolume {
     final reported =
         GoogleCastSessionManager.instance.currentSession?.currentDeviceVolume ??
@@ -109,6 +109,7 @@ class ChromeCastService extends ChangeNotifier {
 
     return requested;
   }
+
   bool get isDeviceMuted =>
       GoogleCastSessionManager.instance.currentSession?.currentDeviceMuted ??
       false;
@@ -228,6 +229,7 @@ class ChromeCastService extends ChangeNotifier {
     if (!isSupportedPlatform) return;
     await initialize();
     _forceLocalPlayback = false;
+    _attachedToExistingPlayback = false;
 
     final started =
         await GoogleCastSessionManager.instance.startSessionWithDevice(device);
@@ -253,15 +255,40 @@ class ChromeCastService extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> disconnect() async {
+  /// Joins media that is already playing without issuing a replacement LOAD.
+  Future<void> attachToExistingPlayback(GoogleCastDevice device) async {
+    try {
+      await connectToDevice(device);
+      final status = mediaStatus ??
+          (await GoogleCastRemoteMediaClient.instance.mediaStatusStream
+              .firstWhere((value) => value != null)
+              .timeout(const Duration(seconds: 6)))!;
+      if (status.playerState == CastMediaPlayerState.idle) {
+        throw StateError('The Cast receiver has no active media to hand off.');
+      }
+      _attachedToExistingPlayback = true;
+      _handleMediaStatusChanged();
+      notifyListeners();
+    } catch (_) {
+      await disconnect(stopCasting: false);
+      rethrow;
+    }
+  }
+
+  Future<void> disconnect({bool stopCasting = true}) async {
     if (!isSupportedPlatform || !hasActiveSession) return;
 
     logDebugSnapshot('before-disconnect');
-    await GoogleCastSessionManager.instance.endSessionAndStopCasting();
+    if (stopCasting) {
+      await GoogleCastSessionManager.instance.endSessionAndStopCasting();
+    } else {
+      await GoogleCastSessionManager.instance.endSession();
+    }
     _connectedDeviceName = null;
     _lastCastedSongId = null;
     _lastSentPlaying = null;
     _lastSyncPayload = null;
+    _attachedToExistingPlayback = false;
     notifyListeners();
   }
 
@@ -590,6 +617,7 @@ class ChromeCastService extends ChangeNotifier {
       _lastSentPlaying = null;
       _lastSyncPayload = null;
       _forceLocalPlayback = false;
+      _attachedToExistingPlayback = false;
       _lastKnownRemotePosition = Duration.zero;
       _lastRemotePositionUpdatedAt = null;
       _lastRemotePlayerState = null;
