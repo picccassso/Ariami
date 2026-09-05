@@ -65,6 +65,7 @@ class ChromeCastService extends ChangeNotifier {
   bool get isDiscoveryActive => _isDiscoveryActive;
   List<GoogleCastDevice> get devices => List.unmodifiable(_devices);
   String? get connectedDeviceName => _connectedDeviceName;
+  String? get castedSongId => _lastCastedSongId;
   bool get attachedToExistingPlayback => _attachedToExistingPlayback;
 
   GoogleCastConnectState get connectionState =>

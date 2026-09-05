@@ -1,6 +1,51 @@
 part of 'playback_manager.dart';
 
 extension _PlaybackManagerCastingImpl on PlaybackManager {
+  Future<void> _recoverFromCastFailureImpl() async {
+    if (!_castService.isConnected) return;
+    if (_isHandlingCastFailure) {
+      _castFailureRecoveryPending = true;
+      return;
+    }
+
+    _isHandlingCastFailure = true;
+    _castFailureSkipStreak++;
+    final failedSong = _queue.currentSong;
+    final canAdvance =
+        _queue.hasNext || (_repeatMode == RepeatMode.all && _queue.length > 1);
+    final exhaustedQueue = _castFailureSkipStreak >= _queue.length;
+
+    try {
+      if (failedSong != null && canAdvance && !exhaustedQueue) {
+        debugPrint(
+          '[PlaybackManager] Chromecast could not play ${failedSong.id}; '
+          'advancing to the next queued song',
+        );
+        await _skipNextImpl(preserveRepeatMode: true);
+        return;
+      }
+
+      debugPrint(
+        '[PlaybackManager] Chromecast playback failed for every available '
+        'queue item; ending the Cast session',
+      );
+      await _statsService.onSongStopped();
+      audioHandler?.exitCastMode();
+      await _castService.disconnect();
+      await _audioPlayer.stop();
+      _notifyStateChanged();
+      await _saveState();
+    } catch (e) {
+      debugPrint('[PlaybackManager] Error recovering Chromecast playback: $e');
+    } finally {
+      _isHandlingCastFailure = false;
+      if (_castFailureRecoveryPending) {
+        _castFailureRecoveryPending = false;
+        unawaited(_recoverFromCastFailureImpl());
+      }
+    }
+  }
+
   Future<void> _startCastingToDeviceImpl(GoogleCastDevice device) async {
     if (_isCastTransitionInProgress) {
       print('[PlaybackManager] Cast handoff already in progress');

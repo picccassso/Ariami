@@ -22,6 +22,7 @@ import 'api/connection_service.dart';
 import 'api/api_client.dart';
 import 'download/download_manager.dart';
 import 'library/library_repository.dart';
+import 'cast/cast_playback_watchdog.dart';
 import 'cast/chrome_cast_service.dart';
 import 'offline/offline_playback_service.dart';
 import 'cache/cache_manager.dart';
@@ -49,7 +50,11 @@ class PlaybackManager extends ChangeNotifier {
   // Singleton pattern
   static final PlaybackManager _instance = PlaybackManager._internal();
   factory PlaybackManager() => _instance;
-  PlaybackManager._internal();
+  PlaybackManager._internal() {
+    _castPlaybackWatchdog = CastPlaybackWatchdog(
+      onFailure: () => unawaited(_recoverFromCastFailure()),
+    );
+  }
 
   // Dependencies
   final AudioPlayerService _audioPlayer = AudioPlayerService();
@@ -112,6 +117,10 @@ class PlaybackManager extends ChangeNotifier {
   bool _isCastTransitionInProgress = false;
   CastMediaPlayerState? _lastObservedCastPlayerState;
   bool _isHandlingCastCompletion = false;
+  late final CastPlaybackWatchdog _castPlaybackWatchdog;
+  bool _isHandlingCastFailure = false;
+  bool _castFailureRecoveryPending = false;
+  int _castFailureSkipStreak = 0;
   Timer? _castStatsForwardTimer;
   String? _lastWarmupKey;
   int _gaplessRefreshGeneration = 0;
@@ -615,6 +624,8 @@ class PlaybackManager extends ChangeNotifier {
   /// Internal: Handle song completion
   Future<void> _onSongCompleted() => _onSongCompletedImpl();
 
+  Future<void> _recoverFromCastFailure() => _recoverFromCastFailureImpl();
+
   void _onGaplessPreferenceChanged() {
     unawaited(_refreshGaplessQueue());
   }
@@ -682,6 +693,7 @@ class PlaybackManager extends ChangeNotifier {
   void dispose() {
     _isInitialized = false;
     _castService.removeListener(_onCastStateChanged);
+    _castPlaybackWatchdog.dispose();
     _castStatsForwardTimer?.cancel();
     _connectTicker?.cancel();
     _connectSuppressionTimer?.cancel();

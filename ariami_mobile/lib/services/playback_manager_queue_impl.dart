@@ -5,6 +5,8 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
     Song song, {
     bool forceRepeatAll = false,
   }) async {
+    _castFailureSkipStreak = 0;
+    _castPlaybackWatchdog.reset();
     print('[PlaybackManager] ========== playSong() called ==========');
     print('[PlaybackManager] Song: ${song.title} by ${song.artist}');
     print('[PlaybackManager] FilePath: ${song.filePath}');
@@ -50,6 +52,8 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
   }
 
   Future<void> _playSongsImpl(List<Song> songs, {int startIndex = 0}) async {
+    _castFailureSkipStreak = 0;
+    _castPlaybackWatchdog.reset();
     try {
       if (songs.isEmpty) return;
 
@@ -85,6 +89,8 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
   }
 
   Future<void> _playShuffledImpl(List<Song> songs) async {
+    _castFailureSkipStreak = 0;
+    _castPlaybackWatchdog.reset();
     try {
       if (songs.isEmpty) return;
 
@@ -204,9 +210,16 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
     }
   }
 
-  Future<void> _skipNextImpl({bool completedNaturally = false}) async {
+  Future<void> _skipNextImpl({
+    bool completedNaturally = false,
+    bool preserveRepeatMode = false,
+  }) async {
+    if (!_isHandlingCastFailure) {
+      _castFailureSkipStreak = 0;
+      _castPlaybackWatchdog.reset();
+    }
     try {
-      if (!completedNaturally) {
+      if (!completedNaturally && !preserveRepeatMode) {
         _useRepeatAllForNewSongSelection();
       }
       final previousIndex = _queue.currentIndex;
@@ -282,6 +295,8 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
   }
 
   Future<void> _skipPreviousImpl() async {
+    _castFailureSkipStreak = 0;
+    _castPlaybackWatchdog.reset();
     try {
       final wasRepeatOne = _repeatMode == RepeatMode.one;
       if (wasRepeatOne) {
@@ -350,6 +365,8 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
   }
 
   Future<void> _skipToQueueItemImpl(int index) async {
+    _castFailureSkipStreak = 0;
+    _castPlaybackWatchdog.reset();
     try {
       if (index < 0 || index >= _queue.length) return;
       if (index == _queue.currentIndex) return;

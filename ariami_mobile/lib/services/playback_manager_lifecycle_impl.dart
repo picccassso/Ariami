@@ -187,6 +187,19 @@ extension _PlaybackManagerLifecycleImpl on PlaybackManager {
     final nextState = status?.playerState;
     final idleReason = status?.idleReason;
 
+    _castPlaybackWatchdog.update(
+      isConnected: _castService.isConnected,
+      songId: _castService.castedSongId ?? _queue.currentSong?.id,
+      playerState: nextState,
+      idleReason: idleReason,
+    );
+
+    if (nextState == CastMediaPlayerState.playing ||
+        nextState == CastMediaPlayerState.paused) {
+      _castFailureSkipStreak = 0;
+      _castFailureRecoveryPending = false;
+    }
+
     final wasAdvancing =
         _lastObservedCastPlayerState == CastMediaPlayerState.playing ||
             _lastObservedCastPlayerState == CastMediaPlayerState.buffering ||
@@ -200,6 +213,7 @@ extension _PlaybackManagerLifecycleImpl on PlaybackManager {
     if (!_castService.isConnected) {
       audioHandler?.exitCastMode();
       _lastObservedCastPlayerState = null;
+      _castFailureRecoveryPending = false;
       _castStatsForwardTimer?.cancel();
       _castStatsForwardTimer = null;
       _statsService.setPlaybackActive(false);

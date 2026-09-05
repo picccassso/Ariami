@@ -95,6 +95,9 @@ dependencies:
 # Vendored fork of just_audio that adds a native iOS/macOS equalizer
 # (DarwinEqualizer via MTAudioProcessingTap) — see third_party/just_audio.
 dependency_overrides:
+  # Accept receiver audio tracks without trackContentType.
+  flutter_chrome_cast:
+    path: third_party/flutter_chrome_cast
   just_audio:
     path: third_party/just_audio
 

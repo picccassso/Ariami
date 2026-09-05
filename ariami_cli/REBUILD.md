@@ -145,7 +145,7 @@ The script will:
 5. Build `libsonic_transcoder.so` for ARM64 in Docker
 6. Create release directory structure
 7. Copy all necessary files (binary, web UI, SQLite library, Sonic library, SETUP.txt)
-8. Package everything into `ariami-cli-raspberry-pi-arm64-v4.4.0.zip`
+8. Package everything into `ariami-cli-raspberry-pi-arm64-v5.2.0.zip`
 9. Verify the binary and Sonic library architectures
 
 ### Why This Works on M2/M3 Macs
