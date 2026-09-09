@@ -36,6 +36,8 @@ extension _DashboardRefresh on _DashboardScreenState {
 
         String? lan;
         String? ts;
+        String? lanAlias;
+        String? tsAlias;
         try {
           final infoResp =
               await _apiClient.get('/api/server-info', includeAuth: false);
@@ -43,6 +45,8 @@ extension _DashboardRefresh on _DashboardScreenState {
             final j = infoResp.jsonBody!;
             lan = j['lanServer'] as String?;
             ts = j['tailscaleServer'] as String?;
+            lanAlias = j['lanServerAlias'] as String?;
+            tsAlias = j['tailscaleServerAlias'] as String?;
           }
         } catch (_) {
           // Ignore; card falls back to descriptive text only.
@@ -60,7 +64,9 @@ extension _DashboardRefresh on _DashboardScreenState {
             _lastScanTime = data['lastScanTime'] as String?;
             _serverRunning = data['serverRunning'] as bool? ?? true;
             _dashboardLanServer = lan;
+            _dashboardLanServerAlias = lanAlias;
             _dashboardTailscaleServer = ts;
+            _dashboardTailscaleServerAlias = tsAlias;
             _dashboardEndpointsUpdatedAt = DateTime.now();
             _isLoading = false;
           });
@@ -338,7 +344,10 @@ extension _DashboardRefresh on _DashboardScreenState {
         final data = response.jsonBody!;
         _setDashboardState(() {
           _dashboardLanServer = data['lanServer'] as String?;
+          _dashboardLanServerAlias = data['lanServerAlias'] as String?;
           _dashboardTailscaleServer = data['tailscaleServer'] as String?;
+          _dashboardTailscaleServerAlias =
+              data['tailscaleServerAlias'] as String?;
           _dashboardEndpointsUpdatedAt = DateTime.now();
         });
       }
@@ -349,6 +358,35 @@ extension _DashboardRefresh on _DashboardScreenState {
         _setDashboardState(() {
           _isRefreshingAddresses = false;
         });
+      }
+    }
+  }
+
+  Future<void> _updateEndpointAliases({
+    String? lanAlias,
+    String? tailscaleAlias,
+  }) async {
+    try {
+      final res = await _apiClient.updateEndpointAliases(
+        lanAlias: lanAlias,
+        tailscaleAlias: tailscaleAlias,
+      );
+      if (mounted) {
+        _setDashboardState(() {
+          _dashboardLanServerAlias = res['lanServerAlias'] as String?;
+          _dashboardTailscaleServerAlias =
+              res['tailscaleServerAlias'] as String?;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error updating endpoint aliases: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to update alias: $e'),
+            backgroundColor: AppTheme.danger,
+          ),
+        );
       }
     }
   }

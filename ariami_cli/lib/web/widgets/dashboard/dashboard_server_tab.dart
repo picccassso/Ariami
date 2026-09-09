@@ -19,10 +19,13 @@ class DashboardServerTab extends StatelessWidget {
   const DashboardServerTab({
     super.key,
     required this.lanServer,
+    this.lanServerAlias,
     required this.tailscaleServer,
+    this.tailscaleServerAlias,
     required this.lastUpdatedLabel,
     required this.isRefreshingAddresses,
     required this.onRefreshAddresses,
+    this.onUpdateAliases,
     required this.isAdmin,
     required this.apiClient,
     required this.transcodeSlotsSnapshot,
@@ -42,10 +45,14 @@ class DashboardServerTab extends StatelessWidget {
   });
 
   final String? lanServer;
+  final String? lanServerAlias;
   final String? tailscaleServer;
+  final String? tailscaleServerAlias;
   final String? lastUpdatedLabel;
   final bool isRefreshingAddresses;
   final VoidCallback onRefreshAddresses;
+  final Future<void> Function({String? lanAlias, String? tailscaleAlias})?
+      onUpdateAliases;
   final bool isAdmin;
   final WebApiClient apiClient;
 
@@ -77,10 +84,14 @@ class DashboardServerTab extends StatelessWidget {
         children: [
           ServerConnectionSection(
             lanServer: lanServer,
+            lanServerAlias: lanServerAlias,
             tailscaleServer: tailscaleServer,
+            tailscaleServerAlias: tailscaleServerAlias,
             lastUpdatedLabel: lastUpdatedLabel,
             isRefreshing: isRefreshingAddresses,
             onRefreshAddresses: onRefreshAddresses,
+            isAdmin: isAdmin,
+            onUpdateAliases: onUpdateAliases,
           ),
           if (isAdmin) ...[
             SizedBox(height: gap),

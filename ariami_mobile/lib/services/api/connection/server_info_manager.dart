@@ -106,7 +106,9 @@ class ServerInfoManager {
     final merged = current.copyWith(
       server: current.server,
       lanServer: fetched.lanServer ?? current.lanServer,
+      lanServerAlias: fetched.lanServerAlias,
       tailscaleServer: fetched.tailscaleServer ?? current.tailscaleServer,
+      tailscaleServerAlias: fetched.tailscaleServerAlias,
       port: current.isSecurePublicConnection ? current.port : fetched.port,
       publicOrigin: current.publicOrigin ?? fetched.publicOrigin,
       name: fetched.name,
@@ -118,7 +120,9 @@ class ServerInfoManager {
 
     final endpointConfigChanged = current.lanServer != merged.lanServer ||
         current.tailscaleServer != merged.tailscaleServer ||
-        current.publicOrigin != merged.publicOrigin;
+        current.publicOrigin != merged.publicOrigin ||
+        current.lanServerAlias != merged.lanServerAlias ||
+        current.tailscaleServerAlias != merged.tailscaleServerAlias;
 
     if (_hasServerInfoChanged(merged, current)) {
       _serverInfo = merged;
@@ -138,7 +142,9 @@ class ServerInfoManager {
   bool _hasServerInfoChanged(ServerInfo a, ServerInfo b) {
     return a.server != b.server ||
         a.lanServer != b.lanServer ||
+        a.lanServerAlias != b.lanServerAlias ||
         a.tailscaleServer != b.tailscaleServer ||
+        a.tailscaleServerAlias != b.tailscaleServerAlias ||
         a.port != b.port ||
         a.publicOrigin != b.publicOrigin ||
         a.name != b.name ||
@@ -153,7 +159,9 @@ extension ServerInfoCopyWith on ServerInfo {
   ServerInfo copyWith({
     String? server,
     String? lanServer,
+    String? lanServerAlias,
     String? tailscaleServer,
+    String? tailscaleServerAlias,
     int? port,
     String? publicOrigin,
     String? name,
@@ -165,7 +173,10 @@ extension ServerInfoCopyWith on ServerInfo {
     return ServerInfo(
       server: server ?? this.server,
       lanServer: lanServer ?? this.lanServer,
+      lanServerAlias: lanServerAlias ?? this.lanServerAlias,
       tailscaleServer: tailscaleServer ?? this.tailscaleServer,
+      tailscaleServerAlias:
+          tailscaleServerAlias ?? this.tailscaleServerAlias,
       port: port ?? this.port,
       publicOrigin: publicOrigin ?? this.publicOrigin,
       name: name ?? this.name,

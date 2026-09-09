@@ -109,6 +109,10 @@ class AriamiHttpServer {
   String? _tailscaleIp;
   String? _lanIp;
   String? _advertisedIp; // The IP to show in QR code (Tailscale or LAN IP)
+  String? _lanServerAlias;
+  String? _tailscaleServerAlias;
+  Future<void> Function({String? lanAlias, String? tailscaleAlias})?
+      _onEndpointAliasesChanged;
   String? _publicOrigin; // HTTPS origin exposed by a trusted reverse proxy.
   int _port = 8080;
   int? _attemptedPort;
@@ -277,6 +281,42 @@ class AriamiHttpServer {
       );
     }
     _advertisedPortOverride = value;
+  }
+
+  /// The user-configured display alias for the LAN IP, if any.
+  String? get lanServerAlias => _lanServerAlias;
+
+  /// The user-configured display alias for the Tailscale IP, if any.
+  String? get tailscaleServerAlias => _tailscaleServerAlias;
+
+  /// Normalizes a user-supplied endpoint display alias.
+  ///
+  /// Returns null if empty/blank. Throws [ArgumentError] if longer than 40 chars.
+  static String? normalizeEndpointAlias(String? value) {
+    if (value == null) return null;
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return null;
+    if (trimmed.length > 40) {
+      throw ArgumentError.value(
+        value,
+        'alias',
+        'Endpoint alias must not exceed 40 characters',
+      );
+    }
+    return trimmed;
+  }
+
+  /// Sets user-configured display aliases for LAN and Tailscale endpoints.
+  void setEndpointAliases({String? lanAlias, String? tailscaleAlias}) {
+    _lanServerAlias = normalizeEndpointAlias(lanAlias);
+    _tailscaleServerAlias = normalizeEndpointAlias(tailscaleAlias);
+  }
+
+  /// Registers a persistence callback invoked when endpoint aliases are updated via API.
+  void setOnEndpointAliasesChanged(
+    Future<void> Function({String? lanAlias, String? tailscaleAlias})? callback,
+  ) {
+    _onEndpointAliasesChanged = callback;
   }
 
   // One-time code that authorizes creating the FIRST owner account from a

@@ -16,6 +16,7 @@ class WebSocketHandler {
   final Future<void> Function(int? closeCode, String? closeReason)?
       _onSessionInvalidated;
   final Future<void> Function(int latestToken) _onSyncTokenAdvanced;
+  final Future<void> Function()? _onEndpointAliasesChanged;
   final Future<String> Function() _deviceIdProvider;
   final Future<String> Function() _deviceNameProvider;
   final Future<String?> Function() _sessionTokenProvider;
@@ -28,6 +29,7 @@ class WebSocketHandler {
     Future<void> Function(int? closeCode, String? closeReason)?
         onSessionInvalidated,
     required Future<void> Function(int latestToken) onSyncTokenAdvanced,
+    Future<void> Function()? onEndpointAliasesChanged,
     required Future<String> Function() deviceIdProvider,
     required Future<String> Function() deviceNameProvider,
     required Future<String?> Function() sessionTokenProvider,
@@ -36,6 +38,7 @@ class WebSocketHandler {
         _onDisconnect = onDisconnect,
         _onSessionInvalidated = onSessionInvalidated,
         _onSyncTokenAdvanced = onSyncTokenAdvanced,
+        _onEndpointAliasesChanged = onEndpointAliasesChanged,
         _deviceIdProvider = deviceIdProvider,
         _deviceNameProvider = deviceNameProvider,
         _sessionTokenProvider = sessionTokenProvider;
@@ -104,6 +107,14 @@ class WebSocketHandler {
 
   /// Handle incoming WebSocket messages
   void _handleMessage(WsMessage message) {
+    if (message.type == WsMessageType.endpointAliasesChanged) {
+      final onEndpointAliasesChanged = _onEndpointAliasesChanged;
+      if (onEndpointAliasesChanged != null) {
+        unawaited(onEndpointAliasesChanged());
+      }
+      return;
+    }
+
     if (message.type != WsMessageType.syncTokenAdvanced) {
       return;
     }

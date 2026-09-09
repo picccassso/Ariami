@@ -113,6 +113,7 @@ class ConnectionService {
       onDisconnect: _handleWebSocketDisconnect,
       onSessionInvalidated: _handleWebSocketSessionInvalidated,
       onSyncTokenAdvanced: _onSyncTokenAdvanced,
+      onEndpointAliasesChanged: _refreshServerEndpointsFromServer,
       deviceIdProvider: _deviceInfoManager.getDeviceId,
       deviceNameProvider: _deviceInfoManager.getDeviceName,
       sessionTokenProvider: () async => _authManager.sessionToken,
@@ -890,5 +891,29 @@ class ConnectionService {
       throw StateError('API client unavailable for sync operation');
     }
     return client;
+  }
+
+  /// Update display aliases for LAN and Tailscale endpoints on the server.
+  Future<Map<String, dynamic>> updateEndpointAliases({
+    String? lanAlias,
+    String? tailscaleAlias,
+  }) async {
+    final client = _requireApiClient();
+    final result = await client.updateEndpointAliases(
+      lanAlias: lanAlias,
+      tailscaleAlias: tailscaleAlias,
+    );
+    if (result['serverInfo'] is Map<String, dynamic>) {
+      final updated = ServerInfo.fromJson(
+        result['serverInfo'] as Map<String, dynamic>,
+      );
+      _serverInfoManager.setServerInfo(updated);
+      _stateManager.setServerInfo(updated);
+      final sessionId = _lifecycleManager.sessionId;
+      if (sessionId != null) {
+        await _persistenceManager.saveConnectionInfo(updated, sessionId);
+      }
+    }
+    return result;
   }
 }

@@ -228,6 +228,44 @@ class CliStateService {
     await _writeConfig(config);
   }
 
+  /// Get user-configured display alias for the LAN IP
+  Future<String?> getLanServerAlias() async {
+    final config = await _readConfig();
+    final alias = config['lan_server_alias'] ?? config['lanServerAlias'];
+    return alias is String && alias.trim().isNotEmpty ? alias.trim() : null;
+  }
+
+  /// Get user-configured display alias for the Tailscale IP
+  Future<String?> getTailscaleServerAlias() async {
+    final config = await _readConfig();
+    final alias =
+        config['tailscale_server_alias'] ?? config['tailscaleServerAlias'];
+    return alias is String && alias.trim().isNotEmpty ? alias.trim() : null;
+  }
+
+  /// Set endpoint aliases in config
+  Future<void> setEndpointAliases({
+    String? lanAlias,
+    String? tailscaleAlias,
+  }) async {
+    final config = await _readConfig();
+    if (lanAlias != null && lanAlias.trim().isNotEmpty) {
+      config['lan_server_alias'] = lanAlias.trim();
+    } else {
+      config.remove('lan_server_alias');
+      config.remove('lanServerAlias');
+    }
+
+    if (tailscaleAlias != null && tailscaleAlias.trim().isNotEmpty) {
+      config['tailscale_server_alias'] = tailscaleAlias.trim();
+    } else {
+      config.remove('tailscale_server_alias');
+      config.remove('tailscaleServerAlias');
+    }
+
+    await _writeConfig(config);
+  }
+
   /// Clear all configuration
   Future<void> clearConfig() async {
     final configDir = Directory(getConfigDir());

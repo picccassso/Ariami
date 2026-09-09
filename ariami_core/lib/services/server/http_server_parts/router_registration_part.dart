@@ -191,6 +191,7 @@ extension AriamiHttpServerRouterMethods on AriamiHttpServer {
     router.get('/api/tailscale/status', _handleTailscaleStatus);
     router.get('/api/server-info', _handleGetServerInfo);
     router.post('/api/server-info/refresh', _handleRefreshServerInfo);
+    router.post('/api/server-info/aliases', _handleUpdateEndpointAliases);
   }
 
   /// Per-account listening statistics. Registered unconditionally (not gated

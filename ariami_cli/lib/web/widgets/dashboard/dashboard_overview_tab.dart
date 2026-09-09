@@ -33,7 +33,9 @@ class DashboardOverviewTab extends StatelessWidget {
     required this.onRemoveSpotifyStats,
     required this.spotifyImportStatus,
     this.lanServer,
+    this.lanServerAlias,
     this.tailscaleServer,
+    this.tailscaleServerAlias,
   });
 
   final bool serverRunning;
@@ -55,7 +57,9 @@ class DashboardOverviewTab extends StatelessWidget {
   final VoidCallback onRemoveSpotifyStats;
   final SpotifyImportStatus? spotifyImportStatus;
   final String? lanServer;
+  final String? lanServerAlias;
   final String? tailscaleServer;
+  final String? tailscaleServerAlias;
 
   @override
   Widget build(BuildContext context) {
@@ -70,7 +74,9 @@ class DashboardOverviewTab extends StatelessWidget {
             isScanning: isScanning,
             pulseController: pulseController,
             lanServer: lanServer,
+            lanServerAlias: lanServerAlias,
             tailscaleServer: tailscaleServer,
+            tailscaleServerAlias: tailscaleServerAlias,
           ),
           if (authRequired) ...[
             const SizedBox(height: 12),

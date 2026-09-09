@@ -14,6 +14,9 @@ import '../../utils/responsive.dart';
 import '../../widgets/common/cached_artwork.dart';
 import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
 import '../../widgets/common/queue_action_confirmation.dart';
+import '../../widgets/common/song_overflow_menu.dart';
+import '../album_detail_screen.dart';
+import '../playlist/add_to_playlist_screen.dart';
 
 /// Recently played songs derived from qualified Listening Stats rollups.
 /// A Connect handoff does not create an entry, while real plays synced from
@@ -115,9 +118,23 @@ class _RecentlyPlayedScreenState extends State<RecentlyPlayedScreen> {
     _groups = _groupByDay(entriesByIdentity.values);
   }
 
+  Future<void> _playSong(_RecentEntry entry) async {
+    final song = entry.song;
+    if (song == null) return;
+    try {
+      await _playback.playSong(song);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not play “${entry.title}”.')),
+      );
+    }
+  }
+
   void _queueSong(_RecentEntry entry, {bool next = false}) {
     final song = entry.song;
     if (song == null) return;
+    if (!mounted) return;
     if (next) {
       _playback.playNext(song);
     } else {
@@ -154,7 +171,7 @@ class _RecentlyPlayedScreenState extends State<RecentlyPlayedScreen> {
                     ? Padding(
                         padding: const EdgeInsets.only(bottom: 12),
                         child: Text(
-                          'Tap a track for queue options. Use + to add it to the end.',
+                          'Tap a track for options. Use + to add it to the end.',
                           style: TextStyle(
                             color:
                                 Theme.of(context).colorScheme.onSurfaceVariant,
@@ -200,6 +217,9 @@ class _RecentlyPlayedScreenState extends State<RecentlyPlayedScreen> {
                               ? null
                               : _albumsById[entry.albumId],
                           artwork: _artworkResolver.forSong(entry.stat),
+                          onPlay: entry.song == null
+                              ? null
+                              : () => _playSong(entry),
                           onAddToQueue: entry.song == null
                               ? null
                               : () => _queueSong(entry),
@@ -295,10 +315,37 @@ class _RecentEntry {
   final SongStats stat;
   final Song? song;
 
-  String get title => stat.songTitle ?? song?.title ?? 'Unknown track';
-  String get artist => stat.songArtist ?? song?.artist ?? 'Unknown artist';
-  String? get albumId => stat.albumId ?? song?.albumId;
-  String? get album => stat.album ?? song?.album;
+  String get title {
+    final statTitle = stat.songTitle?.trim();
+    if (statTitle != null && statTitle.isNotEmpty) return statTitle;
+    final songTitle = song?.title.trim();
+    if (songTitle != null && songTitle.isNotEmpty) return songTitle;
+    return 'Unknown track';
+  }
+
+  String get artist {
+    final statArtist = stat.songArtist?.trim();
+    if (statArtist != null && statArtist.isNotEmpty) return statArtist;
+    final songArtist = song?.artist.trim();
+    if (songArtist != null && songArtist.isNotEmpty) return songArtist;
+    return 'Unknown artist';
+  }
+
+  String? get albumId {
+    final statId = stat.albumId?.trim();
+    if (statId != null && statId.isNotEmpty) return statId;
+    final songId = song?.albumId?.trim();
+    if (songId != null && songId.isNotEmpty) return songId;
+    return null;
+  }
+
+  String? get album {
+    final statAlbum = stat.album?.trim();
+    if (statAlbum != null && statAlbum.isNotEmpty) return statAlbum;
+    final songAlbum = song?.album?.trim();
+    if (songAlbum != null && songAlbum.isNotEmpty) return songAlbum;
+    return null;
+  }
 }
 
 class _DayGroup {
@@ -475,6 +522,7 @@ class _RecentStatsTile extends StatelessWidget {
     required this.entry,
     required this.album,
     required this.artwork,
+    required this.onPlay,
     required this.onAddToQueue,
     required this.onPlayNext,
   });
@@ -482,6 +530,7 @@ class _RecentStatsTile extends StatelessWidget {
   final _RecentEntry entry;
   final AlbumModel? album;
   final StatsArtworkIdentity artwork;
+  final VoidCallback? onPlay;
   final VoidCallback? onAddToQueue;
   final VoidCallback? onPlayNext;
 
@@ -493,21 +542,15 @@ class _RecentStatsTile extends StatelessWidget {
       TimeOfDay.fromDateTime(playedAt),
     );
     final albumLabel = entry.album ?? album?.title;
+    final hasAlbumLabel = albumLabel != null && albumLabel.trim().isNotEmpty;
+    final isAvailable = entry.song != null;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       elevation: 0,
       clipBehavior: Clip.antiAlias,
-      child: PopupMenuButton<bool>(
-        enabled: onAddToQueue != null,
-        tooltip: onAddToQueue == null
-            ? 'Unavailable in your library'
-            : 'Queue options',
-        onSelected: (next) => next ? onPlayNext?.call() : onAddToQueue?.call(),
-        itemBuilder: (_) => const [
-          PopupMenuItem(value: false, child: Text('Add to queue')),
-          PopupMenuItem(value: true, child: Text('Play next')),
-        ],
+      child: InkWell(
+        onTap: isAvailable ? () => _showSongActions(context) : null,
         child: Padding(
           padding: const EdgeInsets.all(10),
           child: Row(
@@ -537,9 +580,9 @@ class _RecentStatsTile extends StatelessWidget {
                     ),
                     const SizedBox(height: 3),
                     Text(
-                      albumLabel == null
-                          ? entry.artist
-                          : '${entry.artist} • $albumLabel',
+                      hasAlbumLabel
+                          ? '${entry.artist} • $albumLabel'
+                          : entry.artist,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -575,6 +618,101 @@ class _RecentStatsTile extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+
+  void _showSongActions(BuildContext context) {
+    final song = entry.song;
+    if (song == null) return;
+
+    final resolvedAlbumId = entry.albumId;
+    final songModel = SongModel(
+      id: song.id,
+      title: entry.title,
+      artist: entry.artist,
+      genre: song.genre,
+      albumId: resolvedAlbumId,
+      duration: song.duration.inSeconds,
+      trackNumber: song.trackNumber,
+    );
+
+    showAriamiSheet<void>(
+      context: context,
+      header: AriamiSheetHeader(
+        title: entry.title,
+        subtitle: entry.artist,
+        leading: const Icon(Icons.music_note_rounded, size: 28),
+      ),
+      items: [
+        ListTile(
+          leading: const Icon(Icons.play_arrow),
+          title: const Text('Play'),
+          onTap: () {
+            Navigator.pop(context);
+            onPlay?.call();
+          },
+        ),
+        SongLikeMenuItem(song: songModel),
+        ListTile(
+          leading: const Icon(Icons.skip_next),
+          title: const Text('Play Next'),
+          onTap: () {
+            Navigator.pop(context);
+            onPlayNext?.call();
+          },
+        ),
+        ListTile(
+          leading: const Icon(Icons.queue_music),
+          title: const Text('Add to Queue'),
+          onTap: () {
+            Navigator.pop(context);
+            onAddToQueue?.call();
+          },
+        ),
+        ListTile(
+          leading: const Icon(Icons.playlist_add),
+          title: const Text('Add to Playlist'),
+          onTap: () {
+            Navigator.pop(context);
+            if (!context.mounted) return;
+            AddToPlaylistScreen.showForSong(
+              context,
+              song.id,
+              albumId: resolvedAlbumId,
+              title: entry.title,
+              artist: entry.artist,
+              duration: song.duration.inSeconds,
+            );
+          },
+        ),
+        if (resolvedAlbumId != null && resolvedAlbumId.isNotEmpty)
+          ListTile(
+            leading: const Icon(Icons.album_outlined),
+            title: const Text('Show in album'),
+            onTap: () {
+              final nav = Navigator.of(context);
+              nav.pop();
+              if (!context.mounted) return;
+              final albumArtist =
+                  (song.albumArtist?.trim().isNotEmpty == true)
+                      ? song.albumArtist!.trim()
+                      : entry.artist;
+              final albumModel = album ??
+                  AlbumModel(
+                    id: resolvedAlbumId,
+                    title: entry.album ?? 'Unknown Album',
+                    artist: albumArtist,
+                    songCount: 0,
+                    duration: 0,
+                  );
+              nav.push(
+                MaterialPageRoute(
+                  builder: (context) => AlbumDetailScreen(album: albumModel),
+                ),
+              );
+            },
+          ),
+      ],
     );
   }
 }

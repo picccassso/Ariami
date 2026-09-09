@@ -369,6 +369,26 @@ class WebApiClient {
     );
   }
 
+  /// Update display aliases for LAN and Tailscale endpoints. Admin only.
+  Future<Map<String, dynamic>> updateEndpointAliases({
+    String? lanAlias,
+    String? tailscaleAlias,
+  }) async {
+    final response = await post(
+      '/api/server-info/aliases',
+      body: <String, dynamic>{
+        'lanAlias': lanAlias,
+        'tailscaleAlias': tailscaleAlias,
+      },
+      includeDeviceIdentity: true,
+    );
+    if (!response.isSuccess) {
+      throw WebApiException(response);
+    }
+
+    return response.jsonBody ?? <String, dynamic>{};
+  }
+
   /// Clear this server's Ariami data. [factory] false keeps the library and
   /// accounts and clears setup/config only. The server stops itself once the
   /// reset finishes, so no further requests will succeed.

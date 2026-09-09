@@ -283,6 +283,50 @@ void main() {
     expect(find.text('100.101.102.103'), findsOneWidget);
   });
 
+  testWidgets(
+      'connection settings displays aliases and toggles raw IP with eye button',
+      (tester) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{
+      'server_info': jsonEncode(<String, Object?>{
+        'server': '192.168.68.64',
+        'lanServer': '192.168.68.64',
+        'lanServerAlias': 'Home Network',
+        'tailscaleServer': '100.101.102.103',
+        'tailscaleServerAlias': 'Tailscale VPN',
+        'port': 8080,
+        'name': 'Server Pi',
+        'version': '5.2.0',
+        'authRequired': false,
+        'legacyMode': false,
+      }),
+    });
+
+    await ConnectionService().loadServerInfoFromStorage();
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: ConnectionSettingsScreen(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // With aliases present and not revealed, aliases should be displayed
+    expect(find.text('Home Network'), findsWidgets); // Active Address & LAN Address
+    expect(find.text('Tailscale VPN'), findsOneWidget);
+    expect(find.text('100.101.102.103'), findsNothing);
+
+    // Eye buttons should exist
+    final eyeButtons = find.byTooltip('Reveal address');
+    expect(eyeButtons, findsWidgets);
+
+    // Tap reveal on LAN address / Tailscale
+    await tester.tap(eyeButtons.first);
+    await tester.pumpAndSettle();
+
+    // Now raw IP is visible
+    expect(find.text('192.168.68.64'), findsWidgets);
+  });
+
   testWidgets('shows disconnect server button when auto-offline',
       (tester) async {
     await OfflinePlaybackService().notifyConnectionLost();

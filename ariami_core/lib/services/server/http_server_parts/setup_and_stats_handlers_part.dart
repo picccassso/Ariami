@@ -324,4 +324,81 @@ extension AriamiHttpServerSetupAndStatsHandlersMethods on AriamiHttpServer {
       return _setupCallbackErrorResponse('refresh server addresses', e);
     }
   }
+
+  /// Update display aliases for LAN and Tailscale endpoints.
+  ///
+  /// Requires an authenticated admin session (or legacy/setup mode with no users).
+  Future<Response> _handleUpdateEndpointAliases(Request request) async {
+    final authError = await _authorizeSetupRequest(request);
+    if (authError != null) {
+      return authError;
+    }
+
+    try {
+      final body = await request.readAsString();
+      final data = jsonDecode(body) as Map<String, dynamic>;
+
+      String? lanAlias;
+      String? tailscaleAlias;
+
+      if (data.containsKey('lanAlias')) {
+        final val = data['lanAlias'];
+        if (val != null && val is! String) {
+          return _jsonBadRequest({'error': 'lanAlias must be a string or null'});
+        }
+        lanAlias = val as String?;
+      } else {
+        lanAlias = _lanServerAlias;
+      }
+
+      if (data.containsKey('tailscaleAlias')) {
+        final val = data['tailscaleAlias'];
+        if (val != null && val is! String) {
+          return _jsonBadRequest({
+            'error': 'tailscaleAlias must be a string or null',
+          });
+        }
+        tailscaleAlias = val as String?;
+      } else {
+        tailscaleAlias = _tailscaleServerAlias;
+      }
+
+      setEndpointAliases(
+        lanAlias: lanAlias,
+        tailscaleAlias: tailscaleAlias,
+      );
+
+      final onAliasesChanged = _onEndpointAliasesChanged;
+      if (onAliasesChanged != null) {
+        await onAliasesChanged(
+          lanAlias: _lanServerAlias,
+          tailscaleAlias: _tailscaleServerAlias,
+        );
+      }
+
+      broadcastWebSocketMessage(
+        WsMessage(
+          type: WsMessageType.endpointAliasesChanged,
+          data: {
+            if (_lanServerAlias != null) 'lanServerAlias': _lanServerAlias,
+            if (_tailscaleServerAlias != null)
+              'tailscaleServerAlias': _tailscaleServerAlias,
+          },
+        ),
+      );
+
+      return _jsonOk({
+        'success': true,
+        'lanServerAlias': _lanServerAlias,
+        'tailscaleServerAlias': _tailscaleServerAlias,
+        'serverInfo': getServerInfo(),
+      });
+    } on FormatException catch (e) {
+      return _jsonBadRequest({'error': 'Invalid JSON: ${e.message}'});
+    } on ArgumentError catch (e) {
+      return _jsonBadRequest({'error': e.message});
+    } catch (e) {
+      return _setupCallbackErrorResponse('update endpoint aliases', e);
+    }
+  }
 }

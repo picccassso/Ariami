@@ -34,7 +34,9 @@ class _QRCodeScreenState extends State<QRCodeScreen>
   );
   String? _primaryServer;
   String? _lanServer;
+  String? _lanServerAlias;
   String? _tailscaleServer;
+  String? _tailscaleServerAlias;
   int _serverPort = 8080;
   String _serverName = 'Loading...';
   bool _authRequired = false;
@@ -324,7 +326,9 @@ class _QRCodeScreenState extends State<QRCodeScreen>
   void _applyServerInfo(Map<String, dynamic> serverInfo) {
     _primaryServer = serverInfo['server'] as String? ?? 'Unknown';
     _lanServer = serverInfo['lanServer'] as String?;
+    _lanServerAlias = serverInfo['lanServerAlias'] as String?;
     _tailscaleServer = serverInfo['tailscaleServer'] as String?;
+    _tailscaleServerAlias = serverInfo['tailscaleServerAlias'] as String?;
     _serverPort = serverInfo['port'] as int? ?? 8080;
     _serverName = serverInfo['name'] as String? ?? 'Ariami Server';
     _authRequired = serverInfo['authRequired'] as bool? ?? false;
@@ -640,6 +644,7 @@ class _QRCodeScreenState extends State<QRCodeScreen>
           EndpointDisplay(
             label: 'Local network',
             value: lan,
+            alias: _lanServerAlias,
             badgeLabel: 'LAN',
             dense: true,
           ),
@@ -649,6 +654,7 @@ class _QRCodeScreenState extends State<QRCodeScreen>
           EndpointDisplay(
             label: 'Tailscale',
             value: ts,
+            alias: _tailscaleServerAlias,
             badgeLabel: 'REMOTE',
             dense: true,
           ),

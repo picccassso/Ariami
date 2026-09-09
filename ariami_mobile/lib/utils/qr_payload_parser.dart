@@ -141,6 +141,22 @@ class QrPayloadParser {
       return QrPayloadResult.fail(_notAriamiMessage);
     }
 
+    String? lanServerAlias;
+    if (json.containsKey('lanServerAlias') && json['lanServerAlias'] != null) {
+      final val = json['lanServerAlias'];
+      if (val is String && val.trim().isNotEmpty && val.trim().length <= 40) {
+        lanServerAlias = val.trim();
+      }
+    }
+    String? tailscaleServerAlias;
+    if (json.containsKey('tailscaleServerAlias') &&
+        json['tailscaleServerAlias'] != null) {
+      final val = json['tailscaleServerAlias'];
+      if (val is String && val.trim().isNotEmpty && val.trim().length <= 40) {
+        tailscaleServerAlias = val.trim();
+      }
+    }
+
     final rawLimits = json['downloadLimits'];
     if (rawLimits != null && rawLimits is! Map) {
       return QrPayloadResult.fail(_notAriamiMessage);
@@ -152,7 +168,9 @@ class QrPayloadParser {
       final serverInfo = ServerInfo.fromJson(<String, dynamic>{
         'server': server,
         'lanServer': lanServer,
+        'lanServerAlias': lanServerAlias,
         'tailscaleServer': tailscaleServer,
+        'tailscaleServerAlias': tailscaleServerAlias,
         'publicOrigin': publicOrigin,
         'port': port,
         'name': name.isEmpty ? server : name,

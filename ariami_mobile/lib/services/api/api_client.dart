@@ -63,6 +63,21 @@ class ApiClient {
     return DisconnectResponse.fromJson(response);
   }
 
+  /// Update display aliases for LAN and Tailscale endpoints (Admin only).
+  Future<Map<String, dynamic>> updateEndpointAliases({
+    String? lanAlias,
+    String? tailscaleAlias,
+  }) async {
+    final payload = <String, dynamic>{
+      'lanAlias': lanAlias,
+      'tailscaleAlias': tailscaleAlias,
+    };
+    if (sessionToken != null && sessionToken!.isNotEmpty) {
+      return _postWithAuth('/server-info/aliases', payload, sessionToken!);
+    }
+    return _post('/server-info/aliases', payload);
+  }
+
   // ============================================================================
   // AUTHENTICATION ENDPOINTS
   // ============================================================================

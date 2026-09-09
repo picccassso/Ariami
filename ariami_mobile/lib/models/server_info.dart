@@ -6,7 +6,9 @@ import 'package:ariami_core/models/server_origin.dart';
 class ServerInfo {
   final String server; // IP address
   final String? lanServer; // Local network IP address
+  final String? lanServerAlias; // Friendly display alias for LAN IP
   final String? tailscaleServer; // Remote Tailscale IP address
+  final String? tailscaleServerAlias; // Friendly display alias for Tailscale IP
   final int port;
   final String? publicOrigin; // Explicit HTTPS origin for public deployments.
   final String name; // Server/computer name
@@ -19,7 +21,9 @@ class ServerInfo {
   ServerInfo({
     required this.server,
     this.lanServer,
+    this.lanServerAlias,
     this.tailscaleServer,
+    this.tailscaleServerAlias,
     required this.port,
     String? publicOrigin,
     required this.name,
@@ -40,7 +44,9 @@ class ServerInfo {
     return ServerInfo(
       server: server,
       lanServer: lanServer,
+      lanServerAlias: json['lanServerAlias'] as String?,
       tailscaleServer: derivedTailscaleServer,
+      tailscaleServerAlias: json['tailscaleServerAlias'] as String?,
       port: json['port'] as int,
       publicOrigin: json['publicOrigin'] as String?,
       name: json['name'] as String,
@@ -58,7 +64,10 @@ class ServerInfo {
     return {
       'server': server,
       'lanServer': lanServer,
+      if (lanServerAlias != null) 'lanServerAlias': lanServerAlias,
       'tailscaleServer': tailscaleServer,
+      if (tailscaleServerAlias != null)
+        'tailscaleServerAlias': tailscaleServerAlias,
       'port': port,
       if (publicOrigin != null) 'publicOrigin': publicOrigin,
       'name': name,
@@ -94,11 +103,20 @@ class ServerInfo {
       ? 'Secure Internet'
       : (isUsingLocalNetworkRoute ? 'Local Network' : 'Tailscale');
 
+  /// Active route's display alias, if configured.
+  String? get activeAddressAlias => isUsingLanRoute
+      ? lanServerAlias
+      : (hasTailscaleEndpoint && tailscaleServer == server
+          ? tailscaleServerAlias
+          : null);
+
   ServerInfo withServer(String ip) {
     return ServerInfo(
       server: ip,
       lanServer: lanServer,
+      lanServerAlias: lanServerAlias,
       tailscaleServer: tailscaleServer,
+      tailscaleServerAlias: tailscaleServerAlias,
       port: port,
       publicOrigin: publicOrigin,
       name: name,
@@ -113,7 +131,9 @@ class ServerInfo {
   ServerInfo copyWith({
     String? server,
     String? lanServer,
+    String? lanServerAlias,
     String? tailscaleServer,
+    String? tailscaleServerAlias,
     int? port,
     String? publicOrigin,
     String? name,
@@ -126,7 +146,10 @@ class ServerInfo {
     return ServerInfo(
       server: server ?? this.server,
       lanServer: lanServer ?? this.lanServer,
+      lanServerAlias: lanServerAlias ?? this.lanServerAlias,
       tailscaleServer: tailscaleServer ?? this.tailscaleServer,
+      tailscaleServerAlias:
+          tailscaleServerAlias ?? this.tailscaleServerAlias,
       port: port ?? this.port,
       publicOrigin: publicOrigin ?? this.publicOrigin,
       name: name ?? this.name,
@@ -140,7 +163,7 @@ class ServerInfo {
 
   @override
   String toString() {
-    return 'ServerInfo(server: $server, lanServer: $lanServer, tailscaleServer: $tailscaleServer, port: $port, publicOrigin: $publicOrigin, name: $name, version: $version, authRequired: $authRequired, legacyMode: $legacyMode, hasRegistrationToken: ${registrationToken != null}, downloadLimits: $downloadLimits)';
+    return 'ServerInfo(server: $server, lanServer: $lanServer, lanServerAlias: $lanServerAlias, tailscaleServer: $tailscaleServer, tailscaleServerAlias: $tailscaleServerAlias, port: $port, publicOrigin: $publicOrigin, name: $name, version: $version, authRequired: $authRequired, legacyMode: $legacyMode, hasRegistrationToken: ${registrationToken != null}, downloadLimits: $downloadLimits)';
   }
 }
 

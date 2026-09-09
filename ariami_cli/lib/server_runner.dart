@@ -117,6 +117,18 @@ class ServerRunner {
         (enabled) => _stateService.setPublicUserPickerEnabled(enabled),
       );
 
+      _httpServer.setEndpointAliases(
+        lanAlias: await _stateService.getLanServerAlias(),
+        tailscaleAlias: await _stateService.getTailscaleServerAlias(),
+      );
+      _httpServer.setOnEndpointAliasesChanged(
+        ({String? lanAlias, String? tailscaleAlias}) =>
+            _stateService.setEndpointAliases(
+          lanAlias: lanAlias,
+          tailscaleAlias: tailscaleAlias,
+        ),
+      );
+
       // X-Forwarded-For stays untrusted unless the owner explicitly says a
       // reverse proxy they control fronts this server.
       _httpServer.setTrustProxyHeaders(

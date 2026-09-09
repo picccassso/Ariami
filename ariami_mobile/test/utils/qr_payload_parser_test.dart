@@ -32,6 +32,20 @@ void main() {
       expect(info.registrationToken, isNotNull);
     });
 
+    test('accepts and parses endpoint display aliases', () {
+      final payload = {
+        ..._validPayload(),
+        'lanServerAlias': 'Living Room WiFi',
+        'tailscaleServerAlias': 'Studio Away',
+      };
+      final result = QrPayloadParser.parse(jsonEncode(payload));
+
+      expect(result.isValid, isTrue);
+      final info = result.serverInfo!;
+      expect(info.lanServerAlias, 'Living Room WiFi');
+      expect(info.tailscaleServerAlias, 'Studio Away');
+    });
+
     test('accepts a minimal payload without optional fields', () {
       final result = QrPayloadParser.parse(jsonEncode({
         'server': '192.168.1.50',

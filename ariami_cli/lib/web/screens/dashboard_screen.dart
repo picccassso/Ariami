@@ -120,7 +120,9 @@ class _DashboardScreenState extends State<DashboardScreen>
   final Set<String> _deletingUserIds = <String>{};
 
   String? _dashboardLanServer;
+  String? _dashboardLanServerAlias;
   String? _dashboardTailscaleServer;
+  String? _dashboardTailscaleServerAlias;
   DateTime? _dashboardEndpointsUpdatedAt;
   bool _isRefreshingAddresses = false;
   bool _setupComplete = false;
@@ -228,7 +230,9 @@ class _DashboardScreenState extends State<DashboardScreen>
               onRemoveSpotifyStats: _showSpotifyRemove,
               spotifyImportStatus: _spotifyImportStatus,
               lanServer: _dashboardLanServer,
+              lanServerAlias: _dashboardLanServerAlias,
               tailscaleServer: _dashboardTailscaleServer,
+              tailscaleServerAlias: _dashboardTailscaleServerAlias,
             ),
             DashboardActivityTab(
               userActivityRows: _userActivityRows,
@@ -271,10 +275,13 @@ class _DashboardScreenState extends State<DashboardScreen>
             ),
             DashboardServerTab(
               lanServer: _dashboardLanServer,
+              lanServerAlias: _dashboardLanServerAlias,
               tailscaleServer: _dashboardTailscaleServer,
+              tailscaleServerAlias: _dashboardTailscaleServerAlias,
               lastUpdatedLabel: _formatEndpointRefreshTime(),
               isRefreshingAddresses: _isRefreshingAddresses,
               onRefreshAddresses: _refreshServerAddresses,
+              onUpdateAliases: _updateEndpointAliases,
               isAdmin: _isAdmin,
               apiClient: _apiClient,
               transcodeSlotsSnapshot: _transcodeSlotsSnapshot,

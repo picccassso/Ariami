@@ -12,22 +12,32 @@ class ServerStatusCard extends StatelessWidget {
     required this.isScanning,
     required this.pulseController,
     this.lanServer,
+    this.lanServerAlias,
     this.tailscaleServer,
+    this.tailscaleServerAlias,
   });
 
   final bool serverRunning;
   final bool isScanning;
   final AnimationController pulseController;
   final String? lanServer;
+  final String? lanServerAlias;
   final String? tailscaleServer;
+  final String? tailscaleServerAlias;
 
   @override
   Widget build(BuildContext context) {
     final isCompact = AppLayout.of(context) == WidthClass.compact;
     final reachableAt = [
-      if (lanServer != null && lanServer!.isNotEmpty) lanServer!,
+      if (lanServer != null && lanServer!.isNotEmpty)
+        (lanServerAlias != null && lanServerAlias!.trim().isNotEmpty)
+            ? lanServerAlias!
+            : lanServer!,
       if (tailscaleServer != null && tailscaleServer!.isNotEmpty)
-        tailscaleServer!,
+        (tailscaleServerAlias != null &&
+                tailscaleServerAlias!.trim().isNotEmpty)
+            ? tailscaleServerAlias!
+            : tailscaleServer!,
     ];
 
     final heading = Column(

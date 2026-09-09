@@ -636,7 +636,10 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
     final info = {
       'server': _advertisedIp ?? _tailscaleIp,
       'lanServer': _lanIp,
+      if (_lanServerAlias != null) 'lanServerAlias': _lanServerAlias,
       'tailscaleServer': _tailscaleIp,
+      if (_tailscaleServerAlias != null)
+        'tailscaleServerAlias': _tailscaleServerAlias,
       if (_publicOrigin != null) 'publicOrigin': _publicOrigin,
       // Advertised, not bound: clients connect through whatever port remap
       // sits in front of us. `attemptedPort`/`portFallbackUsed` stay bind-side

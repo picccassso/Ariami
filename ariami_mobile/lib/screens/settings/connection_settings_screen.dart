@@ -59,6 +59,9 @@ class _ConnectionSettingsScreenState extends State<ConnectionSettingsScreen> {
   StreamSubscription<OfflineMode>? _offlineSubscription;
   bool _isOfflineModeEnabled = false;
   String? _deviceName;
+  bool _revealActive = false;
+  bool _revealLan = false;
+  bool _revealTailscale = false;
 
   @override
   void initState() {
@@ -322,19 +325,120 @@ class _ConnectionSettingsScreenState extends State<ConnectionSettingsScreen> {
                         SettingsTile(
                           icon: Icons.lan_rounded,
                           title: 'Active Address',
-                          subtitle: serverInfo.server,
+                          subtitle: (serverInfo.activeAddressAlias != null &&
+                                  !_revealActive)
+                              ? serverInfo.activeAddressAlias!
+                              : serverInfo.server,
+                          trailing: serverInfo.activeAddressAlias != null
+                              ? IconButton(
+                                  icon: Icon(
+                                    _revealActive
+                                        ? Icons.visibility_off_outlined
+                                        : Icons.visibility_outlined,
+                                    size: 20,
+                                  ),
+                                  tooltip: _revealActive
+                                      ? 'Hide address'
+                                      : 'Reveal address',
+                                  onPressed: () => setState(
+                                    () => _revealActive = !_revealActive,
+                                  ),
+                                )
+                              : null,
                         ),
                         if (serverInfo.lanServer != null)
                           SettingsTile(
                             icon: Icons.home_work_rounded,
                             title: 'LAN Address',
-                            subtitle: serverInfo.lanServer!,
+                            subtitle: (serverInfo.lanServerAlias != null &&
+                                    serverInfo.lanServerAlias!.isNotEmpty &&
+                                    !_revealLan)
+                                ? serverInfo.lanServerAlias!
+                                : serverInfo.lanServer!,
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (serverInfo.lanServerAlias != null &&
+                                    serverInfo.lanServerAlias!.isNotEmpty)
+                                  IconButton(
+                                    icon: Icon(
+                                      _revealLan
+                                          ? Icons.visibility_off_outlined
+                                          : Icons.visibility_outlined,
+                                      size: 20,
+                                    ),
+                                    tooltip: _revealLan
+                                        ? 'Hide address'
+                                        : 'Reveal address',
+                                    onPressed: () => setState(
+                                      () => _revealLan = !_revealLan,
+                                    ),
+                                  ),
+                                IconButton(
+                                  icon: const Icon(Icons.edit_outlined,
+                                      size: 20),
+                                  tooltip: 'Rename alias',
+                                  onPressed: () => _showRenameDialog(
+                                    title: 'Rename Local Network Alias',
+                                    hint: 'e.g. Home LAN',
+                                    currentAlias: serverInfo.lanServerAlias,
+                                    onSave: (newAlias) => _updateAliases(
+                                      lanAlias: newAlias,
+                                      tailscaleAlias:
+                                          serverInfo.tailscaleServerAlias,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         if (serverInfo.tailscaleServer != null)
                           SettingsTile(
                             icon: Icons.public_rounded,
                             title: 'Tailscale Address',
-                            subtitle: serverInfo.tailscaleServer!,
+                            subtitle: (serverInfo.tailscaleServerAlias != null &&
+                                    serverInfo.tailscaleServerAlias!.isNotEmpty &&
+                                    !_revealTailscale)
+                                ? serverInfo.tailscaleServerAlias!
+                                : serverInfo.tailscaleServer!,
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (serverInfo.tailscaleServerAlias != null &&
+                                    serverInfo
+                                        .tailscaleServerAlias!.isNotEmpty)
+                                  IconButton(
+                                    icon: Icon(
+                                      _revealTailscale
+                                          ? Icons.visibility_off_outlined
+                                          : Icons.visibility_outlined,
+                                      size: 20,
+                                    ),
+                                    tooltip: _revealTailscale
+                                        ? 'Hide address'
+                                        : 'Reveal address',
+                                    onPressed: () => setState(
+                                      () =>
+                                          _revealTailscale = !_revealTailscale,
+                                    ),
+                                  ),
+                                IconButton(
+                                  icon: const Icon(Icons.edit_outlined,
+                                      size: 20),
+                                  tooltip: 'Rename alias',
+                                  onPressed: () => _showRenameDialog(
+                                    title: 'Rename Tailscale Alias',
+                                    hint: 'e.g. Away Tailscale',
+                                    currentAlias:
+                                        serverInfo.tailscaleServerAlias,
+                                    onSave: (newAlias) => _updateAliases(
+                                      lanAlias: serverInfo.lanServerAlias,
+                                      tailscaleAlias: newAlias,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         SettingsTile(
                           icon: Icons.tag_rounded,
@@ -402,6 +506,110 @@ class _ConnectionSettingsScreenState extends State<ConnectionSettingsScreen> {
           ),
         ],
       )),
+    );
+  }
+
+  Future<void> _updateAliases({
+    String? lanAlias,
+    String? tailscaleAlias,
+  }) async {
+    try {
+      await _connectionService.updateEndpointAliases(
+        lanAlias: lanAlias,
+        tailscaleAlias: tailscaleAlias,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Endpoint alias updated')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to update alias: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _showRenameDialog({
+    required String title,
+    required String hint,
+    required String? currentAlias,
+    required Future<void> Function(String? newAlias) onSave,
+  }) async {
+    final controller = TextEditingController(text: currentAlias ?? '');
+    String? errorText;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final colorScheme = Theme.of(context).colorScheme;
+            return AlertDialog(
+              backgroundColor: colorScheme.surface,
+              title: Text(title),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Set a friendly display name to hide the raw IP address.',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: controller,
+                    maxLength: 40,
+                    autofocus: true,
+                    decoration: InputDecoration(
+                      hintText: hint,
+                      errorText: errorText,
+                      border: const OutlineInputBorder(),
+                    ),
+                    onChanged: (text) {
+                      if (errorText != null) {
+                        setDialogState(() => errorText = null);
+                      }
+                    },
+                  ),
+                ],
+              ),
+              actions: [
+                if (currentAlias != null && currentAlias.isNotEmpty)
+                  TextButton(
+                    onPressed: () async {
+                      Navigator.of(dialogContext).pop();
+                      await onSave(null);
+                    },
+                    child: Text('Clear',
+                        style: TextStyle(color: colorScheme.error)),
+                  ),
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () async {
+                    final trimmed = controller.text.trim();
+                    if (trimmed.length > 40) {
+                      setDialogState(() => errorText = 'Max 40 characters');
+                      return;
+                    }
+                    Navigator.of(dialogContext).pop();
+                    await onSave(trimmed.isEmpty ? null : trimmed);
+                  },
+                  child: const Text('Save'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 }
