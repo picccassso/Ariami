@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import '../../models/api_models.dart';
+import '../album_detail_screen.dart';
+import '../artist_detail_screen.dart';
 import 'settings_screen.dart';
 import '../settings/connection_settings_screen.dart';
 import '../settings/downloads/downloads_screen.dart';
@@ -70,6 +73,14 @@ class SettingsNavigator extends StatelessWidget {
             break;
           case '/tv-license':
             page = const TvLicenseScreen();
+            break;
+          case '/album':
+            final album = settings.arguments as AlbumModel;
+            page = AlbumDetailScreen(album: album);
+            break;
+          case '/artist':
+            final artistName = settings.arguments as String;
+            page = ArtistDetailScreen(artistName: artistName);
             break;
           // Add more routes here as settings sub-screens are added
           default:

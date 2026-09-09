@@ -3,12 +3,11 @@ import '../../models/api_models.dart';
 /// Hands "open this album's page" requests from anywhere in the app to the
 /// main navigation.
 ///
-/// The `/album` route lives in the Library tab's nested navigator, which only
-/// exists while that tab is mounted — and only [MainNavigationScreen] can
-/// switch tabs. Screens outside the tab (like the full-screen player, which
-/// sits on the root navigator) therefore open album pages through this
-/// handoff: the main navigation registers a callback while it is alive and
-/// forwards the album through it.
+/// Detail routes like `/album` live in the active tab's nested navigator.
+/// Screens outside the tab (like the full-screen player, which sits on the root
+/// navigator) therefore open album pages through this handoff: the main
+/// navigation registers a callback while it is alive and forwards the album
+/// through it into whichever tab is currently mounted.
 class AlbumPageOpener {
   AlbumPageOpener._();
 

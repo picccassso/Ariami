@@ -473,9 +473,8 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
     return false;
   }
 
-  /// Closes the full player and opens the album's page in the Library tab.
-  /// The `/album` route lives in that tab's nested navigator, and leaving
-  /// this full-screen route up would hide the page underneath it.
+  /// Closes the full player and opens the album's page in the active tab.
+  /// Leaving this full-screen route up would hide the page underneath it.
   Future<void> _openAlbumPage() async {
     final song = _playbackManager.currentSong;
     if (song == null || !_hasAlbum(song)) return;
@@ -529,9 +528,8 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
     return null;
   }
 
-  /// Closes the full player and opens the artist's page in the Library tab.
-  /// The `/artist` route lives in that tab's nested navigator, and leaving
-  /// this full-screen route up would hide the page underneath it.
+  /// Closes the full player and opens the artist's page in the active tab.
+  /// Leaving this full-screen route up would hide the page underneath it.
   void _openArtistPage() {
     final artist = _playbackManager.currentSong?.artist;
     if (artist == null) return;

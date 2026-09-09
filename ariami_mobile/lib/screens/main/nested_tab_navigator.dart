@@ -67,8 +67,9 @@ class _NestedTabNavigatorState extends State<NestedTabNavigator> {
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
-        if (_nestedCanPop) {
-          widget.navigatorKey.currentState?.maybePop();
+        final navigator = widget.navigatorKey.currentState;
+        if (_nestedCanPop || (navigator?.canPop() ?? false)) {
+          navigator?.maybePop();
         } else {
           widget.onBackAtRoot?.call();
         }
@@ -76,8 +77,13 @@ class _NestedTabNavigatorState extends State<NestedTabNavigator> {
       child: NotificationListener<NavigationNotification>(
         onNotification: (notification) {
           // Track the nested navigator's pop-ability for the back decision.
-          if (notification.canHandlePop != _nestedCanPop) {
-            setState(() => _nestedCanPop = notification.canHandlePop);
+          // Check actual canPop() to prevent a stale notification (e.g. from an
+          // initial route mount) from overriding an already-pushed nested route.
+          final effectiveCanPop =
+              (widget.navigatorKey.currentState?.canPop() ?? false) ||
+                  notification.canHandlePop;
+          if (effectiveCanPop != _nestedCanPop) {
+            setState(() => _nestedCanPop = effectiveCanPop);
           }
           // We always intercept back (to pop the nested stack OR run
           // onBackAtRoot), so ancestors must always believe this subtree can

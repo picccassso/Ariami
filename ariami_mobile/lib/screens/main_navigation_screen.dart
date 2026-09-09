@@ -40,26 +40,45 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
     });
   }
 
-  /// Opens an artist's page in the Library tab. The tab's nested navigator
-  /// only exists while the tab is mounted, so the push waits for the frame
-  /// that mounts it (or stays put when it is already mounted).
-  void _openArtistPage(String artistName) {
-    _goToLibrary();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      libraryNavigatorKey.currentState
-          ?.pushNamed('/artist', arguments: artistName);
-    });
+  GlobalKey<NavigatorState> get _currentNavigatorKey {
+    switch (_currentIndex) {
+      case 0:
+        return libraryNavigatorKey;
+      case 1:
+        return searchNavigatorKey;
+      case 2:
+        return settingsNavigatorKey;
+      default:
+        return libraryNavigatorKey;
+    }
   }
 
-  /// Opens an album's page in the Library tab. The tab's nested navigator
-  /// only exists while the tab is mounted, so the push waits for the frame
-  /// that mounts it (or stays put when it is already mounted).
+  /// Opens an artist's page in the currently active tab's nested navigator so
+  /// returning keeps the user's tab context intact.
+  void _openArtistPage(String artistName) {
+    final nav = _currentNavigatorKey.currentState;
+    if (nav != null) {
+      nav.pushNamed('/artist', arguments: artistName);
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _currentNavigatorKey.currentState
+            ?.pushNamed('/artist', arguments: artistName);
+      });
+    }
+  }
+
+  /// Opens an album's page in the currently active tab's nested navigator so
+  /// returning keeps the user's tab context intact.
   void _openAlbumPage(AlbumModel album) {
-    _goToLibrary();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      libraryNavigatorKey.currentState
-          ?.pushNamed('/album', arguments: album);
-    });
+    final nav = _currentNavigatorKey.currentState;
+    if (nav != null) {
+      nav.pushNamed('/album', arguments: album);
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _currentNavigatorKey.currentState
+            ?.pushNamed('/album', arguments: album);
+      });
+    }
   }
 
   Future<void> _exitApp() async {
