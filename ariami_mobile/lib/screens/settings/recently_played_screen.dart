@@ -115,17 +115,18 @@ class _RecentlyPlayedScreenState extends State<RecentlyPlayedScreen> {
     _groups = _groupByDay(entriesByIdentity.values);
   }
 
-  Future<void> _play(_RecentEntry entry) async {
+  void _queueSong(_RecentEntry entry, {bool next = false}) {
     final song = entry.song;
     if (song == null) return;
-    try {
-      await _playback.playSingleRepeated(song);
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not play “${entry.title}”.')),
-      );
+    if (next) {
+      _playback.playNext(song);
+    } else {
+      _playback.addToQueue(song);
     }
+    showQueueActionConfirmation(
+      context,
+      message: next ? 'Playing next' : 'Added to queue',
+    );
   }
 
   @override
@@ -148,9 +149,19 @@ class _RecentlyPlayedScreenState extends State<RecentlyPlayedScreen> {
             return MiniPlayerScrollPaddingBuilder(
               builder: (context, bottomPadding) => ListView.builder(
                 padding: EdgeInsets.fromLTRB(16, 8, 16, bottomPadding + 24),
-                itemCount: _groups.length,
-                itemBuilder: (context, index) =>
-                    _buildDaySection(_groups[index], index),
+                itemCount: _groups.length + 1,
+                itemBuilder: (context, index) => index == 0
+                    ? Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Text(
+                          'Tap a track for queue options. Use + to add it to the end.',
+                          style: TextStyle(
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      )
+                    : _buildDaySection(_groups[index - 1], index - 1),
               ),
             );
           },
@@ -189,7 +200,12 @@ class _RecentlyPlayedScreenState extends State<RecentlyPlayedScreen> {
                               ? null
                               : _albumsById[entry.albumId],
                           artwork: _artworkResolver.forSong(entry.stat),
-                          onTap: entry.song == null ? null : () => _play(entry),
+                          onAddToQueue: entry.song == null
+                              ? null
+                              : () => _queueSong(entry),
+                          onPlayNext: entry.song == null
+                              ? null
+                              : () => _queueSong(entry, next: true),
                         ),
                     ],
                   ),
@@ -397,24 +413,32 @@ class _DayHeader extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
             child: Row(
               children: [
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: colorScheme.onSurfaceVariant,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.1,
+                Expanded(
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Text(
+                        label,
+                        style: TextStyle(
+                          color: colorScheme.onSurfaceVariant,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.1,
+                        ),
+                      ),
+                      Text(
+                        '$count ${count == 1 ? 'track' : 'tracks'}',
+                        style: TextStyle(
+                          color: colorScheme.onSurfaceVariant
+                              .withValues(alpha: 0.65),
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(width: 8),
-                Text(
-                  '$count ${count == 1 ? 'track' : 'tracks'}',
-                  style: TextStyle(
-                    color: colorScheme.onSurfaceVariant.withValues(alpha: 0.65),
-                    fontSize: 11,
-                  ),
-                ),
-                const Spacer(),
                 Tooltip(
                   message: 'Add this day to queue',
                   child: TextButton.icon(
@@ -451,13 +475,15 @@ class _RecentStatsTile extends StatelessWidget {
     required this.entry,
     required this.album,
     required this.artwork,
-    required this.onTap,
+    required this.onAddToQueue,
+    required this.onPlayNext,
   });
 
   final _RecentEntry entry;
   final AlbumModel? album;
   final StatsArtworkIdentity artwork;
-  final VoidCallback? onTap;
+  final VoidCallback? onAddToQueue;
+  final VoidCallback? onPlayNext;
 
   @override
   Widget build(BuildContext context) {
@@ -472,8 +498,16 @@ class _RecentStatsTile extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       elevation: 0,
       clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
+      child: PopupMenuButton<bool>(
+        enabled: onAddToQueue != null,
+        tooltip: onAddToQueue == null
+            ? 'Unavailable in your library'
+            : 'Queue options',
+        onSelected: (next) => next ? onPlayNext?.call() : onAddToQueue?.call(),
+        itemBuilder: (_) => const [
+          PopupMenuItem(value: false, child: Text('Add to queue')),
+          PopupMenuItem(value: true, child: Text('Play next')),
+        ],
         child: Padding(
           padding: const EdgeInsets.all(10),
           child: Row(
@@ -527,14 +561,15 @@ class _RecentStatsTile extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              Icon(
-                onTap == null
+              IconButton(
+                tooltip: onAddToQueue == null
+                    ? 'Unavailable in your library'
+                    : 'Add to queue',
+                onPressed: onAddToQueue,
+                icon: Icon(onAddToQueue == null
                     ? Icons.music_off_rounded
-                    : Icons.play_circle_fill_rounded,
-                color: onTap == null
-                    ? colorScheme.onSurfaceVariant.withValues(alpha: 0.45)
-                    : colorScheme.primary,
-                size: 30,
+                    : Icons.playlist_add_rounded),
+                color: colorScheme.primary,
               ),
             ],
           ),

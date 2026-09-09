@@ -358,9 +358,6 @@ class PlaybackManager extends ChangeNotifier {
   }
 
   /// Plays a one-song context that wraps back to the same song.
-  ///
-  /// This keeps Recently Played independent from the previous queue while
-  /// making both natural completion and an explicit skip deterministic.
   Future<void> playSingleRepeated(Song song) {
     if (_connectRemote != null) {
       _sendConnectPlayContext(

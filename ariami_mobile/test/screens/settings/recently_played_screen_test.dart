@@ -1,5 +1,11 @@
 import 'dart:io';
 
+import 'package:ariami_core/models/connect_models.dart';
+import 'package:ariami_core/services/connect/remote_playback.dart';
+import 'package:ariami_mobile/database/library_sync_database.dart';
+import 'package:ariami_mobile/services/playback_manager.dart';
+import 'package:ariami_mobile/widgets/common/queue_action_confirmation.dart';
+
 import 'package:ariami_mobile/models/song_stats.dart';
 import 'package:ariami_mobile/screens/settings/recently_played_screen.dart';
 import 'package:ariami_mobile/services/stats/streaming_stats_service.dart';
@@ -44,6 +50,19 @@ void main() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
     await initializeSharedPrefs();
     await StreamingStatsService().initialize();
+    final db = await LibrarySyncDatabase.create();
+    await db.upsertSongs(const [
+      LibrarySongRow(
+          id: 'history',
+          title: 'History Song',
+          artist: 'Artist',
+          duration: 180),
+    ]);
+    await db.saveSyncState(const LibrarySyncState(
+      lastAppliedToken: 1,
+      bootstrapComplete: true,
+      lastSyncEpochMs: 1,
+    ));
   });
 
   tearDownAll(() async {
@@ -96,5 +115,87 @@ void main() {
     expect(find.text('Old Song'), findsOneWidget);
     // Opening one old day leaves the others alone.
     expect(find.text('Last Month Song'), findsNothing);
+  });
+
+  testWidgets(
+      'history queues individual tracks without replacing Connect playback',
+      (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    StreamingStatsService().setAccountStatsOverlay([
+      _play('history', 'History Song', DateTime.now()),
+      _play('missing', 'Missing Song', DateTime.now()),
+    ]);
+    final playback = PlaybackManager();
+    final commands = <(String, Map<String, dynamic>?)>[];
+    playback.setConnectRemoteMirror(
+        AriamiRemotePlayback(
+          snapshot: AriamiPlaybackSnapshot(
+            queue: [
+              {'id': 'current', 'title': 'Current', 'artist': 'Artist'},
+              {'id': 'upcoming', 'title': 'Upcoming', 'artist': 'Artist'},
+            ],
+            currentIndex: 0,
+            positionMs: 10000,
+            durationMs: 180000,
+            isPlaying: true,
+            shuffle: true,
+            repeatMode: 'off',
+            volume: 0.5,
+          ),
+          deviceId: 'desktop',
+          deviceName: 'Desktop',
+          deviceType: 'desktop',
+        ),
+        sendCommand: (command, [arguments]) =>
+            commands.add((command, arguments)));
+    addTearDown(() {
+      dismissQueueActionConfirmation();
+      playback.setConnectRemoteMirror(null);
+      StreamingStatsService().setAccountStatsOverlay(null);
+    });
+    await tester.pumpWidget(const MaterialApp(home: RecentlyPlayedScreen()));
+    // Allow the real private SQLite catalog to finish loading.
+    await tester.runAsync(() async {
+      for (var i = 0; i < 20; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        await tester.pump();
+        if (find.byTooltip('Add to queue').evaluate().isNotEmpty) break;
+      }
+    });
+    await _pumpFrames(tester);
+    expect(tester.takeException(), isNull);
+    await tester.tap(find.text('History Song'));
+    await _pumpFrames(tester);
+    expect(tester.takeException(), isNull);
+    expect(commands, isEmpty);
+    expect(playback.queue.songs.map((s) => s.id), ['current', 'upcoming']);
+    await tester.tap(find.text('Play next'));
+    await _pumpFrames(tester);
+    expect(commands.single.$1, AriamiConnectCommand.insertQueueTrack);
+    expect(commands.single.$2?['index'], 1);
+    expect(playback.queue.songs.map((s) => s.id),
+        ['current', 'history', 'upcoming']);
+
+    await tester.tap(find.byTooltip('Add to queue'));
+    await _pumpFrames(tester);
+    expect(commands.length, 2);
+    expect(commands.last.$1, AriamiConnectCommand.insertQueueTrack);
+    expect(commands.last.$2?['index'], 3);
+    expect(playback.queue.songs.map((s) => s.id),
+        ['current', 'history', 'upcoming', 'history']);
+    expect(playback.currentSong?.id, 'current');
+    expect(playback.isPlaying, isTrue);
+    expect(playback.isShuffleEnabled, isTrue);
+
+    await tester.tap(find.text('Missing Song'));
+    await _pumpFrames(tester);
+    expect(find.text('Play next'), findsNothing);
+    expect(commands.length, 2);
+    dismissQueueActionConfirmation();
+    playback.setConnectRemoteMirror(null);
+    await tester.pumpWidget(const SizedBox.shrink());
   });
 }
