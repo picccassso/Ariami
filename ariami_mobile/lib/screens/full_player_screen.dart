@@ -18,6 +18,7 @@ import '../widgets/player/player_info.dart';
 import '../widgets/player/player_seek_bar.dart';
 import '../widgets/player/player_secondary_controls.dart';
 import '../widgets/player/player_output_button.dart';
+import '../widgets/common/artist_picker_sheet.dart';
 import '../widgets/common/mini_player_aware_bottom_sheet.dart';
 import '../widgets/common/queue_action_confirmation.dart';
 import 'playlist/add_to_playlist_screen.dart';
@@ -529,12 +530,30 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
   }
 
   /// Closes the full player and opens the artist's page in the active tab.
-  /// Leaving this full-screen route up would hide the page underneath it.
-  void _openArtistPage() {
-    final artist = _playbackManager.currentSong?.artist;
-    if (artist == null) return;
+  /// If the current song credits multiple collaborating artists, presents a
+  /// picker so the user can choose which artist's page to open.
+  Future<void> _openArtistPage() async {
+    final song = _playbackManager.currentSong;
+    if (song == null) return;
+
+    final apiClient = _connectionService.apiClient;
+    final fallbackArtworkUrl = apiClient != null
+        ? '${apiClient.baseUrl}/song-artwork/${song.id}'
+        : null;
+
+    final selectedArtist = await openArtistOrPicker(
+      context,
+      artistName: song.artist,
+      songTitle: song.title,
+      fallbackArtworkUrl: fallbackArtworkUrl,
+      fallbackAlbumId: song.albumId != null && song.albumId!.isNotEmpty
+          ? song.albumId
+          : 'song_${song.id}',
+    );
+    if (selectedArtist == null || !mounted) return;
+
     Navigator.of(context).pop();
-    ArtistPageOpener().open(artist);
+    ArtistPageOpener().open(selectedArtist);
   }
 
   Widget _buildSeekBar() {

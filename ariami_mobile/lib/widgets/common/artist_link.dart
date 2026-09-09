@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 
+import 'artist_picker_sheet.dart';
+
 /// An artist name rendered as a tappable link to the artist's page.
+///
+/// If [name] credits multiple collaborating artists, tapping it presents a
+/// picker bottom sheet so the user can choose which artist to view.
 ///
 /// When [enabled] is false the name is a plain [Text], so screens without an
 /// `/artist` route (settings tab, selection mode) can show it safely. Callers
@@ -20,6 +25,16 @@ class ArtistLink extends StatelessWidget {
   final int maxLines;
   final bool enabled;
 
+  Future<void> _handleTap(BuildContext context) async {
+    final selectedArtist = await openArtistOrPicker(
+      context,
+      artistName: name,
+    );
+    if (selectedArtist == null || !context.mounted) return;
+
+    Navigator.of(context).pushNamed('/artist', arguments: selectedArtist);
+  }
+
   @override
   Widget build(BuildContext context) {
     final text = Text(
@@ -32,7 +47,7 @@ class ArtistLink extends StatelessWidget {
     if (!enabled) return text;
 
     return GestureDetector(
-      onTap: () => Navigator.of(context).pushNamed('/artist', arguments: name),
+      onTap: () => _handleTap(context),
       child: text,
     );
   }
