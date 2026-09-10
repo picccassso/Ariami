@@ -36,6 +36,20 @@ extension AriamiHttpServerMediaTicketHandlersMethods on AriamiHttpServer {
         );
       }
 
+      final availability = _libraryManager.musicAvailability;
+      if (availability.needsAttention ||
+          (_libraryManager.isScanning && _libraryManager.library == null)) {
+        return _jsonResponse(HttpStatus.serviceUnavailable, {
+          'error': {
+            'code': 'MUSIC_UNAVAILABLE',
+            'message': availability.message,
+          },
+          'musicAvailability': availability.toJson(),
+        }, headers: {
+          'Retry-After': '30'
+        });
+      }
+
       // A ticket for a song that no longer exists would only fail later at
       // /stream as an opaque player error clients cannot classify. Reject it
       // here with SONG_NOT_FOUND so they can skip the entry instead of

@@ -10,6 +10,7 @@ import 'package:ariami_core/models/library_structure.dart';
 import 'package:ariami_core/models/album.dart';
 import 'package:ariami_core/models/file_change.dart';
 import 'package:ariami_core/models/scan_diagnostics.dart';
+import 'package:ariami_core/models/music_availability.dart';
 import 'package:ariami_core/models/song_metadata.dart';
 import 'package:ariami_core/services/artwork/artwork_service.dart';
 import 'package:ariami_core/services/catalog/catalog_database.dart';
@@ -24,6 +25,7 @@ import 'package:ariami_core/services/library/playlist_decision_store.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 part 'library_manager/library_manager_api.part.dart';
+part 'library_manager/library_manager_availability.part.dart';
 part 'library_manager/library_manager_cache.part.dart';
 part 'library_manager/library_manager_catalog.part.dart';
 part 'library_manager/library_manager_catalog_artwork.part.dart';
@@ -88,6 +90,29 @@ class LibraryManager {
   LibraryStructure? _library;
   DateTime? _lastScanTime;
   bool _isScanning = false;
+  MusicAvailability _musicAvailability = MusicAvailability.unknown;
+  String? _configuredFolderPath;
+  Timer? _availabilityTimer;
+  Future<void>? _storageProbe;
+  String? _storageProbeFolder;
+  bool _availabilityCheckInFlight = false;
+  int _scanGeneration = 0;
+
+  MusicAvailability get musicAvailability => _musicAvailability;
+
+  /// Recheck storage and rescan after recovery. Also used by manual refresh.
+  Future<void> checkMusicAvailability() => _checkMusicAvailabilityImpl();
+
+  void stopMusicAvailabilityMonitoring() {
+    _availabilityTimer?.cancel();
+    _availabilityTimer = null;
+    _scanGeneration++;
+  }
+
+  void resumeMusicAvailabilityMonitoring() {
+    final folderPath = _configuredFolderPath;
+    if (folderPath != null) _monitorMusicFolder(folderPath);
+  }
 
   /// Persistent metadata cache for fast re-scans
   MetadataCache? _metadataCache;

@@ -339,7 +339,8 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
       // library, so a deleted song only fails here at player-load time. When
       // the synced local library confirms the id no longer exists, skip it
       // instead of halting the queue on an unplayable entry.
-      if (await _isSongGoneFromLibrary(song.id)) {
+      if (!(e is ApiException && e.isCode('MUSIC_UNAVAILABLE')) &&
+          await _isSongGoneFromLibrary(song.id)) {
         print('[PlaybackManager] Song ${song.id} confirmed gone from library, '
             'auto-skipping unplayable entry');
         await _skipUnplayableSong(

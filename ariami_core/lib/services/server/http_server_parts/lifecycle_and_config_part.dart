@@ -430,6 +430,7 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
 
       // Start cleanup timer for stale connections
       _startCleanupTimer();
+      _libraryManager.resumeMusicAvailabilityMonitoring();
       _ensureEndpointMonitor();
       unawaited(_startDiscoveryResponder());
     } catch (e) {
@@ -557,6 +558,7 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
 
   /// Stop the HTTP server
   Future<void> stop() async {
+    _libraryManager.stopMusicAvailabilityMonitoring();
     _stopEndpointMonitor();
     try {
       await _discoveryResponder.stop();

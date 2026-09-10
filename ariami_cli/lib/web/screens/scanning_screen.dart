@@ -1,3 +1,4 @@
+import 'package:ariami_core/models/music_availability.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/web_setup_service.dart';
@@ -24,6 +25,7 @@ class _ScanningScreenState extends State<ScanningScreen>
   int _scannedFileCount = 0;
   int _skippedFileCount = 0;
   bool _isScanning = true;
+  MusicAvailability _musicAvailability = MusicAvailability.checking;
   bool _isComplete = false;
   bool _isTransitioning = false;
   String? _transitionError;
@@ -91,6 +93,8 @@ class _ScanningScreenState extends State<ScanningScreen>
 
       setState(() {
         _isScanning = status['isScanning'] as bool? ?? false;
+        _musicAvailability =
+            MusicAvailability.fromJson(status['musicAvailability']);
         _progress = (status['progress'] as num?)?.toDouble() ?? 0.0;
         _songsFound = status['songsFound'] as int? ?? 0;
         _albumsFound = status['albumsFound'] as int? ?? 0;
@@ -104,7 +108,9 @@ class _ScanningScreenState extends State<ScanningScreen>
         return;
       }
 
-      final scanFinished = !_isScanning && _progress >= 1.0;
+      final scanFinished = !_isScanning &&
+          _progress >= 1.0 &&
+          !_musicAvailability.needsAttention;
       if (scanFinished) {
         _pollTimer?.cancel();
         await _handleScanComplete();
@@ -188,21 +194,28 @@ class _ScanningScreenState extends State<ScanningScreen>
     return SetupScaffold(
       step: 3,
       icon: _isComplete ? Icons.check_rounded : Icons.search_rounded,
-      title: _isComplete ? 'Library ready' : 'Building your library',
-      description: _isComplete
-          ? 'Ariami read the tags and artwork in your music folder and grouped '
-              'everything into albums and artists.'
-          : 'Ariami is reading the tags and artwork in your music folder. '
-              'Keep this page open until it finishes.',
+      title: _musicAvailability.needsAttention
+          ? _musicAvailability.title
+          : _isComplete
+              ? 'Library ready'
+              : 'Building your library',
+      description: _musicAvailability.needsAttention
+          ? _musicAvailability.message
+          : _isComplete
+              ? 'Ariami read the tags and artwork in your music folder and grouped '
+                  'everything into albums and artists.'
+              : 'Ariami is reading the tags and artwork in your music folder. '
+                  'Keep this page open until it finishes.',
       helpTopic: CliOnboardingCopy.scanning,
-      primaryAction: _isComplete && !_isTransitioning && _transitionError == null
-          ? ElevatedButton.icon(
-              onPressed: _transitionToBackground,
-              icon: const Icon(Icons.arrow_forward_rounded, size: 19),
-              iconAlignment: IconAlignment.end,
-              label: const Text('Continue'),
-            )
-          : null,
+      primaryAction:
+          _isComplete && !_isTransitioning && _transitionError == null
+              ? ElevatedButton.icon(
+                  onPressed: _transitionToBackground,
+                  icon: const Icon(Icons.arrow_forward_rounded, size: 19),
+                  iconAlignment: IconAlignment.end,
+                  label: const Text('Continue'),
+                )
+              : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

@@ -51,6 +51,7 @@ extension AriamiHttpServerSetupAndStatsHandlersMethods on AriamiHttpServer {
 
     return _jsonOk({
       'status': 'ok',
+      'musicAvailability': _libraryManager.musicAvailability.toJson(),
       'timestamp': DateTime.now().toIso8601String(),
       'server': Platform.localHostname,
       'version': kAriamiVersion,
@@ -200,6 +201,7 @@ extension AriamiHttpServerSetupAndStatsHandlersMethods on AriamiHttpServer {
         final diagnostics = _libraryManager.latestScanDiagnostics;
         return _jsonOk({
           ...status,
+          'musicAvailability': _libraryManager.musicAvailability.toJson(),
           'skippedFileCount':
               status['skippedFileCount'] ?? diagnostics.skippedFileCount,
           'failedFiles': status['failedFiles'] ??
@@ -295,6 +297,7 @@ extension AriamiHttpServerSetupAndStatsHandlersMethods on AriamiHttpServer {
         'isScanning': isScanning,
         'lastScanTime': lastScanTime?.toIso8601String(),
         'serverRunning': true,
+        'musicAvailability': _libraryManager.musicAvailability.toJson(),
         // Multi-user auth stats
         'connectedUsers': _connectionManager.uniqueUserCount,
         'connectedDevices': connectedClients,

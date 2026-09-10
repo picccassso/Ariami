@@ -765,12 +765,7 @@ class LibraryScannerIsolate {
     final rootDir = Directory(folderPath);
 
     if (!await rootDir.exists()) {
-      return (
-        files: files,
-        playlistFolders: playlistFolders,
-        m3uFiles: m3uFiles,
-        unreadableDirectories: unreadableDirectories,
-      );
+      throw FileSystemException('Music folder is unavailable', folderPath);
     }
 
     final pending = <Directory>[rootDir];

@@ -37,7 +37,11 @@ class ServerSetupCallbacks {
     }
 
     try {
-      _httpServer.libraryManager.scanMusicFolder(musicPath);
+      _httpServer.libraryManager
+          .scanMusicFolder(musicPath)
+          .catchError((Object error) {
+        print('Warning: Library scan failed; Ariami will retry: $error');
+      });
     } catch (e) {
       print('Warning: Failed to start library scan: $e');
     }
@@ -70,7 +74,11 @@ class ServerSetupCallbacks {
         return false;
       }
 
-      _httpServer.libraryManager.scanMusicFolder(musicPath);
+      _httpServer.libraryManager
+          .scanMusicFolder(musicPath)
+          .catchError((Object error) {
+        print('Warning: Library scan failed; Ariami will retry: $error');
+      });
 
       return true;
     } catch (_) {
@@ -100,6 +108,12 @@ class ServerSetupCallbacks {
     } else if (isScanning) {
       progress = 0.5;
       currentStatus = 'Scanning music library...';
+    }
+
+    final availability = _httpServer.libraryManager.musicAvailability;
+    if (availability.needsAttention) {
+      progress = 0;
+      currentStatus = availability.message;
     }
 
     return {

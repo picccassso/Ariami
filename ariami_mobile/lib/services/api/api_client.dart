@@ -1,3 +1,4 @@
+import 'package:ariami_core/models/music_availability.dart';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:ariami_core/services/recommendations/music_discovery_api_key_config.dart';
@@ -9,6 +10,9 @@ import '../../models/quality_settings.dart';
 
 /// HTTP API client for Ariami server communication
 class ApiClient {
+  MusicAvailability musicAvailability = MusicAvailability.unknown;
+  void Function(MusicAvailability)? onMusicAvailabilityChanged;
+
   final ServerInfo serverInfo;
   final Duration timeout;
   final String? deviceId;
@@ -33,7 +37,10 @@ class ApiClient {
   }) : _client = client ?? http.Client();
 
   /// Release pooled sockets when this endpoint is replaced or disconnected.
-  void close() => _client.close();
+  void close() {
+    onMusicAvailabilityChanged = null;
+    _client.close();
+  }
 
   /// Base URL for API requests
   String get baseUrl => '${serverInfo.baseUrl}/api';
@@ -48,6 +55,9 @@ class ApiClient {
         ? '/ping'
         : '/ping?deviceId=${Uri.encodeComponent(deviceId)}';
     final response = await _get(endpoint);
+    musicAvailability =
+        MusicAvailability.fromJson(response['musicAvailability']);
+    onMusicAvailabilityChanged?.call(musicAvailability);
     return response;
   }
 
@@ -1000,6 +1010,11 @@ class ApiClient {
       // Error response
       try {
         final errorJson = jsonDecode(body) as Map<String, dynamic>;
+        if (errorJson.containsKey('musicAvailability')) {
+          musicAvailability =
+              MusicAvailability.fromJson(errorJson['musicAvailability']);
+          onMusicAvailabilityChanged?.call(musicAvailability);
+        }
         final errorResponse = ErrorResponse.fromJson(errorJson);
 
         // Check for session expiry errors and notify callback

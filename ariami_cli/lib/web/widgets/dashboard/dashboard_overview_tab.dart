@@ -1,3 +1,4 @@
+import 'package:ariami_core/models/music_availability.dart';
 import 'package:flutter/material.dart';
 
 import 'package:ariami_core/models/listening_stats_models.dart';
@@ -15,6 +16,7 @@ class DashboardOverviewTab extends StatelessWidget {
   const DashboardOverviewTab({
     super.key,
     required this.serverRunning,
+    this.musicAvailability = MusicAvailability.unknown,
     required this.isScanning,
     required this.pulseController,
     required this.authRequired,
@@ -39,6 +41,7 @@ class DashboardOverviewTab extends StatelessWidget {
   });
 
   final bool serverRunning;
+  final MusicAvailability musicAvailability;
   final bool isScanning;
   final AnimationController pulseController;
   final bool authRequired;
@@ -71,6 +74,7 @@ class DashboardOverviewTab extends StatelessWidget {
         children: [
           ServerStatusCard(
             serverRunning: serverRunning,
+            musicAvailability: musicAvailability,
             isScanning: isScanning,
             pulseController: pulseController,
             lanServer: lanServer,

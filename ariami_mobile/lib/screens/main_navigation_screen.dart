@@ -1,3 +1,4 @@
+import '../widgets/music_availability_banner.dart';
 import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
@@ -217,7 +218,12 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
     final content = Stack(
       children: [
         // Main content area - can scroll behind nav bar
-        _buildCurrentScreen(),
+        Column(
+          children: [
+            const MusicAvailabilityBanner(),
+            Expanded(child: _buildCurrentScreen()),
+          ],
+        ),
         // Mini player and download bar - positioned above nav bar.
         // Hidden while the keyboard is open so it doesn't hover above it.
         if (!keyboardOpen && !useRail)

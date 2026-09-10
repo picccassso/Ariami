@@ -49,6 +49,23 @@ extension _LibraryManagerScanningPart on LibraryManager {
     }
 
     try {
+      final folderPath = _configuredFolderPath;
+      if (folderPath != null) {
+        try {
+          await _checkStorage(folderPath,
+              samplePaths: changes
+                  .where((change) => change.type != FileChangeType.removed)
+                  .map((change) => change.path)
+                  .followedBy(_songPathById.values));
+        } catch (_) {
+          _musicAvailability = MusicAvailability.unavailable;
+          _stopWatchingFolder();
+          return;
+        }
+      }
+      if (_isScanning ||
+          !identical(_library, currentLibrary) ||
+          _musicAvailability.needsAttention) return;
       final update =
           await _changeProcessor.processChanges(changes, currentLibrary);
       if (update.isEmpty) {
@@ -60,6 +77,11 @@ extension _LibraryManagerScanningPart on LibraryManager {
         currentLibrary,
         sourceChanges: changes,
       );
+      if (updatedLibrary.totalSongs == 0 && currentLibrary.totalSongs > 0) {
+        _musicAvailability = MusicAvailability.unavailable;
+        _stopWatchingFolder();
+        return;
+      }
       _library = updatedLibrary;
       _rebuildSongIndexes();
       _lastScanTime = DateTime.now();
@@ -101,7 +123,12 @@ extension _LibraryManagerScanningPart on LibraryManager {
       return;
     }
 
+    _monitorMusicFolder(folderPath);
+    final generation = ++_scanGeneration;
     _isScanning = true;
+    if (!_musicAvailability.needsAttention) {
+      _musicAvailability = MusicAvailability.checking;
+    }
     print(
         '[LibraryManager] Starting library scan (background isolate): $folderPath');
 
@@ -113,6 +140,17 @@ extension _LibraryManagerScanningPart on LibraryManager {
         cacheData = _metadataCache!.exportForIsolate();
         print('[LibraryManager] Loaded ${cacheData.length} cached entries');
       }
+
+      try {
+        await _checkStorage(folderPath);
+      } catch (_) {
+        if (generation == _scanGeneration) {
+          _musicAvailability = MusicAvailability.unavailable;
+          _stopWatchingFolder();
+        }
+        return;
+      }
+      if (generation != _scanGeneration) return;
 
       // Playlist-suggestion decisions cross into the isolate as plain data:
       // approved folders scan exactly like [PLAYLIST] folders, ignored
@@ -143,10 +181,38 @@ extension _LibraryManagerScanningPart on LibraryManager {
         ignoredSuggestionFolderPaths: ignoredSuggestionFolders,
       );
 
+      if (generation != _scanGeneration) return;
       if (result.library != null) {
-        _library = result.library;
         _latestScanDiagnostics = result.scanDiagnostics;
         _latestScannedFileCount = result.scannedFileCount;
+        final hadMusic = _songPathById.values
+                .any((file) => path.isWithin(folderPath, file)) ||
+            (cacheData?.keys.any((file) => path.isWithin(folderPath, file)) ??
+                false);
+        final unreadableDirectory = result.scanDiagnostics.failedFiles.any(
+            (failure) => failure.reason.startsWith('directory unreadable:'));
+        // An empty mount or incomplete traversal must never publish deletions
+        // or overwrite the last usable metadata cache/catalogue.
+        if (unreadableDirectory ||
+            (result.library!.totalSongs == 0 && hadMusic)) {
+          _musicAvailability = MusicAvailability.unavailable;
+          _stopWatchingFolder();
+          return;
+        }
+        try {
+          await _checkStorage(folderPath,
+              samplePaths: result.library!.albums.values
+                  .expand((album) => album.songs)
+                  .followedBy(result.library!.standaloneSongs)
+                  .map((song) => song.filePath));
+        } catch (_) {
+          if (generation != _scanGeneration) return;
+          _musicAvailability = MusicAvailability.unavailable;
+          _stopWatchingFolder();
+          return;
+        }
+        if (generation != _scanGeneration) return;
+        _library = result.library;
         _lastScannedFolderPath = folderPath;
         _rebuildSongIndexes();
         _lastScanTime = DateTime.now();
@@ -175,18 +241,27 @@ extension _LibraryManagerScanningPart on LibraryManager {
         // Persist deterministic catalog rows + change log for v2 sync.
         await _writeCatalogSnapshot();
 
-        // Watch for incremental filesystem changes after scan.
+        _musicAvailability = _library!.totalSongs == 0
+            ? MusicAvailability.empty
+            : MusicAvailability.ready;
+        // Reattach even when a returning mount uses the same path.
+        _stopWatchingFolder();
         _startWatchingFolder(folderPath);
 
         // Notify listeners that scan is complete
         _notifyScanComplete();
       } else {
-        print(
-            '[LibraryManager] Scan returned null - possible error in isolate');
+        _musicAvailability = MusicAvailability.scanFailed;
+        _stopWatchingFolder();
+        print('[LibraryManager] Scan failed; retaining saved library');
       }
     } catch (e, stackTrace) {
       print('[LibraryManager] ERROR during scan: $e');
       print('[LibraryManager] Stack trace: $stackTrace');
+      if (generation == _scanGeneration) {
+        _musicAvailability = MusicAvailability.scanFailed;
+        _stopWatchingFolder();
+      }
       rethrow;
     } finally {
       _isScanning = false;
@@ -194,6 +269,9 @@ extension _LibraryManagerScanningPart on LibraryManager {
   }
 
   void _clearImpl() {
+    stopMusicAvailabilityMonitoring();
+    _configuredFolderPath = null;
+    _musicAvailability = MusicAvailability.unknown;
     _stopWatchingFolder();
     _library = null;
     _rebuildSongIndexes();

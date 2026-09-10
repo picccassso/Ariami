@@ -195,10 +195,7 @@ class ServerRunner {
       );
 
       if (!isSetupMode) {
-        final canStartScan = await _warnIfMissingMusicFolder();
-        if (canStartScan) {
-          await _setupCallbacks.startInitialScanIfConfigured();
-        }
+        await _setupCallbacks.startInitialScanIfConfigured();
       }
 
       await _printRunningBanner(
@@ -355,23 +352,6 @@ class ServerRunner {
     }
 
     return endpoints.advertisedIp;
-  }
-
-  Future<bool> _warnIfMissingMusicFolder() async {
-    final musicPath = await _stateService.getMusicFolderPath();
-    if (musicPath == null || musicPath.isEmpty) {
-      return true;
-    }
-
-    if (!await Directory(musicPath).exists()) {
-      print(
-        'Warning: configured music folder $musicPath does not exist. '
-        'Fix the path in the dashboard or reattach the drive.',
-      );
-      return false;
-    }
-
-    return true;
   }
 
   Future<void> _printRunningBanner({

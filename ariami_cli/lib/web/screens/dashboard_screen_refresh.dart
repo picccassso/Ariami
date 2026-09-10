@@ -63,6 +63,8 @@ extension _DashboardRefresh on _DashboardScreenState {
             _isScanning = data['isScanning'] as bool? ?? false;
             _lastScanTime = data['lastScanTime'] as String?;
             _serverRunning = data['serverRunning'] as bool? ?? true;
+            _musicAvailability =
+                MusicAvailability.fromJson(data['musicAvailability']);
             _dashboardLanServer = lan;
             _dashboardLanServerAlias = lanAlias;
             _dashboardTailscaleServer = ts;

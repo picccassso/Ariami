@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+import 'package:ariami_core/models/music_availability.dart';
 import 'dart:async';
 import 'dart:io';
 import '../../models/api_models.dart';
@@ -56,6 +58,7 @@ class ConnectionService {
   late final DeviceInfoManager _deviceInfoManager;
   late final ConnectionPersistenceManager _persistenceManager;
   late final EndpointSwitchHandler _endpointSwitchHandler;
+  final musicAvailability = ValueNotifier(MusicAvailability.unknown);
   Future<bool>? _restoreConnectionInFlight;
   Future<bool>? _connectionProbeInFlight;
 
@@ -614,6 +617,7 @@ class ConnectionService {
       serverInfo,
     );
 
+    _onApiClientCreated(apiClient);
     _lifecycleManager.adoptEstablishedConnection(
       apiClient: apiClient,
       sessionId: response.sessionId,
@@ -738,7 +742,10 @@ class ConnectionService {
   // ============================================================================
 
   void _onApiClientCreated(ApiClient apiClient) {
-    // Store reference if needed for legacy code
+    musicAvailability.value = apiClient.musicAvailability;
+    apiClient.onMusicAvailabilityChanged = (value) {
+      musicAvailability.value = value;
+    };
   }
 
   void _applyDownloadLimits(ServerInfo serverInfo) {
@@ -851,6 +858,7 @@ class ConnectionService {
         newServerInfo,
       );
 
+      _onApiClientCreated(apiClient);
       _lifecycleManager.adoptEstablishedConnection(
         apiClient: apiClient,
         sessionId: response.sessionId,

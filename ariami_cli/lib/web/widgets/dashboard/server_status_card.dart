@@ -1,3 +1,4 @@
+import 'package:ariami_core/models/music_availability.dart';
 import 'package:flutter/material.dart';
 
 import '../../utils/constants.dart';
@@ -9,6 +10,7 @@ class ServerStatusCard extends StatelessWidget {
   const ServerStatusCard({
     super.key,
     required this.serverRunning,
+    this.musicAvailability = MusicAvailability.unknown,
     required this.isScanning,
     required this.pulseController,
     this.lanServer,
@@ -18,6 +20,7 @@ class ServerStatusCard extends StatelessWidget {
   });
 
   final bool serverRunning;
+  final MusicAvailability musicAvailability;
   final bool isScanning;
   final AnimationController pulseController;
   final String? lanServer;
@@ -45,15 +48,17 @@ class ServerStatusCard extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
-          serverRunning ? 'Your music is being served' : 'Server stopped',
+          serverRunning ? musicAvailability.title : 'Server stopped',
           style: Theme.of(context).textTheme.headlineMedium,
         ),
         const SizedBox(height: 6),
         Text(
           serverRunning
-              ? reachableAt.isEmpty
-                  ? 'Sign in from the Ariami app on your phone, TV or desktop.'
-                  : 'Reachable at ${reachableAt.join('  ·  ')}'
+              ? musicAvailability.needsAttention
+                  ? musicAvailability.message
+                  : reachableAt.isEmpty
+                      ? 'Sign in from the Ariami app on your phone, TV or desktop.'
+                      : 'Reachable at ${reachableAt.join('  ·  ')}'
               : 'Start Ariami on this machine to stream again.',
           style: AppTheme.meta.copyWith(fontSize: 13.5),
         ),
@@ -69,6 +74,9 @@ class ServerStatusCard extends StatelessWidget {
           tone: serverRunning ? StatusTone.positive : StatusTone.negative,
           pulse: serverRunning ? pulseController : null,
         ),
+        if (serverRunning && musicAvailability.needsAttention)
+          const StatusPill(
+              label: 'Music needs attention', tone: StatusTone.caution),
         if (isScanning)
           const StatusPill(
             label: 'Scanning library',

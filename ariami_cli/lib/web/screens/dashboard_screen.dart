@@ -1,3 +1,4 @@
+import 'package:ariami_core/models/music_availability.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:ariami_core/models/auth_models.dart';
@@ -65,6 +66,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   StreamSubscription<WsMessage>? _wsSubscription;
 
   bool _serverRunning = true;
+  MusicAvailability _musicAvailability = MusicAvailability.unknown;
   int _songCount = 0;
   int _albumCount = 0;
   int _connectedClients = 0;
@@ -212,6 +214,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           children: [
             DashboardOverviewTab(
               serverRunning: _serverRunning,
+              musicAvailability: _musicAvailability,
               isScanning: _isScanning,
               pulseController: _pulseController,
               authRequired: _authRequired,
