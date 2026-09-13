@@ -6,6 +6,64 @@ Thank you for those that actually support and use this project at all! :D
 
 ---
 
+## 5.2.1
+
+Ariami 5.2.1 makes playback and server management more dependable. Premium
+Desktop can now cast directly to Chromecast, Mobile can control that cast
+through Ariami Connect, and the CLI dashboard has been rebuilt around a clearer
+browser-native layout with practical host controls. This release also protects
+the library catalogue when music storage temporarily disappears and adds a
+round of queue, navigation, search and player polish across the clients.
+
+### Highlights
+
+- Added Chromecast playback to Premium Desktop, including queue handoff,
+  recovery, and remote control from Mobile through Ariami Connect.
+- Rebuilt the CLI web setup and dashboard with responsive browser-native
+  screens, clearer server status, endpoint aliases, IP masking, and owner-only
+  start, stop, restart, autostart and reset controls.
+- Preserved the existing catalogue when a NAS or music folder is unavailable,
+  with honest availability reporting and automatic recovery when storage
+  returns.
+- Added Play next and Add to queue actions to Recently Played without
+  interrupting the current playback session.
+- Improved Mobile search, nested back navigation, multi-artist selection, and
+  setup readability in light mode.
+- Polished Premium Desktop with reshuffling, richer context menus, clickable
+  artist and track links, marquee text, and a more natural volume curve.
+
+### Full changes
+
+- Added Chromecast discovery and playback to Premium Desktop
+- Let Mobile control an active Premium Desktop Chromecast session through Ariami Connect
+- Preserved cast queues across Connect handoffs and recovered from stalled or disconnected receivers
+- Fixed Chromecast status parsing and unwanted track auto-advancing
+- Rebuilt the CLI setup flow and dashboard around responsive web-native layouts
+- Added dashboard controls for server lifecycle, autostart, music-folder changes and reset
+- Added server endpoint aliases and optional IP-address masking to the CLI dashboard and Mobile
+- Served the CLI web app shell for client-side routes so refreshed dashboard pages keep working
+- Preserved cached library data while music storage is missing or unreadable
+- Reported storage availability separately from basic server reachability and retried scans after recovery
+- Added Play next and Add to queue actions to Recently Played on Mobile and Premium Desktop
+- Preserved the active playback queue when revisiting listening history
+- Added Standard and Spotify keyboard-layout search modes on Mobile
+- Fixed Mobile back swipes on nested artist and album pages
+- Added an artist picker when a Mobile track has multiple credited artists
+- Improved iOS setup and offline-status contrast in light mode
+- Added direct album navigation from Mobile's full player
+- Added Chromecast disconnect cleanup and more reliable Cast playback watchdog behaviour on Mobile
+- Added Premium Desktop reshuffle controls and queue-aware collection playback actions
+- Added context menus to Now Playing artwork, track titles and search results
+- Made artist names and track titles clickable across more Premium Desktop playback surfaces
+- Added marquee handling for long player text without collapsing its layout
+- Applied a perceptual volume curve and removed the redundant active-cast volume control
+- Improved Discord pause, resume and stop state handling
+- Reduced unnecessary playlist artwork work during startup
+- Made rapid search-result removals reliable
+- Added pointer cursors to interactive Premium Desktop controls
+
+---
+
 ## 5.2.0
 
 Ariami 5.2.0 makes the library feel more complete across every screen. Artists

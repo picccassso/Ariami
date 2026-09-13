@@ -274,8 +274,8 @@ playlists or the whole library for offline listening, with a manual offline mode
 fallback when the connection drops. Quality presets follow connection type, with separate
 settings for streaming and downloads, and a streaming cache for anything not yet downloaded.
 Server-side transcoding is handled by Sonic (MP3 → AAC), with server-managed download jobs and
-per-user concurrency limits so one device cannot starve the others. Mobile also casts to
-Chromecast.
+per-user concurrency limits so one device cannot starve the others. Mobile and the Premium
+Desktop Player cast to Chromecast, and Mobile can control a Desktop cast through Ariami Connect.
 
 Details: [mobile features](ariami_mobile/docs/FEATURES.md) ·
 [desktop features](ariami_desktop/docs/FEATURES.md)
@@ -318,13 +318,15 @@ Details: [listening stats](ariami_core/docs/LISTENING_STATS.md)
 <details>
 <summary><strong>Server administration</strong></summary>
 
-The Desktop dashboard and the CLI web dashboard both show server status, library stats,
-connected clients and registered users, plus admin views for download queues and transcoding
-activity. Owner actions cover adding and deleting users, changing passwords, kicking devices,
-generating pairing QR codes and invite codes, rescanning the library, and Spotify import.
-Start-at-login/autostart is available on both. **Ariami never deletes your music folder** — a
-setup reset clears pairing and setup state, and a factory reset clears Ariami-owned data
-(accounts, sessions, stats, playlists, database, cache); both require typing `RESET`.
+The Desktop dashboard and the responsive CLI web dashboard both show server status, library
+stats, connected clients and registered users, plus admin views for download queues and
+transcoding activity. Owner actions cover adding and deleting users, changing passwords,
+kicking devices, generating pairing QR codes and invite codes, rescanning the library, Spotify
+import, and starting, stopping or restarting the CLI host. Endpoint aliases and optional IP
+masking help keep connection details readable and private. Start-at-login/autostart is available
+on both. **Ariami never deletes your music folder** — a setup reset clears pairing and setup
+state, and a factory reset clears Ariami-owned data (accounts, sessions, stats, playlists,
+database, cache); both require typing `RESET`.
 
 Details: [RESET.md](RESET.md) · [CLI configuration](ariami_cli/docs/CONFIGURATION.md)
 
