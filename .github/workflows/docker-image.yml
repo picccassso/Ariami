@@ -2,6 +2,11 @@ name: Docker Image
 
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: Optional release version to publish alongside edge/sha tags
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -111,6 +116,7 @@ jobs:
       - name: Create multi-platform image
         env:
           IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          RELEASE_VERSION: ${{ inputs.version }}
           TAGS: ${{ steps.meta.outputs.tags }}
         run: |
           tag_args=()
@@ -119,6 +125,19 @@ jobs:
               tag_args+=(--tag "${tag}")
             fi
           done <<< "${TAGS}"
+
+          if [ -n "${RELEASE_VERSION}" ]; then
+            if [[ ! "${RELEASE_VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "::error::Release version must be a semantic version such as 5.2.1"
+              exit 1
+            fi
+            release_minor="${RELEASE_VERSION%.*}"
+            tag_args+=(
+              --tag "${IMAGE}:${RELEASE_VERSION}"
+              --tag "${IMAGE}:${release_minor}"
+              --tag "${IMAGE}:latest"
+            )
+          fi
 
           source_args=()
           for digest_path in "${RUNNER_TEMP}/digests/"*; do
