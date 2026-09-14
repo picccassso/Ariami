@@ -6,6 +6,7 @@ import 'settings_screen.dart';
 import '../settings/connection_settings_screen.dart';
 import '../settings/downloads/downloads_screen.dart';
 import '../settings/equalizer_screen.dart';
+import '../settings/general_settings_screen.dart';
 import '../settings/import_export_screen.dart';
 import '../settings/music_discovery_screen.dart';
 import '../settings/playback_settings_screen.dart';
@@ -61,6 +62,9 @@ class SettingsNavigator extends StatelessWidget {
             break;
           case '/playback':
             page = const PlaybackSettingsScreen();
+            break;
+          case '/general':
+            page = const GeneralSettingsScreen();
             break;
           case '/quality':
             page = const QualitySettingsScreen();
