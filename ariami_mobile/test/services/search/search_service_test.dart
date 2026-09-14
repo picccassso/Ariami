@@ -1,6 +1,9 @@
 import 'package:ariami_mobile/models/api_models.dart';
 import 'package:ariami_mobile/services/search_service.dart';
+import 'package:ariami_mobile/services/settings/search_settings_service.dart';
+import 'package:ariami_mobile/utils/shared_preferences_cache.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   group('SearchService deduplication', () {
@@ -274,6 +277,144 @@ void main() {
 
       expect(results.albums, hasLength(1));
       expect(results.albums.single.id, 'album-1');
+    });
+  });
+
+  group('SearchService recent songs dynamic limit & trimming', () {
+    late SearchSettingsService settingsService;
+    late SearchService service;
+
+    SongModel testSong(String id, String title) {
+      return SongModel(
+        id: id,
+        title: title,
+        artist: 'Artist',
+        duration: 180,
+      );
+    }
+
+    setUp(() async {
+      SharedPreferences.setMockInitialValues({});
+      await initializeSharedPrefs();
+      settingsService = SearchSettingsService();
+      settingsService.resetForTesting();
+      service = SearchService(settingsService: settingsService);
+    });
+
+    test('defaults maxRecentSongs to 30', () {
+      expect(service.maxRecentSongs, 30);
+    });
+
+    test('addRecentSong respects standard 30 limit', () async {
+      for (var i = 0; i < 35; i++) {
+        await service.addRecentSong(testSong('s$i', 'Song $i'));
+      }
+
+      final recent = await service.getRecentSongs();
+      expect(recent.length, 30);
+      // Newest song should be at index 0
+      expect(recent.first.id, 's34');
+      // Oldest retained should be s5
+      expect(recent.last.id, 's5');
+    });
+
+    test('addRecentSong respects custom limit (e.g. 10)', () async {
+      await settingsService.setRecentSearchesLimit(isCustom: true, customLimit: 10);
+      expect(service.maxRecentSongs, 10);
+
+      for (var i = 0; i < 15; i++) {
+        await service.addRecentSong(testSong('s$i', 'Song $i'));
+      }
+
+      final recent = await service.getRecentSongs();
+      expect(recent.length, 10);
+      expect(recent.first.id, 's14');
+      expect(recent.last.id, 's5');
+    });
+
+    test('insertRecentSongAt respects custom limit', () async {
+      await settingsService.setRecentSearchesLimit(isCustom: true, customLimit: 5);
+
+      for (var i = 0; i < 5; i++) {
+        await service.addRecentSong(testSong('s$i', 'Song $i'));
+      }
+
+      // Insert at index 1
+      await service.insertRecentSongAt(testSong('inserted', 'Inserted'), 1);
+
+      final recent = await service.getRecentSongs();
+      expect(recent.length, 5);
+      expect(recent[0].id, 's4');
+      expect(recent[1].id, 'inserted');
+      // The last one pushed out
+      expect(recent.any((s) => s.id == 's0'), isFalse);
+    });
+
+    test('getRecentSongs trims stored songs if limit is reduced', () async {
+      // Add 20 songs under default limit
+      for (var i = 0; i < 20; i++) {
+        await service.addRecentSong(testSong('s$i', 'Song $i'));
+      }
+      expect((await service.getRecentSongs()).length, 20);
+
+      // Change limit to 8
+      await settingsService.setRecentSearchesLimit(isCustom: true, customLimit: 8);
+
+      final recent = await service.getRecentSongs();
+      expect(recent.length, 8);
+      expect(recent.first.id, 's19');
+      expect(recent.last.id, 's12');
+    });
+
+    test('trimRecentSongs trims to specified or dynamic limit', () async {
+      for (var i = 0; i < 15; i++) {
+        await service.addRecentSong(testSong('s$i', 'Song $i'));
+      }
+
+      // Explicit limit of 6
+      final trimmed = await service.trimRecentSongs(6);
+      expect(trimmed.length, 6);
+      expect((await service.getRecentSongs()).length, 6);
+
+      // When limit is already >= stored count, trimRecentSongs is a no-op
+      final untrimmed = await service.trimRecentSongs(10);
+      expect(untrimmed.length, 6);
+    });
+
+    test('getRecentSongs skips corrupt JSON entries without throwing', () async {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList(SearchService.recentSongsKey, [
+        '{"id":"valid1","title":"Valid 1","artist":"A","duration":100}',
+        'not valid json',
+        '{"invalid_shape":true}',
+        '{"id":"valid2","title":"Valid 2","artist":"A","duration":100}',
+      ]);
+
+      final songs = await service.getRecentSongs();
+      expect(songs.length, 2);
+      expect(songs[0].id, 'valid1');
+      expect(songs[1].id, 'valid2');
+    });
+
+    test('trimRecentSongs handles negative or zero limit safely', () async {
+      for (var i = 0; i < 5; i++) {
+        await service.addRecentSong(testSong('s$i', 'Song $i'));
+      }
+
+      // Negative limit clamps to 0
+      final trimmed = await service.trimRecentSongs(-3);
+      expect(trimmed, isEmpty);
+      expect(await service.getRecentSongs(), isEmpty);
+    });
+
+    test('addRecentSong safely recovers when stored entries are corrupt', () async {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList(SearchService.recentSongsKey, ['corrupted']);
+
+      await service.addRecentSong(testSong('new', 'New'));
+      final songs = await service.getRecentSongs();
+      expect(songs.length, 1);
+      expect(songs.first.id, 'new');
     });
   });
 }

@@ -3,14 +3,28 @@ import 'dart:convert';
 import 'package:ariami_core/services/search/search.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/api_models.dart';
+import 'settings/search_settings_service.dart';
 
 /// Search service backed by the shared engine in ariami_core (tokenized,
 /// tiered ranking with transliteration and keyboard-layout correction, so
 /// the same query behaves identically on desktop and TV). This class keeps
 /// the mobile-specific parts: result deduplication and recent songs.
 class SearchService {
-  static const String _recentSongsKey = 'recent_songs';
-  static const int _maxRecentSongs = 30;
+  static const String recentSongsKey = SearchSettingsService.recentSongsKey;
+  static const String _recentSongsKey = recentSongsKey;
+  static const int defaultMaxRecentSongs =
+      SearchSettingsService.standardRecentSearchesLimit;
+
+  final SearchSettingsService _settingsService;
+
+  SearchService({SearchSettingsService? settingsService})
+      : _settingsService = settingsService ?? SearchSettingsService();
+
+  /// Current maximum recent searches limit (configured by user in settings).
+  int get maxRecentSongs {
+    _settingsService.initialize();
+    return _settingsService.recentSearchesLimit;
+  }
 
   /// Search songs, albums and playlists with the shared ranking engine.
   SearchResults search(
@@ -228,27 +242,43 @@ class SearchService {
   // RECENT SONGS
   // ============================================================================
 
-  /// Get recent songs (last 30)
+  /// Get recent songs (capped by current [maxRecentSongs] limit)
   Future<List<SongModel>> getRecentSongs() async {
     final prefs = await SharedPreferences.getInstance();
     final jsonList = prefs.getStringList(_recentSongsKey) ?? [];
+    final limit = maxRecentSongs;
 
-    return jsonList.map((jsonStr) {
-      final json = jsonDecode(jsonStr) as Map<String, dynamic>;
-      return SongModel.fromJson(json);
-    }).toList();
+    final List<String> listToParse;
+    if (jsonList.length > limit) {
+      listToParse = jsonList.sublist(0, limit);
+      await prefs.setStringList(_recentSongsKey, listToParse);
+    } else {
+      listToParse = jsonList;
+    }
+
+    final songs = <SongModel>[];
+    for (final jsonStr in listToParse) {
+      try {
+        final json = jsonDecode(jsonStr) as Map<String, dynamic>;
+        songs.add(SongModel.fromJson(json));
+      } catch (_) {}
+    }
+    return songs;
   }
 
-  /// Add song to recent songs (max 30)
+  /// Add song to recent songs (capped by [maxRecentSongs])
   Future<void> addRecentSong(SongModel song) async {
     final prefs = await SharedPreferences.getInstance();
     final jsonList = prefs.getStringList(_recentSongsKey) ?? [];
 
-    // Convert to SongModel list
-    final recentSongs = jsonList.map((jsonStr) {
-      final json = jsonDecode(jsonStr) as Map<String, dynamic>;
-      return SongModel.fromJson(json);
-    }).toList();
+    // Convert to SongModel list safely
+    final recentSongs = <SongModel>[];
+    for (final jsonStr in jsonList) {
+      try {
+        final json = jsonDecode(jsonStr) as Map<String, dynamic>;
+        recentSongs.add(SongModel.fromJson(json));
+      } catch (_) {}
+    }
 
     // Remove if already exists (to move it to front)
     recentSongs.removeWhere((s) => s.id == song.id);
@@ -256,9 +286,10 @@ class SearchService {
     // Add to front
     recentSongs.insert(0, song);
 
-    // Keep only last 30
-    if (recentSongs.length > _maxRecentSongs) {
-      recentSongs.removeRange(_maxRecentSongs, recentSongs.length);
+    // Keep only up to maxRecentSongs
+    final limit = maxRecentSongs;
+    if (recentSongs.length > limit) {
+      recentSongs.removeRange(limit, recentSongs.length);
     }
 
     // Convert back to JSON strings
@@ -278,10 +309,13 @@ class SearchService {
     final prefs = await SharedPreferences.getInstance();
     final jsonList = prefs.getStringList(_recentSongsKey) ?? [];
 
-    final recentSongs = jsonList.map((jsonStr) {
-      final json = jsonDecode(jsonStr) as Map<String, dynamic>;
-      return SongModel.fromJson(json);
-    }).toList();
+    final recentSongs = <SongModel>[];
+    for (final jsonStr in jsonList) {
+      try {
+        final json = jsonDecode(jsonStr) as Map<String, dynamic>;
+        recentSongs.add(SongModel.fromJson(json));
+      } catch (_) {}
+    }
 
     recentSongs.removeWhere((s) => s.id == songId);
 
@@ -290,15 +324,18 @@ class SearchService {
     await prefs.setStringList(_recentSongsKey, updatedJsonList);
   }
 
-  /// Insert a song at a specific index in recent songs
+  /// Insert a song at a specific index in recent songs (capped by [maxRecentSongs])
   Future<void> insertRecentSongAt(SongModel song, int index) async {
     final prefs = await SharedPreferences.getInstance();
     final jsonList = prefs.getStringList(_recentSongsKey) ?? [];
 
-    final recentSongs = jsonList.map((jsonStr) {
-      final json = jsonDecode(jsonStr) as Map<String, dynamic>;
-      return SongModel.fromJson(json);
-    }).toList();
+    final recentSongs = <SongModel>[];
+    for (final jsonStr in jsonList) {
+      try {
+        final json = jsonDecode(jsonStr) as Map<String, dynamic>;
+        recentSongs.add(SongModel.fromJson(json));
+      } catch (_) {}
+    }
 
     // Remove if already exists
     recentSongs.removeWhere((s) => s.id == song.id);
@@ -307,15 +344,43 @@ class SearchService {
     final insertIndex = index.clamp(0, recentSongs.length).toInt();
     recentSongs.insert(insertIndex, song);
 
-    // Keep only last 30
-    if (recentSongs.length > _maxRecentSongs) {
-      recentSongs.removeRange(_maxRecentSongs, recentSongs.length);
+    // Keep only up to maxRecentSongs
+    final limit = maxRecentSongs;
+    if (recentSongs.length > limit) {
+      recentSongs.removeRange(limit, recentSongs.length);
     }
 
     // Convert back to JSON strings
     final updatedJsonList =
         recentSongs.map((s) => jsonEncode(s.toJson())).toList();
     await prefs.setStringList(_recentSongsKey, updatedJsonList);
+  }
+
+  /// Trims stored recent songs to [limit] (or current [maxRecentSongs]).
+  /// If the number of stored recent songs exceeds the limit, trims them in
+  /// SharedPreferences and returns the trimmed list.
+  Future<List<SongModel>> trimRecentSongs([int? limit]) async {
+    final prefs = await SharedPreferences.getInstance();
+    final jsonList = prefs.getStringList(_recentSongsKey) ?? [];
+    final maxLimit = (limit ?? maxRecentSongs).clamp(0, jsonList.length);
+
+    final List<String> listToParse;
+    if (jsonList.length > maxLimit) {
+      listToParse = jsonList.sublist(0, maxLimit);
+      await prefs.setStringList(_recentSongsKey, listToParse);
+    } else {
+      listToParse = jsonList;
+    }
+
+    final songs = <SongModel>[];
+    for (final jsonStr in listToParse) {
+      try {
+        final json = jsonDecode(jsonStr) as Map<String, dynamic>;
+        songs.add(SongModel.fromJson(json));
+      } catch (_) {}
+    }
+
+    return songs;
   }
 }
 

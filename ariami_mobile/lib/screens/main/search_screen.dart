@@ -91,6 +91,7 @@ class _SearchScreenState extends State<SearchScreen> {
     _downloadStateWatcher.start();
     _isOffline = _offlineService.isOfflineModeEnabled;
     _searchSettingsService.initialize();
+    _searchSettingsService.addListener(_onSearchSettingsChanged);
     _loadLibrary();
     _loadRecentSongs();
     _loadDownloadedSongIds();
@@ -137,6 +138,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
   @override
   void dispose() {
+    _searchSettingsService.removeListener(_onSearchSettingsChanged);
     _downloadStateWatcher.dispose();
     _playlistService.removeListener(_onPlaylistsChanged);
     _searchController.removeListener(_onSearchChanged);
@@ -148,6 +150,11 @@ class _SearchScreenState extends State<SearchScreen> {
     _offlineSubscription?.cancel();
     _webSocketSubscription?.cancel();
     super.dispose();
+  }
+
+  void _onSearchSettingsChanged() {
+    if (!mounted) return;
+    unawaited(_loadRecentSongs());
   }
 
   void _onFocusChanged() {
@@ -296,6 +303,7 @@ class _SearchScreenState extends State<SearchScreen> {
   /// Load recent songs from storage
   Future<void> _loadRecentSongs() async {
     final recent = await _searchService.getRecentSongs();
+    if (!mounted) return;
     setState(() {
       _recentSongs = recent;
     });

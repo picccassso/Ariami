@@ -112,4 +112,129 @@ void main() {
     expect(SearchMode.standard.description.isNotEmpty, isTrue);
     expect(SearchMode.spotify.description.isNotEmpty, isTrue);
   });
+
+  group('Recent searches limit settings', () {
+    test('defaults to Standard (30)', () {
+      service.initialize();
+
+      expect(service.isCustomRecentLimit, isFalse);
+      expect(service.customRecentLimit, 30);
+      expect(service.recentSearchesLimit, 30);
+      expect(service.recentSearchesLimitLabel, 'Standard (30)');
+    });
+
+    test('loads custom limit from SharedPreferences on initialize', () async {
+      SharedPreferences.setMockInitialValues({
+        SearchSettingsService.recentSearchesIsCustomKey: true,
+        SearchSettingsService.recentSearchesLimitKey: 75,
+      });
+      await initializeSharedPrefs();
+      service.resetForTesting();
+
+      service.initialize();
+      expect(service.isCustomRecentLimit, isTrue);
+      expect(service.customRecentLimit, 75);
+      expect(service.recentSearchesLimit, 75);
+      expect(service.recentSearchesLimitLabel, 'Custom (75)');
+    });
+
+    test('clamps saved custom limit to valid range [5, 500]', () async {
+      SharedPreferences.setMockInitialValues({
+        SearchSettingsService.recentSearchesIsCustomKey: true,
+        SearchSettingsService.recentSearchesLimitKey: 2,
+      });
+      await initializeSharedPrefs();
+      service.resetForTesting();
+      service.initialize();
+      expect(service.recentSearchesLimit, 5);
+
+      SharedPreferences.setMockInitialValues({
+        SearchSettingsService.recentSearchesIsCustomKey: true,
+        SearchSettingsService.recentSearchesLimitKey: 999,
+      });
+      await initializeSharedPrefs();
+      service.resetForTesting();
+      service.initialize();
+      expect(service.recentSearchesLimit, 500);
+    });
+
+    test('setRecentSearchesLimit updates and persists custom limit', () async {
+      service.initialize();
+      await service.setRecentSearchesLimit(isCustom: true, customLimit: 50);
+
+      expect(service.isCustomRecentLimit, isTrue);
+      expect(service.customRecentLimit, 50);
+      expect(service.recentSearchesLimit, 50);
+      expect(service.recentSearchesLimitLabel, 'Custom (50)');
+      expect(
+        sharedPrefs.getBool(SearchSettingsService.recentSearchesIsCustomKey),
+        isTrue,
+      );
+      expect(
+        sharedPrefs.getInt(SearchSettingsService.recentSearchesLimitKey),
+        50,
+      );
+    });
+
+    test('setRecentSearchesLimit trims stored recent songs if limit is reduced', () async {
+      // Store 10 songs in SharedPreferences
+      final fakeSongs = List.generate(10, (i) => '{"id":"s$i","title":"Song $i","artist":"A","duration":100}');
+      SharedPreferences.setMockInitialValues({
+        SearchSettingsService.recentSongsKey: fakeSongs,
+      });
+      await initializeSharedPrefs();
+      service.resetForTesting();
+      service.initialize();
+
+      // Reduce limit to 5
+      await service.setRecentSearchesLimit(isCustom: true, customLimit: 5);
+
+      final trimmed = sharedPrefs.getStringList(SearchSettingsService.recentSongsKey);
+      expect(trimmed, isNotNull);
+      expect(trimmed!.length, 5);
+      expect(trimmed.first, contains('"s0"'));
+      expect(trimmed.last, contains('"s4"'));
+    });
+
+    test('switching back to Standard restores limit 30', () async {
+      service.initialize();
+      await service.setRecentSearchesLimit(isCustom: true, customLimit: 100);
+      expect(service.recentSearchesLimit, 100);
+
+      await service.setRecentSearchesLimit(isCustom: false);
+      expect(service.isCustomRecentLimit, isFalse);
+      expect(service.recentSearchesLimit, 30);
+      expect(service.recentSearchesLimitLabel, 'Standard (30)');
+      // Preserves the configured custom limit in customRecentLimit
+      expect(service.customRecentLimit, 100);
+    });
+
+    test('notifies listeners on limit change', () async {
+      service.initialize();
+      var count = 0;
+      service.addListener(() => count++);
+
+      await service.setRecentSearchesLimit(isCustom: true, customLimit: 40);
+      expect(count, 1);
+
+      // Idempotent call should not notify
+      await service.setRecentSearchesLimit(isCustom: true, customLimit: 40);
+      expect(count, 1);
+
+      await service.setRecentSearchesLimit(isCustom: false);
+      expect(count, 2);
+    });
+
+    test('setRecentSearchesLimit clamps customLimit to [5, 500]', () async {
+      service.initialize();
+
+      await service.setRecentSearchesLimit(isCustom: true, customLimit: 1);
+      expect(service.customRecentLimit, 5);
+      expect(service.recentSearchesLimit, 5);
+
+      await service.setRecentSearchesLimit(isCustom: true, customLimit: 9999);
+      expect(service.customRecentLimit, 500);
+      expect(service.recentSearchesLimit, 500);
+    });
+  });
 }
