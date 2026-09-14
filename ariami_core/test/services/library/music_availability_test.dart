@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:ariami_core/models/feature_flags.dart';
@@ -29,9 +30,9 @@ void main() {
   });
 
   Future<void> addSong([String name = 'track.mp3']) async {
-    await music.create(recursive: true);
-    await File('${music.path}/$name')
-        .writeAsBytes(List.filled(4096, name.codeUnitAt(0)));
+    final file = File('${music.path}/$name');
+    await file.parent.create(recursive: true);
+    await file.writeAsBytes(List.filled(4096, name.codeUnitAt(0)));
   }
 
   test('missing root is not a successful empty scanner result', () async {
@@ -126,6 +127,53 @@ void main() {
     expect(manager.musicAvailability, MusicAvailability.unavailable);
     expect(manager.library!.totalSongs, 1);
     expect(manager.latestToken, token);
+  }, skip: Platform.isWindows);
+
+  test('unreadable unrelated subtree keeps the usable library ready', () async {
+    await addSong();
+    await manager.scanMusicFolder(music.path);
+
+    final unrelated = Directory('${music.path}/system-folder');
+    await unrelated.create();
+    await Process.run('chmod', ['000', unrelated.path]);
+
+    await manager.scanMusicFolder(music.path);
+
+    expect(manager.musicAvailability, MusicAvailability.ready);
+    expect(manager.library!.totalSongs, 1);
+    expect(
+      manager.latestScanDiagnostics.failedFiles
+          .any((failure) => failure.path == unrelated.path),
+      isTrue,
+    );
+  }, skip: Platform.isWindows);
+
+  test('recovery waits for the unreadable music subtree before rescanning',
+      () async {
+    await addSong('available.mp3');
+    await addSong('protected/track.mp3');
+    await manager.scanMusicFolder(music.path);
+    expect(manager.library!.totalSongs, 2);
+
+    final protected = Directory('${music.path}/protected');
+    await Process.run('chmod', ['000', protected.path]);
+    await manager.scanMusicFolder(music.path);
+    expect(manager.musicAvailability, MusicAvailability.unavailable);
+    expect(manager.library!.totalSongs, 2);
+
+    final retryOutput = <String>[];
+    await runZoned(
+      manager.checkMusicAvailability,
+      zoneSpecification: ZoneSpecification(
+        print: (_, __, ___, message) => retryOutput.add(message),
+      ),
+    );
+    expect(retryOutput, isNot(contains(contains('Starting library scan'))));
+
+    await Process.run('chmod', ['u+rwx', protected.path]);
+    await manager.checkMusicAvailability();
+    expect(manager.musicAvailability, MusicAvailability.ready);
+    expect(manager.library!.totalSongs, 2);
   }, skip: Platform.isWindows);
 
   test('server stop pauses recovery and restart resumes it', () async {

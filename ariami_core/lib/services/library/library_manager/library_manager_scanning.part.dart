@@ -143,10 +143,14 @@ extension _LibraryManagerScanningPart on LibraryManager {
 
       try {
         await _checkStorage(folderPath);
-      } catch (_) {
+      } catch (error) {
         if (generation == _scanGeneration) {
+          _unavailableProbePaths
+            ..clear()
+            ..add(folderPath);
           _musicAvailability = MusicAvailability.unavailable;
           _stopWatchingFolder();
+          print('[LibraryManager] Music folder is unavailable: $error');
         }
         return;
       }
@@ -189,14 +193,40 @@ extension _LibraryManagerScanningPart on LibraryManager {
                 .any((file) => path.isWithin(folderPath, file)) ||
             (cacheData?.keys.any((file) => path.isWithin(folderPath, file)) ??
                 false);
-        final unreadableDirectory = result.scanDiagnostics.failedFiles.any(
-            (failure) => failure.reason.startsWith('directory unreadable:'));
+        final unreadableDirectories = result.scanDiagnostics.failedFiles
+            .where(
+                (failure) => failure.reason.startsWith('directory unreadable:'))
+            .toList(growable: false);
+        final knownSongPaths = <String>{
+          ..._songPathById.values,
+          ...?cacheData?.keys,
+        };
+        final unreadableKnownMusic = unreadableDirectories.any((failure) {
+          final failedDirectory = path.normalize(failure.path);
+          return knownSongPaths.any((songPath) {
+            final normalizedSong = path.normalize(songPath);
+            return normalizedSong == failedDirectory ||
+                path.isWithin(failedDirectory, normalizedSong);
+          });
+        });
+        if (unreadableDirectories.isNotEmpty) {
+          for (final failure in unreadableDirectories) {
+            print('[LibraryManager] WARNING: ${failure.path}: '
+                '${failure.reason}');
+          }
+        }
         // An empty mount or incomplete traversal must never publish deletions
-        // or overwrite the last usable metadata cache/catalogue.
-        if (unreadableDirectory ||
+        // or overwrite known music. An unrelated unreadable subtree is kept
+        // in scan diagnostics but does not make the entire library unusable.
+        if (unreadableKnownMusic ||
             (result.library!.totalSongs == 0 && hadMusic)) {
+          _unavailableProbePaths
+            ..clear()
+            ..addAll(unreadableDirectories.map((failure) => failure.path));
           _musicAvailability = MusicAvailability.unavailable;
           _stopWatchingFolder();
+          print('[LibraryManager] Music storage validation failed; retaining '
+              'the saved library until the affected path is readable');
           return;
         }
         try {
@@ -205,13 +235,15 @@ extension _LibraryManagerScanningPart on LibraryManager {
                   .expand((album) => album.songs)
                   .followedBy(result.library!.standaloneSongs)
                   .map((song) => song.filePath));
-        } catch (_) {
+        } catch (error) {
           if (generation != _scanGeneration) return;
           _musicAvailability = MusicAvailability.unavailable;
           _stopWatchingFolder();
+          print('[LibraryManager] Music file validation failed: $error');
           return;
         }
         if (generation != _scanGeneration) return;
+        _unavailableProbePaths.clear();
         _library = result.library;
         _lastScannedFolderPath = folderPath;
         _rebuildSongIndexes();
@@ -272,6 +304,7 @@ extension _LibraryManagerScanningPart on LibraryManager {
     stopMusicAvailabilityMonitoring();
     _configuredFolderPath = null;
     _musicAvailability = MusicAvailability.unknown;
+    _unavailableProbePaths.clear();
     _stopWatchingFolder();
     _library = null;
     _rebuildSongIndexes();

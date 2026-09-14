@@ -6,6 +6,24 @@ Thank you for those that actually support and use this project at all! :D
 
 ---
 
+## 5.2.2
+
+Ariami 5.2.2 is a server-only hotfix for Docker and CLI installations. It
+stops a temporary NAS or subdirectory read failure from sending the server
+into a repeated full-library scan loop.
+
+### Fixed
+
+- Recheck the exact directory or file that failed before starting another scan
+- Keep serving the saved catalogue when an unreadable folder contains known music
+- Accept a usable scan when the unreadable folder is unrelated to the music library
+- Log the affected storage path so the underlying mount or permission problem is visible
+
+This release does not include new Mobile, TV, Premium Desktop or Desktop Server
+app builds. Those remain on 5.2.1.
+
+---
+
 ## 5.2.1
 
 Ariami 5.2.1 makes playback and server management more dependable. Premium

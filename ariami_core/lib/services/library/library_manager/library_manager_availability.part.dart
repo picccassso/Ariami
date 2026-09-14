@@ -13,6 +13,26 @@ extension _LibraryManagerAvailabilityPart on LibraryManager {
     await Directory(folderPath).list(followLinks: false).take(1).drain<void>();
   }
 
+  Future<void> _probeUnavailablePath(String failedPath) async {
+    final type = await FileSystemEntity.type(failedPath, followLinks: false);
+    if (type == FileSystemEntityType.directory) {
+      // Re-run the full operation that failed during traversal. A one-entry
+      // root probe can succeed while a NAS directory later fails to list.
+      await Directory(failedPath).list(followLinks: false).drain<void>();
+      return;
+    }
+    if (type == FileSystemEntityType.file) {
+      final file = await File(failedPath).open();
+      try {
+        await file.read(1);
+      } finally {
+        await file.close();
+      }
+      return;
+    }
+    throw FileSystemException('Music storage path is unavailable', failedPath);
+  }
+
   Future<void> _checkMusicAvailabilityImpl() async {
     final folderPath = _configuredFolderPath;
     if (folderPath == null ||
@@ -22,11 +42,15 @@ extension _LibraryManagerAvailabilityPart on LibraryManager {
     _availabilityCheckInFlight = true;
     try {
       await _checkStorage(folderPath, checkKnownFiles: true);
+      for (final failedPath in _unavailableProbePaths) {
+        await _probeUnavailablePath(failedPath);
+      }
       if (_configuredFolderPath != folderPath || _availabilityTimer == null)
         return;
       if (_musicAvailability != MusicAvailability.ready) {
-        // A full scan reattaches the watcher, including mounts that appeared
-        // after startup and network filesystems that deliver no watch events.
+        // Only rescan after the exact path which failed is readable again.
+        // This reattaches the watcher for mounts that appeared after startup.
+        _unavailableProbePaths.clear();
         try {
           await scanMusicFolder(folderPath);
         } catch (_) {
@@ -58,6 +82,7 @@ extension _LibraryManagerAvailabilityPart on LibraryManager {
           (checkKnownFiles && _musicAvailability == MusicAvailability.ready)) {
         final samples = (samplePaths ?? _songPathById.values).take(3).toList();
         if (samples.isNotEmpty) {
+          final failedSamples = <String>[];
           for (final sample in samples) {
             try {
               final file = await File(sample).open();
@@ -69,8 +94,12 @@ extension _LibraryManagerAvailabilityPart on LibraryManager {
               }
             } on FileSystemException {
               // One deleted track must not mark the whole library unavailable.
+              failedSamples.add(sample);
             }
           }
+          _unavailableProbePaths
+            ..clear()
+            ..addAll(failedSamples);
           throw FileSystemException(
               'Known music files are unavailable', folderPath);
         }

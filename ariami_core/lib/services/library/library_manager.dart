@@ -95,6 +95,7 @@ class LibraryManager {
   Timer? _availabilityTimer;
   Future<void>? _storageProbe;
   String? _storageProbeFolder;
+  final Set<String> _unavailableProbePaths = <String>{};
   bool _availabilityCheckInFlight = false;
   int _scanGeneration = 0;
 
