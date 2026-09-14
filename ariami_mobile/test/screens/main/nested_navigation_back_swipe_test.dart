@@ -103,7 +103,8 @@ class _FakeMainNavigationScreenState extends State<_FakeMainNavigationScreen> {
             onBackAtRoot: () => setState(() => _currentIndex = 0),
             onGenerateRoute: (settings) => MaterialPageRoute(
               settings: settings,
-              builder: (_) => Scaffold(body: Text('Settings: ${settings.name}')),
+              builder: (_) =>
+                  Scaffold(body: Text('Settings: ${settings.name}')),
             ),
           ),
         _ => const SizedBox.shrink(),
@@ -112,7 +113,8 @@ class _FakeMainNavigationScreenState extends State<_FakeMainNavigationScreen> {
   }
 }
 
-AlbumModel _testAlbum({String title = 'Test Album', String artist = 'Test Artist'}) =>
+AlbumModel _testAlbum(
+        {String title = 'Test Album', String artist = 'Test Artist'}) =>
     AlbumModel(
       id: 'album-1',
       title: title,
@@ -152,8 +154,8 @@ void main() {
       expect(handled, isTrue);
       // Returned to the Search root, did not switch tabs or exit app
       expect(find.text('Search: /'), findsOneWidget);
-      final screenState =
-          tester.state<_FakeMainNavigationScreenState>(find.byType(_FakeMainNavigationScreen));
+      final screenState = tester.state<_FakeMainNavigationScreenState>(
+          find.byType(_FakeMainNavigationScreen));
       expect(screenState._currentIndex, 1);
       expect(screenState.exitedApp, isFalse);
     });
@@ -185,8 +187,8 @@ void main() {
 
       expect(handled, isTrue);
       expect(find.text('Search: /'), findsOneWidget);
-      final screenState =
-          tester.state<_FakeMainNavigationScreenState>(find.byType(_FakeMainNavigationScreen));
+      final screenState = tester.state<_FakeMainNavigationScreenState>(
+          find.byType(_FakeMainNavigationScreen));
       expect(screenState._currentIndex, 1);
       expect(screenState.exitedApp, isFalse);
     });
@@ -216,8 +218,8 @@ void main() {
 
       expect(handled, isTrue);
       expect(find.text('Settings: /'), findsOneWidget);
-      final screenState =
-          tester.state<_FakeMainNavigationScreenState>(find.byType(_FakeMainNavigationScreen));
+      final screenState = tester.state<_FakeMainNavigationScreenState>(
+          find.byType(_FakeMainNavigationScreen));
       expect(screenState._currentIndex, 2);
       expect(screenState.exitedApp, isFalse);
     });
@@ -265,6 +267,69 @@ void main() {
       // It must pop the nested route, NOT exit the app
       expect(exited, isFalse);
       expect(find.text('Route: /'), findsOneWidget);
+    });
+
+    testWidgets(
+        'Root route with PopScope intercepts back gesture before onBackAtRoot',
+        (tester) async {
+      final navKey = GlobalKey<NavigatorState>();
+      var exited = false;
+      var selectionActive = true;
+      var batchSelectionReleased = false;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: NestedTabNavigator(
+            navigatorKey: navKey,
+            onBackAtRoot: () => exited = true,
+            onGenerateRoute: (settings) => MaterialPageRoute(
+              settings: settings,
+              builder: (_) => StatefulBuilder(
+                builder: (context, setState) => PopScope(
+                  canPop: !selectionActive,
+                  onPopInvokedWithResult: (didPop, result) {
+                    if (didPop) return;
+                    if (selectionActive) {
+                      selectionActive = false;
+                      batchSelectionReleased = true;
+                      setState(() {});
+                    }
+                  },
+                  child: Scaffold(
+                    body: Text(
+                      selectionActive
+                          ? 'Batch Selection Active'
+                          : 'Normal Library',
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('Batch Selection Active'), findsOneWidget);
+      expect(batchSelectionReleased, isFalse);
+      expect(exited, isFalse);
+
+      // First back gesture (e.g. Android back swipe): should release batch selection, not exit
+      final dynamic widgetsAppState = tester.state(find.byType(WidgetsApp));
+      final handledFirst = await widgetsAppState.didPopRoute();
+      await tester.pumpAndSettle();
+
+      expect(handledFirst, isTrue);
+      expect(batchSelectionReleased, isTrue);
+      expect(find.text('Normal Library'), findsOneWidget);
+      expect(exited, isFalse);
+
+      // Second back gesture: batch selection already released, should call onBackAtRoot
+      final handledSecond = await widgetsAppState.didPopRoute();
+      await tester.pumpAndSettle();
+
+      expect(handledSecond, isTrue);
+      expect(exited, isTrue);
     });
   });
 }

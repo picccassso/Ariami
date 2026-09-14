@@ -65,13 +65,16 @@ class _NestedTabNavigatorState extends State<NestedTabNavigator> {
       // (onBackAtRoot) rather than letting the gesture exit the app, and while
       // a route can be popped we drive that pop ourselves below.
       canPop: false,
-      onPopInvokedWithResult: (didPop, result) {
+      onPopInvokedWithResult: (didPop, result) async {
         if (didPop) return;
         final navigator = widget.navigatorKey.currentState;
         if (_nestedCanPop || (navigator?.canPop() ?? false)) {
           navigator?.maybePop();
         } else {
-          widget.onBackAtRoot?.call();
+          final handled = await navigator?.maybePop() ?? false;
+          if (!handled) {
+            widget.onBackAtRoot?.call();
+          }
         }
       },
       child: NotificationListener<NavigationNotification>(

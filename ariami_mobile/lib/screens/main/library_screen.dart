@@ -490,385 +490,395 @@ class _LibraryScreenState extends State<LibraryScreen> {
   Widget build(BuildContext context) {
     final isOffline = _controller.offlineService.isOffline;
 
-    return Scaffold(
-      appBar: _controller.isSelectionModeActive
-          ? AppBar(
-              leading: IconButton(
-                icon: const Icon(Icons.close_rounded),
-                onPressed: _controller.exitSelectionMode,
-                tooltip: 'Cancel Selection',
-              ),
-              title: Text(
-                '${_controller.totalSelectedCount} selected',
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-              actions: [
-                IconButton(
-                  icon: const Icon(Icons.select_all_rounded),
-                  onPressed: _controller.selectAllVisible,
-                  tooltip: 'Select All',
+    return PopScope(
+      canPop: !_controller.isSelectionModeActive,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (_controller.isSelectionModeActive) {
+          _controller.exitSelectionMode();
+        }
+      },
+      child: Scaffold(
+        appBar: _controller.isSelectionModeActive
+            ? AppBar(
+                leading: IconButton(
+                  icon: const Icon(Icons.close_rounded),
+                  onPressed: _controller.exitSelectionMode,
+                  tooltip: 'Cancel Selection',
                 ),
-                IconButton(
-                  icon: const Icon(Icons.deselect_rounded),
-                  onPressed: _controller.clearSelection,
-                  tooltip: 'Deselect All',
+                title: Text(
+                  '${_controller.totalSelectedCount} selected',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
-              ],
-            )
-          : AppBar(
-              automaticallyImplyLeading: false,
-              title: Row(
-                children: [
-                  const Text('Library'),
-                  if (isOffline) ...[
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .onSurface
-                            .withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
+                actions: [
+                  IconButton(
+                    icon: const Icon(Icons.select_all_rounded),
+                    onPressed: _controller.selectAllVisible,
+                    tooltip: 'Select All',
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.deselect_rounded),
+                    onPressed: _controller.clearSelection,
+                    tooltip: 'Deselect All',
+                  ),
+                ],
+              )
+            : AppBar(
+                automaticallyImplyLeading: false,
+                title: Row(
+                  children: [
+                    const Text('Library'),
+                    if (isOffline) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
                           color: Theme.of(context)
                               .colorScheme
                               .onSurface
-                              .withValues(alpha: 0.16),
-                          width: 1,
+                              .withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurface
+                                .withValues(alpha: 0.16),
+                            width: 1,
+                          ),
+                        ),
+                        child: Text(
+                          'OFFLINE',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: Theme.of(context).colorScheme.onSurface,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1.0,
+                          ),
                         ),
                       ),
-                      child: Text(
-                        'OFFLINE',
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: Theme.of(context).colorScheme.onSurface,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 1.0,
-                        ),
-                      ),
-                    ),
+                    ],
                   ],
+                ),
+                actions: [
+                  if (!isOffline)
+                    IconButton(
+                      icon: const Icon(Icons.playlist_add_check_rounded),
+                      onPressed: _controller.enterSelectionMode,
+                      tooltip: 'Select Multiple',
+                    ),
+                  // Filter toggle for downloaded songs
+                  IconButton(
+                    icon: Icon(
+                      _controller.state.showDownloadedOnly
+                          ? Icons.check_circle_rounded
+                          : Icons.arrow_circle_down_rounded,
+                      color: _controller.state.showDownloadedOnly
+                          ? Theme.of(context).colorScheme.primary
+                          : null,
+                    ),
+                    onPressed: _controller.toggleShowDownloadedOnly,
+                    tooltip: _controller.state.showDownloadedOnly
+                        ? 'Show All Songs'
+                        : 'Show Downloaded Only',
+                  ),
+                  IconButton(
+                    icon: Icon(
+                      _controller.state.isGridView
+                          ? Icons.list_rounded
+                          : Icons.grid_view_rounded,
+                    ),
+                    onPressed: _controller.toggleViewMode,
+                    tooltip: _controller.state.isGridView
+                        ? 'Switch to List View'
+                        : 'Switch to Grid View',
+                  ),
+                  // Mixed mode toggle
+                  IconButton(
+                    icon: Icon(
+                      _controller.state.isMixedMode
+                          ? Icons.view_agenda_rounded
+                          : Icons.all_inclusive_rounded,
+                    ),
+                    onPressed: _controller.toggleMixedMode,
+                    tooltip: _controller.state.isMixedMode
+                        ? 'Separate Playlists & Albums'
+                        : 'Mix Playlists & Albums',
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.sync_rounded),
+                    onPressed: _handleLibraryRefresh,
+                    tooltip: 'Refresh Library',
+                  ),
                 ],
               ),
-              actions: [
-                if (!isOffline)
-                  IconButton(
-                    icon: const Icon(Icons.playlist_add_check_rounded),
-                    onPressed: _controller.enterSelectionMode,
-                    tooltip: 'Select Multiple',
-                  ),
-                // Filter toggle for downloaded songs
-                IconButton(
-                  icon: Icon(
-                    _controller.state.showDownloadedOnly
-                        ? Icons.check_circle_rounded
-                        : Icons.arrow_circle_down_rounded,
-                    color: _controller.state.showDownloadedOnly
-                        ? Theme.of(context).colorScheme.primary
-                        : null,
-                  ),
-                  onPressed: _controller.toggleShowDownloadedOnly,
-                  tooltip: _controller.state.showDownloadedOnly
-                      ? 'Show All Songs'
-                      : 'Show Downloaded Only',
-                ),
-                IconButton(
-                  icon: Icon(
-                    _controller.state.isGridView
-                        ? Icons.list_rounded
-                        : Icons.grid_view_rounded,
-                  ),
-                  onPressed: _controller.toggleViewMode,
-                  tooltip: _controller.state.isGridView
-                      ? 'Switch to List View'
-                      : 'Switch to Grid View',
-                ),
-                // Mixed mode toggle
-                IconButton(
-                  icon: Icon(
-                    _controller.state.isMixedMode
-                        ? Icons.view_agenda_rounded
-                        : Icons.all_inclusive_rounded,
-                  ),
-                  onPressed: _controller.toggleMixedMode,
-                  tooltip: _controller.state.isMixedMode
-                      ? 'Separate Playlists & Albums'
-                      : 'Mix Playlists & Albums',
-                ),
-                IconButton(
-                  icon: const Icon(Icons.sync_rounded),
-                  onPressed: _handleLibraryRefresh,
-                  tooltip: 'Refresh Library',
-                ),
-              ],
+        body: Stack(
+          children: [
+            AnimatedBuilder(
+              animation: _controller,
+              builder: (context, child) {
+                return LibraryBody(
+                  state: _controller.state,
+                  isOffline: isOffline,
+                  scrollController: _scrollController,
+                  onRefresh: _handleLibraryRefresh,
+                  onRetry: () => unawaited(_handleLibraryRefresh()),
+                  onToggleAlbumsExpanded: _controller.toggleAlbumsExpanded,
+                  onToggleSongsExpanded: _controller.toggleSongsExpanded,
+                  onGenreFilterChanged: _controller.setGenreFilter,
+                  playlistService: _controller.playlistService,
+                  isGridView: _controller.state.isGridView,
+                  onCreatePlaylist: _createNewPlaylist,
+                  onShowServerPlaylists: _showServerPlaylistsSheet,
+                  onPlaylistTap: _controller.isSelectionModeActive
+                      ? (playlist) {
+                          HapticFeedback.lightImpact();
+                          _controller.togglePlaylistSelection(playlist.id);
+                        }
+                      : _openPlaylist,
+                  onPlaylistLongPress: _controller.isSelectionModeActive
+                      ? (playlist) {
+                          HapticFeedback.lightImpact();
+                          _controller.togglePlaylistSelection(playlist.id);
+                        }
+                      : _showPlaylistContextMenu,
+                  onAlbumTap: _controller.isSelectionModeActive
+                      ? (album) {
+                          HapticFeedback.lightImpact();
+                          _controller.toggleAlbumSelection(album.id);
+                        }
+                      : _openAlbum,
+                  onAlbumLongPress: _controller.isSelectionModeActive
+                      ? (album) {
+                          HapticFeedback.lightImpact();
+                          _controller.toggleAlbumSelection(album.id);
+                        }
+                      : _showAlbumContextMenu,
+                  onSongTap: _controller.isSelectionModeActive
+                      ? (song) {
+                          HapticFeedback.lightImpact();
+                          _controller.toggleSongSelection(song.id);
+                        }
+                      : _playSong,
+                  onSongLongPress: _controller.isSelectionModeActive
+                      ? (song) {
+                          HapticFeedback.lightImpact();
+                          _controller.toggleSongSelection(song.id);
+                        }
+                      : (song) {
+                          HapticFeedback.lightImpact();
+                          _controller.enterSelectionMode();
+                          _controller.toggleSongSelection(song.id);
+                        },
+                  onOfflineSongTap: _controller.isSelectionModeActive
+                      ? (song) {
+                          HapticFeedback.lightImpact();
+                          _controller.toggleSongSelection(song.id);
+                        }
+                      : _playSongDirect,
+                  onOfflineSongLongPress: _controller.isSelectionModeActive
+                      ? (song) {
+                          HapticFeedback.lightImpact();
+                          _controller.toggleSongSelection(song.id);
+                        }
+                      : (song) {
+                          HapticFeedback.lightImpact();
+                          _controller.enterSelectionMode();
+                          _controller.toggleSongSelection(song.id);
+                        },
+                  isSelectionMode: _controller.isSelectionModeActive,
+                  isBatchBarVisible: _controller.isSelectionModeActive &&
+                      _controller.totalSelectedCount > 0,
+                  selectedPlaylistIds: _controller.selectedPlaylistIds,
+                  selectedAlbumIds: _controller.selectedAlbumIds,
+                  selectedSongIds: _controller.selectedSongIds,
+                );
+              },
             ),
-      body: Stack(
-        children: [
-          AnimatedBuilder(
-            animation: _controller,
-            builder: (context, child) {
-              return LibraryBody(
-                state: _controller.state,
-                isOffline: isOffline,
-                scrollController: _scrollController,
-                onRefresh: _handleLibraryRefresh,
-                onRetry: () => unawaited(_handleLibraryRefresh()),
-                onToggleAlbumsExpanded: _controller.toggleAlbumsExpanded,
-                onToggleSongsExpanded: _controller.toggleSongsExpanded,
-                onGenreFilterChanged: _controller.setGenreFilter,
-                playlistService: _controller.playlistService,
-                isGridView: _controller.state.isGridView,
-                onCreatePlaylist: _createNewPlaylist,
-                onShowServerPlaylists: _showServerPlaylistsSheet,
-                onPlaylistTap: _controller.isSelectionModeActive
-                    ? (playlist) {
-                        HapticFeedback.lightImpact();
-                        _controller.togglePlaylistSelection(playlist.id);
-                      }
-                    : _openPlaylist,
-                onPlaylistLongPress: _controller.isSelectionModeActive
-                    ? (playlist) {
-                        HapticFeedback.lightImpact();
-                        _controller.togglePlaylistSelection(playlist.id);
-                      }
-                    : _showPlaylistContextMenu,
-                onAlbumTap: _controller.isSelectionModeActive
-                    ? (album) {
-                        HapticFeedback.lightImpact();
-                        _controller.toggleAlbumSelection(album.id);
-                      }
-                    : _openAlbum,
-                onAlbumLongPress: _controller.isSelectionModeActive
-                    ? (album) {
-                        HapticFeedback.lightImpact();
-                        _controller.toggleAlbumSelection(album.id);
-                      }
-                    : _showAlbumContextMenu,
-                onSongTap: _controller.isSelectionModeActive
-                    ? (song) {
-                        HapticFeedback.lightImpact();
-                        _controller.toggleSongSelection(song.id);
-                      }
-                    : _playSong,
-                onSongLongPress: _controller.isSelectionModeActive
-                    ? (song) {
-                        HapticFeedback.lightImpact();
-                        _controller.toggleSongSelection(song.id);
-                      }
-                    : (song) {
-                        HapticFeedback.lightImpact();
-                        _controller.enterSelectionMode();
-                        _controller.toggleSongSelection(song.id);
-                      },
-                onOfflineSongTap: _controller.isSelectionModeActive
-                    ? (song) {
-                        HapticFeedback.lightImpact();
-                        _controller.toggleSongSelection(song.id);
-                      }
-                    : _playSongDirect,
-                onOfflineSongLongPress: _controller.isSelectionModeActive
-                    ? (song) {
-                        HapticFeedback.lightImpact();
-                        _controller.toggleSongSelection(song.id);
-                      }
-                    : (song) {
-                        HapticFeedback.lightImpact();
-                        _controller.enterSelectionMode();
-                        _controller.toggleSongSelection(song.id);
-                      },
-                isSelectionMode: _controller.isSelectionModeActive,
-                isBatchBarVisible: _controller.isSelectionModeActive &&
-                    _controller.totalSelectedCount > 0,
-                selectedPlaylistIds: _controller.selectedPlaylistIds,
-                selectedAlbumIds: _controller.selectedAlbumIds,
-                selectedSongIds: _controller.selectedSongIds,
-              );
-            },
-          ),
 
-          // Premium Floating Glassmorphic Batch Action Bar
-          MiniPlayerScrollPaddingBuilder(
-            builder: (context, bottomPadding) {
-              return AnimatedBuilder(
-                animation: _controller,
-                builder: (context, child) {
-                  final isVisible = _controller.isSelectionModeActive &&
-                      _controller.totalSelectedCount > 0;
-                  final batchSummary = _controller.batchDownloadSummary;
-                  final hasItemsToDownload =
-                      _controller.hasBatchItemsToDownload;
-                  final subtitle = batchSummary.allSaved
-                      ? 'Already downloaded'
-                      : batchSummary.hasPartialSkip
-                          ? '${batchSummary.containerCount} items · ${batchSummary.toDownloadCount} to download'
-                          : '${batchSummary.containerCount} items selected';
-                  return AnimatedPositioned(
-                    duration: const Duration(milliseconds: 300),
-                    curve: isVisible ? Curves.easeOutBack : Curves.easeInOut,
-                    left: 16,
-                    right: 16,
-                    bottom: isVisible
-                        ? bottomPadding + kBatchDownloadBarBottomGap
-                        : -150,
-                    child: AnimatedOpacity(
-                      duration: const Duration(milliseconds: 200),
-                      opacity: isVisible ? 1.0 : 0.0,
-                      child: IgnorePointer(
-                        ignoring: !isVisible,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.4),
-                                blurRadius: 16,
-                                offset: const Offset(0, 8),
-                              ),
-                            ],
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(24),
-                            child: BackdropFilter(
-                              filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .surface
-                                      .withValues(alpha: 0.85),
-                                  borderRadius: BorderRadius.circular(24),
-                                  border: Border.all(
+            // Premium Floating Glassmorphic Batch Action Bar
+            MiniPlayerScrollPaddingBuilder(
+              builder: (context, bottomPadding) {
+                return AnimatedBuilder(
+                  animation: _controller,
+                  builder: (context, child) {
+                    final isVisible = _controller.isSelectionModeActive &&
+                        _controller.totalSelectedCount > 0;
+                    final batchSummary = _controller.batchDownloadSummary;
+                    final hasItemsToDownload =
+                        _controller.hasBatchItemsToDownload;
+                    final subtitle = batchSummary.allSaved
+                        ? 'Already downloaded'
+                        : batchSummary.hasPartialSkip
+                            ? '${batchSummary.containerCount} items · ${batchSummary.toDownloadCount} to download'
+                            : '${batchSummary.containerCount} items selected';
+                    return AnimatedPositioned(
+                      duration: const Duration(milliseconds: 300),
+                      curve: isVisible ? Curves.easeOutBack : Curves.easeInOut,
+                      left: 16,
+                      right: 16,
+                      bottom: isVisible
+                          ? bottomPadding + kBatchDownloadBarBottomGap
+                          : -150,
+                      child: AnimatedOpacity(
+                        duration: const Duration(milliseconds: 200),
+                        opacity: isVisible ? 1.0 : 0.0,
+                        child: IgnorePointer(
+                          ignoring: !isVisible,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.4),
+                                  blurRadius: 16,
+                                  offset: const Offset(0, 8),
+                                ),
+                              ],
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(24),
+                              child: BackdropFilter(
+                                filter:
+                                    ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+                                child: Container(
+                                  decoration: BoxDecoration(
                                     color: Theme.of(context)
                                         .colorScheme
-                                        .onSurface
-                                        .withValues(alpha: 0.12),
-                                    width: 1,
-                                  ),
-                                ),
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 20, vertical: 14),
-                                child: Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Text(
-                                            'Batch Actions',
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: TextStyle(
-                                              color: Theme.of(context)
-                                                  .colorScheme
-                                                  .onSurface,
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 14,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 2),
-                                          Text(
-                                            subtitle,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: TextStyle(
-                                              color: Theme.of(context)
-                                                  .colorScheme
-                                                  .onSurface
-                                                  .withValues(alpha: 0.7),
-                                              fontSize: 12,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    IconButton(
-                                      onPressed: _showBatchActionsSheet,
-                                      icon:
-                                          const Icon(Icons.more_horiz_rounded),
-                                      tooltip: 'More Actions',
+                                        .surface
+                                        .withValues(alpha: 0.85),
+                                    borderRadius: BorderRadius.circular(24),
+                                    border: Border.all(
                                       color: Theme.of(context)
                                           .colorScheme
-                                          .onSurface,
-                                      padding: EdgeInsets.zero,
-                                      constraints: const BoxConstraints(
-                                          minWidth: 40, minHeight: 40),
+                                          .onSurface
+                                          .withValues(alpha: 0.12),
+                                      width: 1,
                                     ),
-                                    const SizedBox(width: 8),
-                                    ElevatedButton.icon(
-                                      onPressed: hasItemsToDownload
-                                          ? () async {
-                                              await _controller
-                                                  .downloadSelectedItems();
-                                            }
-                                          : null,
-                                      icon: Icon(
-                                        hasItemsToDownload
-                                            ? Icons.download_rounded
-                                            : Icons.download_done,
-                                        color: hasItemsToDownload
-                                            ? null
-                                            : Colors.green,
-                                      ),
-                                      label: Text(
-                                        hasItemsToDownload
-                                            ? 'Download'
-                                            : 'Downloaded',
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 20, vertical: 14),
+                                  child: Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              'Batch Actions',
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(
+                                                color: Theme.of(context)
+                                                    .colorScheme
+                                                    .onSurface,
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 14,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              subtitle,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(
+                                                color: Theme.of(context)
+                                                    .colorScheme
+                                                    .onSurface
+                                                    .withValues(alpha: 0.7),
+                                                fontSize: 12,
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ),
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: hasItemsToDownload
-                                            ? Theme.of(context)
-                                                .colorScheme
-                                                .primary
-                                            : Theme.of(context)
-                                                .colorScheme
-                                                .surfaceContainerHighest,
-                                        foregroundColor: hasItemsToDownload
-                                            ? Theme.of(context)
-                                                .colorScheme
-                                                .onPrimary
-                                            : Theme.of(context)
-                                                .colorScheme
-                                                .onSurface
-                                                .withValues(alpha: 0.6),
-                                        disabledBackgroundColor:
-                                            Theme.of(context)
-                                                .colorScheme
-                                                .surfaceContainerHighest,
-                                        disabledForegroundColor:
-                                            Theme.of(context)
-                                                .colorScheme
-                                                .onSurface
-                                                .withValues(alpha: 0.6),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(20),
-                                        ),
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 16, vertical: 10),
+                                      IconButton(
+                                        onPressed: _showBatchActionsSheet,
+                                        icon: const Icon(
+                                            Icons.more_horiz_rounded),
+                                        tooltip: 'More Actions',
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .onSurface,
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(
+                                            minWidth: 40, minHeight: 40),
                                       ),
-                                    ),
-                                  ],
+                                      const SizedBox(width: 8),
+                                      ElevatedButton.icon(
+                                        onPressed: hasItemsToDownload
+                                            ? () async {
+                                                await _controller
+                                                    .downloadSelectedItems();
+                                              }
+                                            : null,
+                                        icon: Icon(
+                                          hasItemsToDownload
+                                              ? Icons.download_rounded
+                                              : Icons.download_done,
+                                          color: hasItemsToDownload
+                                              ? null
+                                              : Colors.green,
+                                        ),
+                                        label: Text(
+                                          hasItemsToDownload
+                                              ? 'Download'
+                                              : 'Downloaded',
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: hasItemsToDownload
+                                              ? Theme.of(context)
+                                                  .colorScheme
+                                                  .primary
+                                              : Theme.of(context)
+                                                  .colorScheme
+                                                  .surfaceContainerHighest,
+                                          foregroundColor: hasItemsToDownload
+                                              ? Theme.of(context)
+                                                  .colorScheme
+                                                  .onPrimary
+                                              : Theme.of(context)
+                                                  .colorScheme
+                                                  .onSurface
+                                                  .withValues(alpha: 0.6),
+                                          disabledBackgroundColor:
+                                              Theme.of(context)
+                                                  .colorScheme
+                                                  .surfaceContainerHighest,
+                                          disabledForegroundColor:
+                                              Theme.of(context)
+                                                  .colorScheme
+                                                  .onSurface
+                                                  .withValues(alpha: 0.6),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(20),
+                                          ),
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 16, vertical: 10),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                  );
-                },
-              );
-            },
-          ),
-        ],
+                    );
+                  },
+                );
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
