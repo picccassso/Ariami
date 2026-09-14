@@ -19,3 +19,4 @@ export 'widgets/error_state.dart';
 export 'modals/server_playlists_sheet.dart';
 export 'modals/album_context_menu.dart';
 export 'modals/playlist_context_menu.dart';
+export 'modals/library_options_sheet.dart';

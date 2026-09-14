@@ -525,90 +525,115 @@ class _LibraryScreenState extends State<LibraryScreen> {
               )
             : AppBar(
                 automaticallyImplyLeading: false,
-                title: Row(
-                  children: [
-                    const Text('Library'),
-                    if (isOffline) ...[
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .onSurface
-                              .withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
+                title: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text('Library'),
+                      if (isOffline) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
                             color: Theme.of(context)
                                 .colorScheme
                                 .onSurface
-                                .withValues(alpha: 0.16),
-                            width: 1,
+                                .withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurface
+                                  .withValues(alpha: 0.16),
+                              width: 1,
+                            ),
+                          ),
+                          child: Text(
+                            'OFFLINE',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: Theme.of(context).colorScheme.onSurface,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 1.0,
+                            ),
                           ),
                         ),
-                        child: Text(
-                          'OFFLINE',
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: Theme.of(context).colorScheme.onSurface,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 1.0,
+                      ],
+                      if (_controller.state.showDownloadedOnly) ...[
+                        const SizedBox(width: 8),
+                        Tooltip(
+                          message: 'Show all items',
+                          child: InkWell(
+                            onTap: _controller.toggleShowDownloadedOnly,
+                            borderRadius: BorderRadius.circular(12),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .primaryContainer,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .primary
+                                      .withValues(alpha: 0.24),
+                                  width: 1,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    'Downloaded',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onPrimaryContainer,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Icon(
+                                    Icons.close_rounded,
+                                    size: 14,
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onPrimaryContainer,
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
                         ),
-                      ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
                 actions: [
-                  if (!isOffline)
-                    IconButton(
-                      icon: const Icon(Icons.playlist_add_check_rounded),
-                      onPressed: _controller.enterSelectionMode,
-                      tooltip: 'Select Multiple',
-                    ),
-                  // Filter toggle for downloaded songs
                   IconButton(
-                    icon: Icon(
-                      _controller.state.showDownloadedOnly
-                          ? Icons.check_circle_rounded
-                          : Icons.arrow_circle_down_rounded,
-                      color: _controller.state.showDownloadedOnly
-                          ? Theme.of(context).colorScheme.primary
-                          : null,
-                    ),
-                    onPressed: _controller.toggleShowDownloadedOnly,
-                    tooltip: _controller.state.showDownloadedOnly
-                        ? 'Show All Songs'
-                        : 'Show Downloaded Only',
-                  ),
-                  IconButton(
-                    icon: Icon(
-                      _controller.state.isGridView
-                          ? Icons.list_rounded
-                          : Icons.grid_view_rounded,
-                    ),
-                    onPressed: _controller.toggleViewMode,
-                    tooltip: _controller.state.isGridView
-                        ? 'Switch to List View'
-                        : 'Switch to Grid View',
-                  ),
-                  // Mixed mode toggle
-                  IconButton(
-                    icon: Icon(
-                      _controller.state.isMixedMode
-                          ? Icons.view_agenda_rounded
-                          : Icons.all_inclusive_rounded,
-                    ),
-                    onPressed: _controller.toggleMixedMode,
-                    tooltip: _controller.state.isMixedMode
-                        ? 'Separate Playlists & Albums'
-                        : 'Mix Playlists & Albums',
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.sync_rounded),
-                    onPressed: _handleLibraryRefresh,
-                    tooltip: 'Refresh Library',
+                    icon: _controller.state.showDownloadedOnly
+                        ? Badge(
+                            backgroundColor:
+                                Theme.of(context).colorScheme.primary,
+                            smallSize: 8,
+                            child: const Icon(Icons.more_vert_rounded),
+                          )
+                        : const Icon(Icons.more_vert_rounded),
+                    tooltip: 'Library Options',
+                    onPressed: () {
+                      showLibraryOptionsSheet(
+                        context: context,
+                        controller: _controller,
+                        isOffline: isOffline,
+                        onRefresh: _handleLibraryRefresh,
+                      );
+                    },
                   ),
                 ],
               ),
