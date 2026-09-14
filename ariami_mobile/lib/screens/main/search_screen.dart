@@ -705,14 +705,14 @@ class _SearchScreenState extends State<SearchScreen> {
     }
   }
 
+  (String?, String?) _albumInfoFor(SongModel song) {
+    if (song.albumId == null) return (null, null);
+    final album = _albumsById[song.albumId];
+    return (album?.title, album?.artist);
+  }
+
   Widget _buildSearchSongItem(SongModel song) {
-    String? albumName;
-    String? albumArtist;
-    if (song.albumId != null) {
-      final album = _albumsById[song.albumId];
-      albumName = album?.title;
-      albumArtist = album?.artist;
-    }
+    final (albumName, albumArtist) = _albumInfoFor(song);
 
     return SearchResultSongItem(
       key: ValueKey('search_song_${song.id}'),
@@ -774,11 +774,14 @@ class _SearchScreenState extends State<SearchScreen> {
                 itemCount: _recentSongs.length,
                 itemBuilder: (context, index) {
                   final song = _recentSongs[index];
+                  final (albumName, albumArtist) = _albumInfoFor(song);
                   return SearchResultSongItem(
                     key: ValueKey('recent_song_${song.id}'),
                     song: song,
                     searchQuery: '',
                     onTap: () => _playRecentSong(song),
+                    albumName: albumName,
+                    albumArtist: albumArtist,
                     isDownloaded: _downloadedSongIds.contains(song.id),
                     isCached: false,
                     isAvailable:

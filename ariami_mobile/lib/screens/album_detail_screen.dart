@@ -282,7 +282,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
           pinned: true,
           flexibleSpace: AlbumArtworkHeader(
             coverArt: _albumDetail?.coverArt ?? widget.album.coverArt,
-            albumTitle: widget.album.title,
+            albumTitle: _albumDetail?.title ?? widget.album.title,
             albumId: widget.album.id,
           ),
         ),
@@ -290,7 +290,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
         // Album info section
         SliverToBoxAdapter(
           child: AlbumInfoSection(
-            albumTitle: widget.album.title,
+            albumTitle: _albumDetail?.title ?? widget.album.title,
             albumArtist: _albumDetail?.artist ?? widget.album.artist,
             year: _albumDetail?.year,
             songCount: _albumDetail?.songs.length ?? widget.album.songCount,
@@ -356,7 +356,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
                 isDownloaded: isDownloaded,
                 isCached: isCached,
                 isAvailable: isAvailable,
-                albumName: widget.album.title,
+                albumName: _albumDetail?.title ?? widget.album.title,
                 albumArtist: widget.album.artist,
               );
             },
