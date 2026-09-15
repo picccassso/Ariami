@@ -412,31 +412,18 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
     showAriamiSheet<void>(
       context: context,
       backgroundColor: colorScheme.surface,
+      header: AriamiSheetSectionTitle('$title quality'),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 4, 24, 16),
-            child: Text(
-              '${title.toUpperCase()} QUALITY',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.5,
-                color: colorScheme.onSurface,
-              ),
-            ),
-          ),
           ...StreamingQuality.values.map((quality) {
             final isSelected = quality == currentQuality;
             return Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: isSelected ? colorScheme.primary : Colors.transparent,
-                  borderRadius: BorderRadius.circular(15),
-                ),
+              child: Material(
+                color: isSelected ? colorScheme.primary : Colors.transparent,
+                borderRadius: BorderRadius.circular(15),
                 child: ListTile(
                   leading: Icon(
                     _getQualityIcon(quality),

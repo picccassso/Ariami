@@ -273,6 +273,30 @@ class AriamiSheetHeader extends StatelessWidget {
   }
 }
 
+/// Uppercase section title shown at the top of option-picker sheets,
+/// matching the streaming quality picker style.
+class AriamiSheetSectionTitle extends StatelessWidget {
+  final String title;
+
+  const AriamiSheetSectionTitle(this.title, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 4, 24, 16),
+      child: Text(
+        title.toUpperCase(),
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 1.5,
+          color: Theme.of(context).colorScheme.onSurface,
+        ),
+      ),
+    );
+  }
+}
+
 /// Shows a polished, mini-player-aware modal bottom sheet with rounded top
 /// corners, a drag handle, and dynamic content sizing.
 ///
@@ -322,21 +346,27 @@ Future<T?> showAriamiSheet<T>({
       final maxHeight = MediaQuery.sizeOf(sheetContext).height * 0.9;
       return ConstrainedBox(
         constraints: BoxConstraints(maxHeight: maxHeight),
-        child: SafeArea(
-          top: false,
-          minimum: EdgeInsets.only(
-            bottom: getMiniPlayerAwareBottomPadding(sheetContext),
+        // Keep sheet content above the keyboard when an input has focus.
+        child: Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.viewInsetsOf(sheetContext).bottom,
           ),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (header != null) header,
-                if (items != null) ...items,
-                if (child != null) child,
-                const SizedBox(height: 8),
-              ],
+          child: SafeArea(
+            top: false,
+            minimum: EdgeInsets.only(
+              bottom: getMiniPlayerAwareBottomPadding(sheetContext),
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (header != null) header,
+                  if (items != null) ...items,
+                  if (child != null) child,
+                  const SizedBox(height: 8),
+                ],
+              ),
             ),
           ),
         ),

@@ -72,44 +72,38 @@ class _ImportExportScreenState extends State<ImportExportScreen> {
   }
 
   Future<void> _import() async {
-    // Show mode selection dialog
-    final mode = await showDialog<ImportMode>(
+    // Show mode selection as a bottom sheet (consistent with other pickers).
+    final mode = await showAriamiSheet<ImportMode>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Import Mode'),
-        content: const Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('How would you like to handle existing data?'),
-            SizedBox(height: 16),
-            Text(
-              'Merge: Add new playlists, update existing stats',
-              style: TextStyle(fontSize: 13, color: Colors.grey),
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      header: const AriamiSheetSectionTitle('Import Mode'),
+      items: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+          child: Text(
+            'How would you like to handle existing data?',
+            style: TextStyle(
+              fontSize: 13,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
-            SizedBox(height: 8),
-            Text(
-              'Replace: Delete existing data and replace with backup',
-              style: TextStyle(fontSize: 13, color: Colors.grey),
-            ),
-          ],
+          ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, ImportMode.merge),
-            child: const Text('Merge'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, ImportMode.replace),
-            style: TextButton.styleFrom(foregroundColor: Colors.orange),
-            child: const Text('Replace'),
-          ),
-        ],
-      ),
+        _importModeTile(
+          context,
+          mode: ImportMode.merge,
+          icon: Icons.merge_type_rounded,
+          title: 'Merge',
+          subtitle: 'Add new playlists, update existing stats',
+        ),
+        _importModeTile(
+          context,
+          mode: ImportMode.replace,
+          icon: Icons.restart_alt_rounded,
+          title: 'Replace',
+          subtitle: 'Delete existing data and replace with backup',
+          isDestructive: true,
+        ),
+      ],
     );
 
     if (mode == null) return;
@@ -126,6 +120,47 @@ class _ImportExportScreenState extends State<ImportExportScreen> {
         _lastImportTime = _importExportService.lastImportTime;
       });
     }
+  }
+
+  Widget _importModeTile(
+    BuildContext context, {
+    required ImportMode mode,
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    bool isDestructive = false,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: ListTile(
+        leading: Icon(
+          icon,
+          color: isDestructive ? Colors.orange : colorScheme.onSurfaceVariant,
+          size: 20,
+        ),
+        title: Text(
+          title,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            color: isDestructive ? Colors.orange : colorScheme.onSurface,
+          ),
+        ),
+        subtitle: Text(
+          subtitle,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w500,
+            color: colorScheme.onSurfaceVariant,
+          ),
+        ),
+        onTap: () => Navigator.pop(context, mode),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(15),
+        ),
+      ),
+    );
   }
 
   @override

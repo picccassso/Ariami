@@ -8,6 +8,9 @@ import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
 import '../../widgets/settings/settings_section.dart';
 import '../../widgets/settings/settings_tile.dart';
 
+/// Key for the recent searches limit sheet content (used by tests).
+const recentSearchesLimitSheetKey = Key('recent_searches_limit_sheet');
+
 /// General settings gathered in one place (as on desktop) rather than
 /// spread across the main settings list.
 class GeneralSettingsScreen extends StatefulWidget {
@@ -26,54 +29,71 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
     _searchSettingsService.initialize();
   }
 
-  /// Displays a dialog to choose the search keyboard focus mode.
-  Future<void> _showSearchModeDialog() async {
+  /// Shows a bottom sheet to choose the search keyboard focus mode.
+  Future<void> _showSearchModeSheet() {
     final colorScheme = Theme.of(context).colorScheme;
-    await showDialog<void>(
+    return showAriamiSheet<void>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Search Mode'),
-        content: RadioGroup<SearchMode>(
-          groupValue: _searchSettingsService.mode,
-          onChanged: (newMode) {
-            if (newMode == null) return;
-            _searchSettingsService.setMode(newMode);
-            Navigator.of(dialogContext).pop();
-          },
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: SearchMode.values.map((mode) {
-              return RadioListTile<SearchMode>(
-                title: Text(
-                  mode.label,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
+      backgroundColor: colorScheme.surface,
+      header: const AriamiSheetSectionTitle('Search Mode'),
+      items: SearchMode.values.map((mode) {
+        final isSelected = mode == _searchSettingsService.mode;
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          child: Material(
+            color: isSelected ? colorScheme.primary : Colors.transparent,
+            borderRadius: BorderRadius.circular(15),
+            child: ListTile(
+              leading: Icon(
+                mode == SearchMode.standard
+                    ? Icons.search_rounded
+                    : Icons.bolt_rounded,
+                color: isSelected
+                    ? colorScheme.onPrimary
+                    : colorScheme.onSurfaceVariant,
+                size: 20,
+              ),
+              title: Text(
+                mode.label,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: isSelected ? colorScheme.onPrimary : colorScheme.onSurface,
                 ),
-                subtitle: Text(
-                  mode.description,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: colorScheme.onSurface.withValues(alpha: 0.7),
-                  ),
+              ),
+              subtitle: Text(
+                mode.description,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                  color: isSelected
+                      ? colorScheme.onPrimary.withValues(alpha: 0.7)
+                      : colorScheme.onSurfaceVariant,
                 ),
-                value: mode,
-                activeColor: colorScheme.primary,
-                contentPadding: EdgeInsets.zero,
-              );
-            }).toList(),
+              ),
+              trailing: isSelected
+                  ? Icon(
+                      Icons.check_circle_rounded,
+                      color: colorScheme.onPrimary,
+                      size: 20,
+                    )
+                  : null,
+              onTap: () {
+                Navigator.pop(context);
+                _searchSettingsService.setMode(mode);
+              },
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(15),
+              ),
+            ),
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Cancel'),
-          ),
-        ],
-      ),
+        );
+      }).toList(),
     );
   }
 
-  /// Displays a dialog to choose the recent searches limit.
-  Future<void> _showRecentSearchesLimitDialog() async {
+  /// Shows a bottom sheet to choose the recent searches limit.
+  Future<void> _showRecentSearchesLimitSheet() async {
     final colorScheme = Theme.of(context).colorScheme;
     bool isCustom = _searchSettingsService.isCustomRecentLimit;
     final controller = TextEditingController(
@@ -81,56 +101,94 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
     );
     final focusNode = FocusNode();
     String? errorText;
+    final rangeError =
+        'Enter a number between ${SearchSettingsService.minRecentSearchesLimit} and ${SearchSettingsService.maxRecentSearchesLimit}';
 
-    await showDialog<void>(
+    await showAriamiSheet<void>(
       context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) {
-          void submit() async {
-            if (isCustom) {
-              final parsed = int.tryParse(controller.text.trim());
-              if (parsed == null ||
-                  parsed < SearchSettingsService.minRecentSearchesLimit ||
-                  parsed > SearchSettingsService.maxRecentSearchesLimit) {
-                setDialogState(() {
-                  errorText =
-                      'Enter a number between ${SearchSettingsService.minRecentSearchesLimit} and ${SearchSettingsService.maxRecentSearchesLimit}';
-                });
-                return;
+      backgroundColor: colorScheme.surface,
+      header: const AriamiSheetSectionTitle('Recent Searches Limit'),
+      child: Container(
+        key: recentSearchesLimitSheetKey,
+        child: StatefulBuilder(
+          builder: (sheetContext, setSheetState) {
+            void submit() async {
+              if (isCustom) {
+                final parsed = int.tryParse(controller.text.trim());
+                if (parsed == null ||
+                    parsed < SearchSettingsService.minRecentSearchesLimit ||
+                    parsed > SearchSettingsService.maxRecentSearchesLimit) {
+                  setSheetState(() => errorText = rangeError);
+                  return;
+                }
+                Navigator.of(sheetContext).pop();
+                await _searchSettingsService.setRecentSearchesLimit(
+                  isCustom: true,
+                  customLimit: parsed,
+                );
+              } else {
+                Navigator.of(sheetContext).pop();
+                await _searchSettingsService.setRecentSearchesLimit(
+                  isCustom: false,
+                );
               }
-              Navigator.of(dialogContext).pop();
-              await _searchSettingsService.setRecentSearchesLimit(
-                isCustom: true,
-                customLimit: parsed,
-              );
-            } else {
-              Navigator.of(dialogContext).pop();
-              await _searchSettingsService.setRecentSearchesLimit(
-                isCustom: false,
-              );
             }
-          }
 
-          return AlertDialog(
-            title: const Text('Recent Searches Limit'),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  RadioGroup<bool>(
-                    groupValue: isCustom,
-                    onChanged: (val) {
-                      if (val == null) return;
-                      setDialogState(() {
-                        isCustom = val;
+            Widget optionTile({
+              required bool value,
+              required IconData icon,
+              required String title,
+              required String subtitle,
+            }) {
+              final selected = isCustom == value;
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                child: Material(
+                  color: selected ? colorScheme.primary : Colors.transparent,
+                  borderRadius: BorderRadius.circular(15),
+                  child: ListTile(
+                    leading: Icon(
+                      icon,
+                      color: selected
+                          ? colorScheme.onPrimary
+                          : colorScheme.onSurfaceVariant,
+                      size: 20,
+                    ),
+                    title: Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color:
+                            selected ? colorScheme.onPrimary : colorScheme.onSurface,
+                      ),
+                    ),
+                    subtitle: Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: selected
+                            ? colorScheme.onPrimary.withValues(alpha: 0.7)
+                            : colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    trailing: selected
+                        ? Icon(
+                            Icons.check_circle_rounded,
+                            color: colorScheme.onPrimary,
+                            size: 20,
+                          )
+                        : null,
+                    onTap: () {
+                      setSheetState(() {
+                        isCustom = value;
                         if (isCustom) {
                           final parsed = int.tryParse(controller.text.trim());
                           if (parsed == null ||
                               parsed < SearchSettingsService.minRecentSearchesLimit ||
                               parsed > SearchSettingsService.maxRecentSearchesLimit) {
-                            errorText =
-                                'Enter a number between ${SearchSettingsService.minRecentSearchesLimit} and ${SearchSettingsService.maxRecentSearchesLimit}';
+                            errorText = rangeError;
                           } else {
                             errorText = null;
                           }
@@ -144,93 +202,82 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
                         }
                       });
                     },
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        RadioListTile<bool>(
-                          title: const Text(
-                            'Standard (30)',
-                            style: TextStyle(fontWeight: FontWeight.w600),
-                          ),
-                          subtitle: Text(
-                            'Default limit of 30 recent searches',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: colorScheme.onSurface.withValues(alpha: 0.7),
-                            ),
-                          ),
-                          value: false,
-                          activeColor: colorScheme.primary,
-                          contentPadding: EdgeInsets.zero,
-                        ),
-                        RadioListTile<bool>(
-                          title: const Text(
-                            'Custom',
-                            style: TextStyle(fontWeight: FontWeight.w600),
-                          ),
-                          subtitle: Text(
-                            'Set a custom limit between 5 and 500',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: colorScheme.onSurface.withValues(alpha: 0.7),
-                            ),
-                          ),
-                          value: true,
-                          activeColor: colorScheme.primary,
-                          contentPadding: EdgeInsets.zero,
-                        ),
-                      ],
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(15),
                     ),
                   ),
-                  if (isCustom) ...[
-                    const SizedBox(height: 8),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                      child: TextField(
-                        controller: controller,
-                        focusNode: focusNode,
-                        keyboardType: TextInputType.number,
-                        inputFormatters: [
-                          FilteringTextInputFormatter.digitsOnly,
-                        ],
-                        decoration: InputDecoration(
-                          labelText: 'Limit (5 - 500)',
-                          hintText: '30',
-                          errorText: errorText,
-                          border: const OutlineInputBorder(),
-                          isDense: true,
-                        ),
-                        onChanged: (value) {
-                          setDialogState(() {
-                            final parsed = int.tryParse(value.trim());
-                            if (parsed == null ||
-                                parsed < SearchSettingsService.minRecentSearchesLimit ||
-                                parsed > SearchSettingsService.maxRecentSearchesLimit) {
-                              errorText =
-                                  'Enter a number between ${SearchSettingsService.minRecentSearchesLimit} and ${SearchSettingsService.maxRecentSearchesLimit}';
-                            } else {
-                              errorText = null;
-                            }
-                          });
-                        },
+                ),
+              );
+            }
+
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                optionTile(
+                  value: false,
+                  icon: Icons.history_rounded,
+                  title: 'Standard (30)',
+                  subtitle: 'Default limit of 30 recent searches',
+                ),
+                optionTile(
+                  value: true,
+                  icon: Icons.tune_rounded,
+                  title: 'Custom',
+                  subtitle: 'Set a custom limit between 5 and 500',
+                ),
+                if (isCustom) ...[
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+                    child: TextField(
+                      controller: controller,
+                      focusNode: focusNode,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                      ],
+                      decoration: InputDecoration(
+                        labelText: 'Limit (5 - 500)',
+                        hintText: '30',
+                        errorText: errorText,
+                        border: const OutlineInputBorder(),
+                        isDense: true,
                       ),
+                      onChanged: (value) {
+                        setSheetState(() {
+                          final parsed = int.tryParse(value.trim());
+                          errorText =
+                              parsed == null ||
+                                  parsed < SearchSettingsService.minRecentSearchesLimit ||
+                                  parsed > SearchSettingsService.maxRecentSearchesLimit
+                              ? rangeError
+                              : null;
+                        });
+                      },
                     ),
-                  ],
+                  ),
                 ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(dialogContext).pop(),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: submit,
-                child: const Text('Save'),
-              ),
-            ],
-          );
-        },
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.of(sheetContext).pop(),
+                        child: const Text('Cancel'),
+                      ),
+                      const SizedBox(width: 8),
+                      FilledButton(
+                        onPressed: submit,
+                        child: const Text('Save'),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
       ),
     );
     controller.dispose();
@@ -275,13 +322,13 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
                     icon: Icons.search_rounded,
                     title: 'Search Mode',
                     subtitle: _searchSettingsService.mode.label,
-                    onTap: _showSearchModeDialog,
+                    onTap: _showSearchModeSheet,
                   ),
                   SettingsTile(
                     icon: Icons.history_rounded,
                     title: 'Recent Searches Limit',
                     subtitle: _searchSettingsService.recentSearchesLimitLabel,
-                    onTap: _showRecentSearchesLimitDialog,
+                    onTap: _showRecentSearchesLimitSheet,
                   ),
                 ],
               ),

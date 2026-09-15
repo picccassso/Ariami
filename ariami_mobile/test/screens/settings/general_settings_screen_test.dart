@@ -30,7 +30,7 @@ void main() {
     expect(find.text('Search Mode'), findsOneWidget);
     expect(find.text('Spotify Mode'), findsOneWidget);
 
-    // Tap Search Mode tile to open dialog
+    // Tap Search Mode tile to open bottom sheet
     await tester.tap(find.text('Search Mode'));
     await tester.pumpAndSettle();
 
@@ -41,7 +41,7 @@ void main() {
     await tester.tap(find.text('Standard'));
     await tester.pumpAndSettle();
 
-    // Dialog should be dismissed and subtitle updated to Standard
+    // Sheet should be dismissed and subtitle updated to Standard
     expect(find.text('Standard'), findsOneWidget);
     expect(searchSettings.mode, SearchMode.standard);
   });
@@ -64,7 +64,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // Tap Recent Searches Limit tile to open dialog
+    // Tap Recent Searches Limit tile to open bottom sheet
     await tester.tap(find.text('Recent Searches Limit'));
     await tester.pumpAndSettle();
 
@@ -104,7 +104,7 @@ void main() {
     expect(searchSettings.isCustomRecentLimit, isTrue);
     expect(searchSettings.recentSearchesLimit, 50);
 
-    // Reopen dialog and switch back to Standard (30)
+    // Reopen sheet and switch back to Standard (30)
     await tester.tap(find.text('Recent Searches Limit'));
     await tester.pumpAndSettle();
 
@@ -119,7 +119,7 @@ void main() {
     expect(searchSettings.recentSearchesLimit, 30);
   });
 
-  testWidgets('cancelling Recent Searches Limit dialog discards changes',
+  testWidgets('cancelling Recent Searches Limit sheet discards changes',
       (tester) async {
     await tester.pumpWidget(
       const MaterialApp(home: GeneralSettingsScreen()),
@@ -156,11 +156,11 @@ void main() {
     await tester.pumpAndSettle();
 
     final standardOption = find.descendant(
-      of: find.byType(AlertDialog),
+      of: find.byKey(recentSearchesLimitSheetKey),
       matching: find.text('Standard (30)'),
     );
     final customOption = find.descendant(
-      of: find.byType(AlertDialog),
+      of: find.byKey(recentSearchesLimitSheetKey),
       matching: find.text('Custom'),
     );
 

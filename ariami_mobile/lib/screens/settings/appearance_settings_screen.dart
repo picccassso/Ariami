@@ -115,13 +115,18 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
 
   void _showColorPicker() {
     Color pickerColor = _themeService.customColor;
+    final colorScheme = Theme.of(context).colorScheme;
 
-    showDialog(
+    showAriamiSheet<void>(
       context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Pick a color'),
-          content: SingleChildScrollView(
+      backgroundColor: colorScheme.surface,
+      header: const AriamiSheetSectionTitle('Pick a color'),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
             child: ColorPicker(
               pickerColor: pickerColor,
               onColorChanged: (Color color) {
@@ -133,24 +138,29 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
               paletteType: PaletteType.hsvWithHue,
             ),
           ),
-          actions: <Widget>[
-            TextButton(
-              child: const Text('Cancel'),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Cancel'),
+                ),
+                const SizedBox(width: 8),
+                FilledButton(
+                  onPressed: () {
+                    _themeService.setCustomColor(pickerColor);
+                    _themeService.setThemeSource(ThemeSource.custom);
+                    Navigator.of(context).pop();
+                  },
+                  child: const Text('Save'),
+                ),
+              ],
             ),
-            TextButton(
-              child: const Text('Save'),
-              onPressed: () {
-                _themeService.setCustomColor(pickerColor);
-                _themeService.setThemeSource(ThemeSource.custom);
-                Navigator.of(context).pop();
-              },
-            ),
-          ],
-        );
-      },
+          ),
+        ],
+      ),
     );
   }
 
