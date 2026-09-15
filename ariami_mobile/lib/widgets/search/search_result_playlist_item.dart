@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../models/api_models.dart';
+import '../../screens/playlist/widgets/playlist_cover_art.dart';
 
 /// Search result item for playlists
 class SearchResultPlaylistItem extends StatelessWidget {
@@ -22,21 +23,10 @@ class SearchResultPlaylistItem extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
           child: Row(
             children: [
-              Container(
-                width: 60,
-                height: 60,
-                decoration: BoxDecoration(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .surfaceContainerHighest
-                      .withValues(alpha: 0.6),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  Icons.queue_music_rounded,
-                  size: 32,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
+              PlaylistCoverArt(
+                playlist: playlist,
+                size: 60,
+                borderRadius: BorderRadius.circular(12),
               ),
               const SizedBox(width: 16),
               Expanded(

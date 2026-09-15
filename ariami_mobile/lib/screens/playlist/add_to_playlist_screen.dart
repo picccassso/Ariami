@@ -6,7 +6,9 @@ import '../../models/api_models.dart';
 import '../../services/api/connection_service.dart';
 import '../../services/playlist_service.dart';
 import '../../widgets/common/cached_artwork.dart';
+import '../../widgets/common/song_artwork.dart';
 import 'create_playlist_screen.dart';
+import 'widgets/playlist_cover_art.dart';
 
 /// Screen for adding songs to a playlist
 /// Can be used in two modes:
@@ -64,6 +66,15 @@ class AddToPlaylistScreen extends StatefulWidget {
       header: AriamiSheetHeader(
         title: 'Add to Playlist',
         subtitle: subtitle,
+        leading: SongArtwork(
+          song: SongModel(
+            id: songId,
+            title: title ?? '',
+            artist: artist ?? '',
+            albumId: albumId,
+            duration: duration ?? 0,
+          ),
+        ),
       ),
       child: _AddSongsToPlaylistsSheet(
         songs: [
@@ -640,34 +651,13 @@ class _AddSongsToPlaylistsSheetState extends State<_AddSongsToPlaylistsSheet> {
     }
 
     return ListTile(
-      leading: _buildPlaylistIcon(playlist),
+      leading: PlaylistCoverArt(playlist: playlist),
       title: Text(playlist.name),
       subtitle: Text(
         '${playlist.songCount} song${playlist.songCount != 1 ? 's' : ''}',
       ),
       trailing: trailing,
       onTap: onTap,
-    );
-  }
-
-  Widget _buildPlaylistIcon(PlaylistModel playlist) {
-    final colorIndex = playlist.name.hashCode % 5;
-    final colors = [
-      Colors.purple[400]!,
-      Colors.blue[400]!,
-      Colors.green[400]!,
-      Colors.orange[400]!,
-      Colors.pink[400]!,
-    ];
-
-    return Container(
-      width: 48,
-      height: 48,
-      decoration: BoxDecoration(
-        color: colors[colorIndex],
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: const Icon(Icons.queue_music, color: Colors.white, size: 24),
     );
   }
 }

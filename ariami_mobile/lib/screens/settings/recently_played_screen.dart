@@ -14,6 +14,7 @@ import '../../utils/responsive.dart';
 import '../../widgets/common/cached_artwork.dart';
 import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
 import '../../widgets/common/queue_action_confirmation.dart';
+import '../../widgets/common/song_artwork.dart';
 import '../../widgets/common/song_overflow_menu.dart';
 import '../album_detail_screen.dart';
 import '../playlist/add_to_playlist_screen.dart';
@@ -641,7 +642,7 @@ class _RecentStatsTile extends StatelessWidget {
       header: AriamiSheetHeader(
         title: entry.title,
         subtitle: entry.artist,
-        leading: const Icon(Icons.music_note_rounded, size: 28),
+        leading: SongArtwork(song: songModel),
       ),
       items: [
         ListTile(

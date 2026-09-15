@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+
 import '../../../../models/api_models.dart';
+import '../../../../screens/playlist/widgets/playlist_cover_art.dart';
 import '../../../../widgets/common/mini_player_aware_bottom_sheet.dart';
 
 /// Shows the playlist context menu bottom sheet.
@@ -20,14 +22,10 @@ Future<void> showPlaylistContextMenu({
       title: playlist.name,
       subtitle:
           '${playlist.songCount} song${playlist.songCount != 1 ? 's' : ''}',
-      leading: Container(
-        width: 44,
-        height: 44,
-        decoration: BoxDecoration(
-          color: Colors.purple[400],
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: const Icon(Icons.queue_music, color: Colors.white),
+      leading: PlaylistCoverArt(
+        playlist: playlist,
+        size: 44,
+        borderRadius: BorderRadius.circular(8),
       ),
     ),
     items: [

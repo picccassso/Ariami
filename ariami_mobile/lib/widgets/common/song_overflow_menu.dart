@@ -10,6 +10,7 @@ import '../../services/download/download_manager.dart';
 import '../../services/playback_manager.dart';
 import '../../services/playlist_service.dart';
 import 'mini_player_aware_bottom_sheet.dart';
+import 'song_artwork.dart';
 
 /// Per-track overflow menu (Play, Like, Play Next, Add to Queue, Add to
 /// Playlist, Download).
@@ -59,7 +60,7 @@ class SongOverflowMenu extends StatelessWidget {
       header: AriamiSheetHeader(
         title: song.title,
         subtitle: song.artist,
-        leading: const Icon(Icons.music_note_rounded, size: 28),
+        leading: SongArtwork(song: song),
       ),
       items: [
         ListTile(

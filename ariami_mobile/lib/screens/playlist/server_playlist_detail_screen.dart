@@ -300,14 +300,11 @@ class _ServerPlaylistDetailScreenState
       header: AriamiSheetHeader(
         title: playlist.name,
         subtitle: '${_songs.length} song${_songs.length == 1 ? '' : 's'}',
-        leading: Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            color: Colors.blue[500],
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: const Icon(Icons.folder, color: Colors.white),
+        leading: PlaylistCoverArt(
+          playlist: _asPlaylistModel(playlist),
+          artworkIds: PlaylistCoverArt.artworkIdsForSongs(_songs),
+          size: 44,
+          borderRadius: BorderRadius.circular(8),
         ),
       ),
       items: [

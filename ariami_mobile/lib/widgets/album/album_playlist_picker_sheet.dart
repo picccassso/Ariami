@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/api_models.dart';
 import '../../screens/playlist/create_playlist_screen.dart';
+import '../../screens/playlist/widgets/playlist_cover_art.dart';
 import '../../services/api/connection_service.dart';
 import '../../services/playlist_service.dart';
 import '../common/mini_player_aware_bottom_sheet.dart';
@@ -199,7 +200,7 @@ class _AlbumPlaylistPickerBodyState extends State<_AlbumPlaylistPickerBody> {
         songsAlreadyInPlaylist == widget.albumSongs.length;
 
     return ListTile(
-      leading: _buildPlaylistIcon(playlist),
+      leading: PlaylistCoverArt(playlist: playlist),
       title: Text(playlist.name),
       subtitle: Text(
         allSongsInPlaylist
@@ -212,43 +213,6 @@ class _AlbumPlaylistPickerBodyState extends State<_AlbumPlaylistPickerBody> {
           ? const Icon(Icons.check, color: Colors.green)
           : const Icon(Icons.add),
       onTap: allSongsInPlaylist ? null : () => _addAlbumToPlaylist(playlist),
-    );
-  }
-
-  Widget _buildPlaylistIcon(PlaylistModel playlist) {
-    if (playlist.id == PlaylistService.likedSongsId) {
-      return Container(
-        width: 48,
-        height: 48,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Colors.pink[400]!, Colors.red[700]!],
-          ),
-          borderRadius: BorderRadius.circular(4),
-        ),
-        child: const Icon(Icons.favorite, color: Colors.white, size: 24),
-      );
-    }
-
-    final colorIndex = playlist.name.hashCode % 5;
-    final colors = [
-      Colors.purple[400]!,
-      Colors.blue[400]!,
-      Colors.green[400]!,
-      Colors.orange[400]!,
-      Colors.pink[400]!,
-    ];
-
-    return Container(
-      width: 48,
-      height: 48,
-      decoration: BoxDecoration(
-        color: colors[colorIndex.abs()],
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: const Icon(Icons.queue_music, color: Colors.white, size: 24),
     );
   }
 }

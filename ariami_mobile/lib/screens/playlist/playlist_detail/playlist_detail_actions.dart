@@ -262,14 +262,10 @@ abstract class _PlaylistDetailActionsState
       header: AriamiSheetHeader(
         title: _playlist!.name,
         subtitle: '${_songs.length} song${_songs.length != 1 ? 's' : ''}',
-        leading: Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            color: Colors.purple[400],
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: const Icon(Icons.queue_music, color: Colors.white),
+        leading: PlaylistCoverArt(
+          playlist: _playlist!,
+          size: 44,
+          borderRadius: BorderRadius.circular(8),
         ),
       ),
       items: [

@@ -8,6 +8,7 @@ import '../../services/download/download_manager.dart';
 import '../../services/api/connection_service.dart';
 import '../common/artist_link.dart';
 import '../common/cached_artwork.dart';
+import '../common/song_artwork.dart';
 import '../common/song_overflow_menu.dart';
 import '../common/swipe_to_queue.dart';
 
@@ -353,7 +354,7 @@ class SongListItem extends StatelessWidget {
       header: AriamiSheetHeader(
         title: song.title,
         subtitle: song.artist,
-        leading: const Icon(Icons.music_note_rounded, size: 28),
+        leading: SongArtwork(song: song),
       ),
       items: [
         ListTile(

@@ -6,6 +6,7 @@ export 'empty_playlist_state.dart';
 export 'error_state.dart';
 export 'fallback_header.dart';
 export 'playlist_action_buttons.dart';
+export 'playlist_cover_art.dart';
 export 'playlist_header.dart';
 export 'playlist_info_section.dart';
 export 'playlist_offline_copy_banner.dart';

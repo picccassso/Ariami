@@ -6,6 +6,7 @@ import '../../services/api/connection_service.dart';
 import '../../services/playback_manager.dart';
 import '../common/cached_artwork.dart';
 import '../common/mini_player_aware_bottom_sheet.dart';
+import '../common/song_artwork.dart';
 import '../common/song_overflow_menu.dart';
 import '../common/swipe_to_queue.dart';
 
@@ -192,7 +193,7 @@ class _SearchResultSongItemState extends State<SearchResultSongItem> {
       header: AriamiSheetHeader(
         title: widget.song.title,
         subtitle: widget.song.artist,
-        leading: const Icon(Icons.music_note_rounded, size: 28),
+        leading: SongArtwork(song: widget.song),
       ),
       items: [
         ListTile(

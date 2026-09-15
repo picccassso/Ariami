@@ -254,8 +254,8 @@ void main() {
     await _pumpFrames(tester);
 
     expect(find.byType(BottomSheet), findsOneWidget);
-    // Header styling: track note icon, title, artist
-    expect(find.byIcon(Icons.music_note_rounded), findsOneWidget);
+    // Header styling: track artwork, title, artist
+    expect(find.byIcon(Icons.music_note), findsOneWidget);
     expect(find.text('History Song'), findsWidgets);
     expect(find.text('Artist'), findsWidgets);
 
