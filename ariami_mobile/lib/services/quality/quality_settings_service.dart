@@ -122,6 +122,11 @@ class QualitySettingsService {
     );
   }
 
+  /// Update download quality using [DownloadQuality] (Original, High, Medium, Low)
+  Future<void> setDownloadQualityOption(DownloadQuality quality) async {
+    await updateSettings(_settings.copyWith(effectiveDownloadQuality: quality));
+  }
+
   /// Update preference for local playback when online
   Future<void> setPreferLocalWhenOnline(bool preferLocal) async {
     await updateSettings(
@@ -159,6 +164,11 @@ class QualitySettingsService {
   /// Whether downloads should use the original file
   bool getDownloadOriginal() {
     return _settings.downloadOriginal;
+  }
+
+  /// Get the effective download quality (Original, High, Medium, Low)
+  DownloadQuality getEffectiveDownloadQuality() {
+    return _settings.effectiveDownloadQuality;
   }
 
   /// Get stream URL with quality parameter

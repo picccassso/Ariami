@@ -840,6 +840,14 @@ class DownloadsController extends ChangeNotifier {
     }
   }
 
+  Future<void> setDownloadQuality(DownloadQuality quality) async {
+    await _qualityService.setDownloadQualityOption(quality);
+    if (!_disposed) {
+      _state = _state.copyWith(effectiveDownloadQuality: quality);
+      notifyListeners();
+    }
+  }
+
   Future<void> setAutoResumeInterruptedOnLaunch(bool enabled) async {
     await _downloadManager.setAutoResumeInterruptedOnLaunch(enabled);
     if (!_disposed) {

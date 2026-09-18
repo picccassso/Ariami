@@ -85,6 +85,81 @@ enum StreamingQuality {
   }
 }
 
+/// Quality preset for offline downloads.
+///
+/// [original] downloads the untouched source file from the server.
+/// [high], [medium], and [low] request transcoding on the server via Sonic.
+enum DownloadQuality {
+  original,
+  high,
+  medium,
+  low;
+
+  /// Human-readable display name
+  String get displayName {
+    switch (this) {
+      case DownloadQuality.original:
+        return 'Original';
+      case DownloadQuality.high:
+        return 'High (192 kbps)';
+      case DownloadQuality.medium:
+        return 'Medium (128 kbps)';
+      case DownloadQuality.low:
+        return 'Low (64 kbps)';
+    }
+  }
+
+  /// Description for UI
+  String get description {
+    switch (this) {
+      case DownloadQuality.original:
+        return 'Original source file';
+      case DownloadQuality.high:
+        return 'Best compressed quality';
+      case DownloadQuality.medium:
+        return 'Balanced quality and storage';
+      case DownloadQuality.low:
+        return 'Smallest downloads';
+    }
+  }
+
+  /// Maps to the underlying [StreamingQuality] preset used by the API ticket
+  StreamingQuality get streamingQuality => switch (this) {
+        DownloadQuality.original || DownloadQuality.high => StreamingQuality.high,
+        DownloadQuality.medium => StreamingQuality.medium,
+        DownloadQuality.low => StreamingQuality.low,
+      };
+
+  bool get isOriginal => this == DownloadQuality.original;
+
+  static DownloadQuality fromSettings({
+    required StreamingQuality quality,
+    required bool isOriginal,
+  }) {
+    if (isOriginal) return DownloadQuality.original;
+    return switch (quality) {
+      StreamingQuality.high => DownloadQuality.high,
+      StreamingQuality.medium => DownloadQuality.medium,
+      StreamingQuality.low => DownloadQuality.low,
+    };
+  }
+
+  static DownloadQuality fromString(String? value) {
+    switch (value?.toLowerCase()) {
+      case 'original':
+        return DownloadQuality.original;
+      case 'high':
+        return DownloadQuality.high;
+      case 'medium':
+        return DownloadQuality.medium;
+      case 'low':
+        return DownloadQuality.low;
+      default:
+        return DownloadQuality.original;
+    }
+  }
+}
+
 /// User's quality preferences for different network conditions
 class QualitySettings {
   /// Quality to use when on WiFi
@@ -102,6 +177,13 @@ class QualitySettings {
   /// Whether downloads should use the original file (skip transcoding)
   final bool downloadOriginal;
 
+  /// Effective download quality encompassing original vs transcoded high/medium/low
+  DownloadQuality get effectiveDownloadQuality =>
+      DownloadQuality.fromSettings(
+        quality: downloadQuality,
+        isOriginal: downloadOriginal,
+      );
+
   const QualitySettings({
     this.wifiQuality = StreamingQuality.high,
     this.mobileDataQuality = StreamingQuality.medium,
@@ -112,14 +194,25 @@ class QualitySettings {
 
   /// Create from JSON (for persistence)
   factory QualitySettings.fromJson(Map<String, dynamic> json) {
+    final rawDownloadQuality = json['downloadQuality'] as String?;
+    final rawEffectiveQuality = json['effectiveDownloadQuality'] as String?;
+    final isOriginalQuality = rawDownloadQuality?.toLowerCase() == 'original' ||
+        rawEffectiveQuality?.toLowerCase() == 'original';
+    final downloadOriginal =
+        (json['downloadOriginal'] as bool? ?? false) || isOriginalQuality;
+    final downloadQuality = isOriginalQuality
+        ? StreamingQuality.high
+        : (rawEffectiveQuality != null
+            ? DownloadQuality.fromString(rawEffectiveQuality).streamingQuality
+            : StreamingQuality.fromString(rawDownloadQuality));
+
     return QualitySettings(
       wifiQuality: StreamingQuality.fromString(json['wifiQuality'] as String?),
       mobileDataQuality:
           StreamingQuality.fromString(json['mobileDataQuality'] as String?),
-      downloadQuality:
-          StreamingQuality.fromString(json['downloadQuality'] as String?),
+      downloadQuality: downloadQuality,
       preferLocalWhenOnline: json['preferLocalWhenOnline'] as bool? ?? false,
-      downloadOriginal: json['downloadOriginal'] as bool? ?? false,
+      downloadOriginal: downloadOriginal,
     );
   }
 
@@ -131,6 +224,7 @@ class QualitySettings {
       'downloadQuality': downloadQuality.name,
       'preferLocalWhenOnline': preferLocalWhenOnline,
       'downloadOriginal': downloadOriginal,
+      'effectiveDownloadQuality': effectiveDownloadQuality.name,
     };
   }
 
@@ -141,14 +235,22 @@ class QualitySettings {
     StreamingQuality? downloadQuality,
     bool? preferLocalWhenOnline,
     bool? downloadOriginal,
+    DownloadQuality? effectiveDownloadQuality,
   }) {
+    final resolvedQuality = effectiveDownloadQuality != null
+        ? effectiveDownloadQuality.streamingQuality
+        : (downloadQuality ?? this.downloadQuality);
+    final resolvedOriginal = effectiveDownloadQuality != null
+        ? effectiveDownloadQuality.isOriginal
+        : (downloadOriginal ?? this.downloadOriginal);
+
     return QualitySettings(
       wifiQuality: wifiQuality ?? this.wifiQuality,
       mobileDataQuality: mobileDataQuality ?? this.mobileDataQuality,
-      downloadQuality: downloadQuality ?? this.downloadQuality,
+      downloadQuality: resolvedQuality,
       preferLocalWhenOnline:
           preferLocalWhenOnline ?? this.preferLocalWhenOnline,
-      downloadOriginal: downloadOriginal ?? this.downloadOriginal,
+      downloadOriginal: resolvedOriginal,
     );
   }
 

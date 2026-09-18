@@ -94,6 +94,78 @@ void main() {
       expect(savedSettings['downloadQuality'], 'high');
       expect(savedSettings['downloadOriginal'], isTrue);
     });
+
+    test('setDownloadQualityOption sets all 4 qualities correctly', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final service = QualitySettingsService();
+      await service.initialize();
+
+      // Original
+      await service.setDownloadQualityOption(DownloadQuality.original);
+      expect(service.getEffectiveDownloadQuality(), DownloadQuality.original);
+      expect(service.getDownloadOriginal(), isTrue);
+      expect(service.getDownloadQuality(), StreamingQuality.high);
+
+      // High
+      await service.setDownloadQualityOption(DownloadQuality.high);
+      expect(service.getEffectiveDownloadQuality(), DownloadQuality.high);
+      expect(service.getDownloadOriginal(), isFalse);
+      expect(service.getDownloadQuality(), StreamingQuality.high);
+
+      // Medium
+      await service.setDownloadQualityOption(DownloadQuality.medium);
+      expect(service.getEffectiveDownloadQuality(), DownloadQuality.medium);
+      expect(service.getDownloadOriginal(), isFalse);
+      expect(service.getDownloadQuality(), StreamingQuality.medium);
+
+      // Low
+      await service.setDownloadQualityOption(DownloadQuality.low);
+      expect(service.getEffectiveDownloadQuality(), DownloadQuality.low);
+      expect(service.getDownloadOriginal(), isFalse);
+      expect(service.getDownloadQuality(), StreamingQuality.low);
+    });
+
+    test('QualitySettings fromJson handles original downloadQuality', () {
+      final settings = QualitySettings.fromJson(<String, dynamic>{
+        'downloadQuality': 'original',
+      });
+      expect(settings.effectiveDownloadQuality, DownloadQuality.original);
+      expect(settings.downloadOriginal, isTrue);
+      expect(settings.downloadQuality, StreamingQuality.high);
+    });
+
+    test('QualitySettings fromJson handles effectiveDownloadQuality key', () {
+      final settings = QualitySettings.fromJson(<String, dynamic>{
+        'effectiveDownloadQuality': 'low',
+        'downloadQuality': 'high',
+        'downloadOriginal': false,
+      });
+      expect(settings.effectiveDownloadQuality, DownloadQuality.low);
+      expect(settings.downloadOriginal, isFalse);
+      expect(settings.downloadQuality, StreamingQuality.low);
+    });
+
+    test('QualitySettings toJson includes effectiveDownloadQuality', () {
+      const settings = QualitySettings(
+        downloadQuality: StreamingQuality.medium,
+        downloadOriginal: false,
+      );
+      final json = settings.toJson();
+      expect(json['effectiveDownloadQuality'], 'medium');
+      expect(json['downloadQuality'], 'medium');
+      expect(json['downloadOriginal'], isFalse);
+    });
+
+    test('QualitySettings copyWith with effectiveDownloadQuality updates both fields', () {
+      const initial = QualitySettings(
+        downloadQuality: StreamingQuality.high,
+        downloadOriginal: true,
+      );
+      final updated = initial.copyWith(effectiveDownloadQuality: DownloadQuality.low);
+      expect(updated.effectiveDownloadQuality, DownloadQuality.low);
+      expect(updated.downloadOriginal, isFalse);
+      expect(updated.downloadQuality, StreamingQuality.low);
+    });
   });
 
   group('speculative media transfer policy', () {

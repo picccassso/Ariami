@@ -1,3 +1,4 @@
+import 'dart:async';
 import '../../utils/responsive.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -22,10 +23,20 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
   bool _isLoading = true;
   bool _preferLocalWhenOnline = false;
 
+  StreamSubscription<QualitySettings>? _settingsSubscription;
+  StreamSubscription<NetworkType>? _networkSubscription;
+
   @override
   void initState() {
     super.initState();
     _loadSettings();
+  }
+
+  @override
+  void dispose() {
+    _settingsSubscription?.cancel();
+    _networkSubscription?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadSettings() async {
@@ -37,6 +48,23 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
         _settings = _qualityService.settings;
         _preferLocalWhenOnline = _settings.preferLocalWhenOnline;
         _isLoading = false;
+      });
+
+      _settingsSubscription ??=
+          _qualityService.settingsStream.listen((settings) {
+        if (mounted) {
+          setState(() {
+            _settings = settings;
+            _preferLocalWhenOnline = settings.preferLocalWhenOnline;
+          });
+        }
+      });
+
+      _networkSubscription ??=
+          _qualityService.networkTypeStream.listen((_) {
+        if (mounted) {
+          setState(() {});
+        }
       });
     }
   }
@@ -55,8 +83,8 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
     });
   }
 
-  Future<void> _updateDownloadQuality(StreamingQuality quality) async {
-    await _qualityService.setDownloadQuality(quality);
+  Future<void> _updateDownloadQualityOption(DownloadQuality quality) async {
+    await _qualityService.setDownloadQualityOption(quality);
     setState(() {
       _settings = _qualityService.settings;
     });
@@ -73,7 +101,6 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       backgroundColor: colorScheme.surface,
@@ -144,14 +171,10 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
 
                   // Download quality section
                   _buildSectionHeader('DOWNLOAD QUALITY'),
-                  _buildQualityCard(
+                  _buildDownloadQualityCard(
                     context,
-                    icon: Icons.file_download_outlined,
-                    title: 'Downloads',
-                    subtitle: 'Quality for offline playback',
-                    currentQuality: _settings.downloadQuality,
-                    onChanged: _updateDownloadQuality,
-                    isDownload: true,
+                    currentQuality: _settings.effectiveDownloadQuality,
+                    onChanged: _updateDownloadQualityOption,
                   ),
 
                   const SizedBox(height: 24),
@@ -252,6 +275,92 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
     );
   }
 
+  Widget _buildDownloadQualityCard(
+    BuildContext context, {
+    required DownloadQuality currentQuality,
+    required Function(DownloadQuality) onChanged,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => _showDownloadQualityPicker(
+          context,
+          currentQuality: currentQuality,
+          onChanged: onChanged,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                child: Icon(
+                  Icons.file_download_outlined,
+                  color: colorScheme.onSurface,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Downloads',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: colorScheme.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Quality for offline playback',
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w400,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Flexible(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        currentQuality.displayName,
+                        textAlign: TextAlign.right,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      color: colorScheme.onSurfaceVariant,
+                      size: 24,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildQualityCard(
     BuildContext context, {
     required IconData icon,
@@ -259,7 +368,6 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
     required String subtitle,
     required StreamingQuality currentQuality,
     required Function(StreamingQuality) onChanged,
-    bool isDownload = false,
   }) {
     final colorScheme = Theme.of(context).colorScheme;
     return Material(
@@ -270,7 +378,6 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
           title: title,
           currentQuality: currentQuality,
           onChanged: onChanged,
-          isDownload: isDownload,
         ),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -320,9 +427,7 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
                   children: [
                     Flexible(
                       child: Text(
-                        isDownload
-                            ? currentQuality.downloadDisplayName
-                            : currentQuality.displayName,
+                        currentQuality.displayName,
                         textAlign: TextAlign.right,
                         style: TextStyle(
                           fontSize: 14,
@@ -412,7 +517,6 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
     required String title,
     required StreamingQuality currentQuality,
     required Function(StreamingQuality) onChanged,
-    bool isDownload = false,
   }) {
     final colorScheme = Theme.of(context).colorScheme;
     showAriamiSheet<void>(
@@ -439,9 +543,7 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
                     size: 20,
                   ),
                   title: Text(
-                    isDownload
-                        ? quality.downloadDisplayName
-                        : quality.displayName,
+                    quality.displayName,
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
@@ -451,9 +553,7 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
                     ),
                   ),
                   subtitle: Text(
-                    isDownload
-                        ? quality.downloadDescription
-                        : quality.description,
+                    quality.description,
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w500,
@@ -483,6 +583,91 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
         ],
       ),
     );
+  }
+
+  void _showDownloadQualityPicker(
+    BuildContext context, {
+    required DownloadQuality currentQuality,
+    required Function(DownloadQuality) onChanged,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    showAriamiSheet<void>(
+      context: context,
+      backgroundColor: colorScheme.surface,
+      header: const AriamiSheetSectionTitle('Download quality'),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ...DownloadQuality.values.map((quality) {
+            final isSelected = quality == currentQuality;
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              child: Material(
+                color: isSelected ? colorScheme.primary : Colors.transparent,
+                borderRadius: BorderRadius.circular(15),
+                child: ListTile(
+                  leading: Icon(
+                    _getDownloadQualityIcon(quality),
+                    color: isSelected
+                        ? colorScheme.onPrimary
+                        : colorScheme.onSurfaceVariant,
+                    size: 20,
+                  ),
+                  title: Text(
+                    quality.displayName,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: isSelected
+                          ? colorScheme.onPrimary
+                          : colorScheme.onSurface,
+                    ),
+                  ),
+                  subtitle: Text(
+                    quality.description,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      color: isSelected
+                          ? colorScheme.onPrimary.withValues(alpha: 0.7)
+                          : colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  trailing: isSelected
+                      ? Icon(
+                          Icons.check_circle_rounded,
+                          color: colorScheme.onPrimary,
+                          size: 20,
+                        )
+                      : null,
+                  onTap: () {
+                    Navigator.pop(context);
+                    onChanged(quality);
+                  },
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                ),
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  IconData _getDownloadQualityIcon(DownloadQuality quality) {
+    switch (quality) {
+      case DownloadQuality.original:
+        return Icons.audio_file_rounded;
+      case DownloadQuality.high:
+        return Icons.high_quality_rounded;
+      case DownloadQuality.medium:
+        return Icons.sd_rounded;
+      case DownloadQuality.low:
+        return Icons.data_saver_on_rounded;
+    }
   }
 
   IconData _getQualityIcon(StreamingQuality quality) {
@@ -529,25 +714,31 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildInfoRow(
-                  'High (Original)',
-                  'Full quality, largest file size. Best for WiFi.',
+                  'Original (Source File)',
+                  'Source audio file without conversion. Used for Original downloads and High quality streaming.',
+                  colorScheme,
+                ),
+                const SizedBox(height: 12),
+                _buildInfoRow(
+                  'High (192 kbps)',
+                  'High bitrate audio conversion. Used for high-fidelity offline downloads.',
                   colorScheme,
                 ),
                 const SizedBox(height: 12),
                 _buildInfoRow(
                   'Medium (128 kbps)',
-                  'Good quality, ~40% smaller files.',
+                  'Good quality, balanced storage and data usage (~40% smaller).',
                   colorScheme,
                 ),
                 const SizedBox(height: 12),
                 _buildInfoRow(
                   'Low (64 kbps)',
-                  'Acceptable quality, ~80% smaller files.',
+                  'Acceptable quality, smallest file size and data usage (~80% smaller).',
                   colorScheme,
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'Lower quality settings reduce data usage and improve playback on slow connections.',
+                  'Lower quality settings reduce data usage and storage size. Offline downloads can be saved at Original or converted to High, Medium, or Low.',
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w400,

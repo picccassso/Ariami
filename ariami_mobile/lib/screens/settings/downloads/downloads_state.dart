@@ -137,6 +137,12 @@ class DownloadsState {
   final bool coolerDownloads;
   final int interruptedDownloadCount;
 
+  DownloadQuality get effectiveDownloadQuality =>
+      DownloadQuality.fromSettings(
+        quality: downloadQuality,
+        isOriginal: downloadOriginal,
+      );
+
   final List<AlbumGroup> inProgressAlbums;
   final List<AlbumGroup> failedAlbums;
   final List<DownloadTask> completedTasks;
@@ -163,6 +169,7 @@ class DownloadsState {
     bool? isDownloadingAllPlaylists,
     StreamingQuality? downloadQuality,
     bool? downloadOriginal,
+    DownloadQuality? effectiveDownloadQuality,
     bool? autoResumeInterruptedOnLaunch,
     bool? coolerDownloads,
     int? interruptedDownloadCount,
@@ -175,6 +182,13 @@ class DownloadsState {
     bool? hasAnyInProgress,
     bool? hasAnyFailed,
   }) {
+    final resolvedQuality = effectiveDownloadQuality != null
+        ? effectiveDownloadQuality.streamingQuality
+        : (downloadQuality ?? this.downloadQuality);
+    final resolvedOriginal = effectiveDownloadQuality != null
+        ? effectiveDownloadQuality.isOriginal
+        : (downloadOriginal ?? this.downloadOriginal);
+
     return DownloadsState(
       cacheSizeMB: cacheSizeMB ?? this.cacheSizeMB,
       cachedSongCount: cachedSongCount ?? this.cachedSongCount,
@@ -194,8 +208,8 @@ class DownloadsState {
           isDownloadingAllAlbums ?? this.isDownloadingAllAlbums,
       isDownloadingAllPlaylists:
           isDownloadingAllPlaylists ?? this.isDownloadingAllPlaylists,
-      downloadQuality: downloadQuality ?? this.downloadQuality,
-      downloadOriginal: downloadOriginal ?? this.downloadOriginal,
+      downloadQuality: resolvedQuality,
+      downloadOriginal: resolvedOriginal,
       autoResumeInterruptedOnLaunch:
           autoResumeInterruptedOnLaunch ?? this.autoResumeInterruptedOnLaunch,
       coolerDownloads: coolerDownloads ?? this.coolerDownloads,

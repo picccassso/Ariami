@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter/foundation.dart';
 
 /// Types of network connection
 enum NetworkType {
@@ -42,6 +43,14 @@ class NetworkMonitorService {
   /// Idempotent: concurrent or repeat calls share a single initialization so
   /// the connectivity subscription is never created more than once.
   Future<void> initialize() => _initFuture ??= _initialize();
+
+  @visibleForTesting
+  void resetForTesting() {
+    _subscription?.cancel();
+    _subscription = null;
+    _initFuture = null;
+    _currentNetworkType = NetworkType.none;
+  }
 
   Future<void> _initialize() async {
     // Get initial connectivity state
