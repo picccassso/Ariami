@@ -596,6 +596,40 @@ void main() {
         expect(downloadToken, isNotNull);
         expect(downloadTicketResponse.jsonBody['expiresAt'], isNotNull);
 
+        final invalidFormatTicketResponse = await _sendJsonRequest(
+          method: 'POST',
+          url: Uri.parse('http://127.0.0.1:$port/api/download-ticket'),
+          headers: <String, String>{'Authorization': 'Bearer $sessionToken'},
+          jsonBody: <String, dynamic>{
+            'songId': songId,
+            'quality': 'high',
+            'format': 'wav',
+          },
+        );
+        expect(invalidFormatTicketResponse.statusCode, 400);
+
+        final opusTicketResponse = await _sendJsonRequest(
+          method: 'POST',
+          url: Uri.parse('http://127.0.0.1:$port/api/download-ticket'),
+          headers: <String, String>{'Authorization': 'Bearer $sessionToken'},
+          jsonBody: <String, dynamic>{
+            'songId': songId,
+            'quality': 'high',
+            'format': 'opus',
+          },
+        );
+        expect(opusTicketResponse.statusCode, 200);
+        final opusToken =
+            opusTicketResponse.jsonBody['downloadToken'] as String;
+        final mismatchedFormatResponse = await _sendBinaryRequest(
+          method: 'GET',
+          url: Uri.parse(
+            'http://127.0.0.1:$port/api/download/$songId'
+            '?downloadToken=$opusToken&quality=high&format=m4a',
+          ),
+        );
+        expect(mismatchedFormatResponse.statusCode, 403);
+
         final fullResponse = await _sendBinaryRequest(
           method: 'GET',
           url: Uri.parse(

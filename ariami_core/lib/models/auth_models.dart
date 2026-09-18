@@ -231,16 +231,19 @@ class StreamTicketResponse {
 class DownloadTicketRequest {
   final String songId;
   final String? quality; // Optional: high, medium, low
+  final String? format; // Optional: aac, m4a, opus
 
   DownloadTicketRequest({
     required this.songId,
     this.quality,
+    this.format,
   });
 
   factory DownloadTicketRequest.fromJson(Map<String, dynamic> json) {
     return DownloadTicketRequest(
       songId: json['songId'] as String,
       quality: json['quality'] as String?,
+      format: json['format'] as String?,
     );
   }
 
@@ -248,6 +251,7 @@ class DownloadTicketRequest {
     return {
       'songId': songId,
       if (quality != null) 'quality': quality,
+      if (format != null) 'format': format,
     };
   }
 }

@@ -23,6 +23,42 @@ enum TranscodeRequestType {
   download,
 }
 
+/// Container/codec produced by Sonic for a transcoded download.
+///
+/// Streaming continues to use AAC unless a future protocol revision explicitly
+/// negotiates another format. Downloads negotiate this independently so newer
+/// clients can request Opus or M4A without changing older clients' behaviour.
+enum TranscodeOutputFormat {
+  aac,
+  m4a,
+  opus;
+
+  String get fileExtension => name;
+
+  String get mimeType => switch (this) {
+        TranscodeOutputFormat.aac => 'audio/aac',
+        TranscodeOutputFormat.m4a => 'audio/mp4',
+        TranscodeOutputFormat.opus => 'audio/ogg; codecs=opus',
+      };
+
+  int get _sonicValue => switch (this) {
+        TranscodeOutputFormat.aac => 0,
+        TranscodeOutputFormat.m4a => 2,
+        TranscodeOutputFormat.opus => 3,
+      };
+
+  static TranscodeOutputFormat? tryParse(String? value) {
+    final normalized = value?.trim().toLowerCase();
+    if (normalized == null || normalized.isEmpty) return null;
+    return switch (normalized) {
+      'aac' => TranscodeOutputFormat.aac,
+      'm4a' => TranscodeOutputFormat.m4a,
+      'opus' => TranscodeOutputFormat.opus,
+      _ => null,
+    };
+  }
+}
+
 /// Service for transcoding audio files to different quality levels.
 ///
 /// Uses Sonic for MP3 -> AAC transcoding and maintains a cache of transcoded files
@@ -348,7 +384,8 @@ class TranscodingService {
 
   Future<void> _runDownloadQueueTask(_TranscodeTask task) async {
     _runningDownloadCount++;
-    final lockKey = '${task.songId}_${task.quality.name}_download';
+    final lockKey =
+        '${task.songId}_${task.quality.name}_${task.outputFormat.name}_download';
 
     try {
       final result = await _performDownloadTranscode(
@@ -356,6 +393,7 @@ class TranscodingService {
         task.songId,
         task.quality,
         lockKey,
+        task.outputFormat,
       );
       task.completer.complete(result);
     } catch (e) {
@@ -446,13 +484,9 @@ class TranscodingService {
   Future<DownloadTranscodeResult?> getDownloadTranscode(
     String sourcePath,
     String songId,
-    QualityPreset quality,
-  ) async {
-    // No transcoding needed for high quality
-    if (!quality.requiresTranscoding) {
-      return null;
-    }
-
+    QualityPreset quality, {
+    TranscodeOutputFormat outputFormat = TranscodeOutputFormat.aac,
+  }) async {
     // Check Sonic availability
     if (!await isSonicAvailable()) {
       print(
@@ -460,7 +494,7 @@ class TranscodingService {
       return null;
     }
 
-    final lockKey = '${songId}_${quality.name}_download';
+    final lockKey = '${songId}_${quality.name}_${outputFormat.name}_download';
 
     // Check failure backoff
     if (_shouldSkipDueToFailure(lockKey)) {
@@ -480,6 +514,7 @@ class TranscodingService {
         sourcePath: sourcePath,
         songId: songId,
         quality: quality,
+        outputFormat: outputFormat,
         completer: Completer<File?>(),
       );
       _downloadQueue.add(task);
@@ -498,6 +533,7 @@ class TranscodingService {
         songId,
         quality,
         lockKey,
+        outputFormat,
       );
       if (result != null) {
         return DownloadTranscodeResult(tempFile: result, shouldDelete: true);

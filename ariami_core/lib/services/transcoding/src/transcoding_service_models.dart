@@ -7,6 +7,7 @@ class _TranscodeTask {
   final String sourcePath;
   final String songId;
   final QualityPreset quality;
+  final TranscodeOutputFormat outputFormat;
   final Completer<File?> completer;
   final int? sourceBitrateKbps;
 
@@ -14,6 +15,7 @@ class _TranscodeTask {
     required this.sourcePath,
     required this.songId,
     required this.quality,
+    this.outputFormat = TranscodeOutputFormat.aac,
     required this.completer,
     this.sourceBitrateKbps,
   });

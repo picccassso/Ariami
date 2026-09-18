@@ -251,14 +251,10 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                       ),
                       DownloadModeCard(
                         isDark: isDark,
-                        downloadQuality: state.downloadQuality,
                         downloadOriginal: state.downloadOriginal,
-                        onChanged: state.downloadQuality ==
-                                StreamingQuality.high
-                            ? (value) async {
-                                await _controller.setDownloadOriginal(value);
-                              }
-                            : null,
+                        onChanged: (value) async {
+                          await _controller.setDownloadOriginal(value);
+                        },
                       ),
                       DownloadsRecoveryPreferencesCard(
                         isDark: isDark,

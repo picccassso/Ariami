@@ -710,8 +710,12 @@ class ApiClient {
 
   /// Request a long-lived download ticket for authenticated offline downloads.
   Future<DownloadTicketResponse> getDownloadTicket(String songId,
-      {String? quality}) async {
-    final request = DownloadTicketRequest(songId: songId, quality: quality);
+      {String? quality, String? format}) async {
+    final request = DownloadTicketRequest(
+      songId: songId,
+      quality: quality,
+      format: format,
+    );
     final response = await _post('/download-ticket', request.toJson());
     return DownloadTicketResponse.fromJson(response);
   }
@@ -770,15 +774,19 @@ class ApiClient {
   ///
   /// [quality] - The download quality preset (high, medium, low)
   /// High quality returns original file, medium/low returns transcoded AAC.
-  String getDownloadUrlWithQuality(String songId, StreamingQuality quality) {
-    final baseDownloadUrl = '$baseUrl/download/$songId';
-
-    // High quality doesn't need a parameter (server returns original)
-    if (quality == StreamingQuality.high) {
-      return baseDownloadUrl;
+  String getDownloadUrlWithQuality(
+    String songId,
+    StreamingQuality quality, {
+    String? format,
+  }) {
+    final params = <String, String>{};
+    if (quality != StreamingQuality.high || format != null) {
+      params['quality'] = quality.toApiParam();
     }
-
-    return '$baseDownloadUrl?quality=${quality.toApiParam()}';
+    if (format != null) params['format'] = format;
+    return Uri.parse('$baseUrl/download/$songId')
+        .replace(queryParameters: params.isEmpty ? null : params)
+        .toString();
   }
 
   /// Get download URL with stream token for authenticated downloads
@@ -800,14 +808,16 @@ class ApiClient {
 
   /// Get download URL with long-lived download token for authenticated downloads.
   String getDownloadUrlWithDownloadToken(String songId, String downloadToken,
-      {StreamingQuality? quality}) {
+      {StreamingQuality? quality, String? format}) {
     final params = <String, String>{
       'downloadToken': downloadToken,
     };
 
-    if (quality != null && quality != StreamingQuality.high) {
+    if (quality != null &&
+        (quality != StreamingQuality.high || format != null)) {
       params['quality'] = quality.toApiParam();
     }
+    if (format != null) params['format'] = format;
 
     final uri =
         Uri.parse('$baseUrl/download/$songId').replace(queryParameters: params);

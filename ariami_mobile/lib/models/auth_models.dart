@@ -176,16 +176,19 @@ class StreamTicketResponse {
 class DownloadTicketRequest {
   final String songId;
   final String? quality;
+  final String? format;
 
   DownloadTicketRequest({
     required this.songId,
     this.quality,
+    this.format,
   });
 
   Map<String, dynamic> toJson() {
     return {
       'songId': songId,
       if (quality != null) 'quality': quality,
+      if (format != null) 'format': format,
     };
   }
 }

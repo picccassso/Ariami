@@ -151,6 +151,7 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
                     subtitle: 'Quality for offline playback',
                     currentQuality: _settings.downloadQuality,
                     onChanged: _updateDownloadQuality,
+                    isDownload: true,
                   ),
 
                   const SizedBox(height: 24),
@@ -258,6 +259,7 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
     required String subtitle,
     required StreamingQuality currentQuality,
     required Function(StreamingQuality) onChanged,
+    bool isDownload = false,
   }) {
     final colorScheme = Theme.of(context).colorScheme;
     return Material(
@@ -268,6 +270,7 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
           title: title,
           currentQuality: currentQuality,
           onChanged: onChanged,
+          isDownload: isDownload,
         ),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -317,7 +320,9 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
                   children: [
                     Flexible(
                       child: Text(
-                        currentQuality.displayName,
+                        isDownload
+                            ? currentQuality.downloadDisplayName
+                            : currentQuality.displayName,
                         textAlign: TextAlign.right,
                         style: TextStyle(
                           fontSize: 14,
@@ -407,6 +412,7 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
     required String title,
     required StreamingQuality currentQuality,
     required Function(StreamingQuality) onChanged,
+    bool isDownload = false,
   }) {
     final colorScheme = Theme.of(context).colorScheme;
     showAriamiSheet<void>(
@@ -433,7 +439,9 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
                     size: 20,
                   ),
                   title: Text(
-                    quality.displayName,
+                    isDownload
+                        ? quality.downloadDisplayName
+                        : quality.displayName,
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
@@ -443,7 +451,9 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
                     ),
                   ),
                   subtitle: Text(
-                    quality.description,
+                    isDownload
+                        ? quality.downloadDescription
+                        : quality.description,
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w500,

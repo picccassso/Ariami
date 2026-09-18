@@ -103,6 +103,7 @@ class StreamTracker {
     required String sessionToken,
     required String songId,
     String? quality,
+    String? format,
     Duration ttl = const Duration(hours: 2),
   }) {
     final now = DateTime.now();
@@ -112,6 +113,7 @@ class StreamTracker {
       sessionToken: sessionToken,
       songId: songId,
       quality: quality,
+      format: format,
       issuedAt: now,
       expiresAt: now.add(ttl),
     );
@@ -338,6 +340,7 @@ class DownloadTicket {
   final String sessionToken;
   final String songId;
   final String? quality;
+  final String? format;
   final DateTime issuedAt;
   final DateTime expiresAt;
 
@@ -347,6 +350,7 @@ class DownloadTicket {
     required this.sessionToken,
     required this.songId,
     this.quality,
+    this.format,
     required this.issuedAt,
     required this.expiresAt,
   });

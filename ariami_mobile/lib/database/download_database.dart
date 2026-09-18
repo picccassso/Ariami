@@ -13,7 +13,7 @@ class DownloadDatabase {
       'download_auto_resume_interrupted_on_launch';
   static const String _sqliteMigrationKey = 'download_queue_sqlite_migrated_v1';
   static const String _databaseName = 'downloads.db';
-  static const int _databaseVersion = 4;
+  static const int _databaseVersion = 5;
   static const String _tasksTable = 'download_tasks';
 
   final SharedPreferences _prefs;
@@ -66,6 +66,7 @@ class DownloadDatabase {
         download_url TEXT NOT NULL,
         download_quality TEXT NOT NULL,
         download_original INTEGER NOT NULL DEFAULT 0,
+        download_file_extension TEXT NOT NULL DEFAULT 'mp3',
         duration INTEGER NOT NULL DEFAULT 0,
         track_number INTEGER,
         status TEXT NOT NULL DEFAULT 'DownloadStatus.pending',
@@ -101,6 +102,11 @@ class DownloadDatabase {
     }
     if (oldVersion < 4) {
       await db.execute('ALTER TABLE $_tasksTable ADD COLUMN genre TEXT');
+    }
+    if (oldVersion < 5) {
+      await db.execute(
+        "ALTER TABLE $_tasksTable ADD COLUMN download_file_extension TEXT NOT NULL DEFAULT 'mp3'",
+      );
     }
   }
 
@@ -159,6 +165,7 @@ class DownloadDatabase {
       'download_url': task.downloadUrl,
       'download_quality': task.downloadQuality.name,
       'download_original': task.downloadOriginal ? 1 : 0,
+      'download_file_extension': task.downloadFileExtension,
       'duration': task.duration,
       'track_number': task.trackNumber,
       'status': task.status.toString(),
@@ -189,6 +196,8 @@ class DownloadDatabase {
       'downloadUrl': row['download_url'] as String,
       'downloadQuality': row['download_quality'] as String,
       'downloadOriginal': (row['download_original'] as int? ?? 0) == 1,
+      'downloadFileExtension':
+          row['download_file_extension'] as String? ?? 'mp3',
       'duration': row['duration'] as int? ?? 0,
       'trackNumber': row['track_number'] as int?,
       'status': row['status'] as String? ?? 'DownloadStatus.pending',

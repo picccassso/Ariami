@@ -56,7 +56,7 @@ void main() {
     });
 
     test(
-      'setDownloadOriginal(true) is ignored when download quality is low',
+      'setDownloadOriginal(true) selects the separate original mode',
       () async {
         SharedPreferences.setMockInitialValues(<String, Object>{});
         final service = QualitySettingsService();
@@ -65,8 +65,8 @@ void main() {
         await service.setDownloadQuality(StreamingQuality.low);
         await service.setDownloadOriginal(true);
 
-        expect(service.getDownloadQuality(), StreamingQuality.low);
-        expect(service.getDownloadOriginal(), isFalse);
+        expect(service.getDownloadQuality(), StreamingQuality.high);
+        expect(service.getDownloadOriginal(), isTrue);
       },
     );
 
@@ -84,14 +84,15 @@ void main() {
 
       await service.initialize();
 
-      expect(service.getDownloadQuality(), StreamingQuality.medium);
-      expect(service.getDownloadOriginal(), isFalse);
+      expect(service.getDownloadQuality(), StreamingQuality.high);
+      expect(service.getDownloadOriginal(), isTrue);
 
       final prefs = await SharedPreferences.getInstance();
       final jsonString = prefs.getString('quality_settings');
       expect(jsonString, isNotNull);
       final savedSettings = jsonDecode(jsonString!) as Map<String, dynamic>;
-      expect(savedSettings['downloadOriginal'], isFalse);
+      expect(savedSettings['downloadQuality'], 'high');
+      expect(savedSettings['downloadOriginal'], isTrue);
     });
   });
 

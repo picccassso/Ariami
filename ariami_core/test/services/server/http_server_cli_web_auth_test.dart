@@ -2027,8 +2027,9 @@ class _SlowDownloadTranscodingService extends TranscodingService {
   Future<DownloadTranscodeResult?> getDownloadTranscode(
     String sourcePath,
     String songId,
-    QualityPreset quality,
-  ) async {
+    QualityPreset quality, {
+    TranscodeOutputFormat outputFormat = TranscodeOutputFormat.aac,
+  }) async {
     await Future<void>.delayed(delay);
     return null;
   }

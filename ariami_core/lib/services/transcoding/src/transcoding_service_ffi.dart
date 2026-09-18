@@ -87,7 +87,7 @@ class _SonicFfiAdapter {
   static const int statusNotImplemented = 5;
   static const int presetLow = 0;
   static const int presetMedium = 1;
-  static const int outputAac = 0;
+  static const int presetHigh = 2;
 
   final String libraryPath;
   final ffi.DynamicLibrary _library;
@@ -152,7 +152,7 @@ class _SonicFfiAdapter {
       case QualityPreset.medium:
         return presetMedium;
       case QualityPreset.high:
-        throw ArgumentError('Sonic preset is not defined for high quality');
+        return presetHigh;
     }
   }
 
@@ -222,6 +222,7 @@ class _SonicFfiAdapter {
     String inputPath,
     String outputPath,
     int preset,
+    TranscodeOutputFormat outputFormat,
   ) {
     final inPathPtr = inputPath.toNativeUtf8().cast<ffi.Int8>();
     final outPathPtr = outputPath.toNativeUtf8().cast<ffi.Int8>();
@@ -235,7 +236,7 @@ class _SonicFfiAdapter {
       int status;
       if (optionsFn != null && abiVersion >= optionsAbiVersion) {
         optionsPtr.ref
-          ..outputFormat = outputAac
+          ..outputFormat = outputFormat._sonicValue
           ..preset = preset
           ..bitrateKbps = 0
           ..reserved = 0;
@@ -245,7 +246,8 @@ class _SonicFfiAdapter {
           outPathPtr,
           outErrorPtrPtr,
         );
-      } else if (legacyFn != null) {
+      } else if (legacyFn != null &&
+          outputFormat == TranscodeOutputFormat.aac) {
         status = legacyFn(
           inPathPtr,
           preset,
@@ -285,7 +287,8 @@ class _SonicFfiAdapter {
   Future<_SonicFfiTranscodeResult> transcodeFileToFileAsync(
     String inputPath,
     String outputPath,
-    int preset, {
+    int preset,
+    TranscodeOutputFormat outputFormat, {
     Duration? timeout,
   }) async {
     final libPath = libraryPath;
@@ -301,6 +304,7 @@ class _SonicFfiAdapter {
           inputPath,
           outputPath,
           preset,
+          outputFormat._sonicValue,
         ],
         errorsAreFatal: true,
       );
@@ -333,6 +337,9 @@ void _sonicTranscodeFileIsolateMain(List<Object?> message) {
   final inputPath = message[2] as String;
   final outputPath = message[3] as String;
   final preset = message[4] as int;
+  final outputFormat = TranscodeOutputFormat.values.firstWhere(
+    (format) => format._sonicValue == message[5] as int,
+  );
 
   final isolateAdapter = _SonicFfiAdapter.tryLoad(libPath);
   if (isolateAdapter == null) {
@@ -347,6 +354,7 @@ void _sonicTranscodeFileIsolateMain(List<Object?> message) {
     inputPath,
     outputPath,
     preset,
+    outputFormat,
   );
   sendPort.send(<Object?>[
     transcodeResult.status,

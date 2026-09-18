@@ -271,6 +271,8 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
   /// - ?quality=high (default) - Original file
   /// - ?quality=medium - 128 kbps AAC
   /// - ?quality=low - 64 kbps AAC
+  /// - ?quality=high&format=opus - 192 kbps Ogg Opus
+  /// - ?quality=high&format=m4a - 192 kbps AAC in M4A
   Future<Response> _handleDownload(Request request, String path) async {
     // Validate path is provided
     if (path.isEmpty) {
@@ -280,6 +282,19 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
     // Parse quality parameter
     final qualityParam = request.url.queryParameters['quality'];
     final quality = QualityPreset.fromString(qualityParam);
+    final requestedFormat = request.url.queryParameters['format'];
+    final outputFormat = TranscodeOutputFormat.tryParse(requestedFormat);
+    if (requestedFormat != null &&
+        requestedFormat.trim().isNotEmpty &&
+        outputFormat == null) {
+      return Response.badRequest(
+        body: jsonEncode({
+          'error': 'Invalid download format',
+          'message': 'format must be one of: aac, m4a, opus',
+        }),
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
+      );
+    }
 
     final hasUsers = _hasRegisteredUsers();
     if (!hasUsers) {
@@ -316,6 +331,12 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
       if (ticketQuality != requestedQuality) {
         return _streamTokenForbiddenResponse(
           'Download token does not match requested quality',
+        );
+      }
+
+      if (ticket.format != outputFormat?.name) {
+        return _streamTokenForbiddenResponse(
+          'Download token does not match requested format',
         );
       }
 
@@ -388,7 +409,10 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
       DownloadTranscodeResult? downloadTranscodeResult;
 
       // If transcoding is requested and service is available
-      if (quality.requiresTranscoding && _transcodingService != null) {
+      final shouldTranscode =
+          quality.requiresTranscoding || outputFormat != null;
+      final effectiveFormat = outputFormat ?? TranscodeOutputFormat.aac;
+      if (shouldTranscode && _transcodingService != null) {
         // Use dedicated download pipeline (temp file, not cached)
         // This prevents cache churn during bulk downloads
         _incrementInFlightDownloadTranscode(userKey);
@@ -398,6 +422,7 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
             filePath,
             path, // songId
             quality,
+            outputFormat: effectiveFormat,
           );
         } finally {
           _decrementInFlightDownloadTranscode(userKey);
@@ -405,17 +430,35 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
 
         if (downloadTranscodeResult != null) {
           fileToDownload = downloadTranscodeResult.tempFile;
-          mimeType = quality.mimeType ?? mimeType;
+          mimeType = effectiveFormat.mimeType;
           print(
               '[HttpServer] Downloading transcoded file at ${quality.name} quality (temp file)');
         } else {
-          // Transcoding failed or FFmpeg not available - fall back to original
-          print(
-              '[HttpServer] Transcoding unavailable for download, falling back to original file');
+          print('[HttpServer] Transcoding unavailable for requested download');
+          if (outputFormat != null) {
+            _releaseDownloadSlot(userKey);
+            releaseOnError = false;
+            return _retryableErrorResponse(
+              statusCode: 503,
+              error: 'Download conversion unavailable',
+              message: 'The requested download format could not be created',
+            );
+          }
+          // Legacy medium/low clients did not negotiate a format and retain
+          // the established original-file fallback.
         }
-      } else if (quality.requiresTranscoding && _transcodingService == null) {
+      } else if (shouldTranscode && _transcodingService == null) {
         print(
             '[HttpServer] Transcoding requested for download but service not configured, using original');
+        if (outputFormat != null) {
+          _releaseDownloadSlot(userKey);
+          releaseOnError = false;
+          return _retryableErrorResponse(
+            statusCode: 503,
+            error: 'Download conversion unavailable',
+            message: 'The requested download format is not available',
+          );
+        }
       }
 
       // Get file info
@@ -425,14 +468,15 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
 
       // Adjust filename extension if transcoded
       String downloadFileName = originalFileName;
-      if (downloadTranscodeResult != null && quality.fileExtension != null) {
+      if (downloadTranscodeResult != null) {
         // Replace extension with transcoded format extension
         final lastDot = originalFileName.lastIndexOf('.');
         if (lastDot > 0) {
           downloadFileName =
-              '${originalFileName.substring(0, lastDot)}.${quality.fileExtension}';
+              '${originalFileName.substring(0, lastDot)}.${effectiveFormat.fileExtension}';
         } else {
-          downloadFileName = '$originalFileName.${quality.fileExtension}';
+          downloadFileName =
+              '$originalFileName.${effectiveFormat.fileExtension}';
         }
       }
 

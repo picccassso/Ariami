@@ -87,6 +87,9 @@ class DownloadManager {
   final QualitySettingsService _qualityService = QualitySettingsService();
   final NativeDownloadService _nativeDownloadService = NativeDownloadService();
 
+  String get _preferredDownloadFormat =>
+      Platform.isIOS || Platform.isMacOS ? 'm4a' : 'opus';
+
   /// Stream of download progress updates
   Stream<DownloadProgress> get progressStream => _progressController.stream;
 

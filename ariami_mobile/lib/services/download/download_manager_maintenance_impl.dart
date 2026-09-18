@@ -101,16 +101,25 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
   }
 
   /// Get file path for a downloaded song
-  String _getSongFilePath(String songId) {
+  String _getSongFilePath(String songId, {String? fileExtension}) {
+    var extension = fileExtension ?? 'mp3';
+    if (fileExtension == null) {
+      for (final task in _queue.queue) {
+        if (task.songId == songId) {
+          extension = task.downloadFileExtension;
+          break;
+        }
+      }
+    }
     final downloadPath = _downloadPath;
     if (downloadPath == null || downloadPath.isEmpty) {
-      return 'downloads/songs/$songId.mp3';
+      return 'downloads/songs/$songId.$extension';
     }
-    return '$downloadPath/songs/$songId.mp3';
+    return '$downloadPath/songs/$songId.$extension';
   }
 
-  String _getPartialSongFilePath(String songId) {
-    return '${_getSongFilePath(songId)}.partial';
+  String _getPartialSongFilePath(String songId, {String? fileExtension}) {
+    return '${_getSongFilePath(songId, fileExtension: fileExtension)}.partial';
   }
 
   Future<int?> _getPartialSongFileSize(String songId) async {
@@ -119,7 +128,10 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
     return partial.length();
   }
 
-  Future<bool> _deleteSongFileIfUnreferenced(String songId) async {
+  Future<bool> _deleteSongFileIfUnreferenced(
+    String songId, {
+    String? fileExtension,
+  }) async {
     final normalizedSongId = songId.trim();
     if (normalizedSongId.isEmpty) {
       return false;
@@ -128,7 +140,9 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
       return false;
     }
 
-    final songFile = File(_getSongFilePath(normalizedSongId));
+    final songFile = File(
+      _getSongFilePath(normalizedSongId, fileExtension: fileExtension),
+    );
     if (!await songFile.exists()) {
       return false;
     }
@@ -152,6 +166,7 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
   Future<bool> _deletePartialSongFileIfUnreferenced(
     String songId, {
     bool force = false,
+    String? fileExtension,
   }) async {
     final normalizedSongId = songId.trim();
     if (normalizedSongId.isEmpty) {
@@ -161,7 +176,12 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
       return false;
     }
 
-    final partialFile = File(_getPartialSongFilePath(normalizedSongId));
+    final partialFile = File(
+      _getPartialSongFilePath(
+        normalizedSongId,
+        fileExtension: fileExtension,
+      ),
+    );
     if (!await partialFile.exists()) {
       return false;
     }
@@ -657,6 +677,7 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
             ),
       downloadQuality: task.downloadQuality,
       downloadOriginal: task.downloadOriginal,
+      downloadFileExtension: task.downloadFileExtension,
       duration: song.duration,
       trackNumber: song.trackNumber,
       status: DownloadStatus.completed,
@@ -691,6 +712,7 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
       downloadUrl: task.downloadUrl,
       downloadQuality: task.downloadQuality,
       downloadOriginal: task.downloadOriginal,
+      downloadFileExtension: task.downloadFileExtension,
       duration: task.duration,
       trackNumber: task.trackNumber,
       status: task.status,
@@ -726,6 +748,7 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
       downloadUrl: task.downloadUrl,
       downloadQuality: task.downloadQuality,
       downloadOriginal: task.downloadOriginal,
+      downloadFileExtension: task.downloadFileExtension,
       duration: task.duration,
       trackNumber: task.trackNumber,
       status: task.status,

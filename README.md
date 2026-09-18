@@ -273,7 +273,7 @@ gapless playback, and an equalizer with built-in and custom presets. Download tr
 playlists or the whole library for offline listening, with a manual offline mode and automatic
 fallback when the connection drops. Quality presets follow connection type, with separate
 settings for streaming and downloads, and a streaming cache for anything not yet downloaded.
-Server-side transcoding is handled by Sonic (MP3 → AAC), with server-managed download jobs and
+Server-side transcoding is handled by Sonic (MP3/WAV/FLAC → Opus/AAC/M4A/MP3), with server-managed download jobs and
 per-user concurrency limits so one device cannot starve the others. Mobile and the Premium
 Desktop Player cast to Chromecast, and Mobile can control a Desktop cast through Ariami Connect.
 
@@ -334,7 +334,7 @@ Details: [RESET.md](RESET.md) · [CLI configuration](ariami_cli/docs/CONFIGURATI
 <details>
 <summary><strong>Sonic transcoder benchmarks (Raspberry Pi 5)</strong></summary>
 
-Sonic is purpose-built for Ariami's transcoding workload (MP3 → AAC). It is not a general
+Sonic is purpose-built for Ariami's transcoding workload (MP3/WAV/FLAC → Opus/AAC/M4A/MP3). It is not a general
 FFmpeg replacement; FFmpeg is still used for artwork processing.
 
 Test setup: Raspberry Pi 5 over ethernet, active cooler enabled. Average temperature during
@@ -413,7 +413,7 @@ developer setup.
 **Requirements:** Dart SDK ^3.5.0 (compiling the CLI binary with `dart build cli` needs Dart
 3.9+), and Flutter — latest stable is fine locally; release binaries are built with Flutter
 3.44.0. A Rust toolchain is only needed to build [Sonic](sonic/); without it the server still
-runs, but low/medium-quality transcoding is unavailable. FFmpeg is optional and used for
+runs, but quality transcoding is unavailable. FFmpeg is optional and used for
 artwork resizing.
 
 **iOS:** Ariami is on the [App Store](https://apps.apple.com/us/app/ariami/id6789298823), so

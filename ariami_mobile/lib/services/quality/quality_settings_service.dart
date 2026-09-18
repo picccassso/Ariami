@@ -102,15 +102,23 @@ class QualitySettingsService {
 
   /// Update download quality
   Future<void> setDownloadQuality(StreamingQuality quality) async {
-    await updateSettings(_settings.copyWith(downloadQuality: quality));
+    await updateSettings(
+      _settings.copyWith(
+        downloadQuality: quality,
+        downloadOriginal: false,
+      ),
+    );
   }
 
   /// Update download mode (original vs transcoded)
   Future<void> setDownloadOriginal(bool downloadOriginal) async {
-    final effectiveDownloadOriginal =
-        _settings.downloadQuality == StreamingQuality.high && downloadOriginal;
     await updateSettings(
-      _settings.copyWith(downloadOriginal: effectiveDownloadOriginal),
+      _settings.copyWith(
+        downloadQuality: downloadOriginal
+            ? StreamingQuality.high
+            : _settings.downloadQuality,
+        downloadOriginal: downloadOriginal,
+      ),
     );
   }
 
@@ -216,9 +224,9 @@ class QualitySettingsService {
   }
 
   QualitySettings _normalizeSettings(QualitySettings settings) {
-    if (settings.downloadQuality != StreamingQuality.high &&
-        settings.downloadOriginal) {
-      return settings.copyWith(downloadOriginal: false);
+    if (settings.downloadOriginal &&
+        settings.downloadQuality != StreamingQuality.high) {
+      return settings.copyWith(downloadQuality: StreamingQuality.high);
     }
     return settings;
   }

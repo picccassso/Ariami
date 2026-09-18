@@ -521,8 +521,14 @@ extension _DownloadManagerOperationsImpl on DownloadManager {
       if (userId != null) return task.userId == userId;
       return task.userId == null;
     });
-    unawaited(_deleteSongFileIfUnreferenced(targetTask.songId));
-    unawaited(_deletePartialSongFileIfUnreferenced(targetTask.songId));
+    unawaited(_deleteSongFileIfUnreferenced(
+      targetTask.songId,
+      fileExtension: targetTask.downloadFileExtension,
+    ));
+    unawaited(_deletePartialSongFileIfUnreferenced(
+      targetTask.songId,
+      fileExtension: targetTask.downloadFileExtension,
+    ));
 
     print('Download cancelled: $taskId');
   }
@@ -536,7 +542,11 @@ extension _DownloadManagerOperationsImpl on DownloadManager {
     if (downloadOriginal) {
       return apiClient.getDownloadUrl(songId);
     }
-    return apiClient.getDownloadUrlWithQuality(songId, downloadQuality);
+    return apiClient.getDownloadUrlWithQuality(
+      songId,
+      downloadQuality,
+      format: _preferredDownloadFormat,
+    );
   }
 
   List<String> _normalizeIds(List<String> ids) {
@@ -594,6 +604,8 @@ extension _DownloadManagerOperationsImpl on DownloadManager {
       ),
       downloadQuality: downloadQuality,
       downloadOriginal: downloadOriginal,
+      downloadFileExtension:
+          downloadOriginal ? 'mp3' : _preferredDownloadFormat,
       duration: item.durationSeconds,
       trackNumber: item.trackNumber,
       status: DownloadStatus.pending,
@@ -635,13 +647,13 @@ extension _DownloadManagerOperationsImpl on DownloadManager {
     }
 
     if (ConnectionService().isAuthenticated) {
-      final tokenQuality = (!task.downloadOriginal &&
-              task.downloadQuality != StreamingQuality.high)
-          ? task.downloadQuality.toApiParam()
-          : null;
+      final format = task.downloadOriginal ? null : _preferredDownloadFormat;
+      final tokenQuality =
+          task.downloadOriginal ? null : task.downloadQuality.toApiParam();
       final ticketResponse = await apiClient.getDownloadTicket(
         task.songId,
         quality: tokenQuality,
+        format: format,
       );
 
       final urlQuality =
@@ -650,6 +662,7 @@ extension _DownloadManagerOperationsImpl on DownloadManager {
         task.songId,
         ticketResponse.downloadToken,
         quality: urlQuality,
+        format: format,
       );
     }
 

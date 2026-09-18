@@ -6,6 +6,7 @@ extension _TranscodingServiceProcess on TranscodingService {
     String songId,
     QualityPreset quality,
     String lockKey,
+    TranscodeOutputFormat outputFormat,
   ) async {
     try {
       // Create temp directory if needed
@@ -19,12 +20,17 @@ extension _TranscodingServiceProcess on TranscodingService {
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final randomSuffix = random.nextInt(999999).toString().padLeft(6, '0');
       final tempPath =
-          '${tempDir.path}/${songId}_${timestamp}_$randomSuffix.${quality.fileExtension}';
+          '${tempDir.path}/${songId}_${timestamp}_$randomSuffix.${outputFormat.fileExtension}';
 
       print('TranscodingService: Download transcode $songId to ${quality.name} '
           '(running: $_runningDownloadCount)');
 
-      final result = await _transcodeFile(sourcePath, tempPath, quality);
+      final result = await _transcodeFile(
+        sourcePath,
+        tempPath,
+        quality,
+        outputFormat: outputFormat,
+      );
 
       if (result != null) {
         _clearFailure(lockKey);
@@ -50,8 +56,9 @@ extension _TranscodingServiceProcess on TranscodingService {
   Future<File?> _transcodeFile(
     String sourcePath,
     String outputPath,
-    QualityPreset quality,
-  ) async {
+    QualityPreset quality, {
+    TranscodeOutputFormat outputFormat = TranscodeOutputFormat.aac,
+  }) async {
     // Ensure output directory exists
     final outputDir = Directory(outputPath).parent;
     if (!await outputDir.exists()) {
@@ -74,8 +81,8 @@ extension _TranscodingServiceProcess on TranscodingService {
     print(
         'TranscodingService: Running Sonic FFI (${adapter.libraryPath}, preset=$preset)');
 
-    // Keep incomplete AAC output private until the full file is ready. A client
-    // can otherwise mistake an in-progress cache file for a short playable song.
+    // Keep incomplete transcoded output private until the full file is ready.
+    // A client can otherwise mistake it for a short playable song.
     final partialOutputPath = '$outputPath.partial';
     final partialOutputFile = File(partialOutputPath);
 
@@ -112,6 +119,7 @@ extension _TranscodingServiceProcess on TranscodingService {
         sourcePath,
         partialOutputPath,
         preset,
+        outputFormat,
         timeout: transcodeTimeout,
       );
 
@@ -125,6 +133,13 @@ extension _TranscodingServiceProcess on TranscodingService {
             pathResult.errorMessage!.isNotEmpty) {
           print('TranscodingService: Sonic error: ${pathResult.errorMessage}');
         }
+        await cleanupPartialOutput();
+        return null;
+      }
+
+      // The legacy buffer API only produces AAC. Other formats require the
+      // unified options-based file API added in Sonic ABI v4.
+      if (outputFormat != TranscodeOutputFormat.aac) {
         await cleanupPartialOutput();
         return null;
       }

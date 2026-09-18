@@ -364,6 +364,7 @@ extension _DownloadManagerInitializationImpl on DownloadManager {
       task.downloadUrl,
       task.downloadQuality.name,
       task.downloadOriginal ? '1' : '0',
+      task.downloadFileExtension,
       task.duration.toString(),
       task.trackNumber?.toString() ?? '',
       task.status.toString(),

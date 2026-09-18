@@ -1,18 +1,14 @@
 import 'package:flutter/material.dart';
 
-import '../../../../models/quality_settings.dart';
-
 class DownloadModeCard extends StatelessWidget {
   const DownloadModeCard({
     super.key,
     required this.isDark,
-    required this.downloadQuality,
     required this.downloadOriginal,
     required this.onChanged,
   });
 
   final bool isDark;
-  final StreamingQuality downloadQuality;
   final bool downloadOriginal;
   final ValueChanged<bool>? onChanged;
 
@@ -33,7 +29,7 @@ class DownloadModeCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Fast Downloads (Original)',
+                  'Download Original',
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
@@ -42,11 +38,9 @@ class DownloadModeCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  downloadQuality != StreamingQuality.high
-                      ? 'Set Download Quality to High (Original) to enable this option'
-                      : downloadOriginal
-                          ? 'Downloads bypass transcoding for maximum speed'
-                          : 'Use transcoding to reduce download size',
+                  downloadOriginal
+                      ? 'Keep the source file unchanged (for example WAV)'
+                      : 'Convert downloads to save storage',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
@@ -57,7 +51,7 @@ class DownloadModeCard extends StatelessWidget {
             ),
           ),
           Switch(
-            value: downloadQuality == StreamingQuality.high && downloadOriginal,
+            value: downloadOriginal,
             onChanged: onChanged,
             activeThumbColor: isDark ? Colors.white : Colors.black,
           ),

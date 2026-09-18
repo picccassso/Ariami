@@ -105,6 +105,7 @@ void main() {
       final ticket = await client.getDownloadTicket(
         'song-a',
         quality: 'medium',
+        format: 'opus',
       );
 
       expect(ticket.downloadToken, equals('download-token-123'));
@@ -118,17 +119,20 @@ void main() {
       );
       expect(capturedRequests.single.body['songId'], equals('song-a'));
       expect(capturedRequests.single.body['quality'], equals('medium'));
+      expect(capturedRequests.single.body['format'], equals('opus'));
 
       final downloadUrl = client.getDownloadUrlWithDownloadToken(
         'song-a',
         ticket.downloadToken,
         quality: StreamingQuality.medium,
+        format: 'opus',
       );
       final uri = Uri.parse(downloadUrl);
       expect(uri.path, equals('/api/download/song-a'));
       expect(
           uri.queryParameters['downloadToken'], equals(ticket.downloadToken));
       expect(uri.queryParameters['quality'], equals('medium'));
+      expect(uri.queryParameters['format'], equals('opus'));
     });
 
     test('supports household music-discovery get, migrate, and delete',

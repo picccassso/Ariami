@@ -54,7 +54,11 @@ void main() {
     await tempDir.delete(recursive: true);
   });
 
-  DownloadTask buildTask({String? etag, String? genre}) {
+  DownloadTask buildTask({
+    String? etag,
+    String? genre,
+    String? fileExtension,
+  }) {
     return DownloadTask(
       id: 'song_track-1',
       songId: 'track-1',
@@ -69,6 +73,7 @@ void main() {
       status: DownloadStatus.paused,
       bytesDownloaded: 256,
       downloadEtag: etag,
+      downloadFileExtension: fileExtension,
     );
   }
 
@@ -98,6 +103,14 @@ void main() {
 
     final tasks = await (await DownloadDatabase.create()).loadDownloadQueue();
     expect(tasks.single.genre, 'Jazz/Fusion');
+  });
+
+  test('the negotiated file extension survives a save and reload', () async {
+    final database = await DownloadDatabase.create();
+    await database.upsertTask(buildTask(fileExtension: 'opus'));
+
+    final tasks = await (await DownloadDatabase.create()).loadDownloadQueue();
+    expect(tasks.single.downloadFileExtension, 'opus');
   });
 
   test('an existing v2 install upgrades without losing its queue', () async {
@@ -139,6 +152,8 @@ void main() {
         reason: 'rows written before the column exists have no validator');
     expect(tasks.single.genre, isNull,
         reason: 'rows written before the column exists have no genre');
+    expect(tasks.single.downloadFileExtension, 'mp3',
+        reason: 'legacy rows retain their historical file extension');
 
     // And the new column is writable on the upgraded schema.
     await upgraded.upsertTask(

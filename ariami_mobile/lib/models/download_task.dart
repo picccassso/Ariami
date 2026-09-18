@@ -28,6 +28,7 @@ class DownloadTask {
   final String downloadUrl;
   final StreamingQuality downloadQuality;
   final bool downloadOriginal;
+  String downloadFileExtension;
   String? userId;
   final int duration; // Duration in seconds
   final int? trackNumber;
@@ -65,6 +66,7 @@ class DownloadTask {
     required this.downloadUrl,
     this.downloadQuality = StreamingQuality.high,
     this.downloadOriginal = false,
+    String? downloadFileExtension,
     this.duration = 0,
     this.trackNumber,
     this.status = DownloadStatus.pending,
@@ -76,7 +78,8 @@ class DownloadTask {
     this.nativeBackend,
     this.nativeTaskId,
     this.downloadEtag,
-  });
+  }) : downloadFileExtension =
+            downloadFileExtension ?? _inferFileExtension(downloadUrl);
 
   /// Convert to JSON for storage
   Map<String, dynamic> toJson() {
@@ -95,6 +98,7 @@ class DownloadTask {
       'downloadUrl': downloadUrl,
       'downloadQuality': downloadQuality.name,
       'downloadOriginal': downloadOriginal,
+      'downloadFileExtension': downloadFileExtension,
       'duration': duration,
       'trackNumber': trackNumber,
       'status': status.toString(),
@@ -134,6 +138,7 @@ class DownloadTask {
       downloadUrl: downloadUrl,
       downloadQuality: inferredQuality,
       downloadOriginal: json['downloadOriginal'] as bool? ?? false,
+      downloadFileExtension: json['downloadFileExtension'] as String?,
       duration: json['duration'] as int? ?? 0,
       trackNumber: json['trackNumber'] as int?,
       status: _parseStatus(json['status'] as String),
@@ -163,6 +168,14 @@ class DownloadTask {
     final uri = Uri.tryParse(url);
     final qualityParam = uri?.queryParameters['quality'];
     return StreamingQuality.fromString(qualityParam);
+  }
+
+  static String _inferFileExtension(String url) {
+    final format = Uri.tryParse(url)?.queryParameters['format'];
+    if (format == 'opus' || format == 'm4a' || format == 'aac') return format!;
+    // Legacy tasks used .mp3 for originals. The first new transfer replaces
+    // this from Content-Disposition before writing any bytes.
+    return 'mp3';
   }
 
   /// Check if download can be retried

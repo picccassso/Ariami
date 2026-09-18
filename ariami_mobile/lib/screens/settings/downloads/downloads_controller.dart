@@ -829,9 +829,6 @@ class DownloadsController extends ChangeNotifier {
   }
 
   Future<void> setDownloadOriginal(bool value) async {
-    if (value && _state.downloadQuality != StreamingQuality.high) {
-      return;
-    }
     await _qualityService.setDownloadOriginal(value);
     if (!_disposed) {
       final qualitySettings = _qualityService.settings;

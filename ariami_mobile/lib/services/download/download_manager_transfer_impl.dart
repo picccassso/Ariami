@@ -97,8 +97,8 @@ extension _DownloadManagerTransferImpl on DownloadManager {
       final cancelToken = CancelToken();
       _activeDownloads[task.id] = cancelToken;
 
-      final filePath = _getSongFilePath(task.songId);
-      final partialPath = _getPartialSongFilePath(task.songId);
+      var filePath = _getSongFilePath(task.songId);
+      var partialPath = _getPartialSongFilePath(task.songId);
 
       // Ensure the songs directory exists
       final songDir = File(filePath).parent;
@@ -117,8 +117,8 @@ extension _DownloadManagerTransferImpl on DownloadManager {
         }
       }
 
-      final partialFile = File(partialPath);
-      final finalFile = File(filePath);
+      var partialFile = File(partialPath);
+      var finalFile = File(filePath);
       var resumeOffset =
           await partialFile.exists() ? await partialFile.length() : 0;
       final requestedRange = resumeOffset > 0;
@@ -163,6 +163,23 @@ extension _DownloadManagerTransferImpl on DownloadManager {
           type: DioExceptionType.badResponse,
           message: 'Unexpected download status: ${response.statusCode}',
         );
+      }
+
+      if (task.downloadOriginal) {
+        final extension = _downloadExtensionFromHeaders(response.headers);
+        if (extension != null && extension != task.downloadFileExtension) {
+          if (resumeOffset > 0 && await partialFile.exists()) {
+            await partialFile.delete();
+            resumeOffset = 0;
+          }
+          task.downloadFileExtension = extension;
+          _queue.updateTask(task);
+          filePath = _getSongFilePath(task.songId);
+          partialPath = _getPartialSongFilePath(task.songId);
+          partialFile = File(partialPath);
+          finalFile = File(filePath);
+          await finalFile.parent.create(recursive: true);
+        }
       }
 
       // A 200 to a range request means the range did not apply — either the
@@ -233,8 +250,7 @@ extension _DownloadManagerTransferImpl on DownloadManager {
           _activeProgress[task.id] = task.progress;
 
           final elapsedMs = emitStopwatch.elapsedMilliseconds;
-          if (elapsedMs - lastEmitMs <
-              _progressEmitInterval.inMilliseconds) {
+          if (elapsedMs - lastEmitMs < _progressEmitInterval.inMilliseconds) {
             continue;
           }
           lastEmitMs = elapsedMs;
@@ -652,6 +668,12 @@ extension _DownloadManagerTransferImpl on DownloadManager {
   }
 
   bool _shouldUseNativeDownload(DownloadTask task) {
+    // Original files need the response filename before their destination can
+    // be chosen. The Dart path reads Content-Disposition first; transcoded
+    // files already know their negotiated extension and can use native jobs.
+    if (task.downloadOriginal && task.nativeTaskId == null) {
+      return false;
+    }
     if (task.nativeTaskId != null) {
       return true;
     }
@@ -661,6 +683,31 @@ extension _DownloadManagerTransferImpl on DownloadManager {
     }
 
     return true;
+  }
+
+  String? _downloadExtensionFromHeaders(Headers headers) {
+    final disposition = headers.value('content-disposition');
+    if (disposition == null || disposition.isEmpty) return null;
+
+    final encodedMatch = RegExp(
+      r"filename\*=UTF-8''([^;]+)",
+      caseSensitive: false,
+    ).firstMatch(disposition);
+    final fallbackMatch = RegExp(
+      r'filename="([^"]+)"',
+      caseSensitive: false,
+    ).firstMatch(disposition);
+    final encodedName = encodedMatch?.group(1);
+    final fileName = encodedName != null
+        ? Uri.decodeComponent(encodedName)
+        : fallbackMatch?.group(1);
+    if (fileName == null) return null;
+
+    final dot = fileName.lastIndexOf('.');
+    if (dot < 0 || dot == fileName.length - 1) return null;
+    final extension = fileName.substring(dot + 1).toLowerCase();
+    if (!RegExp(r'^[a-z0-9]{1,8}$').hasMatch(extension)) return null;
+    return extension;
   }
 
   void _logDownloadThroughput({

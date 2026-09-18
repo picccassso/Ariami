@@ -220,11 +220,27 @@ extension AriamiHttpServerMediaTicketHandlersMethods on AriamiHttpServer {
       }
 
       final quality = ticketRequest.quality?.trim().toLowerCase();
+      final requestedFormat = ticketRequest.format?.trim().toLowerCase();
+      final outputFormat = TranscodeOutputFormat.tryParse(requestedFormat);
+      if (requestedFormat != null &&
+          requestedFormat.isNotEmpty &&
+          outputFormat == null) {
+        return Response.badRequest(
+          body: jsonEncode({
+            'error': {
+              'code': 'INVALID_REQUEST',
+              'message': 'format must be one of: aac, m4a, opus',
+            },
+          }),
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
+        );
+      }
       final ticket = _streamTracker.issueDownloadTicket(
         userId: session.userId,
         sessionToken: session.sessionToken,
         songId: songId,
         quality: quality == null || quality.isEmpty ? null : quality,
+        format: outputFormat?.name,
       );
 
       return Response.ok(
