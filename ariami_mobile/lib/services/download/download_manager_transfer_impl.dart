@@ -97,8 +97,14 @@ extension _DownloadManagerTransferImpl on DownloadManager {
       final cancelToken = CancelToken();
       _activeDownloads[task.id] = cancelToken;
 
-      var filePath = _getSongFilePath(task.songId);
-      var partialPath = _getPartialSongFilePath(task.songId);
+      var filePath = _getSongFilePath(
+        task.songId,
+        fileExtension: task.downloadFileExtension,
+      );
+      var partialPath = _getPartialSongFilePath(
+        task.songId,
+        fileExtension: task.downloadFileExtension,
+      );
 
       // Ensure the songs directory exists
       final songDir = File(filePath).parent;
@@ -149,7 +155,11 @@ extension _DownloadManagerTransferImpl on DownloadManager {
       );
 
       if (response.statusCode == 416) {
-        await _deletePartialSongFileIfUnreferenced(task.songId, force: true);
+        await _deletePartialSongFileIfUnreferenced(
+          task.songId,
+          force: true,
+          fileExtension: task.downloadFileExtension,
+        );
         throw Exception('Range not satisfiable');
       }
       if (response.statusCode != 200 && response.statusCode != 206) {
@@ -174,8 +184,14 @@ extension _DownloadManagerTransferImpl on DownloadManager {
           }
           task.downloadFileExtension = extension;
           _queue.updateTask(task);
-          filePath = _getSongFilePath(task.songId);
-          partialPath = _getPartialSongFilePath(task.songId);
+          filePath = _getSongFilePath(
+            task.songId,
+            fileExtension: task.downloadFileExtension,
+          );
+          partialPath = _getPartialSongFilePath(
+            task.songId,
+            fileExtension: task.downloadFileExtension,
+          );
           partialFile = File(partialPath);
           finalFile = File(filePath);
           await finalFile.parent.create(recursive: true);
@@ -318,7 +334,10 @@ extension _DownloadManagerTransferImpl on DownloadManager {
       _releaseSlot(task.id);
       _handleDownloadError(task, e);
     } catch (e) {
-      final partialPath = _getPartialSongFilePath(task.songId);
+      final partialPath = _getPartialSongFilePath(
+        task.songId,
+        fileExtension: task.downloadFileExtension,
+      );
       final partialFile = File(partialPath);
       if (await partialFile.exists()) {
         task.bytesDownloaded = await partialFile.length();

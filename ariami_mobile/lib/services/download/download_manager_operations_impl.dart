@@ -11,7 +11,7 @@ extension _DownloadManagerOperationsImpl on DownloadManager {
   Future<int> _requeueExistingTasksForDownload(
     List<DownloadTask> existingTasks,
   ) async {
-    final discardPartialSongIds = <String>[];
+    final discardPartials = <({String songId, String fileExtension})>[];
     var requeuedCount = 0;
 
     _queue.beginBatch();
@@ -25,7 +25,10 @@ extension _DownloadManagerOperationsImpl on DownloadManager {
         if (task.status == DownloadStatus.failed &&
             (message.contains('mismatch') ||
                 message.contains('Range not satisfiable'))) {
-          discardPartialSongIds.add(task.songId);
+          discardPartials.add((
+            songId: task.songId,
+            fileExtension: task.downloadFileExtension,
+          ));
           task.bytesDownloaded = 0;
           task.progress = 0;
         }
@@ -42,8 +45,12 @@ extension _DownloadManagerOperationsImpl on DownloadManager {
 
     // Corrupt partials are discarded before slots fill so a restarting
     // download can't append to a file that is about to be deleted.
-    for (final songId in discardPartialSongIds) {
-      await _deletePartialSongFileIfUnreferenced(songId, force: true);
+    for (final item in discardPartials) {
+      await _deletePartialSongFileIfUnreferenced(
+        item.songId,
+        force: true,
+        fileExtension: item.fileExtension,
+      );
     }
     return requeuedCount;
   }
@@ -267,6 +274,8 @@ extension _DownloadManagerOperationsImpl on DownloadManager {
       ),
       downloadQuality: resolvedQuality,
       downloadOriginal: resolvedOriginal,
+      downloadFileExtension:
+          resolvedOriginal ? 'mp3' : _preferredDownloadFormat,
       duration: duration,
       trackNumber: trackNumber,
       status: DownloadStatus.pending,
@@ -333,6 +342,8 @@ extension _DownloadManagerOperationsImpl on DownloadManager {
         ),
         downloadQuality: resolvedQuality,
         downloadOriginal: resolvedOriginal,
+        downloadFileExtension:
+            resolvedOriginal ? 'mp3' : _preferredDownloadFormat,
         duration: song['duration'] as int? ?? 0,
         trackNumber: song['trackNumber'] as int?,
         status: DownloadStatus.pending,
@@ -472,11 +483,18 @@ extension _DownloadManagerOperationsImpl on DownloadManager {
         (task.errorMessage ?? '').contains('mismatch') ||
             (task.errorMessage ?? '').contains('Range not satisfiable');
     if (shouldDiscardPartial) {
-      await _deletePartialSongFileIfUnreferenced(task.songId, force: true);
+      await _deletePartialSongFileIfUnreferenced(
+        task.songId,
+        force: true,
+        fileExtension: task.downloadFileExtension,
+      );
       task.bytesDownloaded = 0;
       task.progress = 0;
     } else {
-      final partialBytes = await _getPartialSongFileSize(task.songId);
+      final partialBytes = await _getPartialSongFileSize(
+        task.songId,
+        fileExtension: task.downloadFileExtension,
+      );
       if (partialBytes != null && partialBytes > 0) {
         task.bytesDownloaded = partialBytes;
         if (task.totalBytes > 0) {

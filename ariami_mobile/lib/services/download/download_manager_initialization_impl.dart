@@ -18,7 +18,10 @@ extension _DownloadManagerInitializationImpl on DownloadManager {
     final savedQueue = await _database.loadDownloadQueue();
     if (savedQueue.isNotEmpty) {
       for (final task in savedQueue) {
-        final partialBytes = await _getPartialSongFileSize(task.songId);
+        final partialBytes = await _getPartialSongFileSize(
+          task.songId,
+          fileExtension: task.downloadFileExtension,
+        );
         if (partialBytes != null && partialBytes > 0) {
           task.bytesDownloaded = partialBytes;
           if (task.totalBytes > 0) {
@@ -389,7 +392,10 @@ extension _DownloadManagerInitializationImpl on DownloadManager {
     );
 
     if (snapshot.state == NativeDownloadState.completed) {
-      final filePath = _getSongFilePath(task.songId);
+      final filePath = _getSongFilePath(
+        task.songId,
+        fileExtension: task.downloadFileExtension,
+      );
       final file = File(filePath);
       if (await file.exists()) {
         final fileSize = await file.length();
@@ -423,7 +429,13 @@ extension _DownloadManagerInitializationImpl on DownloadManager {
       // slots at all. Route it through the same handler a live transfer uses.
       unawaited(() async {
         try {
-          await _pollNativeDownload(task, _getSongFilePath(task.songId));
+          await _pollNativeDownload(
+            task,
+            _getSongFilePath(
+              task.songId,
+              fileExtension: task.downloadFileExtension,
+            ),
+          );
         } catch (e) {
           _releaseSlot(task.id);
           await _handleDownloadError(task, Exception('Unknown error: $e'));

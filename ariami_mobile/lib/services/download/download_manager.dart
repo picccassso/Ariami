@@ -411,6 +411,14 @@ class DownloadManager {
     await _artworkWorkTail;
   }
 
+  @visibleForTesting
+  void enqueueTasksForTesting(List<DownloadTask> tasks) {
+    _queue.enqueueBatch(tasks);
+  }
+
+  @visibleForTesting
+  Future<int> cleanupStaleDownloadFiles() => _cleanupStaleDownloadFiles();
+
   /// Dispose resources
   void dispose() {
     _connectionStateSubscription?.cancel();

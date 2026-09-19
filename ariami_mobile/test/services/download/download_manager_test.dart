@@ -480,6 +480,139 @@ void main() {
         isFalse,
       );
     });
+
+    test(
+        'stale cleanup preserves non-mp3 formats (.opus, .m4a, .flac) and '
+        'prunes mismatched leftovers and unreferenced files', () async {
+      final songsDir = Directory(p.join(docsDir.path, 'downloads', 'songs'));
+      await songsDir.create(recursive: true);
+
+      // Create test tasks with various formats:
+      // 1. song-opus-ok: completed opus download
+      // 2. song-m4a-ok: completed m4a download
+      // 3. song-flac-ok: completed flac download (album-flac)
+      // 4. song-opus-in-progress: downloading opus partial
+      final testTasks = [
+        _task(
+          id: 'song_song-opus-ok',
+          songId: 'song-opus-ok',
+          title: 'Opus Song',
+          status: DownloadStatus.completed,
+          bytesDownloaded: 500,
+          totalBytes: 500,
+          downloadFileExtension: 'opus',
+        ),
+        _task(
+          id: 'song_song-m4a-ok',
+          songId: 'song-m4a-ok',
+          title: 'M4A Song',
+          status: DownloadStatus.completed,
+          bytesDownloaded: 600,
+          totalBytes: 600,
+          downloadFileExtension: 'm4a',
+        ),
+        _task(
+          id: 'song_song-flac-ok',
+          songId: 'song-flac-ok',
+          title: 'FLAC Song',
+          status: DownloadStatus.completed,
+          bytesDownloaded: 1200,
+          totalBytes: 1200,
+          albumId: 'album-flac',
+          downloadFileExtension: 'flac',
+        ),
+        _task(
+          id: 'song_song-opus-in-progress',
+          songId: 'song-opus-in-progress',
+          title: 'Opus Downloading',
+          status: DownloadStatus.downloading,
+          bytesDownloaded: 200,
+          totalBytes: 800,
+          downloadFileExtension: 'opus',
+        ),
+      ];
+      manager.enqueueTasksForTesting(testTasks);
+
+      // Populate files on disk:
+      // Valid files to keep:
+      final opusFile = File(p.join(songsDir.path, 'song-opus-ok.opus'));
+      await opusFile.writeAsBytes(List<int>.filled(64, 1));
+
+      final m4aFile = File(p.join(songsDir.path, 'song-m4a-ok.m4a'));
+      await m4aFile.writeAsBytes(List<int>.filled(64, 2));
+
+      final flacFile = File(p.join(songsDir.path, 'song-flac-ok.flac'));
+      await flacFile.writeAsBytes(List<int>.filled(64, 3));
+
+      final partialFile =
+          File(p.join(songsDir.path, 'song-opus-in-progress.opus.partial'));
+      await partialFile.writeAsBytes(List<int>.filled(64, 4));
+
+      // Stale files to prune:
+      // 1. Old leftover format for an already migrated completed song
+      final staleOldFormat = File(p.join(songsDir.path, 'song-opus-ok.mp3'));
+      await staleOldFormat.writeAsBytes(List<int>.filled(64, 5));
+
+      // 2. Leftover partial for an already completed song
+      final staleCompletedPartial =
+          File(p.join(songsDir.path, 'song-opus-ok.opus.partial'));
+      await staleCompletedPartial.writeAsBytes(List<int>.filled(64, 6));
+
+      // 3. Unreferenced non-mp3 files
+      final staleUnreferencedOpus =
+          File(p.join(songsDir.path, 'ghost-song.opus'));
+      await staleUnreferencedOpus.writeAsBytes(List<int>.filled(64, 7));
+
+      final staleUnreferencedFlac =
+          File(p.join(songsDir.path, 'ghost-song.flac'));
+      await staleUnreferencedFlac.writeAsBytes(List<int>.filled(64, 8));
+
+      final staleUnreferencedPartial =
+          File(p.join(songsDir.path, 'ghost-song.m4a.partial'));
+      await staleUnreferencedPartial.writeAsBytes(List<int>.filled(64, 9));
+
+      // 4. Hidden non-audio file
+      final dsStore = File(p.join(songsDir.path, '.DS_Store'));
+      await dsStore.writeAsBytes(List<int>.filled(16, 0));
+
+      final removedCount = await manager.cleanupStaleDownloadFiles();
+      expect(removedCount, 6);
+
+      // Verify legitimate files were preserved
+      expect(opusFile.existsSync(), isTrue);
+      expect(m4aFile.existsSync(), isTrue);
+      expect(flacFile.existsSync(), isTrue);
+      expect(partialFile.existsSync(), isTrue);
+
+      // Verify stale files were deleted
+      expect(staleOldFormat.existsSync(), isFalse);
+      expect(staleCompletedPartial.existsSync(), isFalse);
+      expect(staleUnreferencedOpus.existsSync(), isFalse);
+      expect(staleUnreferencedFlac.existsSync(), isFalse);
+      expect(staleUnreferencedPartial.existsSync(), isFalse);
+      expect(dsStore.existsSync(), isFalse);
+
+      // Verify path resolution respects task extension
+      expect(
+        manager.getDownloadedSongPath('song-opus-ok'),
+        endsWith('/downloads/songs/song-opus-ok.opus'),
+      );
+      expect(
+        manager.getDownloadedSongPath('song-m4a-ok'),
+        endsWith('/downloads/songs/song-m4a-ok.m4a'),
+      );
+      expect(
+        manager.getAnyDownloadedSongPathForAlbum('album-flac'),
+        endsWith('/downloads/songs/song-flac-ok.flac'),
+      );
+
+      // Verify deletion of non-mp3 downloads
+      await manager.deleteSongDownloads(['song-opus-ok']);
+      expect(opusFile.existsSync(), isFalse);
+
+      await manager.deleteAlbumDownloads('album-flac');
+      expect(flacFile.existsSync(), isFalse);
+    });
   });
 }
 
@@ -492,6 +625,7 @@ DownloadTask _task({
   required int totalBytes,
   String? albumId,
   String? errorMessage,
+  String? downloadFileExtension,
 }) {
   return DownloadTask(
     id: id,
@@ -503,6 +637,7 @@ DownloadTask _task({
     albumArtist: 'Test Album Artist',
     albumArt: 'https://example.com/art.jpg',
     downloadUrl: 'https://example.com/download/$songId',
+    downloadFileExtension: downloadFileExtension,
     status: status,
     bytesDownloaded: bytesDownloaded,
     totalBytes: totalBytes,

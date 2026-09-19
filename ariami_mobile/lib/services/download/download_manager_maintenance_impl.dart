@@ -10,6 +10,7 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
       (_) => _extractAndCacheArtworkForSong(
         songId: task.songId,
         albumId: task.albumId,
+        fileExtension: task.downloadFileExtension,
       ),
     );
   }
@@ -26,9 +27,10 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
   Future<void> _extractAndCacheArtworkForSong({
     required String songId,
     required String? albumId,
+    String? fileExtension,
   }) async {
     final cacheManager = CacheManager();
-    final localPath = _getSongFilePath(songId);
+    final localPath = _getSongFilePath(songId, fileExtension: fileExtension);
     if (!await File(localPath).exists()) return;
 
     try {
@@ -92,6 +94,7 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
       await _extractAndCacheArtworkForSong(
         songId: task.songId,
         albumId: task.albumId,
+        fileExtension: task.downloadFileExtension,
       );
     }
 
@@ -122,10 +125,40 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
     return '${_getSongFilePath(songId, fileExtension: fileExtension)}.partial';
   }
 
-  Future<int?> _getPartialSongFileSize(String songId) async {
-    final partial = File(_getPartialSongFilePath(songId));
+  Future<int?> _getPartialSongFileSize(
+    String songId, {
+    String? fileExtension,
+  }) async {
+    final partial =
+        File(_getPartialSongFilePath(songId, fileExtension: fileExtension));
     if (!await partial.exists()) return null;
     return partial.length();
+  }
+
+  Future<bool> _deleteFileWithRetry(File file, String identifier) async {
+    for (var attempt = 1; attempt <= 3; attempt++) {
+      try {
+        if (!await file.exists()) return true;
+        await file.delete();
+        return true;
+      } on FileSystemException catch (e) {
+        if (!await file.exists()) return true;
+        if (attempt == 3) {
+          print(
+              '[DownloadManager] Failed to delete file ${file.path} for $identifier: $e');
+          return false;
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 120));
+      } catch (e) {
+        if (attempt == 3) {
+          print(
+              '[DownloadManager] Failed to delete file ${file.path} for $identifier: $e');
+          return false;
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 120));
+      }
+    }
+    return false;
   }
 
   Future<bool> _deleteSongFileIfUnreferenced(
@@ -140,27 +173,36 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
       return false;
     }
 
-    final songFile = File(
-      _getSongFilePath(normalizedSongId, fileExtension: fileExtension),
-    );
-    if (!await songFile.exists()) {
-      return false;
-    }
-
-    for (var attempt = 1; attempt <= 3; attempt++) {
-      try {
-        await songFile.delete();
-        return true;
-      } catch (e) {
-        if (attempt == 3) {
-          print(
-              '[DownloadManager] Failed to delete local file for song $normalizedSongId: $e');
-          return false;
-        }
-        await Future<void>.delayed(const Duration(milliseconds: 120));
+    var deleted = false;
+    if (fileExtension != null && fileExtension.isNotEmpty) {
+      final songFile = File(
+        _getSongFilePath(normalizedSongId, fileExtension: fileExtension),
+      );
+      if (await songFile.exists()) {
+        deleted = await _deleteFileWithRetry(songFile, normalizedSongId);
       }
     }
-    return false;
+
+    if (!deleted) {
+      final downloadPath = _downloadPath;
+      if (downloadPath != null && downloadPath.isNotEmpty) {
+        final songsDir = Directory('$downloadPath/songs');
+        if (await songsDir.exists()) {
+          await for (final entity in songsDir.list(followLinks: false)) {
+            if (entity is File) {
+              final fileName = entity.path.split(Platform.pathSeparator).last;
+              if (_songIdFromDownloadFileName(fileName) == normalizedSongId) {
+                if (await _deleteFileWithRetry(entity, normalizedSongId)) {
+                  deleted = true;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    return deleted;
   }
 
   Future<bool> _deletePartialSongFileIfUnreferenced(
@@ -176,30 +218,40 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
       return false;
     }
 
-    final partialFile = File(
-      _getPartialSongFilePath(
-        normalizedSongId,
-        fileExtension: fileExtension,
-      ),
-    );
-    if (!await partialFile.exists()) {
-      return false;
-    }
-
-    for (var attempt = 1; attempt <= 3; attempt++) {
-      try {
-        await partialFile.delete();
-        return true;
-      } catch (e) {
-        if (attempt == 3) {
-          print(
-              '[DownloadManager] Failed to delete partial file for song $normalizedSongId: $e');
-          return false;
-        }
-        await Future<void>.delayed(const Duration(milliseconds: 120));
+    var deleted = false;
+    if (fileExtension != null && fileExtension.isNotEmpty) {
+      final partialFile = File(
+        _getPartialSongFilePath(
+          normalizedSongId,
+          fileExtension: fileExtension,
+        ),
+      );
+      if (await partialFile.exists()) {
+        deleted = await _deleteFileWithRetry(partialFile, normalizedSongId);
       }
     }
-    return false;
+
+    if (!deleted) {
+      final downloadPath = _downloadPath;
+      if (downloadPath != null && downloadPath.isNotEmpty) {
+        final songsDir = Directory('$downloadPath/songs');
+        if (await songsDir.exists()) {
+          await for (final entity in songsDir.list(followLinks: false)) {
+            if (entity is File) {
+              final fileName = entity.path.split(Platform.pathSeparator).last;
+              if (_songIdFromPartialDownloadFileName(fileName) ==
+                  normalizedSongId) {
+                if (await _deleteFileWithRetry(entity, normalizedSongId)) {
+                  deleted = true;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    return deleted;
   }
 
   Future<int> _clearAllDownloadFilesFromDisk() async {
@@ -244,6 +296,8 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
     return fileCount;
   }
 
+  static final RegExp _validExtensionRegExp = RegExp(r'^[a-z0-9]{1,8}$');
+
   Future<int> _cleanupStaleDownloadFiles() async {
     final downloadPath = _downloadPath;
     if (downloadPath == null || downloadPath.isEmpty) {
@@ -255,7 +309,13 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
       return 0;
     }
 
-    final knownSongIds = _queue.queue.map((task) => task.songId.trim()).toSet();
+    final tasksBySongId = <String, List<DownloadTask>>{};
+    for (final task in _queue.queue) {
+      final songId = task.songId.trim();
+      if (songId.isNotEmpty) {
+        tasksBySongId.putIfAbsent(songId, () => []).add(task);
+      }
+    }
     var removedCount = 0;
 
     await for (final entity in songsDir.list(followLinks: false)) {
@@ -274,13 +334,35 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
       }
 
       final fileName = entity.path.split(Platform.pathSeparator).last;
-      final songId = _songIdFromDownloadFileName(fileName);
-      if (songId != null && knownSongIds.contains(songId)) {
-        continue;
-      }
       final partialSongId = _songIdFromPartialDownloadFileName(fileName);
-      if (partialSongId != null && knownSongIds.contains(partialSongId)) {
-        continue;
+      if (partialSongId != null) {
+        final tasks = tasksBySongId[partialSongId];
+        if (tasks != null) {
+          final shouldKeepPartial = tasks.any((t) {
+            if (t.status == DownloadStatus.completed) return false;
+            final ext = t.downloadFileExtension.trim().toLowerCase();
+            return fileName == '$partialSongId.$ext.partial' ||
+                fileName == '$partialSongId.partial';
+          });
+          if (shouldKeepPartial) {
+            continue;
+          }
+        }
+      } else {
+        final songId = _songIdFromDownloadFileName(fileName);
+        if (songId != null) {
+          final tasks = tasksBySongId[songId];
+          if (tasks != null) {
+            final shouldKeepFile = tasks.any((t) {
+              if (t.status != DownloadStatus.completed) return false;
+              final ext = t.downloadFileExtension.trim().toLowerCase();
+              return fileName == '$songId.$ext';
+            });
+            if (shouldKeepFile) {
+              continue;
+            }
+          }
+        }
       }
 
       try {
@@ -300,19 +382,44 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
   }
 
   String? _songIdFromDownloadFileName(String fileName) {
-    if (fileName.length <= 4 || !fileName.toLowerCase().endsWith('.mp3')) {
+    final lower = fileName.toLowerCase();
+    if (lower.startsWith('.') || lower.endsWith('.partial')) {
       return null;
     }
-    return fileName.substring(0, fileName.length - 4).trim();
+    final dotIndex = fileName.lastIndexOf('.');
+    if (dotIndex <= 0 || dotIndex == fileName.length - 1) {
+      return null;
+    }
+    final ext = lower.substring(dotIndex + 1);
+    if (!_validExtensionRegExp.hasMatch(ext)) {
+      return null;
+    }
+    final songId = fileName.substring(0, dotIndex).trim();
+    return songId.isEmpty ? null : songId;
   }
 
   String? _songIdFromPartialDownloadFileName(String fileName) {
-    const suffix = '.mp3.partial';
-    if (fileName.length <= suffix.length ||
-        !fileName.toLowerCase().endsWith(suffix)) {
+    const suffix = '.partial';
+    final lower = fileName.toLowerCase();
+    if (fileName.length <= suffix.length || !lower.endsWith(suffix)) {
       return null;
     }
-    return fileName.substring(0, fileName.length - suffix.length).trim();
+    final baseName =
+        fileName.substring(0, fileName.length - suffix.length).trim();
+    if (baseName.isEmpty || baseName.startsWith('.')) {
+      return null;
+    }
+    final dotIndex = baseName.lastIndexOf('.');
+    if (dotIndex > 0 && dotIndex < baseName.length - 1) {
+      final ext = baseName.substring(dotIndex + 1).toLowerCase();
+      if (_validExtensionRegExp.hasMatch(ext)) {
+        final candidateId = baseName.substring(0, dotIndex).trim();
+        if (candidateId.isNotEmpty) {
+          return candidateId;
+        }
+      }
+    }
+    return baseName;
   }
 
   /// Format bytes to human readable format
@@ -340,7 +447,10 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
   String? _getDownloadedSongPathImpl(String songId) {
     final task = _getScopedTask('song_$songId');
     if (task?.status == DownloadStatus.completed) {
-      return _getSongFilePath(songId);
+      return _getSongFilePath(
+        songId,
+        fileExtension: task!.downloadFileExtension,
+      );
     }
     return null;
   }
@@ -352,7 +462,10 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
     for (final task in _getScopedQueue()) {
       if (task.status == DownloadStatus.completed &&
           task.albumId == normalizedAlbumId) {
-        return _getSongFilePath(task.songId);
+        return _getSongFilePath(
+          task.songId,
+          fileExtension: task.downloadFileExtension,
+        );
       }
     }
     return null;
@@ -450,11 +563,21 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
       if (matches.length != 1) continue;
 
       final song = matches.single;
-      if (!await _renameCompletedSongFile(task.songId, song.id)) continue;
+      if (!await _renameCompletedSongFile(
+        task.songId,
+        song.id,
+        fileExtension: task.downloadFileExtension,
+      )) {
+        continue;
+      }
 
       final replacement = _buildRelinkedDownloadTask(task, song, albumsById);
       if (!_queue.replaceTask(task.id, replacement)) {
-        await _renameCompletedSongFile(song.id, task.songId);
+        await _renameCompletedSongFile(
+          song.id,
+          task.songId,
+          fileExtension: task.downloadFileExtension,
+        );
         continue;
       }
       _invalidateScopedQueueCache();
@@ -630,11 +753,16 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
   String _normalizeDownloadMetadata(String value) => value.trim().toLowerCase();
 
   Future<bool> _renameCompletedSongFile(
-      String oldSongId, String newSongId) async {
+    String oldSongId,
+    String newSongId, {
+    String? fileExtension,
+  }) async {
     if (oldSongId == newSongId) return true;
 
-    final oldFile = File(_getSongFilePath(oldSongId));
-    final newFile = File(_getSongFilePath(newSongId));
+    final oldFile =
+        File(_getSongFilePath(oldSongId, fileExtension: fileExtension));
+    final newFile =
+        File(_getSongFilePath(newSongId, fileExtension: fileExtension));
     if (!await oldFile.exists() || await newFile.exists()) return false;
 
     try {
@@ -797,7 +925,6 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
     }
 
     // Cancel/delete each task
-    final songIds = tasksToDelete.map((task) => task.songId).toSet();
     _queue.beginBatch();
     try {
       for (final task in tasksToDelete) {
@@ -807,10 +934,18 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
       _queue.endBatch();
     }
     var deletedFileCount = 0;
-    for (final songId in songIds) {
-      if (await _deleteSongFileIfUnreferenced(songId)) {
+    for (final task in tasksToDelete) {
+      if (await _deleteSongFileIfUnreferenced(
+        task.songId,
+        fileExtension: task.downloadFileExtension,
+      )) {
         deletedFileCount++;
       }
+      await _deletePartialSongFileIfUnreferenced(
+        task.songId,
+        force: true,
+        fileExtension: task.downloadFileExtension,
+      );
     }
 
     print(
@@ -833,8 +968,16 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
     } finally {
       _queue.endBatch();
     }
-    for (final songId in ids) {
-      await _deleteSongFileIfUnreferenced(songId);
+    for (final task in tasksToDelete) {
+      await _deleteSongFileIfUnreferenced(
+        task.songId,
+        fileExtension: task.downloadFileExtension,
+      );
+      await _deletePartialSongFileIfUnreferenced(
+        task.songId,
+        force: true,
+        fileExtension: task.downloadFileExtension,
+      );
     }
   }
 }
