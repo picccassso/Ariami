@@ -283,6 +283,14 @@ class LibraryController extends ChangeNotifier {
       _loadLibrary(background: background);
 
   @visibleForTesting
+  Future<void> applyLibraryBundleForTest(LibraryReadBundle library) =>
+      _applyLibraryBundle(library);
+
+  @visibleForTesting
+  set hasLoadedOnlineLibraryForTest(bool value) =>
+      _hasLoadedOnlineLibrary = value;
+
+  @visibleForTesting
   Future<void> completeLibraryLoadForTest() => _completeLibraryLoad();
 
   @visibleForTesting

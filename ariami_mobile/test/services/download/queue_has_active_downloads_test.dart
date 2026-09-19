@@ -19,7 +19,8 @@ void main() {
   group('queueHasActiveDownloads', () {
     test('returns true for pending, downloading, and paused tasks', () {
       expect(
-        queueHasActiveDownloads([_task(id: '1', status: DownloadStatus.pending)]),
+        queueHasActiveDownloads(
+            [_task(id: '1', status: DownloadStatus.pending)]),
         isTrue,
       );
       expect(
@@ -29,7 +30,8 @@ void main() {
         isTrue,
       );
       expect(
-        queueHasActiveDownloads([_task(id: '3', status: DownloadStatus.paused)]),
+        queueHasActiveDownloads(
+            [_task(id: '3', status: DownloadStatus.paused)]),
         isTrue,
       );
     });
@@ -42,7 +44,8 @@ void main() {
         isFalse,
       );
       expect(
-        queueHasActiveDownloads([_task(id: '2', status: DownloadStatus.failed)]),
+        queueHasActiveDownloads(
+            [_task(id: '2', status: DownloadStatus.failed)]),
         isFalse,
       );
       expect(
@@ -103,6 +106,37 @@ void main() {
           sessionTaskIds: const {'1'},
         ),
         isNull,
+      );
+    });
+
+    test('uses a fixed job total and ignores tasks outside the session', () {
+      const sessionIds = {'1', '2'};
+      final queue = [
+        _task(id: '1', status: DownloadStatus.completed),
+        _task(id: '2', status: DownloadStatus.downloading),
+        _task(id: 'stale', status: DownloadStatus.pending),
+      ];
+
+      expect(
+        computeSessionDownloadCounts(
+          queue: queue,
+          sessionTaskIds: sessionIds,
+          expectedTaskCount: 2145,
+        ),
+        (
+          completedSongs: 1,
+          inProgressSongs: 1,
+          totalSongs: 2145,
+        ),
+      );
+      expect(
+        computeSessionDownloadProgress(
+          queue: queue,
+          sessionTaskIds: sessionIds,
+          expectedTaskCount: 2145,
+          latestTaskProgress: const {'2': 0.5},
+        ),
+        closeTo(1.5 / 2145, 0.000001),
       );
     });
   });

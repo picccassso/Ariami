@@ -2,6 +2,8 @@ import 'package:ariami_mobile/models/api_models.dart';
 import 'package:ariami_mobile/models/download_task.dart';
 import 'package:ariami_mobile/screens/main/library/library_controller.dart';
 import 'package:ariami_mobile/screens/main/library/library_state.dart';
+import 'package:ariami_mobile/services/library/library_genre_index.dart';
+import 'package:ariami_mobile/services/library/library_read_facade.dart';
 import 'package:ariami_mobile/utils/shared_preferences_cache.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -63,6 +65,55 @@ void main() {
 
       expect(controller.lastHandledSyncTokenForTest, equals(0));
     });
+  });
+
+  test('partial library snapshot preserves a complete visible catalogue',
+      () async {
+    final controller = LibraryController();
+    final completeAlbum = AlbumModel(
+      id: 'complete-album',
+      title: 'Complete Album',
+      artist: 'Artist',
+      songCount: 1,
+      duration: 180,
+    );
+    final completeSong = SongModel(
+      id: 'complete-song',
+      title: 'Complete Song',
+      artist: 'Artist',
+      albumId: completeAlbum.id,
+      duration: 180,
+    );
+    controller.setStateForTest(LibraryState(
+      isLoading: false,
+      albums: <AlbumModel>[completeAlbum],
+      songs: <SongModel>[completeSong],
+    ));
+    controller.hasLoadedOnlineLibraryForTest = true;
+
+    await controller.applyLibraryBundleForTest(
+      const LibraryReadBundle(
+        albums: <AlbumModel>[],
+        songs: <SongModel>[],
+        serverPlaylists: <ServerPlaylist>[],
+        genreIndex: LibraryGenreIndex.empty,
+        durationsReady: false,
+        source: LibraryReadSource.v2LocalStore,
+        sourceReason: 'bootstrap in progress',
+        isPartialRead: true,
+      ),
+    );
+
+    expect(controller.state.albums.single.id, completeAlbum.id);
+    expect(controller.state.songs.single.id, completeSong.id);
+    expect(
+      controller.state.syncWarningMessage,
+      'Library sync is still in progress. Some content may be missing.',
+    );
+    expect(controller.state.isLoading, isFalse);
+    expect(controller.state.isRefreshing, isFalse);
+
+    controller.hasLoadedOnlineLibraryForTest = false;
   });
 
   test('settled download queue rebuilds albums and songs while offline',

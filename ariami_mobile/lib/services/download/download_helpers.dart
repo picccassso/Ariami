@@ -29,6 +29,48 @@ bool queueHasActiveDownloads(Iterable<DownloadTask> queue) {
   );
 }
 
+typedef SessionDownloadCounts = ({
+  int completedSongs,
+  int inProgressSongs,
+  int totalSongs,
+});
+
+/// Counts only tasks belonging to the current user-visible batch and keeps the
+/// server-resolved total fixed while paged job items enter the local queue.
+SessionDownloadCounts computeSessionDownloadCounts({
+  required Iterable<DownloadTask> queue,
+  required Set<String> sessionTaskIds,
+  int? expectedTaskCount,
+}) {
+  var completedSongs = 0;
+  var inProgressSongs = 0;
+  for (final task in queue) {
+    if (!sessionTaskIds.contains(task.id)) continue;
+    switch (task.status) {
+      case DownloadStatus.downloading:
+      case DownloadStatus.pending:
+      case DownloadStatus.paused:
+        inProgressSongs++;
+        break;
+      case DownloadStatus.completed:
+        completedSongs++;
+        break;
+      case DownloadStatus.failed:
+      case DownloadStatus.cancelled:
+        break;
+    }
+  }
+
+  final observedSongs = completedSongs + inProgressSongs;
+  return (
+    completedSongs: completedSongs,
+    inProgressSongs: inProgressSongs,
+    totalSongs: expectedTaskCount != null && expectedTaskCount > 0
+        ? expectedTaskCount
+        : observedSongs,
+  );
+}
+
 /// Aggregate batch progress for the global download bar and Downloads summary.
 ///
 /// Matches the Downloads screen session model: [sessionTaskIds] anchors which
@@ -37,31 +79,27 @@ bool queueHasActiveDownloads(Iterable<DownloadTask> queue) {
 double? computeSessionDownloadProgress({
   required List<DownloadTask> queue,
   required Set<String> sessionTaskIds,
+  int? expectedTaskCount,
   Map<String, double> latestTaskProgress = const {},
 }) {
-  if (!queueHasActiveDownloads(queue)) {
-    return null;
-  }
-
-  var inProgressSongs = 0;
-  var completedInSession = 0;
+  final counts = computeSessionDownloadCounts(
+    queue: queue,
+    sessionTaskIds: sessionTaskIds,
+    expectedTaskCount: expectedTaskCount,
+  );
   var partialProgress = 0.0;
 
   for (final task in queue) {
+    if (!sessionTaskIds.contains(task.id)) continue;
     switch (task.status) {
       case DownloadStatus.downloading:
       case DownloadStatus.paused:
-        inProgressSongs++;
         partialProgress +=
             latestTaskProgress[task.id]?.clamp(0.0, 1.0) ?? task.progress;
         break;
       case DownloadStatus.pending:
-        inProgressSongs++;
         break;
       case DownloadStatus.completed:
-        if (sessionTaskIds.contains(task.id)) {
-          completedInSession++;
-        }
         break;
       case DownloadStatus.failed:
       case DownloadStatus.cancelled:
@@ -69,12 +107,12 @@ double? computeSessionDownloadProgress({
     }
   }
 
-  final totalSongs = inProgressSongs + completedInSession;
-  if (totalSongs <= 0) {
+  if (counts.inProgressSongs == 0 || counts.totalSongs <= 0) {
     return null;
   }
 
-  return ((completedInSession + partialProgress) / totalSongs).clamp(0.0, 1.0);
+  return ((counts.completedSongs + partialProgress) / counts.totalSongs)
+      .clamp(0.0, 1.0);
 }
 
 /// Returns true when a task was auto-paused due to interruption handling.

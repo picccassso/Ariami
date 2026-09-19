@@ -65,6 +65,7 @@ class DownloadManager {
   final Map<String, String> _persistedTaskSignatures = {};
   List<DownloadTask>? _pendingPersistenceSnapshot;
   bool _persistenceInFlight = false;
+  Completer<void>? _persistenceIdleCompleter;
   List<DownloadTask>? _scopedQueueCache;
   String? _scopedQueueCacheServerId;
   String? _scopedQueueCacheUserId;
@@ -78,8 +79,8 @@ class DownloadManager {
   bool _isAppInForeground = true;
   bool _coolerDownloadsEnabled = false;
 
-  /// Tail of the serialized artwork-caching worker; extraction jobs chain
-  /// onto it so at most one embedded-art parse runs at a time.
+  /// Tail of the serialized artwork-caching worker; artwork jobs chain onto it
+  /// so bulk downloads do not start unbounded tag parses or image requests.
   Future<void> _artworkWorkTail = Future.value();
 
   /// Fire-and-forget maintenance kicked off by [initialize].
@@ -118,6 +119,28 @@ class DownloadManager {
   /// library downloads don't inflate the denominator and the count stays
   /// stable when the screen is closed and reopened mid-batch.
   final Set<String> sessionTaskIds = <String>{};
+
+  /// Fixed size of the current server-resolved batch.
+  ///
+  /// Download-job items arrive in pages, so deriving the denominator from the
+  /// queue makes "X of Y" grow while pagination runs.
+  int? sessionExpectedTaskCount;
+
+  void beginDownloadSession({required int expectedTaskCount}) {
+    sessionTaskIds.clear();
+    sessionExpectedTaskCount = expectedTaskCount < 0 ? 0 : expectedTaskCount;
+  }
+
+  void clearDownloadSession() {
+    sessionTaskIds.clear();
+    sessionExpectedTaskCount = null;
+  }
+
+  void seedDownloadSession(Iterable<String> taskIds) {
+    if (sessionTaskIds.isNotEmpty) return;
+    sessionTaskIds.addAll(taskIds);
+    sessionExpectedTaskCount = sessionTaskIds.length;
+  }
 
   /// Check if initialized
   bool get isInitialized => _initialized;
@@ -297,9 +320,18 @@ class DownloadManager {
   Future<int> pruneOrphanedDownloads(Set<String> validSongIds) =>
       _pruneOrphanedDownloadsImpl(validSongIds);
 
-  /// Remove unfinished downloads that no longer exist in the current library.
-  Future<int> pruneOrphanedIncompleteDownloads(Set<String> validSongIds) =>
-      _pruneOrphanedIncompleteDownloadsImpl(validSongIds);
+  /// Remove unfinished downloads that no longer exist in a complete library.
+  ///
+  /// A partial bootstrap is not proof that a song was deleted. Requiring the
+  /// caller to identify an authoritative snapshot keeps an incomplete sync
+  /// from cancelling valid queued downloads.
+  Future<int> pruneOrphanedIncompleteDownloads(
+    Set<String> validSongIds, {
+    required bool isAuthoritativeLibrary,
+  }) {
+    if (!isAuthoritativeLibrary) return Future<int>.value(0);
+    return _pruneOrphanedIncompleteDownloadsImpl(validSongIds);
+  }
 
   /// Relink completed downloads after path-derived server song IDs change.
   Future<int> relinkOrphanedCompletedDownloads({
@@ -409,6 +441,7 @@ class DownloadManager {
   Future<void> settleBackgroundWork() async {
     await _startupWork;
     await _artworkWorkTail;
+    await _waitForQueuePersistence();
   }
 
   @visibleForTesting
@@ -418,6 +451,24 @@ class DownloadManager {
 
   @visibleForTesting
   Future<int> cleanupStaleDownloadFiles() => _cleanupStaleDownloadFiles();
+
+  @visibleForTesting
+  Future<bool> recoverCompletedFinalFile(DownloadTask task) =>
+      _recoverCompletedFinalFile(task);
+
+  @visibleForTesting
+  Future<void> persistCompletedTaskDurablyForTest(DownloadTask task) =>
+      _persistCompletedTaskDurably(task);
+
+  @visibleForTesting
+  Future<bool> cacheDownloadedArtwork(DownloadTask task) =>
+      _cacheArtworkForDownloadedSong(
+        songId: task.songId,
+        albumId: task.albumId,
+        artworkUrl: task.albumArt,
+        downloadOriginal: task.downloadOriginal,
+        fileExtension: task.downloadFileExtension,
+      );
 
   /// Dispose resources
   void dispose() {

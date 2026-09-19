@@ -206,38 +206,65 @@ extension _LibraryControllerLoading on LibraryController {
     final library =
         await _connectionService.libraryReadFacade.getLibraryBundle();
 
-    _playlistService.updateServerPlaylists(library.serverPlaylists);
+    await _applyLibraryBundle(library);
+  }
+
+  Future<void> _applyLibraryBundle(LibraryReadBundle library) async {
+    final hasExistingCatalogue =
+        _state.albums.isNotEmpty || _state.songs.isNotEmpty;
+
+    // A bootstrap snapshot can contain only the pages synced so far. Keep a
+    // previously complete catalogue visible until its complete replacement is
+    // ready; otherwise the library appears to be randomly deleted.
+    if (library.isPartialRead &&
+        _hasLoadedOnlineLibrary &&
+        hasExistingCatalogue) {
+      _updateState(_state.copyWith(
+        isLoading: false,
+        isRefreshing: false,
+        syncWarningMessage: _buildSyncWarningMessage(library),
+      ));
+      return;
+    }
+
+    final isAuthoritativeLibrary = !library.isPartialRead;
 
     final validSongIds = library.songs.map((song) => song.id).toSet();
     final validAlbumIds = library.albums.map((album) => album.id).toSet();
-    await _downloadManager.pruneOrphanedIncompleteDownloads(validSongIds);
-    await _downloadManager.relinkOrphanedCompletedDownloads(
-      librarySongs: library.songs,
-      libraryAlbums: library.albums,
-    );
-    // Re-point downloads whose album ID changed (e.g. after a server-side tag
-    // normalization re-hashed album identities) so they aren't mistaken for
-    // orphaned offline copies. Reuse the discovered old -> new album ID pairs to
-    // migrate album-keyed pins and recents to match.
-    final albumIdRemap = await _downloadManager.migrateDownloadAlbumIds(
-      librarySongs: library.songs,
-      libraryAlbums: library.albums,
-    );
-    await _remapAlbumPreferenceKeys(albumIdRemap);
-    await _downloadManager.refreshDownloadAlbumMetadata(
-      libraryAlbums: [
-        ..._state.albums.where(
-          (album) => !_state.isOfflineCopyAlbum(album.id),
-        ),
-        ...library.albums,
-      ],
-      librarySongs: library.songs,
-    );
-    await _offlineCopyService.reconcileAlbums(
-      tasks: _downloadManager.queue,
-      serverSongIds: validSongIds,
-      serverAlbumIds: validAlbumIds,
-    );
+    if (isAuthoritativeLibrary) {
+      _playlistService.updateServerPlaylists(library.serverPlaylists);
+      await _downloadManager.pruneOrphanedIncompleteDownloads(
+        validSongIds,
+        isAuthoritativeLibrary: true,
+      );
+      await _downloadManager.relinkOrphanedCompletedDownloads(
+        librarySongs: library.songs,
+        libraryAlbums: library.albums,
+      );
+      // Re-point downloads whose album ID changed (e.g. after a server-side
+      // tag normalization re-hashed album identities) so they aren't mistaken
+      // for orphaned offline copies. Reuse the discovered old -> new album ID
+      // pairs to migrate album-keyed pins and recents to match.
+      final albumIdRemap = await _downloadManager.migrateDownloadAlbumIds(
+        librarySongs: library.songs,
+        libraryAlbums: library.albums,
+      );
+      await _remapAlbumPreferenceKeys(albumIdRemap);
+      await _downloadManager.refreshDownloadAlbumMetadata(
+        libraryAlbums: [
+          ..._state.albums.where(
+            (album) => !_state.isOfflineCopyAlbum(album.id),
+          ),
+          ...library.albums,
+        ],
+        librarySongs: library.songs,
+      );
+      await _offlineCopyService.reconcileAlbums(
+        tasks: _downloadManager.queue,
+        serverSongIds: validSongIds,
+        serverAlbumIds: validAlbumIds,
+      );
+    }
     final retainedAlbums = _buildRetainedOfflineAlbums();
     final retainedSongs = _buildRetainedOfflineSongs();
     final retainedGenreIndex = _buildDownloadGenreIndex(
@@ -254,7 +281,9 @@ extension _LibraryControllerLoading on LibraryController {
     final selectedGenre = _state.genreFilter;
     final keepGenreFilter = selectedGenre != null &&
         genreIndex.genreAlbums.containsKey(selectedGenre);
-    _hasLoadedOnlineLibrary = true;
+    if (isAuthoritativeLibrary) {
+      _hasLoadedOnlineLibrary = true;
+    }
 
     _updateState(_state.copyWith(
       albums: [...library.albums, ...retainedAlbums],
@@ -279,10 +308,12 @@ extension _LibraryControllerLoading on LibraryController {
       _scheduleDurationRetry();
     }
 
-    await _playlistService.remapPlaylistSongIds(library.songs);
-    await _statsService.remapStaleStatIdsFromLibrary(library.songs);
-    await AlbumMetadataRepairMigration().run(library: library);
-    await _playlistService.rehydrateSongMetadataFromLibrary(library.songs);
+    if (isAuthoritativeLibrary) {
+      await _playlistService.remapPlaylistSongIds(library.songs);
+      await _statsService.remapStaleStatIdsFromLibrary(library.songs);
+      await AlbumMetadataRepairMigration().run(library: library);
+      await _playlistService.rehydrateSongMetadataFromLibrary(library.songs);
+    }
     await _loadDownloadedSongs();
   }
 

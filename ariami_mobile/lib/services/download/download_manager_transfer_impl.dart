@@ -310,7 +310,7 @@ extension _DownloadManagerTransferImpl on DownloadManager {
       task.totalBytes = fileSize;
       task.errorMessage = null;
       task.downloadEtag = null;
-      _queue.updateTask(task); // Update queue on status change
+      await _persistCompletedTaskDurably(task);
 
       _progressController.add(DownloadProgress(
         taskId: task.id,
@@ -428,7 +428,7 @@ extension _DownloadManagerTransferImpl on DownloadManager {
         task.errorMessage = null;
         task.nativeBackend = null;
         task.nativeTaskId = null;
-        _queue.updateTask(task);
+        await _persistCompletedTaskDurably(task);
 
         _progressController.add(DownloadProgress(
           taskId: task.id,

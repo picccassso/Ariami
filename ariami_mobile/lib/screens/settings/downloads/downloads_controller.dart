@@ -11,6 +11,7 @@ import '../../../services/cache/cache_manager.dart'
     show CacheManager, CacheUpdateEvent;
 import '../../../services/download/download_manager.dart';
 import '../../../services/download/download_helpers.dart';
+import '../../../services/library/library_read_facade.dart';
 import '../../../services/playlist_service.dart';
 import '../../../services/quality/quality_settings_service.dart';
 import 'downloads_state.dart';
@@ -52,6 +53,7 @@ class DownloadsController extends ChangeNotifier {
   Set<String> _playlistSongIds = {};
   int _libraryAlbumCount = 0;
   bool _hasLibraryReferenceData = false;
+  bool _libraryReferenceDataIsPartial = false;
 
   /// Resolves the songs represented by playlists that exist in the mobile
   /// library. Imported server playlists are local playlists too; server
@@ -286,39 +288,29 @@ class DownloadsController extends ChangeNotifier {
   void _recomputeOverallProgress() {
     var bytesDone = 0;
     var bytesTotal = 0;
-    var inProgressSongs = 0;
 
     for (final album in _state.inProgressAlbums) {
       for (final song in album.songs) {
+        if (!_sessionTaskIds.contains(song.id)) continue;
         final progress = _latestProgress[song.id];
         bytesDone += progress?.bytesDownloaded ?? song.bytesDownloaded;
         bytesTotal += progress?.totalBytes ?? song.totalBytes;
-        inProgressSongs++;
       }
     }
 
-    final completedInSession = _completedInSessionCount();
-    final totalSongs = inProgressSongs + completedInSession;
+    final counts = computeSessionDownloadCounts(
+      queue: _downloadManager.queue,
+      sessionTaskIds: _sessionTaskIds,
+      expectedTaskCount: _downloadManager.sessionExpectedTaskCount,
+    );
 
     _overallProgressNotifier.value = OverallProgressSummary(
-      totalSongs: totalSongs,
-      completedSongs: completedInSession,
-      inProgressSongs: inProgressSongs,
+      totalSongs: counts.totalSongs,
+      completedSongs: counts.completedSongs,
+      inProgressSongs: counts.inProgressSongs,
       bytesDone: bytesDone,
       bytesTotal: bytesTotal,
     );
-  }
-
-  int _completedInSessionCount() {
-    if (_sessionTaskIds.isEmpty) return 0;
-    var count = 0;
-    for (final task in _downloadManager.queue) {
-      if (task.status == DownloadStatus.completed &&
-          _sessionTaskIds.contains(task.id)) {
-        count++;
-      }
-    }
-    return count;
   }
 
   void _scheduleCacheStatsRefresh() {
@@ -352,17 +344,17 @@ class DownloadsController extends ChangeNotifier {
     try {
       final library =
           await _connectionService.libraryReadFacade.getLibraryBundle();
+      if (library.isPartialRead) {
+        // Partial bootstrap counts shrink as pages arrive. Keep the card in
+        // its loading state (or preserve the last complete counts) instead of
+        // presenting a smaller catalogue as the download-all total.
+        _libraryReferenceDataIsPartial = true;
+        return;
+      }
       final songs = library.songs;
       final serverPlaylists = library.serverPlaylists;
 
-      // Repair older queue rows that were created before album metadata was
-      // resolved from the normalized album ID. This also makes the Downloads
-      // screen self-healing when opened directly, without relying on the main
-      // library screen having been visited first.
-      await _downloadManager.refreshDownloadAlbumMetadata(
-        libraryAlbums: library.albums,
-        librarySongs: songs,
-      );
+      await _reconcileDownloadsWithLibrary(library);
 
       playlistService.updateServerPlaylists(serverPlaylists);
 
@@ -385,12 +377,14 @@ class DownloadsController extends ChangeNotifier {
       _playlistSongIds = playlistSongIds;
       _libraryAlbumCount = library.albums.length;
       _hasLibraryReferenceData = true;
+      _libraryReferenceDataIsPartial = false;
     } catch (_) {
-      _librarySongIds = {};
-      _albumSongCounts = {};
-      _playlistSongIds = {};
-      _libraryAlbumCount = 0;
-      _hasLibraryReferenceData = false;
+      // Preserve the last authoritative counts. With no successful snapshot,
+      // keep the card loading instead of presenting the raw queue (which may
+      // contain intentionally retained offline copies) as the library total.
+      if (!_hasLibraryReferenceData) {
+        _libraryReferenceDataIsPartial = true;
+      }
     }
   }
 
@@ -415,6 +409,11 @@ class DownloadsController extends ChangeNotifier {
 
     if (!_hasLibraryReferenceData) {
       if (_disposed) return;
+      if (_libraryReferenceDataIsPartial) {
+        _state = _state.copyWith(isLoadingCounts: true);
+        notifyListeners();
+        return;
+      }
       _state = _state.copyWith(
         totalSongCount: localDownloadedSongs,
         totalAlbumCount: localAlbumIds.length,
@@ -480,9 +479,10 @@ class DownloadsController extends ChangeNotifier {
     try {
       final downloadQuality = _qualityService.getDownloadQuality();
       final downloadOriginal = _qualityService.getDownloadOriginal();
-      final songs = await _connectionService.libraryReadFacade.getSongs();
+      final library = await _authoritativeLibraryBundle();
+      if (library == null) return false;
       await _downloadManager.enqueueDownloadJob(
-        songIds: songs.map((song) => song.id).toList(),
+        songIds: library.songs.map((song) => song.id).toList(),
         downloadQuality: downloadQuality,
         downloadOriginal: downloadOriginal,
       );
@@ -510,9 +510,10 @@ class DownloadsController extends ChangeNotifier {
     try {
       final downloadQuality = _qualityService.getDownloadQuality();
       final downloadOriginal = _qualityService.getDownloadOriginal();
-      final albums = await _connectionService.libraryReadFacade.getAlbums();
+      final library = await _authoritativeLibraryBundle();
+      if (library == null) return false;
       await _downloadManager.enqueueDownloadJob(
-        albumIds: albums.map((album) => album.id).toList(),
+        albumIds: library.albums.map((album) => album.id).toList(),
         downloadQuality: downloadQuality,
         downloadOriginal: downloadOriginal,
       );
@@ -546,8 +547,8 @@ class DownloadsController extends ChangeNotifier {
         await playlistService.loadPlaylists();
       }
 
-      final library =
-          await _connectionService.libraryReadFacade.getLibraryBundle();
+      final library = await _authoritativeLibraryBundle();
+      if (library == null) return false;
       final songs = library.songs;
       final serverPlaylists = library.serverPlaylists;
       playlistService.updateServerPlaylists(serverPlaylists);
@@ -573,6 +574,50 @@ class DownloadsController extends ChangeNotifier {
         notifyListeners();
       }
     }
+  }
+
+  Future<LibraryReadBundle?> _authoritativeLibraryBundle() async {
+    // Catch up the serialized local catalogue before freezing the ID set for a
+    // bulk job. If sync remains partial or fails, refuse to launch an
+    // undersized "all" request and let the existing UI surface the retry
+    // message.
+    try {
+      await _connectionService.librarySyncEngine.syncNow();
+      final library =
+          await _connectionService.libraryReadFacade.getLibraryBundle();
+      if (library.syncHealth?.hasSyncFailure == true) return null;
+      if (library.isPartialRead) return null;
+      await _reconcileDownloadsWithLibrary(library);
+      return library;
+    } catch (e) {
+      debugPrint(
+          '[DownloadsController] Library sync before download failed: $e');
+      return null;
+    }
+  }
+
+  Future<void> _reconcileDownloadsWithLibrary(
+    LibraryReadBundle library,
+  ) async {
+    await _downloadManager.pruneOrphanedIncompleteDownloads(
+      library.songs.map((song) => song.id).toSet(),
+      isAuthoritativeLibrary: true,
+    );
+    // Reuse completed files whose path-derived IDs changed before enqueueing a
+    // new all-library batch. Without this preflight the old file is retained
+    // as an offline copy and the same logical song is downloaded again.
+    await _downloadManager.relinkOrphanedCompletedDownloads(
+      librarySongs: library.songs,
+      libraryAlbums: library.albums,
+    );
+    await _downloadManager.migrateDownloadAlbumIds(
+      librarySongs: library.songs,
+      libraryAlbums: library.albums,
+    );
+    await _downloadManager.refreshDownloadAlbumMetadata(
+      libraryAlbums: library.albums,
+      librarySongs: library.songs,
+    );
   }
 
   Future<void> _loadCacheStats() async {
@@ -612,7 +657,6 @@ class DownloadsController extends ChangeNotifier {
         case DownloadStatus.paused:
         case DownloadStatus.pending:
           inProgressTasks.add(task);
-          _sessionTaskIds.add(task.id);
           break;
         case DownloadStatus.completed:
           completedTasks.add(task);
@@ -624,6 +668,10 @@ class DownloadsController extends ChangeNotifier {
           break;
       }
     }
+
+    _downloadManager.seedDownloadSession(
+      inProgressTasks.map((task) => task.id),
+    );
 
     final inProgressAlbums = _buildAlbumGroups(
       inProgressTasks,

@@ -2,6 +2,8 @@ part of 'download_manager.dart';
 
 extension _DownloadManagerInitializationImpl on DownloadManager {
   Future<void> _initializeImpl() async {
+    final nativeTasksToReconcile = <DownloadTask>[];
+
     if (_initialized) return;
 
     // Setup database
@@ -18,31 +20,36 @@ extension _DownloadManagerInitializationImpl on DownloadManager {
     final savedQueue = await _database.loadDownloadQueue();
     if (savedQueue.isNotEmpty) {
       for (final task in savedQueue) {
+        final persistedSignature = _taskSignature(task);
+        final recoveredCompletedFile = await _recoverCompletedFinalFile(task);
         final partialBytes = await _getPartialSongFileSize(
           task.songId,
           fileExtension: task.downloadFileExtension,
         );
-        if (partialBytes != null && partialBytes > 0) {
+        if (!recoveredCompletedFile &&
+            partialBytes != null &&
+            partialBytes > 0) {
           task.bytesDownloaded = partialBytes;
           if (task.totalBytes > 0) {
             task.progress = partialBytes / task.totalBytes;
           }
         }
-        if (task.nativeTaskId != null &&
+        if (!recoveredCompletedFile &&
+            task.nativeTaskId != null &&
             task.status == DownloadStatus.downloading) {
-          unawaited(_reconcileNativeDownloadOnLaunch(task));
+          nativeTasksToReconcile.add(task);
+          _persistedTaskSignatures[task.id] = persistedSignature;
           continue;
         }
-        if (task.status == DownloadStatus.downloading ||
-            task.status == DownloadStatus.pending) {
+        if (!recoveredCompletedFile &&
+            (task.status == DownloadStatus.downloading ||
+                task.status == DownloadStatus.pending)) {
           task.status = DownloadStatus.paused;
           task.errorMessage = appClosedDownloadPauseMessage;
         }
+        _persistedTaskSignatures[task.id] = persistedSignature;
       }
       _queue.enqueueBatch(savedQueue);
-      for (final task in savedQueue) {
-        _persistedTaskSignatures[task.id] = _taskSignature(task);
-      }
     }
 
     // Setup HTTP client.
@@ -85,6 +92,11 @@ extension _DownloadManagerInitializationImpl on DownloadManager {
     _connectionStateSubscription =
         ConnectionService().connectionStateStream.listen((isConnected) {
       if (isConnected) {
+        // A cold start can run the artwork repair before the server session is
+        // restored. Retry it once connected so transcoded downloads regain
+        // full-resolution offline covers without being downloaded again.
+        _queueArtworkBackfill();
+
         // Connection-loss pauses are mechanical, not user intent: resume
         // them on reconnect so a network blip (screen-off Wi-Fi power-save,
         // Tailscale route change) doesn't strand a batch mid-download. Only
@@ -101,6 +113,14 @@ extension _DownloadManagerInitializationImpl on DownloadManager {
 
     _initialized = true;
     print('DownloadManager initialized');
+
+    // Persist launch recovery (including final files promoted back to
+    // completed) and mechanical pause transitions. The queue was loaded before
+    // its listener existed, so these changes otherwise never reached SQLite.
+    _scheduleQueuePersistence(_queue.queue);
+    for (final task in nativeTasksToReconcile) {
+      unawaited(_reconcileNativeDownloadOnLaunch(task));
+    }
 
     // The saved queue was enqueued before the internal queue listener was
     // attached, so that load never reached [queueStream] (broadcast streams
@@ -124,10 +144,11 @@ extension _DownloadManagerInitializationImpl on DownloadManager {
       }
     }
 
-    _startupWork = Future.wait(<Future<void>>[
-      guarded(_cleanupStaleDownloadFiles, 'Stale download cleanup'),
-      guarded(_backfillArtworkForExistingDownloads, 'Artwork backfill'),
-    ]);
+    _queueArtworkBackfill();
+    _startupWork = guarded(
+      _cleanupStaleDownloadFiles,
+      'Stale download cleanup',
+    );
     unawaited(_startupWork);
   }
 
@@ -295,6 +316,7 @@ extension _DownloadManagerInitializationImpl on DownloadManager {
 
   void _scheduleQueuePersistence(List<DownloadTask> tasks) {
     _pendingPersistenceSnapshot = List<DownloadTask>.from(tasks);
+    _persistenceIdleCompleter ??= Completer<void>();
     if (_persistenceInFlight) return;
     _persistenceInFlight = true;
     unawaited(_flushQueuePersistence());
@@ -318,8 +340,57 @@ extension _DownloadManagerInitializationImpl on DownloadManager {
       if (_pendingPersistenceSnapshot != null) {
         _persistenceInFlight = true;
         unawaited(_flushQueuePersistence());
+      } else {
+        final completer = _persistenceIdleCompleter;
+        _persistenceIdleCompleter = null;
+        if (completer != null && !completer.isCompleted) {
+          completer.complete();
+        }
       }
     }
+  }
+
+  Future<void> _waitForQueuePersistence() async {
+    final completer = _persistenceIdleCompleter;
+    if (completer != null) {
+      await completer.future;
+    }
+  }
+
+  Future<void> _persistCompletedTaskDurably(DownloadTask task) async {
+    _queue.updateTask(task);
+    await _waitForQueuePersistence();
+
+    // The coalesced writer logs and continues after a transient SQLite error.
+    // A completion is the one transition that must be durable before Android
+    // may suspend the process, so seal this row with an awaited upsert too.
+    final current = _queue.getTask(task.id);
+    if (current == null || current.status != DownloadStatus.completed) return;
+    await _database.upsertTask(current);
+    _persistedTaskSignatures[current.id] = _taskSignature(current);
+  }
+
+  Future<bool> _recoverCompletedFinalFile(DownloadTask task) async {
+    if (task.status == DownloadStatus.completed) return false;
+    final finalFile = File(_getSongFilePath(
+      task.songId,
+      fileExtension: task.downloadFileExtension,
+    ));
+    if (!await finalFile.exists()) return false;
+
+    final fileSize = await finalFile.length();
+    if (fileSize <= 0) return false;
+    task.status = DownloadStatus.completed;
+    task.progress = 1.0;
+    task.bytesDownloaded = fileSize;
+    task.totalBytes = fileSize;
+    task.errorMessage = null;
+    task.retryCount = 0;
+    task.nativeBackend = null;
+    task.nativeTaskId = null;
+    task.downloadEtag = null;
+    print('[DownloadManager] Recovered completed file for ${task.songId}');
+    return true;
   }
 
   Future<void> _syncQueuePersistence(List<DownloadTask> tasks) async {
@@ -406,7 +477,7 @@ extension _DownloadManagerInitializationImpl on DownloadManager {
         task.errorMessage = null;
         task.nativeBackend = null;
         task.nativeTaskId = null;
-        _queue.updateTask(task);
+        await _persistCompletedTaskDurably(task);
       }
       return;
     }

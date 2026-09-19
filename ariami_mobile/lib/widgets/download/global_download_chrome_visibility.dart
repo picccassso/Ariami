@@ -67,7 +67,7 @@ class GlobalDownloadChromeVisibility extends ChangeNotifier {
     final nextVisible = queueHasActiveDownloads(queue);
 
     if (!nextVisible && _isBarVisible) {
-      DownloadManager().sessionTaskIds.clear();
+      DownloadManager().clearDownloadSession();
       _latestTaskProgress.clear();
     }
 
@@ -86,27 +86,26 @@ class GlobalDownloadChromeVisibility extends ChangeNotifier {
       return;
     }
 
-    final sessionTaskIds = DownloadManager().sessionTaskIds;
+    final downloadManager = DownloadManager();
+    final sessionTaskIds = downloadManager.sessionTaskIds;
     if (sessionTaskIds.isNotEmpty) {
       return;
     }
 
-    for (final task in queue) {
-      switch (task.status) {
-        case DownloadStatus.pending:
-        case DownloadStatus.downloading:
-        case DownloadStatus.paused:
-          sessionTaskIds.add(task.id);
-        default:
-          break;
-      }
-    }
+    downloadManager.seedDownloadSession(
+      queue.where((task) {
+        return task.status == DownloadStatus.pending ||
+            task.status == DownloadStatus.downloading ||
+            task.status == DownloadStatus.paused;
+      }).map((task) => task.id),
+    );
   }
 
   bool _updateSessionProgress(List<DownloadTask> queue) {
     final nextProgress = computeSessionDownloadProgress(
       queue: queue,
       sessionTaskIds: DownloadManager().sessionTaskIds,
+      expectedTaskCount: DownloadManager().sessionExpectedTaskCount,
       latestTaskProgress: _latestTaskProgress,
     );
 

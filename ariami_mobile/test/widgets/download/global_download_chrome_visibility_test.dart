@@ -19,7 +19,7 @@ DownloadTask _task({required String id, required DownloadStatus status}) {
 void main() {
   tearDown(() {
     GlobalDownloadChromeVisibility.instance.debugReset();
-    DownloadManager().sessionTaskIds.clear();
+    DownloadManager().clearDownloadSession();
   });
 
   group('GlobalDownloadChromeVisibility', () {
@@ -79,6 +79,23 @@ void main() {
 
       expect(visibility.isBarVisible, isFalse);
       expect(visibility.sessionProgress, isNull);
+    });
+
+    test('keeps the server job denominator stable as queue pages arrive', () {
+      final visibility = GlobalDownloadChromeVisibility.instance;
+      final manager = DownloadManager();
+      manager.beginDownloadSession(expectedTaskCount: 2145);
+      manager.sessionTaskIds.addAll(['1', '2']);
+
+      visibility.debugApplyQueue([
+        _task(id: '1', status: DownloadStatus.completed),
+        _task(id: '2', status: DownloadStatus.downloading),
+        _task(id: 'old', status: DownloadStatus.pending),
+      ]);
+
+      expect(visibility.sessionProgress, closeTo(1 / 2145, 0.000001));
+      expect(manager.sessionExpectedTaskCount, 2145);
+      expect(manager.sessionTaskIds, isNot(contains('old')));
     });
   });
 }

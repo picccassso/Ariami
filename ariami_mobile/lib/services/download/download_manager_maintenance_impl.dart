@@ -7,100 +7,166 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
   /// of the active transfers; chaining keeps at most one extraction in flight.
   void _queueArtworkCaching(DownloadTask task) {
     _artworkWorkTail = _artworkWorkTail.then(
-      (_) => _extractAndCacheArtworkForSong(
+      (_) => _cacheArtworkForDownloadedSong(
         songId: task.songId,
         albumId: task.albumId,
+        artworkUrl: task.albumArt,
+        downloadOriginal: task.downloadOriginal,
         fileExtension: task.downloadFileExtension,
       ),
     );
   }
 
-  /// Cache artwork for a downloaded song (for offline use) by reading embedded
-  /// art from the local audio file — no extra HTTP requests to the server.
+  void _queueArtworkBackfill() {
+    _artworkWorkTail = _artworkWorkTail.then(
+      (_) => _backfillArtworkForExistingDownloads(),
+    );
+  }
+
+  /// Cache full-resolution artwork for a downloaded song.
   ///
-  /// Album tracks share one album-level image (full + thumb); no per-song copy
-  /// is written because every artwork consumer resolves the album key first
-  /// and only falls back to `song_<id>` for albumless singles. The cache-key
-  /// check happens before extraction so songs of an already-cached album skip
-  /// the tag parse entirely, and the parse itself runs in a short-lived
-  /// background isolate to keep megabyte ID3 tags off the UI isolate.
-  Future<void> _extractAndCacheArtworkForSong({
+  /// Transcoded downloads prefer the server artwork endpoint because audio
+  /// quality and image quality are separate concerns: Opus preserves text
+  /// comments but does not carry the source file's embedded picture. Original
+  /// downloads still use their embedded image first, avoiding an extra request.
+  /// Either path stores the full image under the album/song key used by detail
+  /// views. Thumbnail views can downscale it or keep their separate 200px cache.
+  Future<bool> _cacheArtworkForDownloadedSong({
     required String songId,
     required String? albumId,
+    required String artworkUrl,
+    required bool downloadOriginal,
     String? fileExtension,
   }) async {
     final cacheManager = CacheManager();
     final localPath = _getSongFilePath(songId, fileExtension: fileExtension);
-    if (!await File(localPath).exists()) return;
+    if (!await File(localPath).exists()) return true;
 
     try {
-      final targetKeys = <String>[];
-      if (albumId != null) {
-        if (!await cacheManager.isArtworkCached(albumId)) {
-          targetKeys.add(albumId);
-        }
-        final thumbKey = '${albumId}_thumb';
-        if (!await cacheManager.isArtworkCached(thumbKey)) {
-          targetKeys.add(thumbKey);
-        }
-      } else {
-        final songKey = 'song_$songId';
-        if (!await cacheManager.isArtworkCached(songKey)) {
-          targetKeys.add(songKey);
-        }
+      final primaryKey = albumId ?? 'song_$songId';
+      if (await cacheManager.isArtworkCached(primaryKey)) return true;
+
+      final resolvedArtworkUrl = _resolveFullArtworkUrl(
+        artworkUrl: artworkUrl,
+        albumId: albumId,
+        songId: songId,
+      );
+      if (!downloadOriginal && resolvedArtworkUrl != null) {
+        final cachedPath = await cacheManager.cacheArtwork(
+          primaryKey,
+          resolvedArtworkUrl,
+        );
+        if (cachedPath != null) return true;
       }
-      if (targetKeys.isEmpty) return;
 
       final bytes = await Isolate.run(
         () => LocalArtworkExtractor.extractArtwork(localPath),
       );
-      if (bytes == null || bytes.isEmpty) {
-        print('[DownloadManager] No embedded artwork for song $songId');
-        return;
+      if (bytes != null && bytes.isNotEmpty) {
+        final targetKeys = <String>[primaryKey];
+        if (albumId != null) {
+          final thumbKey = '${albumId}_thumb';
+          if (!await cacheManager.isArtworkCached(thumbKey)) {
+            targetKeys.add(thumbKey);
+          }
+        }
+        for (final key in targetKeys) {
+          await cacheManager.cacheArtworkFromBytes(key, bytes);
+        }
+        return true;
       }
 
-      for (final key in targetKeys) {
-        await cacheManager.cacheArtworkFromBytes(key, bytes);
+      if (resolvedArtworkUrl != null) {
+        final cachedPath = await cacheManager.cacheArtwork(
+          primaryKey,
+          resolvedArtworkUrl,
+        );
+        if (cachedPath != null) return true;
       }
+
+      print('[DownloadManager] No full artwork available for song $songId');
+      return resolvedArtworkUrl == null;
     } catch (e) {
       // Don't fail the download if artwork caching fails
       print('[DownloadManager] Failed to cache artwork: $e');
+      return false;
     }
   }
 
+  String? _resolveFullArtworkUrl({
+    required String artworkUrl,
+    required String? albumId,
+    required String songId,
+  }) {
+    final currentBaseUrl = ConnectionService().apiClient?.baseUrl;
+    if (currentBaseUrl != null && currentBaseUrl.isNotEmpty) {
+      final normalizedBaseUrl = currentBaseUrl.endsWith('/')
+          ? currentBaseUrl.substring(0, currentBaseUrl.length - 1)
+          : currentBaseUrl;
+      final normalizedAlbumId = albumId?.trim();
+      final endpoint = normalizedAlbumId != null && normalizedAlbumId.isNotEmpty
+          ? 'artwork/${Uri.encodeComponent(normalizedAlbumId)}'
+          : 'song-artwork/${Uri.encodeComponent(songId)}';
+      return '$normalizedBaseUrl/$endpoint';
+    }
+
+    final trimmed = artworkUrl.trim();
+    if (trimmed.isEmpty) return null;
+    final resolved = ConnectionService().resolveServerUrl(trimmed);
+    if (resolved == null || resolved.isEmpty) return null;
+
+    final uri = Uri.tryParse(resolved);
+    if (uri == null) return resolved;
+    final query = Map<String, String>.from(uri.queryParameters)..remove('size');
+    return uri.replace(queryParameters: query).toString();
+  }
+
   /// One-time backfill: extract embedded art from already-downloaded files
-  /// (works offline; no server required).
+  /// and repair transcoded downloads from the full server artwork endpoint.
+  /// If the server is unavailable, leave the marker unset so reconnect can
+  /// retry instead of permanently accepting a thumbnail-only offline cache.
   Future<void> _backfillArtworkForExistingDownloads() async {
-    const backfillKey = 'artwork_backfill_v4';
+    const backfillKey = 'artwork_backfill_v5_full_resolution';
     final prefs = await SharedPreferences.getInstance();
 
     if (prefs.getBool(backfillKey) == true) {
       return;
     }
 
-    final completedTasks = _queue.queue
-        .where((task) => task.status == DownloadStatus.completed)
-        .toList();
+    final uniqueTasks = <String, DownloadTask>{};
+    for (final task in _queue.queue) {
+      if (task.status != DownloadStatus.completed) continue;
+      final artworkKey = task.albumId ?? 'song_${task.songId}';
+      uniqueTasks.putIfAbsent(artworkKey, () => task);
+    }
+    final completedTasks = uniqueTasks.values.toList(growable: false);
 
     if (completedTasks.isEmpty) {
       await prefs.setBool(backfillKey, true);
       return;
     }
 
-    print(
-        '[DownloadManager] Starting local artwork backfill for ${completedTasks.length} downloaded songs...');
+    print('[DownloadManager] Starting artwork backfill for '
+        '${completedTasks.length} downloaded covers...');
 
+    var retryNeeded = false;
     for (final task in completedTasks) {
-      await _extractAndCacheArtworkForSong(
+      final cached = await _cacheArtworkForDownloadedSong(
         songId: task.songId,
         albumId: task.albumId,
+        artworkUrl: task.albumArt,
+        downloadOriginal: task.downloadOriginal,
         fileExtension: task.downloadFileExtension,
       );
+      retryNeeded |= !cached;
     }
 
-    await prefs.setBool(backfillKey, true);
-    print(
-        '[DownloadManager] Local artwork backfill complete: ${completedTasks.length} songs processed');
+    if (!retryNeeded) {
+      await prefs.setBool(backfillKey, true);
+    }
+    print('[DownloadManager] Artwork backfill complete: '
+        '${completedTasks.length} unique covers processed'
+        '${retryNeeded ? ' (will retry after reconnect)' : ''}');
   }
 
   /// Get file path for a downloaded song
@@ -320,13 +386,8 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
 
     await for (final entity in songsDir.list(followLinks: false)) {
       if (entity is Directory) {
-        try {
-          await entity.delete(recursive: true);
-          removedCount++;
-        } catch (e) {
-          print(
-              '[DownloadManager] Failed to remove stale download directory ${entity.path}: $e');
-        }
+        // An untracked directory is not proof that its contents are disposable.
+        // Clear All remains the explicit destructive cleanup path.
         continue;
       }
       if (entity is! File) {
@@ -337,16 +398,27 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
       final partialSongId = _songIdFromPartialDownloadFileName(fileName);
       if (partialSongId != null) {
         final tasks = tasksBySongId[partialSongId];
-        if (tasks != null) {
-          final shouldKeepPartial = tasks.any((t) {
-            if (t.status == DownloadStatus.completed) return false;
-            final ext = t.downloadFileExtension.trim().toLowerCase();
-            return fileName == '$partialSongId.$ext.partial' ||
-                fileName == '$partialSongId.partial';
-          });
-          if (shouldKeepPartial) {
-            continue;
-          }
+        if (tasks == null) {
+          // A missing queue row can be a persistence failure after a completed
+          // transfer. Preserve unknown files rather than destroying evidence.
+          continue;
+        }
+        final shouldKeepPartial = tasks.any((t) {
+          if (t.status == DownloadStatus.completed) return false;
+          final ext = t.downloadFileExtension.trim().toLowerCase();
+          return fileName == '$partialSongId.$ext.partial' ||
+              fileName == '$partialSongId.partial';
+        });
+        if (shouldKeepPartial) {
+          continue;
+        }
+        final hasDurableFinalFile = tasks.any((t) {
+          if (t.status != DownloadStatus.completed) return false;
+          final ext = t.downloadFileExtension.trim().toLowerCase();
+          return File('$downloadPath/songs/$partialSongId.$ext').existsSync();
+        });
+        if (!hasDurableFinalFile) {
+          continue;
         }
       } else {
         final songId = _songIdFromDownloadFileName(fileName);
@@ -363,6 +435,10 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
             }
           }
         }
+        // Never infer that a completed-looking file is disposable merely from
+        // a missing/mismatched queue row. This was deleting successfully
+        // downloaded libraries after an interrupted persistence flush.
+        continue;
       }
 
       try {
@@ -908,6 +984,7 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
     _queue.clear();
     await _database.clearAllDownloads();
     _persistedTaskSignatures.clear();
+    clearDownloadSession();
 
     print(
         'All downloads cleared ($deletedFileCount local file${deletedFileCount == 1 ? '' : 's'} removed)');

@@ -108,6 +108,11 @@ extension _DownloadManagerOperationsImpl on DownloadManager {
       ),
     );
 
+    // The server has already resolved and de-duplicated the complete target
+    // set. Anchor progress to that fixed total before paged items start
+    // entering the local queue.
+    beginDownloadSession(expectedTaskCount: createResponse.itemCount);
+
     final jobQuality = StreamingQuality.fromString(createResponse.quality);
     String? cursor;
     var hasMore = true;
@@ -124,6 +129,7 @@ extension _DownloadManagerOperationsImpl on DownloadManager {
       final existingTasks = <DownloadTask>[];
       for (final item in page.items) {
         if (item.status.toLowerCase() != 'pending') continue;
+        sessionTaskIds.add('song_${item.songId}');
         var existing = _getScopedTask('song_${item.songId}');
         if (existing != null) {
           final genre = localSongsById[item.songId]?.genre;
@@ -168,6 +174,11 @@ extension _DownloadManagerOperationsImpl on DownloadManager {
         break;
       }
     }
+
+    // Trust the IDs actually returned if an older server reports an
+    // inconsistent itemCount. This remains stable because all pages are now
+    // materialized.
+    sessionExpectedTaskCount = sessionTaskIds.length;
 
     // Kick the queue even when every item already existed in an active
     // state, in case pending tasks are sitting without a slot filler.
@@ -462,7 +473,7 @@ extension _DownloadManagerOperationsImpl on DownloadManager {
     _pauseScopedDownloadsForInterruption(
       reasonMessage: appClosedDownloadPauseMessage,
     );
-    await _flushQueuePersistence();
+    await _waitForQueuePersistence();
   }
 
   Future<void> _pauseDownloadsForLifecycleInterruptionImpl() async {
@@ -470,7 +481,7 @@ extension _DownloadManagerOperationsImpl on DownloadManager {
     _pauseScopedDownloadsForInterruption(
       reasonMessage: lifecycleDownloadPauseMessage,
     );
-    await _flushQueuePersistence();
+    await _waitForQueuePersistence();
   }
 
   Future<void> _retryDownloadImpl(String taskId) async {

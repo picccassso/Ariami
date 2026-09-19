@@ -1,11 +1,13 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:ariami_mobile/database/download_database.dart';
 import 'package:ariami_mobile/models/api_models.dart';
 import 'package:ariami_mobile/models/download_task.dart';
 import 'package:ariami_mobile/services/cache/cache_manager.dart';
 import 'package:ariami_mobile/services/download/download_helpers.dart';
 import 'package:ariami_mobile/services/download/download_manager.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
@@ -255,7 +257,7 @@ void main() {
       expect(
         File(p.join(docsDir.path, 'downloads', 'songs', 'stale-song.mp3'))
             .existsSync(),
-        isFalse,
+        isTrue,
       );
       expect(
         File(p.join(
@@ -267,8 +269,78 @@ void main() {
         File(p.join(
                 docsDir.path, 'downloads', 'songs', 'stale-song.mp3.partial'))
             .existsSync(),
-        isFalse,
+        isTrue,
       );
+    });
+
+    test('a final file restores a stale unfinished task to completed',
+        () async {
+      final songsDir = Directory(p.join(docsDir.path, 'downloads', 'songs'));
+      final finalFile = File(p.join(songsDir.path, 'recovered-song.opus'));
+      await finalFile.writeAsBytes(List<int>.filled(96, 4));
+      final task = _task(
+        id: 'song_recovered-song',
+        songId: 'recovered-song',
+        title: 'Recovered Song',
+        status: DownloadStatus.downloading,
+        bytesDownloaded: 48,
+        totalBytes: 96,
+        downloadFileExtension: 'opus',
+      );
+
+      final recovered = await manager.recoverCompletedFinalFile(task);
+
+      expect(recovered, isTrue);
+      expect(task.status, DownloadStatus.completed);
+      expect(task.progress, 1);
+      expect(task.bytesDownloaded, 96);
+      expect(task.totalBytes, 96);
+      expect(finalFile.existsSync(), isTrue);
+    });
+
+    test('completed status is durable before the transfer is reported done',
+        () async {
+      final task = _task(
+        id: 'song_durable-complete',
+        songId: 'durable-complete',
+        title: 'Durable Complete',
+        status: DownloadStatus.pending,
+        totalBytes: 128,
+        downloadFileExtension: 'opus',
+      );
+      manager.enqueueTasksForTesting(<DownloadTask>[task]);
+      task.status = DownloadStatus.completed;
+      task.progress = 1;
+      task.bytesDownloaded = 128;
+
+      await manager.persistCompletedTaskDurablyForTest(task);
+
+      final database = await DownloadDatabase.create();
+      final persisted = (await database.loadDownloadQueue())
+          .singleWhere((row) => row.id == task.id);
+      expect(persisted.status, DownloadStatus.completed);
+      expect(persisted.bytesDownloaded, 128);
+      manager.cancelDownload(task.id);
+    });
+
+    test('partial library snapshots cannot prune unfinished downloads',
+        () async {
+      final beforeIds = manager.queue.map((task) => task.id).toSet();
+      final partialPath = p.join(
+        docsDir.path,
+        'downloads',
+        'songs',
+        'song-pending.mp3.partial',
+      );
+
+      final removed = await manager.pruneOrphanedIncompleteDownloads(
+        const <String>{'song-complete'},
+        isAuthoritativeLibrary: false,
+      );
+
+      expect(removed, 0);
+      expect(manager.queue.map((task) => task.id).toSet(), beforeIds);
+      expect(File(partialPath).existsSync(), isTrue);
     });
 
     test('relinks a completed download only for one metadata match', () async {
@@ -483,7 +555,8 @@ void main() {
 
     test(
         'stale cleanup preserves non-mp3 formats (.opus, .m4a, .flac) and '
-        'prunes mismatched leftovers and unreferenced files', () async {
+        'only removes redundant partials with a durable completed file',
+        () async {
       final songsDir = Directory(p.join(docsDir.path, 'downloads', 'songs'));
       await songsDir.create(recursive: true);
 
@@ -576,7 +649,7 @@ void main() {
       await dsStore.writeAsBytes(List<int>.filled(16, 0));
 
       final removedCount = await manager.cleanupStaleDownloadFiles();
-      expect(removedCount, 6);
+      expect(removedCount, 1);
 
       // Verify legitimate files were preserved
       expect(opusFile.existsSync(), isTrue);
@@ -584,13 +657,15 @@ void main() {
       expect(flacFile.existsSync(), isTrue);
       expect(partialFile.existsSync(), isTrue);
 
-      // Verify stale files were deleted
-      expect(staleOldFormat.existsSync(), isFalse);
+      // The completed task proves only its matching partial is redundant.
+      // Unknown/mismatched final files are preserved because a lost database
+      // write must never erase a successfully downloaded library.
+      expect(staleOldFormat.existsSync(), isTrue);
       expect(staleCompletedPartial.existsSync(), isFalse);
-      expect(staleUnreferencedOpus.existsSync(), isFalse);
-      expect(staleUnreferencedFlac.existsSync(), isFalse);
-      expect(staleUnreferencedPartial.existsSync(), isFalse);
-      expect(dsStore.existsSync(), isFalse);
+      expect(staleUnreferencedOpus.existsSync(), isTrue);
+      expect(staleUnreferencedFlac.existsSync(), isTrue);
+      expect(staleUnreferencedPartial.existsSync(), isTrue);
+      expect(dsStore.existsSync(), isTrue);
 
       // Verify path resolution respects task extension
       expect(
@@ -613,7 +688,77 @@ void main() {
       await manager.deleteAlbumDownloads('album-flac');
       expect(flacFile.existsSync(), isFalse);
     });
+
+    test('transcoded downloads cache full server artwork for offline use',
+        () async {
+      final songsDir = Directory(p.join(docsDir.path, 'downloads', 'songs'));
+      await songsDir.create(recursive: true);
+      final opusFile = File(p.join(songsDir.path, 'song-art-repair.opus'));
+      await opusFile.writeAsBytes(List<int>.filled(64, 0));
+
+      final artworkBytes = List<int>.generate(4096, (index) => index % 251);
+      final artworkAdapter = _DownloadArtworkAdapter(artworkBytes);
+      CacheManager().setHttpClientAdapterForTests(artworkAdapter);
+
+      try {
+        final task = DownloadTask(
+          id: 'song_song-art-repair',
+          songId: 'song-art-repair',
+          title: 'Artwork Repair',
+          artist: 'Test Artist',
+          albumId: 'album-art-repair',
+          albumName: 'Artwork Repair Album',
+          albumArtist: 'Test Album Artist',
+          albumArt: 'https://ariami.test/cover.jpg?size=thumbnail',
+          downloadUrl: 'https://example.com/download/song-art-repair',
+          downloadOriginal: false,
+          downloadFileExtension: 'opus',
+          status: DownloadStatus.completed,
+          totalBytes: 64,
+        );
+
+        expect(await manager.cacheDownloadedArtwork(task), isTrue);
+
+        final cachedPath =
+            await CacheManager().getArtworkPath('album-art-repair');
+        expect(cachedPath, isNotNull);
+        expect(await File(cachedPath!).readAsBytes(), artworkBytes);
+        expect(artworkAdapter.requestedUri?.path, '/cover.jpg');
+        expect(
+          artworkAdapter.requestedUri?.queryParameters.containsKey('size'),
+          isFalse,
+        );
+      } finally {
+        await opusFile.delete();
+      }
+    });
   });
+}
+
+class _DownloadArtworkAdapter implements HttpClientAdapter {
+  _DownloadArtworkAdapter(this.bytes);
+
+  final List<int> bytes;
+  Uri? requestedUri;
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    requestedUri = options.uri;
+    return ResponseBody.fromBytes(
+      bytes,
+      HttpStatus.ok,
+      headers: <String, List<String>>{
+        Headers.contentTypeHeader: <String>['image/jpeg'],
+      },
+    );
+  }
+
+  @override
+  void close({bool force = false}) {}
 }
 
 DownloadTask _task({

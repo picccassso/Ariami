@@ -133,33 +133,19 @@ class BackgroundDownloadNotifier {
     final queue = _downloadManager.queue;
     final sessionTaskIds = _downloadManager.sessionTaskIds;
 
-    var inProgress = 0;
-    var completedInSession = 0;
-    for (final task in queue) {
-      switch (task.status) {
-        case DownloadStatus.downloading:
-        case DownloadStatus.pending:
-        case DownloadStatus.paused:
-          inProgress++;
-          break;
-        case DownloadStatus.completed:
-          if (sessionTaskIds.contains(task.id)) {
-            completedInSession++;
-          }
-          break;
-        case DownloadStatus.failed:
-        case DownloadStatus.cancelled:
-          break;
-      }
-    }
-
-    final total = inProgress + completedInSession;
+    final counts = computeSessionDownloadCounts(
+      queue: queue,
+      sessionTaskIds: sessionTaskIds,
+      expectedTaskCount: _downloadManager.sessionExpectedTaskCount,
+    );
     final progress = computeSessionDownloadProgress(
       queue: queue,
       sessionTaskIds: sessionTaskIds,
+      expectedTaskCount: _downloadManager.sessionExpectedTaskCount,
     );
     return (
-      text: '$completedInSession of $total song${total == 1 ? '' : 's'}',
+      text: '${counts.completedSongs} of ${counts.totalSongs} '
+          'song${counts.totalSongs == 1 ? '' : 's'}',
       percent: progress == null ? -1 : (progress * 100).round(),
     );
   }
