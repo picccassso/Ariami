@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../services/api/connection_service.dart';
+import '../../utils/constants.dart';
 import '../../utils/responsive.dart';
 import '../common/cached_artwork.dart';
 
@@ -56,15 +57,25 @@ class AlbumArtworkHeader extends StatelessWidget {
                 width: isExpandedWidth(context) ? 280 : 200,
                 height: isExpandedWidth(context) ? 280 : 200,
                 decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(14),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.5),
+                      color: context.colors.glowA.withValues(alpha: 0.45),
+                      blurRadius: 60,
+                      spreadRadius: -8,
+                      offset: const Offset(0, 24),
+                    ),
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.4),
                       blurRadius: 20,
                       offset: const Offset(0, 10),
                     ),
                   ],
                 ),
-                child: _buildArtwork(fit: BoxFit.cover),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(14),
+                  child: _buildArtwork(fit: BoxFit.cover),
+                ),
               ),
             ),
           ),

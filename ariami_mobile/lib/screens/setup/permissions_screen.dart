@@ -143,10 +143,11 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
   Widget build(BuildContext context) {
     return SetupDarkTheme(
       builder: (context) => Scaffold(
-        backgroundColor: Colors.black,
+        backgroundColor: Colors.transparent,
         appBar: AppBar(
           title: const Text('Setup Permissions'),
-          backgroundColor: Colors.black,
+          backgroundColor: Colors.transparent,
+          elevation: 0,
           foregroundColor: Colors.white,
         ),
         body: SafeArea(

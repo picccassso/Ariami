@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../../models/api_models.dart';
+import '../../../utils/constants.dart';
 import '../../../utils/responsive.dart';
 import 'artwork_collage.dart';
 import 'fallback_header.dart';
@@ -80,15 +81,23 @@ class PlaylistHeader extends StatelessWidget {
               width: isExpandedWidth(context) ? 280 : 200,
               height: isExpandedWidth(context) ? 280 : 200,
               decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(AppTheme.cardRadius),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.5),
+                    color: context.colors.glowA.withValues(alpha: 0.45),
+                    blurRadius: 60,
+                    spreadRadius: -8,
+                    offset: const Offset(0, 24),
+                  ),
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.4),
                     blurRadius: 20,
                     offset: const Offset(0, 10),
                   ),
                 ],
               ),
               child: ClipRRect(
+                borderRadius: BorderRadius.circular(AppTheme.cardRadius),
                 child: artworkWidget,
               ),
             ),

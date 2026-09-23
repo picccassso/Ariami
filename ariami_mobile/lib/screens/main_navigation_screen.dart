@@ -18,6 +18,8 @@ import '../screens/full_player_screen.dart';
 import '../services/cast/chrome_cast_service.dart';
 import '../services/playback_manager.dart';
 import '../services/ariami_connect_controller.dart';
+import '../utils/constants.dart';
+import '../widgets/common/ambient_backdrop.dart';
 
 class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({super.key});
@@ -215,6 +217,11 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
     // instead of a bottom bar; the mini player docks at the bottom of that
     // sidebar (Spotify-style), so the content overlay is phone-only.
     final useRail = useNavigationRail(context);
+    final colors = context.colors;
+    final songSeed = (_playbackManager.currentSong?.albumId ??
+            _playbackManager.currentSong?.id ??
+            '')
+        .hashCode;
     final content = Stack(
       children: [
         // Main content area - can scroll behind nav bar
@@ -242,34 +249,38 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
       // player overlay is hidden entirely so it never hovers above the
       // keyboard.
       resizeToAvoidBottomInset: false,
-      body: useRail
-          ? Row(
-              children: [
-                _buildNavigationSidebar(context),
-                VerticalDivider(
-                  width: 0.5,
-                  thickness: 0.5,
-                  color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
-                ),
-                Expanded(child: content),
-              ],
-            )
-          : content,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          Positioned.fill(
+            child: AmbientBackdrop(layoutSeed: songSeed),
+          ),
+          useRail
+              ? Row(
+                  children: [
+                    _buildNavigationSidebar(context),
+                    VerticalDivider(
+                      width: 0.5,
+                      thickness: 0.5,
+                      color: colors.border,
+                    ),
+                    Expanded(child: content),
+                  ],
+                )
+              : content,
+        ],
+      ),
       bottomNavigationBar: useRail
           ? null
           : ClipRect(
               child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
                 child: Container(
                   decoration: BoxDecoration(
-                    color: Theme.of(context)
-                        .scaffoldBackgroundColor
-                        .withValues(alpha: 0.85),
+                    color: colors.base.withValues(alpha: 0.82),
                     border: Border(
                       top: BorderSide(
-                        color: Theme.of(context)
-                            .dividerColor
-                            .withValues(alpha: 0.5),
+                        color: colors.border,
                         width: 0.5,
                       ),
                     ),

@@ -169,45 +169,68 @@ class _MiniPlayerState extends State<MiniPlayer> {
       data: AppTheme.buildTheme(
         brightness: Brightness.dark,
         seedColor: colors.primary,
+        ambient: colors.ambientColors,
       ),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 500),
         curve: Curves.easeInOut,
-        height: 64, // Slightly shorter for flush look
+        height: 64, // Keep exact height for layout & scroll padding tests
         decoration: BoxDecoration(
           borderRadius: const BorderRadius.only(
-            topLeft: Radius.circular(8),
-            topRight: Radius.circular(8),
+            topLeft: Radius.circular(12),
+            topRight: Radius.circular(12),
           ),
-          color:
-              Theme.of(context).colorScheme.surfaceContainerHighest, // Fallback
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              colors.primary.withValues(alpha: 0.9),
-              colors.secondary
-                  .withValues(alpha: 0.95), // Less transparent for visibility
+              colors.primary.withValues(alpha: 0.92),
+              colors.secondary.withValues(alpha: 0.95),
             ],
+          ),
+          border: Border(
+            top: BorderSide(
+              color: Colors.white.withValues(alpha: 0.18),
+              width: 0.5,
+            ),
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.3),
+              color: Colors.black.withValues(alpha: 0.35),
               blurRadius: 16,
-              offset: const Offset(0, 8),
+              offset: const Offset(0, -4),
             ),
           ],
         ),
         child: ClipRRect(
           borderRadius: const BorderRadius.only(
-            topLeft: Radius.circular(8),
-            topRight: Radius.circular(8),
+            topLeft: Radius.circular(12),
+            topRight: Radius.circular(12),
           ),
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: widget.onTap,
-              child: Column(
+          child: Stack(
+            children: [
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                height: 1,
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        Colors.white.withValues(alpha: 0.25),
+                        Colors.white.withValues(alpha: 0.05),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: widget.onTap,
+                  child: Column(
                 children: [
                   // Content Row
                   Expanded(
@@ -298,13 +321,31 @@ class _MiniPlayerState extends State<MiniPlayer> {
                                     iconSize: 22,
                                   ),
                                   // Play/Pause
-                                  IconButton(
-                                    icon: Icon(widget.isPlaying
-                                        ? Icons.pause_rounded
-                                        : Icons.play_arrow_rounded),
-                                    color: Colors.white,
-                                    onPressed: widget.onPlayPause,
-                                    iconSize: 28,
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: colors.primary.withValues(
+                                            alpha: widget.isPlaying
+                                                ? 0.55
+                                                : 0.18,
+                                          ),
+                                          blurRadius:
+                                              widget.isPlaying ? 18 : 8,
+                                          spreadRadius:
+                                              widget.isPlaying ? 1 : 0,
+                                        ),
+                                      ],
+                                    ),
+                                    child: IconButton(
+                                      icon: Icon(widget.isPlaying
+                                          ? Icons.pause_rounded
+                                          : Icons.play_arrow_rounded),
+                                      color: Colors.white,
+                                      onPressed: widget.onPlayPause,
+                                      iconSize: 28,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -331,9 +372,11 @@ class _MiniPlayerState extends State<MiniPlayer> {
               ),
             ),
           ),
-        ),
+        ],
       ),
-    );
+    ),
+  ),
+);
   }
 
   /// Build album artwork widget using CachedArtwork
@@ -367,7 +410,7 @@ class _MiniPlayerState extends State<MiniPlayer> {
       artworkUrl: artworkUrl,
       width: 45,
       height: 45,
-      borderRadius: BorderRadius.circular(4),
+      borderRadius: BorderRadius.circular(8),
       fallback: _buildPlaceholder(context),
       fallbackIcon: Icons.music_note,
       fallbackIconSize: 24,

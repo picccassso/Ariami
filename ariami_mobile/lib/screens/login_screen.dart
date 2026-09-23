@@ -6,6 +6,7 @@ import '../services/api/connection_service.dart';
 import '../utils/responsive.dart';
 import '../utils/server_disconnect.dart';
 import '../utils/setup_error_messages.dart';
+import '../widgets/common/auth_card.dart';
 import '../widgets/common/setup_dark_theme.dart';
 
 /// Login screen for multi-user authentication
@@ -133,31 +134,24 @@ class _LoginScreenState extends State<LoginScreen> {
     final isKeyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
     return SetupDarkTheme(
       builder: (context) => Scaffold(
-        backgroundColor: Colors.black,
+        backgroundColor: Colors.transparent,
         body: Container(
-          color: Colors.black,
+          color: Colors.transparent,
           child: SafeArea(
             child: Column(
               children: [
                 Expanded(
-                  child: Center(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 32.0, vertical: 24.0),
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(
-                            maxWidth: kSetupContentMaxWidth),
-                        child: Form(
-                          key: _formKey,
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.account_circle_rounded,
-                                size: 100,
-                                color: Theme.of(context).primaryColor,
-                              ),
-                              const SizedBox(height: 32),
+                  child: AuthCard(
+                    maxWidth: kSetupContentMaxWidth,
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const AuthBadge(
+                            icon: Icons.account_circle_rounded,
+                          ),
+                          const SizedBox(height: 24),
 
                               // Title
                               Text(
@@ -384,8 +378,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                     ),
-                  ),
-                ),
                 if (!isKeyboardOpen)
                   Padding(
                     padding: const EdgeInsets.fromLTRB(32, 0, 32, 16),

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../utils/shared_preferences_cache.dart';
 import '../utils/constants.dart';
@@ -48,6 +49,7 @@ class ThemeService extends ChangeNotifier {
   Color _customColor = const Color(0xFFFFFFFF);
   Color _staticCoverArtColor = const Color(0xFFFFFFFF);
   Color _dynamicCoverArtColor = const Color(0xFF6E7A86);
+  List<Color>? _dynamicCoverArtAmbient;
 
   String? _staticSongId;
   String? _staticSongTitle;
@@ -111,12 +113,21 @@ class ThemeService extends ChangeNotifier {
     }
   }
 
+  List<Color>? get currentAmbientColors => _isNeutralSource
+      ? null
+      : (_themeSource == ThemeSource.dynamicCoverArt
+          ? _dynamicCoverArtAmbient
+          : null);
+
   ThemeData get lightTheme {
     if (_isNeutralSource) {
       return AppTheme.buildNeutralTheme(brightness: Brightness.light);
     }
 
-    return AppTheme.buildColorSourceTheme(seedColor: currentSeedColor);
+    return AppTheme.buildColorSourceTheme(
+      seedColor: currentSeedColor,
+      ambient: currentAmbientColors,
+    );
   }
 
   ThemeData get darkTheme {
@@ -124,7 +135,10 @@ class ThemeService extends ChangeNotifier {
       return AppTheme.buildNeutralTheme(brightness: Brightness.dark);
     }
 
-    return AppTheme.buildColorSourceTheme(seedColor: currentSeedColor);
+    return AppTheme.buildColorSourceTheme(
+      seedColor: currentSeedColor,
+      ambient: currentAmbientColors,
+    );
   }
 
   void init() {
@@ -248,8 +262,13 @@ class ThemeService extends ChangeNotifier {
     // Match Premium desktop: failed artwork extraction keeps the previous
     // dynamic colour instead of flashing the interface back to a fallback.
     if (color == null) return;
-    if (_dynamicCoverArtColor == color) return;
+    final ambient = colors.ambientColors;
+    if (_dynamicCoverArtColor == color &&
+        listEquals(_dynamicCoverArtAmbient, ambient)) {
+      return;
+    }
     _dynamicCoverArtColor = color;
+    _dynamicCoverArtAmbient = ambient;
     if (_themeSource == ThemeSource.dynamicCoverArt) notifyListeners();
   }
 
@@ -276,6 +295,7 @@ class ThemeService extends ChangeNotifier {
     _customColor = const Color(0xFFFFFFFF);
     _staticCoverArtColor = const Color(0xFFFFFFFF);
     _dynamicCoverArtColor = const Color(0xFF6E7A86);
+    _dynamicCoverArtAmbient = null;
     _staticSongId = null;
     _staticSongTitle = null;
     _staticSongArtist = null;

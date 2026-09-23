@@ -49,8 +49,11 @@ class _TailscaleCheckScreenState extends State<TailscaleCheckScreen> {
     // The hard-coded white body text below requires the dark palette.
     return SetupDarkTheme(
       builder: (context) => Scaffold(
+        backgroundColor: Colors.transparent,
         appBar: AppBar(
           title: const Text('Connect to Your Server'),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
         ),
         body: SafeArea(
           child: Center(

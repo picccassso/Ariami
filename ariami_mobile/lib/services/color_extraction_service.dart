@@ -238,14 +238,18 @@ class ColorExtractionService extends ChangeNotifier {
     final primary = palette.dominantColor?.color ??
         palette.vibrantColor?.color ??
         GradientColors.fallback.primary;
-    final themeSeed = selectDynamicThemeSeed(
-      palette.paletteColors.map(
-        (swatch) => (
-          color: swatch.color,
-          population: swatch.population,
-        ),
-      ),
-    );
+    final swatches = palette.paletteColors
+        .map(
+          (swatch) => (
+            color: swatch.color,
+            population: swatch.population,
+          ),
+        )
+        .toList();
+    final themeSeed = selectDynamicThemeSeed(swatches);
+    final ambientColors = themeSeed != null
+        ? selectAmbientColors(swatches, themeSeed)
+        : null;
 
     // Secondary: prefer dark muted, fallback to dark vibrant or darker primary
     final secondary = palette.darkMutedColor?.color ??
@@ -261,6 +265,7 @@ class ColorExtractionService extends ChangeNotifier {
       secondary: secondary,
       accent: accent,
       themeSeed: themeSeed,
+      ambientColors: ambientColors,
     );
   }
 

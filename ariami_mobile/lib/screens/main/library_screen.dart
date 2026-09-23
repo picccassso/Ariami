@@ -499,6 +499,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
         }
       },
       child: Scaffold(
+        backgroundColor: Colors.transparent,
         appBar: _controller.isSelectionModeActive
             ? AppBar(
                 leading: IconButton(

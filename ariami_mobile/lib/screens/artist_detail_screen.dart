@@ -14,6 +14,7 @@ import '../services/offline/offline_playback_service.dart';
 import '../services/playback_manager.dart';
 import '../services/playlist_service.dart';
 import '../services/stats/streaming_stats_service.dart';
+import '../utils/constants.dart';
 import '../utils/responsive.dart';
 import '../widgets/collection_play_buttons.dart';
 import '../widgets/common/cached_artwork.dart';
@@ -501,17 +502,23 @@ class _ArtistHeaderArtwork extends StatelessWidget {
               width: artworkSize,
               height: artworkSize,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(AppTheme.cardRadius),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.5),
+                    color: context.colors.glowA.withValues(alpha: 0.45),
+                    blurRadius: 60,
+                    spreadRadius: -8,
+                    offset: const Offset(0, 24),
+                  ),
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.4),
                     blurRadius: 20,
                     offset: const Offset(0, 10),
                   ),
                 ],
               ),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(AppTheme.cardRadius),
                 child: artworkWidget,
               ),
             ),

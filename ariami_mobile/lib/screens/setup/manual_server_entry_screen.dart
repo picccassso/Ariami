@@ -6,6 +6,7 @@ import '../../services/api/connection_service.dart';
 import '../../utils/responsive.dart';
 import '../../utils/server_address_parser.dart';
 import '../../utils/setup_error_messages.dart';
+import '../../widgets/common/auth_card.dart';
 import '../../widgets/common/setup_dark_theme.dart';
 import 'server_connection_router.dart';
 
@@ -133,31 +134,25 @@ class _ManualServerEntryScreenState extends State<ManualServerEntryScreen> {
   Widget build(BuildContext context) {
     return SetupDarkTheme(
       builder: (context) => Scaffold(
-        backgroundColor: Colors.black,
+        backgroundColor: Colors.transparent,
         appBar: AppBar(
           title: const Text('Manual entry'),
-          backgroundColor: Colors.black,
+          backgroundColor: Colors.transparent,
+          elevation: 0,
           foregroundColor: Colors.white,
         ),
         body: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 32.0, vertical: 24.0),
-              child: ConstrainedBox(
-                constraints:
-                    const BoxConstraints(maxWidth: kSetupContentMaxWidth),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.dns_rounded,
-                        size: 100,
-                        color: Theme.of(context).primaryColor,
-                      ),
-                      const SizedBox(height: 32),
+          child: AuthCard(
+            maxWidth: kSetupContentMaxWidth,
+            child: Form(
+              key: _formKey,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const AuthBadge(
+                    icon: Icons.dns_rounded,
+                  ),
+                  const SizedBox(height: 24),
                       Text(
                         'Connect manually',
                         style: Theme.of(context)
@@ -335,8 +330,6 @@ class _ManualServerEntryScreenState extends State<ManualServerEntryScreen> {
               ),
             ),
           ),
-        ),
-      ),
-    );
+        );
   }
 }

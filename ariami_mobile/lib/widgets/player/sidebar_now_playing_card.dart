@@ -6,6 +6,7 @@ import '../../services/color_extraction_service.dart';
 import '../../utils/constants.dart';
 import '../common/adaptive_marquee_text.dart';
 import '../common/cached_artwork.dart';
+import '../common/glass_panel.dart';
 
 /// Vertical now-playing card docked at the bottom of the navigation sidebar
 /// on wide (tablet) layouts: artwork on top, song info, progress, and
@@ -73,35 +74,18 @@ class _SidebarNowPlayingCardState extends State<SidebarNowPlayingCard> {
       data: AppTheme.buildTheme(
         brightness: Brightness.dark,
         seedColor: colors.primary,
+        ambient: colors.ambientColors,
       ),
       child: Builder(
-        builder: (themedContext) => Container(
-          margin: const EdgeInsets.all(8),
-          clipBehavior: Clip.antiAlias,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            color: Theme.of(themedContext).colorScheme.surfaceContainerHighest,
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                colors.primary.withValues(alpha: 0.9),
-                colors.secondary.withValues(alpha: 0.95),
-              ],
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.3),
-                blurRadius: 16,
-                offset: const Offset(0, 8),
-              ),
-            ],
-          ),
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: widget.onTap,
-              child: Column(
+        builder: (themedContext) => Padding(
+          padding: const EdgeInsets.all(8),
+          child: GlassPanel(
+            radius: AppTheme.cardRadius,
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: widget.onTap,
+                child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -163,16 +147,30 @@ class _SidebarNowPlayingCardState extends State<SidebarNowPlayingCard> {
                           iconSize: 24,
                           visualDensity: VisualDensity.compact,
                         ),
-                        IconButton(
-                          icon: Icon(
-                            widget.isPlaying
-                                ? Icons.pause_rounded
-                                : Icons.play_arrow_rounded,
+                        Container(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: colors.primary.withValues(
+                                  alpha: widget.isPlaying ? 0.55 : 0.18,
+                                ),
+                                blurRadius: widget.isPlaying ? 18 : 8,
+                                spreadRadius: widget.isPlaying ? 1 : 0,
+                              ),
+                            ],
                           ),
-                          color: Colors.white,
-                          onPressed: widget.onPlayPause,
-                          iconSize: 28,
-                          visualDensity: VisualDensity.compact,
+                          child: IconButton(
+                            icon: Icon(
+                              widget.isPlaying
+                                  ? Icons.pause_rounded
+                                  : Icons.play_arrow_rounded,
+                            ),
+                            color: Colors.white,
+                            onPressed: widget.onPlayPause,
+                            iconSize: 28,
+                            visualDensity: VisualDensity.compact,
+                          ),
                         ),
                         IconButton(
                           icon: const Icon(Icons.skip_next_rounded),
@@ -201,7 +199,8 @@ class _SidebarNowPlayingCardState extends State<SidebarNowPlayingCard> {
           ),
         ),
       ),
-    );
+    ),
+  );
   }
 
   Widget _buildArtwork(BuildContext context, Song song) {
@@ -225,6 +224,7 @@ class _SidebarNowPlayingCardState extends State<SidebarNowPlayingCard> {
       albumId: cacheId,
       artworkUrl: artworkUrl,
       fit: BoxFit.cover,
+      borderRadius: BorderRadius.circular(AppTheme.cardRadius),
       fallback: Container(
         color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
         child: Icon(

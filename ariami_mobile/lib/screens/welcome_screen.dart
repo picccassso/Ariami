@@ -14,9 +14,9 @@ class WelcomeScreen extends StatelessWidget {
 
   Widget _buildScreen(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: Colors.transparent,
       body: Container(
-        color: Colors.black,
+        color: Colors.transparent,
         child: SafeArea(
           child: OrientationBuilder(
             builder: (context, orientation) {

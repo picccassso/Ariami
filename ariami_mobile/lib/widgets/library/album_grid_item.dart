@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../models/api_models.dart';
 import '../../services/playback_manager.dart';
 import '../../utils/artwork_url.dart';
+import '../../utils/constants.dart';
 import '../common/artist_link.dart';
 import '../common/cached_artwork.dart';
 import 'playing_collection_builder.dart';
@@ -57,18 +58,22 @@ class AlbumGridItem extends StatelessWidget {
                   Container(
                     decoration: BoxDecoration(
                       borderRadius:
-                          BorderRadius.circular(0), // Spotify borderless
+                          BorderRadius.circular(AppTheme.cardRadius),
                     ),
                     child: ClipRRect(
-                      borderRadius: BorderRadius.circular(0),
+                      borderRadius: BorderRadius.circular(AppTheme.cardRadius),
                       child: _buildAlbumArt(context),
                     ),
                   ),
 
                   if (isSelected)
                     Positioned.fill(
-                      child: Container(
-                        color: Colors.black26,
+                      child: ClipRRect(
+                        borderRadius:
+                            BorderRadius.circular(AppTheme.cardRadius),
+                        child: Container(
+                          color: Colors.black26,
+                        ),
                       ),
                     ),
 

@@ -58,4 +58,24 @@ void main() {
       expect(selectDynamicThemeSeed(const []), isNull);
     });
   });
+
+  group('selectAmbientColors', () {
+    test('ambient glows add distinct artwork colours after the seed', () {
+      const seed = Color(0xFF921010);
+      final glows = selectAmbientColors([
+        (color: seed, population: 60000),
+        // Same hue and tone as the seed: must not be repeated as a glow.
+        (color: const Color(0xFF8A1414), population: 50000),
+        (color: const Color(0xFF1E3FA8), population: 9000),
+        (color: const Color(0xFFE0B040), population: 4000),
+      ], seed);
+
+      expect(glows, [seed, const Color(0xFF1E3FA8), const Color(0xFFE0B040)]);
+    });
+
+    test('returns only seed when swatches are empty', () {
+      const seed = Color(0xFF123456);
+      expect(selectAmbientColors(const [], seed), [seed]);
+    });
+  });
 }

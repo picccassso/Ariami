@@ -5,6 +5,7 @@ import '../services/api/api_client.dart';
 import '../services/api/connection_service.dart';
 import '../utils/responsive.dart';
 import '../utils/setup_error_messages.dart';
+import '../widgets/common/auth_card.dart';
 import '../widgets/common/setup_dark_theme.dart';
 
 /// Registration screen for multi-user authentication
@@ -102,28 +103,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Widget build(BuildContext context) {
     return SetupDarkTheme(
       builder: (context) => Scaffold(
-        backgroundColor: Colors.black,
+        backgroundColor: Colors.transparent,
         body: Container(
-          color: Colors.black,
+          color: Colors.transparent,
           child: SafeArea(
-            child: Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 32.0, vertical: 24.0),
-                child: ConstrainedBox(
-                  constraints:
-                      const BoxConstraints(maxWidth: kSetupContentMaxWidth),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.person_add_rounded,
-                          size: 100,
-                          color: Theme.of(context).primaryColor,
-                        ),
-                        const SizedBox(height: 32),
+            child: AuthCard(
+              maxWidth: kSetupContentMaxWidth,
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const AuthBadge(
+                      icon: Icons.person_add_rounded,
+                    ),
+                    const SizedBox(height: 24),
 
                         // Title
                         Text(
@@ -383,8 +377,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
             ),
           ),
-        ),
-      ),
-    );
+        );
   }
 }

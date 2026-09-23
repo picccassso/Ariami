@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -19,6 +20,8 @@ import '../widgets/player/player_seek_bar.dart';
 import '../widgets/player/player_secondary_controls.dart';
 import '../widgets/player/player_output_button.dart';
 import '../widgets/common/artist_picker_sheet.dart';
+import '../widgets/common/ambient_backdrop.dart';
+import '../widgets/common/cached_artwork.dart';
 import '../widgets/common/mini_player_aware_bottom_sheet.dart';
 import '../widgets/common/queue_action_confirmation.dart';
 import 'playlist/add_to_playlist_screen.dart';
@@ -240,30 +243,22 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
       data: AppTheme.buildTheme(
         brightness: Brightness.dark,
         seedColor: colors.primary,
+        ambient: colors.ambientColors,
       ),
       child: Builder(
         builder: (themedContext) {
           return AnnotatedRegion<SystemUiOverlayStyle>(
             value: overlayStyle,
             child: Scaffold(
-              body: AnimatedContainer(
-                duration: const Duration(milliseconds: 500),
-                curve: Curves.easeInOut,
-                decoration: BoxDecoration(
-                  gradient: RadialGradient(
-                    center: Alignment.topCenter,
-                    radius: 1.5,
-                    colors: [
-                      colors.primary.withValues(alpha: 0.85),
-                      colors.secondary.withValues(alpha: 0.65),
-                      Colors.black,
-                    ],
-                    stops: const [0.0, 0.4, 1.0],
-                  ),
-                ),
-                child: _playbackManager.currentSong == null
-                    ? _buildEmptyState(themedContext)
-                    : _buildPlayer(themedContext),
+              backgroundColor: Colors.transparent,
+              body: Stack(
+                fit: StackFit.expand,
+                children: [
+                  _BlurredArtworkBackdrop(song: _playbackManager.currentSong),
+                  _playbackManager.currentSong == null
+                      ? _buildEmptyState(themedContext)
+                      : _buildPlayer(themedContext),
+                ],
               ),
             ),
           );
@@ -631,10 +626,14 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
               color: Theme.of(themedContext).colorScheme.primary,
               boxShadow: [
                 BoxShadow(
-                  color: Theme.of(
-                    themedContext,
-                  ).colorScheme.primary.withValues(alpha: 0.4),
-                  blurRadius: 20,
+                  color: Theme.of(themedContext)
+                      .colorScheme
+                      .primary
+                      .withValues(
+                        alpha: _playbackManager.isPlaying ? 0.55 : 0.2,
+                      ),
+                  blurRadius: _playbackManager.isPlaying ? 36 : 14,
+                  spreadRadius: _playbackManager.isPlaying ? 2 : 0,
                   offset: const Offset(0, 8),
                 ),
               ],
@@ -717,3 +716,77 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
     }
   }
 }
+
+/// Blurred cover art layered over the ambient glow backdrop so the
+/// whole screen takes on the record's colours.
+class _BlurredArtworkBackdrop extends StatelessWidget {
+  const _BlurredArtworkBackdrop({required this.song});
+
+  final Song? song;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final song = this.song;
+    final key = song?.albumId ?? song?.id;
+    final connectionService = ConnectionService();
+    final apiClient = connectionService.apiClient;
+    final artworkUrl = (song != null && apiClient != null)
+        ? (song.albumId != null && song.albumId!.isNotEmpty
+            ? '${apiClient.baseUrl}/artwork/${song.albumId}'
+            : '${apiClient.baseUrl}/song-artwork/${song.id}')
+        : null;
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        AmbientBackdrop(layoutSeed: (key ?? '').hashCode),
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 900),
+          child: song == null
+              ? const SizedBox.shrink()
+              : SizedBox.expand(
+                  key: ValueKey(key),
+                  child: Opacity(
+                    opacity: 0.6,
+                    child: ImageFiltered(
+                      imageFilter: ImageFilter.blur(
+                        sigmaX: 90,
+                        sigmaY: 90,
+                        tileMode: TileMode.clamp,
+                      ),
+                      child: FittedBox(
+                        fit: BoxFit.cover,
+                        clipBehavior: Clip.hardEdge,
+                        child: CachedArtwork(
+                          albumId: song.albumId != null && song.albumId!.isNotEmpty
+                              ? song.albumId!
+                              : 'song_${song.id}',
+                          artworkUrl: artworkUrl,
+                          width: 96,
+                          height: 96,
+                          borderRadius: BorderRadius.zero,
+                          sizeHint: ArtworkSizeHint.thumbnail,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+        ),
+        DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                colors.base.withValues(alpha: 0.25),
+                colors.base.withValues(alpha: 0.7),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
