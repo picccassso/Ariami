@@ -16,6 +16,7 @@ import io.flutter.plugin.common.MethodChannel.Result;
  */
 public class JustAudioPlugin implements FlutterPlugin {
     private MethodChannel channel;
+    private MethodChannel levelsChannel;
     private MainMethodCallHandler methodCallHandler;
 
     @Override
@@ -26,6 +27,23 @@ public class JustAudioPlugin implements FlutterPlugin {
 
         channel = new MethodChannel(messenger, "com.ryanheise.just_audio.methods");
         channel.setMethodCallHandler(methodCallHandler);
+
+        // (Ariami fork) Live kick-band level of playback, for UI that follows
+        // the music.
+        levelsChannel = new MethodChannel(messenger, "com.ryanheise.just_audio.levels");
+        levelsChannel.setMethodCallHandler((call, result) -> {
+            switch (call.method) {
+            case "setMetering":
+                LevelMeter.setMetering(Boolean.TRUE.equals(call.arguments));
+                result.success(null);
+                break;
+            case "levels":
+                result.success(LevelMeter.levels());
+                break;
+            default:
+                result.notImplemented();
+            }
+        });
         @SuppressWarnings("deprecation")
         FlutterEngine engine = binding.getFlutterEngine();
         engine.addEngineLifecycleListener(new EngineLifecycleListener() {
@@ -46,5 +64,6 @@ public class JustAudioPlugin implements FlutterPlugin {
         methodCallHandler = null;
 
         channel.setMethodCallHandler(null);
+        levelsChannel.setMethodCallHandler(null);
     }
 }

@@ -4586,6 +4586,34 @@ class DarwinEqualizer extends AudioEffect with DarwinAudioEffect {
       );
 }
 
+/// (Ariami fork) Live kick-band level of this device's playback. On
+/// iOS/macOS it is measured by the same audio tap as [DarwinEqualizer] (so
+/// only players created with one are metered); on Android by the player's
+/// audio sink. Metering is off until enabled and costs nothing while off.
+class NativeLevelMeter {
+  static const _channel = MethodChannel('com.ryanheise.just_audio.levels');
+
+  static Future<void> setEnabled(bool enabled) =>
+      _channel.invokeMethod<void>('setMetering', enabled);
+
+  /// The 35–150 Hz energy envelope (linear, 0 = silence, 1 = full scale) of
+  /// the audio heard since the last call, oldest first, one reading per
+  /// [NativeLevels.blockSeconds]. Null while nothing is playing.
+  static Future<NativeLevels?> levels() async {
+    final data = await _channel.invokeMethod<Float64List>('levels');
+    if (data == null || data.isEmpty) return null;
+    return NativeLevels._(data.first, data.sublist(1));
+  }
+}
+
+/// (Ariami fork) A batch of [NativeLevelMeter.levels] readings.
+class NativeLevels {
+  NativeLevels._(this.blockSeconds, this.values);
+
+  final double blockSeconds;
+  final List<double> values;
+}
+
 /// (Ariami fork) Message for [DarwinEqualizer]. Defined here rather than in
 /// the platform interface, which has no Darwin equalizer support.
 class _DarwinEqualizerMessage extends AudioEffectMessage {

@@ -5,6 +5,20 @@
 
 // Associated-object key marking items whose tap attach is already underway.
 static char kJAEqAttachRequestedKey;
+
+// Level metering is app-wide: whichever tap is rendering publishes the kick
+// band (35–150 Hz) energy of what is playing, for UI that follows the music.
+// Taps render ~0.7 s ahead of the speakers, so each reading is stamped with
+// its media time and a ring buffer holds them until playback catches up.
+static atomic_bool gJAMetering;
+#define JA_LEVEL_BLOCK 256
+#define JA_LEVEL_RING 2048
+static double gJARingTime[JA_LEVEL_RING];
+static float gJARingLevel[JA_LEVEL_RING];
+static atomic_uint gJARingHead;
+static _Atomic double gJABlockSeconds;
+// Main-thread only: the media time up to which readings have been returned.
+static double gJALastRead = -1;
 #import <math.h>
 #import <stdlib.h>
 #import <string.h>
@@ -48,6 +62,12 @@ typedef struct {
     bool bandActive[JA_EQ_MAX_BANDS];
     // bandCount * channelCount states, laid out band-major.
     JAEqBiquadState *states;
+    // Level meter: band-pass filters, energy envelope and block position.
+    JAEqBiquadCoeffs levelHp, levelLp;
+    JAEqBiquadState levelHpState, levelLpState;
+    float levelAlpha, levelEnergy;
+    int levelCount;
+    double nextTime;
 } JAEqTapContext;
 
 static void ja_eq_shared_release(JAEqSharedState *shared) {
@@ -109,6 +129,59 @@ static void ja_eq_process_channel(JAEqTapContext *ctx, int channel, float *sampl
     }
 }
 
+// RBJ Audio EQ Cookbook high-/low-pass (Q = 1/sqrt 2).
+static JAEqBiquadCoeffs ja_pass_coeffs(double sampleRate, double frequency, bool high) {
+    JAEqBiquadCoeffs c;
+    double w0 = 2.0 * M_PI * frequency / sampleRate;
+    double cosw0 = cos(w0);
+    double alpha = sin(w0) / (2.0 * M_SQRT1_2);
+    double a0 = 1.0 + alpha;
+    double edge = high ? (1.0 + cosw0) / 2.0 : (1.0 - cosw0) / 2.0;
+    c.b0 = (float)(edge / a0);
+    c.b1 = (float)((high ? -2.0 : 2.0) * edge / a0);
+    c.b2 = c.b0;
+    c.a1 = (float)((-2.0 * cosw0) / a0);
+    c.a2 = (float)((1.0 - alpha) / a0);
+    return c;
+}
+
+static inline float ja_biquad(JAEqBiquadCoeffs c, JAEqBiquadState *s, float x0) {
+    float y0 = c.b0 * x0 + c.b1 * s->x1 + c.b2 * s->x2 - c.a1 * s->y1 - c.a2 * s->y2;
+    s->x2 = s->x1; s->x1 = x0;
+    s->y2 = s->y1; s->y1 = y0;
+    return y0;
+}
+
+// Pushes the kick-band envelope (mono mix, 35–150 Hz, ~8 ms energy smoothing)
+// into the ring every JA_LEVEL_BLOCK frames, stamped with its media time.
+static void ja_level_measure(JAEqTapContext *ctx, AudioBufferList *list,
+                             CMItemCount frames, CMTimeRange range) {
+    if (frames <= 0) return;
+    double start = CMTIME_IS_NUMERIC(range.start) ? CMTimeGetSeconds(range.start) : ctx->nextTime;
+    ctx->nextTime = start + frames / ctx->sampleRate;
+    for (CMItemCount i = 0; i < frames; i++) {
+        float mono = 0;
+        int count = 0;
+        for (UInt32 b = 0; b < list->mNumberBuffers; b++) {
+            const float *data = (const float *)list->mBuffers[b].mData;
+            if (!data) continue;
+            UInt32 channels = list->mBuffers[b].mNumberChannels > 0 ? list->mBuffers[b].mNumberChannels : 1;
+            for (UInt32 c = 0; c < channels; c++) mono += data[i * channels + c];
+            count += channels;
+        }
+        if (count > 0) mono /= count;
+        float band = ja_biquad(ctx->levelLp, &ctx->levelLpState,
+                               ja_biquad(ctx->levelHp, &ctx->levelHpState, mono));
+        ctx->levelEnergy += ctx->levelAlpha * (band * band - ctx->levelEnergy);
+        if (++ctx->levelCount < JA_LEVEL_BLOCK) continue;
+        ctx->levelCount = 0;
+        unsigned head = atomic_load_explicit(&gJARingHead, memory_order_relaxed);
+        gJARingTime[head % JA_LEVEL_RING] = start + (i + 1) / ctx->sampleRate;
+        gJARingLevel[head % JA_LEVEL_RING] = sqrtf(ctx->levelEnergy);
+        atomic_store_explicit(&gJARingHead, head + 1, memory_order_release);
+    }
+}
+
 static void ja_eq_tap_init(MTAudioProcessingTapRef tap, void *clientInfo, void **tapStorageOut) {
     JAEqTapContext *ctx = calloc(1, sizeof(JAEqTapContext));
     ctx->shared = (JAEqSharedState *)clientInfo;
@@ -134,6 +207,14 @@ static void ja_eq_tap_prepare(MTAudioProcessingTapRef tap, CMItemCount maxFrames
     ctx->states = calloc((size_t)ctx->shared->bandCount * ctx->channelCount,
                          sizeof(JAEqBiquadState));
     ctx->cachedGeneration = -1;
+    ctx->levelHp = ja_pass_coeffs(ctx->sampleRate, 35.0, true);
+    ctx->levelLp = ja_pass_coeffs(ctx->sampleRate, 150.0, false);
+    memset(&ctx->levelHpState, 0, sizeof(JAEqBiquadState));
+    memset(&ctx->levelLpState, 0, sizeof(JAEqBiquadState));
+    ctx->levelAlpha = (float)(1.0 - exp(-1.0 / (0.008 * ctx->sampleRate)));
+    ctx->levelEnergy = 0;
+    ctx->levelCount = 0;
+    atomic_store(&gJABlockSeconds, JA_LEVEL_BLOCK / ctx->sampleRate);
 }
 
 static void ja_eq_tap_unprepare(MTAudioProcessingTapRef tap) {
@@ -142,19 +223,7 @@ static void ja_eq_tap_unprepare(MTAudioProcessingTapRef tap) {
     ctx->states = NULL;
 }
 
-static void ja_eq_tap_process(MTAudioProcessingTapRef tap, CMItemCount numberFrames,
-                              MTAudioProcessingTapFlags flags,
-                              AudioBufferList *bufferListInOut,
-                              CMItemCount *numberFramesOut,
-                              MTAudioProcessingTapFlags *flagsOut) {
-    OSStatus status = MTAudioProcessingTapGetSourceAudio(
-        tap, numberFrames, bufferListInOut, flagsOut, NULL, numberFramesOut);
-    if (status != noErr) return;
-
-    JAEqTapContext *ctx = MTAudioProcessingTapGetStorage(tap);
-    if (!ctx->states) return;
-    if (!atomic_load_explicit(&ctx->shared->enabled, memory_order_relaxed)) return;
-
+static void ja_eq_apply(JAEqTapContext *ctx, AudioBufferList *bufferListInOut, CMItemCount frames) {
     ja_eq_refresh_coeffs(ctx);
 
     // The processing format is float32; buffers are one-per-channel when
@@ -167,9 +236,30 @@ static void ja_eq_tap_process(MTAudioProcessingTapRef tap, CMItemCount numberFra
         UInt32 bufferChannels = buffer->mNumberChannels > 0 ? buffer->mNumberChannels : 1;
         for (UInt32 c = 0; c < bufferChannels; c++) {
             if (channel >= ctx->channelCount) break;
-            ja_eq_process_channel(ctx, channel, data + c, *numberFramesOut, bufferChannels);
+            ja_eq_process_channel(ctx, channel, data + c, frames, bufferChannels);
             channel++;
         }
+    }
+}
+
+static void ja_eq_tap_process(MTAudioProcessingTapRef tap, CMItemCount numberFrames,
+                              MTAudioProcessingTapFlags flags,
+                              AudioBufferList *bufferListInOut,
+                              CMItemCount *numberFramesOut,
+                              MTAudioProcessingTapFlags *flagsOut) {
+    CMTimeRange range = kCMTimeRangeInvalid;
+    OSStatus status = MTAudioProcessingTapGetSourceAudio(
+        tap, numberFrames, bufferListInOut, flagsOut, &range, numberFramesOut);
+    if (status != noErr) return;
+
+    JAEqTapContext *ctx = MTAudioProcessingTapGetStorage(tap);
+    if (!ctx->states) return;
+    if (atomic_load_explicit(&ctx->shared->enabled, memory_order_relaxed)) {
+        ja_eq_apply(ctx, bufferListInOut, *numberFramesOut);
+    }
+    // Measured after the EQ, so the level follows what is actually heard.
+    if (atomic_load_explicit(&gJAMetering, memory_order_relaxed)) {
+        ja_level_measure(ctx, bufferListInOut, *numberFramesOut, range);
     }
 }
 
@@ -205,6 +295,38 @@ static void ja_eq_tap_process(MTAudioProcessingTapRef tap, CMItemCount numberFra
 
 - (BOOL)isEnabled {
     return atomic_load(&_shared->enabled);
+}
+
+- (BOOL)wantsTap {
+    return [self isEnabled] || [JAEqualizer isMetering];
+}
+
++ (void)setMetering:(BOOL)metering {
+    atomic_store(&gJAMetering, metering);
+}
+
++ (BOOL)isMetering {
+    return atomic_load(&gJAMetering);
+}
+
++ (NSData *)levelsUntil:(double)mediaTime {
+    // A jump (seek, new track) restarts from just before the playhead rather
+    // than replaying or skipping seconds of readings.
+    if (gJALastRead < 0 || mediaTime < gJALastRead || mediaTime > gJALastRead + 0.5) {
+        gJALastRead = mediaTime - 0.05;
+    }
+    NSMutableData *out = [NSMutableData dataWithLength:sizeof(double)];
+    ((double *)out.mutableBytes)[0] = atomic_load(&gJABlockSeconds);
+    unsigned head = atomic_load_explicit(&gJARingHead, memory_order_acquire);
+    unsigned count = MIN(head, (unsigned)JA_LEVEL_RING);
+    for (unsigned n = head - count; n != head; n++) {
+        double time = gJARingTime[n % JA_LEVEL_RING];
+        if (time <= gJALastRead || time > mediaTime) continue;
+        double level = gJARingLevel[n % JA_LEVEL_RING];
+        [out appendBytes:&level length:sizeof(double)];
+    }
+    gJALastRead = mediaTime;
+    return out;
 }
 
 - (void)setGain:(double)gain forBand:(int)bandIndex {

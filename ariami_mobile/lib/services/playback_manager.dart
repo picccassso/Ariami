@@ -174,6 +174,13 @@ class PlaybackManager extends ChangeNotifier {
   }
 
   bool get isPlaying => _connectRemote?.snapshot.isPlaying ?? _localIsPlaying;
+
+  /// True only while audio is actually coming out of this device — not
+  /// casting, not mirroring another Connect device.
+  bool get isPlayingHere =>
+      _connectRemote == null &&
+      !_castService.isConnected &&
+      _audioPlayer.isPlaying;
   bool get isLoading => _connectRemote != null
       ? false
       : (_castService.isConnected

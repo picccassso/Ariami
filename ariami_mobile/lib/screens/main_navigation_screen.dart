@@ -265,7 +265,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
         fit: StackFit.expand,
         children: [
           Positioned.fill(
-            child: AmbientBackdrop(layoutSeed: songSeed),
+            child: PlayerBackdrop(layoutSeed: songSeed),
           ),
           useRail
               ? Row(

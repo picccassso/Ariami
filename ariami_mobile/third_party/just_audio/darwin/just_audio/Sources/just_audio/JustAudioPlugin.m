@@ -1,5 +1,6 @@
 #import "./include/just_audio/JustAudioPlugin.h"
 #import "./include/just_audio/AudioPlayer.h"
+#import "./include/just_audio/JAEqualizer.h"
 #import <AVFoundation/AVFoundation.h>
 #include <TargetConditionals.h>
 
@@ -14,6 +15,38 @@
               binaryMessenger:[registrar messenger]];
     JustAudioPlugin* instance = [[JustAudioPlugin alloc] initWithRegistrar:registrar];
     [registrar addMethodCallDelegate:instance channel:channel];
+
+    // (Ariami fork) Live bass level of playback, for UI that follows the music.
+    FlutterMethodChannel* levels = [FlutterMethodChannel
+        methodChannelWithName:@"com.ryanheise.just_audio.levels"
+              binaryMessenger:[registrar messenger]];
+    __weak JustAudioPlugin *weakInstance = instance;
+    [levels setMethodCallHandler:^(FlutterMethodCall* call, FlutterResult result) {
+        [weakInstance handleLevelsCall:call result:result];
+    }];
+}
+
+- (void)handleLevelsCall:(FlutterMethodCall*)call result:(FlutterResult)result {
+    if ([@"levels" isEqualToString:call.method]) {
+        // Read against whichever player is audible, at its playhead.
+        AVPlayer *playing = nil;
+        for (NSString *playerId in _players) {
+            AVPlayer *player = _players[playerId].player;
+            if (player.rate != 0) playing = player;
+        }
+        double now = playing ? CMTimeGetSeconds(playing.currentTime) : NAN;
+        result(isfinite(now)
+            ? [FlutterStandardTypedData typedDataWithFloat64:[JAEqualizer levelsUntil:now]]
+            : nil);
+    } else if ([@"setMetering" isEqualToString:call.method]) {
+        [JAEqualizer setMetering:[call.arguments boolValue]];
+        for (NSString *playerId in _players) {
+            [_players[playerId] attachTapToCurrentItem];
+        }
+        result(nil);
+    } else {
+        result(FlutterMethodNotImplemented);
+    }
 }
 
 - (instancetype)initWithRegistrar:(NSObject<FlutterPluginRegistrar> *)registrar {

@@ -737,56 +737,59 @@ class _BlurredArtworkBackdrop extends StatelessWidget {
             : '${apiClient.baseUrl}/song-artwork/${song.id}')
         : null;
 
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        AmbientBackdrop(layoutSeed: (key ?? '').hashCode),
-        AnimatedSwitcher(
-          duration: const Duration(milliseconds: 900),
-          child: song == null
-              ? const SizedBox.shrink()
-              : SizedBox.expand(
-                  key: ValueKey(key),
-                  child: Opacity(
-                    opacity: 0.6,
-                    child: ImageFiltered(
-                      imageFilter: ImageFilter.blur(
-                        sigmaX: 90,
-                        sigmaY: 90,
-                        tileMode: TileMode.clamp,
-                      ),
-                      child: FittedBox(
-                        fit: BoxFit.cover,
-                        clipBehavior: Clip.hardEdge,
-                        child: CachedArtwork(
-                          albumId: song.albumId != null && song.albumId!.isNotEmpty
-                              ? song.albumId!
-                              : 'song_${song.id}',
-                          artworkUrl: artworkUrl,
-                          width: 96,
-                          height: 96,
-                          borderRadius: BorderRadius.zero,
-                          sizeHint: ArtworkSizeHint.thumbnail,
+    return PlayerBackdrop(
+      layoutSeed: (key ?? '').hashCode,
+      pulse: true,
+      foreground: Stack(
+        fit: StackFit.expand,
+        children: [
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 900),
+            child: song == null
+                ? const SizedBox.shrink()
+                : SizedBox.expand(
+                    key: ValueKey(key),
+                    child: Opacity(
+                      opacity: 0.6,
+                      child: ImageFiltered(
+                        imageFilter: ImageFilter.blur(
+                          sigmaX: 90,
+                          sigmaY: 90,
+                          tileMode: TileMode.clamp,
+                        ),
+                        child: FittedBox(
+                          fit: BoxFit.cover,
+                          clipBehavior: Clip.hardEdge,
+                          child: CachedArtwork(
+                            albumId:
+                                song.albumId != null && song.albumId!.isNotEmpty
+                                    ? song.albumId!
+                                    : 'song_${song.id}',
+                            artworkUrl: artworkUrl,
+                            width: 96,
+                            height: 96,
+                            borderRadius: BorderRadius.zero,
+                            sizeHint: ArtworkSizeHint.thumbnail,
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
-        ),
-        DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                colors.base.withValues(alpha: 0.25),
-                colors.base.withValues(alpha: 0.7),
-              ],
+          ),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  colors.base.withValues(alpha: 0.25),
+                  colors.base.withValues(alpha: 0.7),
+                ],
+              ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
-

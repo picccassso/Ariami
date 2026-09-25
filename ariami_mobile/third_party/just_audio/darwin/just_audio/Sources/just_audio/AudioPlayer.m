@@ -198,14 +198,7 @@
             if (_equalizer && [@"DarwinEqualizer" isEqualToString:(NSString *)request[@"type"]]) {
                 BOOL enabled = [request[@"enabled"] boolValue];
                 [_equalizer setEnabled:enabled];
-                // Disabled equalizers must not install an audio mix at all:
-                // changing AVPlayerItem.audioMix on a queued item can force
-                // AVQueuePlayer to reprepare (and rewind) the current track.
-                // When the user enables EQ, attach only to the current item.
-                if (enabled && _player.currentItem &&
-                    _player.currentItem.status == AVPlayerItemStatusReadyToPlay) {
-                    [_equalizer attachToPlayerItem:_player.currentItem];
-                }
+                if (enabled) [self attachTapToCurrentItem];
             }
             result(@{});
         } else if ([@"androidEqualizerBandSetGain" isEqualToString:call.method]) {
@@ -835,7 +828,7 @@
                 // processing tap. Attaching a tap to a preloaded queue item
                 // makes AVQueuePlayer reprepare the active item and can rewind
                 // playback several seconds near the transition boundary.
-                if (_equalizer && [_equalizer isEnabled]) {
+                if (_equalizer && [_equalizer wantsTap]) {
                     [_equalizer attachToPlayerItem:playerItem];
                 }
                 // Detect buffering in different ways depending on whether we're playing
@@ -954,7 +947,7 @@
         // so its status observer will not fire again. Attach the enabled EQ
         // here at the boundary; doing so at position zero cannot disturb the
         // outgoing item.
-        if (_equalizer && [_equalizer isEnabled] &&
+        if (_equalizer && [_equalizer wantsTap] &&
             playerItem.status == AVPlayerItemStatusReadyToPlay) {
             [_equalizer attachToPlayerItem:playerItem];
         }
@@ -1389,6 +1382,16 @@
                 completionHandler(finished);
             }
         }];
+    }
+}
+
+// (Ariami fork) Items without a tap only receive one here, never while
+// queued: changing AVPlayerItem.audioMix on a queued item can force
+// AVQueuePlayer to reprepare (and rewind) the current track.
+- (void)attachTapToCurrentItem {
+    if (_equalizer && [_equalizer wantsTap] && _player.currentItem &&
+        _player.currentItem.status == AVPlayerItemStatusReadyToPlay) {
+        [_equalizer attachToPlayerItem:_player.currentItem];
     }
 }
 

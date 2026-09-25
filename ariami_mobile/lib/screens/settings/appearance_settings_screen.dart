@@ -8,6 +8,7 @@ import '../../../services/api/connection_service.dart';
 import '../../../widgets/common/mini_player_aware_bottom_sheet.dart';
 import '../../../widgets/common/cached_artwork.dart';
 import '../../../widgets/settings/settings_section.dart';
+import '../../../widgets/settings/settings_tile.dart';
 import 'song_selection_screen.dart';
 
 class AppearanceSettingsScreen extends StatefulWidget {
@@ -167,6 +168,7 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
       appBar: AppBar(
@@ -174,7 +176,7 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
       ),
       body: ContentWidthLimiter(
         child: ListenableBuilder(
-          listenable: _playbackManager,
+          listenable: Listenable.merge([_playbackManager, _themeService]),
           builder: (context, _) {
             return ListView(
               padding: EdgeInsets.only(
@@ -402,6 +404,27 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                             left: 16.0, right: 16.0, top: 12.0),
                         child: _buildStaticSongPreview(),
                       ),
+                  ],
+                ),
+                SettingsSection(
+                  title: 'Background',
+                  tiles: [
+                    SettingsTile(
+                      icon: Icons.graphic_eq_rounded,
+                      title: 'Moving Background',
+                      subtitle: 'Drifts while music plays on this device, '
+                          'and pulses with the kick drum in the full player',
+                      onTap: () => _themeService
+                          .setMovingBackdrop(!_themeService.movingBackdrop),
+                      trailing: Switch(
+                        value: _themeService.movingBackdrop,
+                        activeThumbColor: colorScheme.onPrimary,
+                        activeTrackColor: colorScheme.primary,
+                        inactiveThumbColor: colorScheme.onSurfaceVariant,
+                        inactiveTrackColor: colorScheme.surfaceContainerHighest,
+                        onChanged: _themeService.setMovingBackdrop,
+                      ),
+                    ),
                   ],
                 ),
               ],

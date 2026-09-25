@@ -39,6 +39,7 @@ class ThemeService extends ChangeNotifier {
   static const String _staticSongTitleKey = 'static_song_title';
   static const String _staticSongArtistKey = 'static_song_artist';
   static const String _staticSongAlbumIdKey = 'static_song_album_id';
+  static const String _movingBackdropKey = 'moving_backdrop';
 
   final ColorExtractionService _colorService = ColorExtractionService();
   final PlaybackManager _playbackManager = PlaybackManager();
@@ -55,6 +56,7 @@ class ThemeService extends ChangeNotifier {
   String? _staticSongTitle;
   String? _staticSongArtist;
   String? _staticSongAlbumId;
+  bool _movingBackdrop = false;
 
   ThemeMode get themeMode {
     switch (_themeSource) {
@@ -81,6 +83,10 @@ class ThemeService extends ChangeNotifier {
   String? get staticSongTitle => _staticSongTitle;
   String? get staticSongArtist => _staticSongArtist;
   String? get staticSongAlbumId => _staticSongAlbumId;
+
+  /// Whether the backdrop glows drift and pulse with the kick drum while
+  /// music plays on this device.
+  bool get movingBackdrop => _movingBackdrop;
 
   bool get _isNeutralSource {
     switch (_themeSource) {
@@ -173,6 +179,7 @@ class ThemeService extends ChangeNotifier {
     _staticSongTitle = sharedPrefs.getString(_staticSongTitleKey);
     _staticSongArtist = sharedPrefs.getString(_staticSongArtistKey);
     _staticSongAlbumId = sharedPrefs.getString(_staticSongAlbumIdKey);
+    _movingBackdrop = sharedPrefs.getBool(_movingBackdropKey) ?? false;
 
     // First try the new unified appearance source model.
     final sourceIndex = sharedPrefs.getInt(_appearanceSourceKey);
@@ -300,7 +307,15 @@ class ThemeService extends ChangeNotifier {
     _staticSongTitle = null;
     _staticSongArtist = null;
     _staticSongAlbumId = null;
+    _movingBackdrop = false;
     _themeSource = ThemeSource.systemNeutral;
+  }
+
+  Future<void> setMovingBackdrop(bool enabled) async {
+    if (_movingBackdrop == enabled) return;
+    _movingBackdrop = enabled;
+    await sharedPrefs.setBool(_movingBackdropKey, enabled);
+    notifyListeners();
   }
 
   Future<void> setPresetColor(Color color) async {

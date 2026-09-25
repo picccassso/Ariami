@@ -12,6 +12,8 @@
 
 - (instancetype)initWithRegistrar:(NSObject<FlutterPluginRegistrar> *)registrar playerId:(NSString*)idParam loadConfiguration:(NSDictionary *)loadConfiguration darwinAudioEffects:(NSArray *)darwinAudioEffects useLazyPreparation:(BOOL)useLazyPreparation;
 - (void)dispose:(BOOL)calledFromDealloc;
+// (Ariami fork) Attaches the audio tap (EQ / level meter) to the playing item.
+- (void)attachTapToCurrentItem;
 
 @end
 
