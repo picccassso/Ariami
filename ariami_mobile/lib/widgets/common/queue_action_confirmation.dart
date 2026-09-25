@@ -72,6 +72,22 @@ void showQueueActionConfirmation(
   _queueConfirmationTimer = Timer(duration, _dismissQueueConfirmation);
 }
 
+/// Offers to undo an action the user just took; every undo in the app shares
+/// this label and window so they behave the same everywhere.
+void showUndoToast(
+  BuildContext context,
+  String message, {
+  required VoidCallback onUndo,
+}) {
+  showQueueActionConfirmation(
+    context,
+    message: message,
+    actionLabel: 'Undo',
+    onAction: onUndo,
+    duration: const Duration(seconds: 5),
+  );
+}
+
 class _QueueActionConfirmation extends StatefulWidget {
   final double bottomOffset;
   final String message;

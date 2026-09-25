@@ -319,9 +319,9 @@ class ArtistDetailScreen extends StatelessWidget {
     final songs = [
       for (final queueTrack in queueTracks) _toSong(queueTrack),
     ];
-    PlaybackManager().playSongs(
+    PlaybackManager().playTappedSong(
       songs,
-      startIndex: startIndex,
+      index: startIndex,
       sourceId: PlaybackManager.artistSource(artistName),
     );
   }

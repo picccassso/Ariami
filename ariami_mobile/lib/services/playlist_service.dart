@@ -293,6 +293,11 @@ class PlaylistService extends ChangeNotifier {
   Future<void> resetServerPlaylistEdit(String playlistId) =>
       _resetServerPlaylistEditImpl(playlistId);
 
+  /// Put a server playlist back to a state captured with
+  /// [resolveServerPlaylist], e.g. to undo a removal or discarded edits.
+  Future<void> restoreServerPlaylist(ServerPlaylistEffectiveState snapshot) =>
+      _restoreServerPlaylistImpl(snapshot);
+
   /// Create a new playlist.
   Future<PlaylistModel> createPlaylist({
     required String name,
@@ -363,6 +368,10 @@ class PlaylistService extends ChangeNotifier {
     required String songId,
   }) =>
       _removeSongFromPlaylistImpl(playlistId: playlistId, songId: songId);
+
+  /// Put a playlist's songs back to an earlier order, e.g. to undo a removal.
+  Future<void> restorePlaylistSongs(String playlistId, List<String> songIds) =>
+      _setPlaylistSongIdsImpl(playlistId, songIds);
 
   /// Reorder songs in a playlist.
   Future<void> reorderSongs({

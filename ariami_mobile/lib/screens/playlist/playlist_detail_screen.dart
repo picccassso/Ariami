@@ -16,6 +16,7 @@ import '../../utils/download_state_watcher.dart';
 import '../../utils/downloaded_album_metadata.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
+import '../../widgets/common/queue_action_confirmation.dart';
 import '../main/library/library_controller.dart';
 import 'add_to_playlist_screen.dart';
 import 'utils/playlist_helpers.dart';
@@ -142,7 +143,7 @@ class _PlaylistDetailScreenState extends _PlaylistDetailActionsState {
                 key: ValueKey(song.id),
                 song: song,
                 index: index,
-                onRemove: () => _removeSong(song.id),
+                onRemove: () => _removeSong(song),
               );
             },
           )
@@ -167,7 +168,7 @@ class _PlaylistDetailScreenState extends _PlaylistDetailActionsState {
                   albumName: albumInfo?.name,
                   albumArtist: albumInfo?.artist,
                   onTap: () => _playTrack(song, index),
-                  onRemove: () => _removeSong(song.id),
+                  onRemove: () => _removeSong(song),
                 );
               },
               childCount: _songs.length,

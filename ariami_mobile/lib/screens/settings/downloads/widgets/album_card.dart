@@ -25,7 +25,7 @@ class AlbumCard extends StatelessWidget {
   final bool isExpanded;
   final VoidCallback onToggleExpand;
   final VoidCallback onDeleteAlbum;
-  final void Function(String taskId) onRemoveSong;
+  final void Function(DownloadTask task) onRemoveSong;
 
   @override
   Widget build(BuildContext context) {
@@ -154,7 +154,7 @@ class AlbumCard extends StatelessWidget {
                         task: song,
                         isDark: isDark,
                         isLast: isLastSong,
-                        onRemove: () => onRemoveSong(song.id),
+                        onRemove: () => onRemoveSong(song),
                       );
                     }).toList(),
                   ),

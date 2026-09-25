@@ -222,12 +222,82 @@ extension _PlaybackManagerConnectImpl on PlaybackManager {
       volume: remote.snapshot.volume,
       sourceId: sourceId,
     );
+    _sendConnectSnapshot(remote, snapshot);
+  }
+
+  /// Starts [snapshot] on the active device.
+  void _sendConnectSnapshot(
+    AriamiRemotePlayback remote,
+    AriamiPlaybackSnapshot snapshot,
+  ) {
     _sendConnect(AriamiConnectCommand.playContext, <String, dynamic>{
       'snapshot': snapshot.toJson(includeBackingOrder: true),
     });
     // Mirror the new context optimistically; the active device's own state
     // broadcast confirms it.
     setConnectRemoteMirror(remote.copyWithSnapshot(snapshot));
+  }
+
+  /// Remote counterpart of [_captureLocalQueueForUndo]: the undo sends the
+  /// active device's previous queue back to it, at the same position.
+  Future<void> Function() _captureConnectQueueForUndo() {
+    final remote = _connectRemote!;
+    final previous = remote.snapshot;
+    final positionMs = remote.positionMs;
+
+    return () async {
+      final current = _connectRemote;
+      // The user moved playback to another device; don't hijack it.
+      if (current == null || current.deviceId != remote.deviceId) return;
+      _sendConnectSnapshot(
+        current,
+        AriamiPlaybackSnapshot(
+          queue: previous.queue,
+          backingOrder: previous.backingOrder,
+          currentIndex: previous.currentIndex,
+          positionMs: positionMs,
+          durationMs: previous.durationMs,
+          isPlaying: previous.isPlaying,
+          shuffle: previous.shuffle,
+          repeatMode: previous.repeatMode,
+          volume: current.snapshot.volume,
+          sourceId: previous.sourceId,
+        ),
+      );
+    };
+  }
+
+  /// Remote counterpart of [_playNowKeepingQueueImpl]. The Connect protocol
+  /// has no per-track start position, so the interrupted song restarts.
+  void _playNowOnConnectKeepingQueue(AriamiRemotePlayback remote, Song song) {
+    final previous = remote.snapshot;
+    final index = previous.currentIndex;
+    // Shift the pre-shuffle order past the inserted track, which then sits
+    // just before the interrupted one there too.
+    final order = [
+      for (final position in previous.backingOrder)
+        position >= index ? position + 1 : position,
+    ];
+    order.insert(order.indexOf(index + 1), index);
+    _sendConnectSnapshot(
+      remote,
+      AriamiPlaybackSnapshot(
+        queue: [
+          ...previous.queue.take(index),
+          song.toJson(),
+          ...previous.queue.skip(index),
+        ],
+        backingOrder: order,
+        currentIndex: index,
+        positionMs: 0,
+        durationMs: song.duration.inMilliseconds,
+        isPlaying: true,
+        shuffle: previous.shuffle,
+        repeatMode: previous.repeatMode,
+        volume: previous.volume,
+        sourceId: previous.sourceId,
+      ),
+    );
   }
 
   /// Removes a track from the mirrored queue: sends the edit to the active

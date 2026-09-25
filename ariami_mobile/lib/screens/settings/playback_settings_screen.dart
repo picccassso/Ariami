@@ -3,6 +3,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../services/audio/gapless_playback_service.dart';
 import '../../services/audio/play_buttons_follow_playback_service.dart';
+import '../../services/audio/keep_queue_on_tap_service.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
 import '../../widgets/settings/settings_section.dart';
@@ -23,12 +24,14 @@ class _PlaybackSettingsScreenState extends State<PlaybackSettingsScreen> {
       GaplessPlaybackService();
   final PlayButtonsFollowPlaybackService _playButtonsService =
       PlayButtonsFollowPlaybackService();
+  final KeepQueueOnTapService _keepQueueService = KeepQueueOnTapService();
 
   @override
   void initState() {
     super.initState();
     _gaplessPlaybackService.initialize();
     _playButtonsService.initialize();
+    _keepQueueService.initialize();
   }
 
   @override
@@ -69,7 +72,7 @@ class _PlaybackSettingsScreenState extends State<PlaybackSettingsScreen> {
       body: ContentWidthLimiter(
         child: ListenableBuilder(
           listenable: Listenable.merge(
-            [_gaplessPlaybackService, _playButtonsService],
+            [_gaplessPlaybackService, _playButtonsService, _keepQueueService],
           ),
           builder: (context, _) => ListView(
             padding: EdgeInsets.only(
@@ -102,6 +105,19 @@ class _PlaybackSettingsScreenState extends State<PlaybackSettingsScreen> {
                     trailing: toggle(
                       value: _playButtonsService.isEnabled,
                       onChanged: _playButtonsService.setEnabled,
+                    ),
+                  ),
+                  SettingsTile(
+                    icon: Icons.queue_play_next_rounded,
+                    title: 'Keep My Queue When Tapping a Song',
+                    subtitle: 'Play the song now, then carry on with your '
+                        'queue from where you left off',
+                    onTap: () => _keepQueueService.setEnabled(
+                      !_keepQueueService.isEnabled,
+                    ),
+                    trailing: toggle(
+                      value: _keepQueueService.isEnabled,
+                      onChanged: _keepQueueService.setEnabled,
                     ),
                   ),
                   SettingsTile(

@@ -10,6 +10,7 @@ import '../../services/download/download_manager.dart';
 import '../../services/playback_manager.dart';
 import '../../services/playlist_service.dart';
 import 'mini_player_aware_bottom_sheet.dart';
+import 'queue_action_confirmation.dart';
 import 'song_artwork.dart';
 
 /// Per-track overflow menu (Play, Like, Play Next, Add to Queue, Add to
@@ -215,6 +216,22 @@ class _SongLikeMenuItemState extends State<SongLikeMenuItem> {
           ),
           title: Text(isLiked ? 'Dislike song' : 'Like song'),
           onTap: () {
+            // Toast before popping: this item's context dies with the sheet.
+            final before = _playlistService
+                .getPlaylist(PlaylistService.likedSongsId)
+                ?.songIds;
+            showUndoToast(
+              context,
+              isLiked ? 'Removed from Liked Songs' : 'Added to Liked Songs',
+              onUndo: () => unawaited(
+                before == null
+                    ? _toggleLike()
+                    : _playlistService.restorePlaylistSongs(
+                        PlaylistService.likedSongsId,
+                        before,
+                      ),
+              ),
+            );
             Navigator.pop(context);
             unawaited(_toggleLike());
           },

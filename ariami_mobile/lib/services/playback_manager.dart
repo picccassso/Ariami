@@ -15,6 +15,7 @@ import '../models/download_task.dart';
 import 'audio/audio_player_service.dart';
 import 'audio/audio_handler.dart';
 import 'audio/gapless_playback_service.dart';
+import 'audio/keep_queue_on_tap_service.dart';
 import 'audio/play_buttons_follow_playback_service.dart';
 import 'audio/shuffle_service.dart';
 import 'audio/playback_state_manager.dart';
@@ -143,6 +144,19 @@ class PlaybackManager extends ChangeNotifier {
   /// library (stale playlist ids). The app shell listens and surfaces a
   /// snackbar naming the track.
   Stream<Song> get unplayableSongStream => _unplayableSongController.stream;
+
+  final StreamController<Future<void> Function()> _queueReplacedController =
+      StreamController<Future<void> Function()>.broadcast();
+
+  /// Emits an undo each time Play or Shuffle replaces a queue that still had
+  /// songs lined up. The app shell listens and offers it in a toast.
+  Stream<Future<void> Function()> get queueReplacedStream =>
+      _queueReplacedController.stream;
+
+  /// The song a tapped song interrupted while keeping the queue, and where it
+  /// resumes once it plays again (matched by identity).
+  Song? _resumeSong;
+  Duration _resumeSongPosition = Duration.zero;
 
   // Getters
   //
@@ -347,6 +361,8 @@ class PlaybackManager extends ChangeNotifier {
   /// While another device owns the Connect session, browsing here plays there;
   /// otherwise starting music is an implicit takeover.
   Future<void> playSong(Song song) {
+    if (_keepsQueueForTap([song], null)) return _playNowKeepingQueueImpl(song);
+    _offerQueueReplacementUndo([song], null);
     if (_connectRemote != null) {
       _sendConnectPlayContext([song], shuffle: false);
       return Future.value();
@@ -359,6 +375,8 @@ class PlaybackManager extends ChangeNotifier {
 
   /// Plays a one-song context that wraps back to the same song.
   Future<void> playSingleRepeated(Song song) {
+    if (_keepsQueueForTap([song], null)) return _playNowKeepingQueueImpl(song);
+    _offerQueueReplacementUndo([song], null);
     if (_connectRemote != null) {
       _sendConnectPlayContext(
         [song],
@@ -381,6 +399,7 @@ class PlaybackManager extends ChangeNotifier {
     int startIndex = 0,
     String? sourceId,
   }) {
+    _offerQueueReplacementUndo(songs, sourceId);
     if (_connectRemote != null) {
       _sendConnectPlayContext(
         songs,
@@ -395,8 +414,23 @@ class PlaybackManager extends ChangeNotifier {
     return _playSongsImpl(songs, startIndex: startIndex);
   }
 
+  /// Plays [songs] from [index] because the user tapped that song. With
+  /// "Keep My Queue When Tapping a Song" on and songs lined up, only the
+  /// tapped song plays now and the queue carries on after it.
+  Future<void> playTappedSong(
+    List<Song> songs, {
+    required int index,
+    String? sourceId,
+  }) {
+    if (_keepsQueueForTap(songs, sourceId)) {
+      return _playNowKeepingQueueImpl(songs[index]);
+    }
+    return playSongs(songs, startIndex: index, sourceId: sourceId);
+  }
+
   /// Play all songs and shuffle if requested
   Future<void> playShuffled(List<Song> songs, {String? sourceId}) {
+    _offerQueueReplacementUndo(songs, sourceId);
     if (_connectRemote != null) {
       final resolvedOrder = List<int>.generate(songs.length, (index) => index)
         ..shuffle();
@@ -708,6 +742,7 @@ class PlaybackManager extends ChangeNotifier {
     _networkTypeSubscription?.cancel();
     _bufferedPositionSubscription?.cancel();
     _unplayableSongController.close();
+    _queueReplacedController.close();
     FlutterVolumeController.removeListener();
     super.dispose();
   }

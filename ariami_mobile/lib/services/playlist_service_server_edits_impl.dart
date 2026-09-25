@@ -282,6 +282,23 @@ extension _PlaylistServiceServerEditsImpl on PlaylistService {
     );
   }
 
+  Future<void> _restoreServerPlaylistImpl(
+    ServerPlaylistEffectiveState snapshot,
+  ) async {
+    final playlistId = snapshot.base.id;
+    if (!snapshot.hasEdit) {
+      if (_serverPlaylistEdits.containsKey(playlistId)) {
+        await _resetServerPlaylistEditImpl(playlistId);
+      }
+      return;
+    }
+    await _saveServerPlaylistEdit(
+      playlistId: playlistId,
+      songIds: snapshot.songIds,
+      name: snapshot.name == snapshot.base.name ? null : snapshot.name,
+    );
+  }
+
   /// Returns true when the edit reached the server, false when preconditions
   /// (connection, auth, known base playlist) were not met.
   Future<bool> _saveServerPlaylistEdit({

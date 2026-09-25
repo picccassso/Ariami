@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 
 import '../../models/api_models.dart';
@@ -7,6 +8,7 @@ import '../../services/api/connection_service.dart';
 import '../../services/playback_manager.dart';
 import '../../services/playlist_service.dart';
 import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
+import '../../widgets/common/queue_action_confirmation.dart';
 import '../main/library/library_controller.dart';
 import 'add_to_playlist_screen.dart';
 import 'utils/playlist_helpers.dart';
@@ -188,9 +190,9 @@ class _ServerPlaylistDetailScreenState
     final songs =
         _songs.map((song) => songModelToSong(song, _albumInfoMap)).toList();
     unawaited(_libraryController.markPlaylistPlayed(widget.playlistId));
-    await _playbackManager.playSongs(
+    await _playbackManager.playTappedSong(
       songs,
-      startIndex: index,
+      index: index,
       sourceId: PlaybackManager.playlistSource(widget.playlistId),
     );
   }
@@ -230,10 +232,35 @@ class _ServerPlaylistDetailScreenState
     );
   }
 
-  Future<void> _removeSong(String songId) {
-    return _playlistService.removeSongFromServerPlaylist(
+  Future<void> _removeSong(SongModel song) async {
+    final before = _playlistService.resolveServerPlaylist(widget.playlistId);
+    await _playlistService.removeSongFromServerPlaylist(
       playlistId: widget.playlistId,
-      songId: songId,
+      songId: song.id,
+    );
+    _offerRestore(before, 'Removed "${song.title}"');
+  }
+
+  Future<void> _discardEdits() async {
+    final before = _playlistService.resolveServerPlaylist(widget.playlistId);
+    await _playlistService.resetServerPlaylistEdit(widget.playlistId);
+    _offerRestore(before, 'Edits discarded');
+  }
+
+  /// Shows an Undo toast that puts the playlist back to [before], unless the
+  /// change never happened (e.g. offline).
+  void _offerRestore(ServerPlaylistEffectiveState? before, String message) {
+    final after = _playlistService.resolveServerPlaylist(widget.playlistId);
+    if (before == null ||
+        !mounted ||
+        (after?.hasEdit == before.hasEdit &&
+            listEquals(after?.songIds, before.songIds))) {
+      return;
+    }
+    showUndoToast(
+      context,
+      message,
+      onUndo: () => unawaited(_playlistService.restoreServerPlaylist(before)),
     );
   }
 
@@ -322,9 +349,7 @@ class _ServerPlaylistDetailScreenState
             title: const Text('Discard Edits'),
             onTap: () {
               Navigator.pop(context);
-              unawaited(
-                _playlistService.resetServerPlaylistEdit(widget.playlistId),
-              );
+              unawaited(_discardEdits());
             },
           ),
       ],
@@ -401,7 +426,7 @@ class _ServerPlaylistDetailScreenState
                 key: ValueKey(song.id),
                 song: song,
                 index: index,
-                onRemove: () => _removeSong(song.id),
+                onRemove: () => _removeSong(song),
               );
             },
           )
@@ -423,7 +448,7 @@ class _ServerPlaylistDetailScreenState
                       ? null
                       : _albumInfoMap[song.albumId]?.artist,
                   onTap: () => _playTrack(song, index),
-                  onRemove: () => _removeSong(song.id),
+                  onRemove: () => _removeSong(song),
                 );
               },
               childCount: _songs.length,

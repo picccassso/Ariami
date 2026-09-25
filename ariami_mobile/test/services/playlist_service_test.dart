@@ -29,6 +29,30 @@ void main() {
       await deleteDatabase(dbPath);
     });
 
+    test('restorePlaylistSongs undoes a removal at its original position',
+        () async {
+      final playlist = await playlistService.createPlaylist(name: 'Test');
+      for (final id in ['a', 'b', 'c']) {
+        await playlistService.addSongToPlaylist(
+          playlistId: playlist.id,
+          songId: id,
+          title: 'Song $id',
+        );
+      }
+      final before = playlistService.getPlaylist(playlist.id)!.songIds;
+
+      await playlistService.removeSongFromPlaylist(
+        playlistId: playlist.id,
+        songId: 'b',
+      );
+      expect(playlistService.getPlaylist(playlist.id)!.songIds, ['a', 'c']);
+
+      await playlistService.restorePlaylistSongs(playlist.id, before);
+      final restored = playlistService.getPlaylist(playlist.id)!;
+      expect(restored.songIds, ['a', 'b', 'c']);
+      expect(restored.songTitles['b'], 'Song b');
+    });
+
     test('rehydrates missing playlist song metadata from library songs',
         () async {
       final playlist = await playlistService.createPlaylist(name: 'Test');

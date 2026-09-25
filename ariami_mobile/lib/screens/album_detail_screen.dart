@@ -645,21 +645,23 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
 
     if (!mounted || result == null) return;
     final addedIds = result.addedSongIds;
-    showQueueActionConfirmation(
+    final message = 'Added to playlist "${result.playlistName}"';
+    if (addedIds.isEmpty) {
+      showQueueActionConfirmation(context, message: message);
+      return;
+    }
+    showUndoToast(
       context,
-      message: 'Added to playlist "${result.playlistName}"',
-      actionLabel: addedIds.isEmpty ? null : 'Undo',
-      onAction: addedIds.isEmpty
-          ? null
-          : () async {
-              final playlistService = PlaylistService();
-              for (final songId in addedIds) {
-                await playlistService.removeSongFromPlaylist(
-                  playlistId: result.playlistId,
-                  songId: songId,
-                );
-              }
-            },
+      message,
+      onUndo: () async {
+        final playlistService = PlaylistService();
+        for (final songId in addedIds) {
+          await playlistService.removeSongFromPlaylist(
+            playlistId: result.playlistId,
+            songId: songId,
+          );
+        }
+      },
     );
   }
 
@@ -719,9 +721,9 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
     try {
       // Play songs starting from clicked track
       unawaited(_libraryController.markAlbumPlayed(widget.album.id));
-      await _playbackManager.playSongs(
+      await _playbackManager.playTappedSong(
         allSongs,
-        startIndex: startIndex,
+        index: startIndex,
         sourceId: PlaybackManager.albumSource(widget.album.id),
       );
       print('[AlbumDetailScreen] ✅ Playback started successfully!');

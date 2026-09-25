@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import '../../utils/responsive.dart';
 import 'dart:math' as math;
 
@@ -8,6 +10,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../services/audio/equalizer_service.dart';
 import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
+import '../../widgets/common/queue_action_confirmation.dart';
 
 class EqualizerScreen extends StatefulWidget {
   const EqualizerScreen({super.key});
@@ -287,7 +290,14 @@ class _EqualizerScreenState extends State<EqualizerScreen> {
               ),
               onPressed: () {
                 HapticFeedback.mediumImpact();
+                final previous = _equalizerService.selectedPresetName;
                 _equalizerService.resetToFlat();
+                showUndoToast(
+                  context,
+                  'Equalizer reset to flat',
+                  onUndo: () =>
+                      unawaited(_equalizerService.applyPreset(previous)),
+                );
               },
             ),
         ],

@@ -30,6 +30,12 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
     // Serialize overlapping loads: a newer skip supersedes this one.
     final int playGeneration = ++_playCurrentSongGeneration;
 
+    if (identical(queuedSong, _resumeSong)) {
+      _resumeSong = null;
+      _restoredPosition = _resumeSongPosition;
+      _pendingUiPosition = _resumeSongPosition;
+    }
+
     // SongModel stores albumId as the normalized catalog source of truth, but
     // many queue/playback entry points do not carry the denormalized title.
     // Enrich once at the playback boundary so stats, notifications and saved
@@ -493,7 +499,9 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
     if (nextIndex == null ||
         _queue.currentSong?.id != expectedCurrentSong.id ||
         nextIndex < 0 ||
-        nextIndex >= _queue.length) {
+        nextIndex >= _queue.length ||
+        // A gapless item starts from 0:00; a resuming song must load normally.
+        identical(_queue.songs[nextIndex], _resumeSong)) {
       return null;
     }
 

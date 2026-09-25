@@ -168,20 +168,12 @@ extension _PlaylistServiceLocalImpl on PlaylistService {
     required String playlistId,
     required String songId,
   }) async {
-    final index =
-        _playlists.indexWhere((playlist) => playlist.id == playlistId);
-    if (index == -1) return;
-
-    final playlist = _playlists[index];
-    final updatedSongIds = List<String>.from(playlist.songIds)..remove(songId);
-    _playlists[index] = playlist.copyWith(
-      songIds: updatedSongIds,
-      modifiedAt: DateTime.now(),
+    final playlist = _getPlaylistImpl(playlistId);
+    if (playlist == null) return;
+    await _setPlaylistSongIdsImpl(
+      playlistId,
+      playlist.songIds.where((id) => id != songId).toList(),
     );
-
-    await _savePlaylists();
-    _notifyListeners();
-    unawaited(_pushImportedPlaylistEditImpl(playlistId));
   }
 
   Future<void> _reorderSongsImpl({
@@ -189,22 +181,29 @@ extension _PlaylistServiceLocalImpl on PlaylistService {
     required int oldIndex,
     required int newIndex,
   }) async {
+    final playlist = _getPlaylistImpl(playlistId);
+    if (playlist == null) return;
+
+    final updatedSongIds = List<String>.from(playlist.songIds);
+    if (oldIndex < newIndex) {
+      newIndex -= 1;
+    }
+    final songId = updatedSongIds.removeAt(oldIndex);
+    updatedSongIds.insert(newIndex, songId);
+    await _setPlaylistSongIdsImpl(playlistId, updatedSongIds);
+  }
+
+  /// Song metadata is left in place, so this also restores removed songs.
+  Future<void> _setPlaylistSongIdsImpl(
+    String playlistId,
+    List<String> songIds,
+  ) async {
     final index =
         _playlists.indexWhere((playlist) => playlist.id == playlistId);
     if (index == -1) return;
 
-    final playlist = _playlists[index];
-    final updatedSongIds = List<String>.from(playlist.songIds);
-
-    if (oldIndex < newIndex) {
-      newIndex -= 1;
-    }
-
-    final songId = updatedSongIds.removeAt(oldIndex);
-    updatedSongIds.insert(newIndex, songId);
-
-    _playlists[index] = playlist.copyWith(
-      songIds: updatedSongIds,
+    _playlists[index] = _playlists[index].copyWith(
+      songIds: List<String>.from(songIds),
       modifiedAt: DateTime.now(),
     );
 

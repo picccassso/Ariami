@@ -405,8 +405,18 @@ class _SearchScreenState extends State<SearchScreen> {
 
   /// Clear all recent songs
   Future<void> _clearRecentSongs() async {
+    final cleared = _recentSongs;
     await _searchService.clearRecentSongs();
     await _loadRecentSongs();
+    if (!mounted || cleared.isEmpty) return;
+    showUndoToast(
+      context,
+      'Recently played cleared',
+      onUndo: () async {
+        await _searchService.restoreRecentSongs(cleared);
+        await _loadRecentSongs();
+      },
+    );
   }
 
   /// Remove a specific song from recent songs with undo support
@@ -416,12 +426,10 @@ class _SearchScreenState extends State<SearchScreen> {
 
     // Show confirmation with undo option above bottom chrome (mini player + nav)
     if (mounted) {
-      showQueueActionConfirmation(
+      showUndoToast(
         context,
-        message: '"${song.title}" removed',
-        actionLabel: 'Undo',
-        onAction: () => _undoRemoveRecentSong(song, originalIndex),
-        duration: const Duration(seconds: 4),
+        '"${song.title}" removed',
+        onUndo: () => _undoRemoveRecentSong(song, originalIndex),
       );
     }
   }

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../../../models/download_task.dart';
 import '../../../services/api/connection_service.dart';
 import '../../../widgets/common/mini_player_aware_bottom_sheet.dart';
+import '../../../widgets/common/queue_action_confirmation.dart';
 import 'downloads_controller.dart';
 import 'downloads_state.dart';
 import 'widgets/widgets.dart';
@@ -128,6 +129,16 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
     if (confirmed == true) {
       await _controller.deleteAlbumDownloads(albumId);
     }
+  }
+
+  /// Removes one downloaded song; Undo downloads it again.
+  void _removeDownload(DownloadTask task) {
+    _controller.cancelDownload(task.id);
+    showUndoToast(
+      context,
+      'Removed "${task.title}"',
+      onUndo: () => unawaited(_controller.redownload(task)),
+    );
   }
 
   Future<void> _resumeInterruptedDownloads() async {
@@ -442,7 +453,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                     task: song,
                     isDark: isDark,
                     isLast: songIndex == songs.length - 1,
-                    onRemove: () => _controller.cancelDownload(song.id),
+                    onRemove: () => _removeDownload(song),
                   ),
                 );
               },
@@ -468,7 +479,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
               final name = songs.first.albumName ?? 'Unknown Album';
               _confirmDeleteAlbum(albumId, name, songs.length);
             },
-            onRemoveSong: _controller.cancelDownload,
+            onRemoveSong: _removeDownload,
           ),
         ),
       );

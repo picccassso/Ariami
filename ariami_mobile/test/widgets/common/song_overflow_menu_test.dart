@@ -64,5 +64,12 @@ void main() {
       playlistService.getPlaylist(PlaylistService.likedSongsId)?.songIds,
       isNot(contains(song.id)),
     );
+
+    expect(find.text('Removed from Liked Songs'), findsOneWidget);
+    await tester.tap(find.text('Undo'));
+    await tester.pumpAndSettle();
+
+    expect(playlistService.isLikedSong(song.id), isTrue);
+    expect(find.text('Undo'), findsNothing);
   });
 }

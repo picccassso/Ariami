@@ -304,6 +304,15 @@ class SearchService {
     await prefs.remove(_recentSongsKey);
   }
 
+  /// Replace recent songs wholesale (used to undo clearing them)
+  Future<void> restoreRecentSongs(List<SongModel> songs) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(
+      _recentSongsKey,
+      songs.map((s) => jsonEncode(s.toJson())).toList(),
+    );
+  }
+
   /// Remove a specific recent song
   Future<void> removeRecentSong(String songId) async {
     final prefs = await SharedPreferences.getInstance();

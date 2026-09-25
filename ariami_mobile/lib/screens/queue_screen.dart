@@ -272,12 +272,10 @@ class _QueueScreenState extends State<QueueScreen> {
     setState(() {});
 
     if (removal != null && widget.onUndoRemove != null) {
-      showQueueActionConfirmation(
+      showUndoToast(
         context,
-        message: 'Removed "${removal.song.title}"',
-        actionLabel: 'UNDO',
-        onAction: () => unawaited(_handleUndoRemove(removal)),
-        duration: const Duration(seconds: 5),
+        'Removed "${removal.song.title}"',
+        onUndo: () => unawaited(_handleUndoRemove(removal)),
       );
     }
   }

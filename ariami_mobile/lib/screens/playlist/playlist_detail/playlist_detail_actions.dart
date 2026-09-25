@@ -200,9 +200,9 @@ abstract class _PlaylistDetailActionsState
     final songs =
         songsToPlay.map((s) => songModelToSong(s, _albumInfoMap)).toList();
     unawaited(_libraryController.markPlaylistPlayed(widget.playlistId));
-    await _playbackManager.playSongs(
+    await _playbackManager.playTappedSong(
       songs,
-      startIndex: startIndex,
+      index: startIndex,
       sourceId: _playbackSourceId,
     );
   }
@@ -309,11 +309,20 @@ abstract class _PlaylistDetailActionsState
     );
   }
 
-  /// Remove a song from playlist
-  Future<void> _removeSong(String songId) async {
+  /// Remove a song from playlist, offering Undo
+  Future<void> _removeSong(SongModel song) async {
+    final before = _playlistService.getPlaylist(widget.playlistId)?.songIds;
     await _playlistService.removeSongFromPlaylist(
       playlistId: widget.playlistId,
-      songId: songId,
+      songId: song.id,
+    );
+    if (before == null || !mounted) return;
+    showUndoToast(
+      context,
+      'Removed "${song.title}"',
+      onUndo: () => unawaited(
+        _playlistService.restorePlaylistSongs(widget.playlistId, before),
+      ),
     );
   }
 

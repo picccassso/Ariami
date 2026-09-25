@@ -840,6 +840,23 @@ class DownloadsController extends ChangeNotifier {
     _downloadManager.cancelDownload(taskId);
   }
 
+  /// Queues [task]'s song again, e.g. to undo removing its download.
+  Future<void> redownload(DownloadTask task) => _downloadManager.downloadSong(
+        songId: task.songId,
+        title: task.title,
+        artist: task.artist,
+        genre: task.genre,
+        albumId: task.albumId,
+        albumName: task.albumName,
+        albumArtist: task.albumArtist,
+        albumArt: task.albumArt,
+        downloadQuality: task.downloadQuality,
+        downloadOriginal: task.downloadOriginal,
+        duration: task.duration,
+        trackNumber: task.trackNumber,
+        totalBytes: task.totalBytes,
+      );
+
   Future<int> cancelInterruptedDownloads() async {
     return _downloadManager.cancelInterruptedDownloads();
   }

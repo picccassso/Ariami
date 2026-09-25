@@ -126,14 +126,14 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(queue.songs.map((song) => song.id), ['a', 'c']);
-    expect(find.text('UNDO'), findsOneWidget);
+    expect(find.text('Undo'), findsOneWidget);
 
-    await tester.tap(find.text('UNDO'));
+    await tester.tap(find.text('Undo'));
     await tester.pump();
 
     expect(queue.songs.map((song) => song.id), ['a', 'b', 'c']);
     expect(find.text('Song b'), findsOneWidget);
-    expect(find.text('UNDO'), findsNothing);
+    expect(find.text('Undo'), findsNothing);
   });
 
   testWidgets('clear queue keeps Now Playing and removes the clear action',

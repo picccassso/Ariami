@@ -536,6 +536,137 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
     }
   }
 
+  /// Whether the queue about to be replaced by [songs] still has songs lined
+  /// up. Hopping within the same collection doesn't count, unless hand-queued
+  /// songs would be lost.
+  bool _queueWorthKeeping(List<Song> songs, String? sourceId) {
+    final remote = _connectRemote;
+    if (remote != null) {
+      final snapshot = remote.snapshot;
+      return snapshot.currentIndex < snapshot.queue.length - 1 &&
+          !_isSameQueueContext(
+            snapshot.sourceId,
+            _connectRemoteSongs,
+            sourceId,
+            songs,
+          );
+    }
+    if (_queue.isEmpty) return false;
+    return _oneShotQueuedSongs.isNotEmpty ||
+        (_queue.hasNext &&
+            !_isSameQueueContext(_sourceId, _queue.songs, sourceId, songs));
+  }
+
+  /// Whether the collection [songs] from [sourceId] is the one already playing.
+  bool _isSameQueueContext(
+    String? previousSourceId,
+    List<Song> previousSongs,
+    String? sourceId,
+    List<Song> songs,
+  ) {
+    if (sourceId != null && sourceId == previousSourceId) return true;
+    if (songs.length != previousSongs.length) return false;
+    final previousIds = previousSongs.map((song) => song.id).toSet();
+    return songs.every((song) => previousIds.contains(song.id));
+  }
+
+  /// Whether a tapped song should play now with the queue carrying on after
+  /// it ("Keep My Queue When Tapping a Song"; loaded in [initialize]).
+  bool _keepsQueueForTap(List<Song> songs, String? sourceId) =>
+      KeepQueueOnTapService().isEnabled && _queueWorthKeeping(songs, sourceId);
+
+  /// Called before Play/Shuffle replaces the queue with [songs]: publishes an
+  /// undo when songs that were lined up are about to be lost.
+  void _offerQueueReplacementUndo(List<Song> songs, String? sourceId) {
+    if (_queueReplacedController.isClosed ||
+        !_queueWorthKeeping(songs, sourceId)) {
+      return;
+    }
+    _queueReplacedController.add(
+      _connectRemote != null
+          ? _captureConnectQueueForUndo()
+          : _captureLocalQueueForUndo(),
+    );
+  }
+
+  /// Returns an undo that restores the current queue, song and position.
+  Future<void> Function() _captureLocalQueueForUndo() {
+    final previousSongs = _queue.songs;
+    final currentIndex = _queue.currentIndex;
+    final oneShot = HashSet<Song>.identity()..addAll(_oneShotQueuedSongs);
+    final isShuffleEnabled = _isShuffleEnabled;
+    final originalQueue = _shuffleService.originalQueue.cast<Song>().toList();
+    final repeatMode = _repeatMode;
+    final previousSourceId = _sourceId;
+    final position = _localPosition;
+    final wasPlaying = _localIsPlaying;
+
+    return () async {
+      // Another device took over in the meantime; its queue is not ours.
+      if (_connectRemote != null) return;
+      try {
+        _castFailureSkipStreak = 0;
+        _castPlaybackWatchdog.reset();
+        _invalidatePendingRestore('undo-queue-replacement');
+        await _statsService.onSongStopped();
+        _queue =
+            PlaybackQueue(songs: previousSongs, currentIndex: currentIndex);
+        _oneShotQueuedSongs
+          ..clear()
+          ..addAll(oneShot);
+        _shuffleService.reset();
+        _isShuffleEnabled = isShuffleEnabled;
+        if (isShuffleEnabled) {
+          _shuffleService.restoreShuffled(
+            originalQueue: originalQueue,
+            shuffledQueue: previousSongs,
+          );
+        }
+        _repeatMode = repeatMode;
+        _sourceId = previousSourceId;
+        _restoredPosition = position;
+        _pendingUiPosition = position;
+        _notifyStateChanged();
+
+        await _playCurrentSong(
+          autoPlay: wasPlaying,
+          restartStatsTracking: wasPlaying,
+        );
+        _notifyStateChanged();
+        await _saveState();
+      } catch (e) {
+        debugPrint('[PlaybackManager] Error undoing queue replacement: $e');
+      }
+    };
+  }
+
+  /// Plays [song] now and keeps the queue after it; the interrupted song
+  /// resumes where it stopped once [song] ends.
+  Future<void> _playNowKeepingQueueImpl(Song song) async {
+    final remote = _connectRemote;
+    if (remote != null) {
+      _playNowOnConnectKeepingQueue(remote, song);
+      return;
+    }
+    _suppressConnectMirror();
+    _castFailureSkipStreak = 0;
+    _castPlaybackWatchdog.reset();
+    _invalidatePendingRestore('playNowKeepingQueue');
+    _restoredPosition = null;
+    _pendingUiPosition = null;
+
+    final index = _queue.currentIndex;
+    _resumeSong = _queue.currentSong;
+    _resumeSongPosition = _localPosition;
+    _queue.insertSong(index, song.copyWith());
+    _queue.jumpToIndex(index);
+    _syncShuffleQueueAfterEdit();
+
+    await _playCurrentSong();
+    _notifyStateChanged();
+    await _saveState();
+  }
+
   Future<void> _seekImpl(Duration position) async {
     try {
       // User is manually seeking - update restored position so pressing play

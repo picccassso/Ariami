@@ -20,6 +20,7 @@ import '../services/playback_manager.dart';
 import '../services/ariami_connect_controller.dart';
 import '../utils/constants.dart';
 import '../widgets/common/ambient_backdrop.dart';
+import '../widgets/common/queue_action_confirmation.dart';
 
 class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({super.key});
@@ -36,6 +37,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
   final AriamiConnectController _connect = AriamiConnectController();
   final ValueNotifier<int> _searchTabReselections = ValueNotifier<int>(0);
   bool _refreshConnectOnResume = false;
+  StreamSubscription<Future<void> Function()>? _queueReplacedSubscription;
 
   void _goToLibrary() {
     setState(() {
@@ -99,12 +101,22 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
     _playbackManager.initialize();
     unawaited(_connect.start(_playbackManager));
     _playbackManager.addListener(_onPlaybackStateChanged);
+    _queueReplacedSubscription =
+        _playbackManager.queueReplacedStream.listen((undo) {
+      if (!mounted) return;
+      showUndoToast(
+        context,
+        'Queue replaced',
+        onUndo: () => unawaited(undo()),
+      );
+    });
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _playbackManager.removeListener(_onPlaybackStateChanged);
+    _queueReplacedSubscription?.cancel();
     ArtistPageOpener().unregister(_openArtistPage);
     AlbumPageOpener().unregister(_openAlbumPage);
     _searchTabReselections.dispose();
