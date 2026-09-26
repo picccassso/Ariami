@@ -20,7 +20,10 @@ void main() async {
     size: Size(900, 700),
     minimumSize: Size(600, 500),
     center: true,
-    backgroundColor: Colors.transparent,
+    // Solid: Flutter paints every pixel anyway, and a clear window background
+    // makes macOS WindowServer composite the window at a heavy GPU cost on
+    // every screen update, even while the app sits idle.
+    backgroundColor: Colors.black,
     skipTaskbar: false,
     titleBarStyle: TitleBarStyle.normal,
   );
