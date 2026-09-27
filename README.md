@@ -273,6 +273,8 @@ gapless playback, and an equalizer with built-in and custom presets. Download tr
 playlists or the whole library for offline listening, with a manual offline mode and automatic
 fallback when the connection drops. Quality presets follow connection type, with separate
 settings for streaming and downloads, and a streaming cache for anything not yet downloaded.
+Downloads can be requested at Original, High, Medium or Low quality, accidental actions such as
+replacing the queue can be undone, and Play next picks can optionally stack in the order chosen.
 Server-side transcoding is handled by Sonic (MP3/WAV/FLAC → Opus/AAC/M4A/MP3), with server-managed download jobs and
 per-user concurrency limits so one device cannot starve the others. Mobile and the Premium
 Desktop Player cast to Chromecast, and Mobile can control a Desktop cast through Ariami Connect.

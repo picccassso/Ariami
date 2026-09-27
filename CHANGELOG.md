@@ -6,6 +6,69 @@ Thank you for those that actually support and use this project at all! :D
 
 ---
 
+## 5.2.3
+
+Ariami 5.2.3 brings a new ambient glass look to Mobile, Premium Desktop and
+TV, with backgrounds that can move with the music and a full-screen music
+visualizer. It adds negotiated high-quality offline downloads, undo for
+accidental actions, and a stackable Play next, and makes Premium Desktop
+noticeably lighter on CPU, GPU and memory. It also includes the 5.2.2 server
+scan fix for every client release.
+
+### Highlights
+
+- Gave Mobile, Premium Desktop and TV an ambient glass visual overhaul, lit by
+  the theme or by up to three colours from the current cover art.
+- Added an optional moving background that pulses with the music, and a
+  full-screen music visualizer on Premium Desktop and TV.
+- Added negotiated Original, High, Medium and Low quality offline downloads,
+  with Sonic WAV and FLAC conversion and platform-compatible containers.
+- Let accidental actions be undone on Mobile and Premium Desktop, including
+  replacing a queue with Play or Shuffle.
+- Added a "Stack Play next" setting on Mobile, Premium Desktop and TV so
+  several Play next picks play in the order they were chosen.
+- Cut Premium Desktop's CPU use while playing from roughly 13-17% to 3-4%,
+  capped decoded cover memory, and stopped the idle window loading the GPU.
+
+### Full changes
+
+- Added the ambient glass look to Mobile, Premium Desktop and TV, including
+  the setup, connect and sign-in screens
+- Added "Moving background" and "Music visualizer" motion settings, both off by
+  default, with the visualizer running smoothly on a Fire TV Stick
+- Kept TV menus at 60 fps under the ambient glass look
+- Blurred the full-screen player's cover once per track on Mobile and Desktop
+- Added negotiated high-quality offline downloads and Mobile quality controls
+  for streaming and downloads across all tiers
+- Fixed offline playback for negotiated download formats across all audio
+  containers
+- Made Mobile bulk downloads recover finished files after suspension and report
+  accurate progress
+- Showed an artist's full downloads on Mobile's artist page while offline
+- Added Undo toasts for playlist removals, likes, equalizer resets, cleared
+  recent searches, deleted downloads and replaced queues
+- Added a "Keep My Queue When Tapping a Song" playback setting on Mobile
+- Let Play next stack and said where Add to queue puts songs
+- Turned Premium Desktop's Add to playlist into a multi-select playlists
+  checklist
+- Made album names clickable in Premium Desktop track rows
+- Let the Premium Desktop volume slider follow the mouse wheel and touchpad
+- Enabled trackpad scrolling for Premium Desktop scroll rails
+- Redesigned Premium Desktop's settings controls
+- Added a configurable recent searches limit to Mobile and Premium Desktop
+- Merged Mobile's General settings into a single section and converted option
+  dialogs to bottom sheets
+- Showed song and playlist cover art in sheets and pickers
+- Moved Mobile library top bar actions into an options sheet
+- Made the back gesture cancel a batch selection instead of leaving the app
+- Fixed "Unknown Album" when opening an album from recent searches
+- Kept the listening stats period selector opaque over scrolling lists
+- Kept Mobile's undo toast off the full-screen player
+- Let Mobile build for iOS with current Xcode
+- Included the 5.2.2 fix for repeated server scans after storage errors
+
+---
+
 ## 5.2.2
 
 Ariami 5.2.2 is a server-only hotfix for Docker and CLI installations. It
