@@ -65,6 +65,10 @@ class CachedArtwork extends StatefulWidget {
   /// Defaults to [ArtworkSizeHint.full] for backward compatibility.
   final ArtworkSizeHint sizeHint;
 
+  /// Draws the resolved cover itself (e.g. blurred) in place of
+  /// the plain image; nothing is shown while there is no cover to hand it.
+  final Widget Function(ImageProvider cover)? imageBuilder;
+
   const CachedArtwork({
     super.key,
     required this.albumId,
@@ -78,6 +82,7 @@ class CachedArtwork extends StatefulWidget {
     this.fallbackIcon = Icons.album,
     this.fallbackIconSize = 48,
     this.sizeHint = ArtworkSizeHint.full,
+    this.imageBuilder,
   });
 
   @override
@@ -451,6 +456,8 @@ class _CachedArtworkState extends State<CachedArtwork> {
 
   @override
   Widget build(BuildContext context) {
+    final imageBuilder = widget.imageBuilder;
+    if (imageBuilder != null) return _buildWithImageBuilder(imageBuilder);
     Widget imageWidget;
 
     if (_isLoading) {
@@ -474,6 +481,21 @@ class _CachedArtworkState extends State<CachedArtwork> {
     }
 
     return imageWidget;
+  }
+
+  Widget _buildWithImageBuilder(
+    Widget Function(ImageProvider cover) imageBuilder,
+  ) {
+    if (_isLoading) return const SizedBox.shrink();
+    final path = _localPath;
+    final url = _networkFallbackUrl;
+    if (path != null) return imageBuilder(FileImage(File(path)));
+    if (url != null && !_offlineService.isOffline) {
+      return imageBuilder(
+        NetworkImage(url, headers: _connectionService.authHeaders),
+      );
+    }
+    return const SizedBox.shrink();
   }
 
   Widget _buildDiskImage() {

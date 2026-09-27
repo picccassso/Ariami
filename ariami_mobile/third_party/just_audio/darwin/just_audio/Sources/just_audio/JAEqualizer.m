@@ -6,15 +6,17 @@
 // Associated-object key marking items whose tap attach is already underway.
 static char kJAEqAttachRequestedKey;
 
-// Level metering is app-wide: whichever tap is rendering publishes the kick
-// band (35–150 Hz) energy of what is playing, for UI that follows the music.
-// Taps render ~0.7 s ahead of the speakers, so each reading is stamped with
-// its media time and a ring buffer holds them until playback catches up.
+// Level metering is app-wide: whichever tap is rendering publishes the energy
+// of what is playing in each of JA_LEVEL_BANDS bands, for UI that follows the
+// music (see NativeLevels in just_audio.dart for the bands). Taps render
+// ~0.7 s ahead of the speakers, so each reading is stamped with its media
+// time and a ring buffer holds them until playback catches up.
 static atomic_bool gJAMetering;
 #define JA_LEVEL_BLOCK 256
 #define JA_LEVEL_RING 2048
+#define JA_LEVEL_BANDS 11
 static double gJARingTime[JA_LEVEL_RING];
-static float gJARingLevel[JA_LEVEL_RING];
+static float gJARingLevel[JA_LEVEL_RING][JA_LEVEL_BANDS];
 static atomic_uint gJARingHead;
 static _Atomic double gJABlockSeconds;
 // Main-thread only: the media time up to which readings have been returned.
@@ -27,6 +29,34 @@ static double gJALastRead = -1;
 // Filter quality for each peaking band. ~0.9 gives gentle overlap for a
 // 5-band layout spanning 60Hz-14kHz.
 #define JA_EQ_BAND_Q 0.9
+
+// The level meter's filters. Mid is the centre of the stereo image (L+R)/2,
+// side its spread (L-R)/2.
+enum {
+    JA_F_KICK_HP, JA_F_KICK_LP,   // mid 35–150 Hz
+    JA_F_BASS_HP, JA_F_BASS_LP,   // mid 40–250 Hz
+    JA_F_SNARE_LO, JA_F_SNARE_HI, // mid 200 Hz + 2.5 kHz, in parallel
+    JA_F_HATS_HP,                 // mid above 7 kHz
+    JA_F_MID_HP, JA_F_MID_LP,     // mid 300–3400 Hz
+    JA_F_SIDE_HP, JA_F_SIDE_LP,   // side 300–3400 Hz
+    JA_F_WIDE_HP, JA_F_WIDE_LP,   // side 150–8000 Hz
+    JA_F_HIGH_L, JA_F_HIGH_R,     // left and right above 7 kHz
+    JA_F_MIDS_L_HP, JA_F_MIDS_L_LP, JA_F_MIDS_R_HP, JA_F_MIDS_R_LP, // left and right 150–8000 Hz
+    JA_F_COUNT
+};
+typedef enum { JA_HIGH_PASS, JA_LOW_PASS, JA_BAND_PASS } JAFilterKind;
+static const struct { JAFilterKind kind; double frequency, q; } kJAMeterFilters[JA_F_COUNT] = {
+    {JA_HIGH_PASS, 35, M_SQRT1_2}, {JA_LOW_PASS, 150, M_SQRT1_2},
+    {JA_HIGH_PASS, 40, M_SQRT1_2}, {JA_LOW_PASS, 250, M_SQRT1_2},
+    {JA_BAND_PASS, 200, 1.2}, {JA_BAND_PASS, 2500, 0.9},
+    {JA_HIGH_PASS, 7000, M_SQRT1_2},
+    {JA_HIGH_PASS, 300, M_SQRT1_2}, {JA_LOW_PASS, 3400, M_SQRT1_2},
+    {JA_HIGH_PASS, 300, M_SQRT1_2}, {JA_LOW_PASS, 3400, M_SQRT1_2},
+    {JA_HIGH_PASS, 150, M_SQRT1_2}, {JA_LOW_PASS, 8000, M_SQRT1_2},
+    {JA_HIGH_PASS, 7000, M_SQRT1_2}, {JA_HIGH_PASS, 7000, M_SQRT1_2},
+    {JA_HIGH_PASS, 150, M_SQRT1_2}, {JA_LOW_PASS, 8000, M_SQRT1_2},
+    {JA_HIGH_PASS, 150, M_SQRT1_2}, {JA_LOW_PASS, 8000, M_SQRT1_2},
+};
 
 // Gain/enabled state shared between the main thread and every render tap.
 // Reference-counted with plain C atomics because taps can outlive the
@@ -62,10 +92,10 @@ typedef struct {
     bool bandActive[JA_EQ_MAX_BANDS];
     // bandCount * channelCount states, laid out band-major.
     JAEqBiquadState *states;
-    // Level meter: band-pass filters, energy envelope and block position.
-    JAEqBiquadCoeffs levelHp, levelLp;
-    JAEqBiquadState levelHpState, levelLpState;
-    float levelAlpha, levelEnergy;
+    // Level meter: filters, per-band energy envelopes and block position.
+    JAEqBiquadCoeffs meterCoeffs[JA_F_COUNT];
+    JAEqBiquadState meterStates[JA_F_COUNT];
+    float levelAlpha, levelEnergy[JA_LEVEL_BANDS];
     int levelCount;
     double nextTime;
 } JAEqTapContext;
@@ -129,17 +159,25 @@ static void ja_eq_process_channel(JAEqTapContext *ctx, int channel, float *sampl
     }
 }
 
-// RBJ Audio EQ Cookbook high-/low-pass (Q = 1/sqrt 2).
-static JAEqBiquadCoeffs ja_pass_coeffs(double sampleRate, double frequency, bool high) {
+// RBJ Audio EQ Cookbook high-/low-pass and band-pass (0 dB peak).
+static JAEqBiquadCoeffs ja_filter_coeffs(double sampleRate, JAFilterKind kind,
+                                         double frequency, double q) {
     JAEqBiquadCoeffs c;
     double w0 = 2.0 * M_PI * frequency / sampleRate;
     double cosw0 = cos(w0);
-    double alpha = sin(w0) / (2.0 * M_SQRT1_2);
+    double alpha = sin(w0) / (2.0 * q);
     double a0 = 1.0 + alpha;
-    double edge = high ? (1.0 + cosw0) / 2.0 : (1.0 - cosw0) / 2.0;
-    c.b0 = (float)(edge / a0);
-    c.b1 = (float)((high ? -2.0 : 2.0) * edge / a0);
-    c.b2 = c.b0;
+    if (kind == JA_BAND_PASS) {
+        c.b0 = (float)(alpha / a0);
+        c.b1 = 0;
+        c.b2 = -c.b0;
+    } else {
+        bool high = kind == JA_HIGH_PASS;
+        double edge = high ? (1.0 + cosw0) / 2.0 : (1.0 - cosw0) / 2.0;
+        c.b0 = (float)(edge / a0);
+        c.b1 = (float)((high ? -2.0 : 2.0) * edge / a0);
+        c.b2 = c.b0;
+    }
     c.a1 = (float)((-2.0 * cosw0) / a0);
     c.a2 = (float)((1.0 - alpha) / a0);
     return c;
@@ -152,32 +190,58 @@ static inline float ja_biquad(JAEqBiquadCoeffs c, JAEqBiquadState *s, float x0) 
     return y0;
 }
 
-// Pushes the kick-band envelope (mono mix, 35–150 Hz, ~8 ms energy smoothing)
-// into the ring every JA_LEVEL_BLOCK frames, stamped with its media time.
+// Pushes every band's envelope (~8 ms energy smoothing) into the ring every
+// JA_LEVEL_BLOCK frames, stamped with its media time.
 static void ja_level_measure(JAEqTapContext *ctx, AudioBufferList *list,
                              CMItemCount frames, CMTimeRange range) {
     if (frames <= 0) return;
     double start = CMTIME_IS_NUMERIC(range.start) ? CMTimeGetSeconds(range.start) : ctx->nextTime;
     ctx->nextTime = start + frames / ctx->sampleRate;
     for (CMItemCount i = 0; i < frames; i++) {
-        float mono = 0;
+        float mid = 0, left = 0, right = 0;
         int count = 0;
         for (UInt32 b = 0; b < list->mNumberBuffers; b++) {
             const float *data = (const float *)list->mBuffers[b].mData;
             if (!data) continue;
             UInt32 channels = list->mBuffers[b].mNumberChannels > 0 ? list->mBuffers[b].mNumberChannels : 1;
-            for (UInt32 c = 0; c < channels; c++) mono += data[i * channels + c];
-            count += channels;
+            for (UInt32 c = 0; c < channels; c++) {
+                float x = data[i * channels + c];
+                if (count == 0) left = x;
+                else if (count == 1) right = x;
+                mid += x;
+                count++;
+            }
         }
-        if (count > 0) mono /= count;
-        float band = ja_biquad(ctx->levelLp, &ctx->levelLpState,
-                               ja_biquad(ctx->levelHp, &ctx->levelHpState, mono));
-        ctx->levelEnergy += ctx->levelAlpha * (band * band - ctx->levelEnergy);
+        if (count > 0) mid /= count;
+        if (count == 1) right = left;
+        float side = 0.5f * (left - right);
+        JAEqBiquadCoeffs *k = ctx->meterCoeffs;
+        JAEqBiquadState *s = ctx->meterStates;
+#define JA_F(n, x) ja_biquad(k[n], &s[n], (x))
+        float bands[JA_LEVEL_BANDS] = {
+            JA_F(JA_F_KICK_LP, JA_F(JA_F_KICK_HP, mid)),
+            JA_F(JA_F_BASS_LP, JA_F(JA_F_BASS_HP, mid)),
+            JA_F(JA_F_SNARE_LO, mid) + JA_F(JA_F_SNARE_HI, mid),
+            JA_F(JA_F_HATS_HP, mid),
+            JA_F(JA_F_MID_LP, JA_F(JA_F_MID_HP, mid)),
+            JA_F(JA_F_SIDE_LP, JA_F(JA_F_SIDE_HP, side)),
+            JA_F(JA_F_WIDE_LP, JA_F(JA_F_WIDE_HP, side)),
+            JA_F(JA_F_HIGH_L, left),
+            JA_F(JA_F_HIGH_R, right),
+            JA_F(JA_F_MIDS_L_LP, JA_F(JA_F_MIDS_L_HP, left)),
+            JA_F(JA_F_MIDS_R_LP, JA_F(JA_F_MIDS_R_HP, right)),
+        };
+#undef JA_F
+        for (int n = 0; n < JA_LEVEL_BANDS; n++) {
+            ctx->levelEnergy[n] += ctx->levelAlpha * (bands[n] * bands[n] - ctx->levelEnergy[n]);
+        }
         if (++ctx->levelCount < JA_LEVEL_BLOCK) continue;
         ctx->levelCount = 0;
         unsigned head = atomic_load_explicit(&gJARingHead, memory_order_relaxed);
         gJARingTime[head % JA_LEVEL_RING] = start + (i + 1) / ctx->sampleRate;
-        gJARingLevel[head % JA_LEVEL_RING] = sqrtf(ctx->levelEnergy);
+        for (int n = 0; n < JA_LEVEL_BANDS; n++) {
+            gJARingLevel[head % JA_LEVEL_RING][n] = sqrtf(ctx->levelEnergy[n]);
+        }
         atomic_store_explicit(&gJARingHead, head + 1, memory_order_release);
     }
 }
@@ -207,12 +271,13 @@ static void ja_eq_tap_prepare(MTAudioProcessingTapRef tap, CMItemCount maxFrames
     ctx->states = calloc((size_t)ctx->shared->bandCount * ctx->channelCount,
                          sizeof(JAEqBiquadState));
     ctx->cachedGeneration = -1;
-    ctx->levelHp = ja_pass_coeffs(ctx->sampleRate, 35.0, true);
-    ctx->levelLp = ja_pass_coeffs(ctx->sampleRate, 150.0, false);
-    memset(&ctx->levelHpState, 0, sizeof(JAEqBiquadState));
-    memset(&ctx->levelLpState, 0, sizeof(JAEqBiquadState));
+    for (int n = 0; n < JA_F_COUNT; n++) {
+        ctx->meterCoeffs[n] = ja_filter_coeffs(ctx->sampleRate, kJAMeterFilters[n].kind,
+                                               kJAMeterFilters[n].frequency, kJAMeterFilters[n].q);
+    }
+    memset(ctx->meterStates, 0, sizeof(ctx->meterStates));
     ctx->levelAlpha = (float)(1.0 - exp(-1.0 / (0.008 * ctx->sampleRate)));
-    ctx->levelEnergy = 0;
+    memset(ctx->levelEnergy, 0, sizeof(ctx->levelEnergy));
     ctx->levelCount = 0;
     atomic_store(&gJABlockSeconds, JA_LEVEL_BLOCK / ctx->sampleRate);
 }
@@ -315,15 +380,18 @@ static void ja_eq_tap_process(MTAudioProcessingTapRef tap, CMItemCount numberFra
     if (gJALastRead < 0 || mediaTime < gJALastRead || mediaTime > gJALastRead + 0.5) {
         gJALastRead = mediaTime - 0.05;
     }
-    NSMutableData *out = [NSMutableData dataWithLength:sizeof(double)];
+    NSMutableData *out = [NSMutableData dataWithLength:2 * sizeof(double)];
     ((double *)out.mutableBytes)[0] = atomic_load(&gJABlockSeconds);
+    ((double *)out.mutableBytes)[1] = JA_LEVEL_BANDS;
     unsigned head = atomic_load_explicit(&gJARingHead, memory_order_acquire);
     unsigned count = MIN(head, (unsigned)JA_LEVEL_RING);
     for (unsigned n = head - count; n != head; n++) {
         double time = gJARingTime[n % JA_LEVEL_RING];
         if (time <= gJALastRead || time > mediaTime) continue;
-        double level = gJARingLevel[n % JA_LEVEL_RING];
-        [out appendBytes:&level length:sizeof(double)];
+        for (int b = 0; b < JA_LEVEL_BANDS; b++) {
+            double level = gJARingLevel[n % JA_LEVEL_RING][b];
+            [out appendBytes:&level length:sizeof(double)];
+        }
     }
     gJALastRead = mediaTime;
     return out;

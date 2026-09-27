@@ -4586,32 +4586,52 @@ class DarwinEqualizer extends AudioEffect with DarwinAudioEffect {
       );
 }
 
-/// (Ariami fork) Live kick-band level of this device's playback. On
-/// iOS/macOS it is measured by the same audio tap as [DarwinEqualizer] (so
-/// only players created with one are metered); on Android by the player's
-/// audio sink. Metering is off until enabled and costs nothing while off.
+/// (Ariami fork) Live band levels of this device's playback. On iOS/macOS
+/// they are measured by the same audio tap as [DarwinEqualizer] (so only
+/// players created with one are metered); on Android by the player's audio
+/// sink. Metering is off until enabled and costs nothing while off.
 class NativeLevelMeter {
   static const _channel = MethodChannel('com.ryanheise.just_audio.levels');
 
   static Future<void> setEnabled(bool enabled) =>
       _channel.invokeMethod<void>('setMetering', enabled);
 
-  /// The 35–150 Hz energy envelope (linear, 0 = silence, 1 = full scale) of
-  /// the audio heard since the last call, oldest first, one reading per
+  /// The band energy envelopes (linear, 0 = silence, 1 = full scale) of the
+  /// audio heard since the last call, oldest first, one reading per
   /// [NativeLevels.blockSeconds]. Null while nothing is playing.
   static Future<NativeLevels?> levels() async {
     final data = await _channel.invokeMethod<Float64List>('levels');
-    if (data == null || data.isEmpty) return null;
-    return NativeLevels._(data.first, data.sublist(1));
+    if (data == null || data.length < 2) return null;
+    return NativeLevels._(data[0], data[1].toInt(), data.sublist(2));
   }
 }
 
 /// (Ariami fork) A batch of [NativeLevelMeter.levels] readings.
+///
+/// Each reading holds [bandCount] bands: eleven, where mid is the centre of
+/// the stereo image and side its spread: mid 35–150 Hz (kick), mid
+/// 40–250 Hz (bass), mid 200 Hz + 2.5 kHz (snare), mid above 7 kHz
+/// (hi-hats), mid 300–3400 Hz, side 300–3400 Hz (together, the centred lead
+/// vocal), side 150–8000 Hz (wide instruments), then left and right above
+/// 7 kHz and left and right 150–8000 Hz (where the cymbals and the
+/// instruments are panned).
 class NativeLevels {
-  NativeLevels._(this.blockSeconds, this.values);
+  NativeLevels._(this.blockSeconds, this.bandCount, this._data);
 
   final double blockSeconds;
-  final List<double> values;
+  final int bandCount;
+  final List<double> _data;
+
+  /// The kick band (35–150 Hz) of each reading, oldest first.
+  List<double> get values =>
+      [for (var i = 0; i < _data.length; i += bandCount) _data[i]];
+
+  /// Every band of each reading, oldest first.
+  Iterable<List<double>> get readings sync* {
+    for (var i = 0; i + bandCount <= _data.length; i += bandCount) {
+      yield _data.sublist(i, i + bandCount);
+    }
+  }
 }
 
 /// (Ariami fork) Message for [DarwinEqualizer]. Defined here rather than in

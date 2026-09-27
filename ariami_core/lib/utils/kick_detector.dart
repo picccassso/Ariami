@@ -6,26 +6,32 @@ import 'dart:math' as math;
 /// reading rises above the last ~50 ms, relative to the biggest recent rises.
 /// Measuring the rise — not the level — lets a kick land on top of a
 /// sustained bass line, and normalising it makes quiet and loud masters hit
-/// alike.
+/// alike. Other drums (snare, hi-hats) score the same way in their own band,
+/// with a [floor] and [minPeak] suited to how loud that band runs.
 class KickDetector {
-  // Below this (≈ -50 dBFS) is silence: no kicks, whatever the rise.
-  static const _floor = 0.003;
-  // Smallest rise treated as a full kick, so near-silent passages don't
-  // magnify small wobbles into hits.
-  static const _minPeak = 0.01;
+  KickDetector({this.floor = 0.003, this.minPeak = 0.01}) : _peakRise = minPeak;
+
+  /// Below this (≈ -50 dBFS by default) is silence: no hits, whatever the
+  /// rise.
+  final double floor;
+
+  /// Smallest rise treated as a full hit, so near-silent passages don't
+  /// magnify small wobbles into hits.
+  final double minPeak;
+
   // Rises below this share of a full kick are ignored as ordinary movement.
   static const _gate = 0.2;
 
   double? _reference;
-  double _peakRise = _minPeak;
+  double _peakRise;
 
   double update(double level, double dt) {
     final reference = _reference ?? level;
     final rise = level - reference;
     _reference = reference + (level - reference) * _ease(dt, 0.05);
     _peakRise =
-        math.max(rise, _peakRise + (_minPeak - _peakRise) * _ease(dt, 4));
-    if (level < _floor || rise <= 0) return 0;
+        math.max(rise, _peakRise + (minPeak - _peakRise) * _ease(dt, 4));
+    if (level < floor || rise <= 0) return 0;
     final strength = (rise / _peakRise).clamp(0.0, 1.0);
     return math.max(0, (strength - _gate) / (1 - _gate));
   }

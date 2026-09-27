@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:math' as math;
-import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -21,6 +20,7 @@ import '../widgets/player/player_secondary_controls.dart';
 import '../widgets/player/player_output_button.dart';
 import '../widgets/common/artist_picker_sheet.dart';
 import '../widgets/common/ambient_backdrop.dart';
+import '../widgets/common/blurred_cover.dart';
 import '../widgets/common/cached_artwork.dart';
 import '../widgets/common/mini_player_aware_bottom_sheet.dart';
 import '../widgets/common/queue_action_confirmation.dart';
@@ -750,30 +750,13 @@ class _BlurredArtworkBackdrop extends StatelessWidget {
                 ? const SizedBox.shrink()
                 : SizedBox.expand(
                     key: ValueKey(key),
-                    child: Opacity(
-                      opacity: 0.6,
-                      child: ImageFiltered(
-                        imageFilter: ImageFilter.blur(
-                          sigmaX: 90,
-                          sigmaY: 90,
-                          tileMode: TileMode.clamp,
-                        ),
-                        child: FittedBox(
-                          fit: BoxFit.cover,
-                          clipBehavior: Clip.hardEdge,
-                          child: CachedArtwork(
-                            albumId:
-                                song.albumId != null && song.albumId!.isNotEmpty
-                                    ? song.albumId!
-                                    : 'song_${song.id}',
-                            artworkUrl: artworkUrl,
-                            width: 96,
-                            height: 96,
-                            borderRadius: BorderRadius.zero,
-                            sizeHint: ArtworkSizeHint.thumbnail,
-                          ),
-                        ),
-                      ),
+                    child: CachedArtwork(
+                      albumId: song.albumId != null && song.albumId!.isNotEmpty
+                          ? song.albumId!
+                          : 'song_${song.id}',
+                      artworkUrl: artworkUrl,
+                      sizeHint: ArtworkSizeHint.thumbnail,
+                      imageBuilder: BlurredCover.new,
                     ),
                   ),
           ),

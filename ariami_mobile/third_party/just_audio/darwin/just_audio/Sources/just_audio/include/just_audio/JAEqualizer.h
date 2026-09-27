@@ -20,14 +20,14 @@
 /// Whether items need the processing tap: the EQ is on, or levels are metered.
 - (BOOL)wantsTap;
 
-/// App-wide kick-band metering (35–150 Hz energy envelope of the mono mix,
-/// linear 0–1) of whatever the tap is rendering. Off by default; costs
-/// nothing when off.
+/// App-wide band metering (energy envelopes, linear 0–1, of the bands listed
+/// by NativeLevels in just_audio.dart) of whatever the tap is rendering. Off
+/// by default; costs nothing when off.
 + (void)setMetering:(BOOL)metering;
 + (BOOL)isMetering;
-/// Main thread only. Float64 values: the seconds each reading covers, then
-/// the readings rendered since the last call up to [mediaTime] (the
-/// playhead), oldest first.
+/// Main thread only. Float64 values: the seconds each reading covers, the
+/// bands per reading, then the readings rendered since the last call up to
+/// [mediaTime] (the playhead), oldest first, band by band.
 + (NSData *)levelsUntil:(double)mediaTime;
 
 /// Attaches the processing tap to the item if not already attached. Must be
