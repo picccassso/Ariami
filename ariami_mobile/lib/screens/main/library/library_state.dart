@@ -14,6 +14,9 @@ class LibraryState {
 
   /// Offline mode state built from downloads
   final List<Song> offlineSongs;
+
+  /// Every downloaded track, album tracks included (offline artist lookups).
+  final List<SongModel> offlineTracks;
   final bool isOfflineMode;
   final LibraryGenreIndex genreIndex;
   final String? genreFilter;
@@ -49,6 +52,7 @@ class LibraryState {
     this.songs = const [],
     this.offlineCopySongs = const [],
     this.offlineSongs = const [],
+    this.offlineTracks = const [],
     this.isOfflineMode = false,
     this.genreIndex = LibraryGenreIndex.empty,
     this.genreFilter,
@@ -78,6 +82,7 @@ class LibraryState {
     List<SongModel>? songs,
     List<SongModel>? offlineCopySongs,
     List<Song>? offlineSongs,
+    List<SongModel>? offlineTracks,
     bool? isOfflineMode,
     LibraryGenreIndex? genreIndex,
     String? genreFilter,
@@ -108,6 +113,7 @@ class LibraryState {
       songs: songs ?? this.songs,
       offlineCopySongs: offlineCopySongs ?? this.offlineCopySongs,
       offlineSongs: offlineSongs ?? this.offlineSongs,
+      offlineTracks: offlineTracks ?? this.offlineTracks,
       isOfflineMode: isOfflineMode ?? this.isOfflineMode,
       genreIndex: genreIndex ?? this.genreIndex,
       genreFilter: clearGenreFilter ? null : (genreFilter ?? this.genreFilter),
@@ -227,6 +233,7 @@ class LibraryState {
         listEquals(other.songs, songs) &&
         listEquals(other.offlineCopySongs, offlineCopySongs) &&
         listEquals(other.offlineSongs, offlineSongs) &&
+        listEquals(other.offlineTracks, offlineTracks) &&
         other.isOfflineMode == isOfflineMode &&
         other.genreIndex == genreIndex &&
         other.genreFilter == genreFilter &&
@@ -256,6 +263,7 @@ class LibraryState {
         Object.hashAll(songs),
         Object.hashAll(offlineCopySongs),
         Object.hashAll(offlineSongs),
+        Object.hashAll(offlineTracks),
         isOfflineMode,
         genreIndex,
         genreFilter,

@@ -179,6 +179,7 @@ extension _LibraryControllerLocalState on LibraryController {
 
     _updateState(_state.copyWith(
       offlineSongs: songs,
+      offlineTracks: completedTasks.map(_songModelFromTask).toList(),
       offlineCopySongs: const [],
       albums: albums,
       genreIndex: genreIndex,
@@ -208,18 +209,21 @@ extension _LibraryControllerLocalState on LibraryController {
             task.status == DownloadStatus.completed &&
             task.albumId == null &&
             _offlineCopyService.isRetainedSong(task.songId))
-        .map((task) => SongModel(
-              id: task.songId,
-              title: task.title,
-              artist: task.artist,
-              genre: task.genre,
-              duration: task.duration,
-              trackNumber: task.trackNumber,
-            ))
+        .map(_songModelFromTask)
         .toList();
     songs.sort((a, b) => a.title.compareTo(b.title));
     return songs;
   }
+
+  SongModel _songModelFromTask(DownloadTask task) => SongModel(
+        id: task.songId,
+        title: task.title,
+        artist: task.artist,
+        genre: task.genre,
+        albumId: task.albumId,
+        duration: task.duration,
+        trackNumber: task.trackNumber,
+      );
 
   List<AlbumModel> _buildAlbumsFromDownloadGroups(
     Map<String, List<DownloadTask>> albumMap,

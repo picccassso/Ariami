@@ -23,7 +23,8 @@ extension _LibraryControllerArtists on LibraryController {
   /// library per call.
   LibraryArtistIndex get _artistIndex {
     final albums = state.albums;
-    final songs = state.songs;
+    // Offline, the catalog is the downloads; `songs` is empty or stale.
+    final songs = state.isOfflineMode ? state.offlineTracks : state.songs;
     final playlists = PlaylistService().playlists;
     // An uninitialized controller reports const-empty lists; short-circuit to
     // the shared empty index instead of building from them.

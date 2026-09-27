@@ -156,6 +156,37 @@ void main() {
     );
   });
 
+  test('offline artist lookups index every downloaded track', () async {
+    final controller = LibraryController();
+    await controller.offlineService.setManualOfflineMode(true);
+    addTearDown(
+      () => controller.offlineService.setManualOfflineMode(false),
+    );
+    controller.setStateForTest(const LibraryState(isLoading: false));
+
+    await controller.refreshDownloadedLibraryForTest([
+      _completedDownload(
+        songId: 'album-song',
+        title: 'Album Song',
+        albumId: 'album-1',
+      ),
+      _completedDownload(songId: 'standalone-song', title: 'Standalone Song'),
+    ]);
+
+    expect(
+      controller.artistTracks('Artist').map((song) => song.id),
+      unorderedEquals(['album-song', 'standalone-song']),
+    );
+    expect(
+      controller.artistAppearsOn('Artist').map((album) => album.id),
+      ['album-1'],
+    );
+    expect(
+      controller.artistTracks('Album Artist').map((song) => song.id),
+      ['album-song'],
+    );
+  });
+
   group('Batch download summary', () {
     late LibraryController controller;
 

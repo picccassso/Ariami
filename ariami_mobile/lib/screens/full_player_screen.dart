@@ -50,6 +50,7 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
   @override
   void initState() {
     super.initState();
+    dismissQueueActionConfirmation();
     MiniPlayerVisibility.pushFullPlayer();
     _playbackManager.addListener(_onPlaybackStateChanged);
     _playlistService.loadPlaylists();

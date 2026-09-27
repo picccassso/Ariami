@@ -118,4 +118,38 @@ void main() {
     expect(find.text('Artists'), findsNothing);
     expect(openedArtist, 'Daft Punk');
   });
+
+  testWidgets('opening the full player hides a pending undo toast',
+      (tester) async {
+    PlaybackManager().setConnectRemoteMirror(
+      _remote(artist: 'Daft Punk', title: 'One More Time'),
+      sendCommand: (_, [__]) {},
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: TextButton(
+              onPressed: () {
+                showUndoToast(context, 'Queue replaced', onUndo: () {});
+                Navigator.of(context).push(MaterialPageRoute<void>(
+                  builder: (_) => const FullPlayerScreen(),
+                ));
+              },
+              child: const Text('open'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await _pumpFrames(tester);
+
+    expect(find.byType(FullPlayerScreen), findsOneWidget);
+    expect(find.text('Queue replaced'), findsNothing);
+
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 2));
+  });
 }
