@@ -20,16 +20,14 @@
 
 ## What Ariami is
 
-Point Ariami at a folder of music files on a computer you already own, and it becomes a
-private music service for your household: your library is scanned from the tags already in
-your files, and first-party apps for phone, tablet, desktop and TV stream from it. It works at home
-over your local network, and away from home over [Tailscale](https://tailscale.com/download).
+Ariami turns a folder of music files on your computer into a personal streaming service for
+your household. Point the server at the audio files you already own, and it reads their tags to
+build your library. From there, you can stream or download your music using the mobile, tablet,
+desktop, and TV apps, either at home over Wi-Fi or away from home with
+[Tailscale](https://tailscale.com/download).
 
-There is no Ariami-hosted cloud account, no monthly fee, and no requirement for port forwarding
-or a reverse proxy. Accounts live on your own server.
-
-Ariami does not provide music or connect to a commercial streaming catalogue. You bring the
-audio files you own.
+Everything runs on your own machine, including user accounts, playlists, and listening history,
+and you don't need to set up port forwarding or a reverse proxy to use it.
 
 ```
    your music folder  ─→  Ariami server  ─→  Mobile · Desktop Player · TV
@@ -40,211 +38,224 @@ audio files you own.
                               pick one to host
 ```
 
-Ariami is an integrated system, not an OpenSubsonic client. The server and the apps are
-built together and speak their own protocol, which is how features like Ariami Connect work
-end to end. That protocol is not a black box: **Ariami Connect is fully documented** in
+The server and the apps are built together around their own protocol, which is how features
+like Ariami Connect work across all of them. If you want to build a third-party client or see
+how it works under the hood, the **Ariami Connect protocol is documented** in
 [`docs/connect/`](docs/connect/README.md), including a
-[build-a-client guide](docs/connect/06-third-party-clients.md) for third-party apps.
+[third-party client guide](docs/connect/06-third-party-clients.md).
 
 ---
 
 ## Get the apps
 
-Ariami is on the stores. Both downloads are free; the TV app needs a licence key from
-[ariami.xyz](https://ariami.xyz/) to unlock.
+Ariami is available on the app stores. Both downloads are free, though the TV app needs a
+licence key from [ariami.xyz](https://ariami.xyz/) to unlock.
 
 | Store | App | |
 | --- | --- | --- |
-| **Apple App Store** | Ariami for iPhone and iPad — free | [Download →](https://apps.apple.com/us/app/ariami/id6789298823) |
-| **Amazon Appstore** | Ariami TV for Fire TV — free download, licence unlocks it | [Get it →](https://www.amazon.com/gp/mas/dl/android?asin=B0GZFT53WL) |
+| **Apple App Store** | Ariami for iPhone and iPad (free) | [Download →](https://apps.apple.com/us/app/ariami/id6789298823) |
+| **Amazon Appstore** | Ariami TV for Fire TV (free download, unlocked with a licence) | [Get it →](https://www.amazon.com/gp/mas/dl/android?asin=B0GZFT53WL) |
 
-Android phones and Android TV are still served by the APKs in
-[releases](https://github.com/picccassso/Ariami/releases); a Play Store release is in progress.
-The Desktop Player is bought and downloaded from [ariami.xyz](https://ariami.xyz/), and every
-server (Desktop Server, CLI, Docker) is free from
-[releases](https://github.com/picccassso/Ariami/releases).
+For Android phones and Android TV, you can grab the APKs from
+[releases](https://github.com/picccassso/Ariami/releases) while the Play Store release is in
+progress. The Desktop Player can be bought and downloaded at [ariami.xyz](https://ariami.xyz/),
+and all the servers (Desktop Server, CLI, Docker) are free on the
+[releases](https://github.com/picccassso/Ariami/releases) page.
 
-You still need to run a server — the apps stream from your own machine, not from a cloud
-service. See [Quick Start](#quick-start).
+You'll need to set up a server on your computer first so the apps have something to connect to.
+See [Quick Start](#quick-start) below.
 
 ---
 
 ## Ariami Connect
 
-What makes Ariami different is that the server and playback apps are designed as one system.
+**Connect lets you hand off playback, your queue, and your current track position between any
+of your signed-in devices.** Start an album on your phone, send it to the TV, and control it
+from your desktop.
 
-**Connect moves playback, queue and position between your signed-in devices.** Start an album on your phone, push it to the TV, then keep controlling it from your desktop. 
+- Send playback to another signed-in device, or pull it over to the one you're using.
+- When controlling another device, your app mirrors its queue and playback state. Play/pause,
+  skip, seek, volume, shuffle, and repeat act as remote controls.
+- Edit the active player's queue remotely (reorder, add, remove, or clear tracks).
+- If the active player disconnects, playback hands off automatically. You can also rename any
+  of your devices.
+- Works over LAN and Tailscale together, so a TV on your home network and a phone on mobile
+  data still share the same session.
 
-- Transfer playback to any signed-in device, or take over from another one.
-- The controlling device mirrors the active player's queue and transport. Its own play/pause, next, previous, seek, volume, shuffle and repeat controls become remote commands.
-- Edit the active device's queue remotely: reorder, add, remove, clear.
-- Automatic handoff if the active player disappears; every device can be renamed.
-- Works across LAN and Tailscale together, so a TV at home and a phone on the road share the
-  same session.
-
-Audio is never proxied between devices. This means each device fetches its own stream from the server, and the server only brokers who is playing and what. See [`docs/connect/01-architecture.md`](docs/connect/01-architecture.md).
+Whichever device is playing streams audio directly from the server, while your other devices
+just send playback and queue commands through the server. See
+[`docs/connect/01-architecture.md`](docs/connect/01-architecture.md) for how it works.
 
 ---
 
 ## Screenshots
 
-<p align="center"><img src="app%20photos/Ariami%20CLI/cli_overview.webp" alt="CLI web dashboard" height="130"> <img src="app%20photos/Ariami%20Desktop%20(normal%20server)/desktop_overview_1.webp" alt="Desktop Server dashboard" height="130"> <img src="app%20photos/Ariami%20Desktop%20(Client%20+%20normal%20server)/desktop_client_home_1.webp" alt="Desktop Player" height="130"> <img src="app%20photos/Ariami%20Mobile/mobile_player_1.webp" alt="Mobile player" height="130"> <img src="app%20photos/Ariami%20TV/tv_now_playing_1.webp" alt="TV now playing" height="130"></p>
-<p align="center"><sub>CLI web dashboard · Desktop Server · Desktop Player · Mobile · TV</sub></p>
+<p align="center"><img src="app%20photos/Ariami%20CLI/cli_overview.webp" alt="CLI web dashboard" height="130"> <img src="app%20photos/Ariami%20Desktop%20%28normal%20server%29/desktop_overview_1.webp" alt="Desktop Server dashboard" height="130"> <img src="app%20photos/Ariami%20Premium%20Desktop/desktop_fullplayer_4_visualiser.webp" alt="Desktop Player visualizer" height="130"> <img src="app%20photos/Ariami%20Mobile/mobile_player_2.webp" alt="Mobile player" height="130"> <img src="app%20photos/Ariami%20for%20tablets/tablet_library_alt.webp" alt="Tablet library" height="130"> <img src="app%20photos/Ariami%20TV/tv_home.webp" alt="TV home" height="130"></p>
+<p align="center"><sub>CLI web dashboard · Desktop Server · Desktop Player · Mobile · Tablet · TV</sub></p>
 
 <details>
-<summary><strong>CLI web dashboard</strong> — 4 screenshots</summary>
+<summary><strong>CLI web dashboard</strong> (5 screenshots)</summary>
 
-<p align="center"><img src="app%20photos/Ariami%20CLI/cli_overview.webp" alt="Dashboard overview" width="48%"> <img src="app%20photos/Ariami%20CLI/cli_activity.webp" alt="User activity" width="48%"></p>
-<p align="center"><img src="app%20photos/Ariami%20CLI/cli_users.webp" alt="Registered users" width="48%"> <img src="app%20photos/Ariami%20CLI/cli_server.webp" alt="Server settings" width="48%"></p>
+<p align="center"><img src="app%20photos/Ariami%20CLI/cli_overview.webp" alt="Dashboard overview" width="48%"> <img src="app%20photos/Ariami%20CLI/cli_activity.webp" alt="Connected devices and activity" width="48%"></p>
+<p align="center"><img src="app%20photos/Ariami%20CLI/cli_accounts.webp" alt="Accounts" width="48%"> <img src="app%20photos/Ariami%20CLI/cli_server_1.webp" alt="Server connection and configuration" width="48%"></p>
+<p align="center"><img src="app%20photos/Ariami%20CLI/cli_server_2.webp" alt="Quick actions, TV licence and reset" width="48%"></p>
 
 </details>
 <details>
-<summary><strong>Desktop Server</strong> — 6 screenshots of the admin dashboard</summary>
+<summary><strong>Desktop Server</strong> (6 screenshots of the admin dashboard)</summary>
 
-<p align="center"><img src="app%20photos/Ariami%20Desktop%20(normal%20server)/desktop_overview_1.webp" alt="Dashboard overview" width="48%"> <img src="app%20photos/Ariami%20Desktop%20(normal%20server)/desktop_overview_2.webp" alt="Dashboard overview" width="48%"></p>
-<p align="center"><img src="app%20photos/Ariami%20Desktop%20(normal%20server)/desktop_activity.webp" alt="User activity" width="48%"> <img src="app%20photos/Ariami%20Desktop%20(normal%20server)/desktop_users.webp" alt="Registered users" width="48%"></p>
-<p align="center"><img src="app%20photos/Ariami%20Desktop%20(normal%20server)/desktop_server_1.webp" alt="Server settings" width="48%"> <img src="app%20photos/Ariami%20Desktop%20(normal%20server)/desktop_server_2.webp" alt="Server settings" width="48%"></p>
+<p align="center"><img src="app%20photos/Ariami%20Desktop%20%28normal%20server%29/desktop_overview_1.webp" alt="Dashboard overview" width="48%"> <img src="app%20photos/Ariami%20Desktop%20%28normal%20server%29/desktop_overview_2.webp" alt="Dashboard overview" width="48%"></p>
+<p align="center"><img src="app%20photos/Ariami%20Desktop%20%28normal%20server%29/desktop_activity.webp" alt="User activity" width="48%"> <img src="app%20photos/Ariami%20Desktop%20%28normal%20server%29/desktop_users.webp" alt="Registered users" width="48%"></p>
+<p align="center"><img src="app%20photos/Ariami%20Desktop%20%28normal%20server%29/desktop_server_1.webp" alt="Server settings" width="48%"> <img src="app%20photos/Ariami%20Desktop%20%28normal%20server%29/desktop_server_2.webp" alt="Server settings" width="48%"></p>
 
 </details>
 <details>
-<summary><strong>Desktop Player</strong> — 15 screenshots (shown here running alongside a server)</summary>
+<summary><strong>Desktop Player</strong> (23 screenshots, shown running alongside a server)</summary>
 
-#### Home and library
+#### Home and albums
 
-<p align="center"><img src="app%20photos/Ariami%20Desktop%20(Client%20+%20normal%20server)/desktop_client_home_1.webp" alt="Home" width="48%"> <img src="app%20photos/Ariami%20Desktop%20(Client%20+%20normal%20server)/desktop_client_home_2.webp" alt="Home" width="48%"></p>
-<p align="center"><img src="app%20photos/Ariami%20Desktop%20(Client%20+%20normal%20server)/desktop_client_album_1.webp" alt="Album view" width="48%"> <img src="app%20photos/Ariami%20Desktop%20(Client%20+%20normal%20server)/desktop_client_album_2.webp" alt="Album view" width="48%"></p>
+<p align="center"><img src="app%20photos/Ariami%20Premium%20Desktop/desktop_home_view_1.webp" alt="Home" width="48%"> <img src="app%20photos/Ariami%20Premium%20Desktop/desktop_home_view_2.webp" alt="Home in cover-art colours" width="48%"></p>
+<p align="center"><img src="app%20photos/Ariami%20Premium%20Desktop/desktop_album_view_1.webp" alt="Album" width="48%"> <img src="app%20photos/Ariami%20Premium%20Desktop/desktop_album_view_2.webp" alt="Album context menu" width="48%"></p>
 
-#### Playlists and recently played
+#### Full-screen player and music visualizer
 
-<p align="center"><img src="app%20photos/Ariami%20Desktop%20(Client%20+%20normal%20server)/desktop_client_playlist_1.webp" alt="Playlist" width="48%"> <img src="app%20photos/Ariami%20Desktop%20(Client%20+%20normal%20server)/desktop_client_playlist_2.webp" alt="Playlist" width="48%"></p>
-<p align="center"><img src="app%20photos/Ariami%20Desktop%20(Client%20+%20normal%20server)/desktop_client_playlist_3.webp" alt="Playlist" width="48%"> <img src="app%20photos/Ariami%20Desktop%20(Client%20+%20normal%20server)/desktop_client_playlist_4.webp" alt="Playlist" width="48%"></p>
-<p align="center"><img src="app%20photos/Ariami%20Desktop%20(Client%20+%20normal%20server)/desktop_client_recently_played.webp" alt="Recently played" width="48%"></p>
+<p align="center"><img src="app%20photos/Ariami%20Premium%20Desktop/desktop_fullplayer_1.webp" alt="Full-screen player" width="48%"> <img src="app%20photos/Ariami%20Premium%20Desktop/desktop_fullplayer_2.webp" alt="Full-screen player with queue" width="48%"></p>
+<p align="center"><img src="app%20photos/Ariami%20Premium%20Desktop/desktop_fullplayer_3_visualiser.webp" alt="Music visualizer" width="48%"> <img src="app%20photos/Ariami%20Premium%20Desktop/desktop_fullplayer_4_visualiser.webp" alt="Music visualizer" width="48%"></p>
+
+#### Playlists, recently played, and discovery
+
+<p align="center"><img src="app%20photos/Ariami%20Premium%20Desktop/desktop_playlist_view_1.webp" alt="Playlist" width="48%"> <img src="app%20photos/Ariami%20Premium%20Desktop/desktop_playlist_view_2.webp" alt="Edit playlist details" width="48%"></p>
+<p align="center"><img src="app%20photos/Ariami%20Premium%20Desktop/desktop_playlist_view_3_reorder.webp" alt="Reorder via search" width="48%"> <img src="app%20photos/Ariami%20Premium%20Desktop/desktop_recently_played.webp" alt="Recently played" width="48%"></p>
+<p align="center"><img src="app%20photos/Ariami%20Premium%20Desktop/desktop_discover_1.webp" alt="Discover" width="48%"> <img src="app%20photos/Ariami%20Premium%20Desktop/desktop_discover_2.webp" alt="Discovery settings" width="48%"></p>
+<p align="center"><img src="app%20photos/Ariami%20Premium%20Desktop/desktop_discover_3.webp" alt="Discover recommendations" width="48%"></p>
 
 #### Settings
 
-<p align="center"><img src="app%20photos/Ariami%20Desktop%20(Client%20+%20normal%20server)/desktop_client_settings_1.webp" alt="Settings" width="48%"> <img src="app%20photos/Ariami%20Desktop%20(Client%20+%20normal%20server)/desktop_client_settings_2.webp" alt="Settings" width="48%"></p>
-<p align="center"><img src="app%20photos/Ariami%20Desktop%20(Client%20+%20normal%20server)/desktop_client_settings_3.webp" alt="Settings" width="48%"> <img src="app%20photos/Ariami%20Desktop%20(Client%20+%20normal%20server)/desktop_client_settings_4.webp" alt="Settings" width="48%"></p>
-<p align="center"><img src="app%20photos/Ariami%20Desktop%20(Client%20+%20normal%20server)/desktop_client_settings_5.webp" alt="Settings" width="48%"> <img src="app%20photos/Ariami%20Desktop%20(Client%20+%20normal%20server)/desktop_client_settings_6.webp" alt="Settings" width="48%"></p>
+<p align="center"><img src="app%20photos/Ariami%20Premium%20Desktop/desktop_settings_1_general.webp" alt="General" width="48%"> <img src="app%20photos/Ariami%20Premium%20Desktop/desktop_settings_2_appearence.webp" alt="Appearance" width="48%"></p>
+<p align="center"><img src="app%20photos/Ariami%20Premium%20Desktop/desktop_settings_3_playback.webp" alt="Playback" width="48%"> <img src="app%20photos/Ariami%20Premium%20Desktop/desktop_settings_4_listeningstats.webp" alt="Listening stats" width="48%"></p>
+<p align="center"><img src="app%20photos/Ariami%20Premium%20Desktop/desktop_settings_5_updates.webp" alt="Software updates" width="48%"> <img src="app%20photos/Ariami%20Premium%20Desktop/desktop_settings_6_account.webp" alt="Account" width="48%"></p>
+<p align="center"><img src="app%20photos/Ariami%20Premium%20Desktop/desktop_settings_7_license.webp" alt="Licence" width="48%"> <img src="app%20photos/Ariami%20Premium%20Desktop/desktop_settings_8_hidden_items.webp" alt="Hidden items" width="48%"></p>
 
 </details>
 <details>
-<summary><strong>Mobile</strong> — 27 screenshots</summary>
+<summary><strong>Mobile</strong> (27 screenshots)</summary>
 
-#### Library and browse
+#### Library, albums, and search
 
-<p align="center"><img src="app%20photos/Ariami%20Mobile/mobile_library_1.webp" alt="Library view" width="24%"> <img src="app%20photos/Ariami%20Mobile/mobile_library_2.webp" alt="Library view" width="24%"></p>
+<p align="center"><img src="app%20photos/Ariami%20Mobile/mobile_library_view_normal.webp" alt="Library" width="24%"> <img src="app%20photos/Ariami%20Mobile/mobile_library_view_settings.webp" alt="Library options" width="24%"> <img src="app%20photos/Ariami%20Mobile/mobile_albums_1.webp" alt="Album" width="24%"> <img src="app%20photos/Ariami%20Mobile/mobile_albums_2.webp" alt="Album tracks" width="24%"></p>
+<p align="center"><img src="app%20photos/Ariami%20Mobile/mobile_search.webp" alt="Search" width="24%"></p>
 
 #### Player and Ariami Connect
 
-<p align="center"><img src="app%20photos/Ariami%20Mobile/mobile_player_1.webp" alt="Now playing" width="24%"> <img src="app%20photos/Ariami%20Mobile/mobile_player_2.webp" alt="Full player" width="24%"> <img src="app%20photos/Ariami%20Mobile/mobile_player_3.webp" alt="Player controls" width="24%"> <img src="app%20photos/Ariami%20Mobile/mobile_player_4.webp" alt="Player controls" width="24%"></p>
-<p align="center"><img src="app%20photos/Ariami%20Mobile/mobile_player_ariami_connect.webp" alt="Ariami Connect device picker" width="24%"></p>
+<p align="center"><img src="app%20photos/Ariami%20Mobile/mobile_player_1.webp" alt="Now playing" width="24%"> <img src="app%20photos/Ariami%20Mobile/mobile_player_2.webp" alt="Now playing" width="24%"> <img src="app%20photos/Ariami%20Mobile/mobile_player_3_queue.webp" alt="Queue" width="24%"> <img src="app%20photos/Ariami%20Mobile/mobile_player_4_actions.webp" alt="Song options" width="24%"></p>
+<p align="center"><img src="app%20photos/Ariami%20Mobile/mobile_player_5_ariamiconnect.webp" alt="Ariami Connect device picker" width="24%"></p>
 
 #### Playlists
 
-<p align="center"><img src="app%20photos/Ariami%20Mobile/mobile_playlist_1.webp" alt="Playlists" width="24%"> <img src="app%20photos/Ariami%20Mobile/mobile_playlist_2.webp" alt="Playlist detail" width="24%"> <img src="app%20photos/Ariami%20Mobile/mobile_album.webp" alt="Album view" width="24%"> <img src="app%20photos/Ariami%20Mobile/mobile_playlist_3.webp" alt="Edit playlist" width="24%"></p>
-<p align="center"><img src="app%20photos/Ariami%20Mobile/mobile_playlist_4.webp" alt="Playlist artwork" width="24%"></p>
+<p align="center"><img src="app%20photos/Ariami%20Mobile/mobile_playlist_1.webp" alt="Playlist" width="24%"> <img src="app%20photos/Ariami%20Mobile/mobile_playlist_2.webp" alt="Playlist options" width="24%"> <img src="app%20photos/Ariami%20Mobile/mobile_playlist_3.webp" alt="Add to playlist" width="24%"> <img src="app%20photos/Ariami%20Mobile/mobile_playlist_4.webp" alt="Reorder playlist" width="24%"></p>
 
-#### Downloads and import/export
+#### Settings, playback, and downloads
 
-<p align="center"><img src="app%20photos/Ariami%20Mobile/mobile_downloads_1.webp" alt="Downloads" width="24%"> <img src="app%20photos/Ariami%20Mobile/mobile_downloads_2.webp" alt="Download progress" width="24%"> <img src="app%20photos/Ariami%20Mobile/mobile_import_export.webp" alt="Import and export" width="24%"></p>
+<p align="center"><img src="app%20photos/Ariami%20Mobile/mobile_settings_1.webp" alt="Settings" width="24%"> <img src="app%20photos/Ariami%20Mobile/mobile_settings_2.webp" alt="Settings" width="24%"> <img src="app%20photos/Ariami%20Mobile/mobile_settings_3.webp" alt="Settings" width="24%"> <img src="app%20photos/Ariami%20Mobile/mobile_settings_6_connection.webp" alt="Connection" width="24%"></p>
+<p align="center"><img src="app%20photos/Ariami%20Mobile/mobile_settings_7_playback.webp" alt="Playback" width="24%"> <img src="app%20photos/Ariami%20Mobile/mobile_settings_8_streaming_quality.webp" alt="Streaming and download quality" width="24%"> <img src="app%20photos/Ariami%20Mobile/mobile_settings_9_downloads.webp" alt="Downloads" width="24%"></p>
 
-#### Settings, connection, and sound
+#### Profile, stats, and discovery
 
-<p align="center"><img src="app%20photos/Ariami%20Mobile/mobile_settings_1.webp" alt="Settings" width="24%"> <img src="app%20photos/Ariami%20Mobile/mobile_settings_2.webp" alt="Settings" width="24%"> <img src="app%20photos/Ariami%20Mobile/mobile_connection_1.webp" alt="Connection stats" width="24%"> <img src="app%20photos/Ariami%20Mobile/mobile_connection_2.webp" alt="Connection details" width="24%"></p>
-<p align="center"><img src="app%20photos/Ariami%20Mobile/mobile_eq.webp" alt="Equalizer" width="24%"> <img src="app%20photos/Ariami%20Mobile/mobile_streaming_quality.webp" alt="Streaming quality" width="24%"></p>
-
-#### Profile and stats
-
-<p align="center"><img src="app%20photos/Ariami%20Mobile/mobile_listening_stats_1.webp" alt="Listening stats" width="24%"> <img src="app%20photos/Ariami%20Mobile/mobile_listening_stats_2.webp" alt="Top tracks and artists" width="24%"> <img src="app%20photos/Ariami%20Mobile/mobile_profile_1.webp" alt="Profile hub" width="24%"> <img src="app%20photos/Ariami%20Mobile/mobile_profile_2.webp" alt="Profile settings" width="24%"></p>
-<p align="center"><img src="app%20photos/Ariami%20Mobile/mobile_profile_3.webp" alt="Profile" width="24%"> <img src="app%20photos/Ariami%20Mobile/mobile_recently_played.webp" alt="Recently played" width="24%"></p>
+<p align="center"><img src="app%20photos/Ariami%20Mobile/mobile_settings_4_profile1.webp" alt="Profile" width="24%"> <img src="app%20photos/Ariami%20Mobile/mobile_settings_5_profile2.webp" alt="Profile" width="24%"> <img src="app%20photos/Ariami%20Mobile/mobile_settings_11_listeningstats.webp" alt="Listening stats" width="24%"> <img src="app%20photos/Ariami%20Mobile/mobile_settings_12_recentlyplayed.webp" alt="Recently played" width="24%"></p>
+<p align="center"><img src="app%20photos/Ariami%20Mobile/mobile_settings_13_discover.webp" alt="Discover" width="24%"> <img src="app%20photos/Ariami%20Mobile/mobile_settings_10_importexport.webp" alt="Backup and restore" width="24%"></p>
 
 </details>
 <details>
-<summary><strong>Tablet layout</strong> — 7 screenshots (same app, sidebar + docked player)</summary>
+<summary><strong>Tablet layout</strong> (9 screenshots, same app with sidebar and docked player)</summary>
 
 The mobile app expands into a tablet layout with a sidebar and a docked now-playing card, on
 both iPad and Android tablets.
 
-#### Library, playlists, and search
+#### Library and search
 
-<p align="center"><img src="app%20photos/Ariami%20for%20tablets/tablet_library.webp" alt="Library" width="48%"> <img src="app%20photos/Ariami%20for%20tablets/tablet_playlist.webp" alt="Playlist" width="48%"></p>
-<p align="center"><img src="app%20photos/Ariami%20for%20tablets/tablet_search.webp" alt="Search" width="48%"> <img src="app%20photos/Ariami%20for%20tablets/tablet_queue.webp" alt="Queue" width="48%"></p>
+<p align="center"><img src="app%20photos/Ariami%20for%20tablets/tablet_library_alt.webp" alt="Library" width="48%"> <img src="app%20photos/Ariami%20for%20tablets/tablet_library.webp" alt="Library" width="48%"></p>
+<p align="center"><img src="app%20photos/Ariami%20for%20tablets/tablet_search.webp" alt="Search" width="48%"></p>
 
-#### Player, Ariami Connect, and stats
+#### Albums and player
 
-<p align="center"><img src="app%20photos/Ariami%20for%20tablets/tablet_player.webp" alt="Now playing" width="48%"> <img src="app%20photos/Ariami%20for%20tablets/tablet_ariami_connect.webp" alt="Ariami Connect" width="48%"></p>
-<p align="center"><img src="app%20photos/Ariami%20for%20tablets/tablet_listening_stats.webp" alt="Listening stats" width="48%"></p>
+<p align="center"><img src="app%20photos/Ariami%20for%20tablets/tablet_album.webp" alt="Album" width="48%"> <img src="app%20photos/Ariami%20for%20tablets/tablet_album_alt.webp" alt="Album" width="48%"></p>
+<p align="center"><img src="app%20photos/Ariami%20for%20tablets/tablet_player.webp" alt="Now playing" width="48%"></p>
+
+#### Settings and download quality
+
+<p align="center"><img src="app%20photos/Ariami%20for%20tablets/tablet_settings.webp" alt="Settings" width="48%"> <img src="app%20photos/Ariami%20for%20tablets/tablet_quality.webp" alt="Streaming and download quality" width="48%"></p>
+<p align="center"><img src="app%20photos/Ariami%20for%20tablets/tablet_download_quality_picker.webp" alt="Download quality picker" width="48%"></p>
 
 </details>
 <details>
-<summary><strong>TV</strong> — 11 screenshots</summary>
+<summary><strong>TV</strong> (8 screenshots)</summary>
 
 #### Home and browse
 
-<p align="center"><img src="app%20photos/Ariami%20TV/tv_home_1.webp" alt="Home" width="48%"> <img src="app%20photos/Ariami%20TV/tv_home_2.webp" alt="Home" width="48%"></p>
-<p align="center"><img src="app%20photos/Ariami%20TV/tv_search.webp" alt="Search" width="48%"> <img src="app%20photos/Ariami%20TV/tv_albums.webp" alt="Albums" width="48%"></p>
+<p align="center"><img src="app%20photos/Ariami%20TV/tv_home.webp" alt="Home" width="48%"> <img src="app%20photos/Ariami%20TV/tv_albums.webp" alt="Albums" width="48%"></p>
+<p align="center"><img src="app%20photos/Ariami%20TV/tv_album.webp" alt="Album" width="48%"> <img src="app%20photos/Ariami%20TV/tv_album_alt.webp" alt="Album" width="48%"></p>
+<p align="center"><img src="app%20photos/Ariami%20TV/tv_search.webp" alt="Search" width="48%"></p>
 
 #### Now playing and Ariami Connect
 
-<p align="center"><img src="app%20photos/Ariami%20TV/tv_now_playing_1.webp" alt="Now playing" width="48%"> <img src="app%20photos/Ariami%20TV/tv_now_playing_2.webp" alt="Now playing" width="48%"></p>
-<p align="center"><img src="app%20photos/Ariami%20TV/tv_now_playing_3.webp" alt="Now playing" width="48%"> <img src="app%20photos/Ariami%20TV/tv_now_playing_4.webp" alt="Now playing" width="48%"></p>
-<p align="center"><img src="app%20photos/Ariami%20TV/tv_ariami_connect.webp" alt="Ariami Connect on TV" width="48%"></p>
+<p align="center"><img src="app%20photos/Ariami%20TV/tv_now_playing_connect.webp" alt="Now playing, controlled through Ariami Connect" width="48%"> <img src="app%20photos/Ariami%20TV/tv_fullscreen_player.webp" alt="Full-screen player" width="48%"></p>
 
 #### Settings
 
-<p align="center"><img src="app%20photos/Ariami%20TV/tv_settings_1.webp" alt="Settings" width="48%"> <img src="app%20photos/Ariami%20TV/tv_settings_2.webp" alt="Settings" width="48%"></p>
+<p align="center"><img src="app%20photos/Ariami%20TV/tv_settings_appearance_motion.webp" alt="Appearance and motion settings" width="48%"></p>
 
 </details>
 
 ---
 
-## Step 1 — choose one server
+## Step 1: Choose a server
 
-The server holds your music folder, scans it, and streams to everything else. Pick whichever
-machine suits you; you only need one.
+The server points at your music folder, scans it, and streams to your devices. Pick whichever
+setup fits your hardware. You only need one.
 
 | Server | Runs on | Best for |
 | --- | --- | --- |
-| **Desktop Server** | macOS, Windows, Linux | The computer your music already lives on. First-run wizard, admin dashboard, system tray, start at login. |
-| **CLI server** | Raspberry Pi, Linux, macOS, Windows | An always-on box in the corner. Headless daemon with a browser setup wizard and web dashboard. |
-| **Docker** | Anywhere Docker runs | NAS and homelab setups. `ghcr.io/picccassso/ariami-cli` — see [DOCKER.md](ariami_cli/docker/DOCKER.md). |
+| **Desktop Server** | macOS, Windows, Linux | Running on the computer where your music already lives. Has a first-run wizard, admin dashboard, system tray icon, and start-at-login. |
+| **CLI server** | Raspberry Pi, Linux, macOS, Windows | An always-on machine tucked away somewhere. Runs headless with a browser setup wizard and web dashboard. |
+| **Docker** | Anywhere Docker runs | NAS and homelab setups. Image: `ghcr.io/picccassso/ariami-cli` (see [DOCKER.md](ariami_cli/docker/DOCKER.md)). |
 
-All three are free, run the same core, and expose the same admin features.
+All three are free, run the same server core, and have the same admin features.
 [Download the latest release →](https://github.com/picccassso/Ariami/releases)
 
-## Step 2 — choose your playback apps
+## Step 2: Choose your playback apps
 
 | App | Platforms | Availability |
 | --- | --- | --- |
-| **Mobile** | Android, iOS (phones and tablets) | Free. iOS/iPadOS on the [App Store](https://apps.apple.com/us/app/ariami/id6789298823); Android APK in [releases](https://github.com/picccassso/Ariami/releases), with a Play Store release in progress. |
-| **Desktop Player** | macOS, Windows, Linux | One-time purchase. Bought and downloaded from [ariami.xyz](https://ariami.xyz/). A full player, separate from the Desktop Server above. |
-| **TV** | Fire TV, Android TV | One-time licence, bought at [ariami.xyz](https://ariami.xyz/). The app itself is a free download from the [Amazon Appstore](https://www.amazon.com/gp/mas/dl/android?asin=B0GZFT53WL) on Fire TV; for Android TV, side-load the APK from [releases](https://github.com/picccassso/Ariami/releases) — a Play Store release is in progress. LAN-only by design. |
+| **Mobile** | Android, iOS (phones and tablets) | Free. iOS/iPadOS is on the [App Store](https://apps.apple.com/us/app/ariami/id6789298823). Android APK is in [releases](https://github.com/picccassso/Ariami/releases) (Play Store release in progress). |
+| **Desktop Player** | macOS, Windows, Linux | One-time purchase from [ariami.xyz](https://ariami.xyz/). Standalone desktop player, separate from the Desktop Server above. |
+| **TV** | Fire TV, Android TV | One-time licence from [ariami.xyz](https://ariami.xyz/). Free download on the [Amazon Appstore](https://www.amazon.com/gp/mas/dl/android?asin=B0GZFT53WL) for Fire TV. For Android TV, sideload the APK from [releases](https://github.com/picccassso/Ariami/releases) (Play Store release in progress). Works over LAN only by design. |
 
-The Desktop Server can host your library on the same machine that runs the Desktop Player —
-they are separate apps and either can be used on its own.
+You can run the Desktop Server and the Desktop Player on the same computer if you want, or use
+either one on its own.
 
 ---
 
 ## Quick Start
 
-1. **Install a server.** Download the Desktop Server or CLI build for your machine from
-   [releases](https://github.com/picccassso/Ariami/releases), or pull the Docker image. The
-   CLI opens a browser setup wizard on first run (`http://localhost:8080` if it does not open
-   by itself).
-2. **Choose your music folder.** Ariami scans it and builds the library from the tags already
-   in your files. It never modifies or deletes your music.
-3. **Create the owner account.** The first account on a server is the owner/admin, and is
-   created on the server itself — not from your phone.
-4. **Pair a device.** Scan the QR code shown by the server, or enter the server address and
-   invite code manually. Expiry and account rules are in the
-   [mobile setup guide](ariami_mobile/docs/SETUP.md).
-5. **Play.** Sign the same account in on your other devices, then use Ariami Connect to move
-   playback between them.
+1. **Install a server.** Grab the Desktop Server or CLI build for your OS from
+   [releases](https://github.com/picccassso/Ariami/releases), or pull the Docker image. On first
+   run, the CLI opens a setup wizard in your browser (go to `http://localhost:8080` if it
+   doesn't open automatically).
+2. **Pick your music folder.** Ariami reads the tags in your files to build your library and
+   leaves the files themselves untouched.
+3. **Create the owner account.** The first account you create on the server becomes the
+   owner/admin account.
+4. **Pair a device.** Scan the QR code from the server dashboard, or type in the server address
+   and invite code. See the [mobile setup guide](ariami_mobile/docs/SETUP.md) for details on
+   invite expiry and accounts.
+5. **Start listening.** Sign in with the same account on your other devices and use Ariami
+   Connect to switch playback between them.
 
-Remote access is optional: Ariami works on your LAN with no port forwarding. To listen away
-from home, install [Tailscale](https://tailscale.com/download) on the server and your devices. The apps prefer LAN at home and switch to Tailscale when you are out. It is the recommended option and not a requirement.
+Out of the box, Ariami works over your local home network. If you also want to listen away from
+home, install [Tailscale](https://tailscale.com/download) on the server and your devices. The
+apps will use your local network when you're home and switch over to Tailscale when you leave.
 
-Day-to-day CLI commands: `./ariami_cli start` · `status` · `stop` · `autostart enable` ·
+Common CLI commands: `./ariami_cli start` · `status` · `stop` · `autostart enable` ·
 `reset`. Full list in the [CLI reference](ariami_cli/docs/CLI_REFERENCE.md).
 
 ---
@@ -254,12 +265,15 @@ Day-to-day CLI commands: `./ariami_cli start` · `status` · `stop` · `autostar
 <details>
 <summary><strong>Library and search</strong></summary>
 
-Scans MP3, M4A, MP4, FLAC, WAV, AIFF, OGG, Opus, WMA, AAC and ALAC, grouping albums from
-embedded tags (including Various Artists compilations) with no external lookups. Real-time
-folder watching picks up added, changed and removed files without a full rescan and pushes
-updates to connected clients; a metadata cache skips unchanged files. Clients keep a local
-catalog copy and sync incrementally. Search is shared by every client, with transliteration
-and keyboard-layout correction so mistyped or differently-scripted queries still land.
+Scans MP3, M4A, MP4, FLAC, WAV, AIFF, OGG, Opus, WMA, AAC, and ALAC files. Albums (including
+Various Artists compilations) are grouped using your existing file tags without reaching out to
+external metadata services.
+
+The server watches your music folder in real time, so newly added, edited, or removed files show
+up on connected clients right away without needing a full rescan. Unchanged files are skipped
+via a metadata cache, and clients keep a local copy of the catalogue so they only need to sync
+changes. Search works the same across all apps and handles transliteration and wrong keyboard
+layouts, so typos or different scripts still find what you're looking for.
 
 Details: [core docs](ariami_core/docs/README.md) ·
 [playlist detection](ariami_core/PLAYLIST_DETECTION.md)
@@ -268,16 +282,21 @@ Details: [core docs](ariami_core/docs/README.md) ·
 <details>
 <summary><strong>Playback, downloads and offline</strong></summary>
 
-Background playback with lock-screen and OS media controls, queue editing, shuffle, repeat,
-gapless playback, and an equalizer with built-in and custom presets. Download tracks, albums,
-playlists or the whole library for offline listening, with a manual offline mode and automatic
-fallback when the connection drops. Quality presets follow connection type, with separate
-settings for streaming and downloads, and a streaming cache for anything not yet downloaded.
-Downloads can be requested at Original, High, Medium or Low quality, accidental actions such as
-replacing the queue can be undone, and Play next picks can optionally stack in the order chosen.
-Server-side transcoding is handled by Sonic (MP3/WAV/FLAC → Opus/AAC/M4A/MP3), with server-managed download jobs and
-per-user concurrency limits so one device cannot starve the others. Mobile and the Premium
-Desktop Player cast to Chromecast, and Mobile can control a Desktop cast through Ariami Connect.
+Supports background playback with OS and lock-screen media controls, gapless playback, queue
+editing, shuffle, repeat, and an equalizer with built-in and custom presets. If you replace
+your queue by accident, there's an undo button, and you can choose whether "Play next" tracks
+stack in the order you tapped them.
+
+You can download individual tracks, albums, playlists, or your entire library for offline use
+at Original, High, Medium, or Low quality. Apps fall back to offline mode automatically if you
+lose connection (or you can toggle it manually). Streaming and download quality can be configured
+separately based on whether you're on Wi-Fi or mobile data, and streamed tracks are cached along
+the way.
+
+On the server, transcoding is handled by Sonic (MP3/WAV/FLAC → Opus/AAC/M4A/MP3) with per-user
+concurrency limits so one big download job doesn't slow down everyone else. Both the Mobile app
+and Desktop Player can cast to Chromecast, and you can control a Desktop cast from your phone
+over Ariami Connect.
 
 Details: [mobile features](ariami_mobile/docs/FEATURES.md) ·
 [desktop features](ariami_desktop/docs/FEATURES.md)
@@ -286,33 +305,39 @@ Details: [mobile features](ariami_mobile/docs/FEATURES.md) ·
 <details>
 <summary><strong>Playlists</strong></summary>
 
-Create and edit playlists in the apps, with custom cover art that syncs across your devices,
-reordering, renaming, and a Liked Songs playlist. On the server, folders named `[PLAYLIST]…`
-and `.m3u` files become playlists, and detected playlist folders can be surfaced to the owner
-for approval. Server playlists import to your devices as editable copies; edits sync back and
-queue up if you make them offline.
+Create and edit playlists in the apps, set custom cover art that syncs across your devices,
+reorder tracks, and save favourites to Liked Songs.
+
+On the server side, folders named `[PLAYLIST]...` and `.m3u` files are picked up as playlists,
+and any newly detected playlist folders can be reviewed and approved by the server owner. Server
+playlists can be imported to your devices as editable copies, and any changes you make offline
+sync back once you're reconnected.
 
 </details>
 <details>
 <summary><strong>Accounts and multi-device</strong></summary>
 
-Password-protected accounts (10 characters minimum), each with its own sessions, downloads,
-playback state and stats. The first account is the owner/admin; afterwards, new registrations
-need an owner-generated QR code or invite code, both single-use and time-limited, and headless
-setups can bootstrap the owner with a one-time console code. One account can be signed in on
-phone, desktop and TV at once — that is what makes Connect work. Login rate limiting guards
-against brute force, and the TV account picker is off by default so a server never lists its
-account names unless the owner turns it on.
+Each user gets a password-protected account (10 characters minimum) with their own sessions,
+downloads, playback state, and listening stats. The first account registered is the owner/admin.
+After that, new users need a single-use, time-limited QR code or invite code generated by the
+owner (headless servers can also bootstrap the owner account with a one-time console code).
+
+You can stay signed in to the same account on your phone, desktop, and TV at the same time,
+which is how Ariami Connect links them together. Login attempts are rate-limited, and the TV
+account picker is turned off by default so the server doesn't expose usernames on the login
+screen unless the owner enables it.
 
 </details>
 <details>
 <summary><strong>Listening stats</strong></summary>
 
-Account-wide stats that follow you across every Ariami device and roll into one history:
-tabbed top tracks, artists and albums with play counts and time listened; all-time, day, week,
-month and year views; individually credited featured artists; average daily listening time and
-a profile snapshot. You can import your Spotify listening history and match it against your
-library, and export playlists and stats as JSON.
+Listening stats are tracked per account, so plays from your phone, desktop, and TV all count
+toward the same history. You can view top tracks, artists, and albums by play count or time
+listened, filtered by day, week, month, year, or all-time. Featured artists are credited
+individually, and you get daily listening averages along with a profile summary.
+
+If you're moving over from Spotify, you can import your Spotify listening history and match it
+against your local library. Playlists and stats can also be exported as JSON.
 
 Details: [listening stats](ariami_core/docs/LISTENING_STATS.md)
 
@@ -320,15 +345,17 @@ Details: [listening stats](ariami_core/docs/LISTENING_STATS.md)
 <details>
 <summary><strong>Server administration</strong></summary>
 
-The Desktop dashboard and the responsive CLI web dashboard both show server status, library
-stats, connected clients and registered users, plus admin views for download queues and
-transcoding activity. Owner actions cover adding and deleting users, changing passwords,
-kicking devices, generating pairing QR codes and invite codes, rescanning the library, Spotify
-import, and starting, stopping or restarting the CLI host. Endpoint aliases and optional IP
-masking help keep connection details readable and private. Start-at-login/autostart is available
-on both. **Ariami never deletes your music folder** — a setup reset clears pairing and setup
-state, and a factory reset clears Ariami-owned data (accounts, sessions, stats, playlists,
-database, cache); both require typing `RESET`.
+Both the Desktop Server app and the CLI's web dashboard show server status, library size,
+connected clients, registered users, active download queues, and live transcoding jobs.
+
+From the dashboard, the server owner can add or remove users, reset passwords, kick devices,
+create pairing QR/invite codes, trigger library rescans, run Spotify imports, and start, stop,
+or restart the CLI server. You can also set custom endpoint aliases, mask IPs in the UI, and
+turn on start-at-login.
+
+**Ariami never deletes files from your music folder.** A setup reset only clears pairing and
+setup state, while a factory reset wipes Ariami's own database, accounts, stats, playlists, and
+cache (both require typing `RESET` to confirm).
 
 Details: [RESET.md](RESET.md) · [CLI configuration](ariami_cli/docs/CONFIGURATION.md)
 
@@ -336,11 +363,11 @@ Details: [RESET.md](RESET.md) · [CLI configuration](ariami_cli/docs/CONFIGURATI
 <details>
 <summary><strong>Sonic transcoder benchmarks (Raspberry Pi 5)</strong></summary>
 
-Sonic is purpose-built for Ariami's transcoding workload (MP3/WAV/FLAC → Opus/AAC/M4A/MP3). It is not a general
-FFmpeg replacement; FFmpeg is still used for artwork processing.
+Sonic was built specifically for Ariami's audio transcoding (MP3/WAV/FLAC → Opus/AAC/M4A/MP3).
+FFmpeg is still used separately for resizing album art.
 
-Test setup: Raspberry Pi 5 over ethernet, active cooler enabled. Average temperature during
-hard Sonic transcoding: about 68 °C.
+Test setup: Raspberry Pi 5 over Ethernet with the active cooler on. Average temperature during
+heavy Sonic transcoding was around 68 °C.
 
 | Scenario (Pi 5) | Sonic | FFmpeg | Difference |
 | --- | --- | --- | --- |
@@ -356,18 +383,18 @@ hard Sonic transcoding: about 68 °C.
 
 ## Pricing and licensing
 
-- **Ariami Core, the servers (Desktop Server, CLI, Docker) and the mobile app are free**, and
-  the source in this repository is MIT licensed.
-- **The Desktop Player and the TV app are one-time purchases**, available separately or as a
-  bundle that activates both. There is no subscription. Buy them at [ariami.xyz](https://ariami.xyz/); current prices are listed there. Store downloads never charge you:
-  the Fire TV app installs free from the Amazon Appstore and is unlocked by the licence key.
-- A purchase gives you a licence key. TV licences are activated once and stored on the server,
-  so every TV in the household picks the licence up automatically.
-- Paid clients help fund continued development. Core and mobile stay free.
+- **Ariami Core, all servers (Desktop Server, CLI, Docker), and the mobile app are free**, and
+  the code in this repo is MIT licensed.
+- **The Desktop Player and the TV app are one-time purchases.** You can buy them individually
+  or as a bundle at [ariami.xyz](https://ariami.xyz/), where current prices are listed. Store
+  downloads themselves are free (for example, the Fire TV app downloads for free from the Amazon
+  Appstore and unlocks with your licence key).
+- When you buy a TV licence, it activates once and is saved on your server, so any other TV in
+  your house picks it up automatically.
+- Paid apps help fund development while keeping the server core and mobile app free.
 
-Ariami does not operate a cloud service: your library, accounts, playlists and listening
-history live on your server, and the apps carry no ads, analytics or tracking. See
-[PRIVACY.md](PRIVACY.md).
+Your library, accounts, playlists, and listening history all stay on your own machine, and the
+apps don't include any ads, analytics, or tracking. See [PRIVACY.md](PRIVACY.md).
 
 ---
 
@@ -389,38 +416,37 @@ history live on your server, and the apps carry no ads, analytics or tracking. S
 
 ## Roadmap
 
-- Role-based access control for families, with explicit per-user song and album filtering.
-- Per-user library control — today one library is shared by everyone, with no way to hide or
-  manage content per person.
-- More stats imports. Spotify history import already ships; YouTube Music and Apple Music are
-  next, once there is a real set of listening data to build against.
-- Ariami for tvOS (Apple TV) is something I am willing to look into if there is demand.
+- Role-based access control for families, with per-user song and album filtering.
+- Per-user libraries. Right now everyone on a server shares the same library, with no way to
+  separate or hide content per person.
+- More stats imports. Spotify history import is already in; YouTube Music and Apple Music are
+  next once I have real listening data exports to test against.
+- Ariami for tvOS (Apple TV) is something I'm happy to look into if there's enough interest.
 
-The most valuable input is user feedback. Ariami has been tested across as many VMs, laptops,
-PCs, phones and real TVs as I could get hold of, but that is still a small slice of the devices
-out there — reported issues are what make it better.
+Bug reports and feedback make a huge difference. I've tested Ariami across as many VMs,
+laptops, PCs, phones, and real TVs as I could get my hands on, but that's still a small
+fraction of the hardware out there.
 
 ---
 
 ## Building from source
 
-Per-package instructions live in each package's docs; [GUIDE.md](GUIDE.md) covers the full
-developer setup.
+Each package has its own build instructions in its docs folder, and [GUIDE.md](GUIDE.md) covers
+the full developer setup.
 
-- [`ariami_desktop/`](ariami_desktop/README.md) — Desktop Server
-- [`ariami_cli/`](ariami_cli/README.md) — CLI server for Raspberry Pi / Linux
-- [`ariami_mobile/`](ariami_mobile/README.md) — mobile client
-- [`ariami_core/`](ariami_core/README.md) — shared library
+- [`ariami_desktop/`](ariami_desktop/README.md): Desktop Server
+- [`ariami_cli/`](ariami_cli/README.md): CLI server for Raspberry Pi / Linux
+- [`ariami_mobile/`](ariami_mobile/README.md): Mobile client
+- [`ariami_core/`](ariami_core/README.md): Shared core library
 
-**Requirements:** Dart SDK ^3.5.0 (compiling the CLI binary with `dart build cli` needs Dart
-3.9+), and Flutter — latest stable is fine locally; release binaries are built with Flutter
-3.44.0. A Rust toolchain is only needed to build [Sonic](sonic/); without it the server still
-runs, but quality transcoding is unavailable. FFmpeg is optional and used for
-artwork resizing.
+**Requirements:** Dart SDK ^3.5.0 (compiling the CLI binary with `dart build cli` requires Dart
+3.9+) and Flutter (latest stable works fine locally; release builds use Flutter 3.44.0). You
+only need a Rust toolchain if you're building [Sonic](sonic/) from source; without it the server
+still runs, just without quality transcoding. FFmpeg is optional and used for resizing artwork.
 
 **iOS:** Ariami is on the [App Store](https://apps.apple.com/us/app/ariami/id6789298823), so
-you only need to build it yourself if you are developing against it — `flutter build ios`
-(requires macOS and Xcode).
+you only need to build it yourself if you're working on the code (`flutter build ios`, requires
+macOS and Xcode).
 
 Clone with submodules if you need the Sonic transcoder for desktop builds:
 
@@ -432,9 +458,11 @@ git clone --recurse-submodules https://github.com/picccassso/Ariami.git
 
 ## Contributing and feedback
 
-Bug reports and feature requests are welcome via
-[GitHub Issues](https://github.com/picccassso/Ariami/issues). Please include your platform, the Ariami version, and which server you are running. Pull requests are welcome for the packages in this repository.
+Bug reports and feature requests are welcome on
+[GitHub Issues](https://github.com/picccassso/Ariami/issues). If you open a bug report, please
+mention your platform, Ariami version, and which server you're running. Pull requests are
+welcome for the packages in this repo.
 
 ## Licence
 
-MIT — see [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).
