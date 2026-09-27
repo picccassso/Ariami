@@ -3,6 +3,7 @@ import 'package:ariami_core/services/connect/remote_playback.dart';
 import 'package:ariami_mobile/models/playback_queue.dart';
 import 'package:ariami_mobile/models/song.dart';
 import 'package:ariami_mobile/services/audio/keep_queue_on_tap_service.dart';
+import 'package:ariami_mobile/services/audio/stack_play_next_service.dart';
 import 'package:ariami_mobile/services/playback_manager.dart';
 import 'package:ariami_mobile/utils/shared_preferences_cache.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -527,6 +528,61 @@ void main() {
         expect(undos, hasLength(1));
         expect(manager.queue.songs.map((s) => s.id), ['new', 'new-2']);
 
+        manager.setConnectRemoteMirror(null);
+      });
+    });
+  });
+
+  group('Play Next', () {
+    Future<PlaybackManager> localQueue() async {
+      final manager = PlaybackManager();
+      manager.setConnectRemoteMirror(null);
+      await manager.stopAndClearQueue();
+      manager.addAllToQueue([_song('song-a'), _song('song-b')]);
+      return manager;
+    }
+
+    test('goes straight after the current song by default', () async {
+      final manager = await localQueue();
+
+      manager.playNext(_song('x'));
+      manager.playNext(_song('y'));
+
+      expect(manager.queue.songs.map((s) => s.id),
+          ['song-a', 'y', 'x', 'song-b']);
+      await manager.stopAndClearQueue();
+    });
+
+    group('with Stack Play Next on', () {
+      setUp(() => StackPlayNextService().setEnabled(true));
+      tearDown(() => StackPlayNextService().setEnabled(false));
+
+      test('stacks after earlier picks in the local queue', () async {
+        final manager = await localQueue();
+
+        manager.playNext(_song('x'));
+        manager.playNext(_song('y'));
+
+        expect(manager.queue.songs.map((s) => s.id),
+            ['song-a', 'x', 'y', 'song-b']);
+        await manager.stopAndClearQueue();
+      });
+
+      test('stacks after earlier picks in the mirrored queue', () async {
+        final manager = PlaybackManager();
+        final sent = <(String, Map<String, dynamic>?)>[];
+        manager.setConnectRemoteMirror(
+          _remote(),
+          sendCommand: (command, [arguments]) =>
+              sent.add((command, arguments)),
+        );
+
+        manager.playNext(_song('x'));
+        manager.playNext(_song('y'));
+
+        expect(sent.map((c) => c.$2!['index']), [1, 2]);
+        expect(manager.queue.songs.map((s) => s.id),
+            ['song-a', 'x', 'y', 'song-b', 'song-c']);
         manager.setConnectRemoteMirror(null);
       });
     });

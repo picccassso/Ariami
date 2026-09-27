@@ -2,6 +2,7 @@
 library;
 
 export 'app_version.dart';
+export 'utils/play_next_position.dart';
 
 // Models
 export 'models/album.dart';

@@ -179,7 +179,7 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
     if (song == null) return;
 
     _playbackManager.addToQueue(song);
-    _showQueueActionConfirmation('Added to queue');
+    _showQueueActionConfirmation('Added to end of queue');
   }
 
   void _playCurrentSongNext() {

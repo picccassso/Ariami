@@ -6,6 +6,7 @@ import 'package:flutter_volume_controller/flutter_volume_controller.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:ariami_core/models/connect_models.dart';
 import 'package:ariami_core/services/connect/remote_playback.dart';
+import 'package:ariami_core/utils/play_next_position.dart';
 import '../models/song.dart';
 import '../models/playback_queue.dart';
 import '../models/quality_settings.dart';
@@ -18,6 +19,7 @@ import 'audio/gapless_playback_service.dart';
 import 'audio/keep_queue_on_tap_service.dart';
 import 'audio/play_buttons_follow_playback_service.dart';
 import 'audio/shuffle_service.dart';
+import 'audio/stack_play_next_service.dart';
 import 'audio/playback_state_manager.dart';
 import 'api/connection_service.dart';
 import 'api/api_client.dart';
@@ -79,6 +81,13 @@ class PlaybackManager extends ChangeNotifier {
       const <Map<String, dynamic>>[];
   List<int> _connectBackingOrderCache = const <int>[];
   final HashSet<Song> _oneShotQueuedSongs = HashSet<Song>.identity();
+
+  /// The last song Play Next inserted locally (matched by identity), and the
+  /// (index, id) of the last one inserted on a Connect device — where
+  /// "Stack Play Next" finds the run of earlier picks.
+  Song? _playNextTail;
+  (int, String)? _connectPlayNextTail;
+
   bool _isShuffleEnabled = false;
   RepeatMode _repeatMode = RepeatMode.none;
 
@@ -475,7 +484,8 @@ class PlaybackManager extends ChangeNotifier {
     _addAllToQueueImpl(songs);
   }
 
-  /// Insert song to play next
+  /// Insert song to play next — or, with "Stack Play Next" on, after the
+  /// earlier Play Next picks still waiting.
   void playNext(Song song) {
     final remote = _connectRemote;
     if (remote != null) {

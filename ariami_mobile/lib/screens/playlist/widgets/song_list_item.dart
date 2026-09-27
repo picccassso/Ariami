@@ -164,7 +164,7 @@ class _SongListItemState extends State<SongListItem> {
       ),
     );
     if (mounted) {
-      showQueueActionConfirmation(context, message: 'Added to queue');
+      showQueueActionConfirmation(context, message: 'Added to end of queue');
     }
   }
 }

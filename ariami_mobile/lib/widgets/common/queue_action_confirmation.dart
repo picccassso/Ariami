@@ -22,7 +22,7 @@ void dismissQueueActionConfirmation() {
 
 void showQueueActionConfirmation(
   BuildContext context, {
-  String message = 'Added to queue',
+  String message = 'Added to end of queue',
   String? actionLabel,
   VoidCallback? onAction,
   Duration duration = const Duration(seconds: 3),

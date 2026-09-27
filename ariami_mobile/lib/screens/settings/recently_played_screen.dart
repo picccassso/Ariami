@@ -143,7 +143,7 @@ class _RecentlyPlayedScreenState extends State<RecentlyPlayedScreen> {
     }
     showQueueActionConfirmation(
       context,
-      message: next ? 'Playing next' : 'Added to queue',
+      message: next ? 'Playing next' : 'Added to end of queue',
     );
   }
 
@@ -246,7 +246,7 @@ class _RecentlyPlayedScreenState extends State<RecentlyPlayedScreen> {
     final label = songs.length == 1 ? 'track' : 'tracks';
     showQueueActionConfirmation(
       context,
-      message: 'Added ${songs.length} $label to queue',
+      message: 'Added ${songs.length} $label to end of queue',
     );
   }
 
@@ -488,11 +488,11 @@ class _DayHeader extends StatelessWidget {
                   ),
                 ),
                 Tooltip(
-                  message: 'Add this day to queue',
+                  message: 'Add this day to end of queue',
                   child: TextButton.icon(
                     onPressed: onAddToQueue,
                     icon: const Icon(Icons.add_to_queue_rounded, size: 17),
-                    label: const Text('Add to queue'),
+                    label: const Text('Add to end of queue'),
                     style: TextButton.styleFrom(
                       padding: const EdgeInsets.symmetric(horizontal: 8),
                       visualDensity: VisualDensity.compact,
@@ -608,7 +608,7 @@ class _RecentStatsTile extends StatelessWidget {
               IconButton(
                 tooltip: onAddToQueue == null
                     ? 'Unavailable in your library'
-                    : 'Add to queue',
+                    : 'Add to end of queue',
                 onPressed: onAddToQueue,
                 icon: Icon(onAddToQueue == null
                     ? Icons.music_off_rounded
@@ -664,7 +664,7 @@ class _RecentStatsTile extends StatelessWidget {
         ),
         ListTile(
           leading: const Icon(Icons.queue_music),
-          title: const Text('Add to Queue'),
+          title: const Text('Add to End of Queue'),
           onTap: () {
             Navigator.pop(context);
             onAddToQueue?.call();

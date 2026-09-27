@@ -41,7 +41,7 @@ Future<void> _waitForCatalog(WidgetTester tester) async {
     for (var i = 0; i < 20; i++) {
       await Future<void>.delayed(const Duration(milliseconds: 20));
       await tester.pump();
-      if (find.byTooltip('Add to queue').evaluate().isNotEmpty) break;
+      if (find.byTooltip('Add to end of queue').evaluate().isNotEmpty) break;
     }
   });
   await _pumpFrames(tester);
@@ -209,7 +209,7 @@ void main() {
     expect(playback.queue.songs.map((s) => s.id),
         ['current', 'history', 'upcoming']);
 
-    await tester.tap(find.byTooltip('Add to queue'));
+    await tester.tap(find.byTooltip('Add to end of queue'));
     await _pumpFrames(tester);
     expect(commands.length, 2);
     expect(commands.last.$1, AriamiConnectCommand.insertQueueTrack);
@@ -263,7 +263,7 @@ void main() {
     expect(find.widgetWithText(ListTile, 'Play'), findsOneWidget);
     expect(find.widgetWithText(ListTile, 'Like song'), findsOneWidget);
     expect(find.widgetWithText(ListTile, 'Play Next'), findsOneWidget);
-    expect(find.widgetWithText(ListTile, 'Add to Queue'), findsOneWidget);
+    expect(find.widgetWithText(ListTile, 'Add to End of Queue'), findsOneWidget);
     expect(find.widgetWithText(ListTile, 'Add to Playlist'), findsOneWidget);
     expect(find.widgetWithText(ListTile, 'Show in album'), findsOneWidget);
   });
@@ -293,7 +293,7 @@ void main() {
     expect(find.widgetWithText(ListTile, 'Play'), findsOneWidget);
     expect(find.widgetWithText(ListTile, 'Like song'), findsOneWidget);
     expect(find.widgetWithText(ListTile, 'Play Next'), findsOneWidget);
-    expect(find.widgetWithText(ListTile, 'Add to Queue'), findsOneWidget);
+    expect(find.widgetWithText(ListTile, 'Add to End of Queue'), findsOneWidget);
     expect(find.widgetWithText(ListTile, 'Add to Playlist'), findsOneWidget);
     expect(find.widgetWithText(ListTile, 'Show in album'), findsNothing);
   });
@@ -356,7 +356,7 @@ void main() {
   });
 
   testWidgets(
-      'tapping Add to Queue in sheet appends song and shows confirmation',
+      'tapping Add to End of Queue in sheet appends song and shows confirmation',
       (tester) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
@@ -400,14 +400,14 @@ void main() {
     await tester.tap(find.text('History Song'));
     await _pumpFrames(tester);
 
-    await tester.tap(find.widgetWithText(ListTile, 'Add to Queue'));
+    await tester.tap(find.widgetWithText(ListTile, 'Add to End of Queue'));
     await _pumpFrames(tester);
 
     expect(find.byType(BottomSheet), findsNothing);
     expect(commands.length, 1);
     expect(commands.single.$1, AriamiConnectCommand.insertQueueTrack);
     expect(commands.single.$2?['index'], 1);
-    expect(find.text('Added to queue'), findsOneWidget);
+    expect(find.text('Added to end of queue'), findsOneWidget);
 
     dismissQueueActionConfirmation();
     playback.setConnectRemoteMirror(null);
@@ -661,7 +661,7 @@ void main() {
     await _waitForCatalog(tester);
 
     // Quick add button on tile
-    await tester.tap(find.byTooltip('Add to queue'));
+    await tester.tap(find.byTooltip('Add to end of queue'));
     await _pumpFrames(tester);
 
     // Sheet was NOT opened
@@ -670,7 +670,7 @@ void main() {
 
     // Queue action executed and confirmation displayed
     expect(commands.single.$1, AriamiConnectCommand.insertQueueTrack);
-    expect(find.text('Added to queue'), findsOneWidget);
+    expect(find.text('Added to end of queue'), findsOneWidget);
 
     dismissQueueActionConfirmation();
     playback.setConnectRemoteMirror(null);
@@ -861,7 +861,7 @@ void main() {
 
     expect(find.byType(BottomSheet), findsNothing);
     expect(commands, isEmpty);
-    expect(find.text('Added to queue'), findsNothing);
+    expect(find.text('Added to end of queue'), findsNothing);
 
     dismissQueueActionConfirmation();
     playback.setConnectRemoteMirror(null);

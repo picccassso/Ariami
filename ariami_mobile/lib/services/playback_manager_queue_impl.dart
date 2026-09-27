@@ -148,7 +148,17 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
 
   void _playNextImpl(Song song) {
     final queuedSong = song.copyWith();
-    _queue.insertSong(_queue.currentIndex + 1, queuedSong);
+    final songs = _queue.songs;
+    _queue.insertSong(
+      playNextPosition(
+        current: _queue.currentIndex,
+        length: songs.length,
+        stack: StackPlayNextService().isEnabled,
+        isTail: (i) => identical(songs[i], _playNextTail),
+      ),
+      queuedSong,
+    );
+    _playNextTail = queuedSong;
     _syncShuffleQueueAfterEdit();
     _oneShotQueuedSongs.add(queuedSong);
     _lastWarmupKey = null;

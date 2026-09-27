@@ -4,6 +4,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../services/audio/gapless_playback_service.dart';
 import '../../services/audio/play_buttons_follow_playback_service.dart';
 import '../../services/audio/keep_queue_on_tap_service.dart';
+import '../../services/audio/stack_play_next_service.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
 import '../../widgets/settings/settings_section.dart';
@@ -25,6 +26,7 @@ class _PlaybackSettingsScreenState extends State<PlaybackSettingsScreen> {
   final PlayButtonsFollowPlaybackService _playButtonsService =
       PlayButtonsFollowPlaybackService();
   final KeepQueueOnTapService _keepQueueService = KeepQueueOnTapService();
+  final StackPlayNextService _stackPlayNextService = StackPlayNextService();
 
   @override
   void initState() {
@@ -32,6 +34,7 @@ class _PlaybackSettingsScreenState extends State<PlaybackSettingsScreen> {
     _gaplessPlaybackService.initialize();
     _playButtonsService.initialize();
     _keepQueueService.initialize();
+    _stackPlayNextService.initialize();
   }
 
   @override
@@ -72,7 +75,12 @@ class _PlaybackSettingsScreenState extends State<PlaybackSettingsScreen> {
       body: ContentWidthLimiter(
         child: ListenableBuilder(
           listenable: Listenable.merge(
-            [_gaplessPlaybackService, _playButtonsService, _keepQueueService],
+            [
+              _gaplessPlaybackService,
+              _playButtonsService,
+              _keepQueueService,
+              _stackPlayNextService,
+            ],
           ),
           builder: (context, _) => ListView(
             padding: EdgeInsets.only(
@@ -118,6 +126,19 @@ class _PlaybackSettingsScreenState extends State<PlaybackSettingsScreen> {
                     trailing: toggle(
                       value: _keepQueueService.isEnabled,
                       onChanged: _keepQueueService.setEnabled,
+                    ),
+                  ),
+                  SettingsTile(
+                    icon: Icons.playlist_add_rounded,
+                    title: 'Stack Play Next',
+                    subtitle: 'Play Next adds after songs you already chose '
+                        'to play next, instead of straight after this one',
+                    onTap: () => _stackPlayNextService.setEnabled(
+                      !_stackPlayNextService.isEnabled,
+                    ),
+                    trailing: toggle(
+                      value: _stackPlayNextService.isEnabled,
+                      onChanged: _stackPlayNextService.setEnabled,
                     ),
                   ),
                   SettingsTile(

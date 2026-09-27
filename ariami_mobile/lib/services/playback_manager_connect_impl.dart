@@ -233,6 +233,7 @@ extension _PlaybackManagerConnectImpl on PlaybackManager {
     _sendConnect(AriamiConnectCommand.playContext, <String, dynamic>{
       'snapshot': snapshot.toJson(includeBackingOrder: true),
     });
+    _connectPlayNextTail = null;
     // Mirror the new context optimistically; the active device's own state
     // broadcast confirms it.
     setConnectRemoteMirror(remote.copyWithSnapshot(snapshot));
@@ -416,14 +417,23 @@ extension _PlaybackManagerConnectImpl on PlaybackManager {
   }
 
   /// Inserts [song] right after the active device's current track — a
-  /// controller's "play next" — and mirrors the result optimistically.
+  /// controller's "play next", stacked by this device's own setting — and
+  /// mirrors the result optimistically.
   void _playNextConnectQueue(
     AriamiRemotePlayback remote,
     Song song,
   ) {
     final snapshot = remote.snapshot;
     final queue = List<Map<String, dynamic>>.from(snapshot.queue);
-    final index = (snapshot.currentIndex + 1).clamp(0, queue.length);
+    final tail = _connectPlayNextTail;
+    final index = playNextPosition(
+      current: snapshot.currentIndex,
+      length: queue.length,
+      stack: StackPlayNextService().isEnabled,
+      tailHint: tail?.$1,
+      isTail: tail == null ? null : (i) => queue[i]['id'] == tail.$2,
+    );
+    _connectPlayNextTail = (index, song.id);
     final track = song.toJson();
     _sendConnect(AriamiConnectCommand.insertQueueTrack, <String, dynamic>{
       'index': index,

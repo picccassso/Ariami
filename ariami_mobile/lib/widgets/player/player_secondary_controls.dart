@@ -76,7 +76,7 @@ class PlayerSecondaryControls extends StatelessWidget {
         if (onAddToQueue != null)
           ListTile(
             leading: const Icon(Icons.queue_music_rounded),
-            title: const Text('Add to queue'),
+            title: const Text('Add to end of queue'),
             onTap: () {
               Navigator.pop(context);
               onAddToQueue?.call();

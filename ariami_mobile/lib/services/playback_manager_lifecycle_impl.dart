@@ -20,6 +20,7 @@ extension _PlaybackManagerLifecycleImpl on PlaybackManager {
     // saved preference on a launch where Settings is never opened.
     PlayButtonsFollowPlaybackService().initialize();
     KeepQueueOnTapService().initialize();
+    StackPlayNextService().initialize();
 
     _castService.initialize();
     _castService.addListener(_onCastStateChanged);

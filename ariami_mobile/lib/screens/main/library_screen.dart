@@ -260,7 +260,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
       ];
       _playbackManager.addAllToQueue(songs);
       if (mounted) {
-        showQueueActionConfirmation(context, message: 'Added to queue');
+        showQueueActionConfirmation(context, message: 'Added to end of queue');
       }
     } catch (e) {
       // Silently fail, can't let em know it failed LOL
@@ -293,7 +293,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
       }
       _playbackManager.addAllToQueue(songs);
       if (mounted) {
-        showQueueActionConfirmation(context, message: 'Added to queue');
+        showQueueActionConfirmation(context, message: 'Added to end of queue');
       }
     } catch (e) {
       // Silently fail, can't let em know it failed LOL
@@ -331,7 +331,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
       items: [
         ListTile(
           leading: const Icon(Icons.queue_music),
-          title: const Text('Add to Queue'),
+          title: const Text('Add to End of Queue'),
           onTap: () {
             Navigator.pop(context);
             _addSelectionToQueue();
@@ -361,7 +361,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
     showQueueActionConfirmation(
       context,
       message:
-          'Added ${songs.length} song${songs.length == 1 ? '' : 's'} to queue',
+          'Added ${songs.length} song${songs.length == 1 ? '' : 's'} to end of queue',
     );
   }
 

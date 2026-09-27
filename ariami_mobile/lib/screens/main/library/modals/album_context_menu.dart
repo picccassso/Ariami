@@ -59,7 +59,7 @@ Future<void> showAlbumContextMenu({
       ),
       ListTile(
         leading: const Icon(Icons.queue_music),
-        title: const Text('Add to Queue'),
+        title: const Text('Add to End of Queue'),
         onTap: () {
           Navigator.pop(context);
           onAddToQueue();
