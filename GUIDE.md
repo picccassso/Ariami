@@ -6,11 +6,16 @@ Guide for building Ariami from source.
 
 - **Dart SDK**: packages declare `^3.5.0`, but compiling the CLI binary uses
   `dart build cli`, which needs **Dart 3.9+** (developed against 3.12)
-- **Flutter SDK**: Latest stable (the Docker build pins **3.44.0**)
-- **Rust toolchain**: only needed to build [Sonic](sonic/), the transcoding
-  library. Without it the server still runs; low/medium quality transcoding is
-  unavailable
-- **FFmpeg**: optional, used for artwork resizing only (transcoding is Sonic)
+- **Flutter SDK**: latest stable. The Docker image pins **3.44.0** and the
+  release workflows pin **3.44.6**
+- **Rust toolchain**: needed to build [Sonic](sonic/), the transcoding
+  library. The macOS desktop build stops with an error when `sonic/` or
+  `cargo` is missing; Windows and Linux warn and skip it when the source is
+  absent. A server without Sonic still runs, but medium and low quality
+  streaming is unavailable
+- **FFmpeg**: optional. Supplies `ffmpeg` for artwork resizing and `ffprobe`
+  for reading tags from non-MP3 files and for transcode decisions. Transcoding
+  itself runs through Sonic
 - **Docker**: optional, for the container image and Raspberry Pi ARM64 releases
 - **Platform tools**:
   - Android: Android Studio
@@ -78,16 +83,18 @@ cp build/cli-release/bundle/bin/ariami_cli ./ariami_cli
 chmod +x ./ariami_cli
 ```
 
-Keep `bundle/bin` and `bundle/lib` together when deploying — the executable
+Keep `bundle/bin` and `bundle/lib` together when deploying. The executable
 loads native libraries (such as `libsqlite3.so`) from the adjacent bundle
-library directory. See [ariami_cli/REBUILD.md](ariami_cli/REBUILD.md) for clean
-rebuilds, global installs, and the Raspberry Pi ARM64 release script
+library directory, so the resulting binary runs without Dart installed. See
+[ariami_cli/REBUILD.md](ariami_cli/REBUILD.md) for clean rebuilds, global
+installs, and the Raspberry Pi ARM64 release script
 (`ariami_cli/build-pi-release-mac.sh`).
 
 ### Sonic (transcoding library)
 
 Low/medium quality transcoding loads Sonic over FFI. Build the shared library
-before starting a server if you want transcoding:
+before starting a server if you want transcoding. If you cloned the repo
+without submodules, run `git submodule update --init --recursive` first:
 
 ```bash
 cd sonic
@@ -98,7 +105,7 @@ The server looks for `libsonic_transcoder.dylib` (macOS),
 `libsonic_transcoder.so` (Linux) or `sonic_transcoder.dll` (Windows) in the
 loader's default paths, alongside the executable (`lib/`, `Frameworks/`), and in
 `sonic/target/release/` relative to the working directory. `ARIAMI_SONIC_LIB`
-overrides the search with an explicit path.
+sets an explicit path or library name that is tried first.
 
 ### Docker (CLI server)
 
@@ -119,11 +126,12 @@ Run instructions, volumes and security notes are in
 ./ariami_cli autostart status    # show current setting
 ```
 
-First-run setup also asks this as a y/N prompt. Each platform uses its standard
-no-root mechanism: an `@reboot` crontab entry on Linux/Raspberry Pi, a
-LaunchAgent in `~/Library/LaunchAgents` on macOS, and an `HKCU ...\Run` registry
-value on Windows. The desktop app has an equivalent "Start at Login" toggle on
-the Server tab.
+First-run setup also asks this as a y/N prompt when it runs in an interactive
+terminal. Each platform uses its standard no-root mechanism: an `@reboot`
+crontab entry on Linux/Raspberry Pi, a LaunchAgent
+(`com.ariami.cli.plist`) in `~/Library/LaunchAgents` on macOS, and a `Run`
+entry (value name `AriamiCLI`) on Windows. The desktop app has an equivalent
+"Start at Login" toggle on the Server tab.
 
 ### Reset Ariami
 
@@ -135,13 +143,18 @@ Start over without losing your music files:
 ./ariami_cli reset --factory -y # factory reset all Ariami data
 ```
 
-**Setup/config only** clears setup, server config and pairing state but keeps
-the catalog database and accounts. **Factory reset** removes everything Ariami
-owns (database, accounts, sessions, caches) and disables start-on-boot. Both
-require typing `RESET` to confirm, stop the server first if it is running, and
-**never delete your music folder**. The desktop app has the same two options
-under **Server tab → Danger Zone → Reset Ariami**; after a desktop reset the
-app closes so you can reopen it fresh.
+**Setup/config only** clears setup progress, server config and saved
+connection details, but keeps the catalogue database and accounts. **Factory
+reset** removes the catalogue database, accounts, sessions, setup state and
+library caches, and disables start-on-boot. Both options stop a running server
+first and leave your music folder untouched. Without `-y`, both ask you to
+type `RESET` to confirm. A few per-account stores, such as listening stats,
+pins, hidden items, playlist edits and the TV licence, live in separate files
+and survive a factory reset; see [RESET.md](RESET.md) for the details.
+
+The desktop app has the same two options under **Server tab → Danger Zone →
+Reset Ariami**; after a successful desktop reset the app closes so you can
+reopen it fresh.
 
 ## Troubleshooting
 
@@ -151,13 +164,17 @@ flutter clean && flutter pub get
 ```
 
 ### Port conflicts
-Ariami prefers port **8080** and automatically tries **8081–8099** if it is busy, then saves the port it used. Check which port is listening with:
+Ariami prefers port **8080**. On a fresh start it tries the rest of the range
+up to **8099** when 8080 is busy, then saves the port it settled on. The
+Desktop Server runs this fallback on every start; the CLI reuses its saved port
+once setup is complete. Check which port is listening with:
 ```bash
 lsof -i :8080
 ./ariami_cli status
 ```
 
-To pin a specific port (no automatic fallback):
+To pin a specific port and skip the fallback (the `ARIAMI_PORT` environment
+variable does the same):
 ```bash
 dart run bin/ariami_cli.dart start --port 8081
 ```
@@ -175,13 +192,13 @@ flutter doctor
 **Supported Pi Models:**
 - Raspberry Pi 5 (all configurations)
 - Raspberry Pi 4 (2GB+ RAM recommended)
-- Raspberry Pi 3 works but is transcode-bound — see
+- Raspberry Pi 3 works but is transcode-bound. See
   [docs/pi-3-performance-findings.md](docs/pi-3-performance-findings.md)
 
 **Prerequisites:**
 - Raspberry Pi OS (64-bit recommended)
-- Dart SDK installed
-- Compiled CLI binary (`dart build cli -o build/cli-release` then `cp build/cli-release/bundle/bin/ariami_cli ./ariami_cli`), or the prebuilt ARM64 release zip
+- Dart SDK, if you build the CLI on the Pi itself
+- Compiled CLI binary (`dart build cli -o build/cli-release` then `cp build/cli-release/bundle/bin/ariami_cli ./ariami_cli`), or the prebuilt ARM64 release zip, which runs without Dart installed
 
 ### Performance Test Checklist
 
@@ -232,7 +249,7 @@ Run these tests to validate multi-user performance on Pi:
 
 1. **Bcrypt cost factor**: Default is 10. If registration/login is too slow, consider reducing to 8 (less secure but faster).
 
-2. **Memory management**: the library catalog lives in SQLite, but the user and
+2. **Memory management**: the library catalogue lives in SQLite, but the user and
    session stores are JSON kept in-memory. With many users/sessions, monitor RAM usage.
 
 3. **Transcoding**: transcoding runs through Sonic. Lower the transcode slots
@@ -273,7 +290,7 @@ ps aux | grep ariami
 Run the full test suite on Pi to verify implementation:
 
 ```bash
-(cd ariami_core && dart test)        # 773 tests, pure Dart
+(cd ariami_core && dart test)        # pure Dart
 (cd ariami_cli && flutter test)
 (cd ariami_desktop && flutter test)
 (cd ariami_mobile && flutter test)

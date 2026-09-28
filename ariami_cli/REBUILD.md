@@ -54,15 +54,15 @@ Then open a fresh **Incognito/Private window** to bypass all caching.
 ### Optional: Reset Config (start fresh setup)
 
 ```bash
-# Remove CLI config files (will require re-running setup)
+# Remove the whole CLI data directory (will require re-running setup)
 rm -rf ~/.ariami_cli/
 ```
 
-This removes:
-- Saved music folder path
-- Server settings
-- PID file
-- Any other CLI configuration
+This removes the saved music folder path, server settings, accounts,
+sessions, catalogue database, caches, and the PID file. If `ARIAMI_DATA_DIR`
+is set, delete that directory instead. `./ariami_cli reset --factory` is the
+safer equivalent: it stops a running server first and never touches the music
+folder.
 
 ---
 
@@ -92,7 +92,8 @@ dart build cli -o build/cli-release
 ```
 
 Keep the generated `bundle/bin` and `bundle/lib` directories together when
-deploying. The executable loads native assets such as `libsqlite3.so` from the
+deploying. The executable loads native assets (for example `libsqlite3.so` on
+Linux, `libsqlite3.dylib` on macOS, and `sqlite3.dll` on Windows) from the
 adjacent bundle library directory.
 
 To install globally, preserve that layout:
@@ -109,13 +110,15 @@ ariami_cli start
 
 ---
 
-## Build Raspberry Pi Release (ARM64)
+## Build a Linux Release (ARM64 or x64)
 
-For building ARM64 releases for Raspberry Pi directly from your Mac using Docker:
+For building Linux releases from your Mac using Docker. The default target is
+ARM64 for Raspberry Pi; `--arch amd64` builds the linux-x64 variant instead.
 
 ### Prerequisites
 - Docker Desktop installed and running
 - Flutter SDK installed on Mac
+- The `sonic/` submodule checked out (the script packages `libsonic_transcoder.so`)
 - SETUP.txt file must exist in ariami_cli/ directory
 
 ### First-Time Setup
@@ -133,40 +136,42 @@ cd ariami_cli
 # Make build script executable (first time only)
 chmod +x build-pi-release-mac.sh
 
-# Run the build script
+# Run the build script (ARM64 by default)
 ./build-pi-release-mac.sh
+
+# Or build the linux-x64 variant
+./build-pi-release-mac.sh --arch amd64
 ```
 
 The script will:
 1. Clean previous builds
-2. Build the web UI natively on Mac
-3. Pull Dart dependencies in Docker container
-4. Compile ARM64 Linux binary using Docker (--platform linux/arm64)
-5. Build `libsonic_transcoder.so` for ARM64 in Docker
-6. Create release directory structure
-7. Copy all necessary files (binary, web UI, SQLite library, Sonic library, SETUP.txt)
-8. Package everything into `ariami-cli-raspberry-pi-arm64-v5.2.3.zip`
-9. Verify the binary and Sonic library architectures
+2. Fetch dependencies and build the web UI natively on Mac
+3. Compile the Linux binary in Docker (`--platform linux/arm64` or `linux/amd64`)
+4. Build `libsonic_transcoder.so` for the same architecture in Docker
+5. Create release directory structure
+6. Copy all necessary files (binary, web UI, SQLite library, Sonic library, SETUP.txt)
+7. Package everything into `ariami-cli-raspberry-pi-arm64-v<version>.zip` (or `ariami-cli-linux-x64-v<version>.zip`)
+8. Verify the binary, SQLite library, and Sonic library architectures
 
 ### Why This Works on M2/M3 Macs
 
-Apple Silicon (M1/M2/M3) is ARM64, same as Raspberry Pi. Docker runs the Linux ARM64 container natively - no emulation needed. This makes compilation fast.
+Apple Silicon (M1/M2/M3) is ARM64, same as Raspberry Pi. Docker runs the Linux ARM64 container natively, so compilation is fast.
 
-On Intel Macs, Docker will use emulation (slower but still works).
+On Intel Macs, Docker uses emulation (slower but still works). The same applies to `--arch amd64` builds on Apple Silicon.
 
 ### Output
 
-Same as Pi build - a ready-to-distribute zip file containing:
-- `ariami_cli` - Launcher for the bundled ARM64 Linux executable
-- `bin/ariami_cli` - Compiled ARM64 Linux executable
+The result is a ready-to-distribute zip file containing:
+- `ariami_cli` - Launcher for the bundled Linux executable
+- `bin/ariami_cli` - Compiled Linux executable (ARM64 or x64, depending on `--arch`)
 - `web/` - Built Flutter web UI
-- `lib/libsqlite3.so` - Bundled SQLite native library for the catalog
+- `lib/libsqlite3.so` - Bundled SQLite native library for the catalogue
 - `lib/libsonic_transcoder.so` - Bundled Sonic library for low/medium transcoding
 - `SETUP.txt` - User instructions
 
 ### Updating Version
 
-The Pi release builder reads the version from `ariami_cli/pubspec.yaml` and refuses to build if these three sources disagree:
+The release builder reads the version from `ariami_cli/pubspec.yaml` and refuses to build if these three sources disagree:
 
 1. `ariami_cli/pubspec.yaml`
 2. `ariami_core/pubspec.yaml`
@@ -185,16 +190,16 @@ Update all three to the same value before running `./build-pi-release-mac.sh`.
 - Check Docker Desktop → Preferences → Resources
 
 **Build is slow**:
-- First run downloads the Dart Docker image (~500MB)
+- First run downloads the Flutter/Dart Docker image (~500MB)
 - Subsequent runs are much faster (image is cached)
 
 ---
 
 ## Why This Is Needed
 
-Flutter web compiles Dart to JavaScript. Unlike hot reload in debug mode, production web builds require:
+Flutter web compiles Dart to JavaScript. A production web build is a fresh artifact, and browsers treat it as static files, so:
 1. **Recompilation** - `flutter build web` creates new JS bundles
 2. **Cache busting** - Browsers aggressively cache JS files
-3. **Server restart** - The CLI server serves the built files from `build/web/`
+3. **Server restart** - The CLI resolves the web asset directory at startup and serves the built files from `build/web/`
 
-A simple browser refresh only reloads cached files - it doesn't trigger recompilation.
+A simple browser refresh only reloads cached files, so it cannot pick up a changed Dart source.

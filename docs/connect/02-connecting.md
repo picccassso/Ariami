@@ -8,8 +8,8 @@ POST /api/auth/login
  "allowOtherDeviceTakeover": false}
 ```
 
-All four of username, password, `deviceId` and `deviceName` are required —
-missing any gives `400 INVALID_REQUEST`.
+All four of username, password, `deviceId` and `deviceName` are required.
+Missing any gives `400 INVALID_REQUEST`.
 
 ```json
 {"userId":"...","username":"...",
@@ -19,11 +19,16 @@ missing any gives `400 INVALID_REQUEST`.
 | Status | Code | What to do |
 |---|---|---|
 | 429 | `RATE_LIMITED` | Back off |
-| 409 | `ALREADY_LOGGED_IN_OTHER_DEVICE` | Ask the user, retry with `allowOtherDeviceTakeover: true` |
-| 401 | — | Bad credentials |
+| 401 | (none) | Bad credentials |
+| 409 | `ALREADY_LOGGED_IN_OTHER_DEVICE` | Older servers only. Ask the user, then retry with `allowOtherDeviceTakeover: true` |
 
-The token is a **30-day sliding TTL** — using it pushes the expiry out. There is
-no refresh endpoint; if it dies, log in again.
+Accounts are not single-device leases. Several devices can stay signed in at
+once, and logging in again on the same `deviceId` replaces that device's old
+session. `allowOtherDeviceTakeover` is accepted for wire compatibility and
+otherwise ignored.
+
+The token has a **30-day sliding TTL**: every use pushes the expiry out. There
+is no refresh endpoint, so a token that dies means logging in again.
 
 ## 2. Pick a device identity
 
@@ -34,9 +39,9 @@ Make it stable. The hub evicts duplicates by `(userId, deviceId)`, so a stable
 id means a reconnect cleanly displaces your own ghost socket. A randomised id
 per launch means ghost devices pile up in everyone's device picker.
 
-`deviceName` is your suggested display name, capped at 40 visible characters. If
-the user renamed the device server-side, the server's name wins — read your own
-name back out of the hub's device list rather than assuming.
+`deviceName` is your suggested display name, capped at 40 visible characters.
+A rename stored server-side wins over it, so read your own name back out of the
+hub's device list rather than assuming the server kept your suggestion.
 
 ## 3. Open the socket
 
@@ -44,8 +49,9 @@ name back out of the hub's device list rather than assuming.
 GET /api/ws
 ```
 
-One socket carries both the legacy library-sync messages and all Connect
-messages. There is no separate Connect path.
+The same endpoint handles both the legacy library-sync messages and all Connect
+messages. The reference client opens a dedicated socket for Connect, so a
+library-sync reconnect cannot tear down playback.
 
 Build the URL from your HTTP base URL: `https` → `wss`, anything else → `ws`,
 append `/api/ws` to the base path, drop query and fragment.
@@ -55,8 +61,8 @@ http://192.168.1.20:8080        →  ws://192.168.1.20:8080/api/ws
 https://music.example.com/ariami →  wss://music.example.com/ariami/api/ws
 ```
 
-No subprotocol is required or inspected. No auth header is consulted at upgrade
-time — `/api/ws` is a public path and authentication happens in the first
+The upgrade is plain: the server ignores subprotocols and consults no auth
+header. `/api/ws` is a public path, and authentication happens in the first
 `identify` frame.
 
 Two upgrade-time guards:
@@ -77,9 +83,10 @@ Order matters. Send `connect_hello` **first**, then `identify`.
 {"type":"connect_hello","data":{
   "protocolVersions":[3,2],
   "canPlay":true,
-  "supportedCommands":["clear_queue","cycle_repeat","next","pause","play",
-                       "play_context","play_queue_index","previous",
-                       "remove_queue_index","seek","toggle","toggle_shuffle"]}}
+  "supportedCommands":["clear_queue","cycle_repeat","insert_queue_track","next",
+                       "pause","play","play_context","play_queue_index","previous",
+                       "remove_queue_index","seek","toggle","toggle_shuffle"],
+  "features":["preserve_cast_handoff"]}}
 ```
 
 ```json
@@ -90,12 +97,18 @@ Order matters. Send `connect_hello` **first**, then `identify`.
   "clientType":"desktop"}}
 ```
 
-Hello arrives before authentication finishes, so the hub retains it as a pending
-offer and negotiates once identify lands. Old hubs ignore hello entirely and
-fall back to v2.
+Hello normally arrives before authentication finishes, so the hub retains it as
+a pending offer and negotiates once identify lands. A hub that predates hello
+ignores it and stays on v2.
+
+`features` is an optional capability list. The hub intersects it with the
+features it knows, currently just `preserve_cast_handoff`, and echoes the
+intersection in the welcome. Peers that negotiate it may exchange
+`castDeviceName` in snapshots, which lets a Cast session move between devices
+without restarting.
 
 **`clientType` must be `desktop`, `mobile`, or `tv`.** Anything else (including
-absent) registers you for presence but never joins the Connect hub — you will
+absent) registers you for presence but never joins the Connect hub: you will
 sit there waiting for a `connect_welcome` that never arrives.
 
 If the server has no registered users yet (first-run bootstrap), the token is
@@ -107,6 +120,7 @@ not required and peers register under a legacy user scope.
 {"type":"connect_welcome","data":{
   "protocolVersion":3,
   "supportedCommands":[...],
+  "features":[...],
   "devices":[...],
   "activeDeviceId":"desk-1",
   "queueCounter":3,
@@ -118,10 +132,10 @@ not required and peers register under a legacy user scope.
 You are *connected* when the socket opens. You are *ready* only after welcome.
 Gate command sending and takeover flushing on it.
 
-Adopt every counter in the welcome — `protocolVersion`, `ownerEpoch`,
-`queueCounter`/`stateRevision`, `semanticGeneration`. On v3 the hub immediately
-follows the welcome with `connect_queue` (if a queue exists) and then
-`connect_state` (if a snapshot exists). On v2 the snapshot is inline in the
+Adopt every counter in the welcome, including `protocolVersion`, `ownerEpoch`,
+`queueCounter`/`stateRevision`, and `semanticGeneration`. On v3 the hub
+immediately follows the welcome with `connect_queue` (if a queue exists) and
+then `connect_state` (if a snapshot exists). On v2 the snapshot is inline in the
 welcome itself.
 
 If no welcome arrives within 5 seconds, the server does not support Connect.
@@ -138,13 +152,14 @@ Full field reference in [03-protocol.md](03-protocol.md).
 | Client liveness watchdog | 60 s since last inbound | client |
 | Hub stale-peer sweep | evicts after 90 s, sweeps every 30 s | server |
 
-Send `{"type":"ping"}` every 20 seconds. The server replies `{"type":"pong"}`,
+Send `{"type":"ping","timestamp":"<ISO 8601>"}` every 20 seconds (the
+`timestamp` string is required, or the server answers `INVALID_MESSAGE`). The server replies `{"type":"pong"}`,
 refreshes your heartbeat, and revalidates your session token. On the same tick,
-if you are the owner, publish your state — that keeps the hub fresh even during
+if you are the owner, publish your state; that keeps the hub fresh even during
 a long silent track.
 
-Rearm the 60 s watchdog on **every** inbound message, including malformed ones —
-the rearm is about the socket being alive, not the message being valid. When it
+Rearm the 60 s watchdog on **every** inbound message, including malformed ones.
+The rearm is about the socket being alive, not the message being valid. When it
 fires, replace the socket. This is the only defence against a half-open socket
 that still reports "connected" (common when a mobile OS freezes a backgrounded
 app's socket without emitting a close event).
@@ -168,7 +183,7 @@ not earned a reset.
 |---|---|---|
 | 4001 | `Authentication required` / `Session expired or invalid` / `Session expired or revoked` | **Stop.** Clear the cached token, prompt for sign-in |
 | 4000 | reason contains `replaced` | **Stop.** Another socket for this same device took over |
-| 4000 | `Connection timed out`, shutdown | Reconnect normally |
+| 4000 | `Connection timed out` / `Ariami server is stopping` | Reconnect normally |
 | 4002 | `Disconnected by admin` | Reconnect normally |
 | 4008 | `Identify timeout` | Fix your handshake |
 
@@ -182,8 +197,8 @@ Reset these, or the next session desyncs:
 - `lastRevision` high-water mark → `-1`. Keeping it across a hub restart
   silently freezes every remote mirror, because the fresh hub counts from zero.
 - `ownerEpoch` → 0, `activeDeviceId` → null, cached queue counter → cleared.
-- Negotiated protocol version → back to the pre-welcome sentinel. Never assume
-  the next hub speaks v3.
+- Negotiated protocol version → back to the pre-welcome sentinel. The next hub
+  may speak something older.
 - Pending-command retry timers → cancelled, but the **pending commands
   themselves are kept** and replayed after the next welcome.
 - Any pending takeover *intent* survives; the "already sent on this connection"
@@ -194,10 +209,10 @@ Reset these, or the next session desyncs:
 **An audible owner must never reconnect voluntarily.**
 
 Failover is immediate, so the hub cannot tell a dropped owner apart from one
-that closed its own socket. Reopening the socket to resynchronise — on
-foreground resume, for example — hands the session to another device and earns
-you a former-owner pause the moment the reconnect lands, silencing the very
-playback you meant to keep.
+that closed its own socket. Reopening the socket to resynchronise (on foreground
+resume, for example) hands the session to another device and earns you a
+former-owner pause the moment the reconnect lands, silencing the very playback
+you meant to keep.
 
 Gate any voluntary refresh on "am I connected, active, and locally playing?".
 If yes, do nothing and let the ping and liveness timers handle a genuinely dead
@@ -218,10 +233,9 @@ everyone instead of continuing it elsewhere.
 
 ## Bounded teardown
 
-Every close path is time-boxed: 8 s to open, 1 s to close on refresh, 1 s to
-close on dispose. A transport that never completes its close must not block its
-replacement. There is no unbounded await anywhere in the reference transport,
-and there should not be one in yours.
+Every socket operation is time-boxed: 8 s to open, 1 s to close on refresh, 1 s
+to close on dispose. A transport that never completes its close must not block
+its replacement.
 
 ## Discovery
 
@@ -233,8 +247,10 @@ and there should not be one in yours.
  "authRequired":true,"hasUsers":true}
 ```
 
-Keep **both** the LAN and Tailscale aliases and switch routes without changing
-your Connect identity. Ports are 8080 preferred with 8081–8099 fallback.
+The live payload also carries `legacyMode`, download limits and bind diagnostics
+such as `attemptedPort`. Keep **both** the LAN and Tailscale aliases and switch
+routes without changing your Connect identity. Ports are 8080 preferred with
+8081–8099 fallback.
 
 Auto-discovery on a LAN: UDP `ARIAMI_DISCOVER_V1` to port 45420 (multicast
 239.255.90.90), and mDNS `_ariami._tcp.local`.

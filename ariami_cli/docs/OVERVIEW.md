@@ -9,14 +9,14 @@ UI, and can daemonize itself into the background as a long-running service.
 
 This document explains what it is, who it is for, and how it fits together
 with the rest of the Ariami monorepo. It documents current, verifiable
-behavior only — see [`README.md`](README.md) for the full documentation set.
+behaviour only. See [`README.md`](README.md) for the full documentation set.
 
 ## Who it's for
 
 Ariami CLI is for people who want to run an Ariami server on a machine that
 either has no desktop environment (SSH-only servers, headless Raspberry Pi,
 NAS boxes, Proxmox/LXC containers) or where a background service makes more
-sense than a foreground desktop app — including plain Docker hosts.
+sense than a foreground desktop app, including plain Docker hosts.
 
 If you have a desktop machine and want an interactive GUI server instead,
 that is a different package in this monorepo (`ariami_desktop`) and is out of
@@ -28,10 +28,10 @@ scope for this document set, which covers `ariami_cli` only.
   you through optional Tailscale detection, choosing your music folder,
   scanning your library, and creating the owner account.
 - Serves a **web dashboard** afterwards for managing users, viewing connected
-  devices/sessions, and checking server health — no separate app needed on
-  the server machine.
+  devices/sessions, and checking server health, with no separate app needed
+  on the server machine.
 - Scans your music folder for tags and artwork and builds a persistent
-  library **catalog database** (SQLite) so restarts don't require a full
+  library **catalogue database** (SQLite) so restarts don't require a full
   rescan (`lib/services/server_media_services_configurator.dart`,
   `ariami_core/lib/services/catalog/`).
 - Handles **multi-user authentication** (accounts, sessions, rate-limited
@@ -41,10 +41,10 @@ scope for this document set, which covers `ariami_cli` only.
   FFmpeg when available.
 - Advertises itself on the LAN and (optionally) over Tailscale, including a
   best-effort discovery beacon so client apps can find it automatically.
-- Can daemonize into the background after setup (`ariami_cli start`), be
-  managed with `stop`/`status`, and be configured to start automatically on
-  boot (`ariami_cli autostart`) — or run in the foreground under a
-  supervisor such as systemd or Docker (`--server-mode`).
+- Can daemonize into the background after setup (`ariami_cli start`) and be
+  managed with `stop`/`status`.
+- Can start automatically on boot (`ariami_cli autostart`), or run in the
+  foreground under a supervisor such as systemd or Docker (`--server-mode`).
 
 See [`CLI_REFERENCE.md`](CLI_REFERENCE.md) for every command and flag, and
 [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md) for how these pieces fail and how
@@ -55,13 +55,12 @@ to fix them.
 `ariami_cli`'s `pubspec.yaml` depends on `ariami_core` as a local path
 dependency (`../ariami_core`). `ariami_core` is the shared engine: the actual
 HTTP server (`AriamiHttpServer`, built on `shelf`/`shelf_router`), the
-library scanner and catalog database, the auth service, the transcoding and
-artwork services, and LAN/Tailscale discovery. `ariami_cli` itself is
-intentionally thin — it is the argument parser, the daemon/process
-management (PID files, background start, autostart), the CLI-specific state
-file (`config.json` and friends under the Ariami data directory), and the
-Flutter-web setup/dashboard UI (`lib/web/`) that talks to that same core
-server over its own HTTP API.
+library scanner and catalogue database, the auth service, the transcoding and
+artwork services, and LAN/Tailscale discovery. `ariami_cli` itself stays
+thin: argument parsing, daemon/process management (PID files, background
+start, autostart), the CLI state files (`config.json` and friends under the
+Ariami data directory), and the Flutter-web setup/dashboard UI (`lib/web/`)
+that talks to that same core server over its own HTTP API.
 
 Concretely: `lib/server_runner.dart` wires CLI-specific concerns (data
 directory, feature flags, Raspberry Pi runtime tuning, port fallback) into
@@ -69,13 +68,12 @@ directory, feature flags, Raspberry Pi runtime tuning, port fallback) into
 
 ## How it relates to the mobile client
 
-Ariami CLI does not include or require any particular client. Any Ariami
-server — CLI, or otherwise — is paired with client apps over the network by
-scanning a QR code from the web dashboard, or entering the server address
-manually. The publicly available, free client in this repository's release
-matrix is **Ariami Mobile** (Android APK, or build-from-source on iOS, per
-the top-level project `README.md`). The CLI's own web dashboard shows the
-pairing QR code and setup URLs after the owner account is created.
+Any client app can pair with any Ariami server over the network, either by
+scanning a QR code from the web dashboard or by entering the server address
+manually. The free first-party client is **Ariami Mobile** (Android APK in
+[releases](https://github.com/picccassso/Ariami/releases), iOS on the App
+Store; see the top-level project `README.md`). The CLI's own web dashboard
+shows the pairing QR code and setup URLs after the owner account is created.
 
 ## What platforms it targets
 
@@ -92,43 +90,45 @@ Verified from the CLI release build workflow
 | Windows x64 | Runs via the bundled `ariami_cli.bat` launcher. |
 | Docker (linux/amd64, linux/arm64) | Multi-stage image built from `docker/Dockerfile`; published to `ghcr.io/picccassso/ariami-cli` by `.github/workflows/docker-image.yml`, and buildable locally per `docker/DOCKER.md`. |
 
-The Raspberry Pi build additionally bundles a native Sonic transcoding
-library (`libsonic_transcoder.so`) and, for the release zip, a bundled
-`libsqlite3.so`; see `build-pi-release-mac.sh` and `REBUILD.md`.
+The Linux release zips additionally bundle a native Sonic transcoding
+library (`libsonic_transcoder.so`) and a bundled `libsqlite3.so`; see
+`build-pi-release-mac.sh` and `REBUILD.md`.
 
 The server itself also detects at runtime whether it's actually running on a
 Raspberry Pi (and which storage type backs your music/data) to pick more
-conservative concurrency and cache limits — see
+conservative concurrency and cache limits. See
 [`CONFIGURATION.md`](CONFIGURATION.md#runtime-tuning-raspberry-pi--storage-detection)
 and [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md#memory--performance-on-low-end-hardware).
 
 ## Under the hood (for context, not required reading)
 
 - Language/runtime: Dart + Flutter (`environment: sdk: ^3.5.0` in
-  `pubspec.yaml`), version `5.0.0`.
+  `pubspec.yaml`), version `5.2.3`.
   - The CLI executable itself is plain Dart (`bin/ariami_cli.dart`).
   - The setup/dashboard UI (`lib/web/`) is a Flutter web app, built once with
     `flutter build web -t lib/web/main.dart` and served as static files by
     the same server.
 - HTTP server: `shelf` + `shelf_router` + `shelf_web_socket` (from
   `ariami_core`).
-- Catalog database: `sqlite3` (pure-Dart SQLite runtime).
+- Catalogue database: `sqlite3` (SQLite via Dart FFI, bundled as a native
+  library in release builds).
 - Metadata extraction: `dart_tags`. Password hashing: `bcrypt`.
-- Audio transcoding: a bundled native library, Sonic (Rust, from the `sonic`
-  submodule in this monorepo), used when present; the server falls back to
-  serving original files when it is not (see `TROUBLESHOOTING.md`).
-- Artwork thumbnails: FFmpeg, when found on the host; otherwise original
-  artwork is served unresized.
+- Audio transcoding: the bundled Sonic native library (Rust, from the
+  `sonic` submodule in this monorepo) handles low/medium quality tiers, with
+  the server streaming original files as a fallback (see
+  `TROUBLESHOOTING.md`).
+- Artwork thumbnails: FFmpeg on the host generates resized thumbnails;
+  without it, the server serves the original artwork unresized.
 
 ## See also
 
-- [`README.md`](README.md) — index of this documentation set.
-- [`CLI_REFERENCE.md`](CLI_REFERENCE.md) — every command, flag, and exit code.
-- [`CONFIGURATION.md`](CONFIGURATION.md) — data directory layout, config
+- [`README.md`](README.md): index of this documentation set.
+- [`CLI_REFERENCE.md`](CLI_REFERENCE.md): every command, flag, and exit code.
+- [`CONFIGURATION.md`](CONFIGURATION.md): data directory layout, config
   keys, and environment variables.
-- [`INSTALLATION.md`](INSTALLATION.md) — install/deploy paths (native,
+- [`INSTALLATION.md`](INSTALLATION.md): install/deploy paths (native,
   systemd, Docker, autostart, building from source).
-- [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md) — symptom → cause → fix.
+- [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md): symptom → cause → fix.
 - [`FAQ.md`](FAQ.md).
 - The existing top-level guides this package already ships:
   [`../HEADLESS.md`](../HEADLESS.md), [`../README.md`](../README.md),

@@ -3,13 +3,14 @@
 ## Topology
 
 ```
-   phone (LAN)  ────┐
-   desktop (LAN) ───┼──►  Ariami server  ──►  Connect hub (in memory)
-   TV (Tailscale) ──┘         /api/ws
+   phone (LAN)    ──┐
+   desktop (LAN)  ──┼──►  Ariami server  ──►  Connect hub (in memory)
+   TV (Tailscale) ──┘           /api/ws
 ```
 
-Every client opens one outbound WebSocket to the server. Nothing else. No
-peer-to-peer, no audio proxying, no LAN multicast for playback state.
+Every client opens one outbound WebSocket to the server for session state and
+commands. Audio travels separately, as ordinary HTTP fetches from the same
+server, so the socket itself carries no media.
 
 Consequences worth internalising:
 
@@ -17,10 +18,11 @@ Consequences worth internalising:
   session because both sockets land on the same hub. A client keeps both
   endpoint aliases and can switch routes without changing its Connect identity.
 - **Audio is fetched, not forwarded.** Each device mints its own short-lived
-  stream ticket and pulls audio from the server. Connect payloads deliberately
-  never carry stream URLs, tickets, passwords, or session tokens.
-- **The hub is not a database.** It is in-memory state. A server restart clears
-  it and clients re-establish. See [Retained state](#retained-state).
+  stream ticket and pulls audio from the server. Connect payloads carry catalogue
+  metadata and deliberately exclude stream URLs, tickets, passwords and session
+  tokens.
+- **The hub is in-memory.** A server restart clears session state, and clients
+  re-establish from their own local state. See [Retained state](#retained-state).
 
 ## Session rules
 
@@ -31,8 +33,9 @@ Consequences worth internalising:
 - The owner publishes: queue, current index, position, playing state, shuffle,
   repeat, volume, and collection source.
 - Every other device *mirrors* that state and can send commands to it.
-- A device may declare `canPlay: false` — a pure controller. It receives state
-  but is never listed as a playback target and can never become owner.
+- A device may declare `canPlay: false` to act as a pure controller. The hub
+  keeps it out of device lists and failover, and such a client has no local
+  engine to publish playback from.
 
 ## Roles
 
@@ -49,13 +52,12 @@ ownership moves.
 ## Mirroring
 
 While another device owns the session, a client's main transport UI shows
-*that device's* playback, Spotify-Connect style, instead of its own idle queue:
-the player bar and now-playing screen render the remote track, queue and
-progress, and play/pause/skip/seek/shuffle/repeat/queue taps become Connect
-commands.
+*that device's* playback, Spotify-Connect style. The player bar and now-playing
+screen render the remote track, queue and progress, and play, pause, skip, seek,
+shuffle, repeat and queue taps become Connect commands.
 
 - The mirrored position is extrapolated from the **local receipt time** of the
-  last snapshot. Clock skew between devices never bends the seek bar.
+  last snapshot, so clock skew between devices never bends the seek bar.
 - Controls apply an optimistic local adjustment immediately; the owner's next
   state broadcast is authoritative and overwrites it.
 - The local queue survives underneath the mirror and returns when the remote
@@ -69,13 +71,13 @@ This is where Connect differs from a plain remote control:
 
 - Pressing **play/pause/next/seek** while mirroring sends a command to the owner.
 - Choosing **new music** (an album, a playlist, a track) while mirroring sends
-  `play_context` — the owner's queue is replaced and it starts playing. Browsing
+  `play_context`, which replaces the owner's queue and starts it. Browsing
   anywhere plays on the device that owns the session.
 - Starting music when **no remote session exists** is an implicit takeover: you
   become the owner.
 
 Moving playback *between* devices is always explicit, via the device picker.
-Music never jumps devices on its own except during failover.
+Music only jumps devices during failover.
 
 ## Ownership in one paragraph
 
@@ -90,21 +92,21 @@ rule is what stops two devices making sound at once. Full detail in
 ## Retained state
 
 The hub keeps a settled, peerless session in memory for **30 minutes**, so
-devices can recover from an ordinary route change, sleep, or short outage. It
-never expires a session while a failover, command, or handoff is pending — the
-timer re-arms instead.
+devices can recover from an ordinary route change, sleep, or short outage. The
+timer re-arms instead of expiring the session while a failover, command, or
+handoff is pending.
 
 After 30 idle minutes with no peers and no pending transitions, the hub discards
 the retained queue, playback snapshot, owner epoch and command bookkeeping. The
 next device starts a fresh session from its own locally persisted state.
 
-A server restart does the same thing. Neither deletes music, playlists,
+A server restart clears the same state. Neither path deletes music, playlists,
 downloads, listening history, or any client's local queue.
 
 ## Protocol versions
 
-Two versions are live: **v2** and **v3**. Selection is per peer — a v2 phone and
-a v3 TV can share a session, and the hub renders each broadcast in the
+Two versions are live: **v2** and **v3**. Selection is per peer, so a v2 phone
+and a v3 TV can share a session, and the hub renders each broadcast in the
 recipient's own dialect.
 
 - **v2** sends a complete playback snapshot, queue included, on every state
@@ -125,5 +127,5 @@ whatever version the welcome names and never assume v3.
   client-supplied data.
 - Queue payloads, string lengths, numeric ranges and message sizes are all
   bounded before use. See [08-reference.md](08-reference.md).
-- Connect payloads carry catalog metadata only. Every playback device requests
+- Connect payloads carry catalogue metadata only. Every playback device requests
   its own stream ticket.

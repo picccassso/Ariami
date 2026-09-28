@@ -10,14 +10,14 @@ Run this from the repository root. Quote the path if your checkout lives in a
 directory with spaces:
 
 ```bash
-cd "/path/to/Ariami Test Desktop"
+cd "/path/to/Ariami"
 docker build -f ariami_cli/docker/Dockerfile -t ariami-cli .
 ```
 
 ## Run on a Linux server (recommended: zero config)
 
 On Linux (Raspberry Pi, NAS, homelab), use host networking. Ariami then
-detects the machine's real LAN and Tailscale addresses automatically —
+detects the machine's real LAN and Tailscale addresses automatically, so
 setup URLs and the mobile QR code work with no environment variables:
 
 ```bash
@@ -55,9 +55,8 @@ LAN/Tailscale endpoints continue to refresh normally.
 
 ## Run on Docker Desktop (Mac/Windows)
 
-Docker Desktop containers cannot see the machine's real network (host
-networking only exposes the internal VM), so map the port and tell Ariami
-which addresses to advertise:
+Docker Desktop keeps containers on an internal VM network, so map the port
+and tell Ariami which addresses to advertise:
 
 ```bash
 docker run -d \
@@ -81,19 +80,19 @@ reachable one.
 older setups. Prefer the explicit LAN and Tailscale variables when you want
 to control both connection paths independently.
 
-Note on auto-discovery: broadcast and multicast traffic does not cross
-Docker's bridge network, so with port mapping the server cannot answer
-UDP/mDNS discovery probes. Clients still find it automatically — the TV
-app falls back to scanning ports 8080–8099 on its own subnet — as long as
-the mapped port stays within that range. On Linux, prefer host networking
-for instant discovery. Ariami prints a best-effort startup hint when it
-recognizes a typical Docker bridge address.
+Note on auto-discovery: broadcast and multicast traffic stays inside
+Docker's bridge network, so a port-mapped server cannot answer UDP/mDNS
+discovery probes. Clients still find it automatically: the TV app falls
+back to scanning ports 8080-8099 on its own subnet as long as the mapped
+port stays within that range. On Linux, prefer host networking for instant
+discovery. Ariami prints a best-effort startup hint when it recognises a
+typical Docker bridge address.
 
 ## Publishing on a different host port
 
 Ariami advertises the port it binds *inside* the container. If you publish it
-on a different host port — `-p 2000:8080` — setup URLs and the mobile QR code
-would still say `8080`, which is not where clients can reach it. Set
+on a different host port, such as `-p 2000:8080`, setup URLs and the mobile
+QR code still say `8080`, which is not where clients can reach it. Set
 `ARIAMI_ADVERTISED_PORT` to the host-side port:
 
 ```bash
@@ -123,15 +122,21 @@ In bridge mode, the right-hand/container side of the mapping must match
 can report healthy because the internal healthcheck follows port 2000, while
 the published port forwards to an unused container port.
 
-Note that the TV app's discovery fallback only scans ports 8080–8099, so a
+Note that the TV app's discovery fallback only scans ports 8080-8099, so a
 host port outside that range means TV clients need the server entered
-manually. Keeping the published port inside 8080–8099 avoids that.
+manually. Keeping the published port inside 8080-8099 avoids that.
 
 ## First-run setup
 
 Open `http://<host>:<port>` and complete the first-run wizard (`8080` unless
 `ARIAMI_PORT` or a host-side port mapping changes it). Choose `/music` as the
 music folder.
+
+Creating the owner account needs the one-time setup code printed in
+`docker logs ariami`, unless the request reaches the server over loopback
+(for example, a browser on a `--network host` Linux server). With bridged
+port mapping, the code is required even when you open the wizard on the
+Docker host.
 
 When the wizard reaches the final setup transition, Ariami completes setup in
 place. The server keeps running in the foreground under Docker supervision
@@ -145,9 +150,9 @@ from `/music`; the example above mounts them read-only.
 
 ## Security notes
 
-The container runs as the unprivileged `ariami` user (uid 10001), not root.
-Only `/data` is writable; the application files and `/music` are read-only
-for it. Two consequences for mounts:
+The container runs as the unprivileged `ariami` user (uid 10001). Only
+`/data` is writable; the application files and `/music` are read-only for
+it. Two consequences for mounts:
 
 - A named `/data` volume (as in the examples) inherits the right ownership
   automatically. If you bind-mount a host directory to `/data` instead, make
@@ -214,24 +219,29 @@ docker inspect --format '{{.State.Health.Status}}' ariami
 
 ## Update without losing data
 
-Keep `/data` mounted at the same named volume or host directory, update the
-image tag in Compose, then recreate only Ariami:
+Keep `/data` mounted at the same named volume or host directory, then
+recreate only Ariami:
 
 ```bash
-docker compose pull ariami
+# The bundled compose file builds from source:
+docker compose build --pull ariami
 docker compose up -d --no-deps ariami
 docker compose logs --tail=100 ariami
 ```
 
+If your Compose service pins a published image tag instead, run
+`docker compose pull ariami` to fetch the new image before recreating it.
+
 Compose preserves the mounted data while replacing the container. Back up
-`/data` before an upgrade, use immutable image tags, and never run
-`docker compose down -v` unless you deliberately want to delete named-volume
-data.
+`/data` before an upgrade, pin immutable image tags when you use the published
+image, and never run `docker compose down -v` unless you deliberately want to
+delete named-volume data.
 
 ## Compose
 
 From `ariami_cli/docker`, edit the `./music:/music:ro` bind mount in
-`docker-compose.yml` so it points at your real music folder, then run:
+`docker-compose.yml` so it points at your real music folder, uncomment the
+networking block that matches your host, then run:
 
 ```bash
 cd "ariami_cli/docker"

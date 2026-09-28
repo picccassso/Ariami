@@ -54,7 +54,7 @@
 | Max command attempts | 4 |
 | Completed transfer-id memory | 256 |
 | Handled command-result memory | 256 |
-| Seek / semantic threshold | > 1500 ms position delta |
+| Seek / semantic threshold | > 1500 ms position delta (10000 ms while either side is casting) |
 | Reconnect backoff | `min(30, 1 << min(attempt, 5))` s |
 
 ### Ticket TTLs
@@ -76,6 +76,11 @@
 (`dashboard` exists for presence only.)
 
 **Repeat modes:** `off`, `all`, `one`.
+
+**Negotiated features:** `preserve_cast_handoff`. Advertised in the
+`connect_hello` `features` array and echoed back in `connect_welcome`. A device
+that advertises it may carry a `castDeviceName` string in snapshots, and the hub
+will hand a casting session to it.
 
 **Transfer phases:** `prepare`, `commit`, `cancel`.
 
@@ -99,7 +104,7 @@ convention in use looks like `playlist:<id>`.
 | 1001 | `Connect transport disconnected` | client | reconnect |
 | 4000 | `Replaced by a newer connection` | hub, duplicate `(userId, deviceId)` | **stop reconnecting** |
 | 4000 | `Connection timed out` | hub stale sweep | reconnect |
-| 4000 | server shutdown | server | reconnect |
+| 4000 | `Ariami server is stopping` | server shutdown | reconnect |
 | 4001 | `Authentication required` | server | **stop**, sign in again |
 | 4001 | `Session expired or invalid` | server | **stop**, sign in again |
 | 4001 | `Session expired or revoked` | server, mid-connection revalidation | **stop**, sign in again |
@@ -107,8 +112,8 @@ convention in use looks like `playlist:<id>`.
 | 4008 | `Identify timeout` | server, 20 s | fix the handshake |
 
 Code 4000 is overloaded. The reference client distinguishes them by
-substring-matching `"replaced"` in the reason — fragile, but that is the current
-contract.
+substring-matching `"replaced"` in the reason. That is fragile, but it is the
+current contract.
 
 ---
 
@@ -120,6 +125,7 @@ contract.
 | Code | | Meaning / action |
 |---|---|---|
 | `INVALID_PAYLOAD` | E | Shape guard failed (depth, size, key count). Fix the payload |
+| `INVALID_MESSAGE` | E | Non-text frame or unparseable JSON. The socket stays open |
 | `UNSUPPORTED_MESSAGE` | E | Unknown `connect_*` type, or `connect_queue` on v2 |
 | `INVALID_STATE` | E | `connect_state` failed validation |
 | `INVALID_QUEUE` | E | `connect_queue` failed validation |
@@ -127,6 +133,7 @@ contract.
 | `MESSAGE_TOO_LARGE` | E/C | Frame over 8 MiB. Split the work |
 | `DEVICE_OFFLINE` | E | Handoff target missing or not playback-capable |
 | `NO_SESSION` | E | Nothing to transfer |
+| `UNSUPPORTED_CAST_HANDOFF` | E | Handoff target did not negotiate `preserve_cast_handoff` |
 | `STALE_OWNER_EPOCH` | E | Handoff epoch mismatch. Wait for the next broadcast, retry |
 | `TRANSFER_TIMEOUT` | E | Target silent for 30 s |
 | `TRANSFER_SUPERSEDED` | E | A newer device choice replaced this handoff. Benign |
@@ -145,7 +152,7 @@ contract.
 | `COMMAND_RETRY_UNSUPPORTED` | C | Hub can't dedupe; command dropped rather than risking double execution |
 | `COMMAND_FAILED` | C | Default when the hub returns `ok:false` with no code |
 | `CONNECT_ERROR` | C | Default for a `connect_error` with no code |
-| *(none)* | R | "The active playback device is offline." — the one failure with no code |
+| *(none)* | R | "The active playback device is offline." The one failure with no code |
 
 ---
 
@@ -155,7 +162,7 @@ contract.
 
 | Endpoint | Notes |
 |---|---|
-| `POST /api/auth/login` | → `{userId, username, sessionToken, expiresAt}`. 409 = signed in elsewhere |
+| `POST /api/auth/login` | → `{userId, username, sessionToken, expiresAt}`. 409 `ALREADY_LOGGED_IN_OTHER_DEVICE` comes from older servers only |
 | `POST /api/auth/register` | Owner bootstrap or invite token required |
 | `GET /api/auth/users` | Public account list (may be disabled) |
 | `POST /api/auth/logout` | Revokes the session and all its tickets |
@@ -169,7 +176,7 @@ the WebSocket, and as `?streamToken=` on media.
 | Endpoint | Notes |
 |---|---|
 | `POST /api/stream-ticket` | `{songId, quality}` → `{streamToken, expiresAt}`. 410 `SONG_NOT_FOUND` |
-| `GET /api/stream/<songId>?streamToken=` | Range-capable. `quality` omitted for high |
+| `GET /api/stream/<songId>?streamToken=` | Range-capable. `quality` must match the ticket, omitted for high |
 | `POST /api/download-ticket` | Flat 2 h ticket |
 | `GET /api/download/<songId>?downloadToken=` | |
 | `GET /api/artwork/<albumId>?size=` | Bearer or matching streamToken |
@@ -197,14 +204,14 @@ the WebSocket, and as `?streamToken=` on media.
 | `GET /api/tailscale/status` | Public |
 
 LAN auto-discovery: UDP `ARIAMI_DISCOVER_V1` → port 45420, multicast
-239.255.90.90; mDNS `_ariami._tcp.local`. Ports 8080 preferred, 8081–8099
+239.255.90.90; mDNS `_ariami._tcp.local`. Ports 8080 preferred, 8081 to 8099
 fallback.
 
 ### CORS
 
 Origin-echo only, for loopback or the same host:port. No credentials, no exposed
-headers. **Cross-origin browser clients are effectively unsupported** — write a
-native or server-side client.
+headers. Write a native or server-side client: **cross-origin browser clients
+are effectively unsupported**.
 
 ---
 

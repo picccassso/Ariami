@@ -9,15 +9,15 @@ they behave identically whether you run the desktop server GUI or the
 headless CLI server. The import *button* lives in those apps; everything it
 does is implemented here.
 
-- [Part 1 — how Ariami counts](#part-1--how-ariami-counts)
-- [Part 2 — how this differs from Spotify](#part-2--how-this-differs-from-spotify)
-- [Part 3 — importing a Spotify history](#part-3--importing-a-spotify-history)
-- [Part 4 — what to expect after an import](#part-4--what-to-expect-after-an-import)
-- [Part 5 — undoing an import](#part-5--undoing-an-import)
+- [Part 1: how Ariami counts](#part-1-how-ariami-counts)
+- [Part 2: how this differs from Spotify](#part-2-how-this-differs-from-spotify)
+- [Part 3: importing a Spotify history](#part-3-importing-a-spotify-history)
+- [Part 4: what to expect after an import](#part-4-what-to-expect-after-an-import)
+- [Part 5: undoing an import](#part-5-undoing-an-import)
 
 ---
 
-## Part 1 — how Ariami counts
+## Part 1: how Ariami counts
 
 All live counting happens in
 [`listening_event_tracker.dart`](../lib/services/stats/listening_event_tracker.dart).
@@ -47,11 +47,12 @@ reaches the threshold ([`listening_event_tracker.dart:127`](../lib/services/stat
 threshold = min(30 seconds, track duration / 2)
 ```
 
-- Tracks **60 seconds or longer** → the familiar 30-second rule.
-- Tracks **shorter than 60 seconds** → half the track. A 40-second interlude
-  counts at 20 seconds, so short tracks aren't unfairly hard to credit.
+- Tracks **60 seconds or longer** get the familiar 30-second rule.
+- Tracks **shorter than 60 seconds** need half the track. A 40-second
+  interlude counts at 20 seconds, so short tracks aren't unfairly hard to
+  credit.
 - Tracks **shorter than 30 seconds** that play to natural completion count as
-  one play even if the threshold was never observed — sparse position ticks
+  one play even if the threshold was never observed; sparse position ticks
   or an unknown duration would otherwise lose them entirely
   ([`onTrackCompleted`, line 224](../lib/services/stats/listening_event_tracker.dart:224)).
 
@@ -60,9 +61,13 @@ threshold = min(30 seconds, track duration / 2)
 The tracker is deliberately conservative about time
 ([`onPositionTick`, line 163](../lib/services/stats/listening_event_tracker.dart:163)):
 
-- **Forward scrubbing.** A position jump larger than `seekToleranceMs`
-  (2,000 ms) is treated as a seek, not listening. The audio you skipped over
-  is not credited; listening resumes normally after the jump.
+- **Forward scrubbing.** On clients whose position ticks are frequent
+  (desktop, TV), a position jump larger than `seekToleranceMs` (2,000 ms)
+  is treated as a seek, not listening. The audio you skipped over is not
+  credited; listening resumes normally after the jump. Mobile is the
+  exception: its background playback coalesces ticks, so it credits large
+  forward jumps while playing and reports explicit seeks separately, which
+  keeps scrubbed audio uncredited anyway.
 - **Backward movement.** Never credited under any circumstance.
 - **Time past the end of the track.** A tick reporting a position beyond the
   known duration is clamped so a single tick can't over-credit.
@@ -78,7 +83,9 @@ A backward jump landing within `restartPositionMs` (5,000 ms) of the start is
 read as the track restarting rather than as a scrub. The current play-action
 is finalized and a new one opens, so **each full listen counts as its own
 play while every second of audio is still credited exactly once**
-(lines [174–185](../lib/services/stats/listening_event_tracker.dart:174)).
+(lines [174 to 185](../lib/services/stats/listening_event_tracker.dart:174)).
+Mobile turns this detection off and drives restarts through its own
+track-started/track-stopped calls instead, with the same result.
 
 ### Crash safety
 
@@ -88,19 +95,19 @@ about 30 seconds of credit rather than the whole session.
 
 ---
 
-## Part 2 — how this differs from Spotify
+## Part 2: how this differs from Spotify
 
 Ariami's live threshold is deliberately modelled on Spotify's 30-second
-stream definition — the parser even documents them as the same rule
+stream definition; the parser even documents them as the same rule
 ([`spotify_history_parser.dart:104`](../lib/services/stats/spotify_import/spotify_history_parser.dart:104)).
 The differences are in everything around that number.
 
 | | Spotify | Ariami (live tracking) |
 |---|---|---|
-| Play threshold | 30 seconds | 30 seconds, or half the track under 60s |
-| Very short tracks | 30s rule only | Full listen counts on completion |
+| Play threshold | 30 seconds, or a completed track under that | 30 seconds, or half the track under 60s |
+| Very short tracks | Completion (`trackdone`) counts | Completion counts, when the client reports it |
 | Scrubbed-over audio | Included in `ms_played` | Not credited |
-| Backward seeks | — | Never credited |
+| Backward seeks | Included in `ms_played` | Never credited |
 | Time vs. plays | One record per stream | Two independent quantities |
 | Repeat-one | Each stream separate | Each wrap is a new play, time counted once |
 
@@ -108,17 +115,17 @@ The practical consequence: **Ariami's listened-time is a stricter number than
 Spotify's.** Spotify's `ms_played` is wall-clock time the stream was open;
 Ariami's listened time is audio you actually heard moving forward. For
 normal listening they're nearly identical. For a session where you scrubbed
-around a lot, Ariami's figure will be lower — and that's the intended
+around a lot, Ariami's figure will be lower, and that's the intended
 behaviour, not a bug.
 
 ---
 
-## Part 3 — importing a Spotify history
+## Part 3: importing a Spotify history
 
 ### What you need
 
 Request **Extended Streaming History** from Spotify's privacy page (not the
-smaller "Account data" export — that one doesn't contain per-play records).
+smaller "Account data" export, which doesn't contain per-play records).
 Spotify delivers it as a zip archive, and the request can take a while to
 fulfil.
 
@@ -126,10 +133,10 @@ Unzip it and point the importer at the folder containing the
 `Streaming_History_Audio_*.json` files. Only files matching that prefix and
 the `.json` extension are read
 ([`spotify_import_service.dart:257`](../../ariami_desktop/lib/services/spotify_import_service.dart:257)),
-so the `*_Video_*` files in the same export are ignored automatically, as is
-everything else in the folder.
+so the `*_Video_*` files in the same export are ignored automatically, along
+with everything else in the folder.
 
-Your Ariami library must be scanned first — importing into an empty library
+Your Ariami library must be scanned first; importing into an empty library
 is refused, because there would be nothing to match against.
 
 ### Which plays are eligible
@@ -164,13 +171,13 @@ These matter because they're the difference between plausible stats and
 visibly broken ones:
 
 **Offline plays get their real time back.** For records with `offline: true`,
-Spotify's `ts` field is the *sync* time, not the play time — up to 185
+Spotify's `ts` field is the *sync* time, not the play time. Up to 185
 records can share a single second, which would otherwise show up as an
 impossible burst in your daily rollups. The parser uses `offline_timestamp`
-instead ([lines 155–176](../lib/services/stats/spotify_import/spotify_history_parser.dart:155)).
+instead ([lines 155 to 176](../lib/services/stats/spotify_import/spotify_history_parser.dart:155)).
 
-**Timestamp units get normalized.** `offline_timestamp` is a Unix epoch whose
-*unit is inconsistent across exports* — seconds in some records,
+**Timestamp units get normalised.** `offline_timestamp` is a Unix epoch whose
+*unit is inconsistent across exports*: seconds in some records,
 milliseconds in others. A seconds value taken at face value lands in January
 1970 and poisons first-play and day-span statistics. Values below `1e12` are
 scaled up ([`_normalizeEpochMs`, line 239](../lib/services/stats/spotify_import/spotify_history_parser.dart:239));
@@ -183,15 +190,15 @@ millisecond-scale near 1.8e12, with nothing in between.
 resolves each unique `(title, album artist, album)` key through a four-tier
 cascade, stopping at the first hit:
 
-1. **Exact** — normalized title + artist agree. Confidence 1.0 for a verbatim
+1. **Exact**: normalised title + artist agree. Confidence 1.0 for a verbatim
    title on both sides, 0.9 when a suffix like `(feat. …)`, `(Live)` or
    `- 2012 Remaster` had to be stripped to make them meet.
-2. **Album-anchored** — the artist string drifted but title + album agree.
+2. **Album-anchored**: the artist string drifted but title + album agree.
    Confidence 0.9.
-3. **Fuzzy** — a restricted search seeded from the rarest title token
+3. **Fuzzy**: a restricted search seeded from the rarest title token
    (never a full-library scan), scored on token overlap plus edit distance,
    and *gated on artist agreement*. Capped at 0.85 confidence.
-4. **Unmatched** — nothing plausible found.
+4. **Unmatched**: nothing plausible found.
 
 The matcher handles a lot of real-world messiness: featured-artist credits in
 either the title or the artist field, `Various Artists` treated as carrying no
@@ -207,14 +214,14 @@ your spelling and merge cleanly with plays tracked live. Import Spotify's
 strings instead and every artist total would silently split in two.
 
 For the same reason, imported events deliberately carry **no album artist**
-([`spotify_event_builder.dart:47`](../lib/services/stats/spotify_import/spotify_event_builder.dart:47)) —
-importing Spotify's would fragment artist rollups.
+([`spotify_event_builder.dart:47`](../lib/services/stats/spotify_import/spotify_event_builder.dart:47)),
+since importing Spotify's would fragment artist rollups.
 
 When several library copies share a key (the studio album, a deluxe edition
 and a compilation folder), the matcher prefers the copy whose album best
 agrees with Spotify's, returns it as a confident match, and keeps the others
-as alternates. Only genuinely *different* songs sharing a title — a solo
-version versus a `feat.` version — are marked ambiguous.
+as alternates. Only genuinely *different* songs sharing a title (a solo
+version versus a `feat.` version) are marked ambiguous.
 
 ### Unmatched plays still count
 
@@ -227,7 +234,7 @@ library.
 
 ---
 
-## Part 4 — what to expect after an import
+## Part 4: what to expect after an import
 
 ### The preview, before anything is written
 
@@ -246,7 +253,7 @@ Live listening, by contrast, arrives as one play event plus a stream of
 segment events.
 
 The important consequence: **imported listening time is Spotify's number, so
-it carries Spotify's counting semantics with it.** Time you scrubbed past in
+it carries Spotify's counting semantics with it.** Audio you scrubbed past in
 2019 is inside `ms_played` and there is no way to recover the distinction
 after the fact. Your imported history is therefore very slightly more
 generous than your live-tracked history. Both are internally consistent; the
@@ -257,7 +264,7 @@ plays remain distinguishable in the raw event log.
 
 ### Re-importing is safe
 
-Each event's id is deterministic — `spotify:<userId>:sha256("v1|" +
+Each event's id is deterministic: `spotify:<userId>:sha256("v1|" +
 rawIdentity)`, where the identity hashes the whole source record (`ts`,
 track uri, `ms_played`, `reason_end`, `offline_timestamp`, `platform`). The
 server dedupes on insert, so:
@@ -276,8 +283,8 @@ errors.
 
 Imports upload in batches of 500 events
 ([`uploadBatchSize`](../../ariami_desktop/lib/services/spotify_import_service.dart:64)),
-and matching collapses the play list to unique keys first — roughly 7,000
-keys for 200,000 plays — so each track is resolved once. A large history
+and matching collapses the play list to unique keys first (roughly 7,000
+keys for 200,000 plays), so each track is resolved once. A large history
 imports in one pass without special handling.
 
 Listening stats are per-user throughout. An import is attributed to the
@@ -286,7 +293,7 @@ account hasn't changed between preview and upload.
 
 ---
 
-## Part 5 — undoing an import
+## Part 5: undoing an import
 
 Imported plays can be removed on their own, leaving live-tracked history
 untouched. `POST /api/v2/listening/reset` with a JSON body:
@@ -302,28 +309,28 @@ The same endpoint with an **empty body** wipes that account's listening data
 entirely. The only accepted `source` value is `spotify`.
 
 The request is session-authenticated and acts on the calling account only.
-Both dashboards drive it: **Remove Spotify listening stats** in the Desktop
-overview tab's Listening Statistics section, and **REMOVE SPOTIFY STATS** in
-the CLI web dashboard's Listening Statistics section. Each confirms first
-and then reports how many plays were removed.
+Both dashboards drive it through a **Remove Spotify listening stats**
+action: the Desktop overview tab's Listening Statistics section and the CLI
+web dashboard's Listening Statistics section. Each confirms first and then
+reports how many plays were removed.
 
 ### Knowing what is imported
 
 `GET /api/v2/listening/import-status` describes the calling account's
-import — `plays`, `lastImportedAtMs` (the newest `received_at`, i.e. when
+import: `plays`, `lastImportedAtMs` (the newest `received_at`, i.e. when
 plays last landed) and `oldestPlayAtMs`/`newestPlayAtMs` (the span of
 history covered). Everything is derived from the surviving events, so a
 removal leaves it reporting nothing rather than a stale record of a past
 import. It is a separate endpoint rather than more fields on the summary
 because every client polls the summary and only the dashboards need this.
 
-Both dashboards show it above the two buttons and disable removal when
+Both dashboards show it above the removal action and disable removal when
 there is nothing to remove; while the status is unknown removal stays
 available, so a failed read never strands the action. The Desktop app hosts
 the server in-process and reads the same query through
 [`AriamiHttpServer.getSpotifyImportStatus`](../lib/services/server/http_server.dart)
-instead of the endpoint — a passive status line must never prompt for the
-owner password.
+instead of the endpoint, because a passive status line must never prompt for
+the owner password.
 
 ---
 

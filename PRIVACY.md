@@ -1,6 +1,6 @@
 # Ariami Privacy Policy
 
-**Effective date:** 14 July 2026
+**Effective date:** 28 September 2026
 
 This Privacy Policy applies to **Ariami Mobile** on Android and iOS and
 **Ariami TV** on Android TV and Fire TV (together, the **Apps**), published by
@@ -26,9 +26,10 @@ The Apps:
 
 ## Data processed by the Apps
 
-The Apps process only the information needed to provide their features. Except
-for the optional licence activation described below, this information stays on
-your device or is exchanged directly with the Ariami server you choose.
+The Apps process only the information needed to provide their features. Most of
+it stays on your device or is exchanged directly with the Ariami server you
+choose. A few optional features contact other services, and they are described
+below: licence activation, music discovery, and casting.
 
 ### Account and authentication information
 
@@ -72,6 +73,30 @@ Ariami Mobile may also access files or media that you explicitly choose for
 features such as importing, exporting, downloading, or selecting artwork. This
 content is processed on your device or exchanged with your chosen Ariami
 server. It is not uploaded to the Ariami developer.
+
+### Optional music discovery
+
+Ariami Mobile can suggest new music based on your own listening history. This
+feature is off until you enable it in the App's settings. Depending on the
+build, it uses a Last.fm API key included with the App, a key you enter, or one
+shared by your server owner.
+
+While the feature is enabled, the App sends:
+
+- the exploration tags you selected and a small number of favourite artist and
+  track names to Last.fm, to look up similar music; and
+- artist and recording names to MusicBrainz, to match artists and releases.
+
+No Last.fm account is connected and nothing is scrobbled. Your listening
+history, playlists, account details, and full library are not sent. The
+requests go directly from your device to those services, which handle them
+under their own terms and privacy notices:
+
+- [Last.fm](https://www.last.fm)
+- [MusicBrainz](https://musicbrainz.org)
+
+The Last.fm API key is stored on your device, and if the server owner shares
+one it is also stored on your Ariami server.
 
 ### Local network and casting
 
@@ -126,8 +151,8 @@ Those providers describe their practices in their own privacy notices:
 
 ## Data retention and deletion
 
-Ariami does not maintain a central account, music, analytics, or listening-data
-database for the Apps.
+Your App data lives on your device and on the Ariami server you choose. Ariami
+holds no central account, music, analytics, or listening database for the Apps.
 
 - **On your device:** locally cached data remains until it is removed through
   the App, the App's storage is cleared, or the App is uninstalled.
@@ -140,8 +165,8 @@ database for the Apps.
   Cloudflare are subject to their respective retention policies and applicable
   legal obligations.
 
-Because Ariami servers are self-hosted, the Ariami developer cannot access or
-delete data held on your server. Requests concerning an account on a particular
+Your server belongs to you or your household, so the Ariami developer cannot
+access or delete data held on it. Requests concerning an account on a particular
 Ariami server should be directed to that server's owner or administrator.
 
 ## Security
@@ -157,9 +182,9 @@ not expose an unsecured Ariami server directly to the public internet.
 
 ## Children's privacy
 
-The Apps are not directed specifically at children and do not knowingly
-collect children's personal information for the Ariami developer. Accounts and
-content on a self-hosted Ariami server are controlled by that server's owner.
+The Apps are made for general audiences and do not knowingly collect
+children's personal information for the Ariami developer. Accounts and content
+on a self-hosted Ariami server are controlled by that server's owner.
 
 ## Changes to this policy
 

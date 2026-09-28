@@ -9,7 +9,7 @@ what is merely *suggested* as a playlist. Implemented across
 
 - A track can belong to an album **and** appear in any number of playlists.
   Playlist membership is additive, never destructive.
-- Albums are built from tags (album + album artist / normalized track
+- Albums are built from tags (album + album artist / normalised track
   artist), with two exceptions: an explicit `[ALBUM]` folder, and
   compilation detection. See "Album grouping" below.
 - Playlists come from **explicit sources** (imported automatically),
@@ -24,7 +24,7 @@ what is merely *suggested* as a playlist. Implemented across
 
 Imported on every full scan without user confirmation:
 
-1. **Marker folders** — a folder whose name *starts with* `[PLAYLIST]` in
+1. **Marker folders**: a folder whose name *starts with* `[PLAYLIST]` in
    any casing (`[PLAYLIST] Gym`, `[playlist] Gym`, `[Playlist]Gym`). The
    marker is stripped from the displayed name. Nested marker folders
    collapse into the outermost one. Entries use deterministic **natural
@@ -36,15 +36,15 @@ Imported on every full scan without user confirmation:
    playlist's name into every track's album tag (each track keeping its
    own album artist). Grouping on that tag would shatter the folder into
    fake per-artist "albums" all sharing one name. Inside a playlist
-   folder, a track's album tag is treated as an artifact — kept out of
-   album grouping, track stays standalone and in the playlist — when
+   folder, a track's album tag is treated as an artifact (kept out of
+   album grouping, track stays standalone and in the playlist) when
    either:
    - the album tag equals the playlist's display name
      (case-insensitive), or
    - the album tag *contains* the playlist's display name after
-     normalizing both to letters/digits (catches prefixed artifacts like
+     normalising both to letters/digits (catches prefixed artifacts like
      `album="AIENP's Elvis' Playlist"` in `[PLAYLIST] Elvis Playlist`);
-     only applied when the normalized playlist name is 8+ characters so
+     only applied when the normalised playlist name is 8+ characters so
      short names like "Elvis" can't swallow real albums, or
    - the same album tag is shared by tracks from **3 or more different
      album-grouping artists** within that folder (catches renamed
@@ -56,7 +56,7 @@ Imported on every full scan without user confirmation:
    album tags (e.g. a properly tagged *Cruel Summer* track) still group
    normally, and albums that legitimately share a name with a playlist
    are unaffected when they live outside the playlist folder.
-2. **M3U files** — every `.m3u` / `.m3u8` file found anywhere in the
+2. **M3U files**: every `.m3u` / `.m3u8` file found anywhere in the
    library:
    - `#`-prefixed lines (comments, `#EXTM3U`, `#EXTINF`) and blank lines
      are ignored.
@@ -70,7 +70,7 @@ Imported on every full scan without user confirmation:
      deduplicated (first occurrence wins).
    - If a file inside the library was deduplicated, an M3U entry pointing
      at the duplicate copy resolves to the surviving song.
-   - A malformed M3U never breaks the scan — it is reported in scan
+   - A malformed M3U never breaks the scan. It is reported in scan
      diagnostics and skipped.
    - The playlist ID hashes the M3U file path; the display name is the
      file name without extension.
@@ -88,20 +88,21 @@ matches it.
 ### 1. `[ALBUM]` marker folders
 
 A folder whose name *starts with* `[ALBUM]` in any casing (`[ALBUM] Verve
-50`, `[album] Verve 50`, `[Album]Verve 50`). Everything beneath it —
-including disc subfolders — becomes exactly **one** album, whatever the
+50`, `[album] Verve 50`, `[Album]Verve 50`). Everything beneath it,
+including disc subfolders, becomes exactly **one** album, whatever the
 tags say.
 
 - The marker is stripped for the display title (`[ALBUM] Verve 50` →
   "Verve 50"). A bare `[ALBUM]` folder means "no explicit title": the
   album falls back to its tracks' most common album tag.
-- The 2-song minimum does not apply — the user already said this is an
+- The 2-song minimum does not apply; the user already said this is an
   album.
 - The album artist is the tracks' most common grouping artist, or
-  "Various Artists" when they span 5+ artists.
+  "Various Artists" when they span 5+ distinct track artists and don't
+  agree on an album artist.
 - Nested markers: the **innermost** one wins (unlike `[PLAYLIST]`, which
-  collapses to the outermost — a marked folder inside another marked
-  folder is a deliberately narrower statement).
+  collapses to the outermost, because a marked folder inside another
+  marked folder is a deliberately narrower statement).
 - Marked folders are exempt from every playlist heuristic: they are never
   classified or suggested as playlists, and the suspicious-album-tag guard
   skips them, so an `[ALBUM]` folder inside a `[PLAYLIST]` folder keeps
@@ -120,7 +121,7 @@ folder + album title** rather than title alone. `_detectCompilations` in
 A folder's title group merges into a single "Various Artists" album when:
 
 - it holds 2+ tracks spanning **5 or more** distinct grouping artists, and
-- it **never repeats a disc/track position** — restarting numbering means
+- it **never repeats a disc/track position**; restarting numbering means
   several albums that merely share a title, not one compilation.
 
 A compilation foldered as `Disc 1` / `Disc 2` produces one qualifying group
@@ -128,7 +129,7 @@ per disc; both build the same album identity and are merged by the
 collision rule below.
 
 A properly tagged compilation (`albumArtist="Various Artists"` on every
-track) never reaches this pass — it already groups into one bucket.
+track) never reaches this pass; it already groups into one bucket.
 
 This pass is deliberately inert inside `[PLAYLIST]` folders: signal 3 of the
 suspicious-album-tag guard strips those tracks before album building, and
@@ -138,14 +139,14 @@ declare a genuine compilation that lives inside a playlist folder.
 ### 3. Tags
 
 Everything left over groups on `albumGroupingKey` (album title + album
-artist, falling back to the normalized track artist), needing **2+ songs**
+artist, falling back to the normalised track artist), needing **2+ songs**
 to become an album. Folder paths are not a grouping key here: the same
 album tag scattered across unrelated folders still merges.
 
 ### Album identity
 
 `generateAlbumId` hashes **title + artist only**, so two groups can land on
-the same identity — the two discs of one compilation, two `[ALBUM]` folders
+the same identity: the two discs of one compilation, two `[ALBUM]` folders
 sharing a name. **Colliding albums merge their songs** rather than
 overwriting; see `addAlbum` in `album_builder.dart` for why.
 
@@ -161,9 +162,9 @@ subfolders is not picked up. Embedded artwork still is.
 
 ## Auto-imported (high confidence)
 
-Without this tier, a fresh install looks like playlist detection failed:
+This tier exists so a fresh install finds playlists on its own. Before it,
 normal folders full of mixed songs were only *suggested*, and users who
-don't know about `[PLAYLIST]` saw no playlists at all. So unmarked folders
+didn't know about `[PLAYLIST]` saw no playlists at all. Now unmarked folders
 with **strong** playlist evidence import automatically, exactly like
 `[PLAYLIST]` folders: recursive additive membership, natural path order,
 dedupe handling, the artifact-tag guard, plain-basename display name, and
@@ -183,13 +184,14 @@ A folder auto-imports only when **all** of these hold:
 
 So `Gym/` with 10 tracks from 5 albums auto-imports (name + diversity),
 and an unnamed dump with 50 tracks from 25 albums / 30 artists
-auto-imports (diversity alone) — but `Kanye West/808s and Heartbreak/`,
+auto-imports (diversity alone), but `Kanye West/808s and Heartbreak/`,
 `Various Artists/Now Album/`, and single-artist album dumps never do.
 
 If most tracks are missing album tags there is no diversity evidence, so
 only a playlist-like name counts: 8+ untagged files in a playlist-named
-folder still auto-import (those tracks would stay standalone anyway);
-fewer fall back to a flagged suggestion.
+folder with no "Various Artists" album-artist tag still auto-import (those
+tracks would stay standalone anyway); fewer fall back to a flagged
+suggestion.
 
 Special cases:
 
@@ -197,7 +199,7 @@ Special cases:
 - nested qualifying folders collapse into the outermost one (mirroring
   `[PLAYLIST]` nesting);
 - a qualifying folder that *contains* an explicit playlist folder is
-  demoted to a suggestion — importing it would make incremental rebuilds
+  demoted to a suggestion: importing it would make incremental rebuilds
   (which collapse nested playlist paths to the outermost) swallow the
   inner playlist;
 - files already owned by an explicit playlist folder are never stolen.
@@ -223,7 +225,7 @@ A folder is **never** suggested when any of these hold (album protection):
 - it is the library root, or it lives inside an explicit playlist folder;
 - any track carries a "Various Artists"-style album-artist tag
   (compilations stay albums no matter how many track artists they have);
-- the tracks span only 1–2 distinct album tags;
+- the tracks span only 1 to 2 distinct album tags;
 - one album tag covers ≥ 60% of the tagged tracks;
 - one album artist covers ≥ 80% of the tagged tracks (artist dumps are not
   playlists);
@@ -239,8 +241,8 @@ two signals, at least one of which is tag diversity:
   (ripped-from-many-albums shape);
 - the folder name contains a playlist word (`playlist`, `mix`, `mixtape`,
   `favourites`, `favorites`, `liked`, `road trip`, `roadtrip`, `gym`,
-  `workout`, `running`, `party`, `setlist`, `car`) on a word boundary —
-  "carnival" does not match "car".
+  `workout`, `running`, `party`, `setlist`, `car`) on a word boundary,
+  so "carnival" does not match "car".
 
 A playlist-like name alone is never sufficient.
 
@@ -256,16 +258,16 @@ bounded diagnostics.
 Suggestions become playlists only through an explicit user decision. Three
 decisions exist, keyed by the folder's **absolute path**:
 
-- **import** — from then on the folder is treated exactly like a
-  `[PLAYLIST]` folder on every scan: additive membership, natural path
+- **import**: from then on the folder is treated exactly like a
+  `[PLAYLIST]` folder on every scan. Additive membership, natural path
   order, dedupe preference, and the playlist-name-as-album artifact guard
   all apply unchanged. The display name is the plain folder basename (no
   marker to strip, no rename needed) and the playlist ID uses the same
   `FolderPlaylist.generateId(folderPath)` scheme, so it is stable across
   scans and restarts. Approved folders are never suggested again.
-- **ignore** — the folder is never suggested *and never auto-imported*
+- **ignore**: the folder is never suggested *and never auto-imported*
   again. No other effect.
-- **reset** — clears a previous decision so the folder is re-evaluated on
+- **reset**: clears a previous decision so the folder is re-evaluated on
   the next scan.
 
 Decisions persist in `playlist_decisions.json` next to the metadata cache
@@ -283,16 +285,16 @@ folders, `.m3u` files) are unaffected by decisions.
 HTTP API (same authorization as the setup endpoints: open during first-run
 setup, admin session once users exist):
 
-- `GET /api/playlists/suggestions` — pending suggestions (decided folders
+- `GET /api/playlists/suggestions` - pending suggestions (decided folders
   are filtered out immediately, without waiting for a rescan) plus all
   recorded decisions.
 - `POST /api/playlists/suggestions/decision` with
   `{folderPath, decision: "import" | "ignore" | "reset"}`. An import
-  triggers a rescan so the playlist materializes without further action.
+  triggers a rescan so the playlist materialises without further action.
 
 The CLI web dashboard renders a "Suggested playlists" card (name,
 songs · artists · albums counts, a "tags missing" review badge, Import /
-Ignore buttons) on the Overview tab. TV and mobile need nothing: imported
+Ignore buttons) on the Overview tab. Client apps need nothing: imported
 playlists arrive through the normal library API.
 
 ## Ignored
@@ -306,13 +308,13 @@ playlists arrive through the normal library API.
 
 ## Deliberately left for later passes
 
-- **Desktop-embedded dashboard card** — the desktop premium app embeds its
-  own native `DashboardScreen` (it does not render the CLI web assets), so
-  it does not show the "Suggested playlists" card yet. The decisions API is
-  shared, so the card is purely UI work.
-- **`.ariami-playlist` marker files** — trivial to add next to the M3U
+- **Desktop Server dashboard card**: the Desktop Server renders its own
+  native `DashboardScreen` rather than the CLI web shell, so it does not
+  show the "Suggested playlists" card yet. The decisions API is shared, so
+  the card is purely UI work.
+- **`.ariami-playlist` marker files**: trivial to add next to the M3U
   branch once the format is decided.
-- **Watcher-driven M3U re-parse** — requires widening the folder watcher
+- **Watcher-driven M3U re-parse**: requires widening the folder watcher
   beyond audio extensions.
 - **Folder-path metadata fallback** (infer artist/album/track from
   `Artist/Album/01 Title.mp3` when tags are missing): recommended as its

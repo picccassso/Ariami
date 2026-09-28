@@ -1,19 +1,19 @@
 # Ariami Core
 
-Platform-agnostic core library for Ariami. Contains shared business logic and services used by the desktop, mobile, TV, and CLI apps.
+Platform-agnostic core library for Ariami. It holds the shared business logic and services that the Desktop Server, the CLI server, and the mobile client build on.
 
 ## Overview
 
-Ariami Core is a pure Dart package (no Flutter dependencies) that provides music library management, catalog persistence, HTTP server functionality, discovery, authentication, listening statistics, and data models for the Ariami ecosystem. This package enables both GUI (desktop) and headless (CLI) server deployments to share the same core functionality.
+Ariami Core is a pure Dart package (no Flutter dependencies) that provides music library management, catalogue persistence, HTTP server functionality, discovery, authentication, listening statistics, and data models for the Ariami ecosystem. Both the GUI desktop server and the headless CLI server embed it, so the two share one implementation.
 
-Detailed developer documentation lives in [`docs/`](docs/README.md) — architecture walk-through, the full HTTP/WebSocket API reference, persistence and schema details, listening stats, and testing notes. Playlist folder detection is documented separately in [`PLAYLIST_DETECTION.md`](PLAYLIST_DETECTION.md).
+Detailed developer documentation lives in [`docs/`](docs/README.md): architecture walk-through, the full HTTP/WebSocket API reference, persistence and schema details, listening stats, and testing notes. Playlist folder detection is documented separately in [`PLAYLIST_DETECTION.md`](PLAYLIST_DETECTION.md).
 
 ## Architecture Role
 
-- Shared by the Ariami apps via path dependency
-- Pure Dart implementation (no Flutter runtime required)
+- Shared by the Ariami apps through path dependencies
+- Pure Dart implementation, with no Flutter runtime required
 - Enables headless server deployment on minimal hardware
-- Provides consistent API and behavior across all server types
+- Gives every server type the same API and behaviour
 
 ## Library Services
 
@@ -25,7 +25,7 @@ Located in `services/library/`:
 - **album_builder.dart** / **album_grouping.dart** / **album_identity.dart** - Groups songs into albums with multi-artist compilation detection and stable album identity
 - **album_art_detection.dart** - Locates folder-level artwork alongside audio files
 - **duplicate_detector.dart** - Identifies duplicate files via file hash and metadata comparison
-- **library_manager.dart** - Main library coordinator (singleton pattern), implemented across `library_manager/` part files for scanning, caching, duration handling, and catalog integration
+- **library_manager.dart** - Main library coordinator (singleton pattern), implemented across `library_manager/` part files for scanning, caching, duration handling, availability, and catalogue integration
 - **library_scanner_isolate.dart** - Isolate-based parallel scanning for performance
 - **folder_watcher.dart** - Monitors file system for changes and triggers updates
 - **change_processor.dart** - Processes file additions, modifications, and deletions in real-time
@@ -33,26 +33,26 @@ Located in `services/library/`:
 - **library_playlist_builder.dart**, **m3u_playlist_parser.dart**, **playlist_folder_classifier.dart**, **playlist_decision_store.dart** - Folder- and `.m3u`-based playlist detection, with high-confidence folders auto-imported and medium-confidence folders surfaced as suggestions
 - **natural_path_order.dart** - Human-friendly ordering of paths and filenames
 
-## Catalog Services
+## Catalogue Services
 
 Located in `services/catalog/`:
 
-- **catalog_database.dart** - SQLite catalog database lifecycle wrapper (pure Dart `sqlite3`)
+- **catalog_database.dart** - SQLite catalogue database lifecycle wrapper (pure Dart `sqlite3`)
 - **catalog_migrations.dart** - Forward-only schema migrations
 - **catalog_repository.dart** - Read access to album, song, and artwork records
-- **catalog_writer.dart** - Batched writes from scan results into the catalog
+- **catalog_writer.dart** - Batched writes from scan results into the catalogue
 
-Catalog read and write paths are gated behind feature flags (see [Feature Flags](#feature-flags)).
+Catalogue read and write paths are gated behind feature flags (see [Feature Flags](#feature-flags)).
 
 ## Server Services
 
 Located in `services/server/`:
 
-- **http_server.dart** - Shelf-based HTTP server with REST endpoints, WebSocket support, and static file serving (singleton pattern). Route handlers are split across `http_server_parts/` by area: auth, admin, library and artwork, streaming and downloads, download jobs, media tickets, playlist edits and suggestions, pins, listening stats, license, connections, setup/stats, middleware and metrics, lifecycle/config, and router registration
+- **http_server.dart** - Shelf-based HTTP server with REST endpoints, WebSocket support, and static file serving (singleton pattern). Route handlers are split across `http_server_parts/` by area: auth, admin, library and artwork, streaming and downloads, download jobs, media tickets, playlist edits and suggestions, pins, hidden items, artist images, listening stats, licence, music discovery config, connections, setup/stats, middleware and metrics, lifecycle/config, WebSocket and static files, and router registration
 - **connection_manager.dart** - Tracks connected clients, sessions, per-device identification, and heartbeat monitoring
 - **device_name_store.dart** - Persists user-chosen device display names so renames survive reconnects and restarts
 - **streaming_service.dart** - Audio streaming with HTTP range request support for efficient seeking
-- **stream_tracker.dart** - Tracks active streams per user and issues short-lived stream tokens for playback
+- **stream_tracker.dart** - Tracks active streams per user and issues short-lived stream and download tokens for playback
 - **download_job_service.dart** - Server-managed download jobs for bulk offline downloads
 - **http_server_limiters.dart** - Global and per-user concurrency limiters for streams and downloads
 - **metrics_service.dart** - Aggregates server-side metrics and emits periodic structured summary logs
@@ -90,7 +90,7 @@ Located in `services/auth/`:
 - **user_store.dart** - JSON-based user persistence with bcrypt password hashing
 - **session_store.dart** - Session token management with sliding TTL (30 days default)
 
-If no users are registered, the server runs in legacy/open mode. Once the first user registers, authentication becomes required.
+The first account registered on a server becomes the owner (admin). Creating it requires a local/loopback request, a registration token minted by an existing owner, or the one-time bootstrap code printed on the server's own console. Later accounts need a single-use registration token, and every password must be at least 10 characters.
 
 ## Listening Stats Services
 
@@ -103,29 +103,40 @@ Located in `services/stats/`:
 - **credited_artist_splitter.dart** - Splits multi-artist credits for per-artist attribution
 - **spotify_import/** - Parses Spotify Extended Streaming History, matches tracks against the library, and builds importable events
 
-## Playlist, Pin, and License Services
+## Playlist, Pin, Hidden, and Licence Services
 
 - `services/playlists/` - **playlist_edit_store.dart** (user playlist edits), **playlist_edit_reconcile.dart** (reconciling edits against rescans), **playlist_image_store.dart** (custom playlist artwork), **created_playlist_id.dart**
 - `services/pins/pinned_item_store.dart` - SQLite persistence for account-scoped pins
-- `services/license/` - **license_file_store.dart** and **license_key_activator.dart**; the server is a dumb relay that never parses or validates license contents — clients verify them
+- `services/hidden/hidden_item_store.dart` - SQLite persistence for account-scoped hidden albums, playlists, and artists
+- `services/artists/artist_image_store.dart` - SQLite persistence for account-scoped custom artist photos
+- `services/license/` - **license_file_store.dart** and **license_key_activator.dart**. The server is an opaque relay for licence files: it stores and returns them verbatim, and client apps verify them. Separately-purchased apps can each upload their own file without overwriting the others.
+
+## Recommendation Services
+
+Located in `services/recommendations/`:
+
+- **household_music_discovery_store.dart** / **music_discovery_api_key_sync.dart** - Household Last.fm API key persistence and client key sync; any signed-in device can read the key, and only the owner can change it
+- **lastfm_recommendation_client.dart** / **musicbrainz_identity_client.dart** - Outbound clients for Last.fm recommendations and MusicBrainz identity lookups
+- **music_recommendation_seeds.dart**, **music_recommendation_models.dart**, **music_recommendation_service.dart** - Seed weighting from listening history, shared discovery models, and the recommendation facade
 
 ## Search Services
 
 Located in `services/search/`:
 
-- **library_search_engine.dart** - Shared, deterministic search and ranking so a query behaves identically on mobile, desktop, and TV
-- **search_normalizer.dart** - Shared text normalization (lowercasing, diacritic folding) for queries and indexed fields
+- **library_search_engine.dart** - Shared, deterministic search and ranking so a query behaves identically on mobile and desktop
+- **search_normalizer.dart** - Shared text normalisation (lowercasing, diacritic folding) for queries and indexed fields
 
 ## Artwork and Transcoding Services
 
-- `services/artwork/artwork_service.dart` - Artwork compression and optimization for efficient delivery, with size variants
-- `services/transcoding/transcoding_service.dart` - Server-side audio transcoding with quality presets and caching (uses Sonic via FFI for MP3 -> AAC); implementation is split across `src/` for cache, environment, FFI, models, and process handling
+- `services/artwork/artwork_service.dart` - Artwork compression and optimisation for efficient delivery, with size variants
+- `services/transcoding/transcoding_service.dart` - Server-side audio transcoding with quality presets and caching (uses Sonic via FFI to produce AAC, M4A, or Opus); implementation is split across `src/` for cache, environment, FFI, models, and process handling
 - `services/transcoding/transcode_slots_policy.dart` - Concurrency policy for transcode slots
 
 ## Other Services
 
 - `services/setup/music_folder_path_helper.dart` - Music folder path resolution during setup
 - `services/reset/reset_service.dart` - Clears local Ariami state at configurable scopes
+- `utils/` - Queue insertion logic for "Play next", tag text sanitising and mojibake repair, the audio analysis helpers behind the visualiser (kick detector, tempo tracker, music voices), and secure file permissions for auth stores
 
 ## Data Models
 
@@ -134,7 +145,7 @@ Located in `models/`:
 - **Album** - Album information with track list and metadata
 - **SongMetadata** - File metadata including title, artist, album, year, track number, duration
 - **LibraryStructure** - Hierarchical library representation for client consumption
-- **ScanResult** / **ScanDiagnostics** - Results and diagnostics of library scan operations
+- **ScanResult** / **ScanDiagnostics** - Results and diagnostics of library scan operations, including failed files and playlist suggestions
 - **FileChange** - File system change notifications for real-time updates
 - **ApiModels** - Server request/response contracts for HTTP endpoints
 - **WebSocketModels** - Real-time message formats for WebSocket communication
@@ -145,9 +156,13 @@ Located in `models/`:
 - **ListeningStatsModels** / **UserActivityRow** - Listening event and statistics contracts
 - **FolderPlaylist** / **PlaylistSuggestion** - Detected playlists and advisory suggestions
 - **PinnedItem** - Account-scoped pins
+- **HiddenItem** - Account-scoped hidden albums, playlists, and artists
+- **ArtistImageInfo** - Custom artist image records
+- **HostControlsSnapshot** / **HostResetOutcome** - Host-level controls exposed to the CLI dashboard
+- **MusicAvailability** - Whether the library is ready to serve music
 - **ArtworkSize** / **QualityPreset** - Artwork variants and transcoding quality presets
 - **ServerOrigin** - Server origin/endpoint description
-- **FeatureFlags** - Runtime feature gating
+- **AriamiFeatureFlags** - Runtime feature gating
 
 ## Key Features
 
@@ -182,7 +197,8 @@ MP3, M4A, MP4, FLAC, WAV, AIFF, OGG, Opus, WMA, AAC, ALAC
 - User registration and login with bcrypt password hashing
 - Session tokens with 30-day sliding TTL
 - Stream tokens with duration-based TTL for audio playback compatibility
-- Rate-limited login attempts (5 per 15 minutes per device)
+- Rate-limited login attempts (5 per 15 minutes per client address and username)
+- Single-use registration tokens (10-minute TTL) and human-typeable invite codes for new accounts
 - Admin APIs for device management and password changes
 
 ### Server Discovery
@@ -198,15 +214,16 @@ MP3, M4A, MP4, FLAC, WAV, AIFF, OGG, Opus, WMA, AAC, ALAC
 
 ### Feature Flags
 
-`AriamiFeatureFlags` gates optional server behavior:
+`AriamiFeatureFlags` gates optional server behaviour:
 
 - `enableV2Api` - V2 API routes
-- `enableCatalogWrite` / `enableCatalogRead` - SQLite catalog write and read paths
+- `enableCatalogWrite` / `enableCatalogRead` - SQLite catalogue write and read paths
 - `enableArtworkPrecompute` - Precomputed artwork variants
 - `enableDownloadJobs` - Server-managed download jobs
 - `enableApiScopedAuthForCliWeb` - Scoped API auth for the CLI web client
+- `enableConnectProtocolV3` - Connect protocol v3 (on by default)
 
-Flags are validated for consistency when the HTTP server starts.
+Flags are validated for consistency when the HTTP server starts (`enableDownloadJobs` and `enableCatalogRead` require `enableV2Api`, and `enableV2Api` requires the catalogue repository to be available).
 
 ## Usage
 
@@ -257,13 +274,13 @@ dart analyze
 
 Key dependencies:
 - `shelf`, `shelf_router`, `shelf_web_socket`, `shelf_static`, `web_socket_channel` - HTTP server framework and WebSockets
-- `sqlite3` - Pure Dart SQLite runtime for the catalog, stats, pins, and playlist stores
+- `sqlite3` - Pure Dart SQLite runtime for the catalogue, stats, pins, hidden items, artist images, and playlist stores
 - `dart_tags` - Audio metadata extraction
 - `crypto` - File hashing for duplicate detection
 - `bcrypt` - Password hashing for user authentication
 - `watcher` - File system monitoring
 - `ffi` - Sonic transcoder bindings
-- `http` - Outbound HTTP (license activation, sync)
+- `http` - Outbound HTTP (licence activation and music discovery)
 - `path` - Path manipulation utilities
 - `logging` - Structured logging
 
@@ -278,7 +295,7 @@ Critical services use singleton pattern:
 
 ### Error Handling
 
-Services throw exceptions that should be caught and logged by consumers. All public APIs document their exception types.
+Services throw exceptions that consuming apps should catch and log.
 
 ### Concurrency
 

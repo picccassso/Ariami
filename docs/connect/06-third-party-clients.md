@@ -1,19 +1,19 @@
 # Writing a third-party client
 
-Connect has no SDK and no stability guarantee, but the protocol is plain JSON
-over a WebSocket and is implementable in any language — the two contract
-fixtures in `ariami_core/test/fixtures/connect/` are all you need to verify a
-client against.
+Connect is plain JSON over a WebSocket, implementable in any language. There is
+no SDK and no stability guarantee, but the two contract fixtures in
+`ariami_core/test/fixtures/connect/` are all you need to verify a client
+against.
 
 Decide first what you are building. It changes how much of this you need.
 
 | Kind | `canPlay` | Publishes state | Handles commands | Effort |
 |---|---|---|---|---|
-| **Controller** — a remote, a Stream Deck, a web dashboard | `false` | no | no | low |
-| **Player** — a speaker, a car head unit, a second app | `true` | yes | yes | high |
+| **Controller**: a remote, a Stream Deck, a web dashboard | `false` | no | no | low |
+| **Player**: a speaker, a car head unit, a second app | `true` | yes | yes | high |
 
-A controller is a weekend. A player is not — it has to be correct about
-ownership, or it makes sound at the wrong time.
+A controller is a weekend. A player is a much bigger job: it has to be correct
+about ownership, or it makes sound at the wrong time.
 
 ---
 
@@ -26,7 +26,7 @@ POST /api/auth/login
 {"username":"alex","password":"...","deviceId":"<your uuid>","deviceName":"Deck"}
 ```
 
-Keep `sessionToken`. Persist `deviceId` — reuse it every launch.
+Keep `sessionToken`. Persist `deviceId` and reuse it every launch.
 
 ### 2. Connect and identify
 
@@ -42,13 +42,13 @@ ws://<host>:8080/api/ws
 ```
 
 `clientType` must still be one of `desktop` / `mobile` / `tv` even for a pure
-controller — the hub only registers those three. `canPlay: false` is what keeps
-you out of the device picker.
+controller, because the hub only registers those three. `canPlay: false` is what
+keeps you out of the device picker.
 
 ### 3. Ping every 20 seconds
 
 ```json
-{"type":"ping"}
+{"type":"ping","timestamp":"2026-09-28T12:00:00.000Z"}
 ```
 
 ### 4. Track the session
@@ -79,7 +79,7 @@ clamped to durationMs
 ```
 
 `localReceiptTime` is when *you* received the snapshot, on *your* clock. Never
-use the snapshot's `updatedAt` — that is the sender's clock and skew will bend
+use the snapshot's `updatedAt`: that is the sender's clock, and skew will bend
 your seek bar.
 
 ---
@@ -90,15 +90,15 @@ Everything above, plus the hard parts. Work through them in this order.
 
 ### 1. Publish state
 
-Only when you are the owner. Never while applying inbound remote state — that
-feedback loop is instant and ugly.
+Only when you are the owner, and never while applying inbound remote state:
+that feedback loop is instant and ugly.
 
 Two rates, and mixing them up is the classic mistake:
 
 - **Discrete changes publish immediately.** Compute a fingerprint over
-  `{queue, currentIndex, durationMs, isPlaying, shuffle, repeatMode, volume}` —
-  note it excludes `positionMs`. Any change publishes now, cancelling any
-  pending progress timer.
+  `{queue, currentIndex, durationMs, isPlaying, shuffle, repeatMode, volume,
+  castDeviceName}`, which excludes `positionMs`. Any change publishes now,
+  cancelling any pending progress timer.
 - **Pure progress coalesces to 1 Hz.** If a second has elapsed since your last
   publish, publish now. Otherwise arm a single timer for the remainder and drop
   every intervening call. Re-read your snapshot when that timer *fires*, not when
@@ -111,7 +111,7 @@ Two rates, and mixing them up is the classic mistake:
 2. Wait for the hub's echo.
 3. Adopt the hub's `queueCounter`, then send the deferred `connect_state`.
 
-Never resend a queue while awaiting its echo — except a takeover, which must
+Never resend a queue while awaiting its echo, except for a takeover, which must
 resend, because the hub commits ownership from the queue message.
 
 Canonicalise your fingerprint with recursively sorted map keys, or a different
@@ -120,8 +120,9 @@ key insertion order will look like a queue change and churn the counter.
 ### 3. Maintain semanticGeneration
 
 Increment on a change to `{queue, currentIndex, isPlaying, shuffle, repeatMode,
-volume}`, or on a position gap over 1500 ms versus `previous + elapsed`. Not on
-ordinary progress.
+volume, castDeviceName}`, or on a position gap over 1500 ms versus
+`previous + elapsed` (10000 ms while either side is casting). Ordinary progress
+leaves it alone.
 
 After executing a routed command that carried a `semanticGeneration`, re-anchor
 your baseline to the post-command snapshot, so the hub-reserved generation isn't
@@ -149,6 +150,12 @@ Prepare loads and seeks *without playing*. Snapshot your prior state and restore
 it exactly on cancel, disconnect or dispose. Commit is idempotent by
 `transferId`. Don't await your engine's `play()`.
 
+If you can attach to an existing Cast receiver, advertise
+`features:["preserve_cast_handoff"]` in `connect_hello` and include
+`castDeviceName` on casting snapshots. The hub refuses to hand a casting session
+to a device that has not negotiated the feature, and a commit carrying
+`castDeviceName` means join the receiver instead of seeking and replaying.
+
 ### 7. Fetch audio
 
 Connect gives you song ids, not URLs. For each track:
@@ -161,22 +168,25 @@ POST /api/stream-ticket
 GET /api/stream/<songId>?streamToken=<token>[&quality=medium|low]
 ```
 
-- The ticket TTL is `max(duration + 10min, 20min)` capped at 2 hours — so a
+- The ticket TTL is `max(duration + 10min, 20min)` capped at 2 hours, so a
   normal track gets **20 minutes**, not 2 hours. (The flat 2 h is the *download*
   ticket.)
-- A ticket is bound to one `songId` at one quality, and to the issuing session.
-  A ticket the previous owner used is worthless to you.
+- A ticket is bound to one `songId` at one quality and to the issuing session,
+  which revokes it at logout. Connect payloads never carry tickets, so every
+  device mints its own.
 - `410 SONG_NOT_FOUND` means the library no longer has it. Skip the track, don't
   stall.
 - Range requests are supported for seeking. `high` returns the original file;
   `medium` / `low` return transcoded AAC at 128 / 64 kbps.
+- The `quality` query parameter must match the quality the ticket was issued for
+  (omit it for `high`), or the stream is refused.
 - Artwork: `GET /api/artwork/<albumId>?size=thumbnail|full`. Accepts a bearer
-  session *or* a matching `streamToken` — but a ticket for song X cannot fetch
+  session *or* a matching `streamToken`, but a ticket for song X cannot fetch
   album Y's art.
 
 ### 8. Resolve a play_context
 
-`play_context` hands you a complete snapshot, so the queue is already resolved —
+`play_context` hands you a complete snapshot, so the queue is already resolved:
 you mostly just need per-track streaming. If you need to expand a playlist or
 browse a library yourself, the v2 API is the one to use:
 
@@ -187,7 +197,7 @@ GET /api/v2/changes?since=<syncToken>&limit=200
 
 Bootstrap returns albums, songs and playlists (playlists carry `songIds`), plus
 a `syncToken` for incremental sync. `GET /api/albums` and `GET /api/songs` are
-empty v1 stubs — don't use them. `GET /api/albums/<albumId>` is real.
+empty v1 stubs, so don't use them. `GET /api/albums/<albumId>` is real.
 
 The v2 API is gated behind a server setting that defaults to **off**. Handle its
 absence.
@@ -200,16 +210,16 @@ absence.
 
 ## Test against the fixtures
 
-Two files pin the contract. All four first-party clients decode them with their
-own real decoders, which is the point — re-indexing the fixture's own arrays
-would pass even for a client that ignores `backingOrder` entirely.
+Two files pin the contract. The first-party clients decode them with their own
+real decoders, which is the point: re-indexing the fixture's own arrays would
+pass even for a client that ignores `backingOrder` entirely.
 
 **`ariami_core/test/fixtures/connect/v2_contract.json`** pins:
 
 - `protocolVersion: 2`, and `ownerEpoch: 7` with a `staleOwnerEpoch: 6`.
 - A snapshot containing **the same track id at two positions with different
   titles**. Decode it, republish, and assert the two occurrences are still
-  distinct. This is the single most valuable test in the set — every client that
+  distinct. This is the single most valuable test in the set: every client that
   keys songs by id collapses duplicates somewhere, and the Connect boundary is
   where it shows.
 - A `play_context` envelope with `backingOrder: [2, 0, 1]`. Adopt it, publish,
@@ -219,13 +229,13 @@ would pass even for a client that ignores `backingOrder` entirely.
 - Reliable-command limits: 8388608-byte raw cap, 64 pending, 256 completed,
   4 attempts, the exact `{commandId, retry}` envelope keys, and the explicit
   failure codes.
-- Per-client capability baselines — `set_volume` is present only for desktop.
+- Per-client capability baselines: `set_volume` is present only for desktop.
 
 **`ariami_core/test/fixtures/connect/fault_matrix.json`** enumerates every
 failure mode with the correct behaviour: half-open sockets, bounded waits, stale
 socket callbacks, 4001 and 4000-replaced suppression, backoff reset conditions,
 epoch fencing, split-queue handshake, retry envelopes, transfer cancel paths.
-Work through it — it is a test plan written for you.
+Work through it: it is a test plan written for you.
 
 ---
 
@@ -243,6 +253,7 @@ Work through it — it is a test plan written for you.
 - [ ] Losing ownership awaits a local pause before adopting the mirror
 - [ ] Fresh UUID4 `commandId`s; small retry envelope; no retry against a v1 hub
 - [ ] Routed commands cached by id and never re-routed outward
+- [ ] `preserve_cast_handoff` advertised only if you can join an existing receiver
 - [ ] Position extrapolated from local receipt time
 - [ ] Not audible-and-active when you voluntarily reconnect
 - [ ] Intentional exit does not publish a paused snapshot

@@ -35,9 +35,9 @@ Run it against your **local** engine and answer:
 
 Failures add `"code"` and `"message"` (message truncated to 1024 chars).
 
-A routed command must **never bounce back out** as a remote command. The hub only
-sends you commands for your own playback — including the takeover pause sent to
-a device that just lost the session. If your transport layer re-routes them
+A routed command must **never bounce back out** as a remote command. The hub
+sends you commands for your own playback only, including the takeover pause sent
+to a device that just lost the session. If your transport layer re-routes them
 because a stale mirror hasn't been cleared yet, the command goes straight back to
 the previous owner.
 
@@ -61,17 +61,18 @@ the previous owner.
 | `play_context` | `{"snapshot": Map}` | full snapshot |
 
 Argument maps must contain **exactly** the listed keys. Extra or missing keys
-are a validation failure, not a warning.
+are a validation failure, not a warning. A `track` for `insert_queue_track` is
+validated like a queue track: at most 20 fields and a non-empty `id`.
 
 ### What the interesting ones do
 
 - **`play_context`** replaces the active device's queue with one chosen on a
-  controller — an album, playlist or track — and starts it. This is how browsing
+  controller (an album, playlist or track) and starts it. This is how browsing
   on your phone plays on the TV.
 - **`play_queue_index`** jumps the active device to an absolute index within the
   queue it last published.
 - **`clear_queue`** removes every entry except the currently playing track,
-  atomically. Use it instead of N sequential `remove_queue_index` calls — those
+  atomically. Use it instead of N sequential `remove_queue_index` calls; those
   race against the owner's own position ticks.
 - **`set_volume`** is only advertised by desktop among the first-party clients.
   There is a `supportedWithoutVolume` set for engines with no programmatic
@@ -84,7 +85,7 @@ with `activate: true`; handoff is the `connect_transfer` message. See
 ## Queue index space
 
 `index` always means **a position in the resolved play order the active device
-last published** — an index into `snapshot.queue`. Never an index into any
+last published**, an index into `snapshot.queue`. It is never an index into any
 backing or unshuffled list.
 
 `remove_queue_index` also carries `id`, the track id you saw at that index, as a
@@ -97,7 +98,7 @@ Out-of-range edits should be a silent no-op that sends nothing.
 
 An engine that stores a backing queue plus a play order of indices into it has
 to decide where an inserted track lands in *both*. Insert into the play order
-only, and the track sits correctly in the current order — but appears at the
+only, and the track sits correctly in the current order, but appears at the
 bottom the moment the user turns shuffle off, because it was appended to the end
 of the backing queue.
 
@@ -110,7 +111,7 @@ rather than silently ignoring it.
 
 ### Repeat-one
 
-An explicit track change widens `repeat: one` back to `repeat: all` — repeat-one
+An explicit track change widens `repeat: one` back to `repeat: all`. repeat-one
 belongs to the track you chose, not the one you just skipped to. Apply it on
 both send and receive of `play_context`.
 
@@ -156,8 +157,8 @@ another device using an id you already used. Mint fresh ids.
 ### Never retry against a hub that can't dedupe
 
 If the negotiated hub protocol version is below 2, the hub cannot deduplicate.
-**Drop the command** with `COMMAND_RETRY_UNSUPPORTED` rather than retrying —
-replaying `next`, `toggle` or `cycle_repeat` twice is worse than failing once.
+**Drop the command** with `COMMAND_RETRY_UNSUPPORTED` rather than retrying.
+Replaying `next`, `toggle` or `cycle_repeat` twice is worse than failing once.
 
 ### Across a disconnect
 
@@ -187,7 +188,7 @@ That last row is the inconsistency to code defensively around: it is the one
 failure that carries no code. Synthesise your own (`COMMAND_FAILED`) so your UI
 has something to key off.
 
-Validate `play_context` size **before** the socket write — the reference client
+Validate `play_context` size **before** the socket write; the reference client
 surfaces `PLAY_CONTEXT_TOO_LARGE` locally and nothing crosses the wire.
 
 ## Optimistic UI

@@ -6,7 +6,7 @@ Things that look optional and are not. Roughly ordered by how badly they break.
 
 **1. An audible owner must never reconnect voluntarily.**
 Failover is immediate, so a deliberate reconnect looks identical to death. The
-hub hands the session away and pauses you as the former owner — silencing the
+hub hands the session away and pauses you as the former owner, silencing the
 playback you were trying to protect. Gate any refresh on "connected AND active
 AND locally playing". Mirroring clients may reconnect freely.
 
@@ -41,10 +41,10 @@ once the client exists. Otherwise the welcome's stale remote snapshot wins and
 their music stops.
 
 **8. A cancelled takeover must stay cancelled.**
-Play-then-pause during startup, then a reconnect — the intent must not
-resurrect. And if the activation already crossed the wire, republish the current
-paused state in the confirmed epoch, or the hub keeps your stale playing
-snapshot forever.
+Play-then-pause during startup, then a reconnect: the intent must not resurrect.
+And if the activation already crossed the wire, republish the current paused
+state in the confirmed epoch, or the hub keeps your stale playing snapshot
+forever.
 
 **9. Suppress the mirror the instant the user presses play.**
 Bounded window, ahead of hub confirmation. Without it, round-trip latency shows
@@ -75,7 +75,7 @@ Otherwise a later shuffle/unshuffle resurrects the removed track.
 A different JSON key insertion order otherwise looks like a queue change and
 churns the counter on every publish.
 
-**16. Never resend a v3 queue while awaiting its echo — except a takeover.**
+**16. Never resend a v3 queue while awaiting its echo, except for a takeover.**
 Takeovers must resend, because the hub commits ownership from the queue message
 itself.
 
@@ -100,7 +100,8 @@ mirror, because the fresh hub counts from zero. This one is invisible in testing
 and obvious in production.
 
 **22. Read `stateRevision` on v3 and `revision` on v2.**
-A transfer commit carries both. Reading only one strands your high-water mark.
+A transfer commit carries whichever field matches your negotiated version, so
+handle both names. Reading only one strands your high-water mark.
 
 **23. A queue-counter regression is legal across an epoch change, illegal within
 one.**
@@ -108,9 +109,11 @@ one.**
 **24. Validate raw message size before decoding.**
 8 MiB, on the encoded byte length. Not after `jsonDecode`.
 
-**25. Tolerate malformed queue items individually.**
-Skip an unparseable entry. One item serialised by a newer client must not blank
-the whole mirrored session.
+**25. v2 snapshot decoding tolerates malformed queue items; v3 does not.**
+`AriamiPlaybackSnapshot.fromJson` drops entries that aren't maps or whose `id`
+is missing or empty, so one bad item cannot blank a mirrored v2 session. A v3
+`connect_queue` is all-or-nothing instead: the hub answers `INVALID_QUEUE` for a
+bad track, and the reference client ignores the whole message.
 
 **26. Never close the socket over a malformed message.** Ignore it and continue.
 
@@ -129,7 +132,7 @@ ones.** The rearm is about the socket being alive.
 
 **31. Guard every callback by socket identity.**
 An old socket's late `onDone` must never tear down its replacement. You need
-*two* fences — socket identity and a connection generation counter — because a
+*two* fences, socket identity and a connection generation counter, because a
 refresh bumps the generation without emitting a close event.
 
 **32. Process inbound messages strictly in order, through one serialised chain.**
@@ -150,8 +153,8 @@ failing once.
 
 **36. There is no jitter in the backoff.**
 Many clients plus a server restart equals a synchronised herd at 1 s, 2 s, 4 s.
-The fault tests assert the exact unjittered sequence, so this is deliberate —
-but know it's there.
+The fault tests assert the exact unjittered sequence, so this is deliberate, but
+know it's there.
 
 ## Engine and platform
 
@@ -181,7 +184,7 @@ from your own persisted local state.
 
 ## When clients disagree
 
-Shipped clients do not all behave identically at the edges — the no-welcome
+Shipped clients do not all behave identically at the edges. The no-welcome
 timeout, the exact precondition for resetting reconnect backoff, and whether a
 transient reconnect sets an error code all vary in practice.
 

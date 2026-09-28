@@ -1,7 +1,7 @@
 # Ariami CLI Headless Guide
 
 This guide is for SSH, Raspberry Pi, NAS, and homelab installs. It documents
-the current CLI behavior. It does not describe planned features.
+the CLI's current behaviour only.
 
 ## Downloads
 
@@ -22,8 +22,8 @@ quarantine flag once: `xattr -dr com.apple.quarantine <extracted dir>`.
 ## Quick Start Over SSH
 
 ```bash
-unzip ariami-cli-raspberry-pi-arm64-v5.0.1.zip   # or the linux-x64 zip
-cd ariami-cli-raspberry-pi-arm64-v5.0.1
+unzip ariami-cli-raspberry-pi-arm64-v5.2.3.zip   # or the linux-x64 zip
+cd ariami-cli-raspberry-pi-arm64-v5.2.3
 chmod +x ariami_cli
 ./ariami_cli start --no-browser
 ```
@@ -54,7 +54,7 @@ the dashboard QR code to connect mobile clients.
 | `ARIAMI_ADVERTISED_PORT` | environment | Port clients should use when Docker maps a different host port to the bound port, for example `2000:8080`. It does not change the port Ariami binds. |
 | `ARIAMI_PUBLIC_ORIGIN` | environment | Optional HTTPS origin exposed by a trusted reverse proxy, for example `https://review.ariami.xyz`. It must contain only the origin: no credentials, path, query, or fragment. Secure-origin-aware clients use it for HTTPS API/media traffic and WSS WebSockets. Ariami rejects invalid or non-HTTPS values at startup. |
 | `ARIAMI_CONTAINER` | environment | Set to `1` or `true` to tell Ariami it is running in a container. Docker images set this automatically. |
-| `ARIAMI_TRUST_PROXY_HEADERS` | environment | Set to `1` only when a reverse proxy you control fronts Ariami: the server then uses `X-Forwarded-For` for login rate limiting. Leave unset otherwise — direct clients can forge the header. |
+| `ARIAMI_TRUST_PROXY_HEADERS` | environment | Set to `1` only when a reverse proxy you control fronts Ariami: the server then uses `X-Forwarded-For` for login rate limiting. Leave it unset otherwise, since direct clients can forge the header. |
 
 Until an owner account exists, the server prints a one-time **setup code** on
 its console at startup. Creating the owner account from the web dashboard on
@@ -77,8 +77,17 @@ Expected data directory contents:
 | `config.json` | Setup state, music folder path, server port, bind host, and CLI settings. |
 | `users.json` | User account records. |
 | `sessions.json` | Active web/mobile sessions. |
-| `catalog.db` | Persistent library catalog database. |
+| `catalog.db` | Persistent library catalogue database. |
 | `metadata_cache.json` | Library metadata cache. |
+| `playlist_decisions.json` | Import/ignore choices for suggested playlist folders. |
+| `music_discovery.json` | Household music discovery configuration fetched by signed-in clients. |
+| `device_names.json` | User-chosen display names for connected devices. |
+| `listening_stats.db` | Per-account listening history and stats. |
+| `pinned_items.db` | Account-scoped pinned albums and playlists. |
+| `playlist_edits.db` | Account-scoped playlist edits. |
+| `playlist_images.db` | Custom playlist cover images. |
+| `user_avatars/` | Uploaded profile pictures. |
+| `client_license.txt` | Licence file stored by the dashboard's Ariami TV activation. |
 | `artwork_cache/` | Generated artwork thumbnails/cache. |
 | `transcoded_cache/` | Generated audio transcode cache. |
 | `ariami.pid` | Runtime process ID for `status` and `stop`. |
@@ -88,7 +97,8 @@ Expected data directory contents:
 
 Back up the whole data directory before upgrades or migrations. At minimum,
 preserve `config.json`, `users.json`, `sessions.json`, `catalog.db`,
-`metadata_cache.json`, `artwork_cache/`, and `transcoded_cache/`.
+`metadata_cache.json`, `listening_stats.db`, the account-scoped playlist and
+pin databases, `artwork_cache/`, and `transcoded_cache/`.
 `ariami.pid`, `server.json`, `server.log`, and `autostart.log` are runtime
 state and can be recreated.
 
@@ -215,8 +225,8 @@ Notes:
   open a browser.
 - Port in use: occupy port `8080`, run setup without an explicit port, and
   confirm fallback to another port in `8080`-`8099`.
-- Invalid music directory: configure a missing music path and confirm startup
-  warns that the folder is missing.
+- Invalid music directory: configure a missing music path and confirm the
+  startup summary marks it `(folder missing!)`.
 - No owner account: start with setup incomplete or no users and confirm the
   auth warning appears.
 - LAN and Tailscale access: confirm dashboard URLs work from a LAN browser and,
