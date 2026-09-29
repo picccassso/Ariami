@@ -137,6 +137,13 @@ class ServerInitializationService {
     httpServer.setPublicUserPickerPersistCallback(
       (enabled) => stateService.setTvAccountPickerEnabled(enabled),
     );
+
+    // Same for the LAN/Tailscale display aliases the owner set.
+    httpServer.setEndpointAliases(
+      lanAlias: await stateService.getLanServerAlias(),
+      tailscaleAlias: await stateService.getTailscaleServerAlias(),
+    );
+    httpServer.setOnEndpointAliasesChanged(stateService.setEndpointAliases);
   }
 
   static Future<void> applyDesktopDownloadLimits(

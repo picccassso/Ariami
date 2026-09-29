@@ -1,10 +1,13 @@
 import 'package:ariami_core/ariami_core.dart';
+import 'package:ariami_core/models/music_availability.dart';
+import 'package:ariami_core/models/playlist_suggestion.dart';
 import 'package:flutter/material.dart';
 
 import '../../services/update_check_service.dart';
 import '../../utils/date_formatter.dart';
 import '../info_card.dart';
 import 'dashboard_keep_alive_tab.dart';
+import 'suggested_playlists_card.dart';
 
 class DashboardOverviewTab extends StatelessWidget {
   const DashboardOverviewTab({
@@ -19,6 +22,10 @@ class DashboardOverviewTab extends StatelessWidget {
     required this.onImportSpotifyStats,
     required this.onRemoveSpotifyStats,
     required this.spotifyImportStatus,
+    required this.playlistSuggestions,
+    required this.decidingSuggestionPaths,
+    required this.onImportSuggestion,
+    required this.onIgnoreSuggestion,
   });
 
   final AriamiHttpServer httpServer;
@@ -35,6 +42,11 @@ class DashboardOverviewTab extends StatelessWidget {
   /// not loaded. Removal stays available in that case.
   final SpotifyImportStatus? spotifyImportStatus;
 
+  final List<PlaylistSuggestion> playlistSuggestions;
+  final Set<String> decidingSuggestionPaths;
+  final void Function(PlaylistSuggestion suggestion) onImportSuggestion;
+  final void Function(PlaylistSuggestion suggestion) onIgnoreSuggestion;
+
   static const _sectionTitleStyle = TextStyle(
     fontSize: 20,
     fontWeight: FontWeight.bold,
@@ -44,11 +56,14 @@ class DashboardOverviewTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isRunning = httpServer.isRunning;
+    final musicAvailability = httpServer.libraryManager.musicAvailability;
 
     return DashboardKeepAliveTab(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (isRunning && musicAvailability.needsAttention)
+            _MusicAvailabilityBanner(availability: musicAvailability),
           if (availableUpdate != null)
             Container(
               width: double.infinity,
@@ -249,6 +264,15 @@ class DashboardOverviewTab extends StatelessWidget {
             icon: Icons.access_time_rounded,
             isActive: httpServer.libraryManager.lastScanTime != null,
           ),
+          if (playlistSuggestions.isNotEmpty) ...[
+            const SizedBox(height: 24),
+            SuggestedPlaylistsCard(
+              suggestions: playlistSuggestions,
+              decidingFolderPaths: decidingSuggestionPaths,
+              onImport: onImportSuggestion,
+              onIgnore: onIgnoreSuggestion,
+            ),
+          ],
           const SizedBox(height: 24),
           const Text('Listening Statistics', style: _sectionTitleStyle),
           const SizedBox(height: 16),
@@ -277,6 +301,60 @@ class DashboardOverviewTab extends StatelessWidget {
               style: OutlinedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 18),
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Warns that the server is up but its music storage is not usable, e.g. an
+/// unmounted drive or NAS. Core keeps retrying, so it clears on its own.
+class _MusicAvailabilityBanner extends StatelessWidget {
+  const _MusicAvailabilityBanner({required this.availability});
+
+  final MusicAvailability availability;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 24),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.orange.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.warning_amber_rounded,
+              color: Colors.orange.shade300, size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  availability.title,
+                  style: TextStyle(
+                    color: Colors.orange.shade200,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  availability.message,
+                  style: TextStyle(
+                    color: Colors.orange.shade200,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
             ),
           ),
         ],

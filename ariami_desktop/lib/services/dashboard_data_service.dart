@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:ariami_core/ariami_core.dart';
+import 'package:ariami_core/models/playlist_suggestion.dart';
 
 import '../models/connected_client_row.dart';
 import '../models/server_user_row.dart';
@@ -58,6 +59,12 @@ class DashboardDataService {
     if (users.isEmpty) return null;
     return httpServer.getSpotifyImportStatus(users.first.userId);
   }
+
+  /// Playlist-looking folders from the last scan that the owner has not yet
+  /// imported or ignored. Read in-process, so it never prompts for owner
+  /// credentials the way the admin HTTP calls do.
+  Future<List<PlaylistSuggestion>> loadPlaylistSuggestions() =>
+      httpServer.libraryManager.pendingPlaylistSuggestions();
 
   Future<List<ConnectedClientRow>> loadConnectedClients() async {
     final usernameById = await _loadUsernameMap();

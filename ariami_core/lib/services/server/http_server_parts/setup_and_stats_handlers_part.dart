@@ -328,6 +328,41 @@ extension AriamiHttpServerSetupAndStatsHandlersMethods on AriamiHttpServer {
     }
   }
 
+  /// Applies new endpoint display aliases, persists them through the host
+  /// callback, and tells connected clients. Throws [ArgumentError] for an
+  /// alias longer than 40 characters.
+  ///
+  /// Shared by the HTTP handler and in-process hosts (desktop) so both
+  /// persist and broadcast identically.
+  Future<void> updateEndpointAliases({
+    String? lanAlias,
+    String? tailscaleAlias,
+  }) async {
+    setEndpointAliases(
+      lanAlias: lanAlias,
+      tailscaleAlias: tailscaleAlias,
+    );
+
+    final onAliasesChanged = _onEndpointAliasesChanged;
+    if (onAliasesChanged != null) {
+      await onAliasesChanged(
+        lanAlias: _lanServerAlias,
+        tailscaleAlias: _tailscaleServerAlias,
+      );
+    }
+
+    broadcastWebSocketMessage(
+      WsMessage(
+        type: WsMessageType.endpointAliasesChanged,
+        data: {
+          if (_lanServerAlias != null) 'lanServerAlias': _lanServerAlias,
+          if (_tailscaleServerAlias != null)
+            'tailscaleServerAlias': _tailscaleServerAlias,
+        },
+      ),
+    );
+  }
+
   /// Update display aliases for LAN and Tailscale endpoints.
   ///
   /// Requires an authenticated admin session (or legacy/setup mode with no users).
@@ -366,28 +401,9 @@ extension AriamiHttpServerSetupAndStatsHandlersMethods on AriamiHttpServer {
         tailscaleAlias = _tailscaleServerAlias;
       }
 
-      setEndpointAliases(
+      await updateEndpointAliases(
         lanAlias: lanAlias,
         tailscaleAlias: tailscaleAlias,
-      );
-
-      final onAliasesChanged = _onEndpointAliasesChanged;
-      if (onAliasesChanged != null) {
-        await onAliasesChanged(
-          lanAlias: _lanServerAlias,
-          tailscaleAlias: _tailscaleServerAlias,
-        );
-      }
-
-      broadcastWebSocketMessage(
-        WsMessage(
-          type: WsMessageType.endpointAliasesChanged,
-          data: {
-            if (_lanServerAlias != null) 'lanServerAlias': _lanServerAlias,
-            if (_tailscaleServerAlias != null)
-              'tailscaleServerAlias': _tailscaleServerAlias,
-          },
-        ),
       );
 
       return _jsonOk({

@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:ariami_core/ariami_core.dart';
+import 'package:ariami_core/models/playlist_suggestion.dart';
+import 'package:ariami_core/services/library/playlist_decision_store.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -20,6 +22,7 @@ import '../services/system_tray_service.dart';
 import '../services/update_check_service.dart';
 import '../services/spotify_import_service.dart';
 import '../widgets/admin_credentials_dialog.dart';
+import '../widgets/alias_dialog.dart';
 import '../widgets/change_password_dialog.dart';
 import '../widgets/create_user_dialog.dart';
 import '../widgets/dashboard/dashboard_content.dart';
@@ -31,6 +34,7 @@ import '../widgets/spotify_remove_dialog.dart';
 import 'owner_setup_screen.dart';
 import 'scanning_screen.dart';
 
+part 'dashboard/dashboard_library_actions.dart';
 part 'dashboard/dashboard_refresh_actions.dart';
 part 'dashboard/dashboard_server_actions.dart';
 part 'dashboard/dashboard_user_actions.dart';
@@ -60,6 +64,8 @@ class _DashboardScreenState extends State<DashboardScreen>
   String? _musicFolderPath;
   String? _tailscaleIP;
   String? _lanIP;
+  String? _lanAlias;
+  String? _tailscaleAlias;
   String? _ownerUsername;
   bool _isLoading = true;
   bool _isRefreshingAddresses = false;
@@ -90,6 +96,8 @@ class _DashboardScreenState extends State<DashboardScreen>
   /// Null while unknown (no owner yet, stats DB not ready, or not loaded).
   SpotifyImportStatus? _spotifyImportStatus;
   bool _isSavingTranscodeSlots = false;
+  List<PlaylistSuggestion> _playlistSuggestions = const <PlaylistSuggestion>[];
+  final Set<String> _decidingSuggestionPaths = <String>{};
   late TabController _tabController;
 
   @override
@@ -187,6 +195,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     if (mounted) {
       setState(() {});
     }
+    unawaited(_refreshPlaylistSuggestions());
   }
 
   void _onClientConnectionChanged() {
@@ -235,6 +244,8 @@ class _DashboardScreenState extends State<DashboardScreen>
       isSavingTranscodeSlots: _isSavingTranscodeSlots,
       lanIP: _lanIP,
       tailscaleIP: _tailscaleIP,
+      lanAlias: _lanAlias,
+      tailscaleAlias: _tailscaleAlias,
       addressRefreshTimeLabel: _formatAddressRefreshTime(),
       isRefreshingAddresses: _isRefreshingAddresses,
       onToggleServer: _toggleServer,
@@ -246,6 +257,8 @@ class _DashboardScreenState extends State<DashboardScreen>
       ),
       onDeleteUser: _deleteUser,
       onEditTranscodeSlots: _promptEditTranscodeSlots,
+      onEditLanAlias: () => _promptEditAlias(isLan: true),
+      onEditTailscaleAlias: () => _promptEditAlias(isLan: false),
       onRefreshAddresses: _refreshServerAddresses,
       onChangeFolder: () {
         Navigator.pushNamed(context, '/folder-selection');
@@ -267,6 +280,12 @@ class _DashboardScreenState extends State<DashboardScreen>
           ? _showSpotifyRemove
           : null,
       spotifyImportStatus: _spotifyImportStatus,
+      playlistSuggestions: _playlistSuggestions,
+      decidingSuggestionPaths: _decidingSuggestionPaths,
+      onImportSuggestion: (s) =>
+          _decidePlaylistSuggestion(s, shouldImport: true),
+      onIgnoreSuggestion: (s) =>
+          _decidePlaylistSuggestion(s, shouldImport: false),
     );
   }
 

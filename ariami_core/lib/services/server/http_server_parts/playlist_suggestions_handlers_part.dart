@@ -27,22 +27,13 @@ extension AriamiHttpServerPlaylistSuggestionsMethods on AriamiHttpServer {
 
     final store = _libraryManager.playlistDecisionStore;
     var decisions = const <PlaylistFolderDecisionRecord>[];
-    var decidedPaths = const <String>{};
     if (store != null) {
       await store.ensureLoaded();
       decisions = store.decisions;
-      decidedPaths = {
-        ...store.importedFolderPaths,
-        ...store.ignoredFolderPaths,
-      };
     }
 
-    // A fresh decision hides its suggestion immediately, even though the
-    // decided folder stays in the last scan's diagnostics until a rescan.
-    final pendingSuggestions = _libraryManager
-        .latestScanDiagnostics.playlistSuggestions
-        .where((s) => !decidedPaths.contains(p.normalize(s.folderPath)))
-        .toList(growable: false);
+    final pendingSuggestions =
+        await _libraryManager.pendingPlaylistSuggestions();
 
     return _jsonOk({
       'suggestions':

@@ -15,9 +15,13 @@ class DashboardServerTab extends StatelessWidget {
     required this.isSavingTranscodeSlots,
     required this.lanIP,
     required this.tailscaleIP,
+    required this.lanAlias,
+    required this.tailscaleAlias,
     required this.addressRefreshTimeLabel,
     required this.isRefreshingAddresses,
     required this.onEditTranscodeSlots,
+    required this.onEditLanAlias,
+    required this.onEditTailscaleAlias,
     required this.onRefreshAddresses,
     required this.onChangeFolder,
     required this.onShowQr,
@@ -30,14 +34,25 @@ class DashboardServerTab extends StatelessWidget {
   final bool isSavingTranscodeSlots;
   final String? lanIP;
   final String? tailscaleIP;
+  final String? lanAlias;
+  final String? tailscaleAlias;
   final String addressRefreshTimeLabel;
   final bool isRefreshingAddresses;
   final VoidCallback onEditTranscodeSlots;
+  final VoidCallback onEditLanAlias;
+  final VoidCallback onEditTailscaleAlias;
   final VoidCallback onRefreshAddresses;
   final VoidCallback onChangeFolder;
   final VoidCallback onShowQr;
   final VoidCallback? onRescanLibrary;
   final VoidCallback onResetAriami;
+
+  static bool _hasAlias(String? alias) =>
+      alias != null && alias.trim().isNotEmpty;
+
+  /// The alias when one is set and there is an address to stand in for.
+  static String? _aliasOr(String? alias, String? address) =>
+      address != null && _hasAlias(alias) ? alias : address;
 
   static const _sectionTitleStyle = TextStyle(
     fontSize: 20,
@@ -81,16 +96,32 @@ class DashboardServerTab extends StatelessWidget {
           const SizedBox(height: 12),
           InfoCard(
             title: 'LAN Address',
-            value: lanIP ?? 'Not connected',
+            value: _aliasOr(lanAlias, lanIP) ?? 'Not connected',
             icon: Icons.router_rounded,
             isActive: lanIP != null,
+            subtitle: _hasAlias(lanAlias) ? lanIP : null,
+            trailing: lanIP == null
+                ? null
+                : TextButton(
+                    onPressed: onEditLanAlias,
+                    child: Text(_hasAlias(lanAlias) ? 'Rename' : 'Set alias'),
+                  ),
           ),
           const SizedBox(height: 12),
           InfoCard(
             title: 'Tailscale IP',
-            value: tailscaleIP ?? 'Not connected',
+            value: _aliasOr(tailscaleAlias, tailscaleIP) ?? 'Not connected',
             icon: Icons.cloud_done_rounded,
             isActive: tailscaleIP != null,
+            subtitle: _hasAlias(tailscaleAlias) ? tailscaleIP : null,
+            trailing: tailscaleIP == null
+                ? null
+                : TextButton(
+                    onPressed: onEditTailscaleAlias,
+                    child: Text(
+                      _hasAlias(tailscaleAlias) ? 'Rename' : 'Set alias',
+                    ),
+                  ),
           ),
           const SizedBox(height: 12),
           const AutostartCard(),

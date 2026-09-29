@@ -9,6 +9,8 @@ extension _DashboardRefreshActions on _DashboardScreenState {
     _setDashboardState(() {
       _tailscaleIP = serverInfo['tailscaleServer'] as String?;
       _lanIP = serverInfo['lanServer'] as String?;
+      _lanAlias = serverInfo['lanServerAlias'] as String?;
+      _tailscaleAlias = serverInfo['tailscaleServerAlias'] as String?;
       _connectedClients = clientCount;
       _addressesUpdatedAt = DateTime.now();
     });

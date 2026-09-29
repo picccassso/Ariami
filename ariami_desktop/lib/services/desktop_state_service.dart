@@ -17,6 +17,8 @@ class DesktopStateService {
   static const String _musicFolderPathKey = 'music_folder_path';
   static const String _transcodeSlotsKey = 'transcode_slots';
   static const String _tvAccountPickerEnabledKey = 'tv_account_picker_enabled';
+  static const String _lanServerAliasKey = 'lan_server_alias';
+  static const String _tailscaleServerAliasKey = 'tailscale_server_alias';
 
   /// Check if initial setup has been completed
   Future<bool> isSetupComplete() async {
@@ -48,6 +50,8 @@ class DesktopStateService {
     await prefs.remove(_serverPortKey);
     await prefs.remove(_musicFolderPathKey);
     await prefs.remove(_transcodeSlotsKey);
+    await prefs.remove(_lanServerAliasKey);
+    await prefs.remove(_tailscaleServerAliasKey);
   }
 
   /// Clear every Ariami preference (the "Factory reset" path).
@@ -86,6 +90,46 @@ class DesktopStateService {
   Future<void> setTvAccountPickerEnabled(bool enabled) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_tvAccountPickerEnabledKey, enabled);
+  }
+
+  /// Owner-chosen display name for the LAN address, or null when unset.
+  Future<String?> getLanServerAlias() async {
+    final prefs = await SharedPreferences.getInstance();
+    return _nonBlank(prefs.getString(_lanServerAliasKey));
+  }
+
+  /// Owner-chosen display name for the Tailscale address, or null when unset.
+  Future<String?> getTailscaleServerAlias() async {
+    final prefs = await SharedPreferences.getInstance();
+    return _nonBlank(prefs.getString(_tailscaleServerAliasKey));
+  }
+
+  /// Saves both aliases; a null or blank value clears that alias.
+  Future<void> setEndpointAliases({
+    String? lanAlias,
+    String? tailscaleAlias,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    await _writeOrRemove(prefs, _lanServerAliasKey, lanAlias);
+    await _writeOrRemove(prefs, _tailscaleServerAliasKey, tailscaleAlias);
+  }
+
+  static String? _nonBlank(String? value) {
+    final trimmed = value?.trim();
+    return trimmed == null || trimmed.isEmpty ? null : trimmed;
+  }
+
+  static Future<void> _writeOrRemove(
+    SharedPreferences prefs,
+    String key,
+    String? value,
+  ) async {
+    final trimmed = _nonBlank(value);
+    if (trimmed == null) {
+      await prefs.remove(key);
+    } else {
+      await prefs.setString(key, trimmed);
+    }
   }
 
   /// Persisted HTTP server port for future starts.

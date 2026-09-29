@@ -11,6 +11,7 @@ import 'package:ariami_core/models/album.dart';
 import 'package:ariami_core/models/file_change.dart';
 import 'package:ariami_core/models/scan_diagnostics.dart';
 import 'package:ariami_core/models/music_availability.dart';
+import 'package:ariami_core/models/playlist_suggestion.dart';
 import 'package:ariami_core/models/song_metadata.dart';
 import 'package:ariami_core/services/artwork/artwork_service.dart';
 import 'package:ariami_core/services/catalog/catalog_database.dart';
@@ -241,6 +242,26 @@ class LibraryManager {
 
   /// Playlist-suggestion decision store (null until [setCachePath]).
   PlaylistDecisionStore? get playlistDecisionStore => _playlistDecisionStore;
+
+  /// Suggestions from the last scan that the user has not yet imported or
+  /// ignored.
+  ///
+  /// A fresh decision hides its suggestion immediately, even though the
+  /// decided folder stays in the last scan's diagnostics until a rescan.
+  Future<List<PlaylistSuggestion>> pendingPlaylistSuggestions() async {
+    var decidedPaths = const <String>{};
+    final store = _playlistDecisionStore;
+    if (store != null) {
+      await store.ensureLoaded();
+      decidedPaths = {
+        ...store.importedFolderPaths,
+        ...store.ignoredFolderPaths,
+      };
+    }
+    return _latestScanDiagnostics.playlistSuggestions
+        .where((s) => !decidedPaths.contains(path.normalize(s.folderPath)))
+        .toList(growable: false);
+  }
 
   /// Folder path of the most recent successful full scan.
   String? get lastScannedFolderPath => _lastScannedFolderPath;

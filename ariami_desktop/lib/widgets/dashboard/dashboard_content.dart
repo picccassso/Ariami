@@ -1,4 +1,5 @@
 import 'package:ariami_core/ariami_core.dart';
+import 'package:ariami_core/models/playlist_suggestion.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/connected_client_row.dart';
@@ -40,6 +41,8 @@ class DashboardContent extends StatelessWidget {
     required this.isSavingTranscodeSlots,
     required this.lanIP,
     required this.tailscaleIP,
+    required this.lanAlias,
+    required this.tailscaleAlias,
     required this.addressRefreshTimeLabel,
     required this.isRefreshingAddresses,
     required this.onToggleServer,
@@ -49,6 +52,8 @@ class DashboardContent extends StatelessWidget {
     required this.onChangePassword,
     required this.onDeleteUser,
     required this.onEditTranscodeSlots,
+    required this.onEditLanAlias,
+    required this.onEditTailscaleAlias,
     required this.onRefreshAddresses,
     required this.onChangeFolder,
     required this.onShowQr,
@@ -57,6 +62,10 @@ class DashboardContent extends StatelessWidget {
     required this.onImportSpotifyStats,
     required this.onRemoveSpotifyStats,
     required this.spotifyImportStatus,
+    required this.playlistSuggestions,
+    required this.decidingSuggestionPaths,
+    required this.onImportSuggestion,
+    required this.onIgnoreSuggestion,
   });
 
   final TabController tabController;
@@ -86,6 +95,8 @@ class DashboardContent extends StatelessWidget {
   final bool isSavingTranscodeSlots;
   final String? lanIP;
   final String? tailscaleIP;
+  final String? lanAlias;
+  final String? tailscaleAlias;
   final String addressRefreshTimeLabel;
   final bool isRefreshingAddresses;
   final VoidCallback onToggleServer;
@@ -95,6 +106,8 @@ class DashboardContent extends StatelessWidget {
   final void Function(ServerUserRow row) onChangePassword;
   final void Function(ServerUserRow row) onDeleteUser;
   final VoidCallback onEditTranscodeSlots;
+  final VoidCallback onEditLanAlias;
+  final VoidCallback onEditTailscaleAlias;
   final VoidCallback onRefreshAddresses;
   final VoidCallback onChangeFolder;
   final VoidCallback onShowQr;
@@ -103,6 +116,10 @@ class DashboardContent extends StatelessWidget {
   final VoidCallback? onImportSpotifyStats;
   final VoidCallback? onRemoveSpotifyStats;
   final SpotifyImportStatus? spotifyImportStatus;
+  final List<PlaylistSuggestion> playlistSuggestions;
+  final Set<String> decidingSuggestionPaths;
+  final void Function(PlaylistSuggestion suggestion) onImportSuggestion;
+  final void Function(PlaylistSuggestion suggestion) onIgnoreSuggestion;
 
   @override
   Widget build(BuildContext context) {
@@ -136,6 +153,10 @@ class DashboardContent extends StatelessWidget {
                   onImportSpotifyStats: onImportSpotifyStats,
                   onRemoveSpotifyStats: onRemoveSpotifyStats,
                   spotifyImportStatus: spotifyImportStatus,
+                  playlistSuggestions: playlistSuggestions,
+                  decidingSuggestionPaths: decidingSuggestionPaths,
+                  onImportSuggestion: onImportSuggestion,
+                  onIgnoreSuggestion: onIgnoreSuggestion,
                 ),
                 DashboardActivityTab(
                   isLoadingUserActivity: isLoadingUserActivity,
@@ -170,9 +191,13 @@ class DashboardContent extends StatelessWidget {
                   isSavingTranscodeSlots: isSavingTranscodeSlots,
                   lanIP: lanIP,
                   tailscaleIP: tailscaleIP,
+                  lanAlias: lanAlias,
+                  tailscaleAlias: tailscaleAlias,
                   addressRefreshTimeLabel: addressRefreshTimeLabel,
                   isRefreshingAddresses: isRefreshingAddresses,
                   onEditTranscodeSlots: onEditTranscodeSlots,
+                  onEditLanAlias: onEditLanAlias,
+                  onEditTailscaleAlias: onEditTailscaleAlias,
                   onRefreshAddresses: onRefreshAddresses,
                   onChangeFolder: onChangeFolder,
                   onShowQr: onShowQr,
