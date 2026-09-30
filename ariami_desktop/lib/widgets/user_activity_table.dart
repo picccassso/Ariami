@@ -1,5 +1,6 @@
 import 'package:ariami_core/ariami_core.dart';
 import 'package:flutter/material.dart';
+import '../utils/constants.dart';
 
 /// Table of currently active user download/transcode activity.
 class UserActivityTable extends StatelessWidget {
@@ -44,13 +45,13 @@ class UserActivityTable extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: const Color(0xFF141414),
+          color: AppColors.surfaceHigh,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: const Color(0xFF2A2A2A)),
+          border: Border.all(color: AppColors.border),
         ),
         child: const Text(
           'No active download/transcode activity.',
-          style: TextStyle(color: Colors.white70),
+          style: TextStyle(color: AppColors.textSecondary),
         ),
       );
     }
@@ -79,7 +80,7 @@ class UserActivityTable extends StatelessWidget {
                             style: TextStyle(
                               color: row.isDownloading
                                   ? Colors.greenAccent
-                                  : Colors.white70,
+                                  : AppColors.textSecondary,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -91,7 +92,7 @@ class UserActivityTable extends StatelessWidget {
                             style: TextStyle(
                               color: row.isTranscoding
                                   ? Colors.orangeAccent
-                                  : Colors.white70,
+                                  : AppColors.textSecondary,
                               fontWeight: FontWeight.w600,
                             ),
                           ),

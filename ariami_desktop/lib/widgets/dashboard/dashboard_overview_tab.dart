@@ -8,6 +8,7 @@ import '../../utils/date_formatter.dart';
 import '../info_card.dart';
 import 'dashboard_keep_alive_tab.dart';
 import 'suggested_playlists_card.dart';
+import '../../utils/constants.dart';
 
 class DashboardOverviewTab extends StatelessWidget {
   const DashboardOverviewTab({
@@ -155,7 +156,7 @@ class DashboardOverviewTab extends StatelessWidget {
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 20),
                 backgroundColor:
-                    isRunning ? const Color(0xFF141414) : Colors.white,
+                    isRunning ? AppColors.surfaceHigh : Colors.white,
                 foregroundColor: isRunning ? Colors.redAccent : Colors.black,
                 side: isRunning
                     ? const BorderSide(color: Colors.redAccent, width: 2)
@@ -375,13 +376,13 @@ class _SpotifyImportSummary extends StatelessWidget {
     if (status == null) {
       return const Text(
         'Checking for an imported Spotify history…',
-        style: TextStyle(color: Colors.white60),
+        style: TextStyle(color: AppColors.textSecondary),
       );
     }
     if (!status.hasImport) {
       return const Text(
         'No Spotify plays imported.',
-        style: TextStyle(color: Colors.white60),
+        style: TextStyle(color: AppColors.textSecondary),
       );
     }
     return Column(
@@ -396,7 +397,7 @@ class _SpotifyImportSummary extends StatelessWidget {
         Text(
           'Covering ${formatDashboardDate(millisToLocal(status.oldestPlayAtMs))}'
           ' – ${formatDashboardDate(millisToLocal(status.newestPlayAtMs))}',
-          style: const TextStyle(color: Colors.white60),
+          style: const TextStyle(color: AppColors.textSecondary),
         ),
       ],
     );

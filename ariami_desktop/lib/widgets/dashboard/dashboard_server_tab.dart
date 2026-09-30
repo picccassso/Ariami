@@ -6,6 +6,7 @@ import '../info_card.dart';
 import '../transcode_slots_dialog.dart';
 import 'dashboard_keep_alive_tab.dart';
 import 'tv_license_card.dart';
+import '../../utils/constants.dart';
 
 class DashboardServerTab extends StatelessWidget {
   const DashboardServerTab({
@@ -87,9 +88,10 @@ class DashboardServerTab extends StatelessWidget {
                     '${transcodeSlotsSnapshot!.defaultSlots}'
                 : null,
             trailing: TextButton(
-              onPressed: transcodeSlotsSnapshot == null || isSavingTranscodeSlots
-                  ? null
-                  : onEditTranscodeSlots,
+              onPressed:
+                  transcodeSlotsSnapshot == null || isSavingTranscodeSlots
+                      ? null
+                      : onEditTranscodeSlots,
               child: Text(isSavingTranscodeSlots ? 'Saving...' : 'Edit'),
             ),
           ),
@@ -172,7 +174,7 @@ class DashboardServerTab extends StatelessWidget {
                   label: const Text('Change Folder'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Colors.white,
-                    side: const BorderSide(color: Color(0xFF333333)),
+                    side: const BorderSide(color: AppColors.border),
                     shape: const StadiumBorder(),
                     padding: const EdgeInsets.symmetric(vertical: 20),
                   ),
@@ -186,7 +188,7 @@ class DashboardServerTab extends StatelessWidget {
                   label: const Text('Show QR'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Colors.white,
-                    side: const BorderSide(color: Color(0xFF333333)),
+                    side: const BorderSide(color: AppColors.border),
                     shape: const StadiumBorder(),
                     padding: const EdgeInsets.symmetric(vertical: 20),
                   ),
@@ -203,7 +205,7 @@ class DashboardServerTab extends StatelessWidget {
               label: const Text('Rescan Library'),
               style: OutlinedButton.styleFrom(
                 foregroundColor: Colors.white,
-                side: const BorderSide(color: Color(0xFF333333)),
+                side: const BorderSide(color: AppColors.border),
                 shape: const StadiumBorder(),
                 padding: const EdgeInsets.symmetric(vertical: 20),
               ),

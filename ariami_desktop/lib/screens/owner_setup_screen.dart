@@ -5,6 +5,7 @@ import '../onboarding/onboarding_copy.dart';
 import '../onboarding/setup_scaffold.dart';
 import '../services/desktop_state_service.dart';
 import '../services/server_initialization_service.dart';
+import '../utils/constants.dart';
 
 class OwnerSetupScreen extends StatefulWidget {
   const OwnerSetupScreen({
@@ -175,7 +176,7 @@ class _OwnerSetupScreenState extends State<OwnerSetupScreen> {
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 15,
-                          color: Colors.white70,
+                          color: AppColors.textSecondary,
                           height: 1.5,
                         ),
                       ),
@@ -183,9 +184,9 @@ class _OwnerSetupScreenState extends State<OwnerSetupScreen> {
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF141414),
+                          color: AppColors.surfaceHigh,
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: const Color(0xFF2A2A2A)),
+                          border: Border.all(color: AppColors.border),
                         ),
                         child: _hasOwner
                             ? Column(
@@ -209,8 +210,8 @@ class _OwnerSetupScreenState extends State<OwnerSetupScreen> {
                                     _ownerUsername == null
                                         ? 'You can continue. Use Owner Sign-In when you run Owner-only actions.'
                                         : 'Current owner username: $_ownerUsername',
-                                    style:
-                                        const TextStyle(color: Colors.white70),
+                                    style: const TextStyle(
+                                        color: AppColors.textSecondary),
                                   ),
                                 ],
                               )

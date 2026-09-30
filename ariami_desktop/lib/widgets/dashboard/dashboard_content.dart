@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../models/connected_client_row.dart';
 import '../../models/server_user_row.dart';
 import '../../services/update_check_service.dart';
+import '../ambient_backdrop.dart';
 import 'dashboard_activity_tab.dart';
 import 'dashboard_overview_tab.dart';
 import 'dashboard_server_tab.dart';
@@ -123,89 +124,92 @@ class DashboardContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Dashboard'),
-        automaticallyImplyLeading: false,
-        bottom: TabBar(
-          controller: tabController,
-          tabs: const [
-            Tab(text: 'Overview'),
-            Tab(text: 'Activity'),
-            Tab(text: 'Users'),
-            Tab(text: 'Server'),
-          ],
+    return AmbientBackdrop(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(
+          title: const Text('Dashboard'),
+          automaticallyImplyLeading: false,
+          bottom: TabBar(
+            controller: tabController,
+            tabs: const [
+              Tab(text: 'Overview'),
+              Tab(text: 'Activity'),
+              Tab(text: 'Users'),
+              Tab(text: 'Server'),
+            ],
+          ),
         ),
+        body: isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : TabBarView(
+                controller: tabController,
+                children: [
+                  DashboardOverviewTab(
+                    httpServer: httpServer,
+                    connectedClients: connectedClients,
+                    hasOwnerAccount: hasOwnerAccount,
+                    availableUpdate: availableUpdate,
+                    onToggleServer: onToggleServer,
+                    onOpenOwnerSetup: onOpenOwnerSetup,
+                    onOpenReleasePage: onOpenReleasePage,
+                    onImportSpotifyStats: onImportSpotifyStats,
+                    onRemoveSpotifyStats: onRemoveSpotifyStats,
+                    spotifyImportStatus: spotifyImportStatus,
+                    playlistSuggestions: playlistSuggestions,
+                    decidingSuggestionPaths: decidingSuggestionPaths,
+                    onImportSuggestion: onImportSuggestion,
+                    onIgnoreSuggestion: onIgnoreSuggestion,
+                  ),
+                  DashboardActivityTab(
+                    isLoadingUserActivity: isLoadingUserActivity,
+                    userActivityError: userActivityError,
+                    userActivityRows: userActivityRows,
+                    isLoadingConnectedRows: isLoadingConnectedRows,
+                    connectedRowsError: connectedRowsError,
+                    connectedClientRows: connectedClientRows,
+                    hasOwnerAccount: hasOwnerAccount,
+                    kickingDeviceIds: kickingDeviceIds,
+                    onKick: onKick,
+                    onOpenOwnerSetup: onOpenOwnerSetup,
+                  ),
+                  DashboardUsersTab(
+                    isLoadingServerUsers: isLoadingServerUsers,
+                    serverUsersError: serverUsersError,
+                    serverUserRows: serverUserRows,
+                    hasOwnerAccount: hasOwnerAccount,
+                    isCreatingUser: isCreatingUser,
+                    isChangingPassword: isChangingPassword,
+                    deletingUserIds: deletingUserIds,
+                    isTvAccountPickerEnabled: isTvAccountPickerEnabled,
+                    onCreateUser: onCreateUser,
+                    onChangePassword: onChangePassword,
+                    onDeleteUser: onDeleteUser,
+                    onOpenOwnerSetup: onOpenOwnerSetup,
+                    onToggleTvAccountPicker: onToggleTvAccountPicker,
+                  ),
+                  DashboardServerTab(
+                    musicFolderPath: musicFolderPath,
+                    transcodeSlotsSnapshot: transcodeSlotsSnapshot,
+                    isSavingTranscodeSlots: isSavingTranscodeSlots,
+                    lanIP: lanIP,
+                    tailscaleIP: tailscaleIP,
+                    lanAlias: lanAlias,
+                    tailscaleAlias: tailscaleAlias,
+                    addressRefreshTimeLabel: addressRefreshTimeLabel,
+                    isRefreshingAddresses: isRefreshingAddresses,
+                    onEditTranscodeSlots: onEditTranscodeSlots,
+                    onEditLanAlias: onEditLanAlias,
+                    onEditTailscaleAlias: onEditTailscaleAlias,
+                    onRefreshAddresses: onRefreshAddresses,
+                    onChangeFolder: onChangeFolder,
+                    onShowQr: onShowQr,
+                    onRescanLibrary: onRescanLibrary,
+                    onResetAriami: onResetAriami,
+                  ),
+                ],
+              ),
       ),
-      body: isLoading
-          ? const Center(child: CircularProgressIndicator(color: Colors.white))
-          : TabBarView(
-              controller: tabController,
-              children: [
-                DashboardOverviewTab(
-                  httpServer: httpServer,
-                  connectedClients: connectedClients,
-                  hasOwnerAccount: hasOwnerAccount,
-                  availableUpdate: availableUpdate,
-                  onToggleServer: onToggleServer,
-                  onOpenOwnerSetup: onOpenOwnerSetup,
-                  onOpenReleasePage: onOpenReleasePage,
-                  onImportSpotifyStats: onImportSpotifyStats,
-                  onRemoveSpotifyStats: onRemoveSpotifyStats,
-                  spotifyImportStatus: spotifyImportStatus,
-                  playlistSuggestions: playlistSuggestions,
-                  decidingSuggestionPaths: decidingSuggestionPaths,
-                  onImportSuggestion: onImportSuggestion,
-                  onIgnoreSuggestion: onIgnoreSuggestion,
-                ),
-                DashboardActivityTab(
-                  isLoadingUserActivity: isLoadingUserActivity,
-                  userActivityError: userActivityError,
-                  userActivityRows: userActivityRows,
-                  isLoadingConnectedRows: isLoadingConnectedRows,
-                  connectedRowsError: connectedRowsError,
-                  connectedClientRows: connectedClientRows,
-                  hasOwnerAccount: hasOwnerAccount,
-                  kickingDeviceIds: kickingDeviceIds,
-                  onKick: onKick,
-                  onOpenOwnerSetup: onOpenOwnerSetup,
-                ),
-                DashboardUsersTab(
-                  isLoadingServerUsers: isLoadingServerUsers,
-                  serverUsersError: serverUsersError,
-                  serverUserRows: serverUserRows,
-                  hasOwnerAccount: hasOwnerAccount,
-                  isCreatingUser: isCreatingUser,
-                  isChangingPassword: isChangingPassword,
-                  deletingUserIds: deletingUserIds,
-                  isTvAccountPickerEnabled: isTvAccountPickerEnabled,
-                  onCreateUser: onCreateUser,
-                  onChangePassword: onChangePassword,
-                  onDeleteUser: onDeleteUser,
-                  onOpenOwnerSetup: onOpenOwnerSetup,
-                  onToggleTvAccountPicker: onToggleTvAccountPicker,
-                ),
-                DashboardServerTab(
-                  musicFolderPath: musicFolderPath,
-                  transcodeSlotsSnapshot: transcodeSlotsSnapshot,
-                  isSavingTranscodeSlots: isSavingTranscodeSlots,
-                  lanIP: lanIP,
-                  tailscaleIP: tailscaleIP,
-                  lanAlias: lanAlias,
-                  tailscaleAlias: tailscaleAlias,
-                  addressRefreshTimeLabel: addressRefreshTimeLabel,
-                  isRefreshingAddresses: isRefreshingAddresses,
-                  onEditTranscodeSlots: onEditTranscodeSlots,
-                  onEditLanAlias: onEditLanAlias,
-                  onEditTailscaleAlias: onEditTailscaleAlias,
-                  onRefreshAddresses: onRefreshAddresses,
-                  onChangeFolder: onChangeFolder,
-                  onShowQr: onShowQr,
-                  onRescanLibrary: onRescanLibrary,
-                  onResetAriami: onResetAriami,
-                ),
-              ],
-            ),
     );
   }
 }

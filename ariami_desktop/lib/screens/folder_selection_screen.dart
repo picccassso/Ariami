@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../onboarding/onboarding_copy.dart';
 import '../onboarding/setup_scaffold.dart';
 import 'scanning_screen.dart';
+import '../utils/constants.dart';
 
 class FolderSelectionScreen extends StatefulWidget {
   const FolderSelectionScreen({super.key});
@@ -72,7 +73,6 @@ class _FolderSelectionScreenState extends State<FolderSelectionScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error selecting folder: $e'),
-            backgroundColor: const Color(0xFF141414), // Themed error
           ),
         );
       }
@@ -115,7 +115,7 @@ class _FolderSelectionScreenState extends State<FolderSelectionScreen> {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 16,
-                  color: Colors.white54,
+                  color: AppColors.textSecondary,
                   height: 1.5,
                 ),
               ),
@@ -125,14 +125,15 @@ class _FolderSelectionScreenState extends State<FolderSelectionScreen> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF141414),
+                    color: AppColors.surfaceHigh,
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: const Color(0xFF2A2A2A)),
+                    border: Border.all(color: AppColors.border),
                   ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(Icons.folder_rounded, color: Colors.white54),
+                      const Icon(Icons.folder_rounded,
+                          color: AppColors.textSecondary),
                       const SizedBox(width: 16),
                       Expanded(
                         child: SelectableText(
@@ -166,7 +167,7 @@ class _FolderSelectionScreenState extends State<FolderSelectionScreen> {
                     : 'Change Folder'),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: Colors.white,
-                  side: const BorderSide(color: Color(0xFF333333)),
+                  side: const BorderSide(color: AppColors.border),
                   shape: const StadiumBorder(),
                   padding: const EdgeInsets.symmetric(
                     horizontal: 48,
@@ -193,7 +194,7 @@ class _FolderSelectionScreenState extends State<FolderSelectionScreen> {
                   },
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Colors.white,
-                    side: const BorderSide(color: Color(0xFF333333)),
+                    side: const BorderSide(color: AppColors.border),
                     shape: const StadiumBorder(),
                     padding: const EdgeInsets.symmetric(
                       horizontal: 48,

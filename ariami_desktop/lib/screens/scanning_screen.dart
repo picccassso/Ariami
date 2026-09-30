@@ -5,6 +5,7 @@ import 'package:ariami_core/ariami_core.dart';
 
 import '../onboarding/onboarding_copy.dart';
 import '../onboarding/setup_scaffold.dart';
+import '../utils/constants.dart';
 
 class ScanningScreen extends StatefulWidget {
   final String musicFolderPath;
@@ -159,7 +160,8 @@ class _ScanningScreenState extends State<ScanningScreen> {
                 const SizedBox(height: 16),
                 Text(
                   _status,
-                  style: const TextStyle(fontSize: 16, color: Colors.white54),
+                  style: const TextStyle(
+                      fontSize: 16, color: AppColors.textSecondary),
                   textAlign: TextAlign.center,
                 ),
               ] else ...[
@@ -171,9 +173,9 @@ class _ScanningScreenState extends State<ScanningScreen> {
                     vertical: 20,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF141414),
+                    color: AppColors.surfaceHigh,
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: const Color(0xFF2A2A2A)),
+                    border: Border.all(color: AppColors.border),
                   ),
                   child: Column(
                     children: [
@@ -191,7 +193,7 @@ class _ScanningScreenState extends State<ScanningScreen> {
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
                           letterSpacing: 1.2,
-                          color: Colors.white54,
+                          color: AppColors.textSecondary,
                         ),
                       ),
                       const SizedBox(height: 12),

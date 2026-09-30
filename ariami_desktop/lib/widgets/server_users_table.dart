@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/server_user_row.dart';
 import '../utils/date_formatter.dart';
+import '../utils/constants.dart';
 
 enum _UserActionMenuItem {
   changePassword,
@@ -63,13 +64,13 @@ class ServerUsersTable extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: const Color(0xFF141414),
+          color: AppColors.surfaceHigh,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: const Color(0xFF2A2A2A)),
+          border: Border.all(color: AppColors.border),
         ),
         child: const Text(
           'No registered users yet.',
-          style: TextStyle(color: Colors.white70),
+          style: TextStyle(color: AppColors.textSecondary),
         ),
       );
     }
@@ -206,9 +207,9 @@ class _UserActionsButtonState extends State<_UserActionsButton> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: const Color(0xFF181818),
+          color: AppColors.surfaceHigh,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: const Color(0xFF333333)),
+          border: Border.all(color: AppColors.border),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../widgets/ambient_backdrop.dart';
 import 'setup_help.dart';
 
 /// Shared chrome for setup screens: back navigation at the top-left (when the
@@ -26,17 +27,20 @@ class SetupScreenScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final canPop = allowBack && (Navigator.maybeOf(context)?.canPop() ?? false);
-    return Scaffold(
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        leading: canPop ? const BackButton() : null,
-        title: title == null ? null : Text(title!),
-        actions: [
-          if (helpTopic != null) SetupHelpButton(topic: helpTopic!),
-          const SizedBox(width: 8),
-        ],
+    return AmbientBackdrop(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(
+          automaticallyImplyLeading: false,
+          leading: canPop ? const BackButton() : null,
+          title: title == null ? null : Text(title!),
+          actions: [
+            if (helpTopic != null) SetupHelpButton(topic: helpTopic!),
+            const SizedBox(width: 8),
+          ],
+        ),
+        body: body,
       ),
-      body: body,
     );
   }
 }

@@ -2,6 +2,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../services/spotify_import_service.dart';
+import '../utils/constants.dart';
 
 enum _ImportPhase { intro, analyzing, preview, uploading, done, error }
 
@@ -166,7 +167,7 @@ class _SpotifyImportDialogState extends State<SpotifyImportDialog> {
             const Text(
               'Importing again is safe: Ariami uses stable IDs and will not '
               'double-count the same Spotify plays.',
-              style: TextStyle(color: Colors.white60),
+              style: TextStyle(color: AppColors.textSecondary),
             ),
           ],
         );

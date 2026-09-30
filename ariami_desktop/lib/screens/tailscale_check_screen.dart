@@ -3,6 +3,7 @@ import 'dart:io';
 
 import '../onboarding/onboarding_copy.dart';
 import '../onboarding/setup_scaffold.dart';
+import '../utils/constants.dart';
 
 class TailscaleCheckScreen extends StatefulWidget {
   const TailscaleCheckScreen({super.key});
@@ -145,7 +146,7 @@ class _TailscaleCheckScreenState extends State<TailscaleCheckScreen> {
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   fontSize: 16,
-                  color: Colors.white70,
+                  color: AppColors.textSecondary,
                   height: 1.5,
                 ),
               ),
@@ -155,7 +156,7 @@ class _TailscaleCheckScreenState extends State<TailscaleCheckScreen> {
                   onPressed: _checkTailscale,
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Colors.white,
-                    side: const BorderSide(color: Color(0xFF333333)),
+                    side: const BorderSide(color: AppColors.border),
                     padding: const EdgeInsets.symmetric(
                       horizontal: 48,
                       vertical: 20,
@@ -175,7 +176,7 @@ class _TailscaleCheckScreenState extends State<TailscaleCheckScreen> {
                   },
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Colors.white,
-                    side: const BorderSide(color: Color(0xFF333333)),
+                    side: const BorderSide(color: AppColors.border),
                     padding: const EdgeInsets.symmetric(
                       horizontal: 48,
                       vertical: 20,

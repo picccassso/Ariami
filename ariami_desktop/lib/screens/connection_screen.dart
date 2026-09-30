@@ -11,6 +11,7 @@ import '../services/desktop_tailscale_service.dart';
 import '../services/desktop_state_service.dart';
 import '../services/server_initialization_service.dart';
 import 'scanning_screen.dart';
+import '../utils/constants.dart';
 
 class ConnectionScreen extends StatefulWidget {
   const ConnectionScreen({super.key});
@@ -289,9 +290,9 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
       constraints: const BoxConstraints(maxWidth: 460),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFF141414),
+        color: AppColors.surfaceHigh,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFF2A2A2A)),
+        border: Border.all(color: AppColors.border),
       ),
       child: Column(
         children: [
@@ -300,7 +301,7 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
             style: const TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: Colors.white54,
+              color: AppColors.textSecondary,
               letterSpacing: 0.5,
             ),
           ),
@@ -309,7 +310,8 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
             'In the app, tap "Manual entry", type one of the addresses above, '
             'then this one-time invite code:',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 13, color: Colors.white70, height: 1.4),
+            style: TextStyle(
+                fontSize: 13, color: AppColors.textSecondary, height: 1.4),
           ),
           const SizedBox(height: 16),
           if (code == null)
@@ -346,7 +348,7 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
               style: const TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
-                color: Colors.white54,
+                color: AppColors.textSecondary,
               ),
             ),
             TextButton.icon(
@@ -435,7 +437,8 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
                       const SizedBox(height: 16),
                       const Text(
                         'Starting server...',
-                        style: TextStyle(fontSize: 16, color: Colors.white70),
+                        style: TextStyle(
+                            fontSize: 16, color: AppColors.textSecondary),
                       ),
                     ],
                   )
@@ -471,10 +474,9 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 24, vertical: 32),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF141414),
+                                color: AppColors.surfaceHigh,
                                 borderRadius: BorderRadius.circular(24),
-                                border:
-                                    Border.all(color: const Color(0xFF2A2A2A)),
+                                border: Border.all(color: AppColors.border),
                               ),
                               child: Column(
                                 children: [
@@ -483,7 +485,7 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
                                     style: const TextStyle(
                                       fontSize: 12,
                                       fontWeight: FontWeight.w500,
-                                      color: Colors.white54,
+                                      color: AppColors.textSecondary,
                                       letterSpacing: 0.5,
                                     ),
                                   ),
@@ -510,7 +512,7 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
                                         textAlign: TextAlign.center,
                                         style: TextStyle(
                                           fontSize: 13,
-                                          color: Colors.white70,
+                                          color: AppColors.textSecondary,
                                           height: 1.4,
                                         ),
                                       ),
@@ -595,7 +597,7 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                 fontSize: 14,
-                                color: Colors.white70,
+                                color: AppColors.textSecondary,
                                 height: 1.5,
                               ),
                             ),
@@ -615,7 +617,7 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
                     },
                     style: OutlinedButton.styleFrom(
                       foregroundColor: Colors.white,
-                      side: const BorderSide(color: Color(0xFF333333)),
+                      side: const BorderSide(color: AppColors.border),
                       padding: const EdgeInsets.symmetric(
                         horizontal: 48,
                         vertical: 20,
@@ -662,7 +664,7 @@ class _EndpointDisplay extends StatelessWidget {
               style: const TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
-                color: Colors.white54,
+                color: AppColors.textSecondary,
                 letterSpacing: 0.6,
               ),
             ),
@@ -670,16 +672,16 @@ class _EndpointDisplay extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
-                color: const Color(0xFF1E1E1E),
+                color: AppColors.surfaceHigh,
                 borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: const Color(0xFF333333)),
+                border: Border.all(color: AppColors.border),
               ),
               child: Text(
                 badgeLabel,
                 style: const TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.w700,
-                  color: Colors.white70,
+                  color: AppColors.textSecondary,
                   letterSpacing: 0.8,
                 ),
               ),

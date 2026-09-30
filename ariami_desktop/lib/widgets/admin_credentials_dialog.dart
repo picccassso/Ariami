@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/admin_credentials.dart';
 import '../services/desktop_state_service.dart';
+import '../utils/constants.dart';
 
 /// Shows owner sign-in dialog; returns credentials or null if cancelled.
 Future<AdminCredentials?> showAdminCredentialsDialog(
@@ -35,7 +36,7 @@ Future<AdminCredentials?> showAdminCredentialsDialog(
                       'This is required for Owner-only actions like Kick Device and Change Password.',
                       style: TextStyle(
                         fontSize: 12,
-                        color: Colors.white70,
+                        color: AppColors.textSecondary,
                         height: 1.4,
                       ),
                     ),
@@ -43,13 +44,15 @@ Future<AdminCredentials?> showAdminCredentialsDialog(
                   const SizedBox(height: 10),
                   TextField(
                     controller: usernameController,
-                    decoration: const InputDecoration(labelText: 'Owner Username'),
+                    decoration:
+                        const InputDecoration(labelText: 'Owner Username'),
                   ),
                   const SizedBox(height: 12),
                   TextField(
                     controller: passwordController,
                     obscureText: true,
-                    decoration: const InputDecoration(labelText: 'Owner Password'),
+                    decoration:
+                        const InputDecoration(labelText: 'Owner Password'),
                   ),
                   const SizedBox(height: 8),
                   Align(
@@ -141,7 +144,7 @@ Future<void> _showOwnerRecoveryDialog(
               const SizedBox(height: 12),
               const Text(
                 'You can also follow RESET.md in the repository for a full reset guide.',
-                style: TextStyle(color: Colors.white70, fontSize: 12),
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
               ),
             ],
           ),

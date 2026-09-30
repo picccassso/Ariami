@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/connected_client_row.dart';
 import '../utils/date_formatter.dart';
+import '../utils/constants.dart';
 
 /// Table of connected users/devices with admin kick actions.
 class ConnectedUsersTable extends StatelessWidget {
@@ -54,13 +55,13 @@ class ConnectedUsersTable extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: const Color(0xFF141414),
+          color: AppColors.surfaceHigh,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: const Color(0xFF2A2A2A)),
+          border: Border.all(color: AppColors.border),
         ),
         child: const Text(
           'No connected devices.',
-          style: TextStyle(color: Colors.white70),
+          style: TextStyle(color: AppColors.textSecondary),
         ),
       );
     }

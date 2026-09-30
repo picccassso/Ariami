@@ -178,8 +178,7 @@ class _MyAppState extends State<MyApp> with WindowListener {
     return MaterialApp(
       navigatorKey: _navigatorKey,
       title: 'Ariami Desktop',
-      theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
+      theme: AppTheme.darkTheme,
       home: _isLoading
           ? const Scaffold(
               body: Center(
