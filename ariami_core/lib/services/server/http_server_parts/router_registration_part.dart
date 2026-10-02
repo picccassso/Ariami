@@ -364,6 +364,15 @@ extension AriamiHttpServerRouterMethods on AriamiHttpServer {
       '/api/v2/changes',
       (request) => _handleProtectedV2Request(request, v2Handlers.handleChanges),
     );
+    router.put(
+      '/api/v2/song-attributes',
+      (request) =>
+          _handleProtectedV2Request(request, _handleSongAttributesPut),
+    );
+    router.post(
+      '/api/v2/songs/query',
+      (request) => _handleProtectedV2Request(request, _handleSongQuery),
+    );
 
     if (!_featureFlags.enableDownloadJobs) {
       return;

@@ -33,6 +33,10 @@ For the package's own quick-start summary, see [`../README.md`](../README.md)
   Spotify Extended Streaming History import pipeline (eligibility rules,
   offline/timestamp corrections, library matching tiers, idempotent
   re-imports, and how to undo an import).
+- **[SONG_ATTRIBUTES.md](SONG_ATTRIBUTES.md)**: Tag tracks with your own
+  data (genres, moods, BPM, instrumental) from tools such as Essentia, then
+  filter, sort and build playlists from it over the HTTP API. Includes a
+  step-by-step quick start.
 - **[TESTING.md](TESTING.md)**: How to run tests and analysis, the shape of
   `test/`, the in-process HTTP test helper, and what to check before
   changing shared behaviour that every consuming app relies on.

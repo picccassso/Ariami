@@ -315,6 +315,24 @@ sync back once you're reconnected.
 
 </details>
 <details>
+<summary><strong>Custom tags and smart filtering</strong></summary>
+
+If you run your own tools over your music, such as [Essentia](https://essentia.upf.edu/) for
+genre and mood analysis, you can send the results to your server as tags on each track. A tag
+can be a true/false flag, a number, or a list of words, and you can point at a track by its path
+in your music folder.
+
+Then ask the server for the songs that match, like "every instrumental track tagged ambient
+that's not already in my Focus playlist", sorted by BPM. Save the results as a playlist and it
+shows up in every Ariami app.
+
+Tags are shared by every account on the server and stay put through rescans. You work with them
+through the HTTP API, so they suit scripts and companion tools.
+
+Details: [custom song tags guide](ariami_core/docs/SONG_ATTRIBUTES.md)
+
+</details>
+<details>
 <summary><strong>Accounts and multi-device</strong></summary>
 
 Each user gets a password-protected account (10 characters minimum) with their own sessions,
@@ -403,7 +421,7 @@ apps don't include any ads, analytics, or tracking. See [PRIVACY.md](PRIVACY.md)
 | Area | Where |
 | --- | --- |
 | **Ariami Connect** (protocol, commands, third-party clients) | [docs/connect/](docs/connect/README.md) |
-| **Core** (architecture, HTTP/WebSocket API, persistence, stats, testing) | [ariami_core/docs/](ariami_core/docs/README.md) |
+| **Core** (architecture, HTTP/WebSocket API, custom song tags, persistence, stats, testing) | [ariami_core/docs/](ariami_core/docs/README.md) · [custom song tags](ariami_core/docs/SONG_ATTRIBUTES.md) |
 | **Mobile** (overview, features, setup, architecture, building) | [ariami_mobile/docs/](ariami_mobile/docs/README.md) |
 | **Desktop Server** (overview, features, architecture, building) | [ariami_desktop/docs/](ariami_desktop/docs/README.md) |
 | **CLI** (installation, configuration, command reference, FAQ) | [ariami_cli/docs/](ariami_cli/docs/README.md) · [Docker](ariami_cli/docker/DOCKER.md) · [headless](ariami_cli/HEADLESS.md) |

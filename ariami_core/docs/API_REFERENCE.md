@@ -195,6 +195,8 @@ Only registered when `AriamiFeatureFlags.enableV2Api` is true. All protected.
 | GET | `/api/v2/songs` | Paged song list (`cursor`, `limit`) |
 | GET | `/api/v2/playlists` | Paged playlist list (`cursor`, `limit`) |
 | GET | `/api/v2/changes` | Incremental change feed since a token (`V2ChangesResponse`); `limit` defaults to 200 (max 1000) |
+| PUT | `/api/v2/song-attributes` | Set or remove custom per-song attributes by `songId` or relative `path` (up to 500 songs). See [SONG_ATTRIBUTES.md](SONG_ATTRIBUTES.md) |
+| POST | `/api/v2/songs/query` | Filter and sort songs by attributes and playlist membership, paged with `cursor`/`limit`. See [SONG_ATTRIBUTES.md](SONG_ATTRIBUTES.md) |
 
 ## Download jobs (v2 flag + download-jobs flag)
 

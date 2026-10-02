@@ -29,6 +29,7 @@ import 'package:ariami_core/models/host_controls.dart';
 import 'package:ariami_core/services/library/library_manager.dart';
 import 'package:ariami_core/services/library/playlist_decision_store.dart';
 import 'package:ariami_core/services/catalog/catalog_repository.dart';
+import 'package:ariami_core/services/catalog/song_attribute_query.dart';
 import 'package:ariami_core/services/auth/auth_service.dart';
 import 'package:ariami_core/services/auth/user_store.dart'
     show UserExistsException;
@@ -55,6 +56,7 @@ import 'package:ariami_core/models/pinned_item.dart';
 import 'package:ariami_core/services/hidden/hidden_item_store.dart';
 import 'package:ariami_core/services/pins/pinned_item_store.dart';
 import 'package:ariami_core/services/playlists/created_playlist_id.dart';
+import 'package:ariami_core/services/playlists/playlist_edit_reconcile.dart';
 import 'package:ariami_core/services/playlists/playlist_edit_store.dart';
 import 'package:ariami_core/services/playlists/playlist_image_store.dart';
 import 'package:ariami_core/models/artist_image_info.dart';
@@ -83,6 +85,7 @@ part 'http_server_parts/artist_images_handlers_part.dart';
 part 'http_server_parts/license_handlers_part.dart';
 part 'http_server_parts/music_discovery_config_handlers_part.dart';
 part 'http_server_parts/playlist_suggestions_handlers_part.dart';
+part 'http_server_parts/song_attributes_handlers_part.dart';
 
 /// HTTP server for Ariami desktop application (Singleton)
 class AriamiHttpServer {

@@ -7,7 +7,7 @@ import 'package:ariami_core/utils/text_sanitizer.dart';
 
 /// Forward-only schema migrations for the catalog database.
 class CatalogMigrations {
-  static const int currentVersion = 6;
+  static const int currentVersion = 7;
 
   static void migrate(Database database) {
     final existingVersion = database.userVersion;
@@ -48,6 +48,10 @@ class CatalogMigrations {
       if (existingVersion < 6) {
         _applyVersion6(database);
         database.userVersion = 6;
+      }
+      if (existingVersion < 7) {
+        _applyVersion7(database);
+        database.userVersion = 7;
       }
 
       database.execute('COMMIT;');
@@ -271,6 +275,19 @@ ADD COLUMN bitrate_kbps INTEGER NULL;
     database.execute('''
 ALTER TABLE songs
 ADD COLUMN genre TEXT NULL;
+''');
+  }
+
+  /// Externally supplied per-song attributes (e.g. audio analysis results).
+  /// Kept out of `songs` so library scans never overwrite them.
+  static void _applyVersion7(Database database) {
+    database.execute('''
+CREATE TABLE IF NOT EXISTS song_attributes (
+  song_id TEXT NOT NULL,
+  key TEXT NOT NULL,
+  value_json TEXT NOT NULL,
+  PRIMARY KEY (song_id, key)
+);
 ''');
   }
 

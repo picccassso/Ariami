@@ -1,3 +1,4 @@
+import 'package:ariami_core/services/catalog/song_attribute_repository.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 class CatalogAlbumRecord {
@@ -146,6 +147,9 @@ class CatalogRepository {
   CatalogRepository({required Database database}) : _database = database;
 
   final Database _database;
+
+  SongAttributeRepository get songAttributes =>
+      SongAttributeRepository(database: _database);
 
   void upsertAlbum(CatalogAlbumRecord album) {
     _database.execute(

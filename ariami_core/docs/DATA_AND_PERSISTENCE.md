@@ -64,7 +64,7 @@ with `PRAGMA journal_mode=WAL`, `synchronous=NORMAL`, `temp_store=MEMORY`,
 `busy_timeout=5000`, `cache_size=-8192`. Schema migrations are forward-only
 and versioned via SQLite's `PRAGMA user_version`
 ([`CatalogMigrations`](../lib/services/catalog/catalog_migrations.dart),
-`currentVersion = 6`):
+`currentVersion = 7`):
 
 - **v1** creates the base schema. The current `CREATE TABLE` statements
   already include the columns that later migrations add, so a fresh database
@@ -89,6 +89,10 @@ and versioned via SQLite's `PRAGMA user_version`
   `sanitizeTagText`. Done in Dart (not pure SQL) because SQLite string
   functions treat an embedded NUL as a terminator.
 - **v6** adds `songs.genre` when it is missing.
+- **v7** creates `song_attributes (song_id, key, value_json)` with
+  `PRIMARY KEY (song_id, key)`: custom per-song attributes written through
+  [`/api/v2/song-attributes`](SONG_ATTRIBUTES.md). It sits apart from
+  `songs`, so library scans leave the values alone.
 
 `CatalogWriter` ([`services/catalog/catalog_writer.dart`](../lib/services/catalog/catalog_writer.dart))
 upserts from a `LibraryStructure` snapshot and appends the corresponding rows
