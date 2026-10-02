@@ -218,6 +218,8 @@ class AriamiConnectController extends ChangeNotifier {
         receivedAt: client.remoteSnapshotAt,
       ),
       sendCommand: client.sendCommand,
+      supportsVolume:
+          active.supportedCommands.contains(AriamiConnectCommand.setVolume),
     );
   }
 

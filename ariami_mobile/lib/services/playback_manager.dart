@@ -39,6 +39,7 @@ import '../main.dart' show audioHandler;
 part 'playback_manager_queue_impl.dart';
 part 'playback_manager_casting_impl.dart';
 part 'playback_manager_connect_impl.dart';
+part 'playback_manager_volume_impl.dart';
 part 'playback_manager_lifecycle_impl.dart';
 part 'playback_manager_streaming_impl.dart';
 part 'playback_manager_persistence_impl.dart';
@@ -323,6 +324,10 @@ class PlaybackManager extends ChangeNotifier {
   void Function(String command, [Map<String, dynamic>? arguments])?
       _sendConnectCommand;
   Timer? _connectTicker;
+  bool _connectSupportsVolume = false;
+  Timer? _connectVolumeTimer;
+  double? _pendingConnectVolume;
+  String? _pendingVolumeOutputId;
   Timer? _connectSuppressionTimer;
   DateTime? _connectSuppressedAt;
 
@@ -352,8 +357,33 @@ class PlaybackManager extends ChangeNotifier {
     AriamiRemotePlayback? remote, {
     void Function(String command, [Map<String, dynamic>? arguments])?
         sendCommand,
+    bool? supportsVolume,
   }) =>
-      _setConnectRemoteMirrorImpl(remote, sendCommand: sendCommand);
+      _setConnectRemoteMirrorImpl(
+        remote,
+        sendCommand: sendCommand,
+        supportsVolume: supportsVolume,
+      );
+
+  /// Null when the visible playback output has no artwork volume control.
+  String? get volumeOutputId => _volumeOutputId;
+  bool get canControlOutputVolume => volumeOutputId != null;
+  double get outputVolume =>
+      _connectRemote?.snapshot.volume ??
+      (_castService.isConnected ? _castService.deviceVolume : 1);
+  String get outputVolumeLabel =>
+      (_connectRemote?.snapshot.castDeviceName != null ||
+              (_connectRemote == null && _castService.isConnected))
+          ? 'Cast volume'
+          : 'Desktop volume';
+
+  /// [outputId] binds a gesture to its original output, even across rebuilds.
+  void setOutputVolume(double value, {required String outputId}) =>
+      _setOutputVolumeImpl(value, outputId: outputId);
+
+  void flushOutputVolume({required String outputId}) {
+    if (outputId == volumeOutputId) _flushConnectVolume();
+  }
 
   /// Runs a Connect command against the local engine, bypassing the remote
   /// mirror.
@@ -744,6 +774,7 @@ class PlaybackManager extends ChangeNotifier {
     _castPlaybackWatchdog.dispose();
     _castStatsForwardTimer?.cancel();
     _connectTicker?.cancel();
+    _cancelConnectVolume();
     _connectSuppressionTimer?.cancel();
     _saveTimer?.cancel();
     _positionSubscription?.cancel();

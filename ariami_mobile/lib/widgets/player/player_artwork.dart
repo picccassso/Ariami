@@ -8,7 +8,6 @@ import '../../models/song.dart';
 import 'player_artwork_indices.dart';
 import '../../services/api/connection_service.dart';
 import '../../utils/responsive.dart';
-import '../../services/cast/chrome_cast_service.dart';
 import '../common/cached_artwork.dart';
 
 /// Page-turn duration for cover art (swipe, prev/next).
@@ -55,13 +54,18 @@ class PlayerArtworkController {
   }
 }
 
-/// Large album artwork with swipe gestures for track skipping and cast volume.
+/// Large album artwork with swipe gestures for track skipping and output volume.
 class PlayerArtwork extends StatefulWidget {
   final PlaybackQueue queue;
   final int currentIndex;
   final playback_repeat.RepeatMode repeatMode;
   final ValueChanged<int> onPageChanged;
   final PlayerArtworkController? controller;
+  final String? volumeOutputId;
+  final double volume;
+  final String volumeLabel;
+  final ValueChanged<double>? onVolumeChanged;
+  final VoidCallback? onVolumeChangeEnd;
 
   const PlayerArtwork({
     super.key,
@@ -70,6 +74,11 @@ class PlayerArtwork extends StatefulWidget {
     this.repeatMode = playback_repeat.RepeatMode.none,
     required this.onPageChanged,
     this.controller,
+    this.volumeOutputId,
+    this.volume = 1,
+    this.volumeLabel = 'Cast volume',
+    this.onVolumeChanged,
+    this.onVolumeChangeEnd,
   });
 
   @override
@@ -77,15 +86,14 @@ class PlayerArtwork extends StatefulWidget {
 }
 
 class _PlayerArtworkState extends State<PlayerArtwork> {
-  final ChromeCastService _castService = ChromeCastService();
   late PageController _pageController;
 
   Timer? _hintTimer;
   Timer? _hudTimer;
-  bool _wasConnected = false;
-  bool _showCastHint = false;
+  bool _showVolumeHint = false;
   bool _showVolumeHud = false;
   double _volumeHudValue = 0.0;
+  String? _volumeDragOutputId;
   bool _allowHorizontalPaging = true;
 
   late int _visualIndex;
@@ -98,6 +106,9 @@ class _PlayerArtworkState extends State<PlayerArtwork> {
 
   /// Bumps on each button-driven page animation so only the latest tap wins.
   int _buttonAnimateGeneration = 0;
+
+  bool get _canControlVolume =>
+      widget.volumeOutputId != null && widget.onVolumeChanged != null;
 
   bool get _wrapEnabledForWidget => playerArtworkWrapEnabled(
         repeatMode: widget.repeatMode,
@@ -142,15 +153,25 @@ class _PlayerArtworkState extends State<PlayerArtwork> {
     _visualIndex = initialPage;
     _pageController = _createPageController(initialPage);
     _songIds = widget.queue.songs.map((s) => s.id).toList();
-    _castService.initialize();
-    _wasConnected = _castService.isConnected;
-    _castService.addListener(_handleCastStateChanged);
     widget.controller?._attach(this);
+    if (_canControlVolume) _showHint();
   }
 
   @override
   void didUpdateWidget(covariant PlayerArtwork oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.volumeOutputId != widget.volumeOutputId ||
+        (oldWidget.onVolumeChanged == null) !=
+            (widget.onVolumeChanged == null)) {
+      _hintTimer?.cancel();
+      _hudTimer?.cancel();
+      _volumeDragOutputId = null;
+      _showVolumeHint = false;
+      _showVolumeHud = false;
+      if (_canControlVolume) _showHint();
+    } else if (_volumeDragOutputId == null) {
+      _volumeHudValue = widget.volume;
+    }
     if (oldWidget.controller != widget.controller) {
       oldWidget.controller?._detach(this);
       widget.controller?._attach(this);
@@ -246,7 +267,7 @@ class _PlayerArtworkState extends State<PlayerArtwork> {
     _pageController.dispose();
     _hintTimer?.cancel();
     _hudTimer?.cancel();
-    _castService.removeListener(_handleCastStateChanged);
+    if (_volumeDragOutputId != null) widget.onVolumeChangeEnd?.call();
     super.dispose();
   }
 
@@ -312,12 +333,11 @@ class _PlayerArtworkState extends State<PlayerArtwork> {
       onPointerUp: (_) => _resetHorizontalPagingGuard(),
       onPointerCancel: (_) => _resetHorizontalPagingGuard(),
       child: GestureDetector(
-        onVerticalDragStart:
-            _castService.isConnected ? _handleVolumeDragStart : null,
+        onVerticalDragStart: _canControlVolume ? _handleVolumeDragStart : null,
         onVerticalDragUpdate:
-            _castService.isConnected ? _handleVolumeDragUpdate : null,
-        onVerticalDragEnd:
-            _castService.isConnected ? _handleVolumeDragEnd : null,
+            _canControlVolume ? _handleVolumeDragUpdate : null,
+        onVerticalDragEnd: _canControlVolume ? _handleVolumeDragEnd : null,
+        onVerticalDragCancel: _canControlVolume ? _finishVolumeDrag : null,
         child: NotificationListener<ScrollNotification>(
           onNotification: (notification) {
             if (notification is ScrollEndNotification) {
@@ -434,25 +454,6 @@ class _PlayerArtworkState extends State<PlayerArtwork> {
     );
   }
 
-  void _handleCastStateChanged() {
-    final isConnected = _castService.isConnected;
-
-    if (isConnected && !_wasConnected) {
-      _showHint();
-    } else if (!isConnected) {
-      _hintTimer?.cancel();
-      _hudTimer?.cancel();
-      if (mounted && (_showCastHint || _showVolumeHud)) {
-        setState(() {
-          _showCastHint = false;
-          _showVolumeHud = false;
-        });
-      }
-    }
-
-    _wasConnected = isConnected;
-  }
-
   void _showHint() {
     _hintTimer?.cancel();
     _hudTimer?.cancel();
@@ -462,7 +463,7 @@ class _PlayerArtworkState extends State<PlayerArtwork> {
     }
 
     setState(() {
-      _showCastHint = true;
+      _showVolumeHint = true;
       _showVolumeHud = false;
     });
 
@@ -472,25 +473,29 @@ class _PlayerArtworkState extends State<PlayerArtwork> {
       }
 
       setState(() {
-        _showCastHint = false;
+        _showVolumeHint = false;
       });
     });
   }
 
   void _handleVolumeDragStart(DragStartDetails details) {
+    if (!_canControlVolume) return;
     _hintTimer?.cancel();
     _hudTimer?.cancel();
-    final startingVolume =
-        _showVolumeHud ? _volumeHudValue : _castService.deviceVolume;
+    _volumeDragOutputId = widget.volumeOutputId;
 
     setState(() {
-      _showCastHint = false;
+      _showVolumeHint = false;
       _showVolumeHud = true;
-      _volumeHudValue = startingVolume;
+      _volumeHudValue = widget.volume;
     });
   }
 
   void _handleVolumeDragUpdate(DragUpdateDetails details) {
+    if (_volumeDragOutputId == null ||
+        _volumeDragOutputId != widget.volumeOutputId) {
+      return;
+    }
     final nextVolume =
         (_volumeHudValue - (details.delta.dy / 280)).clamp(0.0, 1.0);
 
@@ -498,10 +503,15 @@ class _PlayerArtworkState extends State<PlayerArtwork> {
       _volumeHudValue = nextVolume.toDouble();
     });
 
-    _castService.setDeviceVolume(_volumeHudValue);
+    widget.onVolumeChanged?.call(_volumeHudValue);
   }
 
-  void _handleVolumeDragEnd(DragEndDetails details) {
+  void _handleVolumeDragEnd(DragEndDetails details) => _finishVolumeDrag();
+
+  void _finishVolumeDrag() {
+    if (_volumeDragOutputId == null) return;
+    _volumeDragOutputId = null;
+    widget.onVolumeChangeEnd?.call();
     _hudTimer?.cancel();
     _hudTimer = Timer(const Duration(milliseconds: 900), () {
       if (!mounted) {
@@ -525,12 +535,12 @@ class _PlayerArtworkState extends State<PlayerArtwork> {
           icon: _volumeHudValue == 0
               ? Icons.volume_off_rounded
               : Icons.volume_up_rounded,
-          text: 'Cast volume $volumePercent%',
+          text: '${widget.volumeLabel} $volumePercent%',
         ),
       );
     }
 
-    if (_showCastHint) {
+    if (_showVolumeHint) {
       return Align(
         key: const ValueKey('cast-volume-hint'),
         alignment: Alignment.topCenter,

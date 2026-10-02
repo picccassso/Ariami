@@ -424,11 +424,22 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
   }
 
   Widget _buildArtwork() {
+    final outputId = _playbackManager.volumeOutputId;
     return PlayerArtwork(
       controller: _artworkController,
       queue: _playbackManager.queue,
       currentIndex: _playbackManager.queue.currentIndex,
       repeatMode: _playbackManager.repeatMode,
+      volumeOutputId: outputId,
+      volume: _playbackManager.outputVolume,
+      volumeLabel: _playbackManager.outputVolumeLabel,
+      onVolumeChanged: outputId == null
+          ? null
+          : (value) =>
+              _playbackManager.setOutputVolume(value, outputId: outputId),
+      onVolumeChangeEnd: outputId == null
+          ? null
+          : () => _playbackManager.flushOutputVolume(outputId: outputId),
       onPageChanged: (index) {
         _pendingSkipIndex = null;
         _playbackManager.skipToQueueItem(index);

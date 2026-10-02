@@ -8,6 +8,7 @@ extension _PlaybackManagerConnectImpl on PlaybackManager {
     AriamiRemotePlayback? remote, {
     void Function(String command, [Map<String, dynamic>? arguments])?
         sendCommand,
+    bool? supportsVolume,
   }) {
     if (remote == null) {
       _connectSuppressedAt = null;
@@ -23,17 +24,29 @@ extension _PlaybackManagerConnectImpl on PlaybackManager {
           () {
             _connectSuppressionTimer = null;
             _connectSuppressedAt = null;
-            setConnectRemoteMirror(remote, sendCommand: sendCommand);
+            setConnectRemoteMirror(
+              remote,
+              sendCommand: sendCommand,
+              supportsVolume: supportsVolume,
+            );
           },
         );
         return;
       }
       _connectSuppressedAt = null;
     }
+    final previousOutputId = volumeOutputId;
+    final nextSupportsVolume = remote != null &&
+        (supportsVolume ??
+            (_connectRemote?.deviceId == remote.deviceId &&
+                _connectSupportsVolume));
+    final capabilityChanged = _connectSupportsVolume != nextSupportsVolume;
+    _connectSupportsVolume = nextSupportsVolume;
     _sendConnectCommand = sendCommand ?? _sendConnectCommand;
     final previous = _connectRemote;
     final presentationChanged = _connectPresentationChanged(previous, remote);
     _connectRemote = remote;
+    if (previousOutputId != volumeOutputId) _cancelConnectVolume();
     if (remote == null) {
       _sendConnectCommand = null;
       _connectRemoteSongs = const <Song>[];
@@ -70,7 +83,7 @@ extension _PlaybackManagerConnectImpl on PlaybackManager {
     _syncConnectTicker();
     positionNotifier.value = position;
     _publishConnectMirrorToNotification();
-    if (presentationChanged) _notifyStateChanged();
+    if (presentationChanged || capabilityChanged) _notifyStateChanged();
   }
 
   bool _connectPresentationChanged(
@@ -91,6 +104,7 @@ extension _PlaybackManagerConnectImpl on PlaybackManager {
         before.shuffle != after.shuffle ||
         before.repeatMode != after.repeatMode ||
         before.volume != after.volume ||
+        before.castDeviceName != after.castDeviceName ||
         before.sourceId != after.sourceId;
   }
 
@@ -167,6 +181,8 @@ extension _PlaybackManagerConnectImpl on PlaybackManager {
     _connectSuppressionTimer = null;
     _connectSuppressedAt = DateTime.now();
     if (_connectRemote == null) return;
+    _cancelConnectVolume();
+    _connectSupportsVolume = false;
     _connectRemote = null;
     _connectRemoteSongs = const <Song>[];
     _connectRemoteQueue = null;
@@ -478,7 +494,11 @@ extension _PlaybackManagerConnectImpl on PlaybackManager {
 
   /// Applies an optimistic local adjustment to the mirrored snapshot so the UI
   /// responds instantly; the active device's next broadcast is authoritative.
-  void _applyConnectOptimistic({bool? isPlaying, int? positionMs}) {
+  void _applyConnectOptimistic({
+    bool? isPlaying,
+    int? positionMs,
+    double? volume,
+  }) {
     final remote = _connectRemote;
     if (remote == null) return;
     _connectRemote = remote.copyWithSnapshot(remote.snapshot.copyWith(
@@ -486,6 +506,7 @@ extension _PlaybackManagerConnectImpl on PlaybackManager {
       // play/pause doesn't rewind the bar to the last broadcast position.
       positionMs: positionMs ?? remote.positionMs,
       isPlaying: isPlaying,
+      volume: volume,
     ));
     _syncConnectTicker();
     positionNotifier.value = position;
