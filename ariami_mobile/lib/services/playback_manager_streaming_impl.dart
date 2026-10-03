@@ -16,6 +16,7 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
     bool isResume = false,
     bool forceOfflineSource = false,
   }) async {
+    if (autoPlay && _localPlaybackGuard.isSuspended) return;
     print('[PlaybackManager] _playCurrentSong() called');
 
     // Starting a fresh track resets any pending silence-pause state.
@@ -29,6 +30,15 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
 
     // Serialize overlapping loads: a newer skip supersedes this one.
     final int playGeneration = ++_playCurrentSongGeneration;
+    final authorityGeneration = _localPlaybackGuard.generation;
+    final queueIndex = _queue.currentIndex;
+    bool isCurrent() =>
+        playGeneration == _playCurrentSongGeneration &&
+        _localPlaybackGuard.isCurrent(authorityGeneration) &&
+        _connectRemote == null &&
+        _queue.currentIndex == queueIndex &&
+        _queue.currentSong?.id == queuedSong.id;
+    _localPlaybackGuard.disarmCompletion();
 
     if (identical(queuedSong, _resumeSong)) {
       _resumeSong = null;
@@ -41,6 +51,7 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
     // Enrich once at the playback boundary so stats, notifications and saved
     // playback state all receive the same album metadata.
     final song = await _resolveAlbumMetadata(queuedSong);
+    if (!isCurrent()) return;
     _replaceQueuedSongMetadata(queuedSong, song);
 
     print('[PlaybackManager] Current song: ${song.title}');
@@ -53,8 +64,10 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
           isPlaying: autoPlay,
           force: true,
         );
+        if (!isCurrent()) return;
         if (casted) {
           await _audioPlayer.pauseLocal();
+          if (!isCurrent()) return;
           _enterCastNotificationMode(song, autoPlay);
           _restoredPosition = null;
           _pendingUiPosition = null;
@@ -66,6 +79,7 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
           return;
         }
       } catch (e) {
+        if (!isCurrent()) return;
         print('[PlaybackManager] Cast sync failed, falling back to local: $e');
       }
     }
@@ -75,6 +89,7 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
       final playbackSource = forceOfflineSource
           ? await _offlineService.getOfflineFallbackSource(song.id)
           : await _offlineService.getPlaybackSource(song.id);
+      if (!isCurrent()) return;
       print('[PlaybackManager] Playback source: $playbackSource'
           '${forceOfflineSource ? ' (forced offline fallback)' : ''}');
 
@@ -111,6 +126,7 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
         case PlaybackSource.cached:
           // Use cached file (auto-cached from previous playback)
           final cachedPath = await _offlineService.getCachedFilePath(song.id);
+          if (!isCurrent()) return;
           if (cachedPath == null) {
             throw Exception('Cached file path not found');
           }
@@ -148,6 +164,7 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
             offlineFallbackDeadline =
                 DateTime.now().add(_streamStartStallTimeout);
           }
+          if (!isCurrent()) return;
 
           // Get stream URL (with retry-once logic for expired tokens)
           try {
@@ -156,6 +173,7 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
               offlineFallbackDeadline,
             );
           } catch (e) {
+            if (!isCurrent()) return;
             if (offlineFallbackDeadline == null) {
               // The server no longer has this song (stale playlist/queue id)
               // and there is no on-device copy: it can never play, so skip
@@ -181,6 +199,7 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
             );
             return;
           }
+          if (!isCurrent()) return;
           print(
               '[PlaybackManager] Streaming from server: $audioUrl (quality: ${streamingQuality.name})');
 
@@ -221,6 +240,7 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
               '[PlaybackManager] Song not available offline, searching for next available song...');
           // Try to find and play the next available song
           final nextAvailableIndex = await _findNextAvailableSongIndex();
+          if (!isCurrent()) return;
           if (nextAvailableIndex != null) {
             print(
                 '[PlaybackManager] Found available song at index $nextAvailableIndex, skipping to it');
@@ -256,7 +276,7 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
       try {
         // A newer skip started while this one was resolving its stream/source;
         // don't touch the audio player — the newer load owns playback now.
-        if (playGeneration != _playCurrentSongGeneration) return;
+        if (!isCurrent()) return;
 
         if (_restoredPosition != null) {
           // Load the song WITHOUT starting playback
@@ -270,18 +290,22 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
             offlineFallbackDeadline,
           );
 
+          if (!isCurrent()) return;
           // Wait for the audio player to be fully ready before seeking
           await Future.delayed(const Duration(milliseconds: 500));
+          if (!isCurrent()) return;
 
           // Seek to the restored position BEFORE starting playback
-          await _audioPlayer.seek(_restoredPosition!);
+          await _audioPlayer.seekLocal(_restoredPosition!);
+          if (!isCurrent()) return;
 
           // Notify listeners so UI updates with the new position
           _notifyStateChanged();
 
           // NOW start playback from the seeked position
           if (autoPlay) {
-            await _audioPlayer.resume();
+            await _audioPlayer.resumeLocal();
+            if (!isCurrent()) return;
           }
 
           _restoredPosition = null; // Clear so it doesn't affect next song
@@ -310,6 +334,7 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
           }
         }
       } on TimeoutException {
+        if (!isCurrent()) return;
         if (offlineFallbackDeadline == null) rethrow;
         print('[PlaybackManager] Stream load stalled past '
             '${_streamStartStallTimeout.inSeconds}s, '
@@ -324,7 +349,7 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
 
       // Bail out if superseded during the load so we don't overwrite the newer
       // track's stats / colors / notification with this stale one.
-      if (playGeneration != _playCurrentSongGeneration) return;
+      if (!isCurrent()) return;
 
       _unplayableSkipStreak = 0;
 
@@ -339,6 +364,7 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
       // Extract colors from artwork for player gradient background
       ColorExtractionService().extractColorsForSong(song);
     } catch (e, stackTrace) {
+      if (!isCurrent()) return;
       print('[PlaybackManager] ERROR in _playCurrentSong: $e');
       print('[PlaybackManager] Stack trace: $stackTrace');
       // Legacy mode and older servers issue stream URLs without checking the
@@ -347,6 +373,7 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
       // instead of halting the queue on an unplayable entry.
       if (!(e is ApiException && e.isCode('MUSIC_UNAVAILABLE')) &&
           await _isSongGoneFromLibrary(song.id)) {
+        if (!isCurrent()) return;
         print('[PlaybackManager] Song ${song.id} confirmed gone from library, '
             'auto-skipping unplayable entry');
         await _skipUnplayableSong(
@@ -382,6 +409,7 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
     required bool autoPlay,
     required bool restartStatsTracking,
   }) async {
+    if (_localPlaybackGuard.isSuspended || _connectRemote != null) return;
     _unplayableSongController.add(song);
     _unplayableSkipStreak++;
 
@@ -577,7 +605,12 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
   Future<void> _refreshGaplessQueueImpl() async {
     final generation = ++_gaplessRefreshGeneration;
     final current = _queue.currentSong;
-    if (current == null || _castService.isConnected) return;
+    if (current == null ||
+        _castService.isConnected ||
+        _connectRemote != null ||
+        _localPlaybackGuard.isSuspended) {
+      return;
+    }
 
     if (!_qualityService.allowsSpeculativeMediaDownloads &&
         !hasSpeculativeGaplessHeadroom(
@@ -601,7 +634,10 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
   Future<void> _handleGaplessTransitionImpl(
     GaplessPlaybackTransition transition,
   ) async {
-    if (_isHandlingGaplessTransition ||
+    final generation = _localPlaybackGuard.generation;
+    if (_localPlaybackGuard.isSuspended ||
+        _connectRemote != null ||
+        _isHandlingGaplessTransition ||
         !_gaplessPlayback.isEnabled ||
         _castService.isConnected ||
         _queue.currentSong?.id != transition.previousSong.id) {
@@ -614,6 +650,7 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
     } else if (_repeatMode == RepeatMode.all && _queue.length > 1) {
       nextIndex = await _findNextAvailableSongIndexFrom(0);
     }
+    if (!_localPlaybackGuard.isCurrent(generation)) return;
     if (nextIndex == null ||
         nextIndex < 0 ||
         nextIndex >= _queue.length ||
@@ -631,6 +668,7 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
       final previousIndex = _queue.currentIndex;
       final previousSong = _queue.currentSong;
       final currentSong = await _resolveAlbumMetadata(transition.currentSong);
+      if (!_localPlaybackGuard.isCurrent(generation)) return;
       final stopStats = _statsService.onSongStopped(completedNaturally: true);
       _queue.jumpToIndex(nextIndex);
       _replaceQueuedSongMetadata(_queue.currentSong!, currentSong);
@@ -640,6 +678,7 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
       _notifyStateChanged();
 
       await stopStats;
+      if (!_localPlaybackGuard.isCurrent(generation)) return;
       _statsService.onSongStarted(currentSong);
       ColorExtractionService().extractColorsForSong(currentSong);
       await _saveState();

@@ -37,20 +37,23 @@ class AriamiAudioHandler extends BaseAudioHandler
   // every effect in the pipeline regardless of platform, and activating
   // AndroidEqualizer on iOS calls an Android-only channel method that
   // aborts every load (playback spins forever).
-  final AudioPlayer _player = AudioPlayer(
-    // Gapless mode keeps one upcoming item in the native playlist. Preparing
-    // it eagerly guarantees the decoder and authenticated URL are ready before
-    // the current item reaches its final sample.
-    useLazyPreparation: false,
-    audioPipeline: AudioPipeline(
-      androidAudioEffects: EqualizerService.isAndroidPlatform
-          ? [EqualizerService().androidEqualizer]
-          : const [],
-      darwinAudioEffects: EqualizerService.isDarwinPlatform
-          ? [EqualizerService().darwinEqualizer]
-          : const [],
-    ),
-  );
+  final AudioPlayer _player;
+  int _sourceGeneration = 0;
+
+  static AudioPlayer _createPlayer() => AudioPlayer(
+        // Gapless mode keeps one upcoming item in the native playlist. Preparing
+        // it eagerly guarantees the decoder and authenticated URL are ready before
+        // the current item reaches its final sample.
+        useLazyPreparation: false,
+        audioPipeline: AudioPipeline(
+          androidAudioEffects: EqualizerService.isAndroidPlatform
+              ? [EqualizerService().androidEqualizer]
+              : const [],
+          darwinAudioEffects: EqualizerService.isDarwinPlatform
+              ? [EqualizerService().darwinEqualizer]
+              : const [],
+        ),
+      );
 
   // Current song being played
   Song? _currentSong;
@@ -89,7 +92,8 @@ class AriamiAudioHandler extends BaseAudioHandler
   Stream<GaplessPlaybackTransition> get onGaplessTransition =>
       _gaplessTransitionController.stream;
 
-  AriamiAudioHandler() {
+  AriamiAudioHandler({AudioPlayer? player})
+      : _player = player ?? _createPlayer() {
     _init();
   }
 
@@ -223,8 +227,13 @@ class AriamiAudioHandler extends BaseAudioHandler
   /// Pause local playback only. Used when handing off to Chromecast so the
   /// remote session is not affected by cast-mode control delegation.
   Future<void> pauseLocal() async {
+    _sourceGeneration++;
     await _player.pause();
   }
+
+  Future<void> playLocal() async => unawaited(_player.play());
+
+  Future<void> seekLocal(Duration position) => _player.seek(position);
 
   /// Load a song without starting playback (for seeking before play)
   Future<void> loadSong(
@@ -233,6 +242,7 @@ class AriamiAudioHandler extends BaseAudioHandler
     Uri? artworkUri,
     GaplessPlaybackItem? upcoming,
   }) async {
+    _sourceGeneration++;
     print('[AriamiAudioHandler] loadSong() called');
     print('[AriamiAudioHandler] Song: ${song.title} by ${song.artist}');
     print('[AriamiAudioHandler] Stream URL: $streamUrl');
@@ -286,6 +296,7 @@ class AriamiAudioHandler extends BaseAudioHandler
     print('[AriamiAudioHandler] Artwork URI: $artworkUri');
 
     try {
+      final generation = _sourceGeneration + 1;
       // Load the song first
       await loadSong(
         song,
@@ -294,6 +305,7 @@ class AriamiAudioHandler extends BaseAudioHandler
         upcoming: upcoming,
       );
 
+      if (generation != _sourceGeneration) return;
       // Start playback (don't await - let it complete asynchronously)
       // The play() Future may not complete immediately, but playback will start
       // and state changes are tracked through stream listeners
@@ -313,7 +325,12 @@ class AriamiAudioHandler extends BaseAudioHandler
     Song expectedCurrentSong,
     GaplessPlaybackItem? upcoming,
   ) async {
-    if (_isCastMode || _currentSong?.id != expectedCurrentSong.id) return;
+    final generation = _sourceGeneration;
+    if (_isCastMode ||
+        _isConnectMirror ||
+        _currentSong?.id != expectedCurrentSong.id) {
+      return;
+    }
 
     final currentIndex = _player.currentIndex;
     if (currentIndex == null ||
@@ -328,6 +345,7 @@ class AriamiAudioHandler extends BaseAudioHandler
         removeStart,
         _playlistItems.length,
       );
+      if (generation != _sourceGeneration) return;
       _playlistItems = _playlistItems.sublist(0, removeStart);
     }
 
@@ -338,6 +356,7 @@ class AriamiAudioHandler extends BaseAudioHandler
           tag: upcoming.song.id,
         ),
       );
+      if (generation != _sourceGeneration) return;
       _playlistItems = [..._playlistItems, upcoming];
     }
     _broadcastPlaylistQueue();
@@ -345,6 +364,7 @@ class AriamiAudioHandler extends BaseAudioHandler
 
   void _activatePlaylistItem(GaplessPlaybackItem item) {
     _currentSong = item.song;
+    if (_isConnectMirror) return;
     mediaItem.add(
       _songToMediaItem(
         item.song,
@@ -616,6 +636,7 @@ class AriamiAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> stop() async {
+    _sourceGeneration++;
     print('[AriamiAudioHandler] stop() called');
     if (_isCastMode) {
       _isCastMode = false;

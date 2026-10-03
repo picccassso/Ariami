@@ -130,6 +130,11 @@ class AudioPlayerService {
     await audioHandler?.play();
   }
 
+  Future<void> resumeLocal() async => audioHandler?.playLocal();
+
+  Future<void> seekLocal(Duration position) async =>
+      audioHandler?.seekLocal(position);
+
   /// Stop playback
   Future<void> stop() async {
     if (audioHandler == null) return;

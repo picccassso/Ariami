@@ -169,6 +169,8 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
   }
 
   Future<void> _togglePlayPauseImpl() async {
+    _invalidateLocalPlayback(suspend: _localIsPlaying);
+    final generation = _localPlaybackGuard.generation;
     // A manual play/pause overrides silence handling: don't auto-resume later.
     _pausedBySilence = false;
     try {
@@ -194,7 +196,8 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
       if (isPlaying) {
         // Pausing - stop stats tracking
         await _statsService.onSongStopped();
-        await _audioPlayer.pause();
+        if (!_localPlaybackGuard.isCurrent(generation)) return;
+        await _audioPlayer.pauseLocal();
         await _saveState(); // Save state when pausing
       } else {
         if (currentSong == null) return;
@@ -211,7 +214,7 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
         } else {
           // Resuming - restart stats tracking
           _statsService.onSongStarted(currentSong!, isResume: true);
-          await _audioPlayer.resume();
+          await _audioPlayer.resumeLocal();
         }
       }
       _notifyStateChanged();
@@ -224,6 +227,8 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
     bool completedNaturally = false,
     bool preserveRepeatMode = false,
   }) async {
+    final generation = _localPlaybackGuard.generation;
+    if (_localPlaybackGuard.isSuspended || _connectRemote != null) return;
     if (!_isHandlingCastFailure) {
       _castFailureSkipStreak = 0;
       _castPlaybackWatchdog.reset();
@@ -240,10 +245,12 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
         if (_repeatMode == RepeatMode.all && _queue.songs.isNotEmpty) {
           // Find first available song from beginning when wrapping
           final nextIndex = await _findNextAvailableSongIndexFrom(0);
+          if (!_localPlaybackGuard.isCurrent(generation)) return;
           if (nextIndex != null) {
             final nextSong = _queue.songs[nextIndex];
             await _statsService.onSongStopped(
                 completedNaturally: completedNaturally);
+            if (!_localPlaybackGuard.isCurrent(generation)) return;
             _queue.jumpToIndex(nextIndex);
             _consumeOneShotQueueItem(previousIndex, previousSong);
             _restoredPosition = null;
@@ -251,6 +258,7 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
 
             _notifyStateChanged();
             await Future.delayed(const Duration(milliseconds: 700));
+            if (!_localPlaybackGuard.isCurrent(generation)) return;
             if (!identical(_queue.currentSong, nextSong)) return;
 
             await _playCurrentSong();
@@ -261,12 +269,14 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
           // Replay current song - finalize current session first
           await _statsService.onSongStopped(
               completedNaturally: completedNaturally);
-          await seek(Duration.zero);
+          if (!_localPlaybackGuard.isCurrent(generation)) return;
+          await _seekImpl(Duration.zero);
+          if (!_localPlaybackGuard.isCurrent(generation)) return;
           _statsService.onSongStarted(currentSong!);
           if (_castService.isConnected) {
             await _castService.play();
           } else {
-            await _audioPlayer.resume();
+            await _audioPlayer.resumeLocal();
           }
         }
         return;
@@ -274,6 +284,7 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
 
       // Find next available song
       final nextIndex = await _findNextAvailableSongIndex();
+      if (!_localPlaybackGuard.isCurrent(generation)) return;
       if (nextIndex == null) {
         print('[PlaybackManager] No available next song found');
         return;
@@ -283,6 +294,7 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
       // Stop tracking current song
       await _statsService.onSongStopped(completedNaturally: completedNaturally);
 
+      if (!_localPlaybackGuard.isCurrent(generation)) return;
       _queue.jumpToIndex(nextIndex);
       _consumeOneShotQueueItem(previousIndex, previousSong);
       // Clear restored position so new song starts from beginning
@@ -291,6 +303,7 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
 
       _notifyStateChanged();
       await Future.delayed(const Duration(milliseconds: 700));
+      if (!_localPlaybackGuard.isCurrent(generation)) return;
       if (_queue.currentIndex < 0 || _queue.currentIndex >= _queue.length) {
         return;
       }
@@ -305,6 +318,8 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
   }
 
   Future<void> _skipPreviousImpl() async {
+    final generation = _localPlaybackGuard.generation;
+    if (_localPlaybackGuard.isSuspended || _connectRemote != null) return;
     _castFailureSkipStreak = 0;
     _castPlaybackWatchdog.reset();
     try {
@@ -314,7 +329,7 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
       }
       // If more than 3 seconds into song, restart it
       if (!wasRepeatOne && position.inSeconds > 3) {
-        await seek(Duration.zero);
+        await _seekImpl(Duration.zero);
         return;
       }
 
@@ -322,15 +337,17 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
         if (_queue.isNotEmpty &&
             (_repeatMode == RepeatMode.one ||
                 (_repeatMode == RepeatMode.all && _queue.songs.length == 1))) {
-          await seek(Duration.zero);
+          await _seekImpl(Duration.zero);
         } else if (_repeatMode == RepeatMode.all && _queue.songs.length > 1) {
           final previousIndex = await _findPreviousAvailableSongIndex();
+          if (!_localPlaybackGuard.isCurrent(generation)) return;
           if (previousIndex == null) {
             print('[PlaybackManager] No available previous song found');
             return;
           }
 
           await _statsService.onSongStopped();
+          if (!_localPlaybackGuard.isCurrent(generation)) return;
 
           _queue.jumpToIndex(previousIndex);
           _restoredPosition = null;
@@ -338,6 +355,7 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
 
           _notifyStateChanged();
           await Future.delayed(const Duration(milliseconds: 700));
+          if (!_localPlaybackGuard.isCurrent(generation)) return;
           if (_queue.currentIndex != previousIndex) return;
 
           await _playCurrentSong();
@@ -349,6 +367,7 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
 
       // Find previous available song when offline
       final previousIndex = await _findPreviousAvailableSongIndex();
+      if (!_localPlaybackGuard.isCurrent(generation)) return;
       if (previousIndex == null) {
         print('[PlaybackManager] No available previous song found');
         return;
@@ -356,6 +375,7 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
 
       // Stop tracking current song
       await _statsService.onSongStopped();
+      if (!_localPlaybackGuard.isCurrent(generation)) return;
 
       _queue.jumpToIndex(previousIndex);
       // Clear restored position so new song starts from beginning
@@ -364,6 +384,7 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
 
       _notifyStateChanged();
       await Future.delayed(const Duration(milliseconds: 700));
+      if (!_localPlaybackGuard.isCurrent(generation)) return;
       if (_queue.currentIndex != previousIndex) return;
 
       await _playCurrentSong();
@@ -375,6 +396,8 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
   }
 
   Future<void> _skipToQueueItemImpl(int index) async {
+    final generation = _localPlaybackGuard.generation;
+    if (_localPlaybackGuard.isSuspended || _connectRemote != null) return;
     _castFailureSkipStreak = 0;
     _castPlaybackWatchdog.reset();
     try {
@@ -385,6 +408,7 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
 
       // Stop tracking current song
       await _statsService.onSongStopped();
+      if (!_localPlaybackGuard.isCurrent(generation)) return;
 
       _queue.jumpToIndex(index);
       _consumeOneShotQueueItem(previousIndex, previousSong);
@@ -678,16 +702,19 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
   }
 
   Future<void> _seekImpl(Duration position) async {
+    final generation = _localPlaybackGuard.generation;
     try {
       // User is manually seeking - update restored position so pressing play
       // will start from the scrubbed position (not the old saved position)
       _restoredPosition = position;
       _pendingUiPosition = position;
       _notifyStateChanged(); // Notify immediately so UI updates before async seek
+      if (!_localPlaybackGuard.isCurrent(generation)) return;
 
       if (_castService.isConnected) {
         _statsService.markPositionDiscontinuity();
         await _castService.seek(position, playAfterSeek: isPlaying);
+        if (!_localPlaybackGuard.isCurrent(generation)) return;
         // Clear restored position after successful cast seek
         _restoredPosition = null;
         _pendingUiPosition = null;
@@ -695,7 +722,9 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
         return;
       }
 
-      await _audioPlayer.seek(position);
+      _statsService.markPositionDiscontinuity();
+      await _audioPlayer.seekLocal(position);
+      if (!_localPlaybackGuard.isCurrent(generation)) return;
       // If the song is loaded and seek succeeded, clear the restored position
       if (_audioPlayer.duration != null) {
         _restoredPosition = null;
@@ -934,11 +963,14 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
   }
 
   Future<void> _onSongCompletedImpl() async {
+    final generation = _localPlaybackGuard.generation;
+    if (_localPlaybackGuard.isSuspended || _connectRemote != null) return;
     print('[PlaybackManager] Song completed');
 
     if (_repeatMode == RepeatMode.one) {
       // Replay the same song - finalize current first
       await _statsService.onSongStopped(completedNaturally: true);
+      if (!_localPlaybackGuard.isCurrent(generation)) return;
       await _playCurrentSong();
     } else if (_queue.hasNext) {
       // Move to next song - let skipNext handle finalization with completedNaturally
@@ -949,12 +981,14 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
 
       // Restart from beginning - finalize current first
       await _statsService.onSongStopped(completedNaturally: true);
+      if (!_localPlaybackGuard.isCurrent(generation)) return;
       _queue.jumpToIndex(0);
       _consumeOneShotQueueItem(previousIndex, previousSong);
       await _playCurrentSong();
     } else {
       // Queue finished, stop - finalize current first
       await _statsService.onSongStopped(completedNaturally: true);
+      if (!_localPlaybackGuard.isCurrent(generation)) return;
       _audioPlayer.stop();
       _notifyStateChanged();
     }

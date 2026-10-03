@@ -49,6 +49,7 @@ extension _PlaybackManagerLifecycleImpl on PlaybackManager {
 
     // Listen to position updates
     _positionSubscription = _audioPlayer.positionStream.listen((pos) {
+      if (_connectRemote != null || _localPlaybackGuard.isSuspended) return;
       if (_pendingUiPosition != null && pos >= _pendingUiPosition!) {
         _pendingUiPosition = null;
       }
@@ -70,18 +71,31 @@ extension _PlaybackManagerLifecycleImpl on PlaybackManager {
     _playerStateSubscription = _audioPlayer.playerStateStream.listen((state) {
       if (!_castService.isConnected) {
         _statsService.setPlaybackActive(
-          state.playing && state.processingState == ProcessingState.ready,
+          state.playing &&
+              !_localPlaybackGuard.isSuspended &&
+              _connectRemote == null &&
+              state.processingState == ProcessingState.ready,
         );
       }
       _notifyStateChanged();
 
-      // Auto-advance when song completes
-      if (state.processingState == ProcessingState.completed) {
+      // A paused or former local player cannot advance the shared session.
+      final completion = _localPlaybackGuard.observePlayerState(
+        playing: state.playing &&
+            _connectRemote == null &&
+            !_castService.isConnected &&
+            _audioPlayer.currentSong?.id == _queue.currentSong?.id,
+        ready: state.processingState == ProcessingState.ready,
+        completed: state.processingState == ProcessingState.completed,
+      );
+      if (completion != null) {
         unawaited(() async {
           try {
             await _onSongCompleted();
           } catch (e) {
             print('[PlaybackManager] Error in _onSongCompleted: $e');
+          } finally {
+            _localPlaybackGuard.finishCompletion(completion);
           }
         }());
       }
@@ -147,11 +161,14 @@ extension _PlaybackManagerLifecycleImpl on PlaybackManager {
   /// is raised again we resume — but only if the pause was ours, never after a
   /// manual pause. Casting has its own volume control, so we leave it alone.
   void _onSystemVolumeChanged(double volume) {
-    if (_castService.isConnected) {
+    if (_castService.isConnected ||
+        _connectRemote != null ||
+        _localPlaybackGuard.isSuspended) {
       return;
     }
 
     // outputVolume can report tiny non-zero values; treat near-zero as silent.
+    final generation = _localPlaybackGuard.generation;
     final isSilent = volume <= 0.0001;
 
     if (isSilent) {
@@ -160,7 +177,8 @@ extension _PlaybackManagerLifecycleImpl on PlaybackManager {
         unawaited(() async {
           try {
             await _statsService.onSongStopped();
-            await _audioPlayer.pause();
+            if (!_localPlaybackGuard.isCurrent(generation)) return;
+            await _audioPlayer.pauseLocal();
             await _saveState();
             _notifyStateChanged();
           } catch (e) {
@@ -174,7 +192,7 @@ extension _PlaybackManagerLifecycleImpl on PlaybackManager {
         unawaited(() async {
           try {
             _statsService.onSongStarted(currentSong!, isResume: true);
-            await _audioPlayer.resume();
+            await _audioPlayer.resumeLocal();
             _notifyStateChanged();
           } catch (e) {
             print('[PlaybackManager] Error resuming after silence: $e');

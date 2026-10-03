@@ -119,6 +119,8 @@ class AriamiConnectClient {
   bool _reconnectSuppressed = false;
   bool _connecting = false;
   bool _isWelcomed = false;
+  bool _sessionReady = false;
+  bool _hasRemoteQueue = false;
   bool _receivedInboundOnCurrentConnection = false;
   bool _takeoverRequested = false;
   bool _takeoverSentOnCurrentConnection = false;
@@ -169,6 +171,10 @@ class AriamiConnectClient {
 
   void _log(String message) => logger?.call('[$deviceId] $message');
 
+  /// True once this connection has accepted the authoritative session. An
+  /// open socket alone must not expose stale local playback during reconnect.
+  bool get isSessionReady => isConnected && _isWelcomed && _sessionReady;
+
   bool get isThisDeviceActive => activeDeviceId == deviceId;
   bool get hasPendingLocalTakeover => _takeoverRequested;
   int get pendingCommandCount => _pendingCommands.length;
@@ -190,6 +196,8 @@ class AriamiConnectClient {
   }
 
   Future<void> connect({required String baseUrl, String? sessionToken}) async {
+    _sessionReady = false;
+    _hasRemoteQueue = false;
     _baseUrl = baseUrl;
     _sessionToken = sessionToken;
     _closedByUser = false;
@@ -349,6 +357,12 @@ class AriamiConnectClient {
             // The first device with local playback seeds a new hub session.
             publishState(activate: true);
           }
+          if (activeDeviceId == null) {
+            remoteSnapshot = null;
+            remoteSnapshotAt = null;
+            _sessionReady = true;
+            onChanged?.call();
+          }
           _flushPendingCommands();
         case AriamiConnectMessageType.devices:
           await _readDevices(data);
@@ -413,8 +427,11 @@ class AriamiConnectClient {
   }
 
   Future<bool> _readDevices(Map<String, dynamic> data) async {
+    final generation = _connectionGeneration;
     final authority = await _acceptAuthority(data);
-    if (!authority.accepted) return false;
+    if (!authority.accepted || generation != _connectionGeneration) {
+      return false;
+    }
     final rawDevices = data['devices'] as List<dynamic>?;
     if (rawDevices != null) {
       devices = rawDevices
@@ -437,8 +454,11 @@ class AriamiConnectClient {
   }
 
   Future<bool> _readState(Map<String, dynamic> data) async {
+    final generation = _connectionGeneration;
     final authority = await _acceptAuthority(data);
-    if (!authority.accepted) return false;
+    if (!authority.accepted || generation != _connectionGeneration) {
+      return false;
+    }
     final revision = (data[_hubProtocolVersion >= AriamiConnectProtocol.v3
                 ? 'stateRevision'
                 : 'revision'] as num?)
@@ -453,7 +473,8 @@ class AriamiConnectClient {
       final rawCounter = data['queueCounter'];
       if (rawCounter is! num ||
           rawCounter != rawCounter.toInt() ||
-          rawCounter.toInt() != _queueCounter) {
+          rawCounter.toInt() != _queueCounter ||
+          !_hasRemoteQueue) {
         _log('state rejected: queue counter $rawCounter != $_queueCounter');
         return false;
       }
@@ -472,6 +493,9 @@ class AriamiConnectClient {
       }
     }
     _lastRevision = revision;
+    _sessionReady = activeDeviceId == null ||
+        (_hubProtocolVersion >= AriamiConnectProtocol.v3 ||
+            data['snapshot'] is Map);
     remoteSnapshotAt = DateTime.now();
     _log('state applied: revision $revision, active $activeDeviceId, '
         'track ${remoteSnapshot?.currentTrackId}, '
@@ -481,10 +505,13 @@ class AriamiConnectClient {
   }
 
   Future<bool> _readQueue(Map<String, dynamic> data) async {
+    final generation = _connectionGeneration;
     if (_hubProtocolVersion < AriamiConnectProtocol.v3) return false;
     final previousEpoch = ownerEpoch;
     final authority = await _acceptAuthority(data);
-    if (!authority.accepted) return false;
+    if (!authority.accepted || generation != _connectionGeneration) {
+      return false;
+    }
     final rawCounter = data['queueCounter'];
     if (rawCounter is! num ||
         rawCounter != rawCounter.toInt() ||
@@ -511,6 +538,7 @@ class AriamiConnectClient {
     _remoteBackingOrder = backingOrder;
     _remoteSourceId = data['sourceId'] as String?;
     _queueCounter = counter;
+    _hasRemoteQueue = true;
     _log('queue applied: counter $counter, tracks ${tracks.length}, '
         'active $activeDeviceId');
     if (isThisDeviceActive) {
@@ -586,6 +614,7 @@ class AriamiConnectClient {
   }
 
   Future<bool> _pauseForNewOwner(int epoch) async {
+    final generation = _connectionGeneration;
     if (_lastPausedOwnerEpoch >= epoch) return true;
     final inFlight = _formerOwnerPauseFuture;
     if (inFlight != null) {
@@ -601,9 +630,11 @@ class AriamiConnectClient {
     _formerOwnerPauseFuture = pause;
     try {
       await pause;
+      if (generation != _connectionGeneration) return false;
       _lastPausedOwnerEpoch = epoch;
       return true;
     } catch (error) {
+      if (generation != _connectionGeneration) return false;
       errorMessage = 'Ariami Connect could not pause former playback: $error';
       onChanged?.call();
       return false;
@@ -615,6 +646,7 @@ class AriamiConnectClient {
   }
 
   Future<void> _runCommand(Map<String, dynamic> data) async {
+    final generation = _connectionGeneration;
     final commandId = data['commandId'] as String? ?? '';
     _log('command in: ${data['command']} from ${data['requestedBy']}');
     if (commandId.isEmpty || commandId.length > kMaxConnectCommandIdLength) {
@@ -676,6 +708,7 @@ class AriamiConnectClient {
       if (!(authority.paused && command == AriamiConnectCommand.pause)) {
         await handleCommand(command, arguments);
       }
+      if (generation != _connectionGeneration) return;
       // The hub reserves this semantic generation when it accepts the
       // command. Anchor the resulting local snapshot to that generation so
       // the publication does not count the same command a second time.
@@ -691,6 +724,7 @@ class AriamiConnectClient {
       }
       _sendResult(commandId, ok: true, remember: true);
     } catch (error) {
+      if (generation != _connectionGeneration) return;
       _sendResult(commandId, ok: false, message: '$error', remember: true);
     }
   }
@@ -787,11 +821,13 @@ class AriamiConnectClient {
       remoteSnapshot = snapshot;
       remoteSnapshotAt = DateTime.now();
       if (_hubProtocolVersion >= AriamiConnectProtocol.v3) {
+        _hasRemoteQueue = true;
         _remoteQueue = snapshot.queue;
         _remoteBackingOrder = snapshot.backingOrder;
         _remoteSourceId = snapshot.sourceId;
       }
     }
+    if (snapshot != null) _sessionReady = true;
     final queueCounter = (data['queueCounter'] as num?)?.toInt();
     if (queueCounter != null) _queueCounter = queueCounter;
     final revision = (data['stateRevision'] as num?)?.toInt() ??
@@ -1304,6 +1340,8 @@ class AriamiConnectClient {
     _livenessTimer = null;
     _backoffResetTimer = null;
     _isWelcomed = false;
+    _sessionReady = false;
+    _hasRemoteQueue = false;
     _connectionGeneration++;
     _lastRevision = -1;
     _hubProtocolVersion = 1;
@@ -1479,6 +1517,8 @@ class AriamiConnectClient {
     _connectionGeneration++;
     isConnected = false;
     _isWelcomed = false;
+    _sessionReady = false;
+    _hasRemoteQueue = false;
     _receivedInboundOnCurrentConnection = false;
     _pingTimer?.cancel();
     _welcomeTimer?.cancel();

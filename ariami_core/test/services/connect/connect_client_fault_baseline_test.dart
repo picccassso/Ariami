@@ -38,6 +38,102 @@ void main() {
     });
   });
 
+  group('session readiness on foreground reconnect', () {
+    test('v3 waits for a matching queue and state on the replacement socket',
+        () async {
+      final clock = _FakeTimerClock();
+      final first = _FakeWebSocketChannel();
+      final second = _FakeWebSocketChannel();
+      final client = _client(_SocketFactory(clock, [first, second]), clock);
+      addTearDown(client.dispose);
+      await client.connect(baseUrl: 'http://ariami.test');
+      bool ready() => client.isSessionReady;
+      expect(ready(), isFalse);
+      Map<String, dynamic> welcome() => {
+            ..._authority(epoch: 2, owner: 'desktop'),
+            'protocolVersion': 3,
+            'queueCounter': 4,
+          };
+      Map<String, dynamic> queue() => {
+            ..._authority(epoch: 2, owner: 'desktop'),
+            'queueCounter': 4,
+            'tracks': [
+              {'id': 'song-9'}
+            ],
+            'backingOrder': [0],
+          };
+      Map<String, dynamic> state(int counter) => {
+            ..._authority(epoch: 2, owner: 'desktop'),
+            'queueCounter': counter,
+            'stateRevision': 10,
+            'currentIndex': 0,
+            'positionMs': 12000,
+            'durationMs': 180000,
+            'isPlaying': true,
+            'repeatMode': 'all',
+          };
+      first.serverMessage(AriamiConnectMessageType.welcome, welcome());
+      await _pumpTwice();
+      expect(ready(), isFalse);
+      first.serverMessage(AriamiConnectMessageType.state, state(4));
+      await _pumpTwice();
+      expect(ready(), isFalse, reason: 'counter alone is not the actual queue');
+      first.serverMessage(AriamiConnectMessageType.queue, queue());
+      first.serverMessage(AriamiConnectMessageType.state, state(3));
+      await _pumpTwice();
+      expect(ready(), isFalse);
+      first.serverMessage(AriamiConnectMessageType.state, state(4));
+      await _pumpTwice();
+      expect(ready(), isTrue);
+      first.serverMessage(AriamiConnectMessageType.queue, {
+        ...queue(),
+        'queueCounter': 5,
+        'tracks': [
+          {'id': 'stale-track'}
+        ],
+      });
+      first.serverMessage(AriamiConnectMessageType.state, {
+        ...state(5),
+        'stateRevision': 11,
+      });
+      await client.refreshState();
+      expect(ready(), isFalse);
+      second.serverMessage(AriamiConnectMessageType.welcome, welcome());
+      second.serverMessage(AriamiConnectMessageType.queue, queue());
+      second.serverMessage(AriamiConnectMessageType.state, state(4));
+      await _pumpTwice();
+      expect(ready(), isTrue);
+      expect(client.remoteSnapshot?.currentTrackId, 'song-9');
+      expect(client.remoteSnapshot?.repeatMode, 'all');
+      expect(second.sentMessages.where((m) => m.data?['activate'] == true),
+          isEmpty);
+    });
+
+    test('v2 snapshot and an empty v3 welcome complete recovery', () async {
+      final clock = _FakeTimerClock();
+      final first = _FakeWebSocketChannel();
+      final second = _FakeWebSocketChannel();
+      final client = _client(_SocketFactory(clock, [first, second]), clock);
+      addTearDown(client.dispose);
+      await client.connect(baseUrl: 'http://ariami.test');
+      first.serverMessage(AriamiConnectMessageType.welcome,
+          _authority(epoch: 2, owner: 'desktop', trackId: 'song-9'));
+      await _pumpTwice();
+      expect(client.isSessionReady, isTrue);
+      await client.refreshState();
+      second.serverMessage(AriamiConnectMessageType.welcome, {
+        'protocolVersion': 3,
+        'ownerEpoch': 0,
+        'activeDeviceId': null,
+        'devices': [],
+        'queueCounter': 0,
+      });
+      await _pumpTwice();
+      expect(client.isSessionReady, isTrue);
+      expect(client.remoteSnapshot, isNull);
+    });
+  });
+
   group('Cast-preserving handoff negotiation', () {
     test('advertises the feature and skips transport commands after attach',
         () async {

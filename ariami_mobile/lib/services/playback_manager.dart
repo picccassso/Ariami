@@ -7,6 +7,7 @@ import 'package:just_audio/just_audio.dart';
 import 'package:ariami_core/models/connect_models.dart';
 import 'package:ariami_core/services/connect/remote_playback.dart';
 import 'package:ariami_core/utils/play_next_position.dart';
+import 'package:ariami_core/utils/playback_operation_guard.dart';
 import '../models/song.dart';
 import '../models/playback_queue.dart';
 import '../models/quality_settings.dart';
@@ -141,7 +142,15 @@ class PlaybackManager extends ChangeNotifier {
   /// Monotonic token; each _playCurrentSong call captures the latest value.
   /// A call whose captured token is no longer current aborts before it can
   /// clobber the audio player or UI state that a newer skip owns.
+  final _localPlaybackGuard = PlaybackOperationGuard();
   int _playCurrentSongGeneration = 0;
+
+  void _invalidateLocalPlayback({bool suspend = false}) {
+    _localPlaybackGuard.invalidate(suspend: suspend);
+    _playCurrentSongGeneration++;
+    _gaplessRefreshGeneration++;
+    _pausedBySilence = false;
+  }
 
   // Consecutive auto-skips over songs that no longer exist in the server
   // library. Reset whenever a song actually starts; caps the skip chain so a
@@ -245,6 +254,9 @@ class PlaybackManager extends ChangeNotifier {
   // Chromecast session it drives) even while the UI mirrors another device.
   Song? get localCurrentSong => _localCurrentSong;
   bool get localIsPlaying => _localIsPlaying;
+
+  /// A paused or relinquished engine must not be mistaken for a play intent.
+  bool get isLocalPlaybackAllowed => !_localPlaybackGuard.isSuspended;
 
   /// The album/playlist the playing queue came from, mirroring the active
   /// Connect device while one owns the session.
@@ -542,6 +554,7 @@ class PlaybackManager extends ChangeNotifier {
       _sendConnect(AriamiConnectCommand.next);
       return;
     }
+    _invalidateLocalPlayback();
     await _skipNextImpl(completedNaturally: false);
   }
 
@@ -551,6 +564,7 @@ class PlaybackManager extends ChangeNotifier {
       _sendConnect(AriamiConnectCommand.previous);
       return;
     }
+    _invalidateLocalPlayback();
     await _skipPreviousImpl();
   }
 
@@ -564,6 +578,7 @@ class PlaybackManager extends ChangeNotifier {
       });
       return;
     }
+    _invalidateLocalPlayback();
     await _skipToQueueItemImpl(index);
   }
 

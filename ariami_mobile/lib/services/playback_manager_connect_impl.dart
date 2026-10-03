@@ -45,6 +45,9 @@ extension _PlaybackManagerConnectImpl on PlaybackManager {
     _sendConnectCommand = sendCommand ?? _sendConnectCommand;
     final previous = _connectRemote;
     final presentationChanged = _connectPresentationChanged(previous, remote);
+    if (remote != null && previous?.deviceId != remote.deviceId) {
+      _invalidateLocalPlayback(suspend: true);
+    }
     _connectRemote = remote;
     if (previousOutputId != volumeOutputId) _cancelConnectVolume();
     if (remote == null) {
@@ -177,6 +180,7 @@ extension _PlaybackManagerConnectImpl on PlaybackManager {
   /// Hides the mirror immediately when the user starts playback locally, ahead
   /// of the hub confirming the takeover.
   void _suppressConnectMirror() {
+    _invalidateLocalPlayback();
     _connectSuppressionTimer?.cancel();
     _connectSuppressionTimer = null;
     _connectSuppressedAt = DateTime.now();
@@ -522,6 +526,11 @@ extension _PlaybackManagerConnectImpl on PlaybackManager {
     String command,
     Map<String, dynamic> arguments,
   ) async {
+    if (command != AriamiConnectCommand.pause &&
+        command != AriamiConnectCommand.seek &&
+        command != AriamiConnectCommand.setVolume) {
+      _invalidateLocalPlayback();
+    }
     // A transfer commit marks this device active before the controller's
     // onChanged callback clears the previous owner's mirror. Drop that stale
     // mirror first so this command always reaches the local playback engine.
@@ -530,7 +539,13 @@ extension _PlaybackManagerConnectImpl on PlaybackManager {
       case AriamiConnectCommand.play:
         if (!_localIsPlaying) await _togglePlayPauseImpl();
       case AriamiConnectCommand.pause:
-        if (_localIsPlaying) await _togglePlayPauseImpl();
+        if (_localIsPlaying) {
+          // An ordinary pause keeps an attached Cast receiver connected.
+          await _togglePlayPauseImpl();
+        } else {
+          _invalidateLocalPlayback(suspend: true);
+          await _audioPlayer.pauseLocal();
+        }
       case AriamiConnectCommand.toggle:
         await _togglePlayPauseImpl();
       case AriamiConnectCommand.next:
@@ -587,6 +602,7 @@ extension _PlaybackManagerConnectImpl on PlaybackManager {
   /// Always pauses this device's own playback (local or cast), bypassing the
   /// remote mirror; used for Connect handoffs.
   Future<void> _pauseLocalImpl() async {
+    _invalidateLocalPlayback(suspend: true);
     if (_castService.isConnected || _castService.hasActiveSession) {
       try {
         await _castService.disconnect(stopCasting: false);
@@ -597,9 +613,8 @@ extension _PlaybackManagerConnectImpl on PlaybackManager {
       }
     }
     try {
-      if (_audioPlayer.isPlaying) {
-        await _audioPlayer.pauseLocal();
-      }
+      // Also cancel a pending native load that has not started playing yet.
+      await _audioPlayer.pauseLocal();
     } catch (e) {
       debugPrint(
           '[PlaybackManager] Error pausing local audio during handoff: $e');
@@ -608,6 +623,7 @@ extension _PlaybackManagerConnectImpl on PlaybackManager {
 
   Future<void> _applyConnectSnapshotImpl(
       AriamiPlaybackSnapshot snapshot) async {
+    _invalidateLocalPlayback(suspend: !snapshot.isPlaying);
     if (snapshot.queue.isEmpty) {
       await _clearQueueImpl();
       _sourceId = null;
@@ -625,7 +641,7 @@ extension _PlaybackManagerConnectImpl on PlaybackManager {
         .whereType<Song>()
         .toList(growable: false);
     if (songs.isEmpty) return;
-    await _audioPlayer.pause();
+    await _audioPlayer.pauseLocal();
     _invalidatePendingRestore('ariami-connect');
     _queue = PlaybackQueue(
       songs: songs,

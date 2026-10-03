@@ -140,11 +140,14 @@ class AriamiConnectController extends ChangeNotifier {
     final playing = playback.localIsPlaying;
     // Starting music locally is a takeover; a mere track change while paused
     // (e.g. queueing into an empty queue) is not.
-    final activate = (playing && trackId != null && trackId != _lastTrackId) ||
-        (playing && !_lastPlaying && !(client?.isThisDeviceActive ?? false));
+    final activate = playback.isLocalPlaybackAllowed &&
+        ((playing && trackId != null && trackId != _lastTrackId) ||
+            (playing &&
+                !_lastPlaying &&
+                !(client?.isThisDeviceActive ?? false)));
     _lastTrackId = trackId;
     _lastPlaying = playing;
-    if (!playing || trackId == null) {
+    if (!playing || trackId == null || !playback.isLocalPlaybackAllowed) {
       _pendingLocalTakeover = false;
       client?.cancelLocalTakeover();
     }
@@ -197,6 +200,12 @@ class AriamiConnectController extends ChangeNotifier {
     final playback = _playback;
     if (playback == null) return;
     final client = _client;
+    if (client != null &&
+        !client.isSessionReady &&
+        !client.hasPendingLocalTakeover &&
+        !client.isApplyingRemoteState) {
+      return;
+    }
     final active = client?.activeDevice;
     final snapshot = client?.remoteSnapshot;
     if (client == null ||
