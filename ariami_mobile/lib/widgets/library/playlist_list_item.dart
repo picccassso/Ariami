@@ -5,6 +5,7 @@ import '../../services/api/connection_service.dart';
 import '../../services/playback_manager.dart';
 import '../common/cached_artwork.dart';
 import 'playing_collection_builder.dart';
+import '../../utils/image_decode.dart';
 
 /// Playlist list item widget
 /// Displays playlist artwork, title, and song count in a list layout
@@ -264,8 +265,12 @@ class _PlaylistListItemState extends State<PlaylistListItem> {
   /// Build playlist artwork - custom image, collage, or fallback
   Widget _buildPlaylistArt() {
     if (widget.playlist.customImagePath != null && _customImageExists == true) {
-      return Image.file(
-        File(widget.playlist.customImagePath!),
+      return Image(
+        image: resizedForDisplay(
+          context,
+          FileImage(File(widget.playlist.customImagePath!)),
+          56,
+        ),
         fit: BoxFit.cover,
         width: double.infinity,
         height: double.infinity,

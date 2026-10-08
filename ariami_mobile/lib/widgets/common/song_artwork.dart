@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/api_models.dart';
 import '../../services/cache/cache_manager.dart';
+import '../../utils/image_decode.dart';
 
 /// Cover art for a song: album artwork when the song belongs to an album,
 /// otherwise the standalone song artwork endpoint.
@@ -30,16 +31,16 @@ class SongArtwork extends StatelessWidget {
       child: SizedBox(
         width: size,
         height: size,
-        child: _content(),
+        child: _content(context),
       ),
     );
   }
 
-  Widget _content() {
+  Widget _content(BuildContext context) {
     final path = _cachedArtworkPath();
     if (path == null) return _fallbackTile();
-    return Image.file(
-      File(path),
+    return Image(
+      image: resizedForDisplay(context, FileImage(File(path)), size),
       fit: BoxFit.cover,
       width: double.infinity,
       height: double.infinity,

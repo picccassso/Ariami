@@ -6,6 +6,7 @@ import '../../../utils/constants.dart';
 import '../../../utils/responsive.dart';
 import 'artwork_collage.dart';
 import 'fallback_header.dart';
+import '../../../utils/image_decode.dart';
 
 /// Playlist header that displays custom image, artwork collage, or fallback
 class PlaylistHeader extends StatelessWidget {
@@ -32,8 +33,13 @@ class PlaylistHeader extends StatelessWidget {
     // Priority 1: Custom user-selected image
     if (playlist?.customImagePath != null &&
         File(playlist!.customImagePath!).existsSync()) {
-      artworkWidget = Image.file(
-        File(playlist!.customImagePath!),
+      // Sits behind a heavy blur, so a modest decode (~600px) is plenty.
+      artworkWidget = Image(
+        image: resizedForDisplay(
+          context,
+          FileImage(File(playlist!.customImagePath!)),
+          100,
+        ),
         fit: BoxFit.cover,
         width: double.infinity,
         height: double.infinity,

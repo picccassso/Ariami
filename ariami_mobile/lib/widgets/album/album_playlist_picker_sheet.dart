@@ -6,6 +6,7 @@ import '../../screens/playlist/widgets/playlist_cover_art.dart';
 import '../../services/api/connection_service.dart';
 import '../../services/playlist_service.dart';
 import '../common/mini_player_aware_bottom_sheet.dart';
+import '../../utils/image_decode.dart';
 
 /// Result returned when the user successfully adds the album to a playlist.
 class AlbumPlaylistAddResult {
@@ -45,10 +46,16 @@ Future<AlbumPlaylistAddResult?> showAlbumPlaylistPicker({
           width: 44,
           height: 44,
           child: resolvedCoverArt != null && resolvedCoverArt.isNotEmpty
-              ? Image.network(
-                  resolvedCoverArt,
+              ? Image(
+                  image: resizedForDisplay(
+                    context,
+                    NetworkImage(
+                      resolvedCoverArt,
+                      headers: connectionService.authHeaders,
+                    ),
+                    44,
+                  ),
                   fit: BoxFit.cover,
-                  headers: connectionService.authHeaders,
                   errorBuilder: (_, __, ___) => _albumPlaceholder(),
                 )
               : _albumPlaceholder(),

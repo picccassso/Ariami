@@ -37,6 +37,7 @@ import '../../services/stats/period_stats_loader.dart';
 import '../../services/stats/streaming_stats_service.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
+import '../../utils/image_decode.dart';
 
 const String _embeddedLastFmApiKey =
     String.fromEnvironment('ARIAMI_LASTFM_API_KEY');
@@ -972,8 +973,12 @@ class _RecommendationGroup extends StatelessWidget {
                     child: item.imageUrl == null
                         ? _recommendationIcon(item.kind)
                         : ClipOval(
-                            child: Image.network(
-                              item.imageUrl.toString(),
+                            child: Image(
+                              image: resizedForDisplay(
+                                context,
+                                NetworkImage(item.imageUrl.toString()),
+                                40,
+                              ),
                               width: 40,
                               height: 40,
                               fit: BoxFit.cover,

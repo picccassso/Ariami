@@ -6,6 +6,7 @@ import '../../services/playback_manager.dart';
 import '../../utils/constants.dart';
 import '../common/cached_artwork.dart';
 import 'playing_collection_builder.dart';
+import '../../utils/image_decode.dart';
 
 /// Playlist card widget
 /// Displays playlist with premium styling and dynamic artwork
@@ -268,12 +269,18 @@ class _PlaylistCardState extends State<PlaylistCard> {
   /// Build playlist artwork - custom image, collage, or fallback
   Widget _buildPlaylistArt() {
     if (widget.playlist.customImagePath != null && _customImageExists == true) {
-      return Image.file(
-        File(widget.playlist.customImagePath!),
-        fit: BoxFit.cover,
-        width: double.infinity,
-        height: double.infinity,
-        errorBuilder: (context, error, stackTrace) => _buildArtworkCollage(),
+      return LayoutBuilder(
+        builder: (context, constraints) => Image(
+          image: resizedForDisplay(
+            context,
+            FileImage(File(widget.playlist.customImagePath!)),
+            constraints.maxWidth,
+          ),
+          fit: BoxFit.cover,
+          width: double.infinity,
+          height: double.infinity,
+          errorBuilder: (context, error, stackTrace) => _buildArtworkCollage(),
+        ),
       );
     }
     return _buildArtworkCollage();

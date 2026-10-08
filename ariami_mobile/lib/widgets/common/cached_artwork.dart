@@ -7,6 +7,7 @@ import '../../services/download/download_manager.dart';
 import '../../services/download/local_artwork_extractor.dart';
 import '../../services/offline/offline_playback_service.dart';
 import '../../services/media/media_request_scheduler.dart';
+import '../../utils/image_decode.dart';
 
 /// Size hint for artwork loading.
 ///
@@ -353,6 +354,7 @@ class _CachedArtworkState extends State<CachedArtwork> {
       if (!result.changed) return;
 
       await FileImage(File(displayedPath)).evict();
+      await _displayedFileProvider?.evict();
       if (!mounted || _localPath != displayedPath) return;
       setState(() {
         _localPath = result.path;
@@ -449,10 +451,11 @@ class _CachedArtworkState extends State<CachedArtwork> {
     return key.startsWith('song_') && key.length > 'song_'.length;
   }
 
-  /// When both dimensions are null, [Image] layout can fail to fill the parent;
-  /// [LayoutBuilder] supplies explicit bounds so [BoxFit.cover] behaves reliably.
+  /// When no finite dimension is given, [Image] layout can fail to fill the
+  /// parent; [LayoutBuilder] supplies explicit bounds so [BoxFit.cover] behaves
+  /// reliably and the decode is sized to what is actually shown.
   bool get _useLayoutBoundsForImage =>
-      widget.width == null && widget.height == null;
+      !(widget.width ?? widget.height ?? double.infinity).isFinite;
 
   @override
   Widget build(BuildContext context) {
@@ -498,12 +501,30 @@ class _CachedArtworkState extends State<CachedArtwork> {
     return const SizedBox.shrink();
   }
 
+  /// The last resized file provider shown, so a revalidation can evict the
+  /// exact cache entry ([ResizeImage] keys differ from the plain [FileImage]).
+  ImageProvider? _displayedFileProvider;
+
+  ImageProvider _fileProvider(BuildContext context, File file, double? width) =>
+      _displayedFileProvider =
+          resizedForDisplay(context, FileImage(file), width);
+
+  ImageProvider _networkProvider(BuildContext context, double? width) =>
+      resizedForDisplay(
+        context,
+        NetworkImage(
+          _networkFallbackUrl!,
+          headers: _connectionService.authHeaders,
+        ),
+        width,
+      );
+
   Widget _buildDiskImage() {
     final localPath = _localPath!;
     final file = File(localPath);
     if (!_useLayoutBoundsForImage) {
-      return Image.file(
-        file,
+      return Image(
+        image: _fileProvider(context, file, widget.width ?? widget.height),
         width: widget.width,
         height: widget.height,
         fit: widget.fit,
@@ -518,8 +539,8 @@ class _CachedArtworkState extends State<CachedArtwork> {
       builder: (context, constraints) {
         final w = constraints.maxWidth.isFinite ? constraints.maxWidth : null;
         final h = constraints.maxHeight.isFinite ? constraints.maxHeight : null;
-        return Image.file(
-          file,
+        return Image(
+          image: _fileProvider(context, file, w ?? h),
           width: w,
           height: h,
           fit: widget.fit,
@@ -552,12 +573,11 @@ class _CachedArtworkState extends State<CachedArtwork> {
 
   Widget _buildNetworkImageWidget() {
     if (!_useLayoutBoundsForImage) {
-      return Image.network(
-        _networkFallbackUrl!,
+      return Image(
+        image: _networkProvider(context, widget.width ?? widget.height),
         width: widget.width,
         height: widget.height,
         fit: widget.fit,
-        headers: _connectionService.authHeaders,
         gaplessPlayback: true,
         loadingBuilder: (context, child, loadingProgress) {
           if (loadingProgress == null) {
@@ -574,12 +594,11 @@ class _CachedArtworkState extends State<CachedArtwork> {
       builder: (context, constraints) {
         final w = constraints.maxWidth.isFinite ? constraints.maxWidth : null;
         final h = constraints.maxHeight.isFinite ? constraints.maxHeight : null;
-        return Image.network(
-          _networkFallbackUrl!,
+        return Image(
+          image: _networkProvider(context, w ?? h),
           width: w,
           height: h,
           fit: widget.fit,
-          headers: _connectionService.authHeaders,
           gaplessPlayback: true,
           loadingBuilder: (context, child, loadingProgress) {
             if (loadingProgress == null) {

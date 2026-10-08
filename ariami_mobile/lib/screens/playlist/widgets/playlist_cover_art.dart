@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../models/api_models.dart';
 import '../../../services/cache/cache_manager.dart';
 import '../../../services/playlist_service.dart';
+import '../../../utils/image_decode.dart';
 
 /// Small square playlist cover: custom image when set, otherwise a collage of
 /// the first member songs' artwork, otherwise a colored placeholder. The
@@ -48,25 +49,25 @@ class PlaylistCoverArt extends StatelessWidget {
       child: SizedBox(
         width: size,
         height: size,
-        child: _cover(),
+        child: _cover(context),
       ),
     );
   }
 
-  Widget _cover() {
+  Widget _cover(BuildContext context) {
     if (playlist.id == PlaylistService.likedSongsId) return _likedSongsTile();
 
     final path = playlist.customImagePath;
     if (path != null && File(path).existsSync()) {
-      return Image.file(
-        File(path),
+      return Image(
+        image: resizedForDisplay(context, FileImage(File(path)), size),
         fit: BoxFit.cover,
         width: double.infinity,
         height: double.infinity,
-        errorBuilder: (_, __, ___) => _collage(),
+        errorBuilder: (_, __, ___) => _collage(context),
       );
     }
-    return _collage();
+    return _collage(context);
   }
 
   Widget _likedSongsTile() {
@@ -86,19 +87,19 @@ class PlaylistCoverArt extends StatelessWidget {
     );
   }
 
-  Widget _collage() {
+  Widget _collage(BuildContext context) {
     final artworkIds = _artworkIds();
     if (artworkIds.isEmpty) return _fallbackTile();
-    if (artworkIds.length == 1) return _tile(artworkIds[0]);
+    if (artworkIds.length == 1) return _tile(context, artworkIds[0]);
     if (artworkIds.length == 2 || artworkIds.length == 3) {
       return Row(
         children: [
           Expanded(
-              child:
-                  AspectRatio(aspectRatio: 1, child: _tile(artworkIds[0]))),
+              child: AspectRatio(
+                  aspectRatio: 1, child: _tile(context, artworkIds[0]))),
           Expanded(
-              child:
-                  AspectRatio(aspectRatio: 1, child: _tile(artworkIds[1]))),
+              child: AspectRatio(
+                  aspectRatio: 1, child: _tile(context, artworkIds[1]))),
         ],
       );
     }
@@ -109,10 +110,10 @@ class PlaylistCoverArt extends StatelessWidget {
             children: [
               Expanded(
                   child: AspectRatio(
-                      aspectRatio: 1, child: _tile(artworkIds[0]))),
+                      aspectRatio: 1, child: _tile(context, artworkIds[0]))),
               Expanded(
                   child: AspectRatio(
-                      aspectRatio: 1, child: _tile(artworkIds[1]))),
+                      aspectRatio: 1, child: _tile(context, artworkIds[1]))),
             ],
           ),
         ),
@@ -121,10 +122,10 @@ class PlaylistCoverArt extends StatelessWidget {
             children: [
               Expanded(
                   child: AspectRatio(
-                      aspectRatio: 1, child: _tile(artworkIds[2]))),
+                      aspectRatio: 1, child: _tile(context, artworkIds[2]))),
               Expanded(
                   child: AspectRatio(
-                      aspectRatio: 1, child: _tile(artworkIds[3]))),
+                      aspectRatio: 1, child: _tile(context, artworkIds[3]))),
             ],
           ),
         ),
@@ -145,13 +146,13 @@ class PlaylistCoverArt extends StatelessWidget {
     return ids.toList();
   }
 
-  Widget _tile(String artworkId) {
+  Widget _tile(BuildContext context, String artworkId) {
     final cacheManager = CacheManager();
     final path = cacheManager.getArtworkPathSync('${artworkId}_thumb') ??
         cacheManager.getArtworkPathSync(artworkId);
     if (path == null) return _fallbackTile();
-    return Image.file(
-      File(path),
+    return Image(
+      image: resizedForDisplay(context, FileImage(File(path)), size),
       fit: BoxFit.cover,
       errorBuilder: (_, __, ___) => _fallbackTile(),
     );

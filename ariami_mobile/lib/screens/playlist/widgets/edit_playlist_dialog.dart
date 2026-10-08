@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import '../../../models/api_models.dart';
+import '../../../utils/image_decode.dart';
 
 /// Dialog for editing playlist name, description, and image
 class EditPlaylistDialog extends StatefulWidget {
@@ -76,8 +77,12 @@ class _EditPlaylistDialogState extends State<EditPlaylistDialog> {
     if (currentImagePath != null && File(currentImagePath).existsSync()) {
       return ClipRRect(
         borderRadius: BorderRadius.circular(8),
-        child: Image.file(
-          File(currentImagePath),
+        child: Image(
+          image: resizedForDisplay(
+            context,
+            FileImage(File(currentImagePath)),
+            120,
+          ),
           width: 120,
           height: 120,
           fit: BoxFit.cover,

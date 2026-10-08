@@ -15,6 +15,7 @@ import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
 import '../../widgets/settings/settings_section.dart';
 import '../../widgets/settings/settings_tile.dart';
 import 'appearance_settings_screen.dart';
+import '../../utils/image_decode.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -322,7 +323,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required String initial,
   }) {
     final imageProvider =
-        _avatarBytes == null ? null : MemoryImage(_avatarBytes!);
+        _avatarBytes == null ? null : avatarImage(MemoryImage(_avatarBytes!));
     final isBusy = _isAvatarLoading || _isAvatarUpdating;
 
     return Semantics(

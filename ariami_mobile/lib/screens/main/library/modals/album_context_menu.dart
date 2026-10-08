@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../../models/api_models.dart';
 import '../../../../services/api/connection_service.dart';
 import '../../../../widgets/common/mini_player_aware_bottom_sheet.dart';
+import '../../../../utils/image_decode.dart';
 
 /// Shows the album context menu bottom sheet.
 Future<void> showAlbumContextMenu({
@@ -29,10 +30,16 @@ Future<void> showAlbumContextMenu({
           width: 44,
           height: 44,
           child: resolvedCoverArt != null && resolvedCoverArt.isNotEmpty
-              ? Image.network(
-                  resolvedCoverArt,
+              ? Image(
+                  image: resizedForDisplay(
+                    context,
+                    NetworkImage(
+                      resolvedCoverArt,
+                      headers: connectionService.authHeaders,
+                    ),
+                    44,
+                  ),
                   fit: BoxFit.cover,
-                  headers: connectionService.authHeaders,
                   errorBuilder: (_, __, ___) =>
                       Container(color: Colors.grey[300], child: const Icon(Icons.album)),
                 )

@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 
+import '../utils/image_decode.dart';
+
 /// Service for managing the local profile image.
 ///
 /// The image is stored locally and is cleared when the user logs out.
@@ -22,7 +24,7 @@ class ProfileImageService extends ChangeNotifier {
   /// Cached provider instance so the image is decoded once and reused across
   /// rebuilds (e.g. every time the Settings tab is re-entered) instead of being
   /// re-read from the device each time.
-  FileImage? _cachedProvider;
+  ImageProvider? _cachedProvider;
 
   /// Get the current profile image as an ImageProvider, or null if no image is set
   ImageProvider? get imageProvider {
@@ -33,7 +35,7 @@ class ProfileImageService extends ChangeNotifier {
       _cachedProvider = null;
       return null;
     }
-    return _cachedProvider ??= FileImage(file);
+    return _cachedProvider ??= avatarImage(FileImage(file));
   }
 
   /// Point the service at [imagePath] (or clear it when null), rebuild the
@@ -45,7 +47,8 @@ class ProfileImageService extends ChangeNotifier {
     _cachedProvider?.evict();
 
     _imagePath = imagePath;
-    _cachedProvider = imagePath != null ? FileImage(File(imagePath)) : null;
+    _cachedProvider =
+        imagePath != null ? avatarImage(FileImage(File(imagePath))) : null;
     if (_cachedProvider != null) {
       _cachedProvider!.evict();
       _precache(_cachedProvider!);

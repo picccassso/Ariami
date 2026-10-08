@@ -40,6 +40,8 @@ AriamiAudioHandler? audioHandler;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Cap decoded-image memory below Flutter's 100 MB default.
+  PaintingBinding.instance.imageCache.maximumSizeBytes = 64 << 20;
 
   print('[Main] ========================================');
   print('[Main] Starting AudioService initialization...');

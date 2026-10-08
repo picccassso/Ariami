@@ -4,6 +4,7 @@ import '../../services/api/connection_service.dart';
 import '../../utils/constants.dart';
 import '../../utils/responsive.dart';
 import '../common/cached_artwork.dart';
+import '../../utils/image_decode.dart';
 
 /// Album artwork header with parallax effect
 /// Used in album detail screen's SliverAppBar
@@ -110,12 +111,15 @@ class AlbumArtworkHeader extends StatelessWidget {
 
         // Fallback for when no albumId is available
         if (resolvedCoverArt != null && resolvedCoverArt.isNotEmpty) {
-          return Image.network(
-            resolvedCoverArt,
+          return Image(
+            image: resizedForDisplay(
+              context,
+              NetworkImage(resolvedCoverArt, headers: authHeaders),
+              w ?? h,
+            ),
             width: w,
             height: h,
             fit: fit,
-            headers: authHeaders,
             loadingBuilder: (context, child, loadingProgress) {
               if (loadingProgress == null) return child;
               return const Center(child: CircularProgressIndicator());
