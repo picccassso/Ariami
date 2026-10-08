@@ -19,6 +19,7 @@ import 'package:ariami_core/services/server/tailscale_path_diagnostics.dart';
 import 'package:ariami_core/services/transcoding/transcode_slots_policy.dart';
 import 'package:ariami_core/services/transcoding/transcoding_service.dart';
 import 'package:ariami_core/services/artwork/artwork_service.dart';
+import 'package:ariami_core/services/artwork/image_normalizer.dart';
 import 'package:ariami_core/models/quality_preset.dart';
 import 'package:ariami_core/models/artwork_size.dart';
 import 'package:ariami_core/models/server_origin.dart';
@@ -82,6 +83,7 @@ part 'http_server_parts/pins_handlers_part.dart';
 part 'http_server_parts/hidden_handlers_part.dart';
 part 'http_server_parts/playlist_edits_handlers_part.dart';
 part 'http_server_parts/artist_images_handlers_part.dart';
+part 'http_server_parts/image_normalization_part.dart';
 part 'http_server_parts/license_handlers_part.dart';
 part 'http_server_parts/music_discovery_config_handlers_part.dart';
 part 'http_server_parts/playlist_suggestions_handlers_part.dart';
@@ -109,6 +111,9 @@ class AriamiHttpServer {
   final StreamTracker _streamTracker = StreamTracker();
   TranscodingService? _transcodingService;
   ArtworkService? _artworkService;
+
+  /// Downsizes user-uploaded images (avatars, playlist covers, artist photos).
+  final ImageNormalizer _imageNormalizer = ImageNormalizer();
   String? _tailscaleIp;
   String? _lanIp;
   String? _advertisedIp; // The IP to show in QR code (Tailscale or LAN IP)

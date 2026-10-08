@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:sqlite3/sqlite3.dart';
@@ -152,6 +153,38 @@ class ArtistImageStore {
       contentType: contentType,
       updatedAt: updatedAt,
     );
+  }
+
+  /// Replaces each stored image for which [shrink] returns new bytes, with a
+  /// fresh `updated_at` so client caches keyed on it refresh. A row replaced
+  /// by an upload while [shrink] ran is left alone. Returns how many rows
+  /// were shrunk.
+  Future<int> shrinkImages(
+    Future<Uint8List?> Function(Uint8List bytes, String contentType) shrink,
+  ) async {
+    final keys = _db.select('SELECT user_id, artist_key FROM artist_images');
+    var shrunkCount = 0;
+    for (final key in keys) {
+      final userId = key['user_id'] as String;
+      final record = find(userId, key['artist_key'] as String);
+      if (record == null) continue;
+      final shrunk = await shrink(record.bytes, record.contentType);
+      if (shrunk == null) continue;
+      _db.execute(
+        'UPDATE artist_images SET bytes = ?, updated_at = ? '
+        'WHERE user_id = ? AND artist_key = ? AND updated_at = ?',
+        <Object?>[
+          shrunk,
+          max(DateTime.now().toUtc().millisecondsSinceEpoch,
+              record.updatedAt + 1),
+          userId,
+          record.artistKey,
+          record.updatedAt,
+        ],
+      );
+      if (_db.updatedRows > 0) shrunkCount++;
+    }
+    return shrunkCount;
   }
 
   /// Removes an artist's custom image.

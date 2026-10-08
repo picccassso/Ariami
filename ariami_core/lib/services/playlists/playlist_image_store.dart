@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:sqlite3/sqlite3.dart';
@@ -168,6 +169,38 @@ class PlaylistImageStore {
       contentType: contentType,
       updatedAt: updatedAt,
     );
+  }
+
+  /// Replaces each stored image for which [shrink] returns new bytes, with a
+  /// fresh `updated_at` so client caches keyed on it refresh. A row replaced
+  /// by an upload while [shrink] ran is left alone. Returns how many rows
+  /// were shrunk.
+  Future<int> shrinkImages(
+    Future<Uint8List?> Function(Uint8List bytes, String contentType) shrink,
+  ) async {
+    final keys = _db.select('SELECT user_id, playlist_id FROM playlist_images');
+    var shrunkCount = 0;
+    for (final key in keys) {
+      final userId = key['user_id'] as String;
+      final record = find(userId, key['playlist_id'] as String);
+      if (record == null) continue;
+      final shrunk = await shrink(record.bytes, record.contentType);
+      if (shrunk == null) continue;
+      _db.execute(
+        'UPDATE playlist_images SET bytes = ?, updated_at = ? '
+        'WHERE user_id = ? AND playlist_id = ? AND updated_at = ?',
+        <Object?>[
+          shrunk,
+          max(DateTime.now().toUtc().millisecondsSinceEpoch,
+              record.updatedAt + 1),
+          userId,
+          record.playlistId,
+          record.updatedAt,
+        ],
+      );
+      if (_db.updatedRows > 0) shrunkCount++;
+    }
+    return shrunkCount;
   }
 
   bool delete(String userId, String playlistId) {

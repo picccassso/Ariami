@@ -381,8 +381,13 @@ extension AriamiHttpServerAuthHandlersMethods on AriamiHttpServer {
 
     final avatarUpdatedAt = await _writeAvatarBytes(
       userId: session.userId,
-      bytes: bytes,
-      contentType: contentType!,
+      bytes: await _imageNormalizer.shrinkIfOversized(
+            bytes,
+            contentType!,
+            maxDimension: ImageNormalizer.avatarMaxDimension,
+          ) ??
+          bytes,
+      contentType: contentType,
     );
     return _jsonOk({'avatarUpdatedAt': avatarUpdatedAt});
   }

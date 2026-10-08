@@ -137,7 +137,12 @@ extension AriamiHttpServerArtistImagesMethods on AriamiHttpServer {
       final image = store.put(
         session.userId,
         decodedName,
-        bytes: bytes,
+        bytes: await _imageNormalizer.shrinkIfOversized(
+              bytes,
+              contentType,
+              maxDimension: ImageNormalizer.coverMaxDimension,
+            ) ??
+            bytes,
         contentType: contentType,
       );
       _broadcastArtistImagesChanged(

@@ -343,6 +343,10 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
       print('[HttpServer] Music discovery config store unavailable: $e');
     }
 
+    // Shrink images stored before uploads were normalised. Best-effort and
+    // in the background so it never delays startup.
+    unawaited(_normalizeStoredImages());
+
     // Initialize StreamTracker (starts cleanup timer)
     _streamTracker.initialize();
 

@@ -5,6 +5,7 @@ import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import '../../../models/api_models.dart';
 import '../../../utils/image_decode.dart';
+import '../../../utils/image_upload.dart';
 
 /// Dialog for editing playlist name, description, and image
 class EditPlaylistDialog extends StatefulWidget {
@@ -55,11 +56,16 @@ class _EditPlaylistDialogState extends State<EditPlaylistDialog> {
         if (!await playlistImagesDir.exists()) {
           await playlistImagesDir.create(recursive: true);
         }
-        final ext = path.extension(pickedPath);
+        // Camera originals over the server's cap would never sync, so store
+        // a downscaled PNG copy instead.
+        final original = await File(pickedPath).readAsBytes();
+        final bytes = await downscaleIfOversized(original);
+        final ext =
+            identical(bytes, original) ? path.extension(pickedPath) : '.png';
         final newFileName =
             '${widget.playlist.id}_${DateTime.now().millisecondsSinceEpoch}$ext';
         final destPath = '${playlistImagesDir.path}/$newFileName';
-        await File(pickedPath).copy(destPath);
+        await File(destPath).writeAsBytes(bytes, flush: true);
         setState(() {
           _newImagePath = destPath;
           _removeImage = false;

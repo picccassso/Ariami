@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:ariami_core/services/playlists/playlist_image_store.dart';
 import 'package:path/path.dart' as p;
@@ -96,6 +97,40 @@ void main() {
         ),
         throwsArgumentError,
       );
+    });
+
+    test('shrinkImages replaces shrunk rows with a new version only', () async {
+      final before = store.put('user-a', 'one',
+          bytes: <int>[1, 2, 3, 4], contentType: 'image/jpeg');
+      store.put('user-a', 'two', bytes: <int>[9, 9], contentType: 'image/jpeg');
+
+      final seen = <int>[];
+      final count = await store.shrinkImages((bytes, contentType) async {
+        seen.add(bytes.length);
+        return bytes.length == 4 ? Uint8List.fromList([7]) : null;
+      });
+
+      expect(count, 1);
+      expect(seen..sort(), [2, 4]);
+      final shrunk = store.find('user-a', 'one');
+      expect(shrunk!.bytes, [7]);
+      expect(shrunk.contentType, 'image/jpeg');
+      expect(shrunk.updatedAt, greaterThan(before.updatedAt));
+      expect(store.find('user-a', 'two')!.bytes, [9, 9]);
+    });
+
+    test('shrinkImages leaves a row replaced while shrinking', () async {
+      store.put('user-a', 'one',
+          bytes: <int>[1, 2, 3, 4], contentType: 'image/jpeg');
+
+      final count = await store.shrinkImages((bytes, contentType) async {
+        store.put('user-a', 'one',
+            bytes: <int>[5, 5, 5], contentType: 'image/jpeg');
+        return Uint8List.fromList([7]);
+      });
+
+      expect(count, 0);
+      expect(store.find('user-a', 'one')!.bytes, [5, 5, 5]);
     });
   });
 }

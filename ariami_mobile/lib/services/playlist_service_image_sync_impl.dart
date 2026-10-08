@@ -10,6 +10,13 @@ part of 'playlist_service.dart';
 /// queued, inbound sync leaves that playlist's photo untouched so the local
 /// intent wins.
 extension _PlaylistServiceImageSyncImpl on PlaylistService {
+  /// Server error codes meaning a retry of the same photo can never succeed
+  /// (HTTP 413 over the size cap, 400 not a decodable image).
+  static const _permanentPlaylistImageErrorCodes = {
+    'PLAYLIST_IMAGE_TOO_LARGE',
+    'INVALID_PLAYLIST_IMAGE',
+  };
+
   /// The server-side image key for a local playlist, or null when the
   /// playlist has no synced counterpart (a purely local playlist).
   String? _imageSyncIdForLocal(String localPlaylistId) {
@@ -75,6 +82,17 @@ extension _PlaylistServiceImageSyncImpl on PlaylistService {
       await _saveSyncedPlaylistImageVersions();
       await _clearPlaylistImagePushPending(localPlaylistId);
     } catch (error) {
+      if (error is ApiException &&
+          _permanentPlaylistImageErrorCodes.contains(error.code)) {
+        // The server will never accept these bytes (e.g. 413 over the size
+        // cap) — keep the photo local-only rather than retrying forever.
+        debugPrint(
+          '[PlaylistService] Playlist photo rejected by server; not syncing: '
+          '$error',
+        );
+        await _clearPlaylistImagePushPending(localPlaylistId);
+        return;
+      }
       debugPrint(
         '[PlaylistService] Queued playlist photo push after failure: $error',
       );

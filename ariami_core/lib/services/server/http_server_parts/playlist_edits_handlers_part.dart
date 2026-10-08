@@ -234,7 +234,12 @@ extension AriamiHttpServerPlaylistEditsMethods on AriamiHttpServer {
       final image = store.put(
         session.userId,
         Uri.decodeComponent(playlistId),
-        bytes: bytes,
+        bytes: await _imageNormalizer.shrinkIfOversized(
+              bytes,
+              contentType,
+              maxDimension: ImageNormalizer.coverMaxDimension,
+            ) ??
+            bytes,
         contentType: contentType,
       );
       _broadcastPlaylistEditsChanged(session, reason: 'image');

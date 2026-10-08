@@ -5,11 +5,9 @@ import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 
 import '../../models/artwork_size.dart';
+import 'ffmpeg_probe.dart';
 
-typedef ArtworkProcessRunner = Future<ProcessResult> Function(
-  String executable,
-  List<String> arguments,
-);
+export 'ffmpeg_probe.dart' show ArtworkProcessRunner;
 
 /// Service for processing and caching album artwork at different sizes.
 ///
@@ -28,10 +26,8 @@ class ArtworkService {
   /// Minimum age before a cache hit updates mtime again.
   final Duration touchThrottle;
 
-  /// Whether FFmpeg is available on this system
-  bool? _ffmpegAvailable;
-
   final ArtworkProcessRunner _processRunner;
+  late final FfmpegProbe _ffmpeg = FfmpegProbe(_processRunner);
 
   /// Lock to prevent concurrent processing of the same artwork
   final Map<String, Completer<Uint8List?>> _processingLocks = {};
@@ -51,25 +47,7 @@ class ArtworkService {
             ((executable, arguments) => Process.run(executable, arguments));
 
   /// Check if FFmpeg is available on the system.
-  Future<bool> isFFmpegAvailable() async {
-    if (_ffmpegAvailable != null) return _ffmpegAvailable!;
-
-    try {
-      final result = await _processRunner('ffmpeg', ['-version']);
-      _ffmpegAvailable = result.exitCode == 0;
-      if (_ffmpegAvailable!) {
-        print('[ArtworkService] FFmpeg is available');
-      } else {
-        print(
-            '[ArtworkService] FFmpeg not found (exit code ${result.exitCode})');
-      }
-    } catch (e) {
-      print('[ArtworkService] FFmpeg not available - $e');
-      _ffmpegAvailable = false;
-    }
-
-    return _ffmpegAvailable!;
-  }
+  Future<bool> isFFmpegAvailable() => _ffmpeg.isAvailable();
 
   /// Get artwork at the specified size.
   ///

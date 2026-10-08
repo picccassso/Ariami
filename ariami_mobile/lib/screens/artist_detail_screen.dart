@@ -15,6 +15,7 @@ import '../services/playback_manager.dart';
 import '../services/playlist_service.dart';
 import '../services/stats/streaming_stats_service.dart';
 import '../utils/constants.dart';
+import '../utils/image_upload.dart';
 import '../utils/responsive.dart';
 import '../widgets/collection_play_buttons.dart';
 import '../widgets/common/cached_artwork.dart';
@@ -597,20 +598,21 @@ class _ArtistPhotoMenu extends StatelessWidget {
     }
     if (file == null || !context.mounted) return;
 
-    if (file.size > 5 * 1024 * 1024) {
-      _showToast(context, 'Photo is too large (max 5 MB).');
-      return;
-    }
-
     Uint8List? bytes;
     try {
-      bytes = await file.readAsBytes();
+      bytes = await downscaleIfOversized(await file.readAsBytes());
     } catch (_) {
       bytes = null;
     }
 
     if (bytes == null || bytes.isEmpty) {
       if (context.mounted) _showToast(context, 'Could not read that photo.');
+      return;
+    }
+    if (bytes.lengthInBytes > maxImageUploadBytes) {
+      if (context.mounted) {
+        _showToast(context, 'Photo is too large (max 5 MB).');
+      }
       return;
     }
 

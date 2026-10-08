@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import '../models/api_models.dart';
 import '../utils/encoding_utils.dart';
+import 'api/api_client.dart' show ApiException;
 import 'api/connection_service.dart';
 import 'library/library_repository.dart';
 import 'song_id_remapping_service.dart';

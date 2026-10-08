@@ -10,6 +10,7 @@ import '../../services/offline/offline_playback_service.dart';
 import '../../services/profile_image_service.dart';
 import '../../services/stats/streaming_stats_service.dart';
 import '../../services/theme_service.dart';
+import '../../utils/image_upload.dart';
 import '../../utils/server_disconnect.dart';
 import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
 import '../../widgets/settings/settings_section.dart';
@@ -27,8 +28,6 @@ class ProfileScreen extends StatefulWidget {
 enum _AvatarAction { choose, remove }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  static const int _maxAvatarBytes = 5 * 1024 * 1024;
-
   final ConnectionService _connectionService = ConnectionService();
   final OfflinePlaybackService _offlineService = OfflinePlaybackService();
   final StreamingStatsService _statsService = StreamingStatsService();
@@ -463,18 +462,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     if (!mounted || file == null) return;
 
-    if (file.size > _maxAvatarBytes) {
-      _showProfileSnackBar('Choose an image under 5 MB.');
-      return;
-    }
-
-    final bytes = await _readPickedFileBytes(file);
-    if (!mounted || bytes == null) {
+    final pickedBytes = await _readPickedFileBytes(file);
+    if (!mounted || pickedBytes == null) {
       _showProfileSnackBar('Could not read that photo.');
       return;
     }
+    final bytes = await downscaleIfOversized(pickedBytes);
+    if (!mounted) return;
 
-    if (bytes.lengthInBytes > _maxAvatarBytes) {
+    if (bytes.lengthInBytes > maxImageUploadBytes) {
       _showProfileSnackBar('Choose an image under 5 MB.');
       return;
     }
