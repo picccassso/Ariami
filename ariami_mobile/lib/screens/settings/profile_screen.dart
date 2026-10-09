@@ -10,6 +10,7 @@ import '../../services/offline/offline_playback_service.dart';
 import '../../services/profile_image_service.dart';
 import '../../services/stats/streaming_stats_service.dart';
 import '../../services/theme_service.dart';
+import '../../utils/image_content_type.dart';
 import '../../utils/image_upload.dart';
 import '../../utils/server_disconnect.dart';
 import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
@@ -475,9 +476,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return;
     }
 
-    final contentType = _detectAvatarContentType(
+    final contentType = detectImageContentType(
       bytes,
       file.name.isNotEmpty ? file.name : file.path,
+      jpegPngOnly: true,
     );
     if (contentType == null) {
       _showProfileSnackBar('Choose a JPG or PNG image.');
@@ -568,7 +570,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (bytes == null) {
         await service.removeImage();
       } else {
-        final extension = _hasPngSignature(bytes) ? 'png' : 'jpg';
+        final extension = hasPngSignature(bytes) ? 'png' : 'jpg';
         await service.setImageBytes(bytes, extension: extension);
       }
     } catch (_) {
@@ -582,39 +584,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } catch (_) {
       return null;
     }
-  }
-
-  String? _detectAvatarContentType(Uint8List bytes, String? fileName) {
-    if (_hasJpegSignature(bytes)) return 'image/jpeg';
-    if (_hasPngSignature(bytes)) return 'image/png';
-
-    final extension = _fileExtension(fileName);
-    if (extension == 'jpg' || extension == 'jpeg') return 'image/jpeg';
-    if (extension == 'png') return 'image/png';
-    return null;
-  }
-
-  bool _hasJpegSignature(Uint8List bytes) {
-    return bytes.length >= 3 &&
-        bytes[0] == 0xFF &&
-        bytes[1] == 0xD8 &&
-        bytes[2] == 0xFF;
-  }
-
-  bool _hasPngSignature(Uint8List bytes) {
-    const pngSignature = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
-    if (bytes.length < pngSignature.length) return false;
-    for (var i = 0; i < pngSignature.length; i++) {
-      if (bytes[i] != pngSignature[i]) return false;
-    }
-    return true;
-  }
-
-  String? _fileExtension(String? fileName) {
-    if (fileName == null) return null;
-    final dotIndex = fileName.lastIndexOf('.');
-    if (dotIndex == -1 || dotIndex == fileName.length - 1) return null;
-    return fileName.substring(dotIndex + 1).toLowerCase();
   }
 
   String _friendlyAvatarError(Object error, {required String fallback}) {

@@ -8,7 +8,6 @@ export 'widgets/songs_section.dart';
 export 'widgets/playlists_section.dart';
 export 'widgets/section_header.dart';
 export 'widgets/empty_state.dart';
-export 'widgets/error_state.dart';
 
 export 'modals/server_playlists_sheet.dart';
 export 'modals/album_context_menu.dart';

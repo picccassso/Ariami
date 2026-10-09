@@ -1,4 +1,5 @@
 import '../../utils/responsive.dart';
+import '../../utils/artwork_url.dart';
 import 'package:flutter/material.dart';
 import '../../models/api_models.dart';
 import '../../services/api/connection_service.dart';
@@ -178,25 +179,11 @@ class _SongRowArtwork extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final connectionService = ConnectionService();
-    final String? artworkUrl;
-    final String cacheId;
-
-    if (song.albumId != null) {
-      artworkUrl = connectionService.apiClient != null
-          ? '${connectionService.apiClient!.baseUrl}/artwork/${song.albumId}'
-          : null;
-      cacheId = song.albumId!;
-    } else {
-      artworkUrl = connectionService.apiClient != null
-          ? '${connectionService.apiClient!.baseUrl}/song-artwork/${song.id}'
-          : null;
-      cacheId = 'song_${song.id}';
-    }
+    final artwork = resolveSongArtwork(songId: song.id, albumId: song.albumId);
 
     return CachedArtwork(
-      albumId: cacheId,
-      artworkUrl: artworkUrl,
+      albumId: artwork.cacheId,
+      artworkUrl: artwork.url,
       width: 48,
       height: 48,
       borderRadius: BorderRadius.circular(4),

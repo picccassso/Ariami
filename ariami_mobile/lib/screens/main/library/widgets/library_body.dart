@@ -5,10 +5,10 @@ import '../../../../services/playlist_service.dart';
 import '../../../../widgets/common/bottom_chrome_metrics.dart';
 import '../../../../widgets/common/mini_player_aware_bottom_sheet.dart';
 import '../../../../widgets/library/collapsible_section.dart';
+import '../../../playlist/widgets/error_state.dart';
 import '../library_state.dart';
 import 'albums_section.dart';
 import 'empty_state.dart';
-import 'error_state.dart';
 import 'genre_filter_bar.dart';
 import 'mixed_section.dart';
 import 'playlists_section.dart';
@@ -84,9 +84,10 @@ class LibraryBody extends StatelessWidget {
     if (state.errorMessage != null &&
         state.isLibraryEmpty &&
         playlistService.playlists.isEmpty) {
-      return LibraryErrorState(
-        errorMessage: state.errorMessage!,
+      return ErrorState(
+        message: state.errorMessage!,
         onRetry: onRetry,
+        roomy: true,
       );
     }
 

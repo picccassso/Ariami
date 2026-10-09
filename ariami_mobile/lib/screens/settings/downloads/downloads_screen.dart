@@ -5,8 +5,10 @@ import 'package:flutter/material.dart';
 
 import '../../../models/download_task.dart';
 import '../../../services/api/connection_service.dart';
+import '../../../widgets/common/confirm_dialog.dart';
 import '../../../widgets/common/mini_player_aware_bottom_sheet.dart';
 import '../../../widgets/common/queue_action_confirmation.dart';
+import '../../../widgets/settings/settings_header.dart';
 import 'downloads_controller.dart';
 import 'downloads_state.dart';
 import 'widgets/widgets.dart';
@@ -73,24 +75,13 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
     }
     _isReconnectPromptVisible = true;
     try {
-      final shouldResume = await showDialog<bool>(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: const Text('Connection Restored'),
-          content: Text(
+      final shouldResume = await showConfirmDialog(
+        context,
+        title: 'Connection Restored',
+        message:
             '$interruptedCount interrupted download${interruptedCount == 1 ? '' : 's'} are waiting. Resume now?',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('Keep Paused'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              child: const Text('Resume All'),
-            ),
-          ],
-        ),
+        confirmLabel: 'Resume All',
+        cancelLabel: 'Keep Paused',
       );
 
       if (!mounted || shouldResume != true) {
@@ -159,27 +150,14 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
   }
 
   Future<void> _cancelInterruptedDownloads() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Cancel Remaining Downloads'),
-        content: const Text(
+    final confirmed = await showConfirmDialog(
+      context,
+      title: 'Cancel Remaining Downloads',
+      message:
           'This will remove all downloads that were paused after connection loss. Already completed songs stay saved.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Keep Paused'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text(
-              'Cancel Remaining',
-              style: TextStyle(color: Colors.red),
-            ),
-          ),
-        ],
-      ),
+      confirmLabel: 'Cancel Remaining',
+      cancelLabel: 'Keep Paused',
+      destructive: true,
     );
 
     if (confirmed != true) return;
@@ -332,7 +310,9 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                     ]),
                   ),
                   if (state.hasAnyInProgress)
-                    _buildSectionHeader('IN PROGRESS', isDark),
+                    SliverToBoxAdapter(
+                      child: SettingsHeader('IN PROGRESS', isDark: isDark),
+                    ),
                   if (state.hasAnyInProgress)
                     SliverList.builder(
                       itemCount: state.inProgressAlbums.length,
@@ -356,10 +336,15 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                       },
                     ),
                   if (state.completedTasks.isNotEmpty)
-                    _buildSectionHeader('DOWNLOADED', isDark),
+                    SliverToBoxAdapter(
+                      child: SettingsHeader('DOWNLOADED', isDark: isDark),
+                    ),
                   if (state.completedTasks.isNotEmpty)
                     ..._buildDownloadedSlivers(state, isDark),
-                  if (state.hasAnyFailed) _buildSectionHeader('FAILED', isDark),
+                  if (state.hasAnyFailed)
+                    SliverToBoxAdapter(
+                      child: SettingsHeader('FAILED', isDark: isDark),
+                    ),
                   if (state.hasAnyFailed)
                     SliverList.builder(
                       itemCount: state.failedAlbums.length,
@@ -391,23 +376,6 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
           );
         },
       )),
-    );
-  }
-
-  Widget _buildSectionHeader(String text, bool isDark) {
-    return SliverToBoxAdapter(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
-        child: Text(
-          text,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w900,
-            color: isDark ? Colors.white : Colors.black,
-            letterSpacing: 1.5,
-          ),
-        ),
-      ),
     );
   }
 

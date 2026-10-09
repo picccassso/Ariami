@@ -1,23 +1,14 @@
 import 'package:flutter/material.dart';
 
+import '../../../../widgets/common/confirm_dialog.dart';
+
 Future<bool?> showClearCacheDialog(BuildContext context) {
-  return showDialog<bool>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('Clear Song Cache'),
-      content: const Text(
+  return showConfirmDialog(
+    context,
+    title: 'Clear Song Cache',
+    message:
         'This will remove cached songs used for streaming. Artwork and explicitly downloaded songs will not be affected.',
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('Cancel'),
-        ),
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(true),
-          child: const Text('Clear', style: TextStyle(color: Colors.red)),
-        ),
-      ],
-    ),
+    confirmLabel: 'Clear',
+    destructive: true,
   );
 }

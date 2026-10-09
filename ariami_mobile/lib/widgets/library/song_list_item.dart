@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../utils/artwork_url.dart';
 import '../common/mini_player_aware_bottom_sheet.dart';
 import '../../models/api_models.dart';
 import '../../models/song.dart';
@@ -100,11 +101,8 @@ class SongListItem extends StatelessWidget {
                       ),
                       const SizedBox(width: 16),
                     ],
-
                     _buildLeading(context),
-
                     const SizedBox(width: 16),
-
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -169,7 +167,6 @@ class SongListItem extends StatelessWidget {
                         ],
                       ),
                     ),
-
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -280,29 +277,14 @@ class SongListItem extends StatelessWidget {
   }
 
   Widget _buildAlbumArt(BuildContext context) {
-    final connectionService = ConnectionService();
-
-    String? artworkUrl;
-    String cacheId;
-
-    if (song.albumId != null) {
-      artworkUrl = connectionService.apiClient != null
-          ? '${connectionService.apiClient!.baseUrl}/artwork/${song.albumId}'
-          : null;
-      cacheId = song.albumId!;
-    } else {
-      artworkUrl = connectionService.apiClient != null
-          ? '${connectionService.apiClient!.baseUrl}/song-artwork/${song.id}'
-          : null;
-      cacheId = 'song_${song.id}'; // Prefix to differentiate from album IDs
-    }
+    final artwork = resolveSongArtwork(songId: song.id, albumId: song.albumId);
 
     // Force square aspect ratio to ensure BoxFit.cover crops bars completely
     return AspectRatio(
       aspectRatio: 1.0,
       child: CachedArtwork(
-        albumId: cacheId, // Used as cache key
-        artworkUrl: artworkUrl,
+        albumId: artwork.cacheId, // Used as cache key
+        artworkUrl: artwork.url,
         width: 48,
         height: 48,
         fit: BoxFit.cover,

@@ -5,10 +5,14 @@ class ErrorState extends StatelessWidget {
 
   final VoidCallback? onRetry;
 
+  /// Larger, centered message with more spacing before the retry button.
+  final bool roomy;
+
   const ErrorState({
     super.key,
     required this.message,
     this.onRetry,
+    this.roomy = false,
   });
 
   @override
@@ -21,9 +25,13 @@ class ErrorState extends StatelessWidget {
           const SizedBox(height: 16),
           Text(
             message,
-            style: TextStyle(color: Colors.grey[600]),
+            style: TextStyle(
+              fontSize: roomy ? 16 : null,
+              color: Colors.grey[600],
+            ),
+            textAlign: roomy ? TextAlign.center : null,
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: roomy ? 24 : 16),
           ElevatedButton(
             onPressed: onRetry,
             child: const Text('Retry'),

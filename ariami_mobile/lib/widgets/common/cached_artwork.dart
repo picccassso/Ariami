@@ -9,6 +9,15 @@ import '../../services/offline/offline_playback_service.dart';
 import '../../services/media/media_request_scheduler.dart';
 import '../../utils/image_decode.dart';
 
+/// Placeholder tile colours, picked by hashing the artwork's id.
+final artworkFallbackColors = [
+  Colors.blue[300]!,
+  Colors.purple[300]!,
+  Colors.green[300]!,
+  Colors.orange[300]!,
+  Colors.pink[300]!,
+];
+
 /// Size hint for artwork loading.
 ///
 /// Use [thumbnail] for list views (faster loading, smaller images).
@@ -641,13 +650,6 @@ class _CachedArtworkState extends State<CachedArtwork> {
     }
 
     final colorIndex = widget.albumId.hashCode % 5;
-    final colors = [
-      Colors.blue[300]!,
-      Colors.purple[300]!,
-      Colors.green[300]!,
-      Colors.orange[300]!,
-      Colors.pink[300]!,
-    ];
-    return colors[colorIndex.abs()];
+    return artworkFallbackColors[colorIndex.abs()];
   }
 }

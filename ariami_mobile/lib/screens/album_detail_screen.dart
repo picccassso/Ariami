@@ -3,12 +3,13 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../widgets/common/mini_player_aware_bottom_sheet.dart';
 import '../models/api_models.dart';
-import '../models/song.dart';
 import '../models/download_task.dart';
 import '../models/websocket_models.dart';
 import '../services/api/connection_service.dart';
 import '../services/playback_manager.dart';
 import '../services/playlist_service.dart';
+import 'offline_copy_flow.dart';
+import 'playlist/widgets/error_state.dart';
 import '../services/offline/offline_playback_service.dart';
 import '../services/offline/offline_copy_service.dart';
 import '../services/download/download_manager.dart';
@@ -24,6 +25,7 @@ import '../widgets/album/track_list.dart';
 import '../widgets/common/queue_action_confirmation.dart';
 import '../utils/responsive.dart';
 import '../widgets/library/genre_label.dart';
+import '../utils/song_from_model.dart';
 
 class AlbumDetailScreen extends StatefulWidget {
   final AlbumModel album;
@@ -159,27 +161,13 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
       return;
     }
 
-    final removeDownload = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Offline copy kept'),
-        content: const Text(
-          'Just a heads up - this album has been deleted from the server.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Keep offline copy'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Remove download'),
-          ),
-        ],
-      ),
+    final removeDownload = await showOfflineCopyNotice(
+      context,
+      itemType: 'album',
+      removeLabel: 'Remove download',
     );
 
-    if (removeDownload != true || !mounted) return;
+    if (!removeDownload || !mounted) return;
     final songIds = _albumDetail?.songs.map((song) => song.id) ?? const [];
     await _downloadManager.deleteAlbumDownloads(widget.album.id);
     await _offlineCopyService.forgetAlbum(widget.album.id, songIds);
@@ -293,7 +281,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
 
         if (_isOfflineCopy)
           const SliverToBoxAdapter(
-            child: _OfflineCopyBanner(itemType: 'album'),
+            child: OfflineCopyBanner(itemType: 'album'),
           ),
 
         SliverToBoxAdapter(
@@ -380,34 +368,11 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
     }
   }
 
-  Widget _buildErrorState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.error_outline,
-            size: 64,
-            color: Colors.grey[400],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            _errorMessage!,
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.grey[600],
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 24),
-          ElevatedButton(
-            onPressed: _retryConnection,
-            child: const Text('Retry'),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget _buildErrorState() => ErrorState(
+        message: _errorMessage!,
+        onRetry: _retryConnection,
+        roomy: true,
+      );
 
   void _downloadAlbum() {
     if (_albumDetail == null) return;
@@ -443,32 +408,13 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
 
   /// Prompt for confirmation, then delete this album's downloaded files.
   Future<void> _confirmRemoveDownloads() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text('Remove downloads for "${widget.album.title}"?'),
-        content: const Text(
-          'This deletes the downloaded files for this album from your '
-          'device. You can download it again anytime.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: Text(
-              'Remove',
-              style:
-                  TextStyle(color: Theme.of(dialogContext).colorScheme.error),
-            ),
-          ),
-        ],
-      ),
+    final confirmed = await confirmRemoveDownloads(
+      context,
+      name: widget.album.title,
+      itemType: 'album',
     );
 
-    if (confirmed != true || !mounted) return;
+    if (!confirmed || !mounted) return;
 
     await _downloadManager.deleteAlbumDownloads(widget.album.id);
   }
@@ -506,17 +452,10 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
     }
 
     final allSongs = songsToPlay
-        .map((songModel) => Song(
-              id: songModel.id,
-              title: songModel.title,
-              artist: songModel.artist,
+        .map((songModel) => songFromModel(
+              songModel,
               album: widget.album.title,
               albumId: widget.album.id,
-              duration: Duration(seconds: songModel.duration),
-              filePath: songModel.id,
-              fileSize: 0,
-              modifiedTime: DateTime.now(),
-              trackNumber: songModel.trackNumber,
             ))
         .toList();
 
@@ -551,17 +490,10 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
     }
 
     final allSongs = songsToPlay
-        .map((songModel) => Song(
-              id: songModel.id,
-              title: songModel.title,
-              artist: songModel.artist,
+        .map((songModel) => songFromModel(
+              songModel,
               album: widget.album.title,
               albumId: widget.album.id,
-              duration: Duration(seconds: songModel.duration),
-              filePath: songModel.id,
-              fileSize: 0,
-              modifiedTime: DateTime.now(),
-              trackNumber: songModel.trackNumber,
             ))
         .toList();
 
@@ -582,17 +514,10 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
     }
 
     final allSongs = _albumDetail!.songs
-        .map((songModel) => Song(
-              id: songModel.id,
-              title: songModel.title,
-              artist: songModel.artist,
+        .map((songModel) => songFromModel(
+              songModel,
               album: widget.album.title,
               albumId: widget.album.id,
-              duration: Duration(seconds: songModel.duration),
-              filePath: songModel.id,
-              fileSize: 0,
-              modifiedTime: DateTime.now(),
-              trackNumber: songModel.trackNumber,
             ))
         .toList();
 
@@ -667,18 +592,11 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
     final albumArtistName = _albumDetail?.artist ?? widget.album.artist;
 
     final allSongs = songsForQueue
-        .map((songModel) => Song(
-              id: songModel.id,
-              title: songModel.title,
-              artist: songModel.artist, // Song artist (may include features)
-              album: albumTitle, // Album title
+        .map((songModel) => songFromModel(
+              songModel,
+              album: albumTitle,
               albumId: widget.album.id,
-              albumArtist: albumArtistName, // Album artist (main artist)
-              duration: Duration(seconds: songModel.duration),
-              filePath: songModel.id,
-              fileSize: 0,
-              modifiedTime: DateTime.now(),
-              trackNumber: songModel.trackNumber,
+              albumArtist: albumArtistName,
             ))
         .toList();
 
@@ -698,26 +616,5 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
       print('[AlbumDetailScreen] ❌ ERROR: $e');
       print('[AlbumDetailScreen] Stack trace: $stackTrace');
     }
-  }
-}
-
-class _OfflineCopyBanner extends StatelessWidget {
-  final String itemType;
-
-  const _OfflineCopyBanner({required this.itemType});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-      padding: const EdgeInsets.all(12),
-      color: Theme.of(context).colorScheme.secondaryContainer,
-      child: Text(
-        'Offline copy: this $itemType is no longer available on the server.',
-        style: TextStyle(
-          color: Theme.of(context).colorScheme.onSecondaryContainer,
-        ),
-      ),
-    );
   }
 }

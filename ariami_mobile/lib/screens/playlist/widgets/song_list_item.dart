@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../../models/api_models.dart';
-import '../../../models/song.dart';
 import '../../../services/api/connection_service.dart';
 import '../../../services/playback_manager.dart';
 import '../../../widgets/common/queue_action_confirmation.dart';
@@ -8,6 +7,7 @@ import '../../../widgets/common/song_overflow_menu.dart';
 import '../../../widgets/common/swipe_to_queue.dart';
 import '../utils/playlist_helpers.dart';
 import 'album_art_with_badge.dart';
+import '../../../utils/song_from_model.dart';
 
 class SongListItem extends StatefulWidget {
   final SongModel song;
@@ -141,20 +141,7 @@ class _SongListItemState extends State<SongListItem> {
   }
 
   void _addSongToQueue() {
-    PlaybackManager().addToQueue(
-      Song(
-        id: widget.song.id,
-        title: widget.song.title,
-        artist: widget.song.artist,
-        album: null,
-        albumId: widget.song.albumId,
-        duration: Duration(seconds: widget.song.duration),
-        filePath: widget.song.id,
-        fileSize: 0,
-        modifiedTime: DateTime.now(),
-        trackNumber: widget.song.trackNumber,
-      ),
-    );
+    PlaybackManager().addToQueue(songFromModel(widget.song));
     if (mounted) {
       showQueueActionConfirmation(context, message: 'Added to end of queue');
     }

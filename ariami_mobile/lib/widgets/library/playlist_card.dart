@@ -1,12 +1,10 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../models/api_models.dart';
-import '../../services/api/connection_service.dart';
 import '../../services/playback_manager.dart';
 import '../../utils/constants.dart';
-import '../common/cached_artwork.dart';
 import 'playing_collection_builder.dart';
-import '../../utils/image_decode.dart';
+import 'playlist_artwork.dart';
 
 class PlaylistCard extends StatefulWidget {
   final PlaylistModel playlist;
@@ -45,8 +43,8 @@ class PlaylistCard extends StatefulWidget {
 class _PlaylistCardState extends State<PlaylistCard> {
   bool? _customImageExists;
 
-  String get _sourceId => widget.sourceId ??
-      PlaybackManager.playlistSource(widget.playlist.id);
+  String get _sourceId =>
+      widget.sourceId ?? PlaybackManager.playlistSource(widget.playlist.id);
 
   @override
   void initState() {
@@ -109,7 +107,6 @@ class _PlaylistCardState extends State<PlaylistCard> {
                       ),
                     ),
                   ),
-
                 Positioned(
                   left: 8,
                   bottom: 8,
@@ -204,7 +201,6 @@ class _PlaylistCardState extends State<PlaylistCard> {
             ),
           ),
           const SizedBox(height: 12),
-
           Expanded(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 4.0),
@@ -262,208 +258,14 @@ class _PlaylistCardState extends State<PlaylistCard> {
     );
   }
 
-  Widget _buildPlaylistArt() {
-    if (widget.playlist.customImagePath != null && _customImageExists == true) {
-      return LayoutBuilder(
-        builder: (context, constraints) => Image(
-          image: resizedForDisplay(
-            context,
-            FileImage(File(widget.playlist.customImagePath!)),
-            constraints.maxWidth,
-          ),
-          fit: BoxFit.cover,
-          width: double.infinity,
-          height: double.infinity,
-          errorBuilder: (context, error, stackTrace) => _buildArtworkCollage(),
-        ),
+  Widget _buildPlaylistArt() => PlaylistArtwork(
+        playlistName: widget.playlist.name,
+        customImagePath: widget.playlist.customImagePath,
+        customImageExists: _customImageExists == true,
+        albumIds: widget.albumIds,
+        isLikedSongs: widget.isLikedSongs,
+        iconSize: 48,
       );
-    }
-    return _buildArtworkCollage();
-  }
-
-  Widget _buildArtworkCollage() {
-    if (widget.albumIds.isEmpty) return _buildFallbackArt();
-
-    if (widget.albumIds.length == 1) {
-      return _buildArtworkImage(widget.albumIds[0]);
-    } else if (widget.albumIds.length == 2 || widget.albumIds.length == 3) {
-      return Row(
-        children: [
-          Expanded(
-              child: AspectRatio(
-                  aspectRatio: 1,
-                  child: _buildArtworkImage(widget.albumIds[0]))),
-          Expanded(
-              child: AspectRatio(
-                  aspectRatio: 1,
-                  child: _buildArtworkImage(widget.albumIds[1]))),
-        ],
-      );
-    } else {
-      return Column(
-        children: [
-          Expanded(
-            child: Row(
-              children: [
-                Expanded(
-                    child: AspectRatio(
-                        aspectRatio: 1,
-                        child: _buildArtworkImage(widget.albumIds[0]))),
-                Expanded(
-                    child: AspectRatio(
-                        aspectRatio: 1,
-                        child: _buildArtworkImage(widget.albumIds[1]))),
-              ],
-            ),
-          ),
-          Expanded(
-            child: Row(
-              children: [
-                Expanded(
-                    child: AspectRatio(
-                        aspectRatio: 1,
-                        child: _buildArtworkImage(widget.albumIds[2]))),
-                Expanded(
-                    child: AspectRatio(
-                        aspectRatio: 1,
-                        child: _buildArtworkImage(widget.albumIds[3]))),
-              ],
-            ),
-          ),
-        ],
-      );
-    }
-  }
-
-  Widget _buildArtworkImage(String artworkId) {
-    final request = _parseArtworkRequest(artworkId);
-
-    Widget fallbackWidget = _buildFallbackArt();
-    if (request.fallbackCacheKey != null && request.fallbackUrl != null) {
-      fallbackWidget = CachedArtwork(
-        albumId: request.fallbackCacheKey!,
-        artworkUrl: request.fallbackUrl,
-        fit: BoxFit.cover,
-        fallback: _buildFallbackArt(),
-        sizeHint: ArtworkSizeHint.thumbnail,
-      );
-    }
-
-    return CachedArtwork(
-      albumId: request.primaryCacheKey,
-      artworkUrl: request.primaryUrl,
-      fit: BoxFit.cover,
-      fallback: fallbackWidget,
-      sizeHint: ArtworkSizeHint.thumbnail,
-    );
-  }
-
-  _PlaylistArtworkRequest _parseArtworkRequest(String artworkId) {
-    final apiClient = ConnectionService().apiClient;
-
-    String? albumUrl(String albumId) =>
-        apiClient != null ? '${apiClient.baseUrl}/artwork/$albumId' : null;
-    String? songUrl(String songId) =>
-        apiClient != null ? '${apiClient.baseUrl}/song-artwork/$songId' : null;
-
-    if (artworkId.startsWith('a:')) {
-      final splitIndex = artworkId.indexOf('|s:');
-      final albumId = splitIndex == -1
-          ? artworkId.substring(2)
-          : artworkId.substring(2, splitIndex);
-      final songId =
-          splitIndex == -1 ? null : artworkId.substring(splitIndex + 3);
-
-      return _PlaylistArtworkRequest(
-        primaryCacheKey: albumId,
-        primaryUrl: albumUrl(albumId),
-        fallbackCacheKey:
-            (songId == null || songId.isEmpty) ? null : 'song_$songId',
-        fallbackUrl:
-            (songId == null || songId.isEmpty) ? null : songUrl(songId),
-      );
-    }
-
-    if (artworkId.startsWith('s:')) {
-      final songId = artworkId.substring(2);
-      return _PlaylistArtworkRequest(
-        primaryCacheKey: 'song_$songId',
-        primaryUrl: songUrl(songId),
-      );
-    }
-
-    // Backward compatibility with legacy artwork IDs.
-    if (artworkId.startsWith('song_')) {
-      final songId = artworkId.substring(5);
-      return _PlaylistArtworkRequest(
-        primaryCacheKey: artworkId,
-        primaryUrl: songUrl(songId),
-      );
-    }
-
-    return _PlaylistArtworkRequest(
-      primaryCacheKey: artworkId,
-      primaryUrl: albumUrl(artworkId),
-    );
-  }
-
-  Widget _buildFallbackArt() {
-    if (widget.isLikedSongs) {
-      return Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFF444444), // Dark Grey
-              Color(0xFF111111), // Black
-            ],
-          ),
-        ),
-        child:
-            const Icon(Icons.favorite_rounded, size: 48, color: Colors.white),
-      );
-    }
-
-    final colorIndex = widget.playlist.name.hashCode % 5;
-    final gradients = [
-      [Color(0xFF222222), Color(0xFF000000)], // Deep Black
-      [Color(0xFF333333), Color(0xFF111111)], // Dark Grey
-      [Color(0xFF444444), Color(0xFF222222)], // Medium Grey
-      [Color(0xFF555555), Color(0xFF333333)], // Lighter Grey
-      [Color(0xFF151515), Color(0xFF050505)], // Almost Black
-    ];
-
-    return Container(
-      width: double.infinity,
-      height: double.infinity,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: gradients[colorIndex],
-        ),
-      ),
-      child:
-          const Icon(Icons.queue_music_rounded, size: 48, color: Colors.white),
-    );
-  }
-}
-
-class _PlaylistArtworkRequest {
-  const _PlaylistArtworkRequest({
-    required this.primaryCacheKey,
-    required this.primaryUrl,
-    this.fallbackCacheKey,
-    this.fallbackUrl,
-  });
-
-  final String primaryCacheKey;
-  final String? primaryUrl;
-  final String? fallbackCacheKey;
-  final String? fallbackUrl;
 }
 
 class CreatePlaylistCard extends StatelessWidget {

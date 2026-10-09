@@ -240,8 +240,7 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
         .copyWith(statusBarColor: Colors.transparent);
 
     return Theme(
-      data: AppTheme.buildTheme(
-        brightness: Brightness.dark,
+      data: AppTheme.buildColorSourceTheme(
         seedColor: colors.primary,
         ambient: colors.ambientColors,
       ),

@@ -5,6 +5,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../services/settings/search_settings_service.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
+import '../../widgets/settings/option_sheet.dart';
 import '../../widgets/settings/settings_section.dart';
 import '../../widgets/settings/settings_tile.dart';
 
@@ -34,59 +35,20 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
       context: context,
       backgroundColor: colorScheme.surface,
       header: const AriamiSheetSectionTitle('Search Mode'),
-      items: SearchMode.values.map((mode) {
-        final isSelected = mode == _searchSettingsService.mode;
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-          child: Material(
-            color: isSelected ? colorScheme.primary : Colors.transparent,
-            borderRadius: BorderRadius.circular(15),
-            child: ListTile(
-              leading: Icon(
-                mode == SearchMode.standard
+      items: SearchMode.values
+          .map((mode) => OptionSheetTile(
+                icon: mode == SearchMode.standard
                     ? Icons.search_rounded
                     : Icons.bolt_rounded,
-                color: isSelected
-                    ? colorScheme.onPrimary
-                    : colorScheme.onSurfaceVariant,
-                size: 20,
-              ),
-              title: Text(
-                mode.label,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: isSelected ? colorScheme.onPrimary : colorScheme.onSurface,
-                ),
-              ),
-              subtitle: Text(
-                mode.description,
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
-                  color: isSelected
-                      ? colorScheme.onPrimary.withValues(alpha: 0.7)
-                      : colorScheme.onSurfaceVariant,
-                ),
-              ),
-              trailing: isSelected
-                  ? Icon(
-                      Icons.check_circle_rounded,
-                      color: colorScheme.onPrimary,
-                      size: 20,
-                    )
-                  : null,
-              onTap: () {
-                Navigator.pop(context);
-                _searchSettingsService.setMode(mode);
-              },
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(15),
-              ),
-            ),
-          ),
-        );
-      }).toList(),
+                title: mode.label,
+                subtitle: mode.description,
+                selected: mode == _searchSettingsService.mode,
+                onTap: () {
+                  Navigator.pop(context);
+                  _searchSettingsService.setMode(mode);
+                },
+              ))
+          .toList(),
     );
   }
 
@@ -137,73 +99,35 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
               required String title,
               required String subtitle,
             }) {
-              final selected = isCustom == value;
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                child: Material(
-                  color: selected ? colorScheme.primary : Colors.transparent,
-                  borderRadius: BorderRadius.circular(15),
-                  child: ListTile(
-                    leading: Icon(
-                      icon,
-                      color: selected
-                          ? colorScheme.onPrimary
-                          : colorScheme.onSurfaceVariant,
-                      size: 20,
-                    ),
-                    title: Text(
-                      title,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color:
-                            selected ? colorScheme.onPrimary : colorScheme.onSurface,
-                      ),
-                    ),
-                    subtitle: Text(
-                      subtitle,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                        color: selected
-                            ? colorScheme.onPrimary.withValues(alpha: 0.7)
-                            : colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                    trailing: selected
-                        ? Icon(
-                            Icons.check_circle_rounded,
-                            color: colorScheme.onPrimary,
-                            size: 20,
-                          )
-                        : null,
-                    onTap: () {
-                      setSheetState(() {
-                        isCustom = value;
-                        if (isCustom) {
-                          final parsed = int.tryParse(controller.text.trim());
-                          if (parsed == null ||
-                              parsed < SearchSettingsService.minRecentSearchesLimit ||
-                              parsed > SearchSettingsService.maxRecentSearchesLimit) {
-                            errorText = rangeError;
-                          } else {
-                            errorText = null;
-                          }
-                          WidgetsBinding.instance.addPostFrameCallback((_) {
-                            if (focusNode.canRequestFocus) {
-                              focusNode.requestFocus();
-                            }
-                          });
-                        } else {
-                          errorText = null;
+              return OptionSheetTile(
+                icon: icon,
+                title: title,
+                subtitle: subtitle,
+                selected: isCustom == value,
+                onTap: () {
+                  setSheetState(() {
+                    isCustom = value;
+                    if (isCustom) {
+                      final parsed = int.tryParse(controller.text.trim());
+                      if (parsed == null ||
+                          parsed <
+                              SearchSettingsService.minRecentSearchesLimit ||
+                          parsed >
+                              SearchSettingsService.maxRecentSearchesLimit) {
+                        errorText = rangeError;
+                      } else {
+                        errorText = null;
+                      }
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (focusNode.canRequestFocus) {
+                          focusNode.requestFocus();
                         }
                       });
-                    },
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(15),
-                    ),
-                  ),
-                ),
+                    } else {
+                      errorText = null;
+                    }
+                  });
+                },
               );
             }
 
@@ -243,10 +167,13 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
                       onChanged: (value) {
                         setSheetState(() {
                           final parsed = int.tryParse(value.trim());
-                          errorText =
-                              parsed == null ||
-                                  parsed < SearchSettingsService.minRecentSearchesLimit ||
-                                  parsed > SearchSettingsService.maxRecentSearchesLimit
+                          errorText = parsed == null ||
+                                  parsed <
+                                      SearchSettingsService
+                                          .minRecentSearchesLimit ||
+                                  parsed >
+                                      SearchSettingsService
+                                          .maxRecentSearchesLimit
                               ? rangeError
                               : null;
                         });

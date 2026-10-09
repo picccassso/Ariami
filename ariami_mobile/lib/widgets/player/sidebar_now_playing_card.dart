@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../models/song.dart';
-import '../../services/api/connection_service.dart';
+import '../../utils/artwork_url.dart';
 import '../../services/color_extraction_service.dart';
 import '../../utils/constants.dart';
 import '../common/adaptive_marquee_text.dart';
@@ -71,8 +71,7 @@ class _SidebarNowPlayingCardState extends State<SidebarNowPlayingCard> {
     final colors = _colorService.currentColors;
 
     return Theme(
-      data: AppTheme.buildTheme(
-        brightness: Brightness.dark,
+      data: AppTheme.buildColorSourceTheme(
         seedColor: colors.primary,
         ambient: colors.ambientColors,
       ),
@@ -204,25 +203,11 @@ class _SidebarNowPlayingCardState extends State<SidebarNowPlayingCard> {
   }
 
   Widget _buildArtwork(BuildContext context, Song song) {
-    final connectionService = ConnectionService();
-
-    String? artworkUrl;
-    String cacheId;
-    if (song.albumId != null) {
-      artworkUrl = connectionService.apiClient != null
-          ? '${connectionService.apiClient!.baseUrl}/artwork/${song.albumId}'
-          : null;
-      cacheId = song.albumId!;
-    } else {
-      artworkUrl = connectionService.apiClient != null
-          ? '${connectionService.apiClient!.baseUrl}/song-artwork/${song.id}'
-          : null;
-      cacheId = 'song_${song.id}';
-    }
+    final artwork = resolveSongArtwork(songId: song.id, albumId: song.albumId);
 
     return CachedArtwork(
-      albumId: cacheId,
-      artworkUrl: artworkUrl,
+      albumId: artwork.cacheId,
+      artworkUrl: artwork.url,
       fit: BoxFit.cover,
       borderRadius: BorderRadius.circular(AppTheme.cardRadius),
       fallback: Container(

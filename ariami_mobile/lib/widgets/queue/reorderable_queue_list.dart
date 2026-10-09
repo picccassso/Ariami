@@ -4,7 +4,7 @@ import '../common/mini_player_aware_bottom_sheet.dart';
 import '../../models/song.dart';
 import 'queue_display_order.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
-import '../../services/api/connection_service.dart';
+import '../../utils/artwork_url.dart';
 import '../../services/offline/offline_playback_service.dart';
 import '../common/cached_artwork.dart';
 
@@ -335,21 +335,7 @@ class QueueItem extends StatelessWidget {
   }
 
   Widget _buildLeading(BuildContext context) {
-    final connectionService = ConnectionService();
-    String? artworkUrl;
-    String cacheId;
-
-    if (song.albumId != null) {
-      artworkUrl = connectionService.apiClient != null
-          ? '${connectionService.apiClient!.baseUrl}/artwork/${song.albumId}'
-          : null;
-      cacheId = song.albumId!;
-    } else {
-      artworkUrl = connectionService.apiClient != null
-          ? '${connectionService.apiClient!.baseUrl}/song-artwork/${song.id}'
-          : null;
-      cacheId = 'song_${song.id}';
-    }
+    final artwork = resolveSongArtwork(songId: song.id, albumId: song.albumId);
 
     return Container(
       width: 48,
@@ -368,8 +354,8 @@ class QueueItem extends StatelessWidget {
         fit: StackFit.expand,
         children: [
           CachedArtwork(
-            albumId: cacheId,
-            artworkUrl: artworkUrl,
+            albumId: artwork.cacheId,
+            artworkUrl: artwork.url,
             width: 48,
             height: 48,
             fit: BoxFit.cover,

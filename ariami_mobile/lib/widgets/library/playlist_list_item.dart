@@ -1,11 +1,9 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../models/api_models.dart';
-import '../../services/api/connection_service.dart';
 import '../../services/playback_manager.dart';
-import '../common/cached_artwork.dart';
 import 'playing_collection_builder.dart';
-import '../../utils/image_decode.dart';
+import 'playlist_artwork.dart';
 
 class PlaylistListItem extends StatefulWidget {
   final PlaylistModel playlist;
@@ -44,8 +42,8 @@ class PlaylistListItem extends StatefulWidget {
 class _PlaylistListItemState extends State<PlaylistListItem> {
   bool? _customImageExists;
 
-  String get _sourceId => widget.sourceId ??
-      PlaybackManager.playlistSource(widget.playlist.id);
+  String get _sourceId =>
+      widget.sourceId ?? PlaybackManager.playlistSource(widget.playlist.id);
 
   @override
   void initState() {
@@ -118,7 +116,6 @@ class _PlaylistListItemState extends State<PlaylistListItem> {
                   ),
                   const SizedBox(width: 16),
                 ],
-
                 Container(
                   width: 56,
                   height: 56,
@@ -138,7 +135,6 @@ class _PlaylistListItemState extends State<PlaylistListItem> {
                         borderRadius: BorderRadius.circular(0),
                         child: _buildPlaylistArt(),
                       ),
-
                       if (widget.hasDownloadedSongs)
                         Positioned(
                           bottom: -2,
@@ -167,9 +163,7 @@ class _PlaylistListItemState extends State<PlaylistListItem> {
                     ],
                   ),
                 ),
-
                 const SizedBox(width: 16),
-
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -232,14 +226,12 @@ class _PlaylistListItemState extends State<PlaylistListItem> {
                     ],
                   ),
                 ),
-
                 PlayingCollectionIndicator(
                   sourceId: _sourceId,
                   enabled: !widget.isSelectionMode,
                   leadingSpacing: 8,
                   trailingSpacing: 8,
                 ),
-
                 if (!widget.isSelectionMode)
                   Icon(
                     Icons.chevron_right_rounded,
@@ -256,204 +248,13 @@ class _PlaylistListItemState extends State<PlaylistListItem> {
     );
   }
 
-  Widget _buildPlaylistArt() {
-    if (widget.playlist.customImagePath != null && _customImageExists == true) {
-      return Image(
-        image: resizedForDisplay(
-          context,
-          FileImage(File(widget.playlist.customImagePath!)),
-          56,
-        ),
-        fit: BoxFit.cover,
-        width: double.infinity,
-        height: double.infinity,
-        errorBuilder: (context, error, stackTrace) => _buildArtworkCollage(),
+  Widget _buildPlaylistArt() => PlaylistArtwork(
+        playlistName: widget.playlist.name,
+        customImagePath: widget.playlist.customImagePath,
+        customImageExists: _customImageExists == true,
+        albumIds: widget.albumIds,
+        isLikedSongs: widget.isLikedSongs,
+        iconSize: 24,
+        decodeWidth: 56,
       );
-    }
-    return _buildArtworkCollage();
-  }
-
-  Widget _buildArtworkCollage() {
-    if (widget.albumIds.isEmpty) return _buildFallbackArt();
-
-    if (widget.albumIds.length == 1) {
-      return _buildArtworkImage(widget.albumIds[0]);
-    } else if (widget.albumIds.length == 2 || widget.albumIds.length == 3) {
-      return Row(
-        children: [
-          Expanded(
-              child: AspectRatio(
-                  aspectRatio: 1,
-                  child: _buildArtworkImage(widget.albumIds[0]))),
-          Expanded(
-              child: AspectRatio(
-                  aspectRatio: 1,
-                  child: _buildArtworkImage(widget.albumIds[1]))),
-        ],
-      );
-    } else {
-      return Column(
-        children: [
-          Expanded(
-            child: Row(
-              children: [
-                Expanded(
-                    child: AspectRatio(
-                        aspectRatio: 1,
-                        child: _buildArtworkImage(widget.albumIds[0]))),
-                Expanded(
-                    child: AspectRatio(
-                        aspectRatio: 1,
-                        child: _buildArtworkImage(widget.albumIds[1]))),
-              ],
-            ),
-          ),
-          Expanded(
-            child: Row(
-              children: [
-                Expanded(
-                    child: AspectRatio(
-                        aspectRatio: 1,
-                        child: _buildArtworkImage(widget.albumIds[2]))),
-                Expanded(
-                    child: AspectRatio(
-                        aspectRatio: 1,
-                        child: _buildArtworkImage(widget.albumIds[3]))),
-              ],
-            ),
-          ),
-        ],
-      );
-    }
-  }
-
-  Widget _buildArtworkImage(String artworkId) {
-    final request = _parseArtworkRequest(artworkId);
-
-    Widget fallbackWidget = _buildFallbackArt();
-    if (request.fallbackCacheKey != null && request.fallbackUrl != null) {
-      fallbackWidget = CachedArtwork(
-        albumId: request.fallbackCacheKey!,
-        artworkUrl: request.fallbackUrl,
-        fit: BoxFit.cover,
-        fallback: _buildFallbackArt(),
-        sizeHint: ArtworkSizeHint.thumbnail,
-      );
-    }
-
-    return CachedArtwork(
-      albumId: request.primaryCacheKey,
-      artworkUrl: request.primaryUrl,
-      fit: BoxFit.cover,
-      fallback: fallbackWidget,
-      sizeHint: ArtworkSizeHint.thumbnail,
-    );
-  }
-
-  _PlaylistArtworkRequest _parseArtworkRequest(String artworkId) {
-    final apiClient = ConnectionService().apiClient;
-
-    String? albumUrl(String albumId) =>
-        apiClient != null ? '${apiClient.baseUrl}/artwork/$albumId' : null;
-    String? songUrl(String songId) =>
-        apiClient != null ? '${apiClient.baseUrl}/song-artwork/$songId' : null;
-
-    if (artworkId.startsWith('a:')) {
-      final splitIndex = artworkId.indexOf('|s:');
-      final albumId = splitIndex == -1
-          ? artworkId.substring(2)
-          : artworkId.substring(2, splitIndex);
-      final songId =
-          splitIndex == -1 ? null : artworkId.substring(splitIndex + 3);
-
-      return _PlaylistArtworkRequest(
-        primaryCacheKey: albumId,
-        primaryUrl: albumUrl(albumId),
-        fallbackCacheKey:
-            (songId == null || songId.isEmpty) ? null : 'song_$songId',
-        fallbackUrl:
-            (songId == null || songId.isEmpty) ? null : songUrl(songId),
-      );
-    }
-
-    if (artworkId.startsWith('s:')) {
-      final songId = artworkId.substring(2);
-      return _PlaylistArtworkRequest(
-        primaryCacheKey: 'song_$songId',
-        primaryUrl: songUrl(songId),
-      );
-    }
-
-    // Backward compatibility with legacy artwork IDs.
-    if (artworkId.startsWith('song_')) {
-      final songId = artworkId.substring(5);
-      return _PlaylistArtworkRequest(
-        primaryCacheKey: artworkId,
-        primaryUrl: songUrl(songId),
-      );
-    }
-
-    return _PlaylistArtworkRequest(
-      primaryCacheKey: artworkId,
-      primaryUrl: albumUrl(artworkId),
-    );
-  }
-
-  Widget _buildFallbackArt() {
-    if (widget.isLikedSongs) {
-      return Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFF444444), // Dark Grey
-              Color(0xFF111111), // Black
-            ],
-          ),
-        ),
-        child:
-            const Icon(Icons.favorite_rounded, size: 24, color: Colors.white),
-      );
-    }
-
-    final colorIndex = widget.playlist.name.hashCode % 5;
-    final gradients = [
-      [const Color(0xFF222222), const Color(0xFF000000)], // Deep Black
-      [const Color(0xFF333333), const Color(0xFF111111)], // Dark Grey
-      [const Color(0xFF444444), const Color(0xFF222222)], // Medium Grey
-      [const Color(0xFF555555), const Color(0xFF333333)], // Lighter Grey
-      [const Color(0xFF151515), const Color(0xFF050505)], // Almost Black
-    ];
-
-    return Container(
-      width: double.infinity,
-      height: double.infinity,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: gradients[colorIndex],
-        ),
-      ),
-      child:
-          const Icon(Icons.queue_music_rounded, size: 24, color: Colors.white),
-    );
-  }
-}
-
-class _PlaylistArtworkRequest {
-  const _PlaylistArtworkRequest({
-    required this.primaryCacheKey,
-    required this.primaryUrl,
-    this.fallbackCacheKey,
-    this.fallbackUrl,
-  });
-
-  final String primaryCacheKey;
-  final String? primaryUrl;
-  final String? fallbackCacheKey;
-  final String? fallbackUrl;
 }

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../models/api_models.dart';
 import '../../services/cache/cache_manager.dart';
 import '../../utils/image_decode.dart';
+import 'cached_artwork.dart';
 
 /// Cover art for a song: album artwork when the song belongs to an album,
 /// otherwise the standalone song artwork endpoint.
@@ -69,14 +70,7 @@ class SongArtwork extends StatelessWidget {
   }
 
   Color _fallbackColor() {
-    const colors = [
-      Colors.blue,
-      Colors.purple,
-      Colors.green,
-      Colors.orange,
-      Colors.pink,
-    ];
     final id = song.albumId ?? song.id;
-    return colors[id.hashCode.abs() % colors.length][300]!;
+    return artworkFallbackColors[id.hashCode.abs() % artworkFallbackColors.length];
   }
 }

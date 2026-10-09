@@ -18,6 +18,7 @@ import '../../utils/responsive.dart';
 import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
 import '../../widgets/common/queue_action_confirmation.dart';
 import '../main/library/library_controller.dart';
+import '../offline_copy_flow.dart';
 import 'add_to_playlist_screen.dart';
 import 'utils/playlist_helpers.dart';
 import 'widgets/widgets.dart';
@@ -85,7 +86,7 @@ class _PlaylistDetailScreenState extends _PlaylistDetailActionsState {
 
         if (_isOfflineCopy)
           const SliverToBoxAdapter(
-            child: PlaylistOfflineCopyBanner(),
+            child: OfflineCopyBanner(itemType: 'playlist'),
           ),
 
         SliverToBoxAdapter(

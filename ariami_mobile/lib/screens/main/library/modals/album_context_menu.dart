@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../../models/api_models.dart';
 import '../../../../services/api/connection_service.dart';
 import '../../../../widgets/common/mini_player_aware_bottom_sheet.dart';
+import 'collection_context_menu.dart';
 import '../../../../utils/image_decode.dart';
 
 Future<void> showAlbumContextMenu({
@@ -18,8 +19,16 @@ Future<void> showAlbumContextMenu({
 }) {
   final resolvedCoverArt = connectionService.resolveServerUrl(album.coverArt);
 
-  return showAriamiSheet<void>(
+  return showCollectionContextMenu(
     context: context,
+    noun: 'Album',
+    isFullyDownloaded: isFullyDownloaded,
+    isPinned: isPinned,
+    onPlay: onPlay,
+    onAddToQueue: onAddToQueue,
+    onDownload: onDownload,
+    onTogglePin: onTogglePin,
+    onSelectMultiple: onSelectMultiple,
     header: AriamiSheetHeader(
       title: album.title,
       subtitle: album.artist,
@@ -39,61 +48,13 @@ Future<void> showAlbumContextMenu({
                     44,
                   ),
                   fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) =>
-                      Container(color: Colors.grey[300], child: const Icon(Icons.album)),
+                  errorBuilder: (_, __, ___) => Container(
+                      color: Colors.grey[300], child: const Icon(Icons.album)),
                 )
-              : Container(color: Colors.grey[300], child: const Icon(Icons.album)),
+              : Container(
+                  color: Colors.grey[300], child: const Icon(Icons.album)),
         ),
       ),
     ),
-    items: [
-      ListTile(
-        leading: const Icon(Icons.play_arrow),
-        title: const Text('Play Album'),
-        onTap: () {
-          Navigator.pop(context);
-          onPlay();
-        },
-      ),
-      ListTile(
-        leading: Icon(isPinned ? Icons.push_pin : Icons.push_pin_outlined),
-        title: Text(isPinned ? 'Unpin' : 'Pin to Top'),
-        onTap: () {
-          Navigator.pop(context);
-          onTogglePin();
-        },
-      ),
-      ListTile(
-        leading: const Icon(Icons.queue_music),
-        title: const Text('Add to End of Queue'),
-        onTap: () {
-          Navigator.pop(context);
-          onAddToQueue();
-        },
-      ),
-      ListTile(
-        leading: const Icon(Icons.playlist_add_check),
-        title: const Text('Select Multiple'),
-        onTap: () {
-          Navigator.pop(context);
-          onSelectMultiple();
-        },
-      ),
-      if (isFullyDownloaded)
-        const ListTile(
-          leading: Icon(Icons.check, color: Colors.green),
-          title: Text('Downloaded'),
-          enabled: false,
-        )
-      else
-        ListTile(
-          leading: const Icon(Icons.download),
-          title: const Text('Download Album'),
-          onTap: () {
-            Navigator.pop(context);
-            onDownload();
-          },
-        ),
-    ],
   );
 }

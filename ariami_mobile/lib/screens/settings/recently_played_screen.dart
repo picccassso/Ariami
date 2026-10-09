@@ -18,6 +18,7 @@ import '../../widgets/common/song_artwork.dart';
 import '../../widgets/common/song_overflow_menu.dart';
 import '../album_detail_screen.dart';
 import '../playlist/add_to_playlist_screen.dart';
+import '../../utils/song_from_model.dart';
 
 /// Recently played songs derived from qualified Listening Stats rollups.
 /// A Connect handoff does not create an entry, while real plays synced from
@@ -388,18 +389,11 @@ class _LibraryIndex {
     final match = _byId[stat.songId] ?? _byMetadata(stat);
     if (match == null) return null;
     final album = match.albumId == null ? null : _albumsById[match.albumId];
-    return Song(
-      id: match.id,
-      title: match.title,
-      artist: match.artist,
+    return songFromModel(
+      match,
       album: album?.title ?? stat.album,
       albumId: match.albumId ?? stat.albumId,
       albumArtist: album?.artist ?? stat.albumArtist,
-      duration: Duration(seconds: match.duration),
-      trackNumber: match.trackNumber,
-      filePath: match.id,
-      fileSize: 0,
-      modifiedTime: DateTime.now(),
     );
   }
 

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../models/quality_settings.dart';
-import '../../../../widgets/common/mini_player_aware_bottom_sheet.dart';
+import '../../../../widgets/settings/option_sheet.dart';
 
 class DownloadModeCard extends StatelessWidget {
   const DownloadModeCard({
@@ -33,87 +33,19 @@ class DownloadModeCard extends StatelessWidget {
     return DownloadQuality.high;
   }
 
-  IconData _getIconForQuality(DownloadQuality quality) {
-    switch (quality) {
-      case DownloadQuality.original:
-        return Icons.audio_file_rounded;
-      case DownloadQuality.high:
-        return Icons.high_quality_rounded;
-      case DownloadQuality.medium:
-        return Icons.sd_rounded;
-      case DownloadQuality.low:
-        return Icons.data_saver_on_rounded;
-    }
-  }
-
   void _showQualityPicker(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final selectedQuality = _effectiveQuality;
-
-    showAriamiSheet<void>(
-      context: context,
-      backgroundColor: colorScheme.surface,
-      header: const AriamiSheetSectionTitle('Download quality'),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          ...DownloadQuality.values.map((quality) {
-            final isSelected = quality == selectedQuality;
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              child: Material(
-                color: isSelected ? colorScheme.primary : Colors.transparent,
-                borderRadius: BorderRadius.circular(15),
-                child: ListTile(
-                  leading: Icon(
-                    _getIconForQuality(quality),
-                    color: isSelected
-                        ? colorScheme.onPrimary
-                        : colorScheme.onSurfaceVariant,
-                    size: 20,
-                  ),
-                  title: Text(
-                    quality.displayName,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: isSelected
-                          ? colorScheme.onPrimary
-                          : colorScheme.onSurface,
-                    ),
-                  ),
-                  subtitle: Text(
-                    quality.description,
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                      color: isSelected
-                          ? colorScheme.onPrimary.withValues(alpha: 0.7)
-                          : colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  trailing: isSelected
-                      ? Icon(
-                          Icons.check_circle_rounded,
-                          color: colorScheme.onPrimary,
-                          size: 20,
-                        )
-                      : null,
-                  onTap: () {
-                    Navigator.pop(context);
-                    onQualityChanged?.call(quality);
-                    onChanged?.call(quality == DownloadQuality.original);
-                  },
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(15),
-                  ),
-                ),
-              ),
-            );
-          }),
-        ],
-      ),
+    showOptionSheet<DownloadQuality>(
+      context,
+      header: 'Download quality',
+      values: DownloadQuality.values,
+      current: _effectiveQuality,
+      iconOf: downloadQualityIcon,
+      titleOf: (q) => q.displayName,
+      subtitleOf: (q) => q.description,
+      onSelected: (quality) {
+        onQualityChanged?.call(quality);
+        onChanged?.call(quality == DownloadQuality.original);
+      },
     );
   }
 

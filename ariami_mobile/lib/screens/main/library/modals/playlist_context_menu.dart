@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../models/api_models.dart';
 import '../../../../screens/playlist/widgets/playlist_cover_art.dart';
 import '../../../../widgets/common/mini_player_aware_bottom_sheet.dart';
+import 'collection_context_menu.dart';
 
 Future<void> showPlaylistContextMenu({
   required BuildContext context,
@@ -15,8 +16,16 @@ Future<void> showPlaylistContextMenu({
   required VoidCallback onTogglePin,
   required VoidCallback onSelectMultiple,
 }) {
-  return showAriamiSheet<void>(
+  return showCollectionContextMenu(
     context: context,
+    noun: 'Playlist',
+    isFullyDownloaded: isFullyDownloaded,
+    isPinned: isPinned,
+    onPlay: onPlay,
+    onAddToQueue: onAddToQueue,
+    onDownload: onDownload,
+    onTogglePin: onTogglePin,
+    onSelectMultiple: onSelectMultiple,
     header: AriamiSheetHeader(
       title: playlist.name,
       subtitle:
@@ -27,54 +36,5 @@ Future<void> showPlaylistContextMenu({
         borderRadius: BorderRadius.circular(8),
       ),
     ),
-    items: [
-      ListTile(
-        leading: const Icon(Icons.play_arrow),
-        title: const Text('Play Playlist'),
-        onTap: () {
-          Navigator.pop(context);
-          onPlay();
-        },
-      ),
-      ListTile(
-        leading: Icon(isPinned ? Icons.push_pin : Icons.push_pin_outlined),
-        title: Text(isPinned ? 'Unpin' : 'Pin to Top'),
-        onTap: () {
-          Navigator.pop(context);
-          onTogglePin();
-        },
-      ),
-      ListTile(
-        leading: const Icon(Icons.queue_music),
-        title: const Text('Add to End of Queue'),
-        onTap: () {
-          Navigator.pop(context);
-          onAddToQueue();
-        },
-      ),
-      ListTile(
-        leading: const Icon(Icons.playlist_add_check),
-        title: const Text('Select Multiple'),
-        onTap: () {
-          Navigator.pop(context);
-          onSelectMultiple();
-        },
-      ),
-      if (isFullyDownloaded)
-        const ListTile(
-          leading: Icon(Icons.check, color: Colors.green),
-          title: Text('Downloaded'),
-          enabled: false,
-        )
-      else
-        ListTile(
-          leading: const Icon(Icons.download),
-          title: const Text('Download Playlist'),
-          onTap: () {
-            Navigator.pop(context);
-            onDownload();
-          },
-        ),
-    ],
   );
 }

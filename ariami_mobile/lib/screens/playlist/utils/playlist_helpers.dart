@@ -1,5 +1,6 @@
 import '../../../models/api_models.dart';
 import '../../../models/song.dart';
+import '../../../utils/song_from_model.dart';
 
 Song songModelToSong(
     SongModel s, Map<String, ({String name, String artist})> albumInfoMap) {
@@ -12,19 +13,7 @@ Song songModelToSong(
     albumArtist = albumInfo.artist;
   }
 
-  return Song(
-    id: s.id,
-    title: s.title,
-    artist: s.artist,
-    album: albumName,
-    albumId: s.albumId,
-    albumArtist: albumArtist,
-    duration: Duration(seconds: s.duration),
-    trackNumber: s.trackNumber,
-    filePath: s.id, // Use song ID as placeholder
-    fileSize: 0,
-    modifiedTime: DateTime.now(),
-  );
+  return songFromModel(s, album: albumName, albumArtist: albumArtist);
 }
 
 String formatDuration(int seconds) {

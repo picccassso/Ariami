@@ -20,27 +20,13 @@ abstract class _PlaylistDetailActionsState
       return;
     }
 
-    final removeDownloads = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Offline copy kept'),
-        content: const Text(
-          'Just a heads up - this playlist has been deleted from the server.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Keep offline copy'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Remove downloads'),
-          ),
-        ],
-      ),
+    final removeDownloads = await showOfflineCopyNotice(
+      context,
+      itemType: 'playlist',
+      removeLabel: 'Remove downloads',
     );
 
-    if (removeDownloads != true || !mounted) return;
+    if (!removeDownloads || !mounted) return;
     await _downloadManager.deleteSongDownloads(_playlist?.songIds ?? const []);
     await _offlineCopyService.forgetPlaylist(widget.playlistId);
     await _libraryController.refreshOfflineCopyState();
@@ -95,32 +81,13 @@ abstract class _PlaylistDetailActionsState
   /// Prompt for confirmation, then delete this playlist's downloaded files.
   Future<void> _confirmRemoveDownloads() async {
     final playlistName = _playlist?.name ?? 'this playlist';
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text('Remove downloads for "$playlistName"?'),
-        content: const Text(
-          'This deletes the downloaded files for this playlist from your '
-          'device. You can download it again anytime.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: Text(
-              'Remove',
-              style:
-                  TextStyle(color: Theme.of(dialogContext).colorScheme.error),
-            ),
-          ),
-        ],
-      ),
+    final confirmed = await confirmRemoveDownloads(
+      context,
+      name: playlistName,
+      itemType: 'playlist',
     );
 
-    if (confirmed != true || !mounted) return;
+    if (!confirmed || !mounted) return;
 
     await _downloadManager
         .deleteSongDownloads(_songs.map((s) => s.id).toList());

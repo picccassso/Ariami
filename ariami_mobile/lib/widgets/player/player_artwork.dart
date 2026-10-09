@@ -6,7 +6,7 @@ import '../../models/playback_queue.dart';
 import '../../models/repeat_mode.dart' as playback_repeat;
 import '../../models/song.dart';
 import 'player_artwork_indices.dart';
-import '../../services/api/connection_service.dart';
+import '../../utils/artwork_url.dart';
 import '../../utils/responsive.dart';
 import '../common/cached_artwork.dart';
 
@@ -597,28 +597,13 @@ class _PlayerArtworkState extends State<PlayerArtwork> {
   }
 
   Widget _buildArtwork(BuildContext context, Song song) {
-    final connectionService = ConnectionService();
-
-    String? artworkUrl;
-    String cacheId;
-
-    if (song.albumId != null) {
-      artworkUrl = connectionService.apiClient != null
-          ? '${connectionService.apiClient!.baseUrl}/artwork/${song.albumId}'
-          : null;
-      cacheId = song.albumId!;
-    } else {
-      artworkUrl = connectionService.apiClient != null
-          ? '${connectionService.apiClient!.baseUrl}/song-artwork/${song.id}'
-          : null;
-      cacheId = 'song_${song.id}';
-    }
+    final artwork = resolveSongArtwork(songId: song.id, albumId: song.albumId);
 
     return AspectRatio(
       aspectRatio: 1.0,
       child: CachedArtwork(
-        albumId: cacheId,
-        artworkUrl: artworkUrl,
+        albumId: artwork.cacheId,
+        artworkUrl: artwork.url,
         fit: BoxFit.cover,
         width: 350,
         height: 350,

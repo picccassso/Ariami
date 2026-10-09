@@ -6,7 +6,6 @@ import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
 import '../../widgets/common/queue_action_confirmation.dart';
 import '../../models/api_models.dart';
 import '../../models/download_task.dart';
-import '../../models/song.dart';
 import '../../models/websocket_models.dart';
 import '../../services/api/connection_service.dart';
 import '../../services/search_service.dart';
@@ -17,9 +16,11 @@ import '../../services/settings/search_settings_service.dart';
 import '../../utils/download_state_watcher.dart';
 import '../../utils/downloaded_album_metadata.dart';
 import '../../services/playlist_service.dart';
+import '../playlist/widgets/error_state.dart';
 import '../../widgets/search/search_result_song_item.dart';
 import '../../widgets/search/search_result_album_item.dart';
 import '../../widgets/search/search_result_playlist_item.dart';
+import '../../utils/song_from_model.dart';
 
 enum _SearchListItemKind {
   headerSongs,
@@ -622,42 +623,30 @@ class _SearchScreenState extends State<SearchScreen> {
     return items;
   }
 
+  Widget _buildSectionHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Text(
+        title,
+        style: TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.9),
+        ),
+      ),
+    );
+  }
+
   Widget _buildSearchResultItem(_SearchListItem item) {
     switch (item.kind) {
       case _SearchListItemKind.headerSongs:
-        return Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Text(
-            'Songs',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Theme.of(context)
-                  .colorScheme
-                  .onSurface
-                  .withValues(alpha: 0.9),
-            ),
-          ),
-        );
+        return _buildSectionHeader('Songs');
       case _SearchListItemKind.song:
         return _buildSearchSongItem(item.song!);
       case _SearchListItemKind.spacer:
         return const SizedBox(height: 16);
       case _SearchListItemKind.headerAlbums:
-        return Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Text(
-            'Albums',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Theme.of(context)
-                  .colorScheme
-                  .onSurface
-                  .withValues(alpha: 0.9),
-            ),
-          ),
-        );
+        return _buildSectionHeader('Albums');
       case _SearchListItemKind.album:
         return SearchResultAlbumItem(
           album: item.album!,
@@ -665,20 +654,7 @@ class _SearchScreenState extends State<SearchScreen> {
           onTap: () => _openAlbum(item.album!),
         );
       case _SearchListItemKind.headerPlaylists:
-        return Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Text(
-            'Playlists',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Theme.of(context)
-                  .colorScheme
-                  .onSurface
-                  .withValues(alpha: 0.9),
-            ),
-          ),
-        );
+        return _buildSectionHeader('Playlists');
       case _SearchListItemKind.playlist:
         return SearchResultPlaylistItem(
           key: ValueKey('search_playlist_${item.playlist!.id}'),
@@ -928,41 +904,14 @@ class _SearchScreenState extends State<SearchScreen> {
     }
   }
 
-  Widget _buildErrorState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.error_outline, size: 64, color: Colors.grey[400]),
-          const SizedBox(height: 16),
-          Text(
-            _errorMessage!,
-            style: TextStyle(fontSize: 16, color: Colors.grey[600]),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 24),
-          ElevatedButton(
-              onPressed: _retryConnection, child: const Text('Retry')),
-        ],
-      ),
-    );
-  }
+  Widget _buildErrorState() => ErrorState(
+        message: _errorMessage!,
+        onRetry: _retryConnection,
+        roomy: true,
+      );
 
   Future<void> _playSong(SongModel song) async {
-    final playSong = Song(
-      id: song.id,
-      title: song.title,
-      artist: song.artist,
-      album: null,
-      albumId: song.albumId,
-      duration: Duration(seconds: song.duration),
-      filePath: song.id,
-      fileSize: 0,
-      modifiedTime: DateTime.now(),
-      trackNumber: song.trackNumber,
-    );
-
-    await _playbackManager.playSong(playSong);
+    await _playbackManager.playSong(songFromModel(song));
   }
 
   void _openAlbum(AlbumModel album) {

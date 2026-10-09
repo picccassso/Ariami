@@ -45,8 +45,7 @@ class _QueueScreenState extends State<QueueScreen> {
     final colors = ColorExtractionService().currentColors;
 
     return Theme(
-      data: AppTheme.buildTheme(
-        brightness: Brightness.dark,
+      data: AppTheme.buildColorSourceTheme(
         seedColor: colors.primary,
       ),
       child: Builder(

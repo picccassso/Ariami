@@ -15,6 +15,7 @@ import '../services/playback_manager.dart';
 import '../services/playlist_service.dart';
 import '../services/stats/streaming_stats_service.dart';
 import '../utils/constants.dart';
+import '../utils/image_content_type.dart';
 import '../utils/image_upload.dart';
 import '../utils/responsive.dart';
 import '../widgets/collection_play_buttons.dart';
@@ -23,6 +24,7 @@ import '../widgets/common/mini_player_aware_bottom_sheet.dart';
 import '../widgets/library/album_grid_item.dart';
 import '../widgets/library/playlist_card.dart';
 import '../widgets/library/song_list_item.dart';
+import '../utils/song_from_model.dart';
 
 /// Artist page: header with play/shuffle, the artist's top songs, their
 /// albums, compilations they appear on, and the playlists their songs appear
@@ -262,18 +264,10 @@ class ArtistDetailScreen extends StatelessWidget {
 
   Song _toSong(SongModel songModel) {
     final album = _albumFor(songModel.albumId);
-    return Song(
-      id: songModel.id,
-      title: songModel.title,
-      artist: songModel.artist,
+    return songFromModel(
+      songModel,
       album: album?.title,
-      albumId: songModel.albumId,
       albumArtist: album?.artist,
-      duration: Duration(seconds: songModel.duration),
-      filePath: songModel.id,
-      fileSize: 0,
-      modifiedTime: DateTime.now(),
-      trackNumber: songModel.trackNumber,
     );
   }
 
@@ -605,7 +599,7 @@ class _ArtistPhotoMenu extends StatelessWidget {
       return;
     }
 
-    final contentType = _detectImageContentType(bytes, file.name);
+    final contentType = detectImageContentType(bytes, file.name);
     if (contentType == null) {
       if (context.mounted) {
         _showToast(context, 'Choose a JPG, PNG or WebP image.');
@@ -636,38 +630,6 @@ class _ArtistPhotoMenu extends StatelessWidget {
         _showToast(context, 'Could not remove artist photo.');
       }
     }
-  }
-
-  String? _detectImageContentType(Uint8List bytes, String? fileName) {
-    if (bytes.length >= 3 &&
-        bytes[0] == 0xFF &&
-        bytes[1] == 0xD8 &&
-        bytes[2] == 0xFF) {
-      return 'image/jpeg';
-    }
-    if (bytes.length >= 4 &&
-        bytes[0] == 0x89 &&
-        bytes[1] == 0x50 &&
-        bytes[2] == 0x4E &&
-        bytes[3] == 0x47) {
-      return 'image/png';
-    }
-    if (bytes.length >= 12 &&
-        bytes[0] == 0x52 &&
-        bytes[1] == 0x49 &&
-        bytes[2] == 0x46 &&
-        bytes[3] == 0x46 &&
-        bytes[8] == 0x57 &&
-        bytes[9] == 0x45 &&
-        bytes[10] == 0x42 &&
-        bytes[11] == 0x50) {
-      return 'image/webp';
-    }
-    final lower = fileName?.toLowerCase() ?? '';
-    if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
-    if (lower.endsWith('.png')) return 'image/png';
-    if (lower.endsWith('.webp')) return 'image/webp';
-    return null;
   }
 
   void _showToast(BuildContext context, String message) {

@@ -15,6 +15,7 @@ import '../playlist/add_to_playlist_screen.dart';
 import '../playlist/create_playlist_screen.dart';
 import '../playlist/server_playlist_detail_screen.dart';
 import 'library/library.dart';
+import '../../utils/song_from_model.dart';
 
 class LibraryScreen extends StatefulWidget {
   const LibraryScreen({super.key});
@@ -80,19 +81,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
   }
 
   void _playSong(SongModel song) async {
-    final playSong = Song(
-      id: song.id,
-      title: song.title,
-      artist: song.artist,
-      album: null,
-      albumId: song.albumId,
-      duration: Duration(seconds: song.duration),
-      filePath: song.id,
-      fileSize: 0,
-      modifiedTime: DateTime.now(),
-      trackNumber: song.trackNumber,
-    );
-    await _playbackManager.playSong(playSong);
+    await _playbackManager.playSong(songFromModel(song));
   }
 
   void _playSongDirect(Song song) async {
@@ -236,18 +225,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
       final albumSongs = _controller.albumSongsFor(album.id);
       final songs = <Song>[
         for (final track in albumSongs)
-          Song(
-            id: track.id,
-            title: track.title,
-            artist: track.artist,
-            album: album.title,
-            albumId: track.albumId,
-            duration: Duration(seconds: track.duration),
-            filePath: track.id,
-            fileSize: 0,
-            modifiedTime: DateTime.now(),
-            trackNumber: track.trackNumber,
-          ),
+          songFromModel(track, album: album.title),
       ];
       _playbackManager.addAllToQueue(songs);
       if (mounted) {
@@ -269,18 +247,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
           orElse: () => SongModel(
               id: songId, title: 'Unknown', artist: 'Unknown', duration: 0),
         );
-        songs.add(Song(
-          id: song.id,
-          title: song.title,
-          artist: song.artist,
-          album: null,
-          albumId: song.albumId,
-          duration: Duration(seconds: song.duration),
-          filePath: song.id,
-          fileSize: 0,
-          modifiedTime: DateTime.now(),
-          trackNumber: song.trackNumber,
-        ));
+        songs.add(songFromModel(song));
       }
       _playbackManager.addAllToQueue(songs);
       if (mounted) {
@@ -293,18 +260,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
 
   List<Song> _selectedPlayableSongs() => [
         for (final song in _controller.resolveSelectedSongs())
-          Song(
-            id: song.id,
-            title: song.title,
-            artist: song.artist,
-            album: null,
-            albumId: song.albumId,
-            duration: Duration(seconds: song.duration),
-            filePath: song.id,
-            fileSize: 0,
-            modifiedTime: DateTime.now(),
-            trackNumber: song.trackNumber,
-          ),
+          songFromModel(song),
       ];
 
   void _showBatchActionsSheet() {

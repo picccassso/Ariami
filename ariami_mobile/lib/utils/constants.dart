@@ -265,14 +265,6 @@ class AppTheme {
     );
   }
 
-  // Backward-compatible builder used in player-specific theme wrappers.
-  static ThemeData buildTheme({
-    required Brightness brightness,
-    required Color seedColor,
-    List<Color>? ambient,
-  }) =>
-      buildColorSourceTheme(seedColor: seedColor, ambient: ambient);
-
   static ThemeData _buildBaseTheme({
     required Brightness brightness,
     required PlayerColors colors,

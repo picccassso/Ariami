@@ -11,6 +11,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../services/audio/equalizer_service.dart';
 import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
 import '../../widgets/common/queue_action_confirmation.dart';
+import '../../widgets/settings/settings_header.dart';
 
 class EqualizerScreen extends StatefulWidget {
   const EqualizerScreen({super.key});
@@ -97,7 +98,7 @@ class _EqualizerScreenState extends State<EqualizerScreen> {
             children: [
               _buildEnableCard(),
               const SizedBox(height: 12),
-              _buildSectionHeader('PRESETS'),
+              const SettingsHeader('PRESETS'),
               _buildPresetsCard(),
               const SizedBox(height: 12),
               _buildBandsHeader(parameters != null),
@@ -496,22 +497,6 @@ class _EqualizerScreenState extends State<EqualizerScreen> {
         textStyle: const TextStyle(
           fontSize: 14,
           fontWeight: FontWeight.w800,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSectionHeader(String title) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
-      child: Text(
-        title.toUpperCase(),
-        style: TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w900,
-          color: colorScheme.onSurface,
-          letterSpacing: 1.5,
         ),
       ),
     );

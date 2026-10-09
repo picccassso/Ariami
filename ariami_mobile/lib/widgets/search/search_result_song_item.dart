@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../models/api_models.dart';
 import '../../models/song.dart';
 import '../../screens/playlist/add_to_playlist_screen.dart';
-import '../../services/api/connection_service.dart';
+import '../../utils/artwork_url.dart';
 import '../../services/playback_manager.dart';
 import '../common/cached_artwork.dart';
 import '../common/mini_player_aware_bottom_sheet.dart';
@@ -337,26 +337,12 @@ class _SearchResultSongItemState extends State<SearchResultSongItem> {
   }
 
   Widget _buildAlbumArt(BuildContext context) {
-    final connectionService = ConnectionService();
-
-    String? artworkUrl;
-    String cacheId;
-
-    if (widget.song.albumId != null) {
-      artworkUrl = connectionService.apiClient != null
-          ? '${connectionService.apiClient!.baseUrl}/artwork/${widget.song.albumId}'
-          : null;
-      cacheId = widget.song.albumId!;
-    } else {
-      artworkUrl = connectionService.apiClient != null
-          ? '${connectionService.apiClient!.baseUrl}/song-artwork/${widget.song.id}'
-          : null;
-      cacheId = 'song_${widget.song.id}';
-    }
+    final artwork = resolveSongArtwork(
+        songId: widget.song.id, albumId: widget.song.albumId);
 
     return CachedArtwork(
-      albumId: cacheId,
-      artworkUrl: artworkUrl,
+      albumId: artwork.cacheId,
+      artworkUrl: artwork.url,
       width: 48,
       height: 48,
       borderRadius: BorderRadius.circular(4),

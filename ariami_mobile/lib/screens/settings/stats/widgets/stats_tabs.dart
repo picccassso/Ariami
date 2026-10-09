@@ -8,6 +8,7 @@ import '../../../../models/song_stats.dart';
 import '../../../../services/stats/period_stats_loader.dart';
 import '../../../../services/stats/stats_artwork_resolver.dart';
 import '../../../../services/stats/streaming_stats_service.dart';
+import '../../../../widgets/settings/settings_header.dart';
 import 'stats_list_items.dart';
 import 'stats_status_views.dart';
 
@@ -47,6 +48,50 @@ Widget _statusListView(String title, Widget status) {
   );
 }
 
+/// Streams a ranked list and renders the shared error/loading/empty/list
+/// states under [title].
+class _StatsStreamTab<T> extends StatelessWidget {
+  const _StatsStreamTab({
+    required this.stream,
+    required this.title,
+    required this.emptyText,
+    required this.itemBuilder,
+  });
+
+  final Stream<List<T>> stream;
+  final String title;
+  final String emptyText;
+  final Widget Function(T stat, int rank) itemBuilder;
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<T>>(
+      stream: stream,
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return _statusListView(title, const StatsErrorState());
+        }
+
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            !snapshot.hasData) {
+          return _statusListView(title, const StatsLoadingState());
+        }
+
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return _statusListView(title, StatsEmptyState(emptyText));
+        }
+
+        final stats = snapshot.data!;
+        return _rankedListView(
+          title: title,
+          itemCount: stats.length,
+          itemBuilder: (context, index) => itemBuilder(stats[index], index + 1),
+        );
+      },
+    );
+  }
+}
+
 class StatsTracksTab extends StatelessWidget {
   const StatsTracksTab({
     super.key,
@@ -59,37 +104,15 @@ class StatsTracksTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<List<SongStats>>(
+    return _StatsStreamTab<SongStats>(
       stream: statsService.topSongsStream,
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return _statusListView('TOP SONGS', const StatsErrorState());
-        }
-
-        if (snapshot.connectionState == ConnectionState.waiting &&
-            !snapshot.hasData) {
-          return _statusListView('TOP SONGS', const StatsLoadingState());
-        }
-
-        if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return _statusListView(
-            'TOP SONGS',
-            const StatsEmptyState(
-                'No stats yet. Start listening to see your top songs!'),
-          );
-        }
-
-        final topSongs = snapshot.data!;
-        return _rankedListView(
-          title: 'TOP SONGS',
-          itemCount: topSongs.length,
-          itemBuilder: (context, index) => TopSongTile(
-            stat: topSongs[index],
-            rank: index + 1,
-            artworkResolver: artworkResolver,
-          ),
-        );
-      },
+      title: 'TOP SONGS',
+      emptyText: 'No stats yet. Start listening to see your top songs!',
+      itemBuilder: (stat, rank) => TopSongTile(
+        stat: stat,
+        rank: rank,
+        artworkResolver: artworkResolver,
+      ),
     );
   }
 }
@@ -134,37 +157,15 @@ class StatsArtistsTab extends StatelessWidget {
       );
     }
 
-    return StreamBuilder<List<ArtistStats>>(
+    return _StatsStreamTab<ArtistStats>(
       stream: statsService.topArtistsStream,
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return _statusListView('TOP ARTISTS', const StatsErrorState());
-        }
-
-        if (snapshot.connectionState == ConnectionState.waiting &&
-            !snapshot.hasData) {
-          return _statusListView('TOP ARTISTS', const StatsLoadingState());
-        }
-
-        if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return _statusListView(
-            'TOP ARTISTS',
-            const StatsEmptyState(
-                'No stats yet. Start listening to see your top artists!'),
-          );
-        }
-
-        final topArtists = snapshot.data!;
-        return _rankedListView(
-          title: 'TOP ARTISTS',
-          itemCount: topArtists.length,
-          itemBuilder: (context, index) => TopArtistTile(
-            stat: topArtists[index],
-            rank: index + 1,
-            artworkResolver: artworkResolver,
-          ),
-        );
-      },
+      title: 'TOP ARTISTS',
+      emptyText: 'No stats yet. Start listening to see your top artists!',
+      itemBuilder: (stat, rank) => TopArtistTile(
+        stat: stat,
+        rank: rank,
+        artworkResolver: artworkResolver,
+      ),
     );
   }
 }
@@ -183,38 +184,16 @@ class StatsAlbumsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<List<AlbumStats>>(
+    return _StatsStreamTab<AlbumStats>(
       stream: statsService.topAlbumsStream,
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return _statusListView('TOP ALBUMS', const StatsErrorState());
-        }
-
-        if (snapshot.connectionState == ConnectionState.waiting &&
-            !snapshot.hasData) {
-          return _statusListView('TOP ALBUMS', const StatsLoadingState());
-        }
-
-        if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return _statusListView(
-            'TOP ALBUMS',
-            const StatsEmptyState(
-                'No stats yet. Start listening to see your top albums!'),
-          );
-        }
-
-        final topAlbums = snapshot.data!;
-        return _rankedListView(
-          title: 'TOP ALBUMS',
-          itemCount: topAlbums.length,
-          itemBuilder: (context, index) => TopAlbumTile(
-            stat: topAlbums[index],
-            rank: index + 1,
-            artworkResolver: artworkResolver,
-            albumsById: albumsById,
-          ),
-        );
-      },
+      title: 'TOP ALBUMS',
+      emptyText: 'No stats yet. Start listening to see your top albums!',
+      itemBuilder: (stat, rank) => TopAlbumTile(
+        stat: stat,
+        rank: rank,
+        artworkResolver: artworkResolver,
+        albumsById: albumsById,
+      ),
     );
   }
 }
@@ -335,19 +314,8 @@ class _SectionTitle extends StatelessWidget {
   final String title;
 
   @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
-      child: Text(
+  Widget build(BuildContext context) => SettingsHeader(
         title,
-        style: TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w900,
-          color: isDark ? Colors.white : Colors.black,
-          letterSpacing: 1.5,
-        ),
-      ),
-    );
-  }
+        isDark: Theme.of(context).brightness == Brightness.dark,
+      );
 }

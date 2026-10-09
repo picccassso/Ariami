@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:io' show Platform;
 import 'package:ariami_core/models/connect_models.dart';
 import 'package:flutter/material.dart';
+import '../../widgets/common/confirm_dialog.dart';
 import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../../models/download_task.dart';
@@ -134,27 +135,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     final songLabel = preview.songCount == 1 ? 'song' : 'songs';
     final playlistLabel = preview.playlistCount == 1 ? 'playlist' : 'playlists';
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Clean Up Playlists?'),
-        content: Text(
-          'Remove ${preview.songCount} unavailable $songLabel from '
+    final confirmed = await showConfirmDialog(
+      context,
+      title: 'Clean Up Playlists?',
+      message: 'Remove ${preview.songCount} unavailable $songLabel from '
           '${preview.playlistCount} $playlistLabel?\n\n'
           'These entries no longer exist on the server and cannot play. '
           'Imported playlists will sync the change back to the server.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Remove'),
-          ),
-        ],
-      ),
+      confirmLabel: 'Remove',
     );
     if (confirmed != true || !mounted) return;
 

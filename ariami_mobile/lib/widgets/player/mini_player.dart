@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../models/song.dart';
-import '../../services/api/connection_service.dart';
+import '../../utils/artwork_url.dart';
 import '../../services/color_extraction_service.dart';
 import '../../utils/constants.dart';
 import '../../services/playback_manager.dart';
@@ -162,8 +162,7 @@ class _MiniPlayerState extends State<MiniPlayer> {
     final colors = _colorService.currentColors;
 
     return Theme(
-      data: AppTheme.buildTheme(
-        brightness: Brightness.dark,
+      data: AppTheme.buildColorSourceTheme(
         seedColor: colors.primary,
         ambient: colors.ambientColors,
       ),
@@ -370,30 +369,16 @@ class _MiniPlayerState extends State<MiniPlayer> {
   }
 
   Widget _buildAlbumArt(BuildContext context) {
-    final connectionService = ConnectionService();
-
-    if (widget.currentSong == null) {
+    final song = widget.currentSong;
+    if (song == null) {
       return _buildPlaceholder(context);
     }
 
-    String? artworkUrl;
-    String cacheId;
-
-    if (widget.currentSong!.albumId != null) {
-      artworkUrl = connectionService.apiClient != null
-          ? '${connectionService.apiClient!.baseUrl}/artwork/${widget.currentSong!.albumId}'
-          : null;
-      cacheId = widget.currentSong!.albumId!;
-    } else {
-      artworkUrl = connectionService.apiClient != null
-          ? '${connectionService.apiClient!.baseUrl}/song-artwork/${widget.currentSong!.id}'
-          : null;
-      cacheId = 'song_${widget.currentSong!.id}';
-    }
+    final artwork = resolveSongArtwork(songId: song.id, albumId: song.albumId);
 
     return CachedArtwork(
-      albumId: cacheId,
-      artworkUrl: artworkUrl,
+      albumId: artwork.cacheId,
+      artworkUrl: artwork.url,
       width: 45,
       height: 45,
       borderRadius: BorderRadius.circular(8),
