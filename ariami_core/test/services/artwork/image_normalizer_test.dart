@@ -18,6 +18,22 @@ Uint8List _png(int width, int height, {int padding = 0}) {
   return data.buffer.asUint8List();
 }
 
+/// [_png] completed with a colour type and an IDAT chunk, preceded by a tRNS
+/// chunk when [transparent].
+Uint8List _opaquePng(int width, int height,
+    {bool transparent = false, int padding = 0}) {
+  List<int> chunk(String type, int length) => [
+        0, 0, length >> 8, length & 0xFF, ...type.codeUnits,
+        ...List.filled(length + 4, 0), // data + CRC
+      ];
+  return Uint8List.fromList([
+    ..._png(width, height),
+    8, 2, 0, 0, 0, ...List.filled(4, 0), // 8-bit RGB, rest of IHDR, CRC
+    if (transparent) ...chunk('tRNS', 6),
+    ...chunk('IDAT', padding),
+  ]);
+}
+
 /// SOI, an APP0 segment, then a SOF0 frame header.
 Uint8List _jpeg(int width, int height, {int padding = 0}) {
   final bytes = <int>[
@@ -121,8 +137,8 @@ void main() {
     }
 
     Future<Uint8List?> shrink(ImageNormalizer n, Uint8List bytes,
-            {String type = 'image/jpeg', int max = 512}) =>
-        n.shrinkIfOversized(bytes, type, maxDimension: max);
+            {String type = 'image/jpeg', int max = 512}) async =>
+        (await n.shrinkIfOversized(bytes, type, maxDimension: max))?.bytes;
 
     test('skips images already within bounds without running FFmpeg', () async {
       final n = normalizer(output: _jpeg(100, 100));
@@ -181,6 +197,29 @@ void main() {
           await shrink(normalizer(output: _jpeg(1000, 750)), source), isNull);
       expect(
           await shrink(normalizer(output: Uint8List.fromList([1, 2])), source),
+          isNull);
+    });
+
+    test('re-encodes an opaque PNG as JPEG only when allowed', () async {
+      final source = _opaquePng(800, 600, padding: 5000);
+      final jpeg = _jpeg(800, 600);
+      final n = normalizer(output: jpeg);
+
+      expect(await shrink(n, source, type: 'image/png', max: 1200), isNull);
+      expect(ffmpegCalls, 0);
+
+      final result = await n.shrinkIfOversized(source, 'image/png',
+          maxDimension: 1200, jpegForOpaquePng: true);
+      expect(result?.bytes, jpeg);
+      expect(result?.contentType, 'image/jpeg');
+      expect(ffmpegArgs.last, endsWith('.jpg'));
+      expect(ffmpegArgs, isNot(contains('-vf'))); // within bounds: no scale
+
+      // Transparent PNGs stay PNG.
+      expect(
+          await n.shrinkIfOversized(
+              _opaquePng(800, 600, transparent: true), 'image/png',
+              maxDimension: 1200, jpegForOpaquePng: true),
           isNull);
     });
 

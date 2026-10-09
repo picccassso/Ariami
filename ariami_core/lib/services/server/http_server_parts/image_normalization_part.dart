@@ -4,8 +4,9 @@ part of '../http_server.dart';
 /// normalised on ingest.
 ///
 /// Idempotent by construction: [ImageNormalizer.shrinkIfOversized] skips
-/// anything already within bounds from its header alone, so once an image is
-/// shrunk later startups only read dimensions. Without FFmpeg this is a no-op.
+/// anything already within bounds (and, for covers, not an opaque PNG) from
+/// its header alone, so once an image is shrunk later startups only read
+/// headers. Without FFmpeg this is a no-op.
 extension AriamiHttpServerImageNormalizationMethods on AriamiHttpServer {
   Future<void> _normalizeStoredImages() async {
     // Per-store so one failing (or closed mid-run by a reinitialize) store
@@ -27,6 +28,7 @@ extension AriamiHttpServerImageNormalizationMethods on AriamiHttpServer {
               bytes,
               contentType,
               maxDimension: ImageNormalizer.coverMaxDimension,
+              jpegForOpaquePng: true,
             ),
           ) ??
           0,
@@ -39,6 +41,7 @@ extension AriamiHttpServerImageNormalizationMethods on AriamiHttpServer {
               bytes,
               contentType,
               maxDimension: ImageNormalizer.coverMaxDimension,
+              jpegForOpaquePng: true,
             ),
           ) ??
           0,
@@ -79,7 +82,7 @@ extension AriamiHttpServerImageNormalizationMethods on AriamiHttpServer {
       // (avatarUpdatedAt / `?v=`), so client caches refresh.
       await _writeAvatarBytes(
         userId: userId,
-        bytes: shrunk,
+        bytes: shrunk.bytes,
         contentType: avatar.contentType,
       );
       shrunkCount++;

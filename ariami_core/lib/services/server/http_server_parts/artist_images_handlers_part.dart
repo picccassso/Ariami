@@ -132,18 +132,19 @@ extension AriamiHttpServerArtistImagesMethods on AriamiHttpServer {
       return _badArtistImageResponse();
     }
 
+    final normalized = await _imageNormalizer.shrinkIfOversized(
+      bytes,
+      contentType,
+      maxDimension: ImageNormalizer.coverMaxDimension,
+      jpegForOpaquePng: true,
+    );
     try {
       final decodedName = Uri.decodeComponent(artistName);
       final image = store.put(
         session.userId,
         decodedName,
-        bytes: await _imageNormalizer.shrinkIfOversized(
-              bytes,
-              contentType,
-              maxDimension: ImageNormalizer.coverMaxDimension,
-            ) ??
-            bytes,
-        contentType: contentType,
+        bytes: normalized?.bytes ?? bytes,
+        contentType: normalized?.contentType ?? contentType,
       );
       _broadcastArtistImagesChanged(
         session,

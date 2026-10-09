@@ -160,7 +160,10 @@ class ArtistImageStore {
   /// by an upload while [shrink] ran is left alone. Returns how many rows
   /// were shrunk.
   Future<int> shrinkImages(
-    Future<Uint8List?> Function(Uint8List bytes, String contentType) shrink,
+    Future<({Uint8List bytes, String contentType})?> Function(
+      Uint8List bytes,
+      String contentType,
+    ) shrink,
   ) async {
     final keys = _db.select('SELECT user_id, artist_key FROM artist_images');
     var shrunkCount = 0;
@@ -171,10 +174,12 @@ class ArtistImageStore {
       final shrunk = await shrink(record.bytes, record.contentType);
       if (shrunk == null) continue;
       _db.execute(
-        'UPDATE artist_images SET bytes = ?, updated_at = ? '
+        'UPDATE artist_images '
+        'SET bytes = ?, content_type = ?, updated_at = ? '
         'WHERE user_id = ? AND artist_key = ? AND updated_at = ?',
         <Object?>[
-          shrunk,
+          shrunk.bytes,
+          shrunk.contentType,
           max(DateTime.now().toUtc().millisecondsSinceEpoch,
               record.updatedAt + 1),
           userId,

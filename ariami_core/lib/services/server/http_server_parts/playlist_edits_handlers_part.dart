@@ -230,17 +230,18 @@ extension AriamiHttpServerPlaylistEditsMethods on AriamiHttpServer {
       return _badPlaylistImageResponse();
     }
 
+    final normalized = await _imageNormalizer.shrinkIfOversized(
+      bytes,
+      contentType,
+      maxDimension: ImageNormalizer.coverMaxDimension,
+      jpegForOpaquePng: true,
+    );
     try {
       final image = store.put(
         session.userId,
         Uri.decodeComponent(playlistId),
-        bytes: await _imageNormalizer.shrinkIfOversized(
-              bytes,
-              contentType,
-              maxDimension: ImageNormalizer.coverMaxDimension,
-            ) ??
-            bytes,
-        contentType: contentType,
+        bytes: normalized?.bytes ?? bytes,
+        contentType: normalized?.contentType ?? contentType,
       );
       _broadcastPlaylistEditsChanged(session, reason: 'image');
       return _jsonOk({'image': image.toJson()});

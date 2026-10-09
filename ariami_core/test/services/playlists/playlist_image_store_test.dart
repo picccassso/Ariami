@@ -107,14 +107,16 @@ void main() {
       final seen = <int>[];
       final count = await store.shrinkImages((bytes, contentType) async {
         seen.add(bytes.length);
-        return bytes.length == 4 ? Uint8List.fromList([7]) : null;
+        return bytes.length == 4
+            ? (bytes: Uint8List.fromList([7]), contentType: 'image/png')
+            : null;
       });
 
       expect(count, 1);
       expect(seen..sort(), [2, 4]);
       final shrunk = store.find('user-a', 'one');
       expect(shrunk!.bytes, [7]);
-      expect(shrunk.contentType, 'image/jpeg');
+      expect(shrunk.contentType, 'image/png');
       expect(shrunk.updatedAt, greaterThan(before.updatedAt));
       expect(store.find('user-a', 'two')!.bytes, [9, 9]);
     });
@@ -126,7 +128,7 @@ void main() {
       final count = await store.shrinkImages((bytes, contentType) async {
         store.put('user-a', 'one',
             bytes: <int>[5, 5, 5], contentType: 'image/jpeg');
-        return Uint8List.fromList([7]);
+        return (bytes: Uint8List.fromList([7]), contentType: 'image/jpeg');
       });
 
       expect(count, 0);

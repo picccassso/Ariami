@@ -5,7 +5,8 @@ import 'dart:typed_data';
 import 'ffmpeg_probe.dart';
 
 /// Shrinks oversized user-uploaded images (avatars, playlist covers, artist
-/// photos) so clients never download or decode camera-resolution originals.
+/// photos) so clients never download or decode camera-resolution originals,
+/// and can re-encode opaque PNG covers as much smaller JPEGs.
 ///
 /// Every failure path (unsupported format, unreadable header, FFmpeg missing,
 /// failing or timing out) means "keep the original", so callers can always
@@ -20,8 +21,8 @@ class ImageNormalizer {
   static const int avatarMaxDimension = 512;
   static const int coverMaxDimension = 1200;
 
-  /// Formats re-encoded in place (PNG stays PNG to keep transparency).
-  /// Anything else, e.g. WebP, is stored as uploaded.
+  /// Formats re-encoded (PNG stays PNG unless it is opaque and the caller
+  /// allows JPEG). Anything else, e.g. WebP, is stored as uploaded.
   static const Map<String, String> _extensions = {
     'image/jpeg': 'jpg',
     'image/png': 'png',
@@ -31,29 +32,34 @@ class ImageNormalizer {
   /// explicitly with `-noautorotate`, because older FFmpeg ignores the JPEG
   /// tag yet drops it on re-encode, which would leave photos sideways.
   static const List<String> _orientationFilters = [
-    '', 'hflip,', 'hflip,vflip,', 'vflip,', //
-    'transpose=0,', 'transpose=1,', 'transpose=3,', 'transpose=2,',
+    '', 'hflip', 'hflip,vflip', 'vflip', //
+    'transpose=0', 'transpose=1', 'transpose=3', 'transpose=2',
   ];
 
   final ArtworkProcessRunner _runProcess;
   late final FfmpegProbe _ffmpeg;
 
-  /// Returns [bytes] downscaled to a longest edge of at most [maxDimension]
-  /// in the same format, or null when the original should be kept (already
-  /// within bounds, unsupported, or FFmpeg could not produce a smaller,
-  /// valid result).
-  Future<Uint8List?> shrinkIfOversized(
+  /// Returns [bytes] downscaled to a longest edge of at most [maxDimension],
+  /// or null when the original should be kept (already within bounds,
+  /// unsupported, or FFmpeg could not produce a smaller, valid result).
+  ///
+  /// With [jpegForOpaquePng], a PNG without transparency is re-encoded as JPEG
+  /// even when within bounds: lossless PNG photos are often several MB.
+  Future<({Uint8List bytes, String contentType})?> shrinkIfOversized(
     List<int> bytes,
     String contentType, {
     required int maxDimension,
+    bool jpegForOpaquePng = false,
   }) async {
-    final extension = _extensions[contentType];
-    if (extension == null) return null;
+    if (!_extensions.containsKey(contentType)) return null;
     final dimensions = imageDimensions(bytes, contentType);
-    if (dimensions == null ||
-        max(dimensions.$1, dimensions.$2) <= maxDimension) {
-      return null;
-    }
+    if (dimensions == null) return null;
+    final oversized = max(dimensions.$1, dimensions.$2) > maxDimension;
+    final outputType =
+        jpegForOpaquePng && contentType == 'image/png' && isOpaquePng(bytes)
+            ? 'image/jpeg'
+            : contentType;
+    if (!oversized && outputType == contentType) return null;
     final orientation =
         contentType == 'image/jpeg' ? jpegOrientation(bytes) : 1;
     if (orientation == null || orientation < 1 || orientation > 8) return null;
@@ -62,17 +68,20 @@ class ImageNormalizer {
     final tempDir = await Directory.systemTemp.createTemp('ariami_image_');
     try {
       final input = File('${tempDir.path}/input');
-      final output = File('${tempDir.path}/output.$extension');
+      final output = File('${tempDir.path}/output.${_extensions[outputType]}');
       await input.writeAsBytes(bytes);
+      final filters = [
+        _orientationFilters[orientation - 1],
+        if (oversized)
+          'scale=$maxDimension:$maxDimension'
+              ':force_original_aspect_ratio=decrease',
+      ].where((filter) => filter.isNotEmpty).join(',');
 
       final result = await _runProcess('ffmpeg', [
         '-y',
         '-noautorotate',
         '-i', input.path,
-        '-vf',
-        '${_orientationFilters[orientation - 1]}'
-            'scale=$maxDimension:$maxDimension'
-            ':force_original_aspect_ratio=decrease',
+        if (filters.isNotEmpty) ...['-vf', filters],
         '-frames:v', '1',
         '-q:v', '3', // JPEG quality; ignored for PNG
         output.path,
@@ -86,7 +95,7 @@ class ImageNormalizer {
       }
 
       final shrunk = await output.readAsBytes();
-      final shrunkDimensions = imageDimensions(shrunk, contentType);
+      final shrunkDimensions = imageDimensions(shrunk, outputType);
       if (shrunk.length >= bytes.length ||
           shrunkDimensions == null ||
           max(shrunkDimensions.$1, shrunkDimensions.$2) > maxDimension) {
@@ -95,8 +104,8 @@ class ImageNormalizer {
       print('[ImageNormalizer] ${dimensions.$1}x${dimensions.$2} -> '
           '${shrunkDimensions.$1}x${shrunkDimensions.$2}: '
           '${(bytes.length / 1024).round()} KB -> '
-          '${(shrunk.length / 1024).round()} KB');
-      return shrunk;
+          '${(shrunk.length / 1024).round()} KB ($outputType)');
+      return (bytes: shrunk, contentType: outputType);
     } catch (e) {
       print('[ImageNormalizer] Resize error - $e');
       return null;
@@ -131,6 +140,26 @@ class ImageNormalizer {
       }
     }
     return null;
+  }
+
+  /// Whether a PNG can't carry transparency: greyscale, RGB or palette colour
+  /// with no tRNS chunk before the image data.
+  static bool isOpaquePng(List<int> bytes) {
+    if (bytes.length < 26 || !const {0, 2, 3}.contains(bytes[25])) {
+      return false;
+    }
+    var i = 8; // past the signature
+    while (i + 8 <= bytes.length) {
+      final type = String.fromCharCodes(bytes.sublist(i + 4, i + 8));
+      if (type == 'tRNS') return false;
+      if (type == 'IDAT') return true;
+      final length = (bytes[i] << 24) |
+          (bytes[i + 1] << 16) |
+          (bytes[i + 2] << 8) |
+          bytes[i + 3];
+      i += 12 + length; // length, type, data, CRC
+    }
+    return false;
   }
 
   /// EXIF orientation (1-8) of a JPEG: 1 when it carries none, null when the
