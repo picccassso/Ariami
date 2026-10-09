@@ -6,10 +6,7 @@ extension AriamiHttpServerDownloadJobsHandlersMethods on AriamiHttpServer {
     DownloadJobService downloadJobService,
   ) async {
     try {
-      final body = await request.readAsString();
-      final data = body.trim().isEmpty
-          ? <String, dynamic>{}
-          : jsonDecode(body) as Map<String, dynamic>;
+      final data = await _readJsonBody(request);
       final createRequest = DownloadJobCreateRequest.fromJson(data);
       final response = downloadJobService.createJob(
         userScopeId: _resolveDownloadJobScopeUserId(request),

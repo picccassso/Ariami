@@ -1,10 +1,9 @@
-import 'dart:io';
-import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:sqlite3/sqlite3.dart';
 
 import '../../models/artist_image_info.dart';
+import '../common/sqlite_image_store.dart';
 import '../stats/credited_artist_splitter.dart';
 
 /// SQLite persistence for account-scoped custom artist images.
@@ -13,54 +12,34 @@ import '../stats/credited_artist_splitter.dart';
 /// mobile) and expects to see on every other client. They are keyed by
 /// [userId] and normalized artist key (via [normalizeArtistKey]), but also
 /// record the display artist name.
-class ArtistImageStore {
-  ArtistImageStore({required this.databasePath});
+class ArtistImageStore extends SqliteImageStore {
+  ArtistImageStore({required super.databasePath})
+      : super(
+          storeName: 'ArtistImageStore',
+          table: 'artist_images',
+          keyColumn: 'artist_key',
+        );
 
   static const int maxArtistNameLength = 512;
   static const int maxImageBytes = 5 * 1024 * 1024;
 
-  final String databasePath;
-  Database? _database;
-
-  bool get isInitialized => _database != null;
-
-  Database get _db {
-    final database = _database;
-    if (database == null) {
-      throw StateError('ArtistImageStore is not initialized');
-    }
-    return database;
-  }
-
-  void initialize() {
-    if (_database != null) return;
-    final parent = File(databasePath).parent;
-    if (!parent.existsSync()) parent.createSync(recursive: true);
-    final database = sqlite3.open(databasePath);
-    try {
-      database.execute('PRAGMA journal_mode=WAL;');
-      database.execute('PRAGMA synchronous=NORMAL;');
-      database.execute('PRAGMA busy_timeout=5000;');
-      database.execute('''
-        CREATE TABLE IF NOT EXISTS artist_images (
-          user_id TEXT NOT NULL,
-          artist_key TEXT NOT NULL,
-          artist_name TEXT NOT NULL,
-          content_type TEXT NOT NULL,
-          updated_at INTEGER NOT NULL,
-          bytes BLOB NOT NULL,
-          PRIMARY KEY (user_id, artist_key)
-        )
-      ''');
-      _database = database;
-    } catch (_) {
-      database.close();
-      rethrow;
-    }
+  @override
+  void createSchema(Database database) {
+    database.execute('''
+      CREATE TABLE IF NOT EXISTS artist_images (
+        user_id TEXT NOT NULL,
+        artist_key TEXT NOT NULL,
+        artist_name TEXT NOT NULL,
+        content_type TEXT NOT NULL,
+        updated_at INTEGER NOT NULL,
+        bytes BLOB NOT NULL,
+        PRIMARY KEY (user_id, artist_key)
+      )
+    ''');
   }
 
   List<ArtistImageInfo> list(String userId) {
-    final rows = _db.select('''
+    final rows = db.select('''
       SELECT artist_key, artist_name, content_type, updated_at
       FROM artist_images
       WHERE user_id = ?
@@ -80,7 +59,7 @@ class ArtistImageStore {
   /// name or normalized key.
   ArtistImageRecord? find(String userId, String artistNameOrKey) {
     final artistKey = _validateAndNormalizeKey(artistNameOrKey);
-    final rows = _db.select('''
+    final rows = db.select('''
       SELECT artist_key, artist_name, content_type, updated_at, bytes
       FROM artist_images
       WHERE user_id = ? AND artist_key = ?
@@ -119,15 +98,9 @@ class ArtistImageStore {
           bytes.length, 'bytes', 'Invalid image payload size');
     }
 
-    // Strictly monotonic per artist so a replaced image always gets a new
-    // version, even within one clock millisecond.
-    final previous = _findUpdatedAt(userId, artistKey);
-    var updatedAt = DateTime.now().toUtc().millisecondsSinceEpoch;
-    if (previous != null && updatedAt <= previous) {
-      updatedAt = previous + 1;
-    }
+    final updatedAt = nextUpdatedAt(userId, artistKey);
 
-    _db.execute('''
+    db.execute('''
       INSERT INTO artist_images (
         user_id, artist_key, artist_name, content_type, updated_at, bytes
       ) VALUES (?, ?, ?, ?, ?, ?)
@@ -153,60 +126,20 @@ class ArtistImageStore {
     );
   }
 
-  /// Replaces each stored image for which [shrink] returns new bytes, with a
-  /// fresh `updated_at` so client caches keyed on it refresh. A row replaced
-  /// by an upload while [shrink] ran is left alone. Returns how many rows
-  /// were shrunk.
-  Future<int> shrinkImages(
-    Future<({Uint8List bytes, String contentType})?> Function(
-      Uint8List bytes,
-      String contentType,
-    ) shrink,
-  ) async {
-    final keys = _db.select('SELECT user_id, artist_key FROM artist_images');
-    var shrunkCount = 0;
-    for (final key in keys) {
-      final userId = key['user_id'] as String;
-      final record = find(userId, key['artist_key'] as String);
-      if (record == null) continue;
-      final shrunk = await shrink(record.bytes, record.contentType);
-      if (shrunk == null) continue;
-      _db.execute(
-        'UPDATE artist_images '
-        'SET bytes = ?, content_type = ?, updated_at = ? '
-        'WHERE user_id = ? AND artist_key = ? AND updated_at = ?',
-        <Object?>[
-          shrunk.bytes,
-          shrunk.contentType,
-          max(DateTime.now().toUtc().millisecondsSinceEpoch,
-              record.updatedAt + 1),
-          userId,
-          record.artistKey,
-          record.updatedAt,
-        ],
-      );
-      if (_db.updatedRows > 0) shrunkCount++;
-    }
-    return shrunkCount;
+  @override
+  StoredImage? findStoredImage(String userId, String key) {
+    final record = find(userId, key);
+    if (record == null) return null;
+    return (
+      key: record.artistKey,
+      bytes: record.bytes,
+      contentType: record.contentType,
+      updatedAt: record.updatedAt,
+    );
   }
 
-  bool delete(String userId, String artistNameOrKey) {
-    final artistKey = _validateAndNormalizeKey(artistNameOrKey);
-    _db.execute(
-      'DELETE FROM artist_images WHERE user_id = ? AND artist_key = ?',
-      <Object?>[userId, artistKey],
-    );
-    return _db.updatedRows > 0;
-  }
-
-  int? _findUpdatedAt(String userId, String artistKey) {
-    final rows = _db.select(
-      'SELECT updated_at FROM artist_images '
-      'WHERE user_id = ? AND artist_key = ? LIMIT 1',
-      <Object?>[userId, artistKey],
-    );
-    return rows.isEmpty ? null : rows.first['updated_at'] as int;
-  }
+  bool delete(String userId, String artistNameOrKey) =>
+      deleteByKey(userId, _validateAndNormalizeKey(artistNameOrKey));
 
   String _validateAndNormalizeKey(String artistNameOrKey) {
     final trimmed = artistNameOrKey.trim();
@@ -215,10 +148,5 @@ class ArtistImageStore {
           artistNameOrKey, 'artistNameOrKey', 'Invalid artist name');
     }
     return normalizeArtistKey(trimmed);
-  }
-
-  void close() {
-    _database?.close();
-    _database = null;
   }
 }

@@ -9,12 +9,8 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
   }
 
   Response _streamTokenForbiddenResponse(String message) {
-    return _jsonForbidden({
-      'error': {
-        'code': AuthErrorCodes.streamTokenExpired,
-        'message': message,
-      },
-    });
+    return _jsonError(
+        HttpStatus.forbidden, AuthErrorCodes.streamTokenExpired, message);
   }
 
   Response _songNotFoundResponse(String songId) {

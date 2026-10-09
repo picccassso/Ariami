@@ -9,13 +9,10 @@ extension AriamiHttpServerPlaylistEditsMethods on AriamiHttpServer {
     return store != null && store.isInitialized ? store : null;
   }
 
-  Response _playlistEditsUnavailable() =>
-      _jsonResponse(HttpStatus.serviceUnavailable, {
-        'error': {
-          'code': 'PLAYLIST_EDITS_UNAVAILABLE',
-          'message': 'Playlist edit storage is not initialized',
-        },
-      });
+  Response _playlistEditsUnavailable() => _jsonError(
+      HttpStatus.serviceUnavailable,
+      'PLAYLIST_EDITS_UNAVAILABLE',
+      'Playlist edit storage is not initialized');
 
   PlaylistImageStore? get _playlistImageStoreIfReady {
     final store = _playlistImageStore;
@@ -132,29 +129,21 @@ extension AriamiHttpServerPlaylistEditsMethods on AriamiHttpServer {
     'image/webp': 'image/webp',
   };
 
-  Response _playlistImagesUnavailable() =>
-      _jsonResponse(HttpStatus.serviceUnavailable, {
-        'error': {
-          'code': 'PLAYLIST_IMAGES_UNAVAILABLE',
-          'message': 'Playlist image storage is not initialized',
-        },
-      });
+  Response _playlistImagesUnavailable() => _jsonError(
+      HttpStatus.serviceUnavailable,
+      'PLAYLIST_IMAGES_UNAVAILABLE',
+      'Playlist image storage is not initialized');
 
-  Response _badPlaylistImageResponse() => _jsonBadRequest({
-        'error': {
-          'code': 'INVALID_PLAYLIST_IMAGE',
-          'message': 'Image must be a valid JPEG, PNG, or WebP file',
-        },
-      });
+  Response _badPlaylistImageResponse() => _jsonError(
+      HttpStatus.badRequest,
+      'INVALID_PLAYLIST_IMAGE',
+      'Image must be a valid JPEG, PNG, or WebP file');
 
-  Response _playlistImageTooLargeResponse() =>
-      _jsonResponse(HttpStatus.requestEntityTooLarge, {
-        'error': {
-          'code': 'PLAYLIST_IMAGE_TOO_LARGE',
-          'message': 'Image exceeds the '
-              '${PlaylistImageStore.maxImageBytes ~/ (1024 * 1024)} MB limit',
-        },
-      });
+  Response _playlistImageTooLargeResponse() => _jsonError(
+      HttpStatus.requestEntityTooLarge,
+      'PLAYLIST_IMAGE_TOO_LARGE',
+      'Image exceeds the '
+          '${PlaylistImageStore.maxImageBytes ~/ (1024 * 1024)} MB limit');
 
   Future<Response> _handlePlaylistImageGet(
     Request request,
@@ -308,9 +297,8 @@ extension AriamiHttpServerPlaylistEditsMethods on AriamiHttpServer {
     }
   }
 
-  Response _invalidPlaylistEditRequest(String message) => _jsonBadRequest({
-        'error': {'code': 'INVALID_PLAYLIST_EDIT', 'message': message},
-      });
+  Response _invalidPlaylistEditRequest(String message) =>
+      _jsonError(HttpStatus.badRequest, 'INVALID_PLAYLIST_EDIT', message);
 
   void _broadcastPlaylistEditsChanged(
     Session session, {

@@ -1,9 +1,6 @@
-import 'dart:io';
+import '../../utils/process_runner.dart';
 
-typedef ArtworkProcessRunner = Future<ProcessResult> Function(
-  String executable,
-  List<String> arguments,
-);
+typedef ArtworkProcessRunner = ProcessRunner;
 
 /// Caches whether FFmpeg can be run through [run].
 class FfmpegProbe {

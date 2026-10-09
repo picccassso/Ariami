@@ -7,36 +7,25 @@ extension AriamiHttpServerArtistImagesMethods on AriamiHttpServer {
     return store != null && store.isInitialized ? store : null;
   }
 
-  Response _artistImagesUnavailable() =>
-      _jsonResponse(HttpStatus.serviceUnavailable, {
-        'error': {
-          'code': 'ARTIST_IMAGES_UNAVAILABLE',
-          'message': 'Artist image storage is not initialized',
-        },
-      });
+  Response _artistImagesUnavailable() => _jsonError(
+      HttpStatus.serviceUnavailable,
+      'ARTIST_IMAGES_UNAVAILABLE',
+      'Artist image storage is not initialized');
 
-  static const Map<String, String> _artistImageContentTypes =
-      <String, String>{
+  static const Map<String, String> _artistImageContentTypes = <String, String>{
     'image/jpeg': 'image/jpeg',
     'image/png': 'image/png',
     'image/webp': 'image/webp',
   };
 
-  Response _badArtistImageResponse() => _jsonBadRequest({
-        'error': {
-          'code': 'INVALID_ARTIST_IMAGE',
-          'message': 'Image must be a valid JPEG, PNG, or WebP file',
-        },
-      });
+  Response _badArtistImageResponse() => _jsonError(HttpStatus.badRequest,
+      'INVALID_ARTIST_IMAGE', 'Image must be a valid JPEG, PNG, or WebP file');
 
-  Response _artistImageTooLargeResponse() =>
-      _jsonResponse(HttpStatus.requestEntityTooLarge, {
-        'error': {
-          'code': 'ARTIST_IMAGE_TOO_LARGE',
-          'message': 'Image exceeds the '
-              '${ArtistImageStore.maxImageBytes ~/ (1024 * 1024)} MB limit',
-        },
-      });
+  Response _artistImageTooLargeResponse() => _jsonError(
+      HttpStatus.requestEntityTooLarge,
+      'ARTIST_IMAGE_TOO_LARGE',
+      'Image exceeds the '
+          '${ArtistImageStore.maxImageBytes ~/ (1024 * 1024)} MB limit');
 
   Future<Response> _handleArtistImagesGet(Request request) async {
     final session = request.context['session'] as Session?;
@@ -211,9 +200,8 @@ extension AriamiHttpServerArtistImagesMethods on AriamiHttpServer {
     return false;
   }
 
-  Response _invalidArtistImageRequest(String message) => _jsonBadRequest({
-        'error': {'code': 'INVALID_ARTIST_IMAGE', 'message': message},
-      });
+  Response _invalidArtistImageRequest(String message) =>
+      _jsonError(HttpStatus.badRequest, 'INVALID_ARTIST_IMAGE', message);
 
   void _broadcastArtistImagesChanged(
     Session session, {

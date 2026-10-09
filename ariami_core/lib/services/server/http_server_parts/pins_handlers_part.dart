@@ -9,12 +9,8 @@ extension AriamiHttpServerPinsMethods on AriamiHttpServer {
     return store != null && store.isInitialized ? store : null;
   }
 
-  Response _pinsUnavailable() => _jsonResponse(HttpStatus.serviceUnavailable, {
-        'error': {
-          'code': 'PINS_UNAVAILABLE',
-          'message': 'Pinned items storage is not initialized',
-        },
-      });
+  Response _pinsUnavailable() => _jsonError(HttpStatus.serviceUnavailable,
+      'PINS_UNAVAILABLE', 'Pinned items storage is not initialized');
 
   Future<Response> _handlePinsGet(Request request) async {
     final session = request.context['session'] as Session?;
@@ -214,9 +210,8 @@ extension AriamiHttpServerPinsMethods on AriamiHttpServer {
     }
   }
 
-  Response _invalidPinsRequest(String message) => _jsonBadRequest({
-        'error': {'code': 'INVALID_PIN', 'message': message},
-      });
+  Response _invalidPinsRequest(String message) =>
+      _jsonError(HttpStatus.badRequest, 'INVALID_PIN', message);
 
   void _broadcastPinsChanged(Session session, {required String reason}) {
     _connectHub.sendToUser(

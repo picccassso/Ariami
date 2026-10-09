@@ -1,8 +1,6 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
-import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as path;
 import 'package:ariami_core/models/folder_playlist.dart';
 import 'package:ariami_core/models/library_structure.dart';
@@ -14,11 +12,13 @@ import 'package:ariami_core/services/library/library_playlist_builder.dart'
     show suspiciousPlaylistAlbumTagPaths;
 import 'package:ariami_core/services/library/m3u_playlist_parser.dart';
 import 'package:ariami_core/services/library/metadata_extractor.dart';
+import 'package:ariami_core/services/library/album_identity.dart';
 import 'package:ariami_core/services/library/album_builder.dart';
 import 'package:ariami_core/services/library/album_grouping.dart';
 import 'package:ariami_core/services/library/duplicate_detector.dart';
 import 'package:ariami_core/services/library/natural_path_order.dart';
 import 'package:ariami_core/services/library/playlist_folder_classifier.dart';
+import 'package:ariami_core/services/library/track_number_inference.dart';
 
 enum ScanMessageType {
   progress,
@@ -547,7 +547,7 @@ class LibraryScannerIsolate {
 
         final songIds = sortedPaths.map((fp) {
           final originalPath = duplicateToOriginalPath[fp] ?? fp;
-          return _generateSongId(originalPath);
+          return generateSongId(originalPath);
         }).toList();
 
         final playlist = FolderPlaylist(
@@ -652,7 +652,7 @@ class LibraryScannerIsolate {
             var metadata = SongMetadata.fromJson(metadataJson);
             if (metadata.trackNumber == null) {
               final inferredTrack =
-                  _inferTrackNumberFromPath(metadata.filePath);
+                  inferTrackNumberFromFilename(metadata.filePath);
               if (inferredTrack != null) {
                 metadata = metadata.copyWith(trackNumber: inferredTrack);
               }
@@ -836,7 +836,7 @@ class LibraryScannerIsolate {
           }
           continue;
         }
-        final songId = _generateSongId(canonicalPath);
+        final songId = generateSongId(canonicalPath);
         if (seenIds.add(songId)) {
           songIds.add(songId);
         }
@@ -859,23 +859,5 @@ class LibraryScannerIsolate {
     }
 
     return playlists;
-  }
-
-  /// Generate a unique song ID from file path (must match LibraryManager)
-  static String _generateSongId(String filePath) {
-    final bytes = utf8.encode(filePath);
-    final hash = md5.convert(bytes);
-    return hash.toString().substring(0, 12);
-  }
-
-  static int? _inferTrackNumberFromPath(String filePath) {
-    final fileName = path.basenameWithoutExtension(filePath).trim();
-    final match =
-        RegExp(r'^(\d{1,3})(?:\s*[-._)]\s*|\s+)').firstMatch(fileName);
-    if (match == null) return null;
-
-    final parsed = int.tryParse(match.group(1)!);
-    if (parsed == null || parsed <= 0) return null;
-    return parsed;
   }
 }

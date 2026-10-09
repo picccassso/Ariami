@@ -22,12 +22,8 @@ extension AriamiHttpServerLibraryAndArtworkHandlersMethods on AriamiHttpServer {
     final albumDetail = await _libraryManager.getAlbumDetail(albumId, baseUrl);
 
     if (albumDetail == null) {
-      return _jsonNotFound({
-        'error': {
-          'code': 'ALBUM_NOT_FOUND',
-          'message': 'Album not found: $albumId',
-        },
-      });
+      return _jsonError(
+          HttpStatus.notFound, 'ALBUM_NOT_FOUND', 'Album not found: $albumId');
     }
 
     return _jsonOk(albumDetail);
@@ -54,12 +50,8 @@ extension AriamiHttpServerLibraryAndArtworkHandlersMethods on AriamiHttpServer {
     final artworkData = await _libraryManager.getAlbumArtwork(albumId);
 
     if (artworkData == null) {
-      return _jsonNotFound({
-        'error': {
-          'code': 'ARTWORK_NOT_FOUND',
-          'message': 'Artwork not found for album: $albumId',
-        },
-      });
+      return _jsonError(HttpStatus.notFound, 'ARTWORK_NOT_FOUND',
+          'Artwork not found for album: $albumId');
     }
 
     final shouldApplyArtworkQuota = size.requiresProcessing &&
@@ -154,12 +146,8 @@ extension AriamiHttpServerLibraryAndArtworkHandlersMethods on AriamiHttpServer {
     final artworkData = await _libraryManager.getSongArtwork(songId);
 
     if (artworkData == null) {
-      return _jsonNotFound({
-        'error': {
-          'code': 'ARTWORK_NOT_FOUND',
-          'message': 'Artwork not found for song: $songId',
-        },
-      });
+      return _jsonError(HttpStatus.notFound, 'ARTWORK_NOT_FOUND',
+          'Artwork not found for song: $songId');
     }
 
     final shouldApplyArtworkQuota = size.requiresProcessing &&

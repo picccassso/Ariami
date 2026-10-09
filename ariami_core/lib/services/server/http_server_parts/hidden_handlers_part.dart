@@ -13,13 +13,8 @@ extension AriamiHttpServerHiddenMethods on AriamiHttpServer {
     return store != null && store.isInitialized ? store : null;
   }
 
-  Response _hiddenUnavailable() =>
-      _jsonResponse(HttpStatus.serviceUnavailable, {
-        'error': {
-          'code': 'HIDDEN_UNAVAILABLE',
-          'message': 'Hidden items storage is not initialized',
-        },
-      });
+  Response _hiddenUnavailable() => _jsonError(HttpStatus.serviceUnavailable,
+      'HIDDEN_UNAVAILABLE', 'Hidden items storage is not initialized');
 
   Future<Response> _handleHiddenGet(Request request) async {
     final session = request.context['session'] as Session?;
@@ -186,9 +181,8 @@ extension AriamiHttpServerHiddenMethods on AriamiHttpServer {
     }
   }
 
-  Response _invalidHiddenRequest(String message) => _jsonBadRequest({
-        'error': {'code': 'INVALID_HIDDEN_ITEM', 'message': message},
-      });
+  Response _invalidHiddenRequest(String message) =>
+      _jsonError(HttpStatus.badRequest, 'INVALID_HIDDEN_ITEM', message);
 
   void _broadcastHiddenChanged(Session session, {required String reason}) {
     _connectHub.sendToUser(

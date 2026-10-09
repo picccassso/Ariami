@@ -10,3 +10,9 @@ String generateAlbumId(String title, String artist) {
   final digest = md5.convert(bytes);
   return digest.toString();
 }
+
+/// Generates a stable song ID (first 12 hex chars of the MD5) from a file
+/// path.
+String generateSongId(String filePath) {
+  return md5.convert(utf8.encode(filePath)).toString().substring(0, 12);
+}

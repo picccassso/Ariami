@@ -181,15 +181,11 @@ extension AriamiHttpServerSongAttributesMethods on AriamiHttpServer {
     }
   }
 
-  Response _invalidSongAttributesRequest(String message) => _jsonBadRequest({
-        'error': {'code': 'INVALID_SONG_ATTRIBUTES', 'message': message},
-      });
+  Response _invalidSongAttributesRequest(String message) =>
+      _jsonError(HttpStatus.badRequest, 'INVALID_SONG_ATTRIBUTES', message);
 
-  Response _songAttributesUnavailable() =>
-      _jsonResponse(HttpStatus.serviceUnavailable, {
-        'error': {
-          'code': 'CATALOG_UNAVAILABLE',
-          'message': 'Catalog storage is not initialized',
-        },
-      });
+  Response _songAttributesUnavailable() => _jsonError(
+      HttpStatus.serviceUnavailable,
+      'CATALOG_UNAVAILABLE',
+      'Catalog storage is not initialized');
 }

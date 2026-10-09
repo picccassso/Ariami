@@ -21,13 +21,10 @@ extension AriamiHttpServerLicenseMethods on AriamiHttpServer {
   /// initialization has run.
   LicenseFileStore? get licenseFileStore => _licenseFileStoreIfReady;
 
-  Response _licenseStoreUnavailable() =>
-      _jsonResponse(HttpStatus.serviceUnavailable, {
-        'error': {
-          'code': 'LICENSE_STORE_UNAVAILABLE',
-          'message': 'License storage is not initialized',
-        },
-      });
+  Response _licenseStoreUnavailable() => _jsonError(
+      HttpStatus.serviceUnavailable,
+      'LICENSE_STORE_UNAVAILABLE',
+      'License storage is not initialized');
 
   /// Any signed-in device may fetch the stored license files.
   ///
@@ -66,14 +63,12 @@ extension AriamiHttpServerLicenseMethods on AriamiHttpServer {
         licenseFile.trim().isEmpty ||
         utf8.encode(licenseFile).length >
             LicenseFileStore.maxLicenseFileBytes) {
-      return _jsonResponse(HttpStatus.badRequest, {
-        'error': {
-          'code': 'INVALID_LICENSE_BODY',
-          'message': 'Body must be a JSON object with a non-empty '
+      return _jsonError(
+          HttpStatus.badRequest,
+          'INVALID_LICENSE_BODY',
+          'Body must be a JSON object with a non-empty '
               '"licenseFile" string of at most '
-              '${LicenseFileStore.maxLicenseFileBytes} bytes',
-        },
-      });
+              '${LicenseFileStore.maxLicenseFileBytes} bytes');
     }
     await store.save(licenseFile);
     return _jsonOk({'stored': true});

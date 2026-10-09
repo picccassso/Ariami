@@ -128,7 +128,7 @@ extension _LibraryManagerDurationPart on LibraryManager {
     for (final album in _library!.albums.values) {
       for (var i = 0; i < album.songs.length; i++) {
         final song = album.songs[i];
-        if (_generateSongId(song.filePath) == songId) {
+        if (generateSongId(song.filePath) == songId) {
           final updated = song.copyWith(duration: duration);
           album.songs[i] = updated;
           _songById[songId] = updated;
@@ -141,7 +141,7 @@ extension _LibraryManagerDurationPart on LibraryManager {
 
     for (var i = 0; i < _library!.standaloneSongs.length; i++) {
       final song = _library!.standaloneSongs[i];
-      if (_generateSongId(song.filePath) == songId) {
+      if (generateSongId(song.filePath) == songId) {
         final updated = song.copyWith(duration: duration);
         _library!.standaloneSongs[i] = updated;
         _songById[songId] = updated;

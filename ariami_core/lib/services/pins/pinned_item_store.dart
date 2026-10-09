@@ -1,65 +1,42 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:ariami_core/models/pinned_item.dart';
 import 'package:crypto/crypto.dart';
 import 'package:sqlite3/sqlite3.dart';
 
+import '../common/sqlite_store.dart';
+
 /// SQLite persistence for account-scoped pins.
 ///
 /// The HTTP layer supplies [userId] and [sourceDeviceId] from a validated
 /// session. Client payloads never select the account that is read or written.
-class PinnedItemStore {
-  PinnedItemStore({required this.databasePath});
+class PinnedItemStore extends SqliteStore {
+  PinnedItemStore({required super.databasePath})
+      : super(storeName: 'PinnedItemStore');
 
-  final String databasePath;
-  Database? _database;
-
-  bool get isInitialized => _database != null;
-
-  Database get _db {
-    final database = _database;
-    if (database == null) {
-      throw StateError('PinnedItemStore is not initialized');
-    }
-    return database;
-  }
-
-  void initialize() {
-    if (_database != null) return;
-    final parent = File(databasePath).parent;
-    if (!parent.existsSync()) parent.createSync(recursive: true);
-    final database = sqlite3.open(databasePath);
-    try {
-      database.execute('PRAGMA journal_mode=WAL;');
-      database.execute('PRAGMA synchronous=NORMAL;');
-      database.execute('PRAGMA busy_timeout=5000;');
-      database.execute('''
-        CREATE TABLE IF NOT EXISTS pinned_items (
-          id TEXT PRIMARY KEY,
-          user_id TEXT NOT NULL,
-          type TEXT NOT NULL CHECK (type IN ('album', 'playlist')),
-          target_id TEXT NOT NULL,
-          sort_order INTEGER NOT NULL,
-          pinned_at INTEGER NOT NULL,
-          updated_at INTEGER NOT NULL,
-          source_device_id TEXT,
-          UNIQUE (user_id, type, target_id)
-        )
-      ''');
-      database.execute('''
-        CREATE INDEX IF NOT EXISTS idx_pinned_items_user_order
-          ON pinned_items (user_id, sort_order, pinned_at, id)
-      ''');
-      _database = database;
-    } catch (_) {
-      database.close();
-      rethrow;
-    }
+  @override
+  void createSchema(Database database) {
+    database.execute('''
+      CREATE TABLE IF NOT EXISTS pinned_items (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        type TEXT NOT NULL CHECK (type IN ('album', 'playlist')),
+        target_id TEXT NOT NULL,
+        sort_order INTEGER NOT NULL,
+        pinned_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        source_device_id TEXT,
+        UNIQUE (user_id, type, target_id)
+      )
+    ''');
+    database.execute('''
+      CREATE INDEX IF NOT EXISTS idx_pinned_items_user_order
+        ON pinned_items (user_id, sort_order, pinned_at, id)
+    ''');
   }
 
   List<PinnedItem> list(String userId) {
-    final rows = _db.select('''
+    final rows = db.select('''
       SELECT id, user_id, type, target_id, sort_order, pinned_at, updated_at,
              source_device_id
       FROM pinned_items
@@ -84,7 +61,7 @@ class PinnedItemStore {
     final now = DateTime.now().toUtc();
     final order = sortOrder != null && sortOrder >= 0
         ? sortOrder
-        : (_db.select(
+        : (db.select(
                     'SELECT MAX(sort_order) AS max_order FROM pinned_items WHERE user_id = ?',
                     <Object?>[userId]).first['max_order'] as int? ??
                 -1) +
@@ -93,7 +70,7 @@ class PinnedItemStore {
         .convert(utf8.encode('$userId\u0000$type\u0000$targetId'))
         .toString();
     final pinned = (pinnedAt ?? now).toUtc();
-    _db.execute('''
+    db.execute('''
       INSERT OR IGNORE INTO pinned_items (
         id, user_id, type, target_id, sort_order, pinned_at, updated_at,
         source_device_id
@@ -113,11 +90,11 @@ class PinnedItemStore {
 
   bool unpin(String userId, String type, String targetId) {
     _validate(type, targetId);
-    _db.execute(
+    db.execute(
       'DELETE FROM pinned_items WHERE user_id = ? AND type = ? AND target_id = ?',
       <Object?>[userId, type, targetId.trim()],
     );
-    return _db.updatedRows > 0;
+    return db.updatedRows > 0;
   }
 
   /// Imports backup rows without ever accepting a user id from the file.
@@ -161,10 +138,10 @@ class PinnedItemStore {
       ));
     }
 
-    _db.execute('BEGIN IMMEDIATE');
+    db.execute('BEGIN IMMEDIATE');
     try {
       if (replace) {
-        _db.execute(
+        db.execute(
           'DELETE FROM pinned_items WHERE user_id = ?',
           <Object?>[userId],
         );
@@ -180,16 +157,16 @@ class PinnedItemStore {
           pinnedAt: row.pinnedAt,
         );
       }
-      _db.execute('COMMIT');
+      db.execute('COMMIT');
     } catch (_) {
-      _db.execute('ROLLBACK');
+      db.execute('ROLLBACK');
       rethrow;
     }
     return normalized.length;
   }
 
   PinnedItem? _find(String userId, String type, String targetId) {
-    final rows = _db.select('''
+    final rows = db.select('''
       SELECT id, user_id, type, target_id, sort_order, pinned_at, updated_at,
              source_device_id
       FROM pinned_items
@@ -224,9 +201,4 @@ class PinnedItemStore {
         ),
         sourceDeviceId: row['source_device_id'] as String?,
       );
-
-  void close() {
-    _database?.close();
-    _database = null;
-  }
 }

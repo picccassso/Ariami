@@ -8,7 +8,7 @@ extension _LibraryManagerCatalogRecordsPart on LibraryManager {
 
     for (final album in library.albums.values.where((a) => a.isValid)) {
       for (final song in album.songs) {
-        final songId = _generateSongId(song.filePath);
+        final songId = generateSongId(song.filePath);
         records[songId] = CatalogSongRecord(
           id: songId,
           filePath: song.filePath,
@@ -29,7 +29,7 @@ extension _LibraryManagerCatalogRecordsPart on LibraryManager {
     }
 
     for (final song in library.standaloneSongs) {
-      final songId = _generateSongId(song.filePath);
+      final songId = generateSongId(song.filePath);
       records[songId] = CatalogSongRecord(
         id: songId,
         filePath: song.filePath,
@@ -102,14 +102,14 @@ extension _LibraryManagerCatalogRecordsPart on LibraryManager {
     return records;
   }
 
-  Map<_CatalogPlaylistSongKey, int> _buildCatalogPlaylistSongPositions(
+  Map<CatalogPlaylistSongKey, int> _buildCatalogPlaylistSongPositions(
     LibraryStructure library,
   ) {
-    final positions = <_CatalogPlaylistSongKey, int>{};
+    final positions = <CatalogPlaylistSongKey, int>{};
 
     for (final playlist in library.folderPlaylists) {
       for (var index = 0; index < playlist.songIds.length; index++) {
-        positions[_CatalogPlaylistSongKey(
+        positions[CatalogPlaylistSongKey(
           playlistId: playlist.id,
           songId: playlist.songIds[index],
           position: index,
@@ -125,13 +125,13 @@ extension _LibraryManagerCatalogRecordsPart on LibraryManager {
 
     for (final album in library.albums.values.where((a) => a.isValid)) {
       for (final song in album.songs) {
-        final songId = _generateSongId(song.filePath);
+        final songId = generateSongId(song.filePath);
         index[songId] = album.id;
       }
     }
 
     for (final song in library.standaloneSongs) {
-      final songId = _generateSongId(song.filePath);
+      final songId = generateSongId(song.filePath);
       index[songId] = null;
     }
 
@@ -145,7 +145,7 @@ extension _LibraryManagerCatalogRecordsPart on LibraryManager {
       for (final song in album.songs) {
         final duration = song.duration;
         if (duration != null && duration > 0) {
-          durationsById[_generateSongId(song.filePath)] = duration;
+          durationsById[generateSongId(song.filePath)] = duration;
         }
       }
     }
@@ -153,7 +153,7 @@ extension _LibraryManagerCatalogRecordsPart on LibraryManager {
     for (final song in library.standaloneSongs) {
       final duration = song.duration;
       if (duration != null && duration > 0) {
-        durationsById[_generateSongId(song.filePath)] = duration;
+        durationsById[generateSongId(song.filePath)] = duration;
       }
     }
 
@@ -183,42 +183,4 @@ extension _LibraryManagerCatalogRecordsPart on LibraryManager {
         previous.songCount != current.songCount ||
         previous.durationSeconds != current.durationSeconds;
   }
-}
-
-class _CatalogPlaylistSongKey implements Comparable<_CatalogPlaylistSongKey> {
-  const _CatalogPlaylistSongKey({
-    required this.playlistId,
-    required this.songId,
-    required this.position,
-  });
-
-  final String playlistId;
-  final String songId;
-  final int position;
-
-  String get entityId => '$playlistId:$position';
-
-  @override
-  int compareTo(_CatalogPlaylistSongKey other) {
-    final playlistCompare = playlistId.compareTo(other.playlistId);
-    if (playlistCompare != 0) {
-      return playlistCompare;
-    }
-    final positionCompare = position.compareTo(other.position);
-    if (positionCompare != 0) {
-      return positionCompare;
-    }
-    return songId.compareTo(other.songId);
-  }
-
-  @override
-  bool operator ==(Object other) {
-    return other is _CatalogPlaylistSongKey &&
-        other.playlistId == playlistId &&
-        other.songId == songId &&
-        other.position == position;
-  }
-
-  @override
-  int get hashCode => Object.hash(playlistId, songId, position);
 }

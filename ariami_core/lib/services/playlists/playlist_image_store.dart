@@ -1,8 +1,8 @@
-import 'dart:io';
-import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:sqlite3/sqlite3.dart';
+
+import '../common/sqlite_image_store.dart';
 
 class PlaylistImageInfo {
   const PlaylistImageInfo({
@@ -47,53 +47,33 @@ class PlaylistImageRecord extends PlaylistImageInfo {
 ///
 /// The HTTP layer supplies [userId] from a validated session. Client payloads
 /// never select the account that is read or written.
-class PlaylistImageStore {
-  PlaylistImageStore({required this.databasePath});
+class PlaylistImageStore extends SqliteImageStore {
+  PlaylistImageStore({required super.databasePath})
+      : super(
+          storeName: 'PlaylistImageStore',
+          table: 'playlist_images',
+          keyColumn: 'playlist_id',
+        );
 
   static const int maxPlaylistIdLength = 512;
   static const int maxImageBytes = 5 * 1024 * 1024;
 
-  final String databasePath;
-  Database? _database;
-
-  bool get isInitialized => _database != null;
-
-  Database get _db {
-    final database = _database;
-    if (database == null) {
-      throw StateError('PlaylistImageStore is not initialized');
-    }
-    return database;
-  }
-
-  void initialize() {
-    if (_database != null) return;
-    final parent = File(databasePath).parent;
-    if (!parent.existsSync()) parent.createSync(recursive: true);
-    final database = sqlite3.open(databasePath);
-    try {
-      database.execute('PRAGMA journal_mode=WAL;');
-      database.execute('PRAGMA synchronous=NORMAL;');
-      database.execute('PRAGMA busy_timeout=5000;');
-      database.execute('''
-        CREATE TABLE IF NOT EXISTS playlist_images (
-          user_id TEXT NOT NULL,
-          playlist_id TEXT NOT NULL,
-          content_type TEXT NOT NULL,
-          updated_at INTEGER NOT NULL,
-          bytes BLOB NOT NULL,
-          PRIMARY KEY (user_id, playlist_id)
-        )
-      ''');
-      _database = database;
-    } catch (_) {
-      database.close();
-      rethrow;
-    }
+  @override
+  void createSchema(Database database) {
+    database.execute('''
+      CREATE TABLE IF NOT EXISTS playlist_images (
+        user_id TEXT NOT NULL,
+        playlist_id TEXT NOT NULL,
+        content_type TEXT NOT NULL,
+        updated_at INTEGER NOT NULL,
+        bytes BLOB NOT NULL,
+        PRIMARY KEY (user_id, playlist_id)
+      )
+    ''');
   }
 
   List<PlaylistImageInfo> list(String userId) {
-    final rows = _db.select('''
+    final rows = db.select('''
       SELECT playlist_id, content_type, updated_at
       FROM playlist_images
       WHERE user_id = ?
@@ -110,7 +90,7 @@ class PlaylistImageStore {
 
   PlaylistImageRecord? find(String userId, String playlistId) {
     final normalizedPlaylistId = _validatePlaylistId(playlistId);
-    final rows = _db.select('''
+    final rows = db.select('''
       SELECT playlist_id, content_type, updated_at, bytes
       FROM playlist_images
       WHERE user_id = ? AND playlist_id = ?
@@ -138,15 +118,9 @@ class PlaylistImageStore {
           bytes.length, 'bytes', 'Invalid image payload size');
     }
 
-    // Strictly monotonic per playlist so a replaced image always gets a new
-    // version, even within one clock millisecond.
-    final previous = _findUpdatedAt(userId, normalizedPlaylistId);
-    var updatedAt = DateTime.now().toUtc().millisecondsSinceEpoch;
-    if (previous != null && updatedAt <= previous) {
-      updatedAt = previous + 1;
-    }
+    final updatedAt = nextUpdatedAt(userId, normalizedPlaylistId);
 
-    _db.execute('''
+    db.execute('''
       INSERT INTO playlist_images (
         user_id, playlist_id, content_type, updated_at, bytes
       ) VALUES (?, ?, ?, ?, ?)
@@ -168,60 +142,20 @@ class PlaylistImageStore {
     );
   }
 
-  /// Replaces each stored image for which [shrink] returns new bytes, with a
-  /// fresh `updated_at` so client caches keyed on it refresh. A row replaced
-  /// by an upload while [shrink] ran is left alone. Returns how many rows
-  /// were shrunk.
-  Future<int> shrinkImages(
-    Future<({Uint8List bytes, String contentType})?> Function(
-      Uint8List bytes,
-      String contentType,
-    ) shrink,
-  ) async {
-    final keys = _db.select('SELECT user_id, playlist_id FROM playlist_images');
-    var shrunkCount = 0;
-    for (final key in keys) {
-      final userId = key['user_id'] as String;
-      final record = find(userId, key['playlist_id'] as String);
-      if (record == null) continue;
-      final shrunk = await shrink(record.bytes, record.contentType);
-      if (shrunk == null) continue;
-      _db.execute(
-        'UPDATE playlist_images '
-        'SET bytes = ?, content_type = ?, updated_at = ? '
-        'WHERE user_id = ? AND playlist_id = ? AND updated_at = ?',
-        <Object?>[
-          shrunk.bytes,
-          shrunk.contentType,
-          max(DateTime.now().toUtc().millisecondsSinceEpoch,
-              record.updatedAt + 1),
-          userId,
-          record.playlistId,
-          record.updatedAt,
-        ],
-      );
-      if (_db.updatedRows > 0) shrunkCount++;
-    }
-    return shrunkCount;
+  @override
+  StoredImage? findStoredImage(String userId, String key) {
+    final record = find(userId, key);
+    if (record == null) return null;
+    return (
+      key: record.playlistId,
+      bytes: record.bytes,
+      contentType: record.contentType,
+      updatedAt: record.updatedAt,
+    );
   }
 
-  bool delete(String userId, String playlistId) {
-    final normalizedPlaylistId = _validatePlaylistId(playlistId);
-    _db.execute(
-      'DELETE FROM playlist_images WHERE user_id = ? AND playlist_id = ?',
-      <Object?>[userId, normalizedPlaylistId],
-    );
-    return _db.updatedRows > 0;
-  }
-
-  int? _findUpdatedAt(String userId, String playlistId) {
-    final rows = _db.select(
-      'SELECT updated_at FROM playlist_images '
-      'WHERE user_id = ? AND playlist_id = ? LIMIT 1',
-      <Object?>[userId, playlistId],
-    );
-    return rows.isEmpty ? null : rows.first['updated_at'] as int;
-  }
+  bool delete(String userId, String playlistId) =>
+      deleteByKey(userId, _validatePlaylistId(playlistId));
 
   String _validatePlaylistId(String playlistId) {
     if (playlistId.trim().isEmpty || playlistId.length > maxPlaylistIdLength) {
@@ -229,10 +163,5 @@ class PlaylistImageStore {
           playlistId, 'playlistId', 'Invalid playlist id');
     }
     return playlistId.trim();
-  }
-
-  void close() {
-    _database?.close();
-    _database = null;
   }
 }

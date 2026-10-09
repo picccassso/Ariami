@@ -7,17 +7,13 @@ part of '../http_server.dart';
 /// endpoints use the same authorization as the other library-mutating setup
 /// endpoints: admin session when users exist, open during first-run setup.
 extension AriamiHttpServerPlaylistSuggestionsMethods on AriamiHttpServer {
-  Response _playlistDecisionsUnavailable() =>
-      _jsonResponse(HttpStatus.serviceUnavailable, {
-        'error': {
-          'code': 'PLAYLIST_DECISIONS_UNAVAILABLE',
-          'message': 'Playlist decision storage is not initialized',
-        },
-      });
+  Response _playlistDecisionsUnavailable() => _jsonError(
+      HttpStatus.serviceUnavailable,
+      'PLAYLIST_DECISIONS_UNAVAILABLE',
+      'Playlist decision storage is not initialized');
 
-  Response _invalidPlaylistDecisionRequest(String message) => _jsonBadRequest({
-        'error': {'code': 'INVALID_PLAYLIST_DECISION', 'message': message},
-      });
+  Response _invalidPlaylistDecisionRequest(String message) =>
+      _jsonError(HttpStatus.badRequest, 'INVALID_PLAYLIST_DECISION', message);
 
   /// GET /api/playlists/suggestions — pending suggestions plus every
   /// recorded decision.

@@ -57,9 +57,7 @@ extension AriamiHttpServerListeningStatsMethods on AriamiHttpServer {
       'limit must be an integer between 1 and $_maxTopLimit, or 0 for all');
 
   Response _invalidParam(String message) {
-    return _jsonBadRequest({
-      'error': {'code': 'INVALID_REQUEST', 'message': message},
-    });
+    return _jsonError(HttpStatus.badRequest, 'INVALID_REQUEST', message);
   }
 
   ListeningStatsStore? get _statsStoreIfReady {
@@ -135,12 +133,8 @@ extension AriamiHttpServerListeningStatsMethods on AriamiHttpServer {
   }
 
   Response _statsUnavailable() {
-    return _jsonResponse(HttpStatus.serviceUnavailable, {
-      'error': {
-        'code': 'STATS_UNAVAILABLE',
-        'message': 'Listening stats storage is not initialized',
-      },
-    });
+    return _jsonError(HttpStatus.serviceUnavailable, 'STATS_UNAVAILABLE',
+        'Listening stats storage is not initialized');
   }
 
   /// POST /api/v2/listening/events — idempotent batch upload.
@@ -154,31 +148,18 @@ extension AriamiHttpServerListeningStatsMethods on AriamiHttpServer {
     try {
       data = jsonDecode(await request.readAsString()) as Map<String, dynamic>;
     } catch (_) {
-      return _jsonBadRequest({
-        'error': {
-          'code': 'INVALID_REQUEST',
-          'message': 'Body must be a JSON object',
-        },
-      });
+      return _jsonError(HttpStatus.badRequest, 'INVALID_REQUEST',
+          'Body must be a JSON object');
     }
 
     final rawEvents = data['events'];
     if (rawEvents is! List) {
-      return _jsonBadRequest({
-        'error': {
-          'code': 'INVALID_REQUEST',
-          'message': 'events must be a list',
-        },
-      });
+      return _jsonError(
+          HttpStatus.badRequest, 'INVALID_REQUEST', 'events must be a list');
     }
     if (rawEvents.length > ListeningStatsStore.maxEventsPerBatch) {
-      return _jsonBadRequest({
-        'error': {
-          'code': 'INVALID_REQUEST',
-          'message':
-              'events exceeds the batch limit of ${ListeningStatsStore.maxEventsPerBatch}',
-        },
-      });
+      return _jsonError(HttpStatus.badRequest, 'INVALID_REQUEST',
+          'events exceeds the batch limit of ${ListeningStatsStore.maxEventsPerBatch}');
     }
 
     final events = <ListeningEvent>[];
@@ -239,12 +220,8 @@ extension AriamiHttpServerListeningStatsMethods on AriamiHttpServer {
     if (rawDays != null) {
       final parsed = int.tryParse(rawDays);
       if (parsed == null || parsed <= 0 || parsed > _maxDailyDays) {
-        return _jsonBadRequest({
-          'error': {
-            'code': 'INVALID_REQUEST',
-            'message': 'days must be an integer between 1 and $_maxDailyDays',
-          },
-        });
+        return _jsonError(HttpStatus.badRequest, 'INVALID_REQUEST',
+            'days must be an integer between 1 and $_maxDailyDays');
       }
       days = parsed;
     }
@@ -398,12 +375,8 @@ extension AriamiHttpServerListeningStatsMethods on AriamiHttpServer {
     if (rawDays != null) {
       final parsed = int.tryParse(rawDays);
       if (parsed == null || parsed <= 0 || parsed > _maxDailyDays) {
-        return _jsonBadRequest({
-          'error': {
-            'code': 'INVALID_REQUEST',
-            'message': 'days must be an integer between 1 and $_maxDailyDays',
-          },
-        });
+        return _jsonError(HttpStatus.badRequest, 'INVALID_REQUEST',
+            'days must be an integer between 1 and $_maxDailyDays');
       }
       days = parsed;
     }

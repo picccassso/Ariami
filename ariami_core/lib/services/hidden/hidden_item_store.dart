@@ -1,9 +1,10 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:ariami_core/models/hidden_item.dart';
 import 'package:crypto/crypto.dart';
 import 'package:sqlite3/sqlite3.dart';
+
+import '../common/sqlite_store.dart';
 
 /// SQLite persistence for account-scoped hidden items.
 ///
@@ -12,55 +13,31 @@ import 'package:sqlite3/sqlite3.dart';
 ///
 /// Unlike pins there is no ordering to keep: hidden things are absent, so the
 /// only questions a client asks are "which ones" and "is this one hidden".
-class HiddenItemStore {
-  HiddenItemStore({required this.databasePath});
+class HiddenItemStore extends SqliteStore {
+  HiddenItemStore({required super.databasePath})
+      : super(storeName: 'HiddenItemStore');
 
-  final String databasePath;
-  Database? _database;
-
-  bool get isInitialized => _database != null;
-
-  Database get _db {
-    final database = _database;
-    if (database == null) {
-      throw StateError('HiddenItemStore is not initialized');
-    }
-    return database;
-  }
-
-  void initialize() {
-    if (_database != null) return;
-    final parent = File(databasePath).parent;
-    if (!parent.existsSync()) parent.createSync(recursive: true);
-    final database = sqlite3.open(databasePath);
-    try {
-      database.execute('PRAGMA journal_mode=WAL;');
-      database.execute('PRAGMA synchronous=NORMAL;');
-      database.execute('PRAGMA busy_timeout=5000;');
-      database.execute('''
-        CREATE TABLE IF NOT EXISTS hidden_items (
-          id TEXT PRIMARY KEY,
-          user_id TEXT NOT NULL,
-          type TEXT NOT NULL CHECK (type IN ('album', 'playlist', 'artist')),
-          target_id TEXT NOT NULL,
-          hidden_at INTEGER NOT NULL,
-          source_device_id TEXT,
-          UNIQUE (user_id, type, target_id)
-        )
-      ''');
-      database.execute('''
-        CREATE INDEX IF NOT EXISTS idx_hidden_items_user
-          ON hidden_items (user_id, hidden_at)
-      ''');
-      _database = database;
-    } catch (_) {
-      database.close();
-      rethrow;
-    }
+  @override
+  void createSchema(Database database) {
+    database.execute('''
+      CREATE TABLE IF NOT EXISTS hidden_items (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        type TEXT NOT NULL CHECK (type IN ('album', 'playlist', 'artist')),
+        target_id TEXT NOT NULL,
+        hidden_at INTEGER NOT NULL,
+        source_device_id TEXT,
+        UNIQUE (user_id, type, target_id)
+      )
+    ''');
+    database.execute('''
+      CREATE INDEX IF NOT EXISTS idx_hidden_items_user
+        ON hidden_items (user_id, hidden_at)
+    ''');
   }
 
   List<HiddenItem> list(String userId) {
-    final rows = _db.select('''
+    final rows = db.select('''
       SELECT id, user_id, type, target_id, hidden_at, source_device_id
       FROM hidden_items
       WHERE user_id = ?
@@ -88,7 +65,7 @@ class HiddenItemStore {
     final id = sha256
         .convert(utf8.encode('$userId\u0000$type\u0000$trimmed'))
         .toString();
-    _db.execute('''
+    db.execute('''
       INSERT OR IGNORE INTO hidden_items (
         id, user_id, type, target_id, hidden_at, source_device_id
       ) VALUES (?, ?, ?, ?, ?, ?)
@@ -112,7 +89,7 @@ class HiddenItemStore {
     String? sourceDeviceId,
   }) {
     final hidden = <HiddenItem>[];
-    _db.execute('BEGIN IMMEDIATE');
+    db.execute('BEGIN IMMEDIATE');
     try {
       for (final target in targets) {
         try {
@@ -126,9 +103,9 @@ class HiddenItemStore {
           continue;
         }
       }
-      _db.execute('COMMIT');
+      db.execute('COMMIT');
     } catch (_) {
-      _db.execute('ROLLBACK');
+      db.execute('ROLLBACK');
       rethrow;
     }
     return hidden;
@@ -136,15 +113,15 @@ class HiddenItemStore {
 
   bool unhide(String userId, String type, String targetId) {
     _validate(type, targetId);
-    _db.execute(
+    db.execute(
       'DELETE FROM hidden_items WHERE user_id = ? AND type = ? AND target_id = ?',
       <Object?>[userId, type, targetId.trim()],
     );
-    return _db.updatedRows > 0;
+    return db.updatedRows > 0;
   }
 
   HiddenItem? _find(String userId, String type, String targetId) {
-    final rows = _db.select('''
+    final rows = db.select('''
       SELECT id, user_id, type, target_id, hidden_at, source_device_id
       FROM hidden_items
       WHERE user_id = ? AND type = ? AND target_id = ?
@@ -173,9 +150,4 @@ class HiddenItemStore {
         ),
         sourceDeviceId: row['source_device_id'] as String?,
       );
-
-  void close() {
-    _database?.close();
-    _database = null;
-  }
 }

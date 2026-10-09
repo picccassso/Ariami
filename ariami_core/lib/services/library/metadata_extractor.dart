@@ -6,24 +6,19 @@ import 'package:path/path.dart' as p;
 import 'package:dart_tags/dart_tags.dart';
 import 'package:ariami_core/models/song_metadata.dart';
 import 'package:ariami_core/services/library/mp3_duration_parser.dart';
+import 'package:ariami_core/services/library/track_number_inference.dart';
 import 'package:ariami_core/utils/mojibake_repair.dart';
+import 'package:ariami_core/utils/process_runner.dart';
 import 'package:ariami_core/utils/text_sanitizer.dart';
 
+export 'package:ariami_core/utils/process_runner.dart' show ProcessRunner;
 export 'package:ariami_core/utils/text_sanitizer.dart' show sanitizeTagText;
 
 part 'metadata_extractor/metadata_extractor_artwork.part.dart';
 part 'metadata_extractor/metadata_extractor_metadata.part.dart';
 part 'metadata_extractor/metadata_extractor_probes.part.dart';
 
-typedef ProcessRunner = Future<ProcessResult> Function(
-  String executable,
-  List<String> arguments,
-);
-
-typedef BinaryProcessRunner = Future<ProcessResult> Function(
-  String executable,
-  List<String> arguments,
-);
+typedef BinaryProcessRunner = ProcessRunner;
 
 typedef MetadataDiagnosticLogger = void Function(String message);
 

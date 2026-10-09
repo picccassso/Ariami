@@ -1,7 +1,8 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:sqlite3/sqlite3.dart';
+
+import '../common/sqlite_store.dart';
 
 class PlaylistEdit {
   const PlaylistEdit({
@@ -34,55 +35,31 @@ class PlaylistEdit {
 ///
 /// The HTTP layer supplies [userId] and [sourceDeviceId] from a validated
 /// session. Client payloads never select the account that is read or written.
-class PlaylistEditStore {
-  PlaylistEditStore({required this.databasePath});
+class PlaylistEditStore extends SqliteStore {
+  PlaylistEditStore({required super.databasePath})
+      : super(storeName: 'PlaylistEditStore');
 
   static const int maxPlaylistIdLength = 512;
   static const int maxSongIds = 10000;
 
-  final String databasePath;
-  Database? _database;
-
-  bool get isInitialized => _database != null;
-
-  Database get _db {
-    final database = _database;
-    if (database == null) {
-      throw StateError('PlaylistEditStore is not initialized');
-    }
-    return database;
-  }
-
-  void initialize() {
-    if (_database != null) return;
-    final parent = File(databasePath).parent;
-    if (!parent.existsSync()) parent.createSync(recursive: true);
-    final database = sqlite3.open(databasePath);
-    try {
-      database.execute('PRAGMA journal_mode=WAL;');
-      database.execute('PRAGMA synchronous=NORMAL;');
-      database.execute('PRAGMA busy_timeout=5000;');
-      database.execute('''
-        CREATE TABLE IF NOT EXISTS playlist_edits (
-          user_id TEXT NOT NULL,
-          playlist_id TEXT NOT NULL,
-          name TEXT,
-          song_ids_json TEXT,
-          base_snapshot_json TEXT,
-          updated_at INTEGER NOT NULL,
-          source_device_id TEXT,
-          PRIMARY KEY (user_id, playlist_id)
-        )
-      ''');
-      _database = database;
-    } catch (_) {
-      database.close();
-      rethrow;
-    }
+  @override
+  void createSchema(Database database) {
+    database.execute('''
+      CREATE TABLE IF NOT EXISTS playlist_edits (
+        user_id TEXT NOT NULL,
+        playlist_id TEXT NOT NULL,
+        name TEXT,
+        song_ids_json TEXT,
+        base_snapshot_json TEXT,
+        updated_at INTEGER NOT NULL,
+        source_device_id TEXT,
+        PRIMARY KEY (user_id, playlist_id)
+      )
+    ''');
   }
 
   List<PlaylistEdit> list(String userId) {
-    final rows = _db.select('''
+    final rows = db.select('''
       SELECT playlist_id, name, song_ids_json, base_snapshot_json, updated_at,
              source_device_id
       FROM playlist_edits
@@ -107,7 +84,7 @@ class PlaylistEditStore {
     final normalizedName = name;
     final now = DateTime.now().toUtc();
 
-    _db.execute('''
+    db.execute('''
       INSERT INTO playlist_edits (
         user_id, playlist_id, name, song_ids_json, base_snapshot_json,
         updated_at, source_device_id
@@ -132,11 +109,11 @@ class PlaylistEditStore {
 
   bool delete(String userId, String playlistId) {
     final normalizedPlaylistId = _validatePlaylistId(playlistId);
-    _db.execute(
+    db.execute(
       'DELETE FROM playlist_edits WHERE user_id = ? AND playlist_id = ?',
       <Object?>[userId, normalizedPlaylistId],
     );
-    return _db.updatedRows > 0;
+    return db.updatedRows > 0;
   }
 
   /// Imports backup rows without ever accepting a user id from the file.
@@ -184,10 +161,10 @@ class PlaylistEditStore {
       }
     }
 
-    _db.execute('BEGIN IMMEDIATE');
+    db.execute('BEGIN IMMEDIATE');
     try {
       if (replace) {
-        _db.execute(
+        db.execute(
           'DELETE FROM playlist_edits WHERE user_id = ?',
           <Object?>[userId],
         );
@@ -204,9 +181,9 @@ class PlaylistEditStore {
           sourceDeviceId: sourceDeviceId,
         );
       }
-      _db.execute('COMMIT');
+      db.execute('COMMIT');
     } catch (_) {
-      _db.execute('ROLLBACK');
+      db.execute('ROLLBACK');
       rethrow;
     }
     return normalized.length;
@@ -223,7 +200,7 @@ class PlaylistEditStore {
   }) {
     final timestamp =
         (updatedAt ?? DateTime.now()).toUtc().millisecondsSinceEpoch;
-    _db.execute('''
+    db.execute('''
       INSERT INTO playlist_edits (
         user_id, playlist_id, name, song_ids_json, base_snapshot_json,
         updated_at, source_device_id
@@ -246,7 +223,7 @@ class PlaylistEditStore {
   }
 
   PlaylistEdit? _find(String userId, String playlistId) {
-    final rows = _db.select('''
+    final rows = db.select('''
       SELECT playlist_id, name, song_ids_json, base_snapshot_json, updated_at,
              source_device_id
       FROM playlist_edits
@@ -300,10 +277,5 @@ class PlaylistEditStore {
     final decoded = jsonDecode(value);
     if (decoded is! List) return const <String>[];
     return decoded.whereType<String>().toList(growable: false);
-  }
-
-  void close() {
-    _database?.close();
-    _database = null;
   }
 }

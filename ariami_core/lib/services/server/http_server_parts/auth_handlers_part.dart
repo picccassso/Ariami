@@ -27,15 +27,8 @@ extension AriamiHttpServerAuthHandlersMethods on AriamiHttpServer {
       final registrationToken = data['registrationToken'] as String?;
 
       if (username == null || password == null) {
-        return Response.badRequest(
-          body: jsonEncode({
-            'error': {
-              'code': 'INVALID_REQUEST',
-              'message': 'username and password are required',
-            },
-          }),
-          headers: {'Content-Type': 'application/json; charset=utf-8'},
-        );
+        return _jsonError(HttpStatus.badRequest, 'INVALID_REQUEST',
+            'username and password are required');
       }
 
       final hasUsers = _authService.hasUsers();
@@ -49,22 +42,17 @@ extension AriamiHttpServerAuthHandlersMethods on AriamiHttpServer {
             _hasValidRegistrationToken(registrationToken) ||
             _isValidOwnerBootstrapCode(bootstrapCode);
         if (!authorized) {
-          return _jsonForbidden({
-            'error': {
-              'code': AuthErrorCodes.ownerBootstrapRequired,
-              'message':
-                  'Creating the first (owner) account from another device '
-                      'requires the setup code shown on the server console',
-            },
-          });
+          return _jsonError(
+              HttpStatus.forbidden,
+              AuthErrorCodes.ownerBootstrapRequired,
+              'Creating the first (owner) account from another device '
+              'requires the setup code shown on the server console');
         }
       } else if (!_hasValidRegistrationToken(registrationToken)) {
-        return _jsonForbidden({
-          'error': {
-            'code': AuthErrorCodes.registrationClosed,
-            'message': 'Registration requires a valid QR registration token',
-          },
-        });
+        return _jsonError(
+            HttpStatus.forbidden,
+            AuthErrorCodes.registrationClosed,
+            'Registration requires a valid QR registration token');
       }
 
       final response = await _authService.register(username, password);
@@ -84,26 +72,10 @@ extension AriamiHttpServerAuthHandlersMethods on AriamiHttpServer {
         headers: {'Content-Type': 'application/json; charset=utf-8'},
       );
     } on UserExistsException {
-      return Response(
-        409,
-        body: jsonEncode({
-          'error': {
-            'code': AuthErrorCodes.userExists,
-            'message': 'Username already taken',
-          },
-        }),
-        headers: {'Content-Type': 'application/json; charset=utf-8'},
-      );
+      return _jsonError(
+          409, AuthErrorCodes.userExists, 'Username already taken');
     } on AuthException catch (e) {
-      return Response.badRequest(
-        body: jsonEncode({
-          'error': {
-            'code': e.code,
-            'message': e.message,
-          },
-        }),
-        headers: {'Content-Type': 'application/json; charset=utf-8'},
-      );
+      return _jsonError(HttpStatus.badRequest, e.code, e.message);
     }
   }
 
@@ -115,12 +87,8 @@ extension AriamiHttpServerAuthHandlersMethods on AriamiHttpServer {
   /// the 403 as "use manual sign-in".
   Response _handleAuthUsers(Request request) {
     if (!_publicUserPickerEnabled) {
-      return _jsonForbidden({
-        'error': {
-          'code': AuthErrorCodes.userPickerDisabled,
-          'message': 'The account picker is disabled on this server',
-        },
-      });
+      return _jsonError(HttpStatus.forbidden, AuthErrorCodes.userPickerDisabled,
+          'The account picker is disabled on this server');
     }
 
     final users = _authService.getUsers().toList()
@@ -177,16 +145,8 @@ extension AriamiHttpServerAuthHandlersMethods on AriamiHttpServer {
           password == null ||
           deviceId == null ||
           deviceName == null) {
-        return Response.badRequest(
-          body: jsonEncode({
-            'error': {
-              'code': 'INVALID_REQUEST',
-              'message':
-                  'username, password, deviceId, and deviceName are required',
-            },
-          }),
-          headers: {'Content-Type': 'application/json; charset=utf-8'},
-        );
+        return _jsonError(HttpStatus.badRequest, 'INVALID_REQUEST',
+            'username, password, deviceId, and deviceName are required');
       }
 
       // A user-renamed device keeps its custom display name across logins;
@@ -225,16 +185,7 @@ extension AriamiHttpServerAuthHandlersMethods on AriamiHttpServer {
         headers: {'Content-Type': 'application/json; charset=utf-8'},
       );
     } on AuthException catch (e) {
-      return Response(
-        _statusForAuthException(e.code),
-        body: jsonEncode({
-          'error': {
-            'code': e.code,
-            'message': e.message,
-          },
-        }),
-        headers: {'Content-Type': 'application/json; charset=utf-8'},
-      );
+      return _jsonError(_statusForAuthException(e.code), e.code, e.message);
     }
   }
 
@@ -255,15 +206,8 @@ extension AriamiHttpServerAuthHandlersMethods on AriamiHttpServer {
   Future<Response> _handleAuthLogout(Request request) async {
     final session = request.context['session'] as Session?;
     if (session == null) {
-      return Response.unauthorized(
-        jsonEncode({
-          'error': {
-            'code': AuthErrorCodes.authRequired,
-            'message': 'Not authenticated',
-          },
-        }),
-        headers: {'Content-Type': 'application/json; charset=utf-8'},
-      );
+      return _jsonError(HttpStatus.unauthorized, AuthErrorCodes.authRequired,
+          'Not authenticated');
     }
 
     final response = await _authService.logout(session.sessionToken);
@@ -287,28 +231,14 @@ extension AriamiHttpServerAuthHandlersMethods on AriamiHttpServer {
   Response _handleGetMe(Request request) {
     final session = request.context['session'] as Session?;
     if (session == null) {
-      return Response.unauthorized(
-        jsonEncode({
-          'error': {
-            'code': AuthErrorCodes.authRequired,
-            'message': 'Not authenticated',
-          },
-        }),
-        headers: {'Content-Type': 'application/json; charset=utf-8'},
-      );
+      return _jsonError(HttpStatus.unauthorized, AuthErrorCodes.authRequired,
+          'Not authenticated');
     }
 
     final user = _authService.getUserById(session.userId);
     if (user == null) {
-      return Response.notFound(
-        jsonEncode({
-          'error': {
-            'code': 'USER_NOT_FOUND',
-            'message': 'User not found',
-          },
-        }),
-        headers: {'Content-Type': 'application/json; charset=utf-8'},
-      );
+      return _jsonError(
+          HttpStatus.notFound, 'USER_NOT_FOUND', 'User not found');
     }
 
     return Response.ok(
@@ -534,20 +464,12 @@ extension AriamiHttpServerAuthHandlersMethods on AriamiHttpServer {
   }
 
   Response _badAvatarResponse() {
-    return _jsonBadRequest({
-      'error': {
-        'code': 'INVALID_AVATAR',
-        'message': 'Avatar must be JPEG or PNG image bytes',
-      },
-    });
+    return _jsonError(HttpStatus.badRequest, 'INVALID_AVATAR',
+        'Avatar must be JPEG or PNG image bytes');
   }
 
   Response _avatarTooLargeResponse() {
-    return _jsonResponse(HttpStatus.requestEntityTooLarge, {
-      'error': {
-        'code': 'AVATAR_TOO_LARGE',
-        'message': 'Avatar image exceeds the 5 MB limit',
-      },
-    });
+    return _jsonError(HttpStatus.requestEntityTooLarge, 'AVATAR_TOO_LARGE',
+        'Avatar image exceeds the 5 MB limit');
   }
 }

@@ -25,6 +25,27 @@ extension AriamiHttpServerMiddlewareAndMetricsMethods on AriamiHttpServer {
     );
   }
 
+  Response _jsonError(int statusCode, String code, String message) {
+    return _jsonResponse(statusCode, {
+      'error': {'code': code, 'message': message},
+    });
+  }
+
+  /// Decodes a JSON object request body; an empty body yields an empty map.
+  Future<Map<String, dynamic>> _readJsonBody(Request request) async {
+    final body = await request.readAsString();
+    return body.trim().isEmpty
+        ? <String, dynamic>{}
+        : jsonDecode(body) as Map<String, dynamic>;
+  }
+
+  /// The bearer token from the Authorization header, or null when absent.
+  String? _bearerToken(Request request) {
+    final authHeader = request.headers['authorization'];
+    if (authHeader == null || !authHeader.startsWith('Bearer ')) return null;
+    return authHeader.substring(7);
+  }
+
   Response _jsonOk(
     Object body, {
     Map<String, String>? headers,
@@ -37,13 +58,6 @@ extension AriamiHttpServerMiddlewareAndMetricsMethods on AriamiHttpServer {
     Map<String, String>? headers,
   }) {
     return _jsonResponse(HttpStatus.badRequest, body, headers: headers);
-  }
-
-  Response _jsonUnauthorized(
-    Object body, {
-    Map<String, String>? headers,
-  }) {
-    return _jsonResponse(HttpStatus.unauthorized, body, headers: headers);
   }
 
   Response _jsonForbidden(
@@ -161,13 +175,10 @@ extension AriamiHttpServerMiddlewareAndMetricsMethods on AriamiHttpServer {
         if (tracker.isLocked) {
           final remainingMinutes =
               (tracker.remainingLockTime.inSeconds / 60).ceil();
-          return _jsonResponse(HttpStatus.tooManyRequests, {
-            'error': {
-              'code': AuthErrorCodes.rateLimited,
-              'message':
-                  'Too many failed auth attempts. Try again in $remainingMinutes minute${remainingMinutes == 1 ? '' : 's'}.',
-            },
-          });
+          return _jsonError(
+              HttpStatus.tooManyRequests,
+              AuthErrorCodes.rateLimited,
+              'Too many failed auth attempts. Try again in $remainingMinutes minute${remainingMinutes == 1 ? '' : 's'}.');
         }
 
         final response = await handler(request);
@@ -313,17 +324,13 @@ extension AriamiHttpServerMiddlewareAndMetricsMethods on AriamiHttpServer {
         //
         // If there's no bearer auth on artwork routes, defer auth checks to
         // the handlers so notification artwork can authenticate via streamToken.
-        final authHeader = request.headers['authorization'];
-        if (isArtworkPath &&
-            (authHeader == null || !authHeader.startsWith('Bearer '))) {
-          return await handler(request);
+        final sessionToken = _bearerToken(request);
+        if (sessionToken == null) {
+          return isArtworkPath
+              ? await handler(request)
+              : _authRequiredResponse();
         }
 
-        if (authHeader == null || !authHeader.startsWith('Bearer ')) {
-          return _authRequiredResponse();
-        }
-
-        final sessionToken = authHeader.substring(7); // Remove 'Bearer ' prefix
         final session = await _authService.validateSession(sessionToken);
 
         if (session == null) {
@@ -349,30 +356,18 @@ extension AriamiHttpServerMiddlewareAndMetricsMethods on AriamiHttpServer {
   }
 
   Response _authRequiredResponse() {
-    return _jsonUnauthorized({
-      'error': {
-        'code': AuthErrorCodes.authRequired,
-        'message': 'Authentication required',
-      },
-    });
+    return _jsonError(HttpStatus.unauthorized, AuthErrorCodes.authRequired,
+        'Authentication required');
   }
 
   Response _forbiddenAdminResponse() {
-    return _jsonForbidden({
-      'error': {
-        'code': AuthErrorCodes.forbiddenAdmin,
-        'message': 'Owner privileges required',
-      },
-    });
+    return _jsonError(HttpStatus.forbidden, AuthErrorCodes.forbiddenAdmin,
+        'Owner privileges required');
   }
 
   Response _sessionExpiredResponse() {
-    return _jsonUnauthorized({
-      'error': {
-        'code': AuthErrorCodes.sessionExpired,
-        'message': 'Session expired or invalid',
-      },
-    });
+    return _jsonError(HttpStatus.unauthorized, AuthErrorCodes.sessionExpired,
+        'Session expired or invalid');
   }
 
   Future<Response> _handleProtectedV2Request(
@@ -385,12 +380,11 @@ extension AriamiHttpServerMiddlewareAndMetricsMethods on AriamiHttpServer {
 
     final sessionFromContext = request.context['session'] as Session?;
     if (sessionFromContext == null) {
-      final authHeader = request.headers['authorization'];
-      if (authHeader == null || !authHeader.startsWith('Bearer ')) {
+      final sessionToken = _bearerToken(request);
+      if (sessionToken == null) {
         return _authRequiredResponse();
       }
 
-      final sessionToken = authHeader.substring(7);
       final session = await _authService.validateSession(sessionToken);
       if (session == null) {
         return _sessionExpiredResponse();
@@ -406,12 +400,8 @@ extension AriamiHttpServerMiddlewareAndMetricsMethods on AriamiHttpServer {
   }
 
   Response _forbiddenStreamTokenResponse(String message) {
-    return _jsonForbidden({
-      'error': {
-        'code': AuthErrorCodes.streamTokenExpired,
-        'message': message,
-      },
-    });
+    return _jsonError(
+        HttpStatus.forbidden, AuthErrorCodes.streamTokenExpired, message);
   }
 
   Response? _authorizeArtworkRequest(
@@ -559,13 +549,8 @@ extension AriamiHttpServerMiddlewareAndMetricsMethods on AriamiHttpServer {
   }
 
   Response _requestBodyTooLargeResponse(int maxBytes) {
-    return _jsonResponse(HttpStatus.requestEntityTooLarge, {
-      'error': {
-        'code': 'REQUEST_TOO_LARGE',
-        'message':
-            'Request body exceeds the ${maxBytes ~/ (1024 * 1024)} MB limit',
-      },
-    });
+    return _jsonError(HttpStatus.requestEntityTooLarge, 'REQUEST_TOO_LARGE',
+        'Request body exceeds the ${maxBytes ~/ (1024 * 1024)} MB limit');
   }
 
   // Query parameters that carry credentials and must never reach the log.

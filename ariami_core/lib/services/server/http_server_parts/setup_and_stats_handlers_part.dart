@@ -21,12 +21,11 @@ extension AriamiHttpServerSetupAndStatsHandlersMethods on AriamiHttpServer {
 
     var session = request.context['session'] as Session?;
     if (session == null) {
-      final authHeader = request.headers['authorization'];
-      if (authHeader == null || !authHeader.startsWith('Bearer ')) {
+      final sessionToken = _bearerToken(request);
+      if (sessionToken == null) {
         return _authRequiredResponse();
       }
 
-      final sessionToken = authHeader.substring(7);
       session = await _authService.validateSession(sessionToken);
       if (session == null) {
         return _sessionExpiredResponse();
@@ -200,9 +199,7 @@ extension AriamiHttpServerSetupAndStatsHandlersMethods on AriamiHttpServer {
           'failedFiles': status['failedFiles'] ??
               diagnostics.failedFiles.map((f) => f.toJson()).toList(),
           'playlistSuggestions': status['playlistSuggestions'] ??
-              diagnostics.playlistSuggestions
-                  .map((s) => s.toJson())
-                  .toList(),
+              diagnostics.playlistSuggestions.map((s) => s.toJson()).toList(),
         });
       } catch (e) {
         return _setupCallbackErrorResponse('get scan status', e);
@@ -369,7 +366,8 @@ extension AriamiHttpServerSetupAndStatsHandlersMethods on AriamiHttpServer {
       if (data.containsKey('lanAlias')) {
         final val = data['lanAlias'];
         if (val != null && val is! String) {
-          return _jsonBadRequest({'error': 'lanAlias must be a string or null'});
+          return _jsonBadRequest(
+              {'error': 'lanAlias must be a string or null'});
         }
         lanAlias = val as String?;
       } else {

@@ -780,6 +780,14 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
 
   /// Set feature flags used for phased rollout.
   void setFeatureFlags(AriamiFeatureFlags flags) {
+    _checkFeatureFlagCombination(flags);
+    _featureFlags = flags;
+    _libraryManager.setFeatureFlags(flags);
+    _connectHub.protocolV3Enabled = flags.enableConnectProtocolV3;
+    print('[HttpServer] Feature flags set: ${flags.toJson()}');
+  }
+
+  void _checkFeatureFlagCombination(AriamiFeatureFlags flags) {
     if (flags.enableDownloadJobs && !flags.enableV2Api) {
       throw StateError(
         'Invalid feature flag configuration: enableDownloadJobs=true '
@@ -792,26 +800,10 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
         'requires enableV2Api=true.',
       );
     }
-    _featureFlags = flags;
-    _libraryManager.setFeatureFlags(flags);
-    _connectHub.protocolV3Enabled = flags.enableConnectProtocolV3;
-    print('[HttpServer] Feature flags set: ${flags.toJson()}');
   }
 
   void _validateFeatureFlagInvariantsOrThrow() {
-    if (_featureFlags.enableDownloadJobs && !_featureFlags.enableV2Api) {
-      throw StateError(
-        'Invalid feature flag configuration: enableDownloadJobs=true '
-        'requires enableV2Api=true.',
-      );
-    }
-
-    if (_featureFlags.enableCatalogRead && !_featureFlags.enableV2Api) {
-      throw StateError(
-        'Invalid feature flag configuration: enableCatalogRead=true '
-        'requires enableV2Api=true.',
-      );
-    }
+    _checkFeatureFlagCombination(_featureFlags);
 
     if (_featureFlags.enableV2Api &&
         _libraryManager.createCatalogRepository() == null) {

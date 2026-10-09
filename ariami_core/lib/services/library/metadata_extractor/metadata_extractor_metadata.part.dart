@@ -207,7 +207,7 @@ extension _MetadataExtractorMetadataPart on MetadataExtractor {
 
       // Fallback: infer track number from filename prefix when tag is missing.
       // Example: "01 - Song Title.mp3" => 1
-      trackNumber ??= _inferTrackNumberFromFilename(filePath);
+      trackNumber ??= inferTrackNumberFromFilename(filePath);
 
       var songMetadata = SongMetadata(
         filePath: filePath,
@@ -537,18 +537,5 @@ extension _MetadataExtractorMetadataPart on MetadataExtractor {
       return fileName;
     }
     return fileName.substring(0, lastDot);
-  }
-
-  /// Attempts to infer track number from filename prefixes like:
-  /// "01 - Title", "1. Title", "07_Title", "12 Title".
-  int? _inferTrackNumberFromFilename(String filePath) {
-    final fileName = p.basenameWithoutExtension(filePath).trim();
-    final match =
-        RegExp(r'^(\d{1,3})(?:\s*[-._)]\s*|\s+)').firstMatch(fileName);
-    if (match == null) return null;
-
-    final parsed = int.tryParse(match.group(1)!);
-    if (parsed == null || parsed <= 0) return null;
-    return parsed;
   }
 }

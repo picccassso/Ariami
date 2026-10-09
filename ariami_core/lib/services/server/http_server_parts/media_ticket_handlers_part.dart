@@ -4,15 +4,8 @@ extension AriamiHttpServerMediaTicketHandlersMethods on AriamiHttpServer {
   Future<Response> _handleStreamTicket(Request request) async {
     final session = request.context['session'] as Session?;
     if (session == null) {
-      return Response.unauthorized(
-        jsonEncode({
-          'error': {
-            'code': AuthErrorCodes.authRequired,
-            'message': 'Not authenticated',
-          },
-        }),
-        headers: {'Content-Type': 'application/json; charset=utf-8'},
-      );
+      return _jsonError(HttpStatus.unauthorized, AuthErrorCodes.authRequired,
+          'Not authenticated');
     }
 
     try {
@@ -23,15 +16,8 @@ extension AriamiHttpServerMediaTicketHandlersMethods on AriamiHttpServer {
       final quality = QualityPreset.fromString(data['quality'] as String?).name;
 
       if (songId == null) {
-        return Response.badRequest(
-          body: jsonEncode({
-            'error': {
-              'code': 'INVALID_REQUEST',
-              'message': 'songId is required',
-            },
-          }),
-          headers: {'Content-Type': 'application/json; charset=utf-8'},
-        );
+        return _jsonError(
+            HttpStatus.badRequest, 'INVALID_REQUEST', 'songId is required');
       }
 
       final availability = _libraryManager.musicAvailability;
@@ -54,12 +40,8 @@ extension AriamiHttpServerMediaTicketHandlersMethods on AriamiHttpServer {
       // stalling playback on it. 410 rather than 404: the server's Cascade
       // treats handler 404s as unmatched routes and replaces the JSON body.
       if (_libraryManager.getSongFilePath(songId) == null) {
-        return _jsonResponse(HttpStatus.gone, {
-          'error': {
-            'code': ApiErrorCodes.songNotFound,
-            'message': 'Song ID not found in library: $songId',
-          },
-        });
+        return _jsonError(HttpStatus.gone, ApiErrorCodes.songNotFound,
+            'Song ID not found in library: $songId');
       }
 
       // Keep ticket issuing fast for bulk downloads by using only known/cached
@@ -82,30 +64,16 @@ extension AriamiHttpServerMediaTicketHandlersMethods on AriamiHttpServer {
         headers: {'Content-Type': 'application/json; charset=utf-8'},
       );
     } catch (e) {
-      return Response.internalServerError(
-        body: jsonEncode({
-          'error': {
-            'code': 'INTERNAL_ERROR',
-            'message': 'Failed to issue stream ticket',
-          },
-        }),
-        headers: {'Content-Type': 'application/json; charset=utf-8'},
-      );
+      return _jsonError(HttpStatus.internalServerError, 'INTERNAL_ERROR',
+          'Failed to issue stream ticket');
     }
   }
 
   Future<Response> _handleStreamWarmup(Request request) async {
     final session = request.context['session'] as Session?;
     if (session == null) {
-      return Response.unauthorized(
-        jsonEncode({
-          'error': {
-            'code': AuthErrorCodes.authRequired,
-            'message': 'Not authenticated',
-          },
-        }),
-        headers: {'Content-Type': 'application/json; charset=utf-8'},
-      );
+      return _jsonError(HttpStatus.unauthorized, AuthErrorCodes.authRequired,
+          'Not authenticated');
     }
 
     try {
@@ -115,12 +83,8 @@ extension AriamiHttpServerMediaTicketHandlersMethods on AriamiHttpServer {
       final quality = QualityPreset.fromString(data['quality'] as String?);
 
       if (rawSongIds == null || rawSongIds.isEmpty) {
-        return _jsonBadRequest({
-          'error': {
-            'code': 'INVALID_REQUEST',
-            'message': 'songIds is required',
-          },
-        });
+        return _jsonError(
+            HttpStatus.badRequest, 'INVALID_REQUEST', 'songIds is required');
       }
 
       final songIds = rawSongIds
@@ -165,27 +129,16 @@ extension AriamiHttpServerMediaTicketHandlersMethods on AriamiHttpServer {
         'missing': missing,
       });
     } catch (_) {
-      return _jsonInternalServerError({
-        'error': {
-          'code': 'INTERNAL_ERROR',
-          'message': 'Failed to warm streams',
-        },
-      });
+      return _jsonError(HttpStatus.internalServerError, 'INTERNAL_ERROR',
+          'Failed to warm streams');
     }
   }
 
   Future<Response> _handleDownloadTicket(Request request) async {
     final session = request.context['session'] as Session?;
     if (session == null) {
-      return Response.unauthorized(
-        jsonEncode({
-          'error': {
-            'code': AuthErrorCodes.authRequired,
-            'message': 'Not authenticated',
-          },
-        }),
-        headers: {'Content-Type': 'application/json; charset=utf-8'},
-      );
+      return _jsonError(HttpStatus.unauthorized, AuthErrorCodes.authRequired,
+          'Not authenticated');
     }
 
     try {
@@ -195,15 +148,8 @@ extension AriamiHttpServerMediaTicketHandlersMethods on AriamiHttpServer {
       final songId = ticketRequest.songId.trim();
 
       if (songId.isEmpty) {
-        return Response.badRequest(
-          body: jsonEncode({
-            'error': {
-              'code': 'INVALID_REQUEST',
-              'message': 'songId is required',
-            },
-          }),
-          headers: {'Content-Type': 'application/json; charset=utf-8'},
-        );
+        return _jsonError(
+            HttpStatus.badRequest, 'INVALID_REQUEST', 'songId is required');
       }
 
       final filePath = _libraryManager.getSongFilePath(songId);
@@ -220,15 +166,8 @@ extension AriamiHttpServerMediaTicketHandlersMethods on AriamiHttpServer {
       if (requestedFormat != null &&
           requestedFormat.isNotEmpty &&
           outputFormat == null) {
-        return Response.badRequest(
-          body: jsonEncode({
-            'error': {
-              'code': 'INVALID_REQUEST',
-              'message': 'format must be one of: aac, m4a, opus',
-            },
-          }),
-          headers: {'Content-Type': 'application/json; charset=utf-8'},
-        );
+        return _jsonError(HttpStatus.badRequest, 'INVALID_REQUEST',
+            'format must be one of: aac, m4a, opus');
       }
       final ticket = _streamTracker.issueDownloadTicket(
         userId: session.userId,
@@ -246,25 +185,11 @@ extension AriamiHttpServerMediaTicketHandlersMethods on AriamiHttpServer {
         headers: {'Content-Type': 'application/json; charset=utf-8'},
       );
     } on TypeError {
-      return Response.badRequest(
-        body: jsonEncode({
-          'error': {
-            'code': 'INVALID_REQUEST',
-            'message': 'Invalid request body',
-          },
-        }),
-        headers: {'Content-Type': 'application/json; charset=utf-8'},
-      );
+      return _jsonError(
+          HttpStatus.badRequest, 'INVALID_REQUEST', 'Invalid request body');
     } catch (e) {
-      return Response.internalServerError(
-        body: jsonEncode({
-          'error': {
-            'code': 'INTERNAL_ERROR',
-            'message': 'Failed to issue download ticket',
-          },
-        }),
-        headers: {'Content-Type': 'application/json; charset=utf-8'},
-      );
+      return _jsonError(HttpStatus.internalServerError, 'INTERNAL_ERROR',
+          'Failed to issue download ticket');
     }
   }
 }

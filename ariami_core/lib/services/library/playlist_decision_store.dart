@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:path/path.dart' as path;
 
+import '../../utils/atomic_file_write.dart';
+
 enum PlaylistFolderDecision {
   /// Treat the folder exactly like a `[PLAYLIST]` folder on every scan.
   import,
@@ -41,7 +43,8 @@ class PlaylistFolderDecisionRecord {
     final decision = playlistFolderDecisionFromName(
       json['decision'] is String ? json['decision'] as String : null,
     );
-    if (folderPath is! String || folderPath.trim().isEmpty ||
+    if (folderPath is! String ||
+        folderPath.trim().isEmpty ||
         decision == null) {
       return null;
     }
@@ -175,13 +178,9 @@ class PlaylistDecisionStore {
     }
     final payload = jsonEncode({
       'version': _schemaVersion,
-      'decisions': decisions
-          .map((record) => record.toJson())
-          .toList(growable: false),
+      'decisions':
+          decisions.map((record) => record.toJson()).toList(growable: false),
     });
-    // Atomic write: never leave a torn file if the process dies mid-save.
-    final tempFile = File('$filePath.tmp');
-    await tempFile.writeAsString(payload, flush: true);
-    await tempFile.rename(filePath);
+    await writeFileAtomically(filePath, payload, flush: true);
   }
 }

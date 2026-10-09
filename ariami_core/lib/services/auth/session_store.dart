@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 import '../../models/auth_models.dart';
+import '../../utils/atomic_file_write.dart';
 import '../../utils/secure_file_permissions.dart';
 
 /// Stores and persists user sessions to JSON file.
@@ -276,7 +277,6 @@ class SessionStore {
 
     _persistQueue = _persistQueue.catchError((_) {}).then((_) async {
       final file = File(_filePath!);
-      final tempFile = File('${_filePath!}.tmp');
 
       // Ensure directory exists, readable by the owner only (auth data).
       final dir = file.parent;
@@ -292,12 +292,7 @@ class SessionStore {
 
       final jsonString = jsonEncode(data);
 
-      // Atomic write: write to temp file, then rename. The temp file gets
-      // owner-only permissions before it becomes the real file (rename
-      // preserves them).
-      await tempFile.writeAsString(jsonString);
-      await SecureFilePermissions.restrictFile(tempFile.path);
-      await tempFile.rename(_filePath!);
+      await writeFileAtomically(_filePath!, jsonString, ownerOnly: true);
     });
 
     return _persistQueue;

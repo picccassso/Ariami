@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import '../../utils/atomic_file_write.dart';
 import '../../utils/secure_file_permissions.dart';
 import 'music_discovery_api_key_config.dart';
 
@@ -115,13 +116,14 @@ class HouseholdMusicDiscoveryStore {
     final directory = file.parent;
     if (!await directory.exists()) await directory.create(recursive: true);
     await SecureFilePermissions.restrictDirectory(directory.path);
-    final tempFile = File('$filePath.tmp');
-    await tempFile.writeAsString(jsonEncode(<String, dynamic>{
-      'schemaVersion': 1,
-      'lastFmApiKey': value,
-    }));
-    await SecureFilePermissions.restrictFile(tempFile.path);
-    await tempFile.rename(filePath);
+    await writeFileAtomically(
+      filePath,
+      jsonEncode(<String, dynamic>{
+        'schemaVersion': 1,
+        'lastFmApiKey': value,
+      }),
+      ownerOnly: true,
+    );
   }
 
   void _ensureInitialized() {

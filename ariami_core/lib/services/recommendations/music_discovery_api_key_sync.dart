@@ -1,5 +1,4 @@
-import 'dart:convert';
-
+import 'household_music_discovery_store.dart';
 import 'music_discovery_api_key_config.dart';
 
 typedef MusicDiscoveryKeyReader = Future<String?> Function();
@@ -217,12 +216,5 @@ class MusicDiscoveryApiKeySync {
     );
   }
 
-  static String? _normalize(String? value) {
-    final normalized = value?.trim() ?? '';
-    return normalized.isEmpty ||
-            utf8.encode(normalized).length >
-                MusicDiscoveryApiKeyConfig.maxApiKeyBytes
-        ? null
-        : normalized;
-  }
+  static const _normalize = HouseholdMusicDiscoveryStore.normalizeApiKey;
 }

@@ -1,8 +1,7 @@
-import 'package:crypto/crypto.dart';
-import 'dart:convert';
 import 'package:ariami_core/models/file_change.dart';
 import 'package:ariami_core/models/song_metadata.dart';
 import 'package:ariami_core/models/library_structure.dart';
+import 'package:ariami_core/services/library/album_identity.dart';
 import 'package:ariami_core/services/library/album_grouping.dart';
 import 'package:ariami_core/services/library/duplicate_detector.dart';
 import 'package:ariami_core/services/library/metadata_extractor.dart';
@@ -65,7 +64,7 @@ class ChangeProcessor {
     _lastRemovedFiles = removedFiles.toSet();
 
     for (final path in removedFiles) {
-      final songId = _generateSongId(path);
+      final songId = generateSongId(path);
       removedSongIds.add(songId);
 
       final albumId = filePathToAlbumId[path];
@@ -80,7 +79,7 @@ class ChangeProcessor {
           final metadata =
               await _metadataExtractor.extractMetadataWithDuration(path);
           extractedMetadata[path] = metadata;
-          final songId = _generateSongId(metadata.filePath);
+          final songId = generateSongId(metadata.filePath);
           addedSongIds.add(songId);
         } catch (e) {
           print('Error processing added file "$path": $e');
@@ -94,7 +93,7 @@ class ChangeProcessor {
           final metadata =
               await _metadataExtractor.extractMetadataWithDuration(path);
           extractedMetadata[path] = metadata;
-          final songId = _generateSongId(metadata.filePath);
+          final songId = generateSongId(metadata.filePath);
           modifiedSongIds.add(songId);
 
           // Track prior album membership; post-rebuild index comparison in
@@ -119,10 +118,6 @@ class ChangeProcessor {
     );
   }
 
-  String _generateSongId(String filePath) {
-    return md5.convert(utf8.encode(filePath)).toString().substring(0, 12);
-  }
-
   Future<LibraryStructure> applyUpdates(
       LibraryUpdate update, LibraryStructure currentLibrary,
       {List<FileChange>? sourceChanges}) async {
@@ -130,7 +125,7 @@ class ChangeProcessor {
 
     for (final album in currentLibrary.albums.values) {
       for (final song in album.songs) {
-        final songId = _generateSongId(song.filePath);
+        final songId = generateSongId(song.filePath);
         if (!update.removedSongIds.contains(songId) &&
             !update.modifiedSongIds.contains(songId)) {
           allSongs.add(song);
@@ -139,7 +134,7 @@ class ChangeProcessor {
     }
 
     for (final song in currentLibrary.standaloneSongs) {
-      final songId = _generateSongId(song.filePath);
+      final songId = generateSongId(song.filePath);
       if (!update.removedSongIds.contains(songId) &&
           !update.modifiedSongIds.contains(songId)) {
         allSongs.add(song);
@@ -249,7 +244,7 @@ class ChangeProcessor {
     return buildLibraryWithPlaylistsAsync(
       allSongs: uniqueSongs,
       existingPlaylists: currentLibrary.folderPlaylists,
-      generateSongId: _generateSongId,
+      generateSongId: generateSongId,
       duplicateToOriginalPath: duplicateToOriginalPath,
     );
   }

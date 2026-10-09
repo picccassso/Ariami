@@ -45,7 +45,7 @@ extension _LibraryManagerApiPart on LibraryManager {
   Map<String, dynamic> _albumToApiJson(Album album, String baseUrl) {
     int totalDurationSeconds = 0;
     for (final song in album.songs) {
-      final songId = _generateSongId(song.filePath);
+      final songId = generateSongId(song.filePath);
       totalDurationSeconds += _resolveSongDuration(song, songId);
     }
 
@@ -62,7 +62,7 @@ extension _LibraryManagerApiPart on LibraryManager {
 
   Map<String, dynamic> _songToApiJson(
       SongMetadata song, String baseUrl, String? albumId) {
-    final songId = _generateSongId(song.filePath);
+    final songId = generateSongId(song.filePath);
     final duration = _resolveSongDuration(song, songId);
 
     return {
@@ -84,12 +84,6 @@ extension _LibraryManagerApiPart on LibraryManager {
     if (cached != null && cached > 0) return cached;
 
     return 0;
-  }
-
-  String _generateSongId(String filePath) {
-    final bytes = utf8.encode(filePath);
-    final hash = md5.convert(bytes);
-    return hash.toString().substring(0, 12); // First 12 chars of hash
   }
 
   String _getFilenameWithoutExtension(String filePath) {
@@ -144,7 +138,7 @@ extension _LibraryManagerApiPart on LibraryManager {
 
   Future<Map<String, dynamic>> _songToApiJsonWithDuration(
       SongMetadata song, String baseUrl, String? albumId) async {
-    final songId = _generateSongId(song.filePath);
+    final songId = generateSongId(song.filePath);
 
     int duration = song.duration ?? 0;
     if (duration == 0) {

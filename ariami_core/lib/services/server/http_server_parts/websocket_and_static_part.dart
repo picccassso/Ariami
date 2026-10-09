@@ -53,13 +53,11 @@ extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
     if (pending < AriamiHttpServer._maxPendingWebSocketsPerIp) {
       return null;
     }
-    return _jsonResponse(HttpStatus.tooManyRequests, {
-      'error': {
-        'code': 'TOO_MANY_PENDING_CONNECTIONS',
-        'message': 'Too many unidentified WebSocket connections from this '
-            'address; identify or close existing ones first',
-      },
-    });
+    return _jsonError(
+        HttpStatus.tooManyRequests,
+        'TOO_MANY_PENDING_CONNECTIONS',
+        'Too many unidentified WebSocket connections from this '
+            'address; identify or close existing ones first');
   }
 
   /// Track a socket that has not identified yet: count it against its IP and

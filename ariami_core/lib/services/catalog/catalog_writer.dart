@@ -1,7 +1,6 @@
-import 'dart:convert';
-
 import 'package:ariami_core/models/library_structure.dart';
 import 'package:ariami_core/models/song_metadata.dart';
+import 'package:ariami_core/services/catalog/catalog_change_log.dart';
 import 'package:ariami_core/services/catalog/catalog_repository.dart';
 import 'package:path/path.dart' as path;
 import 'package:sqlite3/sqlite3.dart';
@@ -143,7 +142,7 @@ ON CONFLICT(artwork_key, variant) DO UPDATE SET
     final orderedPlaylistSongKeys = playlistSongsByKey.keys.toList()..sort();
 
     final occurredEpochMs = DateTime.now().millisecondsSinceEpoch;
-    var tokenCursor = _readLatestToken();
+    var tokenCursor = readLatestChangeToken(_database);
     final snapshotStartToken = tokenCursor + 1;
 
     _database.execute('BEGIN IMMEDIATE TRANSACTION;');
@@ -163,11 +162,19 @@ ON CONFLICT(artwork_key, variant) DO UPDATE SET
             updatedToken: tokenCursor,
           ),
         );
-        _insertChangeEvent(
+        insertChangeEvent(
+          _database,
           entityType: 'album',
           entityId: snapshot.id,
           op: 'upsert',
-          payloadJson: _albumPayloadJson(snapshot),
+          payloadJson: albumChangePayloadJson(
+            id: snapshot.id,
+            title: snapshot.title,
+            artist: snapshot.artist,
+            coverArtKey: snapshot.coverArtKey,
+            songCount: snapshot.songCount,
+            durationSeconds: snapshot.durationSeconds,
+          ),
           occurredEpochMs: occurredEpochMs,
         );
       }
@@ -191,11 +198,20 @@ ON CONFLICT(artwork_key, variant) DO UPDATE SET
             updatedToken: tokenCursor,
           ),
         );
-        _insertChangeEvent(
+        insertChangeEvent(
+          _database,
           entityType: 'song',
           entityId: snapshot.id,
           op: 'upsert',
-          payloadJson: _songPayloadJson(snapshot),
+          payloadJson: songChangePayloadJson(
+            id: snapshot.id,
+            title: snapshot.title,
+            artist: snapshot.artist,
+            genre: snapshot.genre,
+            albumId: snapshot.albumId,
+            durationSeconds: snapshot.durationSeconds,
+            trackNumber: snapshot.trackNumber,
+          ),
           occurredEpochMs: occurredEpochMs,
         );
       }
@@ -212,11 +228,18 @@ ON CONFLICT(artwork_key, variant) DO UPDATE SET
             updatedToken: tokenCursor,
           ),
         );
-        _insertChangeEvent(
+        insertChangeEvent(
+          _database,
           entityType: 'playlist',
           entityId: snapshot.id,
           op: 'upsert',
-          payloadJson: _playlistPayloadJson(snapshot),
+          payloadJson: playlistChangePayloadJson(
+            id: snapshot.id,
+            name: snapshot.name,
+            songCount: snapshot.songCount,
+            durationSeconds: snapshot.durationSeconds,
+            songIds: snapshot.songIds,
+          ),
           occurredEpochMs: occurredEpochMs,
         );
       }
@@ -232,11 +255,16 @@ ON CONFLICT(artwork_key, variant) DO UPDATE SET
             updatedToken: tokenCursor,
           ),
         );
-        _insertChangeEvent(
+        insertChangeEvent(
+          _database,
           entityType: 'playlist_song',
           entityId: snapshot.entityId,
           op: 'upsert',
-          payloadJson: _playlistSongPayloadJson(snapshot),
+          payloadJson: playlistSongChangePayloadJson(
+            snapshot.playlistId,
+            snapshot.songId,
+            snapshot.position,
+          ),
           occurredEpochMs: occurredEpochMs,
         );
       }
@@ -244,11 +272,16 @@ ON CONFLICT(artwork_key, variant) DO UPDATE SET
       for (final key in deletedPlaylistSongKeys) {
         tokenCursor += 1;
         _repository.deletePlaylistSong(key.playlistId, key.position);
-        _insertChangeEvent(
+        insertChangeEvent(
+          _database,
           entityType: 'playlist_song',
           entityId: key.entityId,
           op: 'delete',
-          payloadJson: _playlistSongDeletePayloadJson(key),
+          payloadJson: playlistSongChangePayloadJson(
+            key.playlistId,
+            key.songId,
+            key.position,
+          ),
           occurredEpochMs: occurredEpochMs,
         );
       }
@@ -256,7 +289,8 @@ ON CONFLICT(artwork_key, variant) DO UPDATE SET
       for (final songId in deletedSongIds) {
         tokenCursor += 1;
         _repository.softDeleteSong(songId, tokenCursor);
-        _insertChangeEvent(
+        insertChangeEvent(
+          _database,
           entityType: 'song',
           entityId: songId,
           op: 'delete',
@@ -267,7 +301,8 @@ ON CONFLICT(artwork_key, variant) DO UPDATE SET
       for (final albumId in deletedAlbumIds) {
         tokenCursor += 1;
         _repository.softDeleteAlbum(albumId, tokenCursor);
-        _insertChangeEvent(
+        insertChangeEvent(
+          _database,
           entityType: 'album',
           entityId: albumId,
           op: 'delete',
@@ -278,7 +313,8 @@ ON CONFLICT(artwork_key, variant) DO UPDATE SET
       for (final playlistId in deletedPlaylistIds) {
         tokenCursor += 1;
         _repository.softDeletePlaylist(playlistId, tokenCursor);
-        _insertChangeEvent(
+        insertChangeEvent(
+          _database,
           entityType: 'playlist',
           entityId: playlistId,
           op: 'delete',
@@ -386,18 +422,19 @@ ON CONFLICT(artwork_key, variant) DO UPDATE SET
     return snapshots;
   }
 
-  Map<_PlaylistSongKey, _PlaylistSongSnapshot> _buildPlaylistSongSnapshots(
+  Map<CatalogPlaylistSongKey, _PlaylistSongSnapshot>
+      _buildPlaylistSongSnapshots(
     LibraryStructure library,
     Map<String, _PlaylistSnapshot> playlistsById,
   ) {
-    final snapshots = <_PlaylistSongKey, _PlaylistSongSnapshot>{};
+    final snapshots = <CatalogPlaylistSongKey, _PlaylistSongSnapshot>{};
     for (final playlist in library.folderPlaylists) {
       if (!playlistsById.containsKey(playlist.id)) {
         continue;
       }
       for (var index = 0; index < playlist.songIds.length; index++) {
         final songId = playlist.songIds[index];
-        final key = _PlaylistSongKey(
+        final key = CatalogPlaylistSongKey(
           playlistId: playlist.id,
           songId: songId,
           position: index,
@@ -487,7 +524,7 @@ ORDER BY id ASC;
     return rows.map((row) => row['id'] as String).toList();
   }
 
-  List<_PlaylistSongKey> _selectPlaylistSongKeys() {
+  List<CatalogPlaylistSongKey> _selectPlaylistSongKeys() {
     final rows = _database.select(
       '''
 SELECT playlist_id, song_id, position
@@ -497,102 +534,13 @@ ORDER BY playlist_id ASC, position ASC, song_id ASC;
     );
     return rows
         .map(
-          (row) => _PlaylistSongKey(
+          (row) => CatalogPlaylistSongKey(
             playlistId: row['playlist_id'] as String,
             songId: row['song_id'] as String,
             position: row['position'] as int,
           ),
         )
         .toList();
-  }
-
-  int _readLatestToken() {
-    final rows = _database.select(
-      '''
-SELECT COALESCE(MAX(token), 0) AS latest_token
-FROM library_changes;
-''',
-    );
-    return rows.first['latest_token'] as int;
-  }
-
-  void _insertChangeEvent({
-    required String entityType,
-    required String entityId,
-    required String op,
-    String? payloadJson,
-    required int occurredEpochMs,
-  }) {
-    _database.execute(
-      '''
-INSERT INTO library_changes (
-  entity_type,
-  entity_id,
-  op,
-  payload_json,
-  occurred_epoch_ms,
-  actor_user_id
-) VALUES (?, ?, ?, ?, ?, NULL);
-''',
-      <Object?>[
-        entityType,
-        entityId,
-        op,
-        payloadJson,
-        occurredEpochMs,
-      ],
-    );
-  }
-
-  String _albumPayloadJson(_AlbumSnapshot snapshot) {
-    return jsonEncode(<String, dynamic>{
-      'id': snapshot.id,
-      'title': snapshot.title,
-      'artist': snapshot.artist,
-      'coverArt': snapshot.coverArtKey == null
-          ? null
-          : '/api/artwork/${Uri.encodeComponent(snapshot.id)}',
-      'songCount': snapshot.songCount,
-      'duration': snapshot.durationSeconds,
-    });
-  }
-
-  String _songPayloadJson(_SongSnapshot snapshot) {
-    return jsonEncode(<String, dynamic>{
-      'id': snapshot.id,
-      'title': snapshot.title,
-      'artist': snapshot.artist,
-      'genre': snapshot.genre,
-      'albumId': snapshot.albumId,
-      'duration': snapshot.durationSeconds,
-      'trackNumber': snapshot.trackNumber,
-    });
-  }
-
-  String _playlistPayloadJson(_PlaylistSnapshot snapshot) {
-    return jsonEncode(<String, dynamic>{
-      'id': snapshot.id,
-      'name': snapshot.name,
-      'songCount': snapshot.songCount,
-      'duration': snapshot.durationSeconds,
-      'songIds': snapshot.songIds,
-    });
-  }
-
-  String _playlistSongPayloadJson(_PlaylistSongSnapshot snapshot) {
-    return jsonEncode(<String, dynamic>{
-      'playlistId': snapshot.playlistId,
-      'songId': snapshot.songId,
-      'position': snapshot.position,
-    });
-  }
-
-  String _playlistSongDeletePayloadJson(_PlaylistSongKey key) {
-    return jsonEncode(<String, dynamic>{
-      'playlistId': key.playlistId,
-      'songId': key.songId,
-      'position': key.position,
-    });
   }
 }
 
@@ -672,42 +620,4 @@ class _PlaylistSongSnapshot {
   final int position;
 
   String get entityId => '$playlistId:$position';
-}
-
-class _PlaylistSongKey implements Comparable<_PlaylistSongKey> {
-  const _PlaylistSongKey({
-    required this.playlistId,
-    required this.songId,
-    required this.position,
-  });
-
-  final String playlistId;
-  final String songId;
-  final int position;
-
-  String get entityId => '$playlistId:$position';
-
-  @override
-  int compareTo(_PlaylistSongKey other) {
-    final playlistCompare = playlistId.compareTo(other.playlistId);
-    if (playlistCompare != 0) {
-      return playlistCompare;
-    }
-    final positionCompare = position.compareTo(other.position);
-    if (positionCompare != 0) {
-      return positionCompare;
-    }
-    return songId.compareTo(other.songId);
-  }
-
-  @override
-  bool operator ==(Object other) {
-    return other is _PlaylistSongKey &&
-        other.playlistId == playlistId &&
-        other.songId == songId &&
-        other.position == position;
-  }
-
-  @override
-  int get hashCode => Object.hash(playlistId, songId, position);
 }

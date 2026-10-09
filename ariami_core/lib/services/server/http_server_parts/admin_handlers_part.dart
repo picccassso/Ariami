@@ -44,19 +44,12 @@ extension AriamiHttpServerAdminHandlersMethods on AriamiHttpServer {
     if (authResponse != null) return authResponse;
 
     try {
-      final body = await request.readAsString();
-      final data = body.trim().isEmpty
-          ? <String, dynamic>{}
-          : jsonDecode(body) as Map<String, dynamic>;
+      final data = await _readJsonBody(request);
 
       final enabled = data['enabled'];
       if (enabled is! bool) {
-        return _jsonBadRequest({
-          'error': {
-            'code': 'INVALID_REQUEST',
-            'message': 'enabled (boolean) is required',
-          },
-        });
+        return _jsonError(HttpStatus.badRequest, 'INVALID_REQUEST',
+            'enabled (boolean) is required');
       }
 
       setPublicUserPickerEnabled(enabled);
@@ -68,24 +61,18 @@ extension AriamiHttpServerAdminHandlersMethods on AriamiHttpServer {
         try {
           await persist(enabled);
         } catch (e) {
-          return _jsonInternalServerError({
-            'error': {
-              'code': 'PERSIST_FAILED',
-              'message': 'Setting applied, but saving it for future '
-                  'restarts failed: $e',
-            },
-          });
+          return _jsonError(
+              HttpStatus.internalServerError,
+              'PERSIST_FAILED',
+              'Setting applied, but saving it for future '
+                  'restarts failed: $e');
         }
       }
 
       return _jsonOk({'enabled': _publicUserPickerEnabled});
     } catch (_) {
-      return _jsonBadRequest({
-        'error': {
-          'code': 'INVALID_REQUEST',
-          'message': 'Invalid request body',
-        },
-      });
+      return _jsonError(
+          HttpStatus.badRequest, 'INVALID_REQUEST', 'Invalid request body');
     }
   }
 
@@ -167,24 +154,15 @@ extension AriamiHttpServerAdminHandlersMethods on AriamiHttpServer {
 
     final callback = _getTranscodeSlotsSnapshotCallback;
     if (callback == null) {
-      return _jsonResponse(HttpStatus.serviceUnavailable, {
-        'error': {
-          'code': 'NOT_CONFIGURED',
-          'message': 'Transcode slot configuration is not available',
-        },
-      });
+      return _jsonError(HttpStatus.serviceUnavailable, 'NOT_CONFIGURED',
+          'Transcode slot configuration is not available');
     }
 
     try {
       final snapshot = await callback();
       return _jsonOk(snapshot.toJson());
     } catch (e) {
-      return _jsonBadRequest({
-        'error': {
-          'code': 'INVALID_REQUEST',
-          'message': e.toString(),
-        },
-      });
+      return _jsonError(HttpStatus.badRequest, 'INVALID_REQUEST', e.toString());
     }
   }
 
@@ -194,19 +172,12 @@ extension AriamiHttpServerAdminHandlersMethods on AriamiHttpServer {
 
     final callback = _setTranscodeSlotsOverrideCallback;
     if (callback == null) {
-      return _jsonResponse(HttpStatus.serviceUnavailable, {
-        'error': {
-          'code': 'NOT_CONFIGURED',
-          'message': 'Transcode slot configuration is not available',
-        },
-      });
+      return _jsonError(HttpStatus.serviceUnavailable, 'NOT_CONFIGURED',
+          'Transcode slot configuration is not available');
     }
 
     try {
-      final body = await request.readAsString();
-      final data = body.trim().isEmpty
-          ? <String, dynamic>{}
-          : jsonDecode(body) as Map<String, dynamic>;
+      final data = await _readJsonBody(request);
 
       if (data['reset'] == true) {
         final snapshot = await callback(null);
@@ -215,22 +186,13 @@ extension AriamiHttpServerAdminHandlersMethods on AriamiHttpServer {
 
       final slotsValue = data['slots'];
       if (slotsValue == null) {
-        return _jsonBadRequest({
-          'error': {
-            'code': 'INVALID_REQUEST',
-            'message': 'slots is required unless reset is true',
-          },
-        });
+        return _jsonError(HttpStatus.badRequest, 'INVALID_REQUEST',
+            'slots is required unless reset is true');
       }
 
       if (slotsValue is! num || slotsValue != slotsValue.roundToDouble()) {
-        return _jsonBadRequest({
-          'error': {
-            'code': 'INVALID_REQUEST',
-            'message':
-                'slots must be an integer >= ${TranscodeSlotsPolicy.minSlots}',
-          },
-        });
+        return _jsonError(HttpStatus.badRequest, 'INVALID_REQUEST',
+            'slots must be an integer >= ${TranscodeSlotsPolicy.minSlots}');
       }
 
       final slots = slotsValue.toInt();
@@ -238,30 +200,18 @@ extension AriamiHttpServerAdminHandlersMethods on AriamiHttpServer {
       final snapshot = await callback(slots);
       return _jsonOk(snapshot.toJson());
     } on ArgumentError catch (e) {
-      return _jsonBadRequest({
-        'error': {
-          'code': 'INVALID_REQUEST',
-          'message': e.message?.toString() ?? e.toString(),
-        },
-      });
+      return _jsonError(HttpStatus.badRequest, 'INVALID_REQUEST',
+          e.message?.toString() ?? e.toString());
     } catch (e) {
-      return _jsonInternalServerError({
-        'error': {
-          'code': 'INTERNAL_ERROR',
-          'message': e.toString(),
-        },
-      });
+      return _jsonError(
+          HttpStatus.internalServerError, 'INTERNAL_ERROR', e.toString());
     }
   }
 
   /// `NOT_CONFIGURED` body for hosts that never registered host controls.
   Response _hostControlsUnavailable() {
-    return _jsonResponse(HttpStatus.serviceUnavailable, {
-      'error': {
-        'code': 'NOT_CONFIGURED',
-        'message': 'Host controls are not available on this server',
-      },
-    });
+    return _jsonError(HttpStatus.serviceUnavailable, 'NOT_CONFIGURED',
+        'Host controls are not available on this server');
   }
 
   Future<Response> _handleAdminGetHostControls(Request request) async {
@@ -275,12 +225,8 @@ extension AriamiHttpServerAdminHandlersMethods on AriamiHttpServer {
       final snapshot = await callback();
       return _jsonOk(snapshot.toJson());
     } catch (e) {
-      return _jsonInternalServerError({
-        'error': {
-          'code': 'INTERNAL_ERROR',
-          'message': e.toString(),
-        },
-      });
+      return _jsonError(
+          HttpStatus.internalServerError, 'INTERNAL_ERROR', e.toString());
     }
   }
 
@@ -292,30 +238,19 @@ extension AriamiHttpServerAdminHandlersMethods on AriamiHttpServer {
     if (callback == null) return _hostControlsUnavailable();
 
     try {
-      final body = await request.readAsString();
-      final data = body.trim().isEmpty
-          ? <String, dynamic>{}
-          : jsonDecode(body) as Map<String, dynamic>;
+      final data = await _readJsonBody(request);
 
       final enabled = data['enabled'];
       if (enabled is! bool) {
-        return _jsonBadRequest({
-          'error': {
-            'code': 'INVALID_REQUEST',
-            'message': 'enabled must be a boolean',
-          },
-        });
+        return _jsonError(HttpStatus.badRequest, 'INVALID_REQUEST',
+            'enabled must be a boolean');
       }
 
       final snapshot = await callback(enabled);
       return _jsonOk(snapshot.toJson());
     } catch (e) {
-      return _jsonInternalServerError({
-        'error': {
-          'code': 'INTERNAL_ERROR',
-          'message': e.toString(),
-        },
-      });
+      return _jsonError(
+          HttpStatus.internalServerError, 'INTERNAL_ERROR', e.toString());
     }
   }
 
@@ -327,10 +262,7 @@ extension AriamiHttpServerAdminHandlersMethods on AriamiHttpServer {
     if (callback == null) return _hostControlsUnavailable();
 
     try {
-      final body = await request.readAsString();
-      final data = body.trim().isEmpty
-          ? <String, dynamic>{}
-          : jsonDecode(body) as Map<String, dynamic>;
+      final data = await _readJsonBody(request);
 
       // The scope is spelled out rather than defaulted: a reset that clears
       // more than the caller intended is not recoverable.
@@ -340,23 +272,15 @@ extension AriamiHttpServerAdminHandlersMethods on AriamiHttpServer {
         _ => null,
       };
       if (scope == null) {
-        return _jsonBadRequest({
-          'error': {
-            'code': 'INVALID_REQUEST',
-            'message': 'scope must be "setup" or "factory"',
-          },
-        });
+        return _jsonError(HttpStatus.badRequest, 'INVALID_REQUEST',
+            'scope must be "setup" or "factory"');
       }
 
       final outcome = await callback(scope);
       return _jsonOk(outcome.toJson());
     } catch (e) {
-      return _jsonInternalServerError({
-        'error': {
-          'code': 'INTERNAL_ERROR',
-          'message': e.toString(),
-        },
-      });
+      return _jsonError(
+          HttpStatus.internalServerError, 'INTERNAL_ERROR', e.toString());
     }
   }
 
@@ -365,23 +289,13 @@ extension AriamiHttpServerAdminHandlersMethods on AriamiHttpServer {
     if (authResponse != null) return authResponse;
 
     try {
-      final body = await request.readAsString();
-      final data = body.trim().isEmpty
-          ? <String, dynamic>{}
-          : jsonDecode(body) as Map<String, dynamic>;
+      final data = await _readJsonBody(request);
 
       final username = data['username'] as String?;
       final password = data['password'] as String?;
       if (username == null || password == null) {
-        return Response.badRequest(
-          body: jsonEncode({
-            'error': {
-              'code': 'INVALID_REQUEST',
-              'message': 'username and password are required',
-            },
-          }),
-          headers: {'Content-Type': 'application/json; charset=utf-8'},
-        );
+        return _jsonError(HttpStatus.badRequest, 'INVALID_REQUEST',
+            'username and password are required');
       }
 
       final response = await _authService.register(username, password);
@@ -393,36 +307,13 @@ extension AriamiHttpServerAdminHandlersMethods on AriamiHttpServer {
         'username': response.username,
       });
     } on UserExistsException {
-      return Response(
-        409,
-        body: jsonEncode({
-          'error': {
-            'code': AuthErrorCodes.userExists,
-            'message': 'Username already taken',
-          },
-        }),
-        headers: {'Content-Type': 'application/json; charset=utf-8'},
-      );
+      return _jsonError(
+          409, AuthErrorCodes.userExists, 'Username already taken');
     } on AuthException catch (e) {
-      return Response.badRequest(
-        body: jsonEncode({
-          'error': {
-            'code': e.code,
-            'message': e.message,
-          },
-        }),
-        headers: {'Content-Type': 'application/json; charset=utf-8'},
-      );
+      return _jsonError(HttpStatus.badRequest, e.code, e.message);
     } catch (_) {
-      return Response.badRequest(
-        body: jsonEncode({
-          'error': {
-            'code': 'INVALID_REQUEST',
-            'message': 'Invalid request body',
-          },
-        }),
-        headers: {'Content-Type': 'application/json; charset=utf-8'},
-      );
+      return _jsonError(
+          HttpStatus.badRequest, 'INVALID_REQUEST', 'Invalid request body');
     }
   }
 
@@ -494,22 +385,12 @@ extension AriamiHttpServerAdminHandlersMethods on AriamiHttpServer {
     if (authResponse != null) return authResponse;
 
     try {
-      final body = await request.readAsString();
-      final data = body.trim().isEmpty
-          ? <String, dynamic>{}
-          : jsonDecode(body) as Map<String, dynamic>;
+      final data = await _readJsonBody(request);
 
       final deviceId = data['deviceId'] as String?;
       if (deviceId == null || deviceId.trim().isEmpty) {
-        return Response.badRequest(
-          body: jsonEncode({
-            'error': {
-              'code': 'INVALID_REQUEST',
-              'message': 'deviceId is required',
-            },
-          }),
-          headers: {'Content-Type': 'application/json; charset=utf-8'},
-        );
+        return _jsonError(
+            HttpStatus.badRequest, 'INVALID_REQUEST', 'deviceId is required');
       }
 
       final normalizedDeviceId = deviceId.trim();
@@ -517,15 +398,8 @@ extension AriamiHttpServerAdminHandlersMethods on AriamiHttpServer {
       final existingSessions =
           _authService.getSessionsForDevice(normalizedDeviceId);
       if (existingClient == null && existingSessions.isEmpty) {
-        return Response.notFound(
-          jsonEncode({
-            'error': {
-              'code': 'CLIENT_NOT_FOUND',
-              'message': 'No connected client found for deviceId',
-            },
-          }),
-          headers: {'Content-Type': 'application/json; charset=utf-8'},
-        );
+        return _jsonError(HttpStatus.notFound, 'CLIENT_NOT_FOUND',
+            'No connected client found for deviceId');
       }
 
       final revokedSessions =
@@ -555,15 +429,8 @@ extension AriamiHttpServerAdminHandlersMethods on AriamiHttpServer {
         headers: {'Content-Type': 'application/json; charset=utf-8'},
       );
     } catch (e) {
-      return Response.badRequest(
-        body: jsonEncode({
-          'error': {
-            'code': 'INVALID_REQUEST',
-            'message': 'Invalid request body',
-          },
-        }),
-        headers: {'Content-Type': 'application/json; charset=utf-8'},
-      );
+      return _jsonError(
+          HttpStatus.badRequest, 'INVALID_REQUEST', 'Invalid request body');
     }
   }
 
@@ -572,36 +439,19 @@ extension AriamiHttpServerAdminHandlersMethods on AriamiHttpServer {
     if (authResponse != null) return authResponse;
 
     try {
-      final body = await request.readAsString();
-      final data = body.trim().isEmpty
-          ? <String, dynamic>{}
-          : jsonDecode(body) as Map<String, dynamic>;
+      final data = await _readJsonBody(request);
 
       final username = data['username'] as String?;
       final newPassword = data['newPassword'] as String?;
       if (username == null || newPassword == null) {
-        return Response.badRequest(
-          body: jsonEncode({
-            'error': {
-              'code': 'INVALID_REQUEST',
-              'message': 'username and newPassword are required',
-            },
-          }),
-          headers: {'Content-Type': 'application/json; charset=utf-8'},
-        );
+        return _jsonError(HttpStatus.badRequest, 'INVALID_REQUEST',
+            'username and newPassword are required');
       }
 
       final targetUser = _authService.getUserByUsername(username.trim());
       if (targetUser == null) {
-        return Response.notFound(
-          jsonEncode({
-            'error': {
-              'code': 'USER_NOT_FOUND',
-              'message': 'User not found',
-            },
-          }),
-          headers: {'Content-Type': 'application/json; charset=utf-8'},
-        );
+        return _jsonError(
+            HttpStatus.notFound, 'USER_NOT_FOUND', 'User not found');
       }
 
       await _authService.changePassword(targetUser.username, newPassword);
@@ -620,25 +470,10 @@ extension AriamiHttpServerAdminHandlersMethods on AriamiHttpServer {
         headers: {'Content-Type': 'application/json; charset=utf-8'},
       );
     } on AuthException catch (e) {
-      return Response.badRequest(
-        body: jsonEncode({
-          'error': {
-            'code': e.code,
-            'message': e.message,
-          },
-        }),
-        headers: {'Content-Type': 'application/json; charset=utf-8'},
-      );
+      return _jsonError(HttpStatus.badRequest, e.code, e.message);
     } catch (e) {
-      return Response.badRequest(
-        body: jsonEncode({
-          'error': {
-            'code': 'INVALID_REQUEST',
-            'message': 'Invalid request body',
-          },
-        }),
-        headers: {'Content-Type': 'application/json; charset=utf-8'},
-      );
+      return _jsonError(
+          HttpStatus.badRequest, 'INVALID_REQUEST', 'Invalid request body');
     }
   }
 
@@ -647,24 +482,14 @@ extension AriamiHttpServerAdminHandlersMethods on AriamiHttpServer {
     if (authResponse != null) return authResponse;
 
     try {
-      final body = await request.readAsString();
-      final data = body.trim().isEmpty
-          ? <String, dynamic>{}
-          : jsonDecode(body) as Map<String, dynamic>;
+      final data = await _readJsonBody(request);
 
       final requestedUserId = data['userId'] as String?;
       final requestedUsername = data['username'] as String?;
       if ((requestedUserId == null || requestedUserId.trim().isEmpty) &&
           (requestedUsername == null || requestedUsername.trim().isEmpty)) {
-        return Response.badRequest(
-          body: jsonEncode({
-            'error': {
-              'code': 'INVALID_REQUEST',
-              'message': 'userId or username is required',
-            },
-          }),
-          headers: {'Content-Type': 'application/json; charset=utf-8'},
-        );
+        return _jsonError(HttpStatus.badRequest, 'INVALID_REQUEST',
+            'userId or username is required');
       }
 
       User? targetUser;
@@ -676,30 +501,15 @@ extension AriamiHttpServerAdminHandlersMethods on AriamiHttpServer {
           : _authService.getUserByUsername(requestedUsername.trim());
 
       if (targetUser == null) {
-        return Response.notFound(
-          jsonEncode({
-            'error': {
-              'code': 'USER_NOT_FOUND',
-              'message': 'User not found',
-            },
-          }),
-          headers: {'Content-Type': 'application/json; charset=utf-8'},
-        );
+        return _jsonError(
+            HttpStatus.notFound, 'USER_NOT_FOUND', 'User not found');
       }
       final targetUserId = targetUser.userId;
       final isDeletingOnlyAdmin =
           _authService.isAdminUser(targetUserId) && _authService.userCount <= 1;
       if (isDeletingOnlyAdmin) {
-        return Response(
-          409,
-          body: jsonEncode({
-            'error': {
-              'code': AuthErrorCodes.lastAdminProtected,
-              'message': 'Cannot delete the last remaining admin account',
-            },
-          }),
-          headers: {'Content-Type': 'application/json; charset=utf-8'},
-        );
+        return _jsonError(409, AuthErrorCodes.lastAdminProtected,
+            'Cannot delete the last remaining admin account');
       }
 
       final revokedSessions =
@@ -729,15 +539,8 @@ extension AriamiHttpServerAdminHandlersMethods on AriamiHttpServer {
 
       final deletedUser = await _authService.deleteUserById(targetUserId);
       if (deletedUser == null) {
-        return Response.notFound(
-          jsonEncode({
-            'error': {
-              'code': 'USER_NOT_FOUND',
-              'message': 'User not found',
-            },
-          }),
-          headers: {'Content-Type': 'application/json; charset=utf-8'},
-        );
+        return _jsonError(
+            HttpStatus.notFound, 'USER_NOT_FOUND', 'User not found');
       }
 
       updateAuthMode();
@@ -752,15 +555,8 @@ extension AriamiHttpServerAdminHandlersMethods on AriamiHttpServer {
         headers: {'Content-Type': 'application/json; charset=utf-8'},
       );
     } catch (_) {
-      return Response.badRequest(
-        body: jsonEncode({
-          'error': {
-            'code': 'INVALID_REQUEST',
-            'message': 'Invalid request body',
-          },
-        }),
-        headers: {'Content-Type': 'application/json; charset=utf-8'},
-      );
+      return _jsonError(
+          HttpStatus.badRequest, 'INVALID_REQUEST', 'Invalid request body');
     }
   }
 }

@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:collection';
-import 'dart:convert';
 import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as path;
@@ -14,22 +13,22 @@ import 'package:ariami_core/models/music_availability.dart';
 import 'package:ariami_core/models/playlist_suggestion.dart';
 import 'package:ariami_core/models/song_metadata.dart';
 import 'package:ariami_core/services/artwork/artwork_service.dart';
+import 'package:ariami_core/services/catalog/catalog_change_log.dart';
 import 'package:ariami_core/services/catalog/catalog_database.dart';
 import 'package:ariami_core/services/catalog/catalog_repository.dart';
 import 'package:ariami_core/services/catalog/catalog_writer.dart';
+import 'package:ariami_core/services/library/album_identity.dart';
 import 'package:ariami_core/services/library/change_processor.dart';
 import 'package:ariami_core/services/library/folder_watcher.dart';
 import 'package:ariami_core/services/library/metadata_extractor.dart';
 import 'package:ariami_core/services/library/library_scanner_isolate.dart';
 import 'package:ariami_core/services/library/metadata_cache.dart';
 import 'package:ariami_core/services/library/playlist_decision_store.dart';
-import 'package:sqlite3/sqlite3.dart';
 
 part 'library_manager/library_manager_api.part.dart';
 part 'library_manager/library_manager_availability.part.dart';
 part 'library_manager/library_manager_catalog.part.dart';
 part 'library_manager/library_manager_catalog_artwork.part.dart';
-part 'library_manager/library_manager_catalog_changes.part.dart';
 part 'library_manager/library_manager_catalog_records.part.dart';
 part 'library_manager/library_manager_duration.part.dart';
 part 'library_manager/library_manager_scanning.part.dart';
@@ -244,7 +243,7 @@ class LibraryManager {
 
     for (final album in library.albums.values) {
       for (final song in album.songs) {
-        final songId = _generateSongId(song.filePath);
+        final songId = generateSongId(song.filePath);
         _songById[songId] = song;
         _songPathById[songId] = song.filePath;
         _songAlbumIdById[songId] = album.id;
@@ -252,7 +251,7 @@ class LibraryManager {
     }
 
     for (final song in library.standaloneSongs) {
-      final songId = _generateSongId(song.filePath);
+      final songId = generateSongId(song.filePath);
       _songById[songId] = song;
       _songPathById[songId] = song.filePath;
       _songAlbumIdById[songId] = null;

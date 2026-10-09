@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:ariami_core/models/song_metadata.dart';
+import '../../utils/atomic_file_write.dart';
 
 class CachedMetadataEntry {
   /// File modification time (milliseconds since epoch)
@@ -138,15 +139,13 @@ class MetadataCache {
       };
 
       final file = File(cachePath);
-      final tempFile = File('$cachePath.tmp');
 
       final parent = file.parent;
       if (!await parent.exists()) {
         await parent.create(recursive: true);
       }
 
-      await tempFile.writeAsString(jsonEncode(json));
-      await tempFile.rename(file.path);
+      await writeFileAtomically(file.path, jsonEncode(json));
       _isDirty = false;
       print('[MetadataCache] Saved ${_entries.length} entries to cache');
       return true;

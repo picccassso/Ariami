@@ -15,7 +15,7 @@ extension _LibraryManagerCatalogPart on LibraryManager {
     try {
       final result = catalogWriter.writeFullSnapshot(
         library: library,
-        songIdForPath: _generateSongId,
+        songIdForPath: generateSongId,
       );
       _latestCatalogToken = result.latestToken;
       print('[LibraryManager] Catalog snapshot write complete '
@@ -133,7 +133,7 @@ extension _LibraryManagerCatalogPart on LibraryManager {
         .toList()
       ..sort();
 
-    var tokenCursor = _readLatestTokenFromDatabase(database);
+    var tokenCursor = readLatestChangeToken(database);
     final occurredEpochMs = DateTime.now().millisecondsSinceEpoch;
 
     database.execute('BEGIN IMMEDIATE TRANSACTION;');
@@ -159,12 +159,20 @@ extension _LibraryManagerCatalogPart on LibraryManager {
             isDeleted: false,
           ),
         );
-        _insertLibraryChangeEvent(
-          database: database,
+        insertChangeEvent(
+          database,
           entityType: 'song',
           entityId: songId,
           op: 'upsert',
-          payloadJson: _catalogSongPayloadJson(record),
+          payloadJson: songChangePayloadJson(
+            id: record.id,
+            title: record.title,
+            artist: record.artist,
+            genre: record.genre,
+            albumId: record.albumId,
+            durationSeconds: record.durationSeconds,
+            trackNumber: record.trackNumber,
+          ),
           occurredEpochMs: occurredEpochMs,
         );
       }
@@ -172,8 +180,8 @@ extension _LibraryManagerCatalogPart on LibraryManager {
       for (final songId in orderedDeletedSongIds) {
         tokenCursor += 1;
         repository.softDeleteSong(songId, tokenCursor);
-        _insertLibraryChangeEvent(
-          database: database,
+        insertChangeEvent(
+          database,
           entityType: 'song',
           entityId: songId,
           op: 'delete',
@@ -198,18 +206,25 @@ extension _LibraryManagerCatalogPart on LibraryManager {
               isDeleted: false,
             ),
           );
-          _insertLibraryChangeEvent(
-            database: database,
+          insertChangeEvent(
+            database,
             entityType: 'album',
             entityId: albumId,
             op: 'upsert',
-            payloadJson: _catalogAlbumPayloadJson(record),
+            payloadJson: albumChangePayloadJson(
+              id: record.id,
+              title: record.title,
+              artist: record.artist,
+              coverArtKey: record.coverArtKey,
+              songCount: record.songCount,
+              durationSeconds: record.durationSeconds,
+            ),
             occurredEpochMs: occurredEpochMs,
           );
         } else {
           repository.softDeleteAlbum(albumId, tokenCursor);
-          _insertLibraryChangeEvent(
-            database: database,
+          insertChangeEvent(
+            database,
             entityType: 'album',
             entityId: albumId,
             op: 'delete',
@@ -231,14 +246,20 @@ extension _LibraryManagerCatalogPart on LibraryManager {
             isDeleted: false,
           ),
         );
-        _insertLibraryChangeEvent(
-          database: database,
+        insertChangeEvent(
+          database,
           entityType: 'playlist',
           entityId: playlistId,
           op: 'upsert',
-          payloadJson: _catalogPlaylistPayloadJson(
-            record,
-            updatedLibrary: updatedLibrary,
+          payloadJson: playlistChangePayloadJson(
+            id: record.id,
+            name: record.name,
+            songCount: record.songCount,
+            durationSeconds: record.durationSeconds,
+            songIds: updatedLibrary.folderPlaylists
+                .where((p) => p.id == record.id)
+                .first
+                .songIds,
           ),
           occurredEpochMs: occurredEpochMs,
         );
@@ -255,14 +276,15 @@ extension _LibraryManagerCatalogPart on LibraryManager {
             updatedToken: tokenCursor,
           ),
         );
-        _insertLibraryChangeEvent(
-          database: database,
+        insertChangeEvent(
+          database,
           entityType: 'playlist_song',
           entityId: key.entityId,
           op: 'upsert',
-          payloadJson: _catalogPlaylistSongPayloadJson(
-            key: key,
-            position: position,
+          payloadJson: playlistSongChangePayloadJson(
+            key.playlistId,
+            key.songId,
+            position,
           ),
           occurredEpochMs: occurredEpochMs,
         );
@@ -271,12 +293,16 @@ extension _LibraryManagerCatalogPart on LibraryManager {
       for (final key in deletedPlaylistSongKeys) {
         tokenCursor += 1;
         repository.deletePlaylistSong(key.playlistId, key.position);
-        _insertLibraryChangeEvent(
-          database: database,
+        insertChangeEvent(
+          database,
           entityType: 'playlist_song',
           entityId: key.entityId,
           op: 'delete',
-          payloadJson: _catalogPlaylistSongDeletePayloadJson(key),
+          payloadJson: playlistSongChangePayloadJson(
+            key.playlistId,
+            key.songId,
+            key.position,
+          ),
           occurredEpochMs: occurredEpochMs,
         );
       }
@@ -284,8 +310,8 @@ extension _LibraryManagerCatalogPart on LibraryManager {
       for (final playlistId in deletedPlaylistIds) {
         tokenCursor += 1;
         repository.softDeletePlaylist(playlistId, tokenCursor);
-        _insertLibraryChangeEvent(
-          database: database,
+        insertChangeEvent(
+          database,
           entityType: 'playlist',
           entityId: playlistId,
           op: 'delete',

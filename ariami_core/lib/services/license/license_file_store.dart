@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import '../../utils/atomic_file_write.dart';
 import '../../utils/secure_file_permissions.dart';
 
 /// Persists a small set of opaque, client-verified license files.
@@ -137,10 +138,8 @@ class LicenseFileStore {
         await dir.create(recursive: true);
       }
       await SecureFilePermissions.restrictDirectory(dir.path);
-      final tempFile = File('$filePath.tmp');
-      await tempFile.writeAsString(jsonEncode({'files': snapshot}));
-      await SecureFilePermissions.restrictFile(tempFile.path);
-      await tempFile.rename(filePath);
+      await writeFileAtomically(filePath, jsonEncode({'files': snapshot}),
+          ownerOnly: true);
     });
     return _persistQueue;
   }

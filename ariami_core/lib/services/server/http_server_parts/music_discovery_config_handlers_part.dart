@@ -8,13 +8,10 @@ extension AriamiHttpServerMusicDiscoveryConfigMethods on AriamiHttpServer {
     return store != null && store.isInitialized ? store : null;
   }
 
-  Response _musicDiscoveryStoreUnavailable() =>
-      _jsonResponse(HttpStatus.serviceUnavailable, {
-        'error': {
-          'code': 'MUSIC_DISCOVERY_CONFIG_UNAVAILABLE',
-          'message': 'Music discovery configuration is not initialized',
-        },
-      });
+  Response _musicDiscoveryStoreUnavailable() => _jsonError(
+      HttpStatus.serviceUnavailable,
+      'MUSIC_DISCOVERY_CONFIG_UNAVAILABLE',
+      'Music discovery configuration is not initialized');
 
   Map<String, dynamic> _musicDiscoveryConfigPayload(
     Request request,
@@ -56,13 +53,11 @@ extension AriamiHttpServerMusicDiscoveryConfigMethods on AriamiHttpServer {
           )
         : null;
     if (key == null) {
-      return _jsonResponse(HttpStatus.badRequest, {
-        'error': {
-          'code': 'INVALID_MUSIC_DISCOVERY_CONFIG',
-          'message': 'Body must contain a non-empty "lastFmApiKey" string '
-              'of at most ${HouseholdMusicDiscoveryStore.maxApiKeyBytes} bytes',
-        },
-      });
+      return _jsonError(
+          HttpStatus.badRequest,
+          'INVALID_MUSIC_DISCOVERY_CONFIG',
+          'Body must contain a non-empty "lastFmApiKey" string '
+              'of at most ${HouseholdMusicDiscoveryStore.maxApiKeyBytes} bytes');
     }
 
     final onlyIfMissing =
