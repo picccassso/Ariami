@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../overview_metrics.dart';
 import 'tap_hint.dart';
 
-/// The overview card showing total stats (dynamic based on tab and range).
 class StatsOverviewCard extends StatelessWidget {
   const StatsOverviewCard({
     super.key,
@@ -41,7 +40,6 @@ class StatsOverviewCard extends StatelessWidget {
   }
 }
 
-/// A single stat item in the grid.
 class _StatItem extends StatelessWidget {
   const _StatItem({required this.metric, this.onTap, this.pulse = false});
 

@@ -40,7 +40,6 @@ class _SearchListItem {
   final PlaylistModel? playlist;
 }
 
-/// Search screen with real-time search and recent searches
 class SearchScreen extends StatefulWidget {
   const SearchScreen({
     super.key,
@@ -110,13 +109,11 @@ class _SearchScreenState extends State<SearchScreen> {
       });
     }
 
-    // Listen to offline state changes
     _offlineSubscription = _offlineService.offlineModeStream.listen((_) {
       final wasOffline = _isOffline;
       setState(() {
         _isOffline = _offlineService.isOfflineModeEnabled;
       });
-      // Reload library and download status when offline state changes
       if (wasOffline != _isOffline) {
         _loadLibrary();
         _loadDownloadedSongIds();
@@ -190,9 +187,7 @@ class _SearchScreenState extends State<SearchScreen> {
     unawaited(_loadLibrary());
   }
 
-  /// Load library data for searching
   Future<void> _loadLibrary() async {
-    // If offline mode is enabled, load downloaded songs for offline search
     if (_offlineService.isOfflineModeEnabled) {
       setState(() {
         _isLoading = true;
@@ -242,14 +237,11 @@ class _SearchScreenState extends State<SearchScreen> {
     }
   }
 
-  /// Load downloaded songs for offline search
   Future<void> _loadDownloadedSongs() async {
-    // Get completed downloads from DownloadManager
     final downloadedTasks = _downloadManager.queue
         .where((task) => task.status == DownloadStatus.completed)
         .toList();
 
-    // Convert DownloadTask to SongModel
     final songs = downloadedTasks
         .map((task) => SongModel(
               id: task.songId,
@@ -261,7 +253,6 @@ class _SearchScreenState extends State<SearchScreen> {
             ))
         .toList();
 
-    // Group songs by album to create AlbumModel entries
     final albumMap = <String, List<DownloadTask>>{};
     for (final task in downloadedTasks) {
       if (task.albumId != null && task.albumName != null) {
@@ -269,7 +260,6 @@ class _SearchScreenState extends State<SearchScreen> {
       }
     }
 
-    // Create AlbumModel for each unique album
     final albums = albumMap.entries.map((entry) {
       final albumTasks = entry.value;
       final firstTask = albumTasks.first;
@@ -300,7 +290,6 @@ class _SearchScreenState extends State<SearchScreen> {
     _refreshSearchIfNeeded();
   }
 
-  /// Load recent songs from storage
   Future<void> _loadRecentSongs() async {
     final recent = await _searchService.getRecentSongs();
     if (!mounted) return;
@@ -309,11 +298,9 @@ class _SearchScreenState extends State<SearchScreen> {
     });
   }
 
-  /// Load downloaded song IDs for status tracking
   void _loadDownloadedSongIds() {
     final downloadedIds = <String>{};
 
-    // Get downloaded songs from download manager
     for (final task in _downloadManager.queue) {
       if (task.status == DownloadStatus.completed) {
         downloadedIds.add(task.songId);
@@ -325,7 +312,6 @@ class _SearchScreenState extends State<SearchScreen> {
     });
   }
 
-  /// Handle search text changes with debouncing
   void _onSearchChanged() {
     final query = _searchController.text;
 
@@ -342,13 +328,11 @@ class _SearchScreenState extends State<SearchScreen> {
       _isSearching = true;
     });
 
-    // Debounce search by 300ms
     _debouncer.run(() {
       _performSearch(query);
     });
   }
 
-  /// Perform search with ranking
   void _performSearch(String query) {
     if (query.trim() != _searchController.text.trim()) return;
     if (!mounted) return;
@@ -376,12 +360,10 @@ class _SearchScreenState extends State<SearchScreen> {
     _performSearch(query);
   }
 
-  /// Play song from recent songs
   Future<void> _playRecentSong(SongModel song) async {
     await _playSong(song);
   }
 
-  /// Clear search
   void _clearSearch() {
     _debouncer.cancel();
     _searchController.clear();
@@ -391,19 +373,16 @@ class _SearchScreenState extends State<SearchScreen> {
     });
   }
 
-  /// Cancel search and dismiss focus
   void _cancelSearch() {
     _clearSearch();
     _searchFocusNode.unfocus();
   }
 
-  /// Save song to recent songs
   Future<void> _saveSong(SongModel song) async {
     await _searchService.addRecentSong(song);
     await _loadRecentSongs();
   }
 
-  /// Clear all recent songs
   Future<void> _clearRecentSongs() async {
     final cleared = _recentSongs;
     await _searchService.clearRecentSongs();
@@ -456,7 +435,6 @@ class _SearchScreenState extends State<SearchScreen> {
             },
             child: Column(
               children: [
-                // Floating-style Search Bar
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                   child: Row(
@@ -557,7 +535,6 @@ class _SearchScreenState extends State<SearchScreen> {
                   ),
                 ),
 
-                // Main Content
                 Expanded(
                   child: _buildBody(),
                 ),
@@ -574,7 +551,6 @@ class _SearchScreenState extends State<SearchScreen> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    // Show "no downloaded music" state when offline with no downloads
     if (_isOffline && _allSongs.isEmpty) {
       return _buildNoDownloadsState();
     }
@@ -583,7 +559,6 @@ class _SearchScreenState extends State<SearchScreen> {
       return _buildErrorState();
     }
 
-    // Show search results if searching
     if (_searchController.text.isNotEmpty) {
       return _buildSearchResults();
     }
@@ -592,7 +567,6 @@ class _SearchScreenState extends State<SearchScreen> {
     return _buildRecentSearches();
   }
 
-  /// Build search results view
   Widget _buildSearchResults() {
     if (_isSearching) {
       return const Center(child: CircularProgressIndicator());
@@ -739,7 +713,6 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
-  /// Build recent songs view
   Widget _buildRecentSearches() {
     if (_recentSongs.isEmpty) {
       return _buildStartSearchingState();
@@ -807,7 +780,6 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
-  /// Build "start searching" empty state
   Widget _buildStartSearchingState() {
     return Center(
       child: Column(
@@ -850,7 +822,6 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
-  /// Build "no results" empty state
   Widget _buildNoResultsState() {
     return Center(
       child: Column(
@@ -892,7 +863,6 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
-  /// Build "no downloaded music" state for offline mode
   Widget _buildNoDownloadsState() {
     return Center(
       child: Column(
@@ -937,18 +907,15 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
-  /// Attempt to reconnect and reload library
   Future<void> _retryConnection() async {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
     });
 
-    // First try to restore connection
     final restored = await _connectionService.tryRestoreConnection();
 
     if (restored) {
-      // Connection restored - load library
       await _loadLibrary();
     } else {
       // Stay in the app's offline experience; it will retry automatically.
@@ -961,7 +928,6 @@ class _SearchScreenState extends State<SearchScreen> {
     }
   }
 
-  /// Build error state
   Widget _buildErrorState() {
     return Center(
       child: Column(
@@ -982,12 +948,7 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
-  // ============================================================================
-  // ACTION HANDLERS
-  // ============================================================================
-
   Future<void> _playSong(SongModel song) async {
-    // Convert SongModel to Song and play
     final playSong = Song(
       id: song.id,
       title: song.title,

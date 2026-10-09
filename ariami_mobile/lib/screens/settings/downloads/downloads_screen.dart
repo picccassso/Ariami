@@ -145,8 +145,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
     await _controller.resumeInterruptedDownloads();
   }
 
-  /// Runs a "Download all" action and tells the user when it fails — these
-  /// used to fail silently, leaving a button that visibly did nothing.
+  /// Runs a "Download all" action and tells the user when it fails.
   Future<void> _runDownloadAll(Future<bool> Function() action) async {
     final succeeded = await action();
     if (succeeded || !mounted) return;

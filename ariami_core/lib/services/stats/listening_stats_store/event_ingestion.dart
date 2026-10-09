@@ -197,7 +197,6 @@ extension _ListeningStatsEventIngestion on ListeningStatsStore {
     return (outcome: _BaselineOutcome.accepted, replacedExisting: true);
   }
 
-  /// Validates bounds and normalizes an incoming event.
   ListeningEvent? _sanitize(ListeningEvent event) {
     if (event.eventId.isEmpty || event.eventId.length > 128) return null;
     if (event.songId.isEmpty || event.songId.length > 256) return null;

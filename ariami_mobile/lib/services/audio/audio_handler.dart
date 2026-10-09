@@ -6,7 +6,6 @@ import '../../models/song.dart';
 import '../cast/chrome_cast_service.dart';
 import 'equalizer_service.dart';
 
-/// A resolved queue item ready to be handed to just_audio.
 class GaplessPlaybackItem {
   final Song song;
   final String streamUrl;
@@ -27,9 +26,8 @@ class GaplessPlaybackTransition {
   const GaplessPlaybackTransition(this.previousSong, this.currentSong);
 }
 
-/// AudioHandler implementation for Ariami
-/// This creates a foreground service that keeps the app alive during music playback
-/// and provides media controls in the notification and lock screen.
+/// Foreground service that keeps the app alive during music playback and
+/// provides media controls in the notification and lock screen.
 class AriamiAudioHandler extends BaseAudioHandler
     with QueueHandler, SeekHandler {
   // The underlying audio player
@@ -55,10 +53,8 @@ class AriamiAudioHandler extends BaseAudioHandler
         ),
       );
 
-  // Current song being played
   Song? _currentSong;
 
-  // Stream controllers for skip events
   final _skipNextController = StreamController<void>.broadcast();
   final _skipPreviousController = StreamController<void>.broadcast();
   final _seekController = StreamController<Duration>.broadcast();
@@ -81,7 +77,6 @@ class AriamiAudioHandler extends BaseAudioHandler
   /// the local engine's gapless bookkeeping survives the mirror.
   Song? _mirroredSong;
 
-  // Expose streams for PlaybackManager to listen to
   Stream<void> get onSkipNext => _skipNextController.stream;
   Stream<void> get onSkipPrevious => _skipPreviousController.stream;
   Stream<Duration> get onSeek => _seekController.stream;
@@ -97,16 +92,11 @@ class AriamiAudioHandler extends BaseAudioHandler
     _init();
   }
 
-  /// Initialize the audio handler
   void _init() {
-    // Listen to player state changes and broadcast to the system
     _player.playbackEventStream.listen(_broadcastState);
 
-    // Listen to processing state changes
     _player.processingStateStream.listen((state) {
-      // When song completes, notify listeners
       if (state == ProcessingState.completed) {
-        // Broadcast completion through the audio service
         _broadcastState(_player.playbackEvent);
       }
     });
@@ -142,7 +132,6 @@ class AriamiAudioHandler extends BaseAudioHandler
       );
     });
 
-    // Listen to player errors
     _player.playerStateStream.listen(
       (state) {},
       onError: (Object e, StackTrace st) {
@@ -178,8 +167,6 @@ class AriamiAudioHandler extends BaseAudioHandler
     );
   }
 
-  /// Get album art URI from stream URL
-  /// Constructs the album art URL based on the server URL
   Uri? _getAlbumArtUri(Song song, String streamUrl) {
     try {
       // Extract base URL from stream URL
@@ -196,13 +183,10 @@ class AriamiAudioHandler extends BaseAudioHandler
 
       final baseUrl = '${uri.scheme}://${uri.host}:${uri.port}';
 
-      // Construct artwork URL based on whether song has albumId
       String artworkUrl;
       if (song.albumId != null) {
-        // Song belongs to an album - use album artwork endpoint
         artworkUrl = '$baseUrl/api/artwork/${song.albumId}';
       } else {
-        // Standalone song - use song artwork endpoint
         artworkUrl = '$baseUrl/api/song-artwork/${song.id}';
       }
 
@@ -235,7 +219,6 @@ class AriamiAudioHandler extends BaseAudioHandler
 
   Future<void> seekLocal(Duration position) => _player.seek(position);
 
-  /// Load a song without starting playback (for seeking before play)
   Future<void> loadSong(
     Song song,
     String streamUrl, {
@@ -283,7 +266,6 @@ class AriamiAudioHandler extends BaseAudioHandler
     }
   }
 
-  /// Play a song from a stream URL
   Future<void> playSong(
     Song song,
     String streamUrl, {
@@ -297,7 +279,6 @@ class AriamiAudioHandler extends BaseAudioHandler
 
     try {
       final generation = _sourceGeneration + 1;
-      // Load the song first
       await loadSong(
         song,
         streamUrl,
@@ -389,7 +370,6 @@ class AriamiAudioHandler extends BaseAudioHandler
     );
   }
 
-  /// Broadcast the current playback state to the system
   void _broadcastState(PlaybackEvent event) {
     if (_isCastMode || _isConnectMirror) {
       return;
@@ -398,7 +378,6 @@ class AriamiAudioHandler extends BaseAudioHandler
     final playing = _player.playing;
     final processingState = _player.processingState;
 
-    // Map just_audio processing state to audio_service state
     final audioServiceState = _mapProcessingState(processingState, playing);
 
     playbackState.add(
@@ -463,7 +442,6 @@ class AriamiAudioHandler extends BaseAudioHandler
     );
   }
 
-  /// Switch notification to cast playback without starting local audio.
   void enterCastMode(
     Song song,
     String streamUrl,
@@ -485,7 +463,6 @@ class AriamiAudioHandler extends BaseAudioHandler
     );
   }
 
-  /// Keep the Ariami notification in sync with remote cast playback.
   void updateCastPlaybackState({
     required Duration position,
     required bool isPlaying,
@@ -503,7 +480,6 @@ class AriamiAudioHandler extends BaseAudioHandler
     );
   }
 
-  /// Restore local notification control from just_audio state.
   void exitCastMode() {
     if (!_isCastMode) {
       return;
@@ -567,7 +543,6 @@ class AriamiAudioHandler extends BaseAudioHandler
     _broadcastState(_player.playbackEvent);
   }
 
-  /// Map just_audio ProcessingState to audio_service AudioProcessingState
   AudioProcessingState _mapProcessingState(
     ProcessingState processingState,
     bool playing,
@@ -585,10 +560,6 @@ class AriamiAudioHandler extends BaseAudioHandler
         return AudioProcessingState.completed;
     }
   }
-
-  // ============================================================================
-  // MediaHandler overrides - Handle media button events
-  // ============================================================================
 
   @override
   Future<void> play() async {
@@ -646,14 +617,12 @@ class AriamiAudioHandler extends BaseAudioHandler
     await _player.stop();
     await _player.seek(Duration.zero);
 
-    // Clear the current media item
     mediaItem.add(null);
     _currentSong = null;
     _playlistItems = const [];
     _activePlaylistIndex = null;
     queue.add(const []);
 
-    // Update state to stopped
     playbackState.add(playbackState.value.copyWith(
       processingState: AudioProcessingState.idle,
       playing: false,
@@ -720,52 +689,33 @@ class AriamiAudioHandler extends BaseAudioHandler
     await stop();
   }
 
-  // ============================================================================
-  // Getters for accessing player state
-  // ============================================================================
-
-  /// Check if currently playing
   bool get isPlaying =>
       _isCastMode ? _castService.isRemotePlaying : _player.playing;
 
-  /// Check if loading/buffering
   bool get isLoading => _isCastMode
       ? _castService.isRemoteBuffering
       : _player.processingState == ProcessingState.loading ||
           _player.processingState == ProcessingState.buffering;
 
-  /// Get current position
   Duration get position =>
       _isCastMode ? _castService.remotePosition : _player.position;
 
-  /// Get current duration
   Duration? get duration => _isCastMode
       ? (_castService.remoteDuration ?? _currentSong?.duration)
       : _player.duration;
 
-  /// Get buffered position
   Duration get bufferedPosition => _player.bufferedPosition;
 
-  /// Get current song
   Song? get currentSong => _currentSong;
 
-  /// Stream of player states
   Stream<PlayerState> get playerStateStream => _player.playerStateStream;
 
-  /// Stream of positions
   Stream<Duration> get positionStream => _player.positionStream;
 
-  /// Stream of durations
   Stream<Duration?> get durationStream => _player.durationStream;
 
-  /// Stream of buffered positions
   Stream<Duration> get bufferedPositionStream => _player.bufferedPositionStream;
 
-  // ============================================================================
-  // Cleanup
-  // ============================================================================
-
-  /// Dispose the audio handler and player
   Future<void> dispose() async {
     await _skipNextController.close();
     await _skipPreviousController.close();

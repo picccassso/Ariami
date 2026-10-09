@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-/// Enhanced seek bar with time labels and smooth scrubbing
 class PlayerSeekBar extends StatefulWidget {
   final Duration position;
   final Duration duration;
@@ -27,7 +26,6 @@ class _PlayerSeekBarState extends State<PlayerSeekBar> {
 
     return Column(
       children: [
-        // Slider
         SliderTheme(
           data: SliderTheme.of(context).copyWith(
             trackHeight: 3.0,
@@ -57,7 +55,6 @@ class _PlayerSeekBarState extends State<PlayerSeekBar> {
           ),
         ),
 
-        // Time labels
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24.0),
           child: Row(
@@ -86,7 +83,6 @@ class _PlayerSeekBarState extends State<PlayerSeekBar> {
     );
   }
 
-  /// Format duration to mm:ss
   String _formatDuration(Duration duration) {
     final minutes = duration.inMinutes;
     final seconds = duration.inSeconds % 60;

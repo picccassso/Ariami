@@ -7,7 +7,6 @@ import '../playlist/playlist_detail_screen.dart';
 import 'search_screen.dart';
 import 'nested_tab_navigator.dart';
 
-/// A navigator key for the search tab's nested navigation
 final GlobalKey<NavigatorState> searchNavigatorKey =
     GlobalKey<NavigatorState>();
 
@@ -21,7 +20,6 @@ class SearchNavigator extends StatelessWidget {
     this.reselectionRequests,
   });
 
-  /// Called when user presses back at the root of this navigator
   final VoidCallback? onBackAtRoot;
 
   /// Changes whenever the already-selected Search destination is tapped.

@@ -1,12 +1,9 @@
 import '../services/daemon_service.dart';
 
-/// Command to stop the Ariami CLI server
 class StopCommand {
   final DaemonService _daemonService = DaemonService();
 
-  /// Execute the stop command
   Future<void> execute() async {
-    // Check if running
     if (!await _daemonService.isRunning()) {
       print('Ariami CLI server is not running.');
       return;

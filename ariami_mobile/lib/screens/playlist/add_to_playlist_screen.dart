@@ -15,22 +15,18 @@ import 'widgets/playlist_cover_art.dart';
 /// 1. Add a single song to playlists (songId provided)
 /// 2. Browse and add songs to a specific playlist (playlistId provided)
 class AddToPlaylistScreen extends StatefulWidget {
-  /// Song ID to add to playlists (mode 1)
   final String? songId;
 
-  /// Playlist ID to add songs to (mode 2)
   final String? playlistId;
 
-  /// Playlist name for display (mode 2)
   final String? playlistName;
 
-  /// List of songs to choose from when adding to a specific playlist
   final List<SongModel>? availableSongs;
 
   /// Optional override for screens that use this picker with non-local playlists.
   final Future<void> Function(SongModel song)? onAddSong;
 
-  /// Optional override for screens that use this picker with non-local playlists.
+  /// Optional override for removing a song, for screens that use this picker with non-local playlists.
   final Future<void> Function(SongModel song)? onRemoveSong;
 
   const AddToPlaylistScreen({
@@ -43,7 +39,6 @@ class AddToPlaylistScreen extends StatefulWidget {
     this.onRemoveSong,
   });
 
-  /// Show as a bottom sheet for adding a song to playlists
   static Future<void> showForSong(
     BuildContext context,
     String songId, {
@@ -90,7 +85,6 @@ class AddToPlaylistScreen extends StatefulWidget {
     );
   }
 
-  /// Show as a bottom sheet for adding several songs to playlists at once.
   static Future<void> showForSongs(
     BuildContext context,
     List<SongModel> songs,
@@ -119,7 +113,6 @@ class _AddToPlaylistScreenState extends State<AddToPlaylistScreen> {
   final Map<String, String> _songStates = {};
   final Map<String, Timer> _transitionTimers = {};
 
-  // Search state
   final TextEditingController _searchController = TextEditingController();
   List<SongModel> _filteredSongs = [];
   String _searchQuery = '';
@@ -297,18 +290,15 @@ class _AddToPlaylistScreenState extends State<AddToPlaylistScreen> {
         VoidCallback? onTap;
 
         if (songState == 'transitioning') {
-          // Show green checkmark during transition
           trailing = const Icon(Icons.check, color: Colors.green);
           onTap = null;
         } else if (songState == 'added' || isAdded) {
-          // Show red minus button for removal
           trailing = IconButton(
             icon: const Icon(Icons.remove, color: Colors.red),
             onPressed: () => _removeSongFromPlaylist(song),
           );
           onTap = () => _removeSongFromPlaylist(song);
         } else {
-          // Show plus button to add
           trailing = IconButton(
             icon: const Icon(Icons.add),
             onPressed: () => _addSongToPlaylist(song),
@@ -335,22 +325,18 @@ class _AddToPlaylistScreenState extends State<AddToPlaylistScreen> {
     );
   }
 
-  /// Build album artwork or placeholder
   Widget _buildAlbumArt(SongModel song) {
     final connectionService = ConnectionService();
 
-    // Determine artwork URL and cache ID based on whether song has albumId
     String? artworkUrl;
     String cacheId;
 
     if (song.albumId != null) {
-      // Song belongs to an album - use album artwork endpoint
       artworkUrl = connectionService.apiClient != null
           ? '${connectionService.apiClient!.baseUrl}/artwork/${song.albumId}'
           : null;
       cacheId = song.albumId!;
     } else {
-      // Standalone song - use song artwork endpoint
       artworkUrl = connectionService.apiClient != null
           ? '${connectionService.apiClient!.baseUrl}/song-artwork/${song.id}'
           : null;
@@ -371,7 +357,6 @@ class _AddToPlaylistScreenState extends State<AddToPlaylistScreen> {
     );
   }
 
-  /// Build placeholder for missing artwork
   Widget _buildPlaceholder() {
     return Container(
       width: 48,
@@ -406,7 +391,6 @@ class _AddToPlaylistScreenState extends State<AddToPlaylistScreen> {
         _songStates[song.id] = 'transitioning';
       });
 
-      // Cancel any existing timer for this song
       _transitionTimers[song.id]?.cancel();
 
       // Start 1-second timer to show minus button
@@ -421,7 +405,6 @@ class _AddToPlaylistScreenState extends State<AddToPlaylistScreen> {
   }
 
   Future<void> _removeSongFromPlaylist(SongModel song) async {
-    // Cancel any pending transition timer
     _transitionTimers[song.id]?.cancel();
     _transitionTimers.remove(song.id);
 
@@ -501,7 +484,6 @@ class _AddSongsToPlaylistsSheetState extends State<_AddSongsToPlaylistsSheet> {
   @override
   void dispose() {
     _playlistService.removeListener(_onPlaylistsChanged);
-    // Cancel all active timers
     for (var timer in _transitionTimers.values) {
       timer.cancel();
     }
@@ -552,7 +534,6 @@ class _AddSongsToPlaylistsSheetState extends State<_AddSongsToPlaylistsSheet> {
         _playlistStates[playlist.id] = 'transitioning';
       });
 
-      // Cancel any existing timer for this playlist
       _transitionTimers[playlist.id]?.cancel();
 
       // Start 1-second timer to show minus button
@@ -567,7 +548,6 @@ class _AddSongsToPlaylistsSheetState extends State<_AddSongsToPlaylistsSheet> {
   }
 
   Future<void> _removeFromPlaylist(PlaylistModel playlist) async {
-    // Cancel any pending transition timer
     _transitionTimers[playlist.id]?.cancel();
     _transitionTimers.remove(playlist.id);
 

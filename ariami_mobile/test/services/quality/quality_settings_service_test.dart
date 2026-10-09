@@ -100,25 +100,21 @@ void main() {
       final service = QualitySettingsService();
       await service.initialize();
 
-      // Original
       await service.setDownloadQualityOption(DownloadQuality.original);
       expect(service.getEffectiveDownloadQuality(), DownloadQuality.original);
       expect(service.getDownloadOriginal(), isTrue);
       expect(service.getDownloadQuality(), StreamingQuality.high);
 
-      // High
       await service.setDownloadQualityOption(DownloadQuality.high);
       expect(service.getEffectiveDownloadQuality(), DownloadQuality.high);
       expect(service.getDownloadOriginal(), isFalse);
       expect(service.getDownloadQuality(), StreamingQuality.high);
 
-      // Medium
       await service.setDownloadQualityOption(DownloadQuality.medium);
       expect(service.getEffectiveDownloadQuality(), DownloadQuality.medium);
       expect(service.getDownloadOriginal(), isFalse);
       expect(service.getDownloadQuality(), StreamingQuality.medium);
 
-      // Low
       await service.setDownloadQualityOption(DownloadQuality.low);
       expect(service.getEffectiveDownloadQuality(), DownloadQuality.low);
       expect(service.getDownloadOriginal(), isFalse);

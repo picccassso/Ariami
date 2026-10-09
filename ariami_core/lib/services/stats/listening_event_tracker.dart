@@ -2,7 +2,6 @@ import 'dart:math';
 
 import 'package:ariami_core/models/listening_stats_models.dart';
 
-/// Static metadata about the track a play-action is credited to.
 class ListeningTrackInfo {
   final String songId;
   final String? title;
@@ -57,7 +56,6 @@ class ListeningEventTracker {
   })  : _now = now ?? DateTime.now,
         _idSalt = idSalt ?? _randomSalt();
 
-  /// Receives finalized events, ready for the outbox.
   final void Function(ListeningEvent event) onEvent;
 
   /// Credit forward position jumps beyond [seekToleranceMs] while playback is
@@ -159,7 +157,6 @@ class ListeningEventTracker {
     }
   }
 
-  /// Call on every position tick from the audio engine.
   void onPositionTick(int positionMs) {
     if (_track == null || !_playing) {
       _lastPositionMs = positionMs;

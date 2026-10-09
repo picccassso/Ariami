@@ -16,7 +16,6 @@ import '../playlist/create_playlist_screen.dart';
 import '../playlist/server_playlist_detail_screen.dart';
 import 'library/library.dart';
 
-/// Main library screen with collapsible sections for Playlists, Albums, and Songs.
 class LibraryScreen extends StatefulWidget {
   const LibraryScreen({super.key});
 
@@ -72,8 +71,6 @@ class _LibraryScreenState extends State<LibraryScreen> {
     }
   }
 
-  // Action Handlers
-
   void _openPlaylist(PlaylistModel playlist) {
     Navigator.of(context).pushNamed('/playlist', arguments: playlist.id);
   }
@@ -108,8 +105,6 @@ class _LibraryScreenState extends State<LibraryScreen> {
       Navigator.of(context).pushNamed('/playlist', arguments: playlist.id);
     }
   }
-
-  // Context Menu Handlers
 
   void _showAlbumContextMenu(AlbumModel album) {
     showAlbumContextMenu(
@@ -174,8 +169,6 @@ class _LibraryScreenState extends State<LibraryScreen> {
     );
   }
 
-  // Server Playlist Import
-
   void _openServerPlaylist(ServerPlaylist serverPlaylist) {
     Navigator.pop(context);
     Navigator.of(context).push(
@@ -238,8 +231,6 @@ class _LibraryScreenState extends State<LibraryScreen> {
     }
   }
 
-  // Queue Operations
-
   Future<void> _addAlbumToQueue(AlbumModel album) async {
     try {
       final albumSongs = _controller.albumSongsFor(album.id);
@@ -263,7 +254,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
         showQueueActionConfirmation(context, message: 'Added to end of queue');
       }
     } catch (e) {
-      // Silently fail, can't let em know it failed LOL
+      // Best-effort; the failure is not surfaced to the user.
     }
   }
 
@@ -296,11 +287,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
         showQueueActionConfirmation(context, message: 'Added to end of queue');
       }
     } catch (e) {
-      // Silently fail, can't let em know it failed LOL
+      // Best-effort; the failure is not surfaced to the user.
     }
   }
-
-  // Multi-select Batch Operations
 
   List<Song> _selectedPlayableSongs() => [
         for (final song in _controller.resolveSelectedSongs())
@@ -376,8 +365,6 @@ class _LibraryScreenState extends State<LibraryScreen> {
     if (!mounted) return;
     _controller.exitSelectionMode();
   }
-
-  // Download Operations
 
   Future<void> _downloadAlbum(AlbumModel album) async {
     try {
@@ -483,8 +470,6 @@ class _LibraryScreenState extends State<LibraryScreen> {
       );
     }
   }
-
-  // Build
 
   @override
   Widget build(BuildContext context) {
@@ -722,7 +707,6 @@ class _LibraryScreenState extends State<LibraryScreen> {
               },
             ),
 
-            // Premium Floating Glassmorphic Batch Action Bar
             MiniPlayerScrollPaddingBuilder(
               builder: (context, bottomPadding) {
                 return AnimatedBuilder(

@@ -34,9 +34,7 @@ class ArtworkRevalidationResult {
   final String? path;
 }
 
-/// Manages caching of artwork and songs with LRU eviction
 class CacheManager {
-  // Singleton pattern
   static final CacheManager _instance = CacheManager._internal();
   factory CacheManager() => _instance;
   CacheManager._internal();
@@ -52,7 +50,6 @@ class CacheManager {
   String? _artworkCachePath;
   String? _songCachePath;
 
-  // Track ongoing cache operations to avoid duplicates
   final Map<String, Future<String?>> _inFlightArtworkRequests = {};
   final Map<String, Future<_ArtworkRevalidationOutcome>>
       _inFlightArtworkRevalidations = {};
@@ -60,9 +57,8 @@ class CacheManager {
   final Set<String> _pendingSongs = {};
   final Map<String, CancelToken> _songCacheCancelTokens = {};
 
-  // Concurrency limiter for artwork downloads
-  // Increased from 3 to 6 since thumbnails are ~100x smaller (~2.8KB vs 304KB)
-  // This allows faster loading of playlists with many items
+  // Concurrency limiter for artwork downloads. Thumbnails are small (~2.8KB),
+  // so a higher cap loads playlists with many items faster.
   static const int _maxConcurrentArtworkDownloads = 6;
   // No queue limit - Completers are lightweight (~48 bytes each)
   // A library with 500 albums only uses ~24KB for the queue
@@ -76,20 +72,13 @@ class CacheManager {
   int _cachedSongSize = 0;
   bool _songCacheSizeInitialized = false;
 
-  // Stream controller for cache updates
   final StreamController<CacheUpdateEvent> _cacheUpdateController =
       StreamController<CacheUpdateEvent>.broadcast();
 
-  /// Stream notifying when cache is updated
   Stream<CacheUpdateEvent> get cacheUpdateStream =>
       _cacheUpdateController.stream;
 
-  /// Check if initialized
   bool get isInitialized => _initialized;
-
-  // ============================================================================
-  // INITIALIZATION
-  // ============================================================================
 
   /// Initialize the cache manager
   /// Initialize the cache manager.
@@ -101,18 +90,14 @@ class CacheManager {
   Future<void> _initializeImpl() async {
     if (_initialized) return;
 
-    // Setup database
     _database = await CacheDatabase.create();
 
-    // Setup HTTP client
     _dio = Dio();
 
-    // Get cache directories
     final appDir = await getApplicationDocumentsDirectory();
     _artworkCachePath = '${appDir.path}/cache/artwork';
     _songCachePath = '${appDir.path}/cache/songs';
 
-    // Create directories
     await Directory(_artworkCachePath!).create(recursive: true);
     await Directory(_songCachePath!).create(recursive: true);
 
@@ -153,10 +138,8 @@ class CacheManager {
   /// entries, and reindex any on-disk artwork missing from metadata. Runs
   /// after [initialize] returns so it never blocks the startup path.
   Future<void> _warmCachesInBackground() async {
-    // Pre-populate memory cache with all artwork paths for instant sync lookups
     await _prePopulateArtworkPathCache();
 
-    // Verify cache files exist, clean up orphaned entries
     await _cleanupOrphanedEntries();
 
     // Repair sparse metadata on migrated installs. This keeps thumbnail
@@ -165,16 +148,11 @@ class CacheManager {
     await _repairArtworkMetadataFromDiskIfNeeded();
   }
 
-  /// Ensure initialization
   Future<void> _ensureInitialized() async {
     if (!_initialized) {
       await initialize();
     }
   }
-
-  // ============================================================================
-  // ARTWORK DOWNLOAD CONCURRENCY CONTROL
-  // ============================================================================
 
   /// Acquire a download slot, waiting if at max concurrency.
   /// All requests are queued - no rejections. Completers are lightweight.
@@ -183,17 +161,14 @@ class CacheManager {
       _activeArtworkDownloads++;
       return true;
     }
-    // At max concurrency - queue and wait (no limit on queue size)
     final completer = Completer<void>();
     _artworkDownloadQueue.add(completer);
     await completer.future;
     return true;
   }
 
-  /// Release a download slot, unblocking the next queued request
   void _releaseArtworkSlot() {
     if (_artworkDownloadQueue.isNotEmpty) {
-      // Hand the slot to the next waiter
       final next = _artworkDownloadQueue.removeAt(0);
       next.complete();
     } else {
@@ -201,12 +176,6 @@ class CacheManager {
     }
   }
 
-  // ============================================================================
-  // ARTWORK CACHING
-  // ============================================================================
-
-  /// Cache artwork from URL
-  /// Returns the local file path if successful, null otherwise
   Future<String?> cacheArtwork(
     String albumId,
     String artworkUrl, {
@@ -234,8 +203,6 @@ class CacheManager {
     if (!_database.isCacheEnabled()) return null;
     if (cancellationToken?.isCancelled ?? false) return null;
 
-    // Check memory cache first (instant, no DB query needed)
-    // This is usually already checked by CachedArtwork widget, but double-check here
     if (_artworkPathCache.containsKey(albumId)) {
       return _artworkPathCache[albumId];
     }
@@ -255,7 +222,6 @@ class CacheManager {
     var acquiredSlot = false;
     String? result;
 
-    // Wait for a download slot (limits concurrent network requests)
     try {
       acquiredSlot = await _acquireArtworkSlot();
       if (!acquiredSlot) {
@@ -267,9 +233,8 @@ class CacheManager {
 
       final filePath = '$_artworkCachePath/$albumId.jpg';
 
-      // Download artwork
-      // Timeout reduced to 15s - thumbnails are ~2.8KB, even full images are <500KB
-      // On slow connections, if 15s isn't enough, network is likely too slow for streaming
+      // 15s timeout: thumbnails are ~2.8KB and even full images are <500KB, so if
+      // 15s isn't enough the network is likely too slow for streaming.
       final dioCancelToken = CancelToken();
       cancellationToken?.onCancel(() {
         if (!dioCancelToken.isCancelled) {
@@ -290,11 +255,9 @@ class CacheManager {
       if (bytes == null || bytes.isEmpty) return null;
       await _writeArtworkAtomically(filePath, bytes);
 
-      // Get file size
       final file = File(filePath);
       final size = await file.length();
 
-      // Create cache entry
       final entry = CacheEntry(
         id: albumId,
         type: CacheType.artwork,
@@ -311,7 +274,6 @@ class CacheManager {
         const CacheUpdateEvent(type: CacheType.artwork),
       );
 
-      // Store in memory cache for future instant lookups
       _artworkPathCache[albumId] = filePath;
 
       print(
@@ -552,9 +514,7 @@ class CacheManager {
     }
   }
 
-  /// Get cached artwork path if exists
   Future<String?> getArtworkPath(String albumId) async {
-    // Check memory cache first (instant)
     if (_artworkPathCache.containsKey(albumId)) {
       return _artworkPathCache[albumId];
     }
@@ -563,9 +523,7 @@ class CacheManager {
 
     final entry = await _database.getCacheEntry(albumId, CacheType.artwork);
     if (entry != null && await File(entry.path).exists()) {
-      // Touch to update last accessed time
       await _database.touchCacheEntry(albumId, CacheType.artwork);
-      // Store in memory cache for future instant lookups
       _artworkPathCache[albumId] = entry.path;
       return entry.path;
     }
@@ -592,19 +550,16 @@ class CacheManager {
   /// Returns the path from whichever key is found first, or null if neither exists
   Future<String?> getArtworkPathWithFallback(
       String primaryKey, String? fallbackKey) async {
-    // 1. Check memory cache for primary key (instant)
     if (_artworkPathCache.containsKey(primaryKey)) {
       return _artworkPathCache[primaryKey];
     }
 
-    // 2. Check memory cache for fallback key (instant)
     if (fallbackKey != null && _artworkPathCache.containsKey(fallbackKey)) {
       return _artworkPathCache[fallbackKey];
     }
 
     await _ensureInitialized();
 
-    // 3. Check disk cache for primary key
     final primaryEntry =
         await _database.getCacheEntry(primaryKey, CacheType.artwork);
     if (primaryEntry != null && await File(primaryEntry.path).exists()) {
@@ -613,7 +568,6 @@ class CacheManager {
       return primaryEntry.path;
     }
 
-    // 4. Check disk cache for fallback key
     if (fallbackKey != null) {
       final fallbackEntry =
           await _database.getCacheEntry(fallbackKey, CacheType.artwork);
@@ -627,16 +581,11 @@ class CacheManager {
     return null;
   }
 
-  /// Check if artwork is cached
   Future<bool> isArtworkCached(String albumId) async {
     await _ensureInitialized();
     final path = await getArtworkPath(albumId);
     return path != null;
   }
-
-  // ============================================================================
-  // SONG CACHING
-  // ============================================================================
 
   /// Cache a song from URL (background download)
   /// Returns true if caching started, false if already cached/caching
@@ -645,16 +594,13 @@ class CacheManager {
 
     if (!_database.isCacheEnabled()) return false;
 
-    // Check if already cached
     final existing = await _database.getCacheEntry(songId, CacheType.song);
     if (existing != null && await File(existing.path).exists()) {
-      // Touch to update last accessed time
       await _database.touchCacheEntry(songId, CacheType.song);
       print('[CacheManager] Song already cached: $songId');
       return false;
     }
 
-    // Check if already being cached
     if (_pendingSongs.contains(songId)) {
       print('[CacheManager] Song already being cached: $songId');
       return false;
@@ -664,13 +610,11 @@ class CacheManager {
 
     _pendingSongs.add(songId);
 
-    // Start background download (don't await)
     _downloadSongInBackground(songId, downloadUrl);
 
     return true;
   }
 
-  /// Background song download
   Future<void> _downloadSongInBackground(
       String songId, String downloadUrl) async {
     final cancelToken = CancelToken();
@@ -679,7 +623,6 @@ class CacheManager {
     try {
       print('[CacheManager] Starting background cache for song: $songId');
 
-      // Download song
       await _dio.download(
         downloadUrl,
         filePath,
@@ -691,7 +634,6 @@ class CacheManager {
         cancelToken: cancelToken,
       );
 
-      // Get file size
       final file = File(filePath);
       final size = await file.length();
       final canStore =
@@ -703,7 +645,6 @@ class CacheManager {
         return;
       }
 
-      // Create cache entry
       final entry = CacheEntry(
         id: songId,
         type: CacheType.song,
@@ -712,7 +653,6 @@ class CacheManager {
         lastAccessed: DateTime.now(),
       );
 
-      // Save entry and update song-size tracking
       await _database.upsertCacheEntry(entry);
       _cachedSongSize += size;
       _songCacheSizeInitialized = true;
@@ -759,20 +699,17 @@ class CacheManager {
     }
   }
 
-  /// Get cached song path if exists
   Future<String?> getCachedSongPath(String songId) async {
     await _ensureInitialized();
 
     final entry = await _database.getCacheEntry(songId, CacheType.song);
     if (entry != null && await File(entry.path).exists()) {
-      // Touch to update last accessed time
       await _database.touchCacheEntry(songId, CacheType.song);
       return entry.path;
     }
     return null;
   }
 
-  /// Check if song is cached
   Future<bool> isSongCached(String songId) async {
     await _ensureInitialized();
     final path = await getCachedSongPath(songId);
@@ -792,10 +729,6 @@ class CacheManager {
     }
     return cachedIds;
   }
-
-  // ============================================================================
-  // LRU EVICTION
-  // ============================================================================
 
   Future<void> _initializeSongCacheSizeIfNeeded() async {
     if (_songCacheSizeInitialized) return;
@@ -869,24 +802,15 @@ class CacheManager {
     await _ensureSongCacheCapacityForIncoming(incomingBytes: 0);
   }
 
-  // ============================================================================
-  // CACHE MANAGEMENT
-  // ============================================================================
-
-  /// Clear all cached content
   Future<void> clearAllCache() async {
     await _ensureInitialized();
 
-    // Clear artwork cache
     await _clearDirectory(_artworkCachePath!);
 
-    // Clear song cache
     await _clearDirectory(_songCachePath!);
 
-    // Clear database entries
     await _database.clearAllCacheEntries();
 
-    // Clear memory cache
     _artworkPathCache.clear();
     _cachedSongSize = 0;
     _songCacheSizeInitialized = true;
@@ -895,7 +819,6 @@ class CacheManager {
     print('[CacheManager] All cache cleared');
   }
 
-  /// Clear song cache only
   Future<void> clearSongCache() async {
     await _ensureInitialized();
 
@@ -910,7 +833,6 @@ class CacheManager {
     print('[CacheManager] Song cache cleared');
   }
 
-  /// Clear a directory's contents
   Future<void> _clearDirectory(String path) async {
     final dir = Directory(path);
     if (await dir.exists()) {
@@ -939,7 +861,6 @@ class CacheManager {
     }
   }
 
-  /// Remove orphaned entries (entries without matching files)
   Future<void> _cleanupOrphanedEntries() async {
     final entries = await _database.loadCacheEntries();
     final orphaned = <CacheEntry>[];
@@ -1051,14 +972,8 @@ class CacheManager {
     }
   }
 
-  // ============================================================================
-  // SETTINGS
-  // ============================================================================
-
-  /// Get cache limit in MB
   int getCacheLimit() => _database.getCacheLimit();
 
-  /// Set cache limit in MB
   Future<void> setCacheLimit(int limitMB) async {
     await _ensureInitialized();
     await _database.setCacheLimit(limitMB);
@@ -1066,60 +981,43 @@ class CacheManager {
     await _enforceStorageLimitActual();
   }
 
-  /// Check if caching is enabled
   bool isCacheEnabled() => _database.isCacheEnabled();
 
-  /// Enable or disable caching
   Future<void> setCacheEnabled(bool enabled) async {
     await _ensureInitialized();
     await _database.setCacheEnabled(enabled);
   }
 
-  // ============================================================================
-  // STATISTICS
-  // ============================================================================
-
-  /// Get total cache size in MB
   Future<double> getTotalCacheSizeMB() async {
     await _ensureInitialized();
     return await _database.getTotalCacheSizeMB();
   }
 
-  /// Get total cache size in bytes
   Future<int> getTotalCacheSize() async {
     await _ensureInitialized();
     return await _database.getTotalCacheSize();
   }
 
-  /// Get song cache size in bytes
   Future<int> getSongCacheSize() async {
     await _ensureInitialized();
     return await _database.getCacheSizeByType(CacheType.song);
   }
 
-  /// Get number of cached items
   Future<int> getCacheCount() async {
     await _ensureInitialized();
     return await _database.getCacheCount();
   }
 
-  /// Get number of cached artworks
   Future<int> getArtworkCacheCount() async {
     await _ensureInitialized();
     return await _database.getCacheCountByType(CacheType.artwork);
   }
 
-  /// Get number of cached songs
   Future<int> getSongCacheCount() async {
     await _ensureInitialized();
     return await _database.getCacheCountByType(CacheType.song);
   }
 
-  // ============================================================================
-  // UTILITY
-  // ============================================================================
-
-  /// Format bytes to human readable string
   String _formatBytes(int bytes) {
     if (bytes < 1024) return '$bytes B';
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
@@ -1129,7 +1027,6 @@ class CacheManager {
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
   }
 
-  /// Dispose resources
   void dispose() {
     try {
       _dio.close(force: true);

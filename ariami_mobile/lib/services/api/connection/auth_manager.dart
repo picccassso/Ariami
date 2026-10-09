@@ -12,12 +12,10 @@ class AuthManager {
   final ConnectionPersistenceManager _persistence;
   final void Function()? _onSessionExpired;
 
-  // Auth state
   String? _sessionToken;
   String? _userId;
   String? _username;
 
-  // Stream controller for session expiry events
   final StreamController<void> _sessionExpiredController =
       StreamController<void>.broadcast();
 
@@ -31,29 +29,22 @@ class AuthManager {
   })  : _persistence = persistence,
         _onSessionExpired = onSessionExpired;
 
-  /// Stream that emits when session expires (401 from server)
   Stream<void> get sessionExpiredStream => _sessionExpiredController.stream;
 
-  /// Current session token (for authenticated requests)
   String? get sessionToken => _sessionToken;
 
-  /// Current user ID
   String? get userId => _userId;
 
-  /// Current username
   String? get username => _username;
 
-  /// Check if user is authenticated
   bool get isAuthenticated => _sessionToken != null;
 
-  /// Get Authorization header map for authenticated requests
   Map<String, String>? get authHeaders {
     final token = _sessionToken;
     if (token == null || token.isEmpty) return null;
     return {'Authorization': 'Bearer $token'};
   }
 
-  /// Load stored auth info from secure storage
   Future<void> loadAuthInfo() async {
     final authData = await _persistence.loadAuthInfo();
     _sessionToken = authData['sessionToken'];
@@ -61,7 +52,6 @@ class AuthManager {
     _username = authData['username'];
   }
 
-  /// Set auth info in memory and persist to secure storage
   Future<void> setAuthInfo({
     required String sessionToken,
     required String userId,
@@ -78,7 +68,6 @@ class AuthManager {
     );
   }
 
-  /// Clear auth info from memory and secure storage
   Future<void> clearAuthInfo() async {
     _sessionToken = null;
     _userId = null;
@@ -87,7 +76,6 @@ class AuthManager {
     await _persistence.clearAuthInfo();
   }
 
-  /// Update just the session token (used when server provides a new token)
   Future<void> updateSessionToken(String token) async {
     _sessionToken = token;
     await _persistence.saveSessionToken(token);
@@ -101,14 +89,11 @@ class AuthManager {
     // Clear auth state from memory (don't call server logout - session is already invalid)
     await clearAuthInfo();
 
-    // Notify listeners
     _sessionExpiredController.add(null);
 
-    // Call optional callback
     _onSessionExpired?.call();
   }
 
-  /// Dispose resources
   void dispose() {
     _sessionExpiredController.close();
   }

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../utils/constants.dart';
 
-/// What the owner chose in [ResetAriamiDialog].
 enum ResetChoice { setupOnly, factory }
 
 /// Two-step confirmation for resetting the server: pick a scope, then type

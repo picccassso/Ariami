@@ -2,16 +2,13 @@ part of 'playback_manager.dart';
 
 extension _PlaybackManagerPersistenceImpl on PlaybackManager {
   Future<void> _saveStateImpl() async {
-    // Skip if queue is empty
     if (_queue.isEmpty) return;
 
-    // Get original queue if shuffled
     List<Song>? originalQueue;
     if (_isShuffleEnabled && _shuffleService.originalQueue.isNotEmpty) {
       originalQueue = _shuffleService.originalQueue.cast<Song>();
     }
 
-    // Save state to persistent storage
     await _stateManager.saveCompletePlaybackState(
       queue: _queue,
       isShuffleEnabled: _isShuffleEnabled,
@@ -41,7 +38,6 @@ extension _PlaybackManagerPersistenceImpl on PlaybackManager {
         currentIndex: savedState.queue.currentIndex,
       );
 
-      // Restore queue
       if (restoreGeneration != _restoreGeneration) {
         print(
           '[PlaybackManager] Skipping stale restore before queue apply: '
@@ -53,12 +49,10 @@ extension _PlaybackManagerPersistenceImpl on PlaybackManager {
 
       _sourceId = savedState.sourceId;
 
-      // Restore shuffle state and original queue
       _isShuffleEnabled = savedState.isShuffleEnabled;
       if (_isShuffleEnabled && savedState.originalQueue != null) {
         final restoredOriginalQueue =
             await _rehydrateSongs(savedState.originalQueue!);
-        // Manually restore shuffle service state
         _shuffleService.enableShuffle(
           restoredOriginalQueue,
           _queue.currentSong,
@@ -66,7 +60,6 @@ extension _PlaybackManagerPersistenceImpl on PlaybackManager {
         _shuffleService.synchronizeQueue(_queue.songs);
       }
 
-      // Restore repeat mode
       _repeatMode = savedState.repeatMode;
 
       // Store playback position to seek to when user presses play

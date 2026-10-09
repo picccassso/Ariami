@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-/// Create New Playlist List Item
 class CreatePlaylistListItem extends StatelessWidget {
   final VoidCallback onTap;
 
@@ -60,7 +59,6 @@ class CreatePlaylistListItem extends StatelessWidget {
   }
 }
 
-/// Import from Server List Item
 class ImportFromServerListItem extends StatelessWidget {
   final int serverPlaylistCount;
   final VoidCallback onTap;

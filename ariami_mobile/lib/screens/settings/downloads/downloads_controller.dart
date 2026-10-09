@@ -83,7 +83,6 @@ class DownloadsController extends ChangeNotifier {
   StreamSubscription<QualitySettings>? _qualitySettingsSubscription;
   StreamSubscription<WsMessage>? _webSocketSubscription;
 
-  // ---- Per-task / per-album / overall progress notifiers ----------------
   static const Duration _flushInterval = Duration(milliseconds: 200);
 
   final Map<String, ValueNotifier<DownloadProgress>> _taskProgressNotifiers =
@@ -186,8 +185,6 @@ class DownloadsController extends ChangeNotifier {
     _recomputeDownloadAllCounts();
   }
 
-  // ---- Public listenables -----------------------------------------------
-
   ValueListenable<OverallProgressSummary> get overallProgress =>
       _overallProgressNotifier;
 
@@ -219,8 +216,6 @@ class DownloadsController extends ChangeNotifier {
       () => ValueNotifier(_computeAlbumSnapshotForKey(key)),
     );
   }
-
-  // ---- Progress flush pipeline ------------------------------------------
 
   void _onProgressEvent(DownloadProgress event) {
     _latestProgress[event.taskId] = event;

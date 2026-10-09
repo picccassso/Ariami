@@ -12,28 +12,23 @@ extension _LibraryManagerApiPart on LibraryManager {
       };
     }
 
-    // Convert albums to API format
     final albumsJson = _library!.albums.values
         .where((album) => album.isValid) // Only valid albums (2+ songs)
         .map((album) => _albumToApiJson(album, baseUrl))
         .toList();
 
-    // Convert ALL songs to API format (album songs + standalone songs)
     final songsJson = <Map<String, dynamic>>[];
 
-    // Add songs from all valid albums
     for (final album in _library!.albums.values.where((a) => a.isValid)) {
       for (final song in album.sortedSongs) {
         songsJson.add(_songToApiJson(song, baseUrl, album.id));
       }
     }
 
-    // Add standalone songs (not in any album)
     for (final song in _library!.standaloneSongs) {
       songsJson.add(_songToApiJson(song, baseUrl, null));
     }
 
-    // Convert folder playlists to API format
     final playlistsJson =
         _library!.folderPlaylists.map((playlist) => playlist.toJson()).toList();
 
@@ -47,7 +42,6 @@ extension _LibraryManagerApiPart on LibraryManager {
     };
   }
 
-  /// Convert Album to API JSON format
   Map<String, dynamic> _albumToApiJson(Album album, String baseUrl) {
     int totalDurationSeconds = 0;
     for (final song in album.songs) {
@@ -66,10 +60,8 @@ extension _LibraryManagerApiPart on LibraryManager {
     };
   }
 
-  /// Convert SongMetadata to API JSON format
   Map<String, dynamic> _songToApiJson(
       SongMetadata song, String baseUrl, String? albumId) {
-    // Generate unique song ID from file path
     final songId = _generateSongId(song.filePath);
     final duration = _resolveSongDuration(song, songId);
 
@@ -94,14 +86,12 @@ extension _LibraryManagerApiPart on LibraryManager {
     return 0;
   }
 
-  /// Generate a unique song ID from file path
   String _generateSongId(String filePath) {
     final bytes = utf8.encode(filePath);
     final hash = md5.convert(bytes);
     return hash.toString().substring(0, 12); // First 12 chars of hash
   }
 
-  /// Extract filename without extension
   String _getFilenameWithoutExtension(String filePath) {
     return path.basenameWithoutExtension(filePath);
   }
@@ -133,7 +123,6 @@ extension _LibraryManagerApiPart on LibraryManager {
         album.hasArtwork ? '$baseUrl/api/artwork/${album.id}' : null;
     print('[LibraryManager] Generated coverArt URL: $coverArtUrl');
 
-    // Build songs with lazily extracted durations
     final songsJson = <Map<String, dynamic>>[];
     for (final song in album.sortedSongs) {
       final songJson = await _songToApiJsonWithDuration(song, baseUrl, albumId);
@@ -153,12 +142,10 @@ extension _LibraryManagerApiPart on LibraryManager {
     };
   }
 
-  /// Convert SongMetadata to API JSON format with lazy duration extraction
   Future<Map<String, dynamic>> _songToApiJsonWithDuration(
       SongMetadata song, String baseUrl, String? albumId) async {
     final songId = _generateSongId(song.filePath);
 
-    // Use cached duration or extract lazily
     int duration = song.duration ?? 0;
     if (duration == 0) {
       final extractedDuration = await getSongDuration(songId);

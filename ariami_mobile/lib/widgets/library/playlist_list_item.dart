@@ -7,8 +7,6 @@ import '../common/cached_artwork.dart';
 import 'playing_collection_builder.dart';
 import '../../utils/image_decode.dart';
 
-/// Playlist list item widget
-/// Displays playlist artwork, title, and song count in a list layout
 class PlaylistListItem extends StatefulWidget {
   final PlaylistModel playlist;
   final VoidCallback onTap;
@@ -90,7 +88,6 @@ class _PlaylistListItemState extends State<PlaylistListItem> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Row(
               children: [
-                // Selection Checkbox
                 if (widget.isSelectionMode) ...[
                   AnimatedContainer(
                     duration: const Duration(milliseconds: 200),
@@ -122,7 +119,6 @@ class _PlaylistListItemState extends State<PlaylistListItem> {
                   const SizedBox(width: 16),
                 ],
 
-                // Playlist Artwork
                 Container(
                   width: 56,
                   height: 56,
@@ -143,7 +139,6 @@ class _PlaylistListItemState extends State<PlaylistListItem> {
                         child: _buildPlaylistArt(),
                       ),
 
-                      // Download Indicator
                       if (widget.hasDownloadedSongs)
                         Positioned(
                           bottom: -2,
@@ -175,7 +170,6 @@ class _PlaylistListItemState extends State<PlaylistListItem> {
 
                 const SizedBox(width: 16),
 
-                // Text Details
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -262,7 +256,6 @@ class _PlaylistListItemState extends State<PlaylistListItem> {
     );
   }
 
-  /// Build playlist artwork - custom image, collage, or fallback
   Widget _buildPlaylistArt() {
     if (widget.playlist.customImagePath != null && _customImageExists == true) {
       return Image(
@@ -280,7 +273,6 @@ class _PlaylistListItemState extends State<PlaylistListItem> {
     return _buildArtworkCollage();
   }
 
-  /// Build album artwork collage
   Widget _buildArtworkCollage() {
     if (widget.albumIds.isEmpty) return _buildFallbackArt();
 

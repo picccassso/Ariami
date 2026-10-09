@@ -1,6 +1,5 @@
 import '../utils/encoding_utils.dart';
 
-/// Represents a song in the music library
 class Song {
   final String id;
   final String title;
@@ -34,7 +33,6 @@ class Song {
     required this.modifiedTime,
   });
 
-  /// Create from JSON
   factory Song.fromJson(Map<String, dynamic> json) {
     return Song(
       id: json['id'] as String,
@@ -54,7 +52,6 @@ class Song {
     );
   }
 
-  /// Convert to JSON
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -74,7 +71,6 @@ class Song {
     };
   }
 
-  /// Create a copy with updated fields
   Song copyWith({
     String? id,
     String? title,

@@ -3,7 +3,6 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../common/mini_player_aware_bottom_sheet.dart';
 
-/// Secondary controls row (Playback output, Queue, Add to Playlist)
 class PlayerSecondaryControls extends StatelessWidget {
   final Widget? outputButton;
   final VoidCallback? onOpenQueue;

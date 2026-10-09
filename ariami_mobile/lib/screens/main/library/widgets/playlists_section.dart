@@ -8,7 +8,6 @@ import '../../../../widgets/library/playlist_list_item.dart';
 import '../../../../widgets/library/special_list_items.dart';
 import '../library_state.dart';
 
-/// Widget that displays the playlists section in grid or list view.
 class PlaylistsSection extends StatelessWidget {
   final LibraryState state;
   final PlaylistService playlistService;
@@ -41,7 +40,6 @@ class PlaylistsSection extends StatelessWidget {
     return _buildPlaylistsList(context);
   }
 
-  /// Get artwork IDs for a playlist's artwork collage
   List<String> _getPlaylistArtworkIds(PlaylistModel playlist) {
     final artworkIds = <String>[];
     final seenPrimaryIds = <String>{};

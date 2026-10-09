@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import 'queue_action_confirmation.dart';
 
-/// Adds Spotify-style right swipe to queue without dismissing the row.
 class SwipeToQueue extends StatefulWidget {
   final Widget child;
   final VoidCallback onAddToQueue;

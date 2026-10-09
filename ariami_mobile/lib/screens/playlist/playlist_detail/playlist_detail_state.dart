@@ -104,7 +104,6 @@ abstract class _PlaylistDetailState extends State<PlaylistDetailScreen> {
     });
   }
 
-  /// Load downloaded song IDs
   void _loadDownloadedSongs() {
     _applyDownloadedSongIds(
       DownloadStateWatcher.completedSongIds(_downloadManager.queue),
@@ -148,7 +147,6 @@ abstract class _PlaylistDetailState extends State<PlaylistDetailScreen> {
     }
   }
 
-  /// Load playlist and resolve song IDs to full song data
   Future<void> _loadPlaylist() async {
     final cachedPlaylist = _playlistService.getPlaylist(widget.playlistId);
 

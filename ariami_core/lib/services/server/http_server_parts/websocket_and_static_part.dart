@@ -99,7 +99,6 @@ extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
     }
   }
 
-  /// Handle WebSocket connection
   void _handleWebSocket(
     WebSocketChannel webSocket,
     String? subprotocol, {
@@ -157,7 +156,6 @@ extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
     return deviceId;
   }
 
-  /// Handle incoming WebSocket message
   Future<void> _handleWebSocketMessage(
     WebSocketChannel webSocket,
     dynamic rawMessage,
@@ -196,7 +194,6 @@ extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
 
       print('WebSocket message received: ${message.type}');
 
-      // Handle identify
       if (message.type == WsMessageType.identify) {
         final identifyMsg = IdentifyMessage.fromWsMessage(message);
         final deviceId = identifyMsg.deviceId;
@@ -204,22 +201,18 @@ extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
         final sessionToken = identifyMsg.sessionToken;
         final clientType = identifyMsg.clientType;
 
-        // Validate session token once an owner account exists.
         if (_hasRegisteredUsers()) {
           if (sessionToken == null || sessionToken.isEmpty) {
-            // Close WebSocket with code 4001 (auth required)
             webSocket.sink.close(4001, 'Authentication required');
             return;
           }
 
           final session = await _authService.validateSession(sessionToken);
           if (session == null) {
-            // Close WebSocket with code 4001 (invalid session)
             webSocket.sink.close(4001, 'Session expired or invalid');
             return;
           }
 
-          // Session valid - register or refresh client (upgrade clientType)
           if (deviceId.isNotEmpty) {
             _resolvePendingWebSocket(webSocket);
             _trackWebSocketClient(webSocket);
@@ -280,7 +273,6 @@ extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
         return;
       }
 
-      // Handle ping
       if (message.type == WsMessageType.ping) {
         if (!await _revalidateWebSocketSession(webSocket)) return;
         final deviceId = _webSocketDeviceIds[webSocket];
@@ -300,7 +292,6 @@ extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
         return;
       }
 
-      // Other message types can be handled here in future phases
     } catch (e) {
       print('Error parsing WebSocket message: $e');
       _sendWebSocketMessage(
@@ -360,7 +351,6 @@ extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
     }
   }
 
-  /// Send message to a specific WebSocket client
   void _sendWebSocketMessage(WebSocketChannel webSocket, WsMessage message) {
     try {
       final jsonString = jsonEncode(message.toJson());
@@ -370,7 +360,6 @@ extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
     }
   }
 
-  /// Broadcast message to all connected WebSocket clients
   void broadcastWebSocketMessage(WsMessage message) {
     print(
         'Broadcasting ${message.type} to ${_webSocketClients.length} clients');
@@ -379,7 +368,6 @@ extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
     }
   }
 
-  /// Notify clients about library update
   void notifyLibraryUpdated({int? albumCount, int? songCount}) {
     final message = LibraryUpdatedMessage(
       data: {
@@ -390,7 +378,6 @@ extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
     broadcastWebSocketMessage(message);
   }
 
-  /// Notify clients that sync token advanced for incremental v2 sync.
   void notifySyncTokenAdvanced({
     required int latestToken,
     required String reason,
@@ -403,7 +390,6 @@ extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
     broadcastWebSocketMessage(message);
   }
 
-  /// Start timer to cleanup stale connections
   void _startCleanupTimer() {
     Future.delayed(const Duration(seconds: 30), () async {
       if (_server != null) {
@@ -413,13 +399,11 @@ extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
     });
   }
 
-  /// Cleanup stale connections and broadcast to WebSocket clients if any were removed
   Future<void> _cleanupStaleConnectionsWithBroadcast() async {
     final beforeCount = _connectionManager.clientCount;
     _connectionManager.cleanupStaleConnections();
     final afterCount = _connectionManager.clientCount;
 
-    // Broadcast if any clients were removed
     if (afterCount < beforeCount) {
       broadcastWebSocketMessage(ClientDisconnectedMessage(
         clientCount: afterCount,
@@ -445,7 +429,6 @@ extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
     '/login',
   };
 
-  /// Create static file handler for serving web assets
   Handler _createStaticHandler() {
     final staticHandler = createStaticHandler(
       _webAssetsPath!,
@@ -470,7 +453,6 @@ extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
     };
   }
 
-  /// Fallback handler when no web assets are configured
   Handler _notFoundHandler() {
     return (Request request) {
       return Response.notFound('Not found');

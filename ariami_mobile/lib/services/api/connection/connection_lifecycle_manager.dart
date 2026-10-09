@@ -28,7 +28,6 @@ class ConnectionLifecycleManager {
   ApiClient? _apiClient;
   String? _sessionId;
 
-  /// Creates a ConnectionLifecycleManager.
   ConnectionLifecycleManager({
     required ConnectionStateManager stateManager,
     required ServerInfoManager serverInfoManager,
@@ -43,10 +42,8 @@ class ConnectionLifecycleManager {
         _onApiClientCreated = onApiClientCreated,
         _onDownloadLimitsChanged = onDownloadLimitsChanged;
 
-  /// Current API client instance
   ApiClient? get apiClient => _apiClient;
 
-  /// Current session ID
   String? get sessionId => _sessionId;
 
   /// Adopt an already-authenticated connection created outside this manager.
@@ -69,7 +66,6 @@ class ConnectionLifecycleManager {
     _cleanupConnection();
   }
 
-  /// Connect to server using QR code data (JSON string)
   Future<void> connectFromQr(
     String qrData, {
     String? sessionToken,
@@ -89,7 +85,6 @@ class ConnectionLifecycleManager {
     );
   }
 
-  /// Connect to server with ServerInfo
   Future<void> connectToServer(
     ServerInfo serverInfo, {
     String? sessionToken,
@@ -98,11 +93,9 @@ class ConnectionLifecycleManager {
     final deviceId = await _deviceInfoManager.getDeviceId();
     final deviceName = await _deviceInfoManager.getDeviceName();
 
-    // Resolve preferred endpoint (LAN vs Tailscale)
     final resolvedServerInfo =
         await _serverInfoManager.resolvePreferredServerInfo(serverInfo);
 
-    // Create API client
     _apiClient = ApiClient(
       serverInfo: resolvedServerInfo,
       deviceId: deviceId,
@@ -112,12 +105,10 @@ class ConnectionLifecycleManager {
     );
     _onApiClientCreated?.call(_apiClient!);
 
-    // Update state
     _stateManager.setServerInfo(resolvedServerInfo);
     _serverInfoManager.setServerInfo(resolvedServerInfo);
     _onDownloadLimitsChanged?.call(resolvedServerInfo);
 
-    // Test connection with ping
     try {
       await _apiClient!.ping();
     } catch (e) {
@@ -125,7 +116,6 @@ class ConnectionLifecycleManager {
       throw Exception('Cannot reach server: $e');
     }
 
-    // Send connect request
     final connectRequest = ConnectRequest(
       deviceId: deviceId,
       deviceName: deviceName,
@@ -136,19 +126,16 @@ class ConnectionLifecycleManager {
     try {
       final response = await _apiClient!.connect(connectRequest);
 
-      // Apply device ID from server if different
       if (response.deviceId != null && response.deviceId != deviceId) {
         await _deviceInfoManager.saveDeviceId(response.deviceId!);
       }
 
-      // Hydrate server metadata
       final hydratedServerInfo =
           await _serverInfoManager.hydrateServerInfoMetadata(
         _apiClient!,
         resolvedServerInfo,
       );
 
-      // Update state
       _sessionId = response.sessionId;
       _stateManager.setServerInfo(hydratedServerInfo);
       _serverInfoManager.setServerInfo(hydratedServerInfo);
@@ -157,7 +144,6 @@ class ConnectionLifecycleManager {
       _stateManager.setManuallyDisconnected(false);
       _stateManager.clearRestoreFailure();
 
-      // Persist connection info
       await _persistence.saveConnectionInfo(hydratedServerInfo, _sessionId!);
       await _persistence.saveDeviceId(response.deviceId ?? deviceId);
 
@@ -168,7 +154,6 @@ class ConnectionLifecycleManager {
     }
   }
 
-  /// Disconnect from server
   Future<void> disconnect({bool isManual = false}) async {
     _stateManager.setManuallyDisconnected(isManual);
 
@@ -189,7 +174,6 @@ class ConnectionLifecycleManager {
     _stateManager.setConnected(false);
   }
 
-  /// Try to restore previous connection
   Future<bool> tryRestoreConnection({
     String? sessionToken,
     void Function()? onSessionExpired,
@@ -201,12 +185,10 @@ class ConnectionLifecycleManager {
       return false;
     }
 
-    // Resolve preferred endpoint
     final resolvedServerInfo =
         await _serverInfoManager.resolvePreferredServerInfo(serverInfo);
     _onDownloadLimitsChanged?.call(resolvedServerInfo);
 
-    // Quick reachability check first
     if (!await isServerReachable(resolvedServerInfo)) {
       _stateManager.setServerInfo(serverInfo);
       return false;
@@ -227,14 +209,11 @@ class ConnectionLifecycleManager {
       );
       _onApiClientCreated?.call(_apiClient!);
 
-      // Update state
       _stateManager.setServerInfo(resolvedServerInfo);
       _serverInfoManager.setServerInfo(resolvedServerInfo);
 
-      // Test connectivity
       await _apiClient!.ping();
 
-      // Re-register with server
       final connectRequest = ConnectRequest(
         deviceId: deviceId,
         deviceName: deviceName,
@@ -244,19 +223,16 @@ class ConnectionLifecycleManager {
 
       final response = await _apiClient!.connect(connectRequest);
 
-      // Apply device ID from server
       if (response.deviceId != null && response.deviceId != deviceId) {
         await _deviceInfoManager.saveDeviceId(response.deviceId!);
       }
 
-      // Hydrate server metadata
       final hydratedServerInfo =
           await _serverInfoManager.hydrateServerInfoMetadata(
         _apiClient!,
         resolvedServerInfo,
       );
 
-      // Update state
       _sessionId = response.sessionId;
       _stateManager.setServerInfo(hydratedServerInfo);
       _serverInfoManager.setServerInfo(hydratedServerInfo);
@@ -265,7 +241,6 @@ class ConnectionLifecycleManager {
       _stateManager.setManuallyDisconnected(false);
       _stateManager.clearRestoreFailure();
 
-      // Persist
       await _persistence.saveConnectionInfo(hydratedServerInfo, _sessionId!);
 
       return true;
@@ -305,7 +280,6 @@ class ConnectionLifecycleManager {
     }
   }
 
-  /// Load server info from storage without attempting connection
   Future<void> loadServerInfoFromStorage() async {
     final serverInfo = await _persistence.loadServerInfo();
 
@@ -319,14 +293,12 @@ class ConnectionLifecycleManager {
     }
   }
 
-  /// Clean up connection state
   void _cleanupConnection() {
     _apiClient?.close();
     _apiClient = null;
     _sessionId = null;
   }
 
-  /// Dispose resources
   void dispose() {
     _cleanupConnection();
   }

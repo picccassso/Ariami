@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../utils/shared_preferences_cache.dart';
 
-/// A collapsible section widget with animated expansion
-/// Used in the library screen to show/hide Playlists, Albums, and Songs sections
+/// A collapsible section widget with animated expansion.
+/// Used by the library screen's Playlists section.
 class CollapsibleSection extends StatefulWidget {
   final String title;
   final Widget child;
@@ -41,13 +41,11 @@ class _CollapsibleSectionState extends State<CollapsibleSection>
       _isExpanded = widget.initiallyExpanded;
     }
 
-    // Animation controller for expansion
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 250),
       vsync: this,
     );
 
-    // Rotation animation for chevron icon
     _rotationAnimation = Tween<double>(
       begin: 0.0,
       end: 0.5, // 180 degrees (0.5 * 2π)
@@ -56,13 +54,11 @@ class _CollapsibleSectionState extends State<CollapsibleSection>
       curve: Curves.easeInOut,
     ));
 
-    // Set initial animation state to match expanded state
     if (_isExpanded) {
       _animationController.value = 1.0;
     }
   }
 
-  /// Save expanded/collapsed state to SharedPreferences
   void _saveState() {
     sharedPrefs.setBool(widget.persistenceKey!, _isExpanded);
   }
@@ -83,7 +79,6 @@ class _CollapsibleSectionState extends State<CollapsibleSection>
       }
     });
 
-    // Persist state if persistence key is provided
     if (widget.persistenceKey != null) {
       _saveState();
     }
@@ -94,14 +89,12 @@ class _CollapsibleSectionState extends State<CollapsibleSection>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Section header with title and chevron
         InkWell(
           onTap: _toggleExpanded,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
             child: Row(
               children: [
-                // Section title
                 Text(
                   widget.title,
                   style: const TextStyle(
@@ -110,7 +103,6 @@ class _CollapsibleSectionState extends State<CollapsibleSection>
                   ),
                 ),
                 const Spacer(),
-                // Animated chevron icon
                 RotationTransition(
                   turns: _rotationAnimation,
                   child: const Icon(Icons.expand_more),
@@ -119,7 +111,6 @@ class _CollapsibleSectionState extends State<CollapsibleSection>
             ),
           ),
         ),
-        // Animated expansion of child content
         AnimatedSize(
           duration: const Duration(milliseconds: 250),
           curve: Curves.easeInOut,

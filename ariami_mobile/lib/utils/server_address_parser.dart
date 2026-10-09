@@ -17,7 +17,6 @@ library;
 import 'package:ariami_core/models/server_origin.dart';
 
 class ParsedServerAddress {
-  /// Default server port used when the address omits one.
   static const int defaultPort = 8080;
 
   final String host;
@@ -34,8 +33,6 @@ class ParsedServerAddress {
 
   bool get isSecure => publicOrigin != null;
 
-  /// Parse [input] into a [ParsedServerAddress], or return `null` if it is not
-  /// a usable `host[:port]` address.
   static ParsedServerAddress? tryParse(String input) {
     final trimmed = input.trim();
     if (trimmed.isEmpty) return null;

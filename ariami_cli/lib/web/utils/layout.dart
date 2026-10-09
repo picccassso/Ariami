@@ -40,14 +40,12 @@ class AppLayout {
   static WidthClass of(BuildContext context) =>
       classify(MediaQuery.sizeOf(context).width);
 
-  /// Horizontal page gutter for a width class.
   static double gutter(WidthClass widthClass) => switch (widthClass) {
         WidthClass.compact => 16,
         WidthClass.medium => 24,
         WidthClass.expanded => 32,
       };
 
-  /// Vertical space between major sections.
   static double sectionGap(WidthClass widthClass) =>
       widthClass == WidthClass.compact ? 28 : 36;
 

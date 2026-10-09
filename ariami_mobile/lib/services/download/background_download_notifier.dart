@@ -37,7 +37,6 @@ class BackgroundDownloadNotifier {
   Timer? _waitingTimeoutTimer;
   bool _active = false;
 
-  /// Raise the notification when the app leaves the foreground mid-batch.
   Future<void> onAppBackgrounded() async {
     if (!Platform.isAndroid || _active) return;
     if (!_downloadManager.hasActiveOrPendingDownloads) return;

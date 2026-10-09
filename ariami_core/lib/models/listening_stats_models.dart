@@ -224,7 +224,6 @@ class ListeningSongRollup {
   }
 }
 
-/// The account-wide stats summary served to clients.
 class ListeningStatsSummary {
   final List<ListeningSongRollup> songs;
   final int totalListenedMs;
@@ -392,7 +391,6 @@ class ListeningAlbumRollup {
   /// normalized-name key so untagged libraries still group sensibly.
   final String albumKey;
 
-  /// The catalog album id, when known.
   final String? albumId;
 
   final String? album;

@@ -20,7 +20,6 @@ class SpotifyEventBuilder {
   /// ("undo import") path on the server.
   static const String eventIdPrefix = 'spotify:';
 
-  /// [ListeningEvent.sourceKind] for every imported event.
   static const String importSourceKind = 'import';
 
   /// Build the single combined event for one play. [match] carries LIBRARY

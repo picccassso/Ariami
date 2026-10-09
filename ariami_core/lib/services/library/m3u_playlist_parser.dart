@@ -3,7 +3,6 @@ import 'dart:io';
 
 import 'package:path/path.dart' as path;
 
-/// Result of parsing a single `.m3u` / `.m3u8` playlist file.
 class M3uParseResult {
   const M3uParseResult({
     required this.entries,
@@ -42,13 +41,11 @@ class M3uPlaylistParser {
 
   static const supportedExtensions = ['.m3u', '.m3u8'];
 
-  /// Whether [filePath] looks like an M3U playlist.
   static bool isM3uFile(String filePath) {
     return supportedExtensions
         .contains(path.extension(filePath).toLowerCase());
   }
 
-  /// Reads and parses the playlist at [m3uPath].
   Future<M3uParseResult> parseFile(String m3uPath) async {
     List<int> bytes;
     try {

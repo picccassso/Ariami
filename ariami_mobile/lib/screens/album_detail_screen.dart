@@ -25,7 +25,6 @@ import '../widgets/common/queue_action_confirmation.dart';
 import '../utils/responsive.dart';
 import '../widgets/library/genre_label.dart';
 
-/// Album detail screen with track listing and album actions
 class AlbumDetailScreen extends StatefulWidget {
   final AlbumModel album;
 
@@ -88,14 +87,12 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
     });
   }
 
-  /// Load downloaded song IDs
   void _loadDownloadedSongs() {
     _applyDownloadedSongIds(
       DownloadStateWatcher.completedSongIds(_downloadManager.queue),
     );
   }
 
-  /// Load cached song IDs for this album
   Future<void> _loadCachedSongs() async {
     if (_albumDetail == null) return;
 
@@ -114,9 +111,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
     }
   }
 
-  /// Load album detail with songs from server (or from downloads if offline)
   Future<void> _loadAlbumDetail() async {
-    // If offline mode is enabled, build from downloads
     if (_offlineService.isOfflineModeEnabled || _isOfflineCopy) {
       print('[AlbumDetailScreen] Offline mode - building from downloads');
       _buildAlbumDetailFromDownloads();
@@ -141,7 +136,6 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
         _isLoading = false;
       });
 
-      // Load cached songs after album detail loads
       await _loadCachedSongs();
     } catch (e) {
       print('[AlbumDetailScreen] ERROR loading album detail: $e');
@@ -193,7 +187,6 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
     if (mounted) Navigator.of(context).pop();
   }
 
-  /// Build album detail from downloaded songs when offline
   void _buildAlbumDetailFromDownloads() {
     final queue = _downloadManager.queue;
     final downloadTasks = queue
@@ -202,14 +195,12 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
             t.albumId == widget.album.id)
         .toList();
 
-    // Get album metadata from first task (if available)
     final firstTask = downloadTasks.isNotEmpty ? downloadTasks.first : null;
     final albumName = firstTask?.albumName ?? widget.album.title;
     final albumArtist = downloadTasks.isEmpty
         ? widget.album.artist
         : resolveDownloadedAlbumArtist(downloadTasks);
 
-    // Build song models from download tasks
     final albumSongs = downloadTasks
         .map((t) => SongModel(
               id: t.songId,
@@ -222,7 +213,6 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
             ))
         .toList();
 
-    // Sort by track number
     albumSongs
         .sort((a, b) => (a.trackNumber ?? 999).compareTo(b.trackNumber ?? 999));
 
@@ -265,7 +255,6 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
     );
   }
 
-  /// Build the main content
   Widget _buildContent() {
     if (_albumDetail == null) {
       return const Center(child: Text('No album data'));
@@ -276,7 +265,6 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
 
     return CustomScrollView(
       slivers: [
-        // Flexible header with artwork
         SliverAppBar(
           expandedHeight: expandedArtHeight,
           pinned: true,
@@ -287,7 +275,6 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
           ),
         ),
 
-        // Album info section
         SliverToBoxAdapter(
           child: AlbumInfoSection(
             albumTitle: _albumDetail?.title ?? widget.album.title,
@@ -309,7 +296,6 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
             child: _OfflineCopyBanner(itemType: 'album'),
           ),
 
-        // Action buttons
         SliverToBoxAdapter(
           child: AlbumActionButtons(
             albumId: widget.album.id,
@@ -339,7 +325,6 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
           ),
         ),
 
-        // Track listing
         SliverList(
           delegate: SliverChildBuilderDelegate(
             (context, index) {
@@ -374,18 +359,15 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
     );
   }
 
-  /// Attempt to reconnect and reload album detail
   Future<void> _retryConnection() async {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
     });
 
-    // First try to restore connection
     final restored = await _connectionService.tryRestoreConnection();
 
     if (restored) {
-      // Connection restored - load album detail
       await _loadAlbumDetail();
     } else {
       // Stay in the app's offline experience; it will retry automatically.
@@ -398,7 +380,6 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
     }
   }
 
-  /// Build error state
   Widget _buildErrorState() {
     return Center(
       child: Column(
@@ -428,11 +409,6 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
     );
   }
 
-  // ============================================================================
-  // ACTION HANDLERS
-  // ============================================================================
-
-  /// Download entire album
   void _downloadAlbum() {
     if (_albumDetail == null) return;
 
@@ -529,7 +505,6 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
       return;
     }
 
-    // Convert songs
     final allSongs = songsToPlay
         .map((songModel) => Song(
               id: songModel.id,
@@ -575,7 +550,6 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
       return;
     }
 
-    // Convert songs
     final allSongs = songsToPlay
         .map((songModel) => Song(
               id: songModel.id,
@@ -607,7 +581,6 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
       return;
     }
 
-    // Convert all album songs to Song objects
     final allSongs = _albumDetail!.songs
         .map((songModel) => Song(
               id: songModel.id,
@@ -673,28 +646,23 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
 
     final isOffline = _shouldUseOfflineTracks;
 
-    // Get songs to add to queue - filter to downloaded only when offline
     List<SongModel> songsForQueue;
     int startIndex;
 
     if (isOffline) {
-      // In offline mode, only add downloaded songs to queue
       songsForQueue = _albumDetail!.songs
           .where((s) => _downloadedSongIds.contains(s.id))
           .toList();
-      // Find the index of the clicked track in the filtered list
       startIndex = songsForQueue.indexWhere((s) => s.id == track.id);
       if (startIndex == -1) startIndex = 0;
       print(
           '[AlbumDetailScreen] Offline mode: ${songsForQueue.length} downloaded songs in queue');
     } else {
-      // Online mode - add all songs
       songsForQueue = _albumDetail!.songs;
       startIndex = index;
     }
 
-    // Convert to Song models for queue
-    // Use _albumDetail if available (has updated metadata from downloads), otherwise use widget.album
+    // Prefer _albumDetail (has updated metadata from downloads) over widget.album.
     final albumTitle = _albumDetail?.title ?? widget.album.title;
     final albumArtistName = _albumDetail?.artist ?? widget.album.artist;
 
@@ -719,7 +687,6 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
         '[AlbumDetailScreen] Calling PlaybackManager.playSongs() starting at index $startIndex...');
 
     try {
-      // Play songs starting from clicked track
       unawaited(_libraryController.markAlbumPlayed(widget.album.id));
       await _playbackManager.playTappedSong(
         allSongs,

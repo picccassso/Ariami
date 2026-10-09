@@ -9,7 +9,6 @@ import 'audio_handler.dart';
 /// IMPORTANT: This service now wraps the AudioHandler instead of using AudioPlayer directly.
 /// The AudioHandler creates a foreground service that keeps the app alive in the background.
 class AudioPlayerService {
-  // Singleton pattern
   static final AudioPlayerService _instance = AudioPlayerService._internal();
   factory AudioPlayerService() => _instance;
   AudioPlayerService._internal() {
@@ -21,7 +20,6 @@ class AudioPlayerService {
     print('[AudioPlayerService] ========================================');
   }
 
-  /// Load a song without starting playback (for seeking before play)
   Future<void> loadSong(
     Song song,
     String streamUrl, {
@@ -30,7 +28,6 @@ class AudioPlayerService {
   }) async {
     print('[AudioPlayerService] loadSong() called');
 
-    // Check if audioHandler is initialized
     if (audioHandler == null) {
       print(
           '[AudioPlayerService] ERROR: audioHandler is null - AudioService not initialized');
@@ -51,8 +48,7 @@ class AudioPlayerService {
     }
   }
 
-  /// Play audio from URL with song metadata
-  /// This is the NEW method that should be used - it provides metadata for the notification
+  /// Plays audio from a URL; the song metadata feeds the notification.
   Future<void> playSong(
     Song song,
     String streamUrl, {
@@ -70,7 +66,6 @@ class AudioPlayerService {
         '[AudioPlayerService] audioHandler hashCode: ${audioHandler.hashCode}');
     print('[AudioPlayerService] ========================================');
 
-    // Check if audioHandler is initialized
     if (audioHandler == null) {
       print(
           '[AudioPlayerService] ERROR: audioHandler is null - AudioService not initialized');
@@ -92,7 +87,6 @@ class AudioPlayerService {
     }
   }
 
-  /// Pause playback
   Future<void> pause() async {
     if (audioHandler == null) return;
     await audioHandler?.pause();
@@ -104,7 +98,6 @@ class AudioPlayerService {
     await audioHandler?.pauseLocal();
   }
 
-  /// Resume playback
   Future<void> resume() async {
     if (audioHandler == null) return;
     await audioHandler?.play();
@@ -115,13 +108,11 @@ class AudioPlayerService {
   Future<void> seekLocal(Duration position) async =>
       audioHandler?.seekLocal(position);
 
-  /// Stop playback
   Future<void> stop() async {
     if (audioHandler == null) return;
     await audioHandler?.stop();
   }
 
-  /// Seek to position
   Future<void> seek(Duration position) async {
     if (audioHandler == null) return;
     await audioHandler?.seek(position);
@@ -135,26 +126,22 @@ class AudioPlayerService {
     print('[AudioPlayerService] Volume control through system media controls');
   }
 
-  /// Set playback speed
   Future<void> setSpeed(double speed) async {
     if (audioHandler == null) return;
     await audioHandler?.setSpeed(speed);
   }
 
-  /// Get current playback state
   PlayerState get playerState {
     final handler = audioHandler;
     if (handler == null) {
       return PlayerState(false, ProcessingState.idle);
     }
-    // Return a PlayerState based on audioHandler's state
     return PlayerState(
       handler.isPlaying,
       ProcessingState.ready, // Simplified - handler manages this internally
     );
   }
 
-  /// Stream of player states
   Stream<PlayerState> get playerStateStream {
     final handler = audioHandler;
     return handler?.playerStateStream ??
@@ -183,61 +170,51 @@ class AudioPlayerService {
     );
   }
 
-  /// Stream of playback positions
   Stream<Duration> get positionStream {
     final handler = audioHandler;
     return handler?.positionStream ?? Stream.value(Duration.zero);
   }
 
-  /// Stream of buffered positions
   Stream<Duration> get bufferedPositionStream {
     final handler = audioHandler;
     return handler?.bufferedPositionStream ?? Stream.value(Duration.zero);
   }
 
-  /// Stream of durations
   Stream<Duration?> get durationStream {
     final handler = audioHandler;
     return handler?.durationStream ?? Stream.value(null);
   }
 
-  /// Get current position
   Duration get position {
     final handler = audioHandler;
     return handler?.position ?? Duration.zero;
   }
 
-  /// Get current duration
   Duration? get duration {
     final handler = audioHandler;
     return handler?.duration;
   }
 
-  /// Get current loaded song
   Song? get currentSong {
     final handler = audioHandler;
     return handler?.currentSong;
   }
 
-  /// Get buffered position
   Duration get bufferedPosition {
     final handler = audioHandler;
     return handler?.bufferedPosition ?? Duration.zero;
   }
 
-  /// Check if playing
   bool get isPlaying {
     final handler = audioHandler;
     return handler?.isPlaying ?? false;
   }
 
-  /// Check if loading
   bool get isLoading {
     final handler = audioHandler;
     return handler?.isLoading ?? false;
   }
 
-  /// Dispose the player
   Future<void> dispose() async {
     // AudioHandler is disposed by the audio service, not by this service
     // We don't dispose it here to avoid stopping the foreground service

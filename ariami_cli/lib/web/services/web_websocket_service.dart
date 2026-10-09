@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'dart:html' as html;
 import 'package:ariami_core/models/websocket_models.dart';
 
-/// WebSocket service for web dashboard real-time updates
 class WebWebSocketService {
   html.WebSocket? _socket;
   bool _isConnected = false;
@@ -13,10 +12,8 @@ class WebWebSocketService {
   final StreamController<WsMessage> _messageController =
       StreamController<WsMessage>.broadcast();
 
-  /// Stream of incoming WebSocket messages
   Stream<WsMessage> get messages => _messageController.stream;
 
-  /// Connect to WebSocket server
   void connect({
     void Function()? onConnected,
     Future<String> Function()? deviceIdProvider,
@@ -26,7 +23,7 @@ class WebWebSocketService {
     if (_isConnected) return;
 
     try {
-      // Use relative URL - same origin as web app
+      // Absolute ws:// URL built from the page's own host (same origin as the web app).
       final wsUrl = 'ws://${html.window.location.host}/api/ws';
       print('[WebWS] Connecting to: $wsUrl');
 
@@ -95,7 +92,6 @@ class WebWebSocketService {
     }
   }
 
-  /// Handle disconnect
   void _handleDisconnect({
     bool isAuthFailure = false,
     void Function()? onAuthRequired,
@@ -121,7 +117,6 @@ class WebWebSocketService {
     );
   }
 
-  /// Schedule reconnection
   void _scheduleReconnect({
     void Function()? onConnected,
     Future<String> Function()? deviceIdProvider,
@@ -147,7 +142,6 @@ class WebWebSocketService {
     );
   }
 
-  /// Disconnect from WebSocket
   void disconnect() {
     _reconnectTimer?.cancel();
     _stopPingTimer();
@@ -157,7 +151,6 @@ class WebWebSocketService {
     _hasAuthFailure = false;
   }
 
-  /// Dispose resources
   void dispose() {
     disconnect();
     _messageController.close();

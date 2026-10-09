@@ -11,7 +11,6 @@ import 'dart:math';
 /// client recognizes such ids so it can surface the playlist and resolve its
 /// pin locally (the server's pin catalog cannot resolve a created playlist).
 
-/// Prefix stamped onto every newly created playlist id.
 const String createdPlaylistPrefix = 'created:';
 
 /// Legacy prefix used by an early desktop release before the shared

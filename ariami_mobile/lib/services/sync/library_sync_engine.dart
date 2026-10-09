@@ -7,7 +7,6 @@ import '../../models/api_models.dart';
 import '../api/api_client.dart';
 import '../library/library_repository.dart';
 
-/// Queryable sync health for UI layers.
 class LibrarySyncHealth {
   const LibrarySyncHealth({
     this.lastError,
@@ -26,7 +25,6 @@ class LibrarySyncHealth {
   bool get isPartialRead => isPartialBootstrap;
 }
 
-/// Sync engine for v2 bootstrap + delta synchronization.
 class LibrarySyncEngine {
   LibrarySyncEngine({
     required ApiClient Function() apiClientProvider,

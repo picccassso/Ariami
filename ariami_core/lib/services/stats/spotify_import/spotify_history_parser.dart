@@ -10,7 +10,6 @@ typedef TzOffsetMinutesFor = int Function(int occurredAtUtcMillis);
 /// One eligible music play extracted from a Spotify Extended Streaming
 /// History record, carrying everything the event builder needs.
 class SpotifyPlay {
-  /// The identity the track matcher resolves against the library.
   final SpotifyTrackKey trackKey;
 
   /// `spotify_track_uri`; kept so unmatched plays get a stable synthetic id.
@@ -45,12 +44,9 @@ class SpotifyPlay {
   });
 }
 
-/// What the parser kept and dropped, for the import preview UI.
 class SpotifyParseSummary {
-  /// Records fed into the parser.
   final int totalRecords;
 
-  /// Records kept as plays.
   final int eligiblePlays;
 
   /// Music records dropped by the play rule
@@ -87,7 +83,6 @@ class SpotifyParseSummary {
   int get totalDropped => totalRecords - eligiblePlays;
 }
 
-/// The parser's output: the eligible plays plus the drop/keep accounting.
 class SpotifyParseResult {
   final List<SpotifyPlay> plays;
   final SpotifyParseSummary summary;
@@ -107,7 +102,6 @@ class SpotifyHistoryParser {
   /// `reason_end` value meaning the track played to natural completion.
   static const String trackDoneReason = 'trackdone';
 
-  /// Parse already-decoded records (one per JSON array entry).
   SpotifyParseResult parse(
     List<Map<String, dynamic>> records, {
     required TzOffsetMinutesFor tzOffsetMinutesFor,

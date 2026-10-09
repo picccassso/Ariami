@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:math';
 
-/// How a stream's audio bytes reach the listener.
 enum StreamDelivery {
   /// Served over HTTP via `/stream` (remote clients).
   http,
@@ -15,30 +14,23 @@ enum StreamDelivery {
 /// Tracks stream tokens and active streams for multi-user support.
 /// Singleton pattern - use StreamTracker() to get the instance.
 class StreamTracker {
-  // Singleton pattern
   static final StreamTracker _instance = StreamTracker._internal();
   factory StreamTracker() => _instance;
   StreamTracker._internal();
 
-  /// In-memory map: streamToken -> StreamTicket (O(1) lookup)
   final Map<String, StreamTicket> _tickets = {};
 
-  /// In-memory map: downloadToken -> DownloadTicket (O(1) lookup).
   final Map<String, DownloadTicket> _downloadTickets = {};
 
-  /// Track active streams: streamToken -> true (when actively streaming)
+  /// Stream tokens of currently active streams (for stats tracking).
   final Set<String> _activeStreams = {};
 
-  /// Random generator for secure token generation
   final Random _random = Random.secure();
 
-  /// Cleanup timer
   Timer? _cleanupTimer;
 
-  /// Whether the tracker has been initialized
   bool _initialized = false;
 
-  /// Initialize the stream tracker and start cleanup timer.
   void initialize() {
     if (_initialized) return;
     _startCleanupTimer();
@@ -122,13 +114,10 @@ class StreamTracker {
     return ticket;
   }
 
-  /// Validate a stream token.
-  /// Returns the StreamTicket if valid and not expired, null otherwise.
   StreamTicket? validateToken(String streamToken) {
     final ticket = _tickets[streamToken];
     if (ticket == null) return null;
 
-    // Check if expired
     if (DateTime.now().isAfter(ticket.expiresAt)) {
       _tickets.remove(streamToken);
       _activeStreams.remove(streamToken);
@@ -138,8 +127,6 @@ class StreamTracker {
     return ticket;
   }
 
-  /// Validate a download token.
-  /// Returns the DownloadTicket if valid and not expired, null otherwise.
   DownloadTicket? validateDownloadToken(String downloadToken) {
     final ticket = _downloadTickets[downloadToken];
     if (ticket == null) return null;
@@ -152,7 +139,6 @@ class StreamTracker {
     return ticket;
   }
 
-  /// Mark a stream as actively streaming (for stats tracking).
   void startStream(String streamToken) {
     if (_tickets.containsKey(streamToken)) {
       _activeStreams.add(streamToken);
@@ -184,7 +170,7 @@ class StreamTracker {
     }
   }
 
-  /// Revoke all tickets for a session (called on logout).
+  /// Revoke all tickets for a session (on logout, admin kick, password change and user delete).
   void revokeSessionTickets(String sessionToken) {
     final tokensToRemove = <String>[];
     for (final entry in _tickets.entries) {
@@ -207,7 +193,6 @@ class StreamTracker {
     }
   }
 
-  /// Get count of currently active streamers (distinct users).
   int get activeStreamerCount {
     final activeUserIds = <String>{};
     for (final token in _activeStreams) {
@@ -219,7 +204,6 @@ class StreamTracker {
     return activeUserIds.length;
   }
 
-  /// Get count of active streams (total, may be multiple per user).
   int get activeStreamCount => _activeStreams.length;
 
   /// Snapshot of the tickets behind currently active streams (HTTP and
@@ -233,10 +217,9 @@ class StreamTracker {
     return List.unmodifiable(tickets);
   }
 
-  /// Get count of valid (non-expired) tickets.
+  /// Number of tracked tickets; may include expired ones until the cleanup sweep removes them.
   int get ticketCount => _tickets.length;
 
-  /// Cleanup expired tickets periodically.
   void _cleanupExpired() {
     final now = DateTime.now();
     final expiredTokens = <String>[];
@@ -274,7 +257,6 @@ class StreamTracker {
     }
   }
 
-  /// Start periodic cleanup timer (every 5 minutes).
   void _startCleanupTimer() {
     _cleanupTimer?.cancel();
     _cleanupTimer = Timer.periodic(const Duration(minutes: 5), (_) {
@@ -282,7 +264,6 @@ class StreamTracker {
     });
   }
 
-  /// Stop the cleanup timer and clear all data. Call on shutdown.
   void dispose() {
     _cleanupTimer?.cancel();
     _cleanupTimer = null;
@@ -298,7 +279,6 @@ class StreamTracker {
   }
 }
 
-/// Represents a stream ticket (short-lived token for audio streaming).
 class StreamTicket {
   final String token;
   final String userId;
@@ -323,17 +303,15 @@ class StreamTicket {
     required this.expiresAt,
   });
 
-  /// Check if the ticket is expired.
   bool get isExpired => DateTime.now().isAfter(expiresAt);
 
-  /// Get remaining time until expiry.
   Duration get remainingTime {
     final remaining = expiresAt.difference(DateTime.now());
     return remaining.isNegative ? Duration.zero : remaining;
   }
 }
 
-/// Represents a long-lived ticket for offline download transfer.
+/// Ticket for offline download transfer.
 class DownloadTicket {
   final String token;
   final String userId;

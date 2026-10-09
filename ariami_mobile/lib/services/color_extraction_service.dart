@@ -11,10 +11,7 @@ import '../utils/dynamic_theme_seed.dart';
 import 'api/connection_service.dart';
 import 'cache/cache_manager.dart';
 
-/// Service for extracting dominant colors from album artwork
-/// Used to create dynamic gradient backgrounds in the player
 class ColorExtractionService extends ChangeNotifier {
-  // Singleton pattern
   static final ColorExtractionService _instance =
       ColorExtractionService._internal();
   factory ColorExtractionService() => _instance;
@@ -30,22 +27,18 @@ class ColorExtractionService extends ChangeNotifier {
   // Cache of extracted colors by cacheId (albumId or song_songId)
   final Map<String, GradientColors> _colorCache = {};
 
-  // Currently active colors (for the current song)
   GradientColors _currentColors = GradientColors.fallback;
   String? _currentCacheId;
   String? _requestedCacheId;
   Song? _requestedSong;
 
-  // Track pending extractions to avoid duplicates
   final Set<String> _pendingExtractions = {};
 
-  /// Get the current gradient colors for the player
   GradientColors get currentColors => _currentColors;
 
   /// Artwork identity that produced [currentColors].
   String? get currentCacheId => _currentCacheId;
 
-  /// Extract colors for a song (uses album artwork if available)
   Future<void> extractColorsForSong(Song? song) async {
     if (song == null) {
       _requestedCacheId = null;
@@ -56,17 +49,14 @@ class ColorExtractionService extends ChangeNotifier {
       return;
     }
 
-    // Determine cache ID - prefer album artwork
     final cacheId = song.albumId ?? 'song_${song.id}';
     _requestedCacheId = cacheId;
     _requestedSong = song;
 
-    // If same as current, no need to re-extract
     if (cacheId == _currentCacheId) {
       return;
     }
 
-    // Check if already cached in memory
     if (_colorCache.containsKey(cacheId)) {
       if (_requestedCacheId == cacheId) {
         _currentColors = _colorCache[cacheId]!;
@@ -76,7 +66,6 @@ class ColorExtractionService extends ChangeNotifier {
       return;
     }
 
-    // Check if extraction already in progress
     if (_pendingExtractions.contains(cacheId)) {
       return;
     }
@@ -86,7 +75,6 @@ class ColorExtractionService extends ChangeNotifier {
     try {
       GradientColors? colors;
 
-      // Try to extract from cached artwork file first (fastest)
       final cachedPath = await _cacheManager.getArtworkPathWithFallback(
         cacheId,
         song.albumId != null ? '${song.albumId}_thumb' : null,
@@ -96,7 +84,6 @@ class ColorExtractionService extends ChangeNotifier {
         colors = await _extractFromFile(cachedPath);
       }
 
-      // If not cached locally, try to extract from network
       if (colors == null && _connectionService.isConnected) {
         final artworkUrl = _getArtworkUrl(song);
         if (artworkUrl != null) {
@@ -117,7 +104,6 @@ class ColorExtractionService extends ChangeNotifier {
         return;
       }
 
-      // Cache the result
       _colorCache[cacheId] = colors;
 
       // Artwork extraction can finish out of order during a rapid skip. Only
@@ -153,7 +139,6 @@ class ColorExtractionService extends ChangeNotifier {
   Future<Color> getDominantColorForSong(String songId, String? albumId) async {
     final cacheId = albumId ?? 'song_$songId';
 
-    // Check if already cached in memory
     if (_colorCache.containsKey(cacheId)) {
       return _colorCache[cacheId]!.primary;
     }
@@ -161,7 +146,6 @@ class ColorExtractionService extends ChangeNotifier {
     try {
       GradientColors? colors;
 
-      // Try to extract from cached artwork file first (fastest)
       final cachedPath = await _cacheManager.getArtworkPathWithFallback(
         cacheId,
         albumId != null ? '${albumId}_thumb' : null,
@@ -171,7 +155,6 @@ class ColorExtractionService extends ChangeNotifier {
         colors = await _extractFromFile(cachedPath);
       }
 
-      // If not cached locally, try to extract from network
       if (colors == null && _connectionService.isConnected) {
         final serverInfo = _connectionService.serverInfo;
         if (serverInfo != null) {
@@ -194,7 +177,6 @@ class ColorExtractionService extends ChangeNotifier {
     }
   }
 
-  /// Extract colors from a local file
   Future<GradientColors?> _extractFromFile(String filePath) async {
     try {
       final file = File(filePath);
@@ -215,7 +197,6 @@ class ColorExtractionService extends ChangeNotifier {
     }
   }
 
-  /// Extract colors from a network URL
   Future<GradientColors?> _extractFromUrl(String url) async {
     try {
       final palette = await PaletteGenerator.fromImageProvider(
@@ -231,7 +212,6 @@ class ColorExtractionService extends ChangeNotifier {
     }
   }
 
-  /// Convert palette to GradientColors
   GradientColors _colorsFromPalette(PaletteGenerator palette) {
     // Keep the established dominant-first player gradient independent from the
     // vibrant-first seed used by the whole-app dynamic theme.
@@ -251,12 +231,10 @@ class ColorExtractionService extends ChangeNotifier {
         ? selectAmbientColors(swatches, themeSeed)
         : null;
 
-    // Secondary: prefer dark muted, fallback to dark vibrant or darker primary
     final secondary = palette.darkMutedColor?.color ??
         palette.darkVibrantColor?.color ??
         _darken(primary, 0.3);
 
-    // Accent: prefer light vibrant for potential highlights
     final accent =
         palette.lightVibrantColor?.color ?? palette.vibrantColor?.color;
 
@@ -279,7 +257,6 @@ class ColorExtractionService extends ChangeNotifier {
     );
   }
 
-  /// Get artwork URL for a song
   String? _getArtworkUrl(Song song) {
     final serverInfo = _connectionService.serverInfo;
     if (serverInfo == null) return null;
@@ -293,7 +270,6 @@ class ColorExtractionService extends ChangeNotifier {
     }
   }
 
-  /// Clear the color cache
   void clearCache() {
     _colorCache.clear();
     _requestedCacheId = null;

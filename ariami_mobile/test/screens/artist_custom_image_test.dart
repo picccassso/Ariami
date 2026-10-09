@@ -52,7 +52,6 @@ void main() {
       ),
     );
 
-    // Initial render without custom artist image
     await tester.pumpWidget(
       const MaterialApp(
         home: ArtistDetailScreen(artistName: 'Daft Punk'),
@@ -60,27 +59,22 @@ void main() {
     );
     await tester.pump();
 
-    // The artwork key should be the album art
     expect(
       find.byKey(const ValueKey('artist-header-album-alb-1')),
       findsOneWidget,
     );
 
-    // Now update ArtistImageService with a custom image version
     ArtistImageService().setVersionsForTesting({'daft punk': 123456789});
     await tester.pump();
 
-    // Now the custom artist image key should be rendered!
     expect(
       find.byKey(const ValueKey('artist-header-custom-Daft Punk-123456789')),
       findsOneWidget,
     );
 
-    // Now remove custom artist image
     ArtistImageService().clear();
     await tester.pump();
 
-    // Should fall back to album art again
     expect(
       find.byKey(const ValueKey('artist-header-album-alb-1')),
       findsOneWidget,

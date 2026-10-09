@@ -29,7 +29,6 @@ String? repairLatin1Mojibake(String str) {
 
   final bytes = latin1.encode(str);
 
-  // Happy path: the bytes form completely valid UTF-8.
   try {
     final decoded = utf8.decode(bytes);
     // If decoding doesn't change anything (e.g. pure ASCII), it wasn't mojibake.
@@ -38,7 +37,6 @@ String? repairLatin1Mojibake(String str) {
     // Fall through: this may be mojibake truncated mid-character.
   }
 
-  // Drop a single incomplete trailing multi-byte sequence and retry strictly.
   final trimmed = _stripIncompleteTrailingUtf8(bytes);
   if (trimmed == null) return null;
   try {
@@ -87,6 +85,5 @@ Uint8List? _stripIncompleteTrailingUtf8(Uint8List bytes) {
   // problem here; leave the bytes alone.
   if (continuationBytes == expectedContinuations) return null;
 
-  // Drop the incomplete lead + its (too few) continuation bytes.
   return bytes.sublist(0, i);
 }

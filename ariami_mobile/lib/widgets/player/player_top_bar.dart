@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-/// Top bar for full player screen with minimize button.
 class PlayerTopBar extends StatelessWidget {
   final VoidCallback onMinimize;
   final VoidCallback? onOpenQueue;

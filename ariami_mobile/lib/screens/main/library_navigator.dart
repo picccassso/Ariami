@@ -6,14 +6,11 @@ import '../playlist/playlist_detail_screen.dart';
 import 'library_screen.dart';
 import 'nested_tab_navigator.dart';
 
-/// A navigator key for the library tab's nested navigation
 final GlobalKey<NavigatorState> libraryNavigatorKey = GlobalKey<NavigatorState>();
 
-/// Wrapper widget that provides nested navigation for the Library tab.
 class LibraryNavigator extends StatelessWidget {
   const LibraryNavigator({super.key, this.onBackAtRoot});
 
-  /// Called when user presses back at the root of this navigator
   final VoidCallback? onBackAtRoot;
 
   @override

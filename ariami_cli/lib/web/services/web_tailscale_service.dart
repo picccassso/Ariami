@@ -36,7 +36,6 @@ class WebTailscaleService {
           'advertisedTailscaleHost': data['advertisedTailscaleHost'],
         };
       } else {
-        // API error - assume not available
         return {
           'isInstalled': false,
           'isRunning': false,
@@ -48,7 +47,6 @@ class WebTailscaleService {
         };
       }
     } catch (e) {
-      // Network error or API unavailable
       return {
         'isInstalled': false,
         'isRunning': false,

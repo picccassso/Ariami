@@ -12,7 +12,6 @@ class ArtistImageInfo {
   /// Normalized grouping key for the artist (e.g. lowercase, trimmed).
   final String artistKey;
 
-  /// Display name of the artist.
   final String artistName;
 
   /// MIME type of the image (`image/jpeg`, `image/png`, `image/webp`).
@@ -38,7 +37,6 @@ class ArtistImageInfo {
       };
 }
 
-/// A stored artist image, including its raw bytes.
 class ArtistImageRecord extends ArtistImageInfo {
   const ArtistImageRecord({
     required super.artistKey,

@@ -30,7 +30,6 @@ import 'package:ariami_core/services/library/metadata_extractor.dart';
   return (artworkPath: lazyPath, hasArtwork: false);
 }
 
-/// Service for building album structures from song metadata
 class AlbumBuilder {
   AlbumBuilder({MetadataExtractor? metadataExtractor})
       : _metadataExtractor = metadataExtractor ?? MetadataExtractor();
@@ -104,7 +103,6 @@ class AlbumBuilder {
       final albumKey = albumGroupingKey(song);
 
       if (albumKey == null) {
-        // No album info, treat as standalone
         standaloneSongs.add(song);
       } else {
         albumMap.putIfAbsent(albumKey, () => []);
@@ -115,11 +113,9 @@ class AlbumBuilder {
     for (final entry in albumMap.entries) {
       final albumSongs = entry.value;
 
-      // Only create album if it has 2+ songs
       if (albumSongs.length >= 2) {
         addAlbum(_buildAlbum(albumSongs));
       } else {
-        // Single song, add to standalone
         standaloneSongs.addAll(albumSongs);
       }
     }
@@ -267,17 +263,14 @@ class AlbumBuilder {
     final albumArtist =
         _dominantValue(songs.map(albumGroupingArtist)) ?? 'Unknown Artist';
 
-    // Determine if it's a compilation
     final isCompilation =
         forcedCompilation || _isCompilation(songs, albumArtist);
     final finalArtist = isCompilation ? 'Various Artists' : albumArtist;
 
-    // Find the most common year
     final year = _getMostCommonYear(songs);
 
     final artwork = resolveAlbumArtworkSources(songs);
 
-    // Generate unique ID for the album
     final albumId = generateAlbumId(albumTitle, finalArtist);
 
     return Album(
@@ -291,9 +284,7 @@ class AlbumBuilder {
     );
   }
 
-  /// Determines if an album is a compilation (Various Artists)
   bool _isCompilation(List<SongMetadata> songs, String albumArtist) {
-    // Check if album artist is "Various Artists"
     if (albumArtist.toLowerCase().contains('various')) {
       return true;
     }
@@ -308,7 +299,6 @@ class AlbumBuilder {
       }
     }
 
-    // If all songs have the same album artist, it's not a compilation
     if (albumArtists.length == 1) {
       return false;
     }
@@ -326,7 +316,6 @@ class AlbumBuilder {
     return artists.length >= 5;
   }
 
-  /// Finds the most common year among songs
   int? _getMostCommonYear(List<SongMetadata> songs) {
     final yearCounts = <int, int>{};
 

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-/// Empty state widget shown when the library has no content.
 class LibraryEmptyState extends StatelessWidget {
   final bool isOfflineMode;
 

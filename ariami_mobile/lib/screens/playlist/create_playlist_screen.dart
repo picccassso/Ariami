@@ -2,12 +2,9 @@ import 'package:flutter/material.dart';
 import '../../services/playlist_service.dart';
 import '../../models/api_models.dart';
 
-/// Screen/dialog for creating a new playlist
-/// Shows name input, optional description, create/cancel buttons
 class CreatePlaylistScreen extends StatefulWidget {
   const CreatePlaylistScreen({super.key});
 
-  /// Show as a dialog and return the created playlist (or null if cancelled)
   static Future<PlaylistModel?> show(BuildContext context) {
     return showDialog<PlaylistModel>(
       context: context,
@@ -66,7 +63,6 @@ class _CreatePlaylistScreenState extends State<CreatePlaylistScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Playlist name input
             TextFormField(
               controller: _nameController,
               autofocus: true,
@@ -84,7 +80,6 @@ class _CreatePlaylistScreenState extends State<CreatePlaylistScreen> {
               textInputAction: TextInputAction.next,
             ),
             const SizedBox(height: 16),
-            // Description input (optional)
             TextFormField(
               controller: _descriptionController,
               decoration: const InputDecoration(
@@ -100,12 +95,10 @@ class _CreatePlaylistScreenState extends State<CreatePlaylistScreen> {
         ),
       ),
       actions: [
-        // Cancel button
         TextButton(
           onPressed: _isCreating ? null : () => Navigator.of(context).pop(),
           child: const Text('Cancel'),
         ),
-        // Create button
         FilledButton(
           onPressed: _isCreating ? null : _createPlaylist,
           child: _isCreating

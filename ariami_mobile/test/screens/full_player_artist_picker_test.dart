@@ -68,20 +68,17 @@ void main() {
     );
     await _pumpFrames(tester);
 
-    // Tap on the artist marquee in the full player
     final artistFinder = find.byKey(const ValueKey('artist-s1-Costi, Alina'));
     expect(artistFinder, findsOneWidget);
     await tester.tap(artistFinder, warnIfMissed: false);
     await _pumpFrames(tester);
 
-    // Verify sheet appears with "Artists" header and both options
     expect(find.text('Artists'), findsOneWidget);
     expect(find.text('Necazuri si suparari'), findsWidgets);
     expect(find.text('Costi'), findsOneWidget);
     expect(find.text('Alina'), findsOneWidget);
     expect(openedArtist, isNull);
 
-    // Tap "Alina"
     await tester.tap(find.text('Alina'));
     await _pumpFrames(tester);
 

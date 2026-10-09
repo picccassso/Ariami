@@ -7,8 +7,6 @@ import '../common/artist_link.dart';
 import '../common/cached_artwork.dart';
 import 'playing_collection_builder.dart';
 
-/// Album grid item widget
-/// Displays album artwork, title, and artist in a premium layout
 class AlbumGridItem extends StatelessWidget {
   final AlbumModel album;
   final VoidCallback? onTap;
@@ -37,7 +35,6 @@ class AlbumGridItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Dim unavailable items
     final opacity = isAvailable ? 1.0 : 0.4;
 
     return Opacity(
@@ -49,12 +46,10 @@ class AlbumGridItem extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Album Artwork Container
             AspectRatio(
               aspectRatio: 1.0,
               child: Stack(
                 children: [
-                  // Shadow & Container
                   Container(
                     decoration: BoxDecoration(
                       borderRadius:
@@ -87,9 +82,6 @@ class AlbumGridItem extends StatelessWidget {
                       artworkBadge: true,
                     ),
                   ),
-
-                  // Interactive Overlay (highlight on press - implicit via InkWell usually, but manual here for custom look if needed)
-                  // For now, simple standard interaction is fine, effectively handled by GestureDetector
 
                   if (hasDownloadedSongs && !isSelectionMode)
                     Positioned(
@@ -177,7 +169,6 @@ class AlbumGridItem extends StatelessWidget {
 
             const SizedBox(height: 12), // More breathing room
 
-            // Text Details
             Padding(
               padding: const EdgeInsets.symmetric(
                   horizontal: 4.0), // Slight alignment correction
@@ -251,7 +242,6 @@ class AlbumGridItem extends StatelessWidget {
         );
   }
 
-  /// Build album artwork with loading and fallback (using CachedArtwork)
   Widget _buildAlbumArt(BuildContext context) {
     return CachedArtwork(
       albumId: album.id,

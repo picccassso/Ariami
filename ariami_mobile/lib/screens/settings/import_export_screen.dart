@@ -72,7 +72,6 @@ class _ImportExportScreenState extends State<ImportExportScreen> {
   }
 
   Future<void> _import() async {
-    // Show mode selection as a bottom sheet (consistent with other pickers).
     final mode = await showAriamiSheet<ImportMode>(
       context: context,
       backgroundColor: Theme.of(context).colorScheme.surface,
@@ -192,7 +191,6 @@ class _ImportExportScreenState extends State<ImportExportScreen> {
               children: [
                 const SizedBox(height: 48),
 
-                // Icon with minimalist glow/halo effect if desired, but let's stick to clean
                 Container(
                   padding: const EdgeInsets.all(24),
                   child: Icon(
@@ -203,7 +201,6 @@ class _ImportExportScreenState extends State<ImportExportScreen> {
                 ),
                 const SizedBox(height: 32),
 
-                // Title
                 Text(
                   'Data Portability',
                   style: TextStyle(
@@ -215,7 +212,6 @@ class _ImportExportScreenState extends State<ImportExportScreen> {
                 ),
                 const SizedBox(height: 12),
 
-                // Subtitle
                 Text(
                   'Export your playlists and listening stats to a backup file, or restore from a previous session.',
                   textAlign: TextAlign.center,
@@ -229,7 +225,6 @@ class _ImportExportScreenState extends State<ImportExportScreen> {
 
                 const SizedBox(height: 32),
 
-                // Status Card
                 Container(
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   child: Column(
@@ -250,7 +245,6 @@ class _ImportExportScreenState extends State<ImportExportScreen> {
                 ),
                 const SizedBox(height: 32),
 
-                // Export Button
                 SizedBox(
                   width: double.infinity,
                   height: 56,
@@ -280,7 +274,6 @@ class _ImportExportScreenState extends State<ImportExportScreen> {
                 ),
                 const SizedBox(height: 12),
 
-                // Import Button
                 SizedBox(
                   width: double.infinity,
                   height: 56,
@@ -309,7 +302,6 @@ class _ImportExportScreenState extends State<ImportExportScreen> {
 
                 const SizedBox(height: 32),
 
-                // Footer
                 Text(
                   'Includes playlists and streaming statistics',
                   style: TextStyle(

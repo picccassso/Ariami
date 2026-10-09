@@ -23,9 +23,6 @@ class HeartbeatManager {
   Timer? _heartbeatTimer;
   int _consecutiveFailures = 0;
 
-  /// Creates a HeartbeatManager.
-  ///
-  /// All parameters are required callbacks for accessing external state.
   HeartbeatManager({
     required ConnectionStateManager stateManager,
     required Future<ApiClient?> Function() apiClientProvider,
@@ -40,35 +37,27 @@ class HeartbeatManager {
         _tryRestoreConnection = tryRestoreConnection,
         _onConnectionLoss = onConnectionLoss;
 
-  /// Whether the heartbeat timer is currently running
   bool get isRunning => _heartbeatTimer != null && _heartbeatTimer!.isActive;
 
-  /// Current number of consecutive heartbeat failures
   int get consecutiveFailures => _consecutiveFailures;
 
-  /// Start the heartbeat timer
   void start() {
     stop();
     _heartbeatTimer = Timer.periodic(_defaultInterval, (_) => _sendHeartbeat());
   }
 
-  /// Stop the heartbeat timer
   void stop() {
     _heartbeatTimer?.cancel();
     _heartbeatTimer = null;
   }
 
-  /// Reset the failure counter
   void resetFailureCount() {
     _consecutiveFailures = 0;
   }
 
-  /// Send a single heartbeat ping
   Future<void> _sendHeartbeat() async {
-    // Don't send heartbeat if manually disconnected
     if (_stateManager.isManuallyDisconnected) return;
 
-    // Don't send heartbeat if manual offline mode is enabled
     if (await _isManualOfflineProvider()) {
       return;
     }
@@ -79,7 +68,6 @@ class HeartbeatManager {
       return;
     }
 
-    // Normal connected mode - send ping
     final apiClient = await _apiClientProvider();
     if (apiClient == null) return;
 
@@ -87,14 +75,12 @@ class HeartbeatManager {
       final deviceId = await _deviceIdProvider();
       await apiClient.ping(deviceId: deviceId);
 
-      // Reset failure counter on success
       if (_consecutiveFailures > 0) {
         _consecutiveFailures = 0;
       }
     } catch (e) {
       _consecutiveFailures++;
 
-      // Only go offline after multiple consecutive failures
       if (_consecutiveFailures >= _maxFailures) {
         _consecutiveFailures = 0; // Reset for next time
         await _onConnectionLoss();
@@ -102,15 +88,12 @@ class HeartbeatManager {
     }
   }
 
-  /// Handle auto-reconnect logic when in auto-offline mode
   Future<void> _handleAutoReconnect() async {
     final restored = await _tryRestoreConnection();
     if (restored) {
-      // Connection restored successfully
     }
   }
 
-  /// Dispose resources
   void dispose() {
     stop();
   }

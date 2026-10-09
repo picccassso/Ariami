@@ -4,7 +4,6 @@ import '../../models/download_task.dart';
 import '../../services/download/download_manager.dart';
 import 'global_download_chrome_visibility.dart';
 
-/// Global download progress bar that shows active download status
 class DownloadProgressBar extends StatefulWidget {
   const DownloadProgressBar({super.key});
 

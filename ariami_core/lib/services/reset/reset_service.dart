@@ -13,22 +13,17 @@ enum ResetScope {
   factoryReset,
 }
 
-/// Outcome for a single path the reset attempted to remove.
 enum ResetEntryStatus {
-  /// The path existed and was removed.
   deleted,
 
-  /// The path did not exist; nothing to do.
   skippedMissing,
 
   /// The path was refused because it overlapped the configured music library.
   blockedMusicGuard,
 
-  /// Deletion was attempted but failed (see [ResetEntryResult.error]).
   failed,
 }
 
-/// Result for one path processed by [ResetService.execute].
 class ResetEntryResult {
   const ResetEntryResult({
     required this.path,
@@ -53,10 +48,8 @@ class ResetPlan {
     this.musicFolderPathGuard,
   });
 
-  /// Individual files to remove (e.g. `config.json`).
   final List<String> files;
 
-  /// Directories to remove recursively (e.g. `artwork_cache/`).
   final List<String> directories;
 
   /// SQLite database files to remove (e.g. `catalog.db`). For each entry the
@@ -69,10 +62,8 @@ class ResetPlan {
   final String? musicFolderPathGuard;
 }
 
-/// SQLite WAL-mode sidecar suffixes that live next to a database file.
 const _sqliteSidecarSuffixes = ['-wal', '-shm', '-journal'];
 
-/// Aggregate result of a reset run.
 class ResetResult {
   const ResetResult(this.entries);
 

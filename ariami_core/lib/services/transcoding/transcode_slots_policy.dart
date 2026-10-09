@@ -1,6 +1,5 @@
 import 'dart:io';
 
-/// Effective and configured transcode slot counts for the host server.
 class TranscodeSlotsSnapshot {
   const TranscodeSlotsSnapshot({
     required this.effective,
@@ -12,13 +11,10 @@ class TranscodeSlotsSnapshot {
   /// Active slot count (override when set, otherwise [defaultSlots]).
   final int effective;
 
-  /// Platform default before any user override.
   final int defaultSlots;
 
-  /// User override, or null when using the platform default.
   final int? override;
 
-  /// Whether a server restart is required for pending changes to apply.
   final bool restartRequired;
 
   bool get isCustom => override != null;
@@ -42,7 +38,6 @@ class TranscodeSlotsSnapshot {
 
 /// Resolves platform-aware default transcode slot counts and validates overrides.
 class TranscodeSlotsPolicy {
-  /// Minimum allowed transcode slot count.
   static const int minSlots = 1;
 
   /// Default slot count for systems that are not a recognised Raspberry Pi.
@@ -98,7 +93,6 @@ class TranscodeSlotsPolicy {
     return desktopDefaultSlots;
   }
 
-  /// Build a snapshot from an optional override and platform default.
   static TranscodeSlotsSnapshot resolve({
     int? override,
     required int defaultSlots,
@@ -116,7 +110,6 @@ class TranscodeSlotsPolicy {
     );
   }
 
-  /// Resolve default slots and combine with an optional override.
   static Future<TranscodeSlotsSnapshot> resolveSnapshot({
     int? override,
     bool? isMacOS,
@@ -138,7 +131,6 @@ class TranscodeSlotsPolicy {
     );
   }
 
-  /// Validate a user-provided slot count.
   static void validateSlots(int slots) {
     if (slots < minSlots) {
       throw ArgumentError.value(

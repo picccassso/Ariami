@@ -16,10 +16,8 @@ class PlaylistSuggestion {
     this.reasons = const [],
   });
 
-  /// Absolute path of the suggested folder.
   final String folderPath;
 
-  /// Display name (the folder's base name).
   final String name;
 
   /// Number of audio files directly inside the folder.

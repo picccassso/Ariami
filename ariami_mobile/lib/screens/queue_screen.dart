@@ -10,7 +10,6 @@ import '../utils/responsive.dart';
 import '../widgets/common/queue_action_confirmation.dart';
 import '../widgets/queue/reorderable_queue_list.dart';
 
-/// Screen displaying the playback queue
 class QueueScreen extends StatefulWidget {
   final PlaybackQueue queue;
   final Function(int oldIndex, int newIndex)? onReorder;

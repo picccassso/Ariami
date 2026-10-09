@@ -125,7 +125,6 @@ double getMiniPlayerScrollBottomPadding(BuildContext context) {
   );
 }
 
-/// Returns whether the mini player is currently visible to the user.
 bool isMiniPlayerVisible() {
   if (MiniPlayerVisibility.instance.isFullPlayerOnTop) return false;
   return PlaybackManager().currentSong != null;
@@ -204,12 +203,8 @@ Future<T?> showMiniPlayerAwareBottomSheet<T>({
   );
 }
 
-/// Default radius for the rounded top corners of an Ariami sheet.
 const double kAriamiSheetCornerRadius = 24.0;
 
-/// Header widget for [showAriamiSheet] — supports a leading visual,
-/// a title, and an optional subtitle. Designed to feel like a polished
-/// Material 3 sheet header rather than a plain centered label.
 class AriamiSheetHeader extends StatelessWidget {
   final String title;
   final String? subtitle;
@@ -273,8 +268,6 @@ class AriamiSheetHeader extends StatelessWidget {
   }
 }
 
-/// Uppercase section title shown at the top of option-picker sheets,
-/// matching the streaming quality picker style.
 class AriamiSheetSectionTitle extends StatelessWidget {
   final String title;
 
@@ -302,7 +295,7 @@ class AriamiSheetSectionTitle extends StatelessWidget {
 ///
 /// The sheet:
 ///  - sizes itself to its content (capped at 90% of viewport height)
-///  - shows a drag handle by default
+///  - always shows a drag handle
 ///  - reserves space below the mini player when one is visible
 ///  - reserves no extra space when shown from above the full player
 ///

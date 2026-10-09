@@ -31,8 +31,6 @@ extension SearchModeDetails on SearchMode {
   }
 }
 
-/// Persists and publishes the user's search keyboard focus preference
-/// and recent searches limit preferences.
 class SearchSettingsService extends ChangeNotifier {
   static final SearchSettingsService _instance =
       SearchSettingsService._internal();
@@ -58,10 +56,8 @@ class SearchSettingsService extends ChangeNotifier {
   /// Current search mode. Defaults to [SearchMode.spotify].
   SearchMode get mode => _mode;
 
-  /// Whether the keyboard should automatically open when the Search tab opens.
   bool get isSpotifyMode => _mode == SearchMode.spotify;
 
-  /// Whether a custom limit is active for recent searches.
   bool get isCustomRecentLimit => _isCustomRecentLimit;
 
   /// The custom limit value configured by the user (clamped to [minRecentSearchesLimit]..[maxRecentSearchesLimit]).
@@ -71,7 +67,6 @@ class SearchSettingsService extends ChangeNotifier {
   int get recentSearchesLimit =>
       _isCustomRecentLimit ? _customRecentLimit : standardRecentSearchesLimit;
 
-  /// Formatted label for settings display ("Standard (30)" or "Custom (`number`)").
   String get recentSearchesLimitLabel =>
       _isCustomRecentLimit
           ? 'Custom ($_customRecentLimit)'
@@ -108,8 +103,6 @@ class SearchSettingsService extends ChangeNotifier {
     }
   }
 
-  /// Updates the search mode preference, notifying listeners
-  /// and persisting the value to [sharedPrefs].
   Future<void> setMode(SearchMode mode) async {
     initialize();
     if (_mode == mode) return;
@@ -146,7 +139,6 @@ class SearchSettingsService extends ChangeNotifier {
       await sharedPrefs.setBool(recentSearchesIsCustomKey, _isCustomRecentLimit);
       await sharedPrefs.setInt(recentSearchesLimitKey, _customRecentLimit);
 
-      // Immediately trim stored recent songs if limit was reduced
       final effectiveLimit = recentSearchesLimit;
       final jsonList = sharedPrefs.getStringList(recentSongsKey);
       if (jsonList != null && jsonList.length > effectiveLimit) {

@@ -68,9 +68,7 @@ class SpotifyTrackKey {
   String toString() => 'SpotifyTrackKey($title / $albumArtist / $album)';
 }
 
-/// How a [TrackMatch] was resolved, best confidence first.
 enum MatchTier {
-  /// Exact normalized title+artist key.
   exact,
 
   /// Matched by title+album agreement (artist string drifted).
@@ -83,7 +81,6 @@ enum MatchTier {
   /// and [TrackMatch.alternateSongIds] the rest — surface for manual review.
   ambiguous,
 
-  /// No library song matched. [TrackMatch.songId] is null.
   unmatched,
 }
 
@@ -96,7 +93,6 @@ enum MatchTier {
 /// artist/song rollups. When [songId] is null, carry the Spotify strings so the
 /// unmatched play still shows sensible metadata.
 class TrackMatch {
-  /// Library song id, or null when unmatched.
   final String? songId;
 
   final String title;
@@ -129,9 +125,7 @@ class TrackMatch {
 /// implementation is [LibraryTrackMatcher]; depending on this abstraction keeps
 /// the parser/builder testable with a fake and decoupled from index internals.
 abstract class TrackMatcher {
-  /// Match a single key.
   TrackMatch match(SpotifyTrackKey key);
 
-  /// Match many keys at once (dedupe upstream via [SpotifyTrackKey] equality).
   Map<SpotifyTrackKey, TrackMatch> matchAll(Iterable<SpotifyTrackKey> keys);
 }

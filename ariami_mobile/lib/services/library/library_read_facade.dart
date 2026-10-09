@@ -43,7 +43,6 @@ class LibraryReadBundle {
   final bool isPartialRead;
 }
 
-/// Unified v2-only facade for locally synced library reads.
 class LibraryReadFacade {
   LibraryReadFacade({
     required Object? Function() apiClientProvider,

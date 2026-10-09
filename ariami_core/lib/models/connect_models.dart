@@ -43,9 +43,9 @@ class AriamiConnectFeature {
   static const supported = <String>{preserveCastHandoff};
 }
 
-/// The P0 corpus measured the largest supported 5,000-track state and
-/// `play_context` messages at about 7.63 MB. Eight MiB keeps that measured
-/// maximum valid while putting a hard ceiling in front of JSON decoding.
+/// Sized to fit the largest supported 5,000-track state and `play_context`
+/// messages (about 7.63 MB measured). Eight MiB keeps that maximum valid while
+/// putting a hard ceiling in front of JSON decoding.
 const int kMaxConnectRawMessageBytes = 8 * 1024 * 1024;
 
 /// A session may have only this many controller commands awaiting a result.
@@ -729,8 +729,9 @@ class AriamiPlaybackSnapshot {
         updatedAt: updatedAt ?? this.updatedAt,
       );
 
-  /// Version-2 snapshot encoding. [includeBackingOrder] is used only by
-  /// upgraded handoff payloads; ordinary v2 state remains byte-shape
+  /// Version-2 snapshot encoding. [includeBackingOrder] is used by upgraded handoff
+  /// payloads and by validateConnectSnapshotPayload for v2 state/play_context
+  /// snapshots carrying backingOrder; ordinary v2 state remains byte-shape
   /// compatible and cannot claim an order it never supplied.
   Map<String, dynamic> toJson({bool includeBackingOrder = false}) =>
       <String, dynamic>{

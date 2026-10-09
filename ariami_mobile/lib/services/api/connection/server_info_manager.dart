@@ -2,7 +2,6 @@ import '../../../models/server_info.dart';
 import '../api_client.dart';
 import '../endpoint_resolver.dart';
 
-/// Result of merging freshly fetched server endpoint metadata.
 class EndpointRefreshResult {
   final ServerInfo serverInfo;
   final bool endpointConfigChanged;
@@ -25,28 +24,20 @@ class ServerInfoManager {
 
   ServerInfo? _serverInfo;
 
-  /// Creates a ServerInfoManager.
-  ///
-  /// [endpointResolver] is used for LAN/Tailscale endpoint resolution.
   ServerInfoManager({
     EndpointResolver? endpointResolver,
   }) : _endpointResolver = endpointResolver ?? EndpointResolver();
 
-  /// Current server information
   ServerInfo? get serverInfo => _serverInfo;
 
-  /// Whether we have server info (even if not currently connected)
   bool get hasServerInfo => _serverInfo != null;
 
-  /// Get the endpoint resolver for advanced use cases
   EndpointResolver get endpointResolver => _endpointResolver;
 
-  /// Set the server info
   void setServerInfo(ServerInfo? serverInfo) {
     _serverInfo = serverInfo;
   }
 
-  /// Update just the server IP (used during endpoint switches)
   void updateServerIp(String newIp) {
     final current = _serverInfo;
     if (current != null && current.server != newIp) {
@@ -91,7 +82,6 @@ class ServerInfoManager {
       final fetched = await apiClient.getServerInfo();
       return applyEndpointRefresh(serverInfo, fetched).serverInfo;
     } catch (e) {
-      // Return original server info on failure
       return serverInfo;
     }
   }
@@ -134,7 +124,6 @@ class ServerInfoManager {
     );
   }
 
-  /// Compare two ServerInfo objects for equality.
   bool hasServerInfoChanged(ServerInfo a, ServerInfo b) {
     return _hasServerInfoChanged(a, b);
   }
@@ -154,7 +143,6 @@ class ServerInfoManager {
   }
 }
 
-/// Extension on ServerInfo for copyWith functionality
 extension ServerInfoCopyWith on ServerInfo {
   ServerInfo copyWith({
     String? server,

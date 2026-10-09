@@ -4,7 +4,6 @@ import '../../../../models/api_models.dart';
 import '../../../../screens/playlist/widgets/playlist_cover_art.dart';
 import '../../../../widgets/common/mini_player_aware_bottom_sheet.dart';
 
-/// Shows the playlist context menu bottom sheet.
 Future<void> showPlaylistContextMenu({
   required BuildContext context,
   required PlaylistModel playlist,

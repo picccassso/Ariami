@@ -50,9 +50,6 @@ void main() {
   });
 
   group('StreamingStatsService', () {
-    // ------------------------------------------------------------------------
-    // Basic play counting
-    // ------------------------------------------------------------------------
     test('counts a play after 30s of position-based listening', () async {
       final song = _testSong(
         id: 's1',
@@ -91,9 +88,6 @@ void main() {
       expect(stats.totalTime.inSeconds, 25);
     });
 
-    // ------------------------------------------------------------------------
-    // Pause / resume behaviour
-    // ------------------------------------------------------------------------
     test('does not double-count when pausing and resuming', () async {
       final song = _testSong(
         id: 's3',
@@ -124,7 +118,6 @@ void main() {
         duration: const Duration(minutes: 3),
       );
 
-      // First chunk: 20s
       service.onSongStarted(song);
       for (int i = 0; i <= 20; i++) {
         service.updatePosition(Duration(seconds: i));
@@ -283,9 +276,6 @@ void main() {
       expect(stats.totalTime.inSeconds, 5);
     });
 
-    // ------------------------------------------------------------------------
-    // Seek handling
-    // ------------------------------------------------------------------------
     test('ignores forward seek jumps when tracking time', () async {
       final song = _testSong(
         id: 's7',
@@ -337,9 +327,6 @@ void main() {
       expect(stats!.totalTime.inSeconds, 3);
     });
 
-    // ------------------------------------------------------------------------
-    // Rapid switching & session boundaries
-    // ------------------------------------------------------------------------
     test('rapid song switching does not lose or double time', () async {
       final song1 = _testSong(
         id: 's9a',
@@ -357,7 +344,6 @@ void main() {
         service.updatePosition(Duration(seconds: i));
       }
 
-      // Switch to song2 (implicitly finalizes song1)
       service.onSongStarted(song2);
       await service.flushForTests();
 
@@ -365,7 +351,6 @@ void main() {
       expect(stats1!.totalTime.inSeconds, 15);
       expect(stats1.playCount, 0);
 
-      // Play song2 for 35s
       for (int i = 0; i <= 35; i++) {
         service.updatePosition(Duration(seconds: i));
       }
@@ -402,9 +387,6 @@ void main() {
       expect(stats.totalTime.inSeconds, 45);
     });
 
-    // ------------------------------------------------------------------------
-    // Persistence
-    // ------------------------------------------------------------------------
     test('flushes stats to database and reloads correctly', () async {
       final song = _testSong(
         id: 's11',
@@ -418,7 +400,6 @@ void main() {
       }
       await service.onSongStopped();
 
-      // Data is now in cache and DB
       final beforeReset = service.getSongStats('s11');
       expect(beforeReset!.playCount, 1);
 
@@ -432,9 +413,6 @@ void main() {
       expect(afterReload.totalTime.inSeconds, 35);
     });
 
-    // ------------------------------------------------------------------------
-    // Stale id remapping after library moves
-    // ------------------------------------------------------------------------
     test(
         'remapStaleStatIdsFromLibrary collapses stale + fresh entries for the '
         'same song so artist aggregations are not double-counted', () async {
@@ -457,7 +435,6 @@ void main() {
         service.updatePosition(Duration(seconds: i));
       }
       await service.onSongStopped();
-      // Repeat for a second play.
       service.onSongStarted(oldSong, isResume: false);
       for (int i = 0; i <= 35; i++) {
         service.updatePosition(Duration(seconds: i));
@@ -588,9 +565,6 @@ void main() {
       expect(service.getTopAlbums().single.albumName, 'Resolved Album');
     });
 
-    // ------------------------------------------------------------------------
-    // Artist name normalization (grouping across sources)
-    // ------------------------------------------------------------------------
     test(
         'groups artists whose names differ only by case, whitespace or dash '
         'into a single entry', () async {

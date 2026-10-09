@@ -40,7 +40,6 @@ class DnsQuestion {
   final int type;
   final int qclass;
 
-  /// Whether the querier asked for a unicast response (QU bit).
   bool get unicastResponse => qclass & DnsClass.topBit != 0;
 }
 

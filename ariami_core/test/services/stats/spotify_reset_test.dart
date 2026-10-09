@@ -161,7 +161,6 @@ void main() {
     expect(artists, containsAll(['Live Artist', 'Baseline Artist']));
     expect(artists, isNot(contains('Imported Artist')));
 
-    // Other users are untouched.
     expect(store.getSummary('user-b').totalListenedMs, 7000);
   });
 
@@ -204,12 +203,10 @@ void main() {
     expect(store.getTopArtists('user-a'), isEmpty);
     expect(rawEventIds('user-a'), isEmpty);
 
-    // Other users are untouched.
     expect(store.getSummary('user-b').totalListenedMs, 7000);
   });
 
   test('summary hasSpotifyImport tracks raw spotify events per user', () {
-    // No events at all.
     expect(store.getSummary('user-a').hasSpotifyImport, isFalse);
 
     seedMixedHistory();

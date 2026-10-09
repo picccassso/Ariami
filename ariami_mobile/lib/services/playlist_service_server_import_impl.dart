@@ -55,7 +55,6 @@ extension _PlaylistServiceServerImportImpl on PlaylistService {
     );
     _notifyListeners();
 
-    // Pick up the server playlist's synced cover photo, if it has one.
     unawaited(_applyServerPlaylistImagesImpl());
 
     return playlist;
@@ -104,7 +103,6 @@ extension _PlaylistServiceServerImportImpl on PlaylistService {
       await _saveHiddenServerPlaylists();
       await _saveImportedFromServer();
       _notifyListeners();
-      // Pick up synced cover photos for the newly imported copies.
       unawaited(_applyServerPlaylistImagesImpl());
     }
 

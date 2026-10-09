@@ -4,8 +4,6 @@ import '../../../../models/song.dart';
 import '../../../../widgets/library/song_list_item.dart';
 import '../library_state.dart';
 
-/// Widget that displays the songs section.
-/// Handles both online and offline modes.
 class SongsSection extends StatelessWidget {
   final LibraryState state;
   final bool isOffline;

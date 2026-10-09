@@ -36,8 +36,6 @@ part 'library_controller_preferences.dart';
 part 'library_controller_selection.dart';
 part 'library_controller_sync.dart';
 
-/// Controller for the LibraryScreen.
-/// Manages all business logic and state for the library.
 class LibraryController extends ChangeNotifier {
   static final LibraryController _instance = LibraryController._internal();
   factory LibraryController() => _instance;
@@ -149,7 +147,6 @@ class LibraryController extends ChangeNotifier {
   /// The current selection flattened to songs, in library order.
   List<SongModel> resolveSelectedSongs() => _resolveSelectedSongsInOrder();
 
-  /// Library songs belonging to [albumId], in track order.
   List<SongModel> albumSongsFor(String albumId) => _albumSongsFor(albumId);
 
   /// Albums by [name]: every album whose artist string, or a credited artist
@@ -192,7 +189,6 @@ class LibraryController extends ChangeNotifier {
   Future<void> togglePinPlaylist(String playlistId) =>
       _togglePinPlaylist(playlistId);
 
-  /// Refreshes the library; attempts reconnect when offline or disconnected.
   Future<LibraryRefreshOutcome> refreshLibrary() => _refreshLibrary();
 
   Future<void> refreshOfflineCopyState() async {
@@ -204,7 +200,6 @@ class LibraryController extends ChangeNotifier {
     await _loadLibrary(background: true);
   }
 
-  /// Initialize the controller and load initial data.
   Future<void> initialize() async {
     if (_isInitialized) return;
     _isInitialized = true;

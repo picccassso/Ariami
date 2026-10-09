@@ -611,7 +611,6 @@ void main() {
 
       final deviceId = unique('device');
 
-      // Fail twice
       for (int i = 0; i < 2; i++) {
         try {
           await authService.login(
@@ -624,7 +623,6 @@ void main() {
         }
       }
 
-      // Successful login should reset tracker
       await authService.login(username, password, deviceId, 'Device');
 
       // Now it should allow 5 more failures before rate limit

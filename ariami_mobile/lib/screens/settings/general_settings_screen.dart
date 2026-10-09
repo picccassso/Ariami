@@ -8,7 +8,6 @@ import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
 import '../../widgets/settings/settings_section.dart';
 import '../../widgets/settings/settings_tile.dart';
 
-/// Key for the recent searches limit sheet content (used by tests).
 const recentSearchesLimitSheetKey = Key('recent_searches_limit_sheet');
 
 /// General settings gathered in one place (as on desktop) rather than
@@ -29,7 +28,6 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
     _searchSettingsService.initialize();
   }
 
-  /// Shows a bottom sheet to choose the search keyboard focus mode.
   Future<void> _showSearchModeSheet() {
     final colorScheme = Theme.of(context).colorScheme;
     return showAriamiSheet<void>(
@@ -92,7 +90,6 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
     );
   }
 
-  /// Shows a bottom sheet to choose the recent searches limit.
   Future<void> _showRecentSearchesLimitSheet() async {
     final colorScheme = Theme.of(context).colorScheme;
     bool isCustom = _searchSettingsService.isCustomRecentLimit;

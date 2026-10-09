@@ -42,7 +42,6 @@ class DiscoveryProtocol {
   static final Uint8List probePayload =
       Uint8List.fromList(utf8.encode(probeMessage));
 
-  /// Whether [datagram] is a discovery probe from a client.
   static bool isProbe(List<int> datagram) {
     if (datagram.length != probePayload.length) return false;
     for (var i = 0; i < datagram.length; i++) {
@@ -51,7 +50,6 @@ class DiscoveryProtocol {
     return true;
   }
 
-  /// Encodes the server's answer to a probe.
   static Uint8List encodeBeaconReply({
     required int port,
     required String name,

@@ -4,7 +4,6 @@ import 'package:watcher/watcher.dart';
 import 'package:ariami_core/models/file_change.dart';
 import 'package:ariami_core/services/library/file_scanner.dart';
 
-/// Service for monitoring music folder for file system changes
 class FolderWatcher {
   DirectoryWatcher? _watcher;
   StreamSubscription? _subscription;
@@ -15,7 +14,6 @@ class FolderWatcher {
   final List<FileChange> _pendingChanges = [];
   static const Duration _debounceDelay = Duration(seconds: 2);
 
-  /// Stream of batched file changes
   Stream<List<FileChange>> get changes => _changeController.stream;
 
   /// Starts watching the specified directory for changes
@@ -43,7 +41,6 @@ class FolderWatcher {
     }
   }
 
-  /// Stops watching for file system changes
   void stopWatching() {
     _subscription?.cancel();
     _subscription = null;
@@ -53,21 +50,17 @@ class FolderWatcher {
     _pendingChanges.clear();
   }
 
-  /// Handles individual file system events
   void _handleFileSystemEvent(WatchEvent event) {
     final path = event.path;
 
-    // Only process audio files
     if (!_isAudioFile(path)) {
       return;
     }
 
-    // Skip temporary files
     if (_isTemporaryFile(path)) {
       return;
     }
 
-    // Convert watcher event to FileChange
     FileChangeType? changeType;
     switch (event.type) {
       case ChangeType.ADD:
@@ -92,32 +85,26 @@ class FolderWatcher {
     }
   }
 
-  /// Adds a change to pending list and starts/resets debounce timer
   void _addPendingChange(FileChange change) {
     _pendingChanges.add(change);
 
-    // Reset debounce timer
     _debounceTimer?.cancel();
     _debounceTimer = Timer(_debounceDelay, () {
       _flushPendingChanges();
     });
   }
 
-  /// Flushes all pending changes to the stream
   void _flushPendingChanges() {
     if (_pendingChanges.isEmpty) {
       return;
     }
 
-    // Create a copy and clear pending
     final changes = List<FileChange>.from(_pendingChanges);
     _pendingChanges.clear();
 
-    // Emit batched changes
     _changeController.add(changes);
   }
 
-  /// Checks if a file is an audio file
   bool _isAudioFile(String path) {
     final dotIndex = path.lastIndexOf('.');
     if (dotIndex < 0 || dotIndex == path.length - 1) {
@@ -127,7 +114,6 @@ class FolderWatcher {
     return FileScanner.supportedExtensions.contains(extension);
   }
 
-  /// Checks if a file is temporary and should be ignored
   bool _isTemporaryFile(String path) {
     final fileName = path.split(Platform.pathSeparator).last.toLowerCase();
     return fileName.startsWith('.') ||
@@ -136,7 +122,6 @@ class FolderWatcher {
         fileName.endsWith('.download');
   }
 
-  /// Cleans up resources
   void dispose() {
     stopWatching();
     _changeController.close();

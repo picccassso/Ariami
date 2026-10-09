@@ -1,19 +1,15 @@
-/// Connection manager for tracking connected clients
 class ConnectionManager {
   final Map<String, ConnectedClient> _clients = {};
   final List<void Function()> _listeners = [];
 
-  /// Add a listener for connection changes
   void addListener(void Function() listener) {
     _listeners.add(listener);
   }
 
-  /// Remove a listener
   void removeListener(void Function() listener) {
     _listeners.remove(listener);
   }
 
-  /// Notify all listeners of changes
   void _notifyListeners() {
     // A listener may detach itself while handling the notification (for
     // example when server shutdown disposes its screen). Use a snapshot to
@@ -23,7 +19,6 @@ class ConnectionManager {
     }
   }
 
-  /// Register a new client connection
   void registerClient(
     String deviceId,
     String deviceName, {
@@ -89,7 +84,6 @@ class ConnectionManager {
     }
   }
 
-  /// Update a connected client's display name (user rename), if present.
   void renameDevice(String deviceId, String deviceName) {
     final client = _clients[deviceId];
     if (client == null || client.deviceName == deviceName) return;
@@ -97,12 +91,10 @@ class ConnectionManager {
     _notifyListeners();
   }
 
-  /// Unregister a client connection
   void unregisterClient(String deviceId) {
     unregisterClientAndGet(deviceId);
   }
 
-  /// Unregister a client connection and return removed client.
   ConnectedClient? unregisterClientAndGet(String deviceId) {
     final client = _clients.remove(deviceId);
     if (client != null) {
@@ -112,17 +104,14 @@ class ConnectionManager {
     return client;
   }
 
-  /// Get all connected clients
   List<ConnectedClient> getConnectedClients() {
     return _clients.values.toList();
   }
 
-  /// Get client by device ID
   ConnectedClient? getClient(String deviceId) {
     return _clients[deviceId];
   }
 
-  /// Get count of connected clients
   int get clientCount => _clients.length;
 
   /// Get count of mobile clients (excludes dashboard clients)
@@ -132,7 +121,6 @@ class ConnectionManager {
         .length;
   }
 
-  /// Get count of unique connected users (by userId)
   int get uniqueUserCount {
     final uniqueUserIds = _clients.values
         .map((client) => client.userId)
@@ -141,7 +129,6 @@ class ConnectionManager {
     return uniqueUserIds.length;
   }
 
-  /// Clear all connected clients (used when server stops)
   void clearAll() {
     final hadClients = _clients.isNotEmpty;
     _clients.clear();
@@ -169,7 +156,6 @@ class ConnectionManager {
   }
 }
 
-/// Connected client data
 class ConnectedClient {
   final String deviceId;
   final String deviceName;

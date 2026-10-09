@@ -3,7 +3,6 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../models/song.dart';
 import '../common/adaptive_marquee_text.dart';
 
-/// Song information display with favorite button and intelligent marquee effect
 class PlayerInfo extends StatelessWidget {
   final Song song;
   final bool isFavorite;

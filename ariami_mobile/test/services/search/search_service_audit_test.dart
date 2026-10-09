@@ -3,10 +3,8 @@ import 'package:ariami_mobile/services/search_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Regression harness for mobile search behaviour, originally written as an
-/// audit of the pre-shared-engine implementation. The former `GAP:` cases
-/// (transliteration, keyboard-layout correction, diacritic folding,
-/// punctuation stripping, Cyrillic fuzzy) were flipped to their fixed
-/// expectations when search moved to the shared engine in ariami_core.
+/// audit of the pre-shared-engine implementation. Search now runs on the
+/// shared engine in ariami_core.
 void main() {
   final service = SearchService();
 

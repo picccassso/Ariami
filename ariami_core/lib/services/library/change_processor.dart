@@ -8,7 +8,6 @@ import 'package:ariami_core/services/library/duplicate_detector.dart';
 import 'package:ariami_core/services/library/metadata_extractor.dart';
 import 'package:ariami_core/services/library/library_playlist_builder.dart';
 
-/// Service for processing file system changes into library updates
 class ChangeProcessor {
   final MetadataExtractor _metadataExtractor = MetadataExtractor();
   Set<String> _lastAddedFiles = <String>{};
@@ -29,8 +28,7 @@ class ChangeProcessor {
     final affectedAlbumIds = <String>{};
     final extractedMetadata = <String, SongMetadata>{};
 
-    // Build reverse index for O(1) lookups (filePath -> albumId)
-    // This replaces O(A×S) linear search with O(1) hash map lookup
+    // Reverse index for O(1) lookups (filePath -> albumId)
     final filePathToAlbumId = <String, String>{};
     for (final album in currentLibrary.albums.values) {
       for (final song in album.songs) {
@@ -38,7 +36,6 @@ class ChangeProcessor {
       }
     }
 
-    // Group changes by type
     final addedFiles = <String>{};
     final removedFiles = <String>[];
     final modifiedFiles = <String>{};
@@ -55,7 +52,6 @@ class ChangeProcessor {
           modifiedFiles.add(change.path);
           break;
         case FileChangeType.renamed:
-          // Treat as remove old + add new
           if (change.oldPath != null) {
             removedFiles.add(change.oldPath!);
           }
@@ -68,19 +64,16 @@ class ChangeProcessor {
     _lastModifiedFiles = modifiedFiles;
     _lastRemovedFiles = removedFiles.toSet();
 
-    // Process removals
     for (final path in removedFiles) {
       final songId = _generateSongId(path);
       removedSongIds.add(songId);
 
-      // Find which album this song belonged to (O(1) lookup)
       final albumId = filePathToAlbumId[path];
       if (albumId != null) {
         affectedAlbumIds.add(albumId);
       }
     }
 
-    // Process additions
     if (addedFiles.isNotEmpty) {
       for (final path in addedFiles) {
         try {
@@ -95,7 +88,6 @@ class ChangeProcessor {
       }
     }
 
-    // Process modifications
     if (modifiedFiles.isNotEmpty) {
       for (final path in modifiedFiles) {
         try {
@@ -127,21 +119,15 @@ class ChangeProcessor {
     );
   }
 
-  /// Generates a unique song ID from file path
   String _generateSongId(String filePath) {
     return md5.convert(utf8.encode(filePath)).toString().substring(0, 12);
   }
 
-  /// Applies library updates to rebuild affected portions of the library
-  ///
-  /// Returns updated LibraryStructure with changes applied
   Future<LibraryStructure> applyUpdates(
       LibraryUpdate update, LibraryStructure currentLibrary,
       {List<FileChange>? sourceChanges}) async {
-    // Collect all songs that need to be in the updated library
     final allSongs = <SongMetadata>[];
 
-    // Keep songs that weren't removed or modified
     for (final album in currentLibrary.albums.values) {
       for (final song in album.songs) {
         final songId = _generateSongId(song.filePath);
@@ -160,7 +146,6 @@ class ChangeProcessor {
       }
     }
 
-    // Add new and modified songs (re-extract metadata from changed paths)
     final changedPaths = <String>{};
     final removedPaths = <String>{};
     if (sourceChanges != null) {
@@ -187,7 +172,6 @@ class ChangeProcessor {
       removedPaths.addAll(_lastRemovedFiles);
     }
 
-    // Re-extract metadata for changed files
     if (changedPaths.isNotEmpty) {
       for (final path in changedPaths) {
         if (update.extractedMetadata.containsKey(path)) {
@@ -262,7 +246,6 @@ class ChangeProcessor {
                 !duplicateToOriginalPath.containsKey(song.filePath))
             .toList();
 
-    // Rebuild library structure, preserving and updating folder playlists.
     return buildLibraryWithPlaylistsAsync(
       allSongs: uniqueSongs,
       existingPlaylists: currentLibrary.folderPlaylists,

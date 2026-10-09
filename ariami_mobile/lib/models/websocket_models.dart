@@ -1,9 +1,4 @@
-/// WebSocket message models for real-time communication
 library;
-
-// ============================================================================
-// MESSAGE TYPES
-// ============================================================================
 
 class WsMessageType {
   static const String identify = 'identify';
@@ -22,11 +17,6 @@ class WsMessageType {
   static const String endpointAliasesChanged = 'endpoint_aliases_changed';
 }
 
-// ============================================================================
-// BASE MESSAGE
-// ============================================================================
-
-/// Base WebSocket message
 class WsMessage {
   final String type;
   final Map<String, dynamic>? data;
@@ -55,11 +45,6 @@ class WsMessage {
   }
 }
 
-// ============================================================================
-// SPECIFIC MESSAGE TYPES
-// ============================================================================
-
-/// Library updated notification
 class LibraryUpdatedMessage extends WsMessage {
   LibraryUpdatedMessage({
     super.data,
@@ -75,7 +60,6 @@ class LibraryUpdatedMessage extends WsMessage {
   int? get songCount => data?['songCount'] as int?;
 }
 
-/// Sync token advanced notification
 class SyncTokenAdvancedMessage extends WsMessage {
   SyncTokenAdvancedMessage({
     required int latestToken,
@@ -127,7 +111,6 @@ class IdentifyMessage extends WsMessage {
   String? get sessionToken => data?['sessionToken'] as String?;
 }
 
-/// Ping message
 class PingMessage extends WsMessage {
   PingMessage() : super(type: WsMessageType.ping);
 }

@@ -3,11 +3,9 @@ import 'dart:io';
 import '../services/server_status_service.dart';
 import '../services/cli_guidance.dart';
 
-/// Command to check the Ariami CLI server status.
 class StatusCommand {
   final ServerStatusService _statusService = ServerStatusService();
 
-  /// Execute the status command.
   Future<void> execute() async {
     try {
       final snapshot = await _statusService.collectSnapshot();

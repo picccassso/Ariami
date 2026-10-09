@@ -1,6 +1,5 @@
 import '../../../../models/download_task.dart';
 
-/// Group completed downloads by album id (`null` = singles).
 Map<String?, List<DownloadTask>> groupByAlbum(List<DownloadTask> tasks) {
   final Map<String?, List<DownloadTask>> grouped = {};
   for (final task in tasks) {

@@ -17,7 +17,6 @@ class EndpointSwitchHandler {
   StreamSubscription<String>? _endpointSubscription;
   bool _isSwitchingEndpoint = false;
 
-  /// Creates an EndpointSwitchHandler.
   EndpointSwitchHandler({
     EndpointResolver? endpointResolver,
     required Future<bool> Function(ServerInfo) isServerReachable,
@@ -28,10 +27,8 @@ class EndpointSwitchHandler {
         _onSwitchEndpoint = onSwitchEndpoint,
         _onRestoreAfterFailedSwitch = onRestoreAfterFailedSwitch;
 
-  /// Whether an endpoint switch is currently in progress
   bool get isSwitchingEndpoint => _isSwitchingEndpoint;
 
-  /// Configure and start endpoint monitoring
   void configureMonitoring(ServerInfo serverInfo) {
     if (serverInfo.isSecurePublicConnection) {
       stopMonitoring();
@@ -51,14 +48,12 @@ class EndpointSwitchHandler {
     _endpointResolver.startMonitoring();
   }
 
-  /// Stop endpoint monitoring
   void stopMonitoring() {
     _endpointSubscription?.cancel();
     _endpointSubscription = null;
     _endpointResolver.stopMonitoring();
   }
 
-  /// Handle a request to switch to a new endpoint
   Future<void> _handleEndpointSwitch(
       String newIp, ServerInfo currentServerInfo) async {
     if (_isSwitchingEndpoint || currentServerInfo.server == newIp) {
@@ -69,7 +64,6 @@ class EndpointSwitchHandler {
     final nextServerInfo = currentServerInfo.withServer(newIp);
 
     try {
-      // Verify the new endpoint is reachable
       final isReachable = await _isServerReachable(
         nextServerInfo,
       );
@@ -77,17 +71,14 @@ class EndpointSwitchHandler {
         return;
       }
 
-      // Perform the switch
       await _onSwitchEndpoint(nextServerInfo);
     } catch (e) {
-      // Restore to previous endpoint
       await _onRestoreAfterFailedSwitch(currentServerInfo);
     } finally {
       _isSwitchingEndpoint = false;
     }
   }
 
-  /// Dispose resources
   void dispose() {
     stopMonitoring();
   }

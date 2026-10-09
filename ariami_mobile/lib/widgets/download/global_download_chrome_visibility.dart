@@ -30,7 +30,6 @@ class GlobalDownloadChromeVisibility extends ChangeNotifier {
 
   bool get isBarVisible => _isBarVisible;
 
-  /// Aggregate session progress in the range 0.0–1.0, or null when idle.
   double? get sessionProgress => _sessionProgress;
 
   void startListening() {

@@ -86,7 +86,6 @@ class ArtistDetailScreen extends StatelessWidget {
             ),
           ),
 
-          // Info block: name, counts, play/shuffle.
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
@@ -129,7 +128,6 @@ class ArtistDetailScreen extends StatelessWidget {
             ),
           ),
 
-          // Top songs.
           if (topTracks.isNotEmpty) ...[
             const _SectionTitle('Top songs'),
             SliverList(
@@ -145,7 +143,6 @@ class ArtistDetailScreen extends StatelessWidget {
             ),
           ],
 
-          // Albums.
           const _SectionTitle('Albums'),
           if (albums.isEmpty)
             const SliverToBoxAdapter(
@@ -154,13 +151,11 @@ class ArtistDetailScreen extends StatelessWidget {
           else
             _buildAlbumGrid(context, albums),
 
-          // Compilations the artist appears on.
           if (appearsOn.isNotEmpty) ...[
             const _SectionTitle('Appears on'),
             _buildAlbumGrid(context, appearsOn),
           ],
 
-          // Playlists.
           const _SectionTitle('Playlists'),
           if (playlists.isEmpty)
             const SliverToBoxAdapter(
@@ -253,10 +248,6 @@ class ArtistDetailScreen extends StatelessWidget {
     );
   }
 
-  // ============================================================================
-  // PLAYBACK
-  // ============================================================================
-
   /// Tracks that can be played in the current mode: everything online, or
   /// only the downloaded/cached ones in offline mode.
   List<SongModel> _availableTracks(List<SongModel> tracks) {
@@ -327,7 +318,6 @@ class ArtistDetailScreen extends StatelessWidget {
     );
   }
 
-  /// Looks a track's album up in the in-memory library.
   AlbumModel? _albumFor(String? albumId) {
     if (albumId == null) return null;
     for (final album in LibraryController().state.albums) {
@@ -391,7 +381,6 @@ class _SectionTitle extends StatelessWidget {
   }
 }
 
-/// Muted one-liner for an empty section.
 class _EmptyLine extends StatelessWidget {
   const _EmptyLine(this.message);
 

@@ -97,7 +97,6 @@ extension _LibraryControllerSelection on LibraryController {
     return resolvedSongIds;
   }
 
-  /// Library songs belonging to [albumId], in track order.
   List<SongModel> _albumSongsFor(String albumId) {
     final songs =
         _state.songs.where((song) => song.albumId == albumId).toList();
@@ -112,7 +111,6 @@ extension _LibraryControllerSelection on LibraryController {
     return songs;
   }
 
-  /// Looks a song id up in the library, whichever mode it came from.
   SongModel? _librarySongFor(String songId) {
     final offlineMatch = _state.offlineSongs.where((song) => song.id == songId);
     if (offlineMatch.isNotEmpty) {
@@ -362,7 +360,6 @@ extension _LibraryControllerSelection on LibraryController {
   }
 }
 
-/// Summary of what a multi-select batch download would enqueue.
 class BatchDownloadSummary {
   const BatchDownloadSummary({
     required this.containerCount,

@@ -1,6 +1,5 @@
 part of '../playlist_detail_screen.dart';
 
-/// Handles user-initiated playlist, download, playback, and navigation actions.
 abstract class _PlaylistDetailActionsState
     extends _PlaylistSongResolutionState {
   /// What this playlist is called when playback is published over Connect.
@@ -140,7 +139,6 @@ abstract class _PlaylistDetailActionsState
     );
   }
 
-  /// Play all songs from playlist
   Future<void> _playAll() async {
     if (_songs.isEmpty) return;
 
@@ -163,7 +161,6 @@ abstract class _PlaylistDetailActionsState
     );
   }
 
-  /// Shuffle play all songs
   Future<void> _shuffleAll() async {
     if (_songs.isEmpty) return;
 
@@ -182,7 +179,6 @@ abstract class _PlaylistDetailActionsState
     await _playbackManager.playShuffled(songs, sourceId: _playbackSourceId);
   }
 
-  /// Play a specific track
   Future<void> _playTrack(SongModel track, int index) async {
     final isOffline = _shouldUseOfflineTracks;
     final songsToPlay = isOffline
@@ -207,7 +203,6 @@ abstract class _PlaylistDetailActionsState
     );
   }
 
-  /// Edit playlist name/description/image
   Future<void> _editPlaylist() async {
     if (_playlist == null) return;
 
@@ -224,7 +219,6 @@ abstract class _PlaylistDetailActionsState
     }
   }
 
-  /// Delete playlist with confirmation
   Future<void> _deletePlaylist() async {
     if (_playlist == null) return;
 
@@ -253,7 +247,6 @@ abstract class _PlaylistDetailActionsState
     }
   }
 
-  /// Show modal bottom sheet with actions like Edit and Delete
   void _showMoreActions() {
     if (_playlist == null) return;
 
@@ -326,7 +319,6 @@ abstract class _PlaylistDetailActionsState
     );
   }
 
-  /// Reorder songs in playlist
   void _onReorder(int oldIndex, int newIndex) {
     _playlistService.reorderSongs(
       playlistId: widget.playlistId,
@@ -335,7 +327,6 @@ abstract class _PlaylistDetailActionsState
     );
   }
 
-  /// Navigate to add songs screen
   Future<void> _addSongs() async {
     List<SongModel> availableSongs = [];
     try {

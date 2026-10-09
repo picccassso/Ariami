@@ -132,7 +132,6 @@ void main() {
         tv.negotiatedProtocolVersion == 3 &&
         laptop.negotiatedProtocolVersion == 3);
 
-    // TV starts playing and becomes the active device.
     tv.publishState(activate: true);
     await waitFor(() =>
         laptop.activeDeviceId == 'tv' &&
@@ -447,7 +446,6 @@ void main() {
     tv.publishState(activate: true);
     await waitFor(() => laptop.activeDeviceId == 'tv');
 
-    // "Play here" on the laptop.
     laptop.transferTo('laptop');
     await waitFor(() =>
         laptop.isThisDeviceActive &&

@@ -1,9 +1,6 @@
 part of 'playback_manager.dart';
 
 extension _PlaybackManagerConnectImpl on PlaybackManager {
-  /// Wires (or clears) the remote mirror. Called by the Connect controller on
-  /// every hub update; [remote] is null whenever this device is the active
-  /// player or no remote session exists.
   void _setConnectRemoteMirrorImpl(
     AriamiRemotePlayback? remote, {
     void Function(String command, [Map<String, dynamic>? arguments])?
@@ -245,7 +242,6 @@ extension _PlaybackManagerConnectImpl on PlaybackManager {
     _sendConnectSnapshot(remote, snapshot);
   }
 
-  /// Starts [snapshot] on the active device.
   void _sendConnectSnapshot(
     AriamiRemotePlayback remote,
     AriamiPlaybackSnapshot snapshot,
@@ -599,8 +595,6 @@ extension _PlaybackManagerConnectImpl on PlaybackManager {
     }
   }
 
-  /// Always pauses this device's own playback (local or cast), bypassing the
-  /// remote mirror; used for Connect handoffs.
   Future<void> _pauseLocalImpl() async {
     _invalidateLocalPlayback(suspend: true);
     if (_castService.isConnected || _castService.hasActiveSession) {

@@ -4,7 +4,6 @@ import '../../../../services/api/connection_service.dart';
 import '../../../../widgets/common/mini_player_aware_bottom_sheet.dart';
 import '../../../../utils/image_decode.dart';
 
-/// Shows the album context menu bottom sheet.
 Future<void> showAlbumContextMenu({
   required BuildContext context,
   required AlbumModel album,

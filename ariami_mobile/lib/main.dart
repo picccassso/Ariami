@@ -47,8 +47,6 @@ void main() async {
   print('[Main] Starting AudioService initialization...');
   print('[Main] ========================================');
 
-  // Initialize the audio service with our custom handler
-  // This creates the foreground service for background playback
   try {
     print('[Main] Step 1: Creating AudioServiceConfig...');
     final config = AudioServiceConfig(
@@ -110,7 +108,6 @@ void main() async {
   print('[Main] AudioService initialization complete');
   print('[Main] ========================================');
 
-  // Enable high refresh rate on supported devices
   try {
     await FlutterDisplayMode.setHighRefreshRate();
   } catch (e) {
@@ -121,7 +118,6 @@ void main() async {
   // This eliminates flicker in widgets that need persisted state on first build
   await initializeSharedPrefs();
 
-  // Initialize ThemeService after SharedPreferences is loaded
   ThemeService().init();
 
   runApp(const MyApp());
@@ -197,10 +193,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     await _connectionService.loadAuthInfo();
     await _offlineService.initialize();
 
-    // Pick and render the initial screen as soon as possible.
     await _determineInitialScreen();
 
-    // Warm the remaining services once the UI is already on screen.
     unawaited(_initializeDeferredServices());
   }
 
@@ -213,13 +207,10 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     await Future.wait([
       // Download manager (also initializes quality settings internally)
       _downloadManager.initialize(),
-      // Artwork/song cache
       _cacheManager.initialize(),
-      // Streaming play-stats
       _statsService.initialize(),
       // Quality settings (idempotent; shared with the download manager)
       _qualityService.initialize(),
-      // Network-type monitor for quality-based streaming
       _networkMonitor.initialize(),
       // Profile image, pre-cached before the Settings tab is opened
       _profileImageService.initialize(),
@@ -371,7 +362,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     }
   }
 
-  /// Listen for session expiry events (401 from server)
   void _listenToSessionExpiry() {
     _sessionExpiredSubscription =
         _connectionService.sessionExpiredStream.listen(
@@ -401,7 +391,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     }
   }
 
-  /// Listen for network connectivity changes
   void _listenToNetworkChanges() {
     _connectivitySubscription = Connectivity().onConnectivityChanged.listen(
       (List<ConnectivityResult> results) {
@@ -414,9 +403,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     );
   }
 
-  /// Handle network connectivity change
   void _handleNetworkChange(List<ConnectivityResult> results) {
-    // Check if we have any network connectivity
     final hasNetwork = results.any((result) =>
         result == ConnectivityResult.wifi ||
         result == ConnectivityResult.mobile ||
@@ -425,7 +412,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     print('Network change detected: $results (hasNetwork: $hasNetwork)');
 
     if (hasNetwork) {
-      // Network became available - try reconnection if needed
       if (!_connectionService.isConnected &&
           _connectionService.hasServerInfo &&
           !_offlineService.isManualOfflineModeEnabled) {

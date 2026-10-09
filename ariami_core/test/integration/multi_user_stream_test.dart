@@ -49,86 +49,71 @@ void main() {
     });
 
     test('two users can register independently', () async {
-      // Register user 1
       final user1 = await userStore.createUser('alice', 'password_hash_1');
       expect(user1.userId, isNotEmpty);
       expect(user1.username, equals('alice'));
 
-      // Register user 2
       final user2 = await userStore.createUser('bob', 'password_hash_2');
       expect(user2.userId, isNotEmpty);
       expect(user2.username, equals('bob'));
 
-      // Users should have different IDs
       expect(user1.userId, isNot(equals(user2.userId)));
 
-      // Both users should exist
       expect(userStore.userCount, equals(2));
       expect(userStore.getUserByUsername('alice'), isNotNull);
       expect(userStore.getUserByUsername('bob'), isNotNull);
     });
 
     test('two users can login and have separate sessions', () async {
-      // Register users
       final user1 = await userStore.createUser('alice', 'password_hash_1');
       final user2 = await userStore.createUser('bob', 'password_hash_2');
 
-      // Login user 1 on device A
       final session1 = await sessionStore.createSession(
         user1.userId,
         'device_alice_phone',
         "Alice's Phone",
       );
 
-      // Login user 2 on device B
       final session2 = await sessionStore.createSession(
         user2.userId,
         'device_bob_tablet',
         "Bob's Tablet",
       );
 
-      // Sessions should be different
       expect(session1.sessionToken, isNot(equals(session2.sessionToken)));
       expect(session1.userId, isNot(equals(session2.userId)));
 
-      // Both sessions should be valid
       expect(sessionStore.getSession(session1.sessionToken), isNotNull);
       expect(sessionStore.getSession(session2.sessionToken), isNotNull);
 
-      // Session count should be 2
       expect(sessionStore.sessionCount, equals(2));
     });
 
     test('one user can have multiple sessions (multiple devices)', () async {
       final user = await userStore.createUser('alice', 'password_hash');
 
-      // Login on phone
       final sessionPhone = await sessionStore.createSession(
         user.userId,
         'device_phone',
         "Alice's Phone",
       );
 
-      // Login on tablet
       final sessionTablet = await sessionStore.createSession(
         user.userId,
         'device_tablet',
         "Alice's Tablet",
       );
 
-      // Login on desktop
       final sessionDesktop = await sessionStore.createSession(
         user.userId,
         'device_desktop',
         "Alice's Desktop",
       );
 
-      // All sessions should be valid
       expect(sessionStore.getSession(sessionPhone.sessionToken), isNotNull);
       expect(sessionStore.getSession(sessionTablet.sessionToken), isNotNull);
       expect(sessionStore.getSession(sessionDesktop.sessionToken), isNotNull);
 
-      // User should have 3 sessions
       final userSessions = sessionStore.getSessionsForUser(user.userId);
       expect(userSessions.length, equals(3));
     });
@@ -162,7 +147,6 @@ void main() {
     });
 
     test('two users can stream different songs concurrently', () async {
-      // Setup: Register and login two users
       final user1 = await userStore.createUser('alice', 'hash1');
       final user2 = await userStore.createUser('bob', 'hash2');
 
@@ -177,7 +161,6 @@ void main() {
         'Device 2',
       );
 
-      // User 1 requests stream ticket for song A
       final ticket1 = streamTracker.issueTicket(
         userId: user1.userId,
         sessionToken: session1.sessionToken,
@@ -185,7 +168,6 @@ void main() {
         durationSeconds: 180,
       );
 
-      // User 2 requests stream ticket for song B
       final ticket2 = streamTracker.issueTicket(
         userId: user2.userId,
         sessionToken: session2.sessionToken,
@@ -193,22 +175,18 @@ void main() {
         durationSeconds: 240,
       );
 
-      // Both tickets should be valid
       expect(streamTracker.validateToken(ticket1.token), isNotNull);
       expect(streamTracker.validateToken(ticket2.token), isNotNull);
 
-      // Start both streams
       streamTracker.startStream(ticket1.token);
       streamTracker.startStream(ticket2.token);
 
-      // Verify concurrent streaming stats
       expect(streamTracker.activeStreamCount, equals(2));
       expect(streamTracker.activeStreamerCount, equals(2));
       expect(streamTracker.ticketCount, equals(2));
     });
 
     test('same user streaming on multiple devices', () async {
-      // Setup: One user with two devices
       final user = await userStore.createUser('alice', 'hash');
 
       final sessionPhone = await sessionStore.createSession(
@@ -222,7 +200,6 @@ void main() {
         'Tablet',
       );
 
-      // Stream on phone
       final ticketPhone = streamTracker.issueTicket(
         userId: user.userId,
         sessionToken: sessionPhone.sessionToken,
@@ -230,7 +207,6 @@ void main() {
         durationSeconds: 180,
       );
 
-      // Stream on tablet (different song)
       final ticketTablet = streamTracker.issueTicket(
         userId: user.userId,
         sessionToken: sessionTablet.sessionToken,
@@ -247,7 +223,6 @@ void main() {
     });
 
     test('user logout revokes all stream tickets for that session', () async {
-      // Setup: Two users streaming
       final user1 = await userStore.createUser('alice', 'hash1');
       final user2 = await userStore.createUser('bob', 'hash2');
 
@@ -262,7 +237,6 @@ void main() {
         'Device 2',
       );
 
-      // User 1 has two stream tickets
       final ticket1a = streamTracker.issueTicket(
         userId: user1.userId,
         sessionToken: session1.sessionToken,
@@ -276,7 +250,6 @@ void main() {
         durationSeconds: 180,
       );
 
-      // User 2 has one stream ticket
       final ticket2 = streamTracker.issueTicket(
         userId: user2.userId,
         sessionToken: session2.sessionToken,
@@ -291,18 +264,14 @@ void main() {
       expect(streamTracker.activeStreamCount, equals(3));
       expect(streamTracker.activeStreamerCount, equals(2));
 
-      // User 1 logs out - revoke their session's stream tickets
       streamTracker.revokeSessionTickets(session1.sessionToken);
       await sessionStore.revokeSession(session1.sessionToken);
 
-      // User 1's tickets should be invalid
       expect(streamTracker.validateToken(ticket1a.token), isNull);
       expect(streamTracker.validateToken(ticket1b.token), isNull);
 
-      // User 2's ticket should still be valid
       expect(streamTracker.validateToken(ticket2.token), isNotNull);
 
-      // Stats should reflect the change
       expect(streamTracker.activeStreamCount, equals(1));
       expect(streamTracker.activeStreamerCount, equals(1));
       expect(streamTracker.ticketCount, equals(1));
@@ -310,7 +279,6 @@ void main() {
 
     test('streams are independent - ending one does not affect others',
         () async {
-      // Setup: Two users streaming
       final user1 = await userStore.createUser('alice', 'hash1');
       final user2 = await userStore.createUser('bob', 'hash2');
 
@@ -343,10 +311,8 @@ void main() {
 
       expect(streamTracker.activeStreamCount, equals(2));
 
-      // User 1 stops their stream
       streamTracker.endStream(ticket1.token);
 
-      // User 2's stream should still be active
       expect(streamTracker.activeStreamCount, equals(1));
       expect(streamTracker.validateToken(ticket2.token), isNotNull);
 
@@ -383,12 +349,10 @@ void main() {
     });
 
     test('server can report active sessions and active streamers', () async {
-      // Register 3 users
       final user1 = await userStore.createUser('alice', 'hash1');
       final user2 = await userStore.createUser('bob', 'hash2');
       final user3 = await userStore.createUser('charlie', 'hash3');
 
-      // All 3 users login
       final session1 = await sessionStore.createSession(
         user1.userId,
         'device_1',
@@ -405,7 +369,6 @@ void main() {
         'Device 3',
       );
 
-      // Verify active sessions
       expect(sessionStore.sessionCount, equals(3));
 
       // Only 2 users are streaming
@@ -425,7 +388,6 @@ void main() {
       streamTracker.startStream(ticket1.token);
       streamTracker.startStream(ticket2.token);
 
-      // Server stats
       expect(userStore.userCount, equals(3)); // Total registered users
       expect(sessionStore.sessionCount, equals(3)); // Active sessions
       expect(streamTracker.activeStreamerCount,
@@ -441,12 +403,10 @@ void main() {
       final user1 = await userStore.createUser('alice', 'hash1');
       final user2 = await userStore.createUser('bob', 'hash2');
 
-      // Initial state
       expect(userStore.userCount, equals(2));
       expect(sessionStore.sessionCount, equals(0));
       expect(streamTracker.activeStreamerCount, equals(0));
 
-      // User 1 connects
       final session1 = await sessionStore.createSession(
         user1.userId,
         'device_1',
@@ -454,7 +414,6 @@ void main() {
       );
       expect(sessionStore.sessionCount, equals(1));
 
-      // User 2 connects
       final session2 = await sessionStore.createSession(
         user2.userId,
         'device_2',
@@ -462,7 +421,6 @@ void main() {
       );
       expect(sessionStore.sessionCount, equals(2));
 
-      // User 1 starts streaming
       final ticket1 = streamTracker.issueTicket(
         userId: user1.userId,
         sessionToken: session1.sessionToken,
@@ -472,14 +430,12 @@ void main() {
       streamTracker.startStream(ticket1.token);
       expect(streamTracker.activeStreamerCount, equals(1));
 
-      // User 1 disconnects
       streamTracker.revokeSessionTickets(session1.sessionToken);
       await sessionStore.revokeSession(session1.sessionToken);
 
       expect(sessionStore.sessionCount, equals(1));
       expect(streamTracker.activeStreamerCount, equals(0));
 
-      // User 2 is still connected
       expect(sessionStore.getSession(session2.sessionToken), isNotNull);
     });
   });
@@ -520,7 +476,6 @@ void main() {
     });
 
     test('handling many concurrent streams', () {
-      // Simulate 10 users each with 2 streams
       for (int i = 0; i < 10; i++) {
         final ticket1 = streamTracker.issueTicket(
           userId: 'user_$i',
@@ -548,7 +503,6 @@ void main() {
     test('rapid ticket issuance does not cause collisions', () {
       final tokens = <String>{};
 
-      // Issue 100 tickets rapidly
       for (int i = 0; i < 100; i++) {
         final ticket = streamTracker.issueTicket(
           userId: 'user_$i',
@@ -559,7 +513,6 @@ void main() {
         tokens.add(ticket.token);
       }
 
-      // All tokens should be unique
       expect(tokens.length, equals(100));
     });
   });

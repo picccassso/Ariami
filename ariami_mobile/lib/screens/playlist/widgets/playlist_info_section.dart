@@ -2,12 +2,9 @@ import 'package:flutter/material.dart';
 import '../../../models/api_models.dart';
 import '../utils/playlist_helpers.dart';
 
-/// Playlist information section showing name, description, and song stats
 class PlaylistInfoSection extends StatelessWidget {
-  /// The playlist model
   final PlaylistModel playlist;
 
-  /// List of songs for duration calculation
   final List<SongModel> songs;
 
   const PlaylistInfoSection({

@@ -187,7 +187,6 @@ class _QRCodeScreenState extends State<QRCodeScreen>
     });
   }
 
-  /// Start polling for mobile app connections
   void _startConnectionPolling() {
     if (!_autoNavigateOnConnection) return;
 

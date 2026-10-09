@@ -10,7 +10,6 @@ import '../common/song_artwork.dart';
 import '../common/song_overflow_menu.dart';
 import '../common/swipe_to_queue.dart';
 
-/// Search result item for songs with optional swipe-to-delete and remove from recent
 class SearchResultSongItem extends StatefulWidget {
   final SongModel song;
   final VoidCallback onTap;
@@ -156,7 +155,6 @@ class _SearchResultSongItemState extends State<SearchResultSongItem> {
       ),
     );
 
-    // Wrap with Dismissible if onRemove callback is provided
     if (widget.onRemove != null) {
       return LayoutBuilder(
         builder: (context, constraints) {
@@ -186,7 +184,6 @@ class _SearchResultSongItemState extends State<SearchResultSongItem> {
     );
   }
 
-  /// Show song overflow menu
   void _showSongMenu(BuildContext context) {
     showAriamiSheet<void>(
       context: context,
@@ -293,7 +290,6 @@ class _SearchResultSongItemState extends State<SearchResultSongItem> {
     playbackManager.addToQueue(_toSong());
   }
 
-  /// Build leading widget with artwork and download/cache indicator
   Widget _buildLeading(BuildContext context) {
     return SizedBox(
       width: 48,
@@ -340,22 +336,18 @@ class _SearchResultSongItemState extends State<SearchResultSongItem> {
     );
   }
 
-  /// Build album artwork or placeholder using CachedArtwork
   Widget _buildAlbumArt(BuildContext context) {
     final connectionService = ConnectionService();
 
-    // Determine artwork URL based on whether song has albumId
     String? artworkUrl;
     String cacheId;
 
     if (widget.song.albumId != null) {
-      // Song belongs to an album - use album artwork endpoint
       artworkUrl = connectionService.apiClient != null
           ? '${connectionService.apiClient!.baseUrl}/artwork/${widget.song.albumId}'
           : null;
       cacheId = widget.song.albumId!;
     } else {
-      // Standalone song - use song artwork endpoint
       artworkUrl = connectionService.apiClient != null
           ? '${connectionService.apiClient!.baseUrl}/song-artwork/${widget.song.id}'
           : null;
@@ -375,7 +367,6 @@ class _SearchResultSongItemState extends State<SearchResultSongItem> {
     );
   }
 
-  /// Build placeholder circle avatar
   Widget _buildPlaceholder(BuildContext context) {
     return Container(
       width: 48,
@@ -391,7 +382,6 @@ class _SearchResultSongItemState extends State<SearchResultSongItem> {
     );
   }
 
-  /// Format duration in seconds to mm:ss
   String _formatDuration(int durationInSeconds) {
     final minutes = durationInSeconds ~/ 60;
     final seconds = durationInSeconds % 60;

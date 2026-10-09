@@ -37,14 +37,12 @@ class NestedTabNavigator extends StatefulWidget {
   /// Key for the nested [Navigator] so tab taps can pop it to its root.
   final GlobalKey<NavigatorState> navigatorKey;
 
-  /// Route table for the nested [Navigator].
   final RouteFactory onGenerateRoute;
 
   /// Called when the system back gesture fires while the nested navigator is
   /// already at its root route.
   final VoidCallback? onBackAtRoot;
 
-  /// Initial route for the nested [Navigator].
   final String initialRoute;
 
   @override

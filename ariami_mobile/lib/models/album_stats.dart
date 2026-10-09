@@ -1,4 +1,3 @@
-/// Statistics for an album's playback (aggregated from songs)
 class AlbumStats {
   final String albumId;
   final String? albumName;
@@ -32,7 +31,6 @@ class AlbumStats {
     }
   }
 
-  /// Create a copy with updated fields
   AlbumStats copyWith({
     String? albumId,
     String? albumName,

@@ -138,7 +138,6 @@ class NativeDownloadService {
     }
   }
 
-  /// Update the batch notification's text and progress bar.
   Future<void> updateBatchNotification({
     required String text,
     int? progressPercent,

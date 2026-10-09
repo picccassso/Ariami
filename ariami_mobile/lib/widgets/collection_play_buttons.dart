@@ -36,7 +36,6 @@ Widget _listening(Widget Function(BuildContext, PlaybackManager) build) {
   );
 }
 
-/// The large round play button.
 class CollectionPlayButton extends StatelessWidget {
   const CollectionPlayButton({
     super.key,
@@ -86,7 +85,6 @@ class CollectionPlayButton extends StatelessWidget {
       });
 }
 
-/// The shuffle button beside it.
 class CollectionShuffleButton extends StatelessWidget {
   const CollectionShuffleButton({
     super.key,

@@ -70,7 +70,6 @@ class _ConnectionSettingsScreenState extends State<ConnectionSettingsScreen> {
     _isOfflineModeEnabled = _offlineService.isOfflineModeEnabled;
     _loadDeviceName();
 
-    // Listen to offline state changes
     _offlineSubscription = _offlineService.offlineModeStream.listen((_) {
       if (mounted) {
         setState(() {

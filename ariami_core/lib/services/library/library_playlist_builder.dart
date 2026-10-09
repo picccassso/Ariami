@@ -158,7 +158,6 @@ Set<String> suspiciousPlaylistAlbumTagPaths({
     }
   }
 
-  // Group playlist-folder tracks by (folder, normalized album tag).
   final groupsByFolderAndAlbum = <String, Map<String, List<SongMetadata>>>{};
   for (final song in songs) {
     final folder = folderByFile[song.filePath];

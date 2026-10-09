@@ -1,9 +1,5 @@
 part of '../api_models.dart';
 
-// ============================================================================
-// V2 DOWNLOAD JOB MODELS
-// ============================================================================
-
 class DownloadJobCreateRequest {
   final List<String> songIds;
   final List<String> albumIds;

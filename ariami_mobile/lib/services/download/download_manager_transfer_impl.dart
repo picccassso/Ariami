@@ -18,8 +18,8 @@ const Duration _progressEmitInterval = Duration(milliseconds: 150);
 const Duration _downloadStallTimeout = Duration(seconds: 60);
 
 extension _DownloadManagerTransferImpl on DownloadManager {
-  /// Active-slot ceiling: the server's advertised per-user limit, halved to at
-  /// most 2 when cooler downloads mode is on.
+  /// Active-slot ceiling: the server's advertised per-user limit, capped at
+  /// [coolerModeMaxConcurrentDownloads] when cooler downloads mode is on.
   int get _effectiveMaxConcurrentDownloads => _coolerDownloadsEnabled
       ? math.min(coolerModeMaxConcurrentDownloads, _maxConcurrentDownloads)
       : _maxConcurrentDownloads;
@@ -51,7 +51,6 @@ extension _DownloadManagerTransferImpl on DownloadManager {
     return null;
   }
 
-  /// Fill available download slots with pending tasks
   void _fillDownloadSlots() {
     if (!_canProcessDownloads()) {
       return;
@@ -86,14 +85,11 @@ extension _DownloadManagerTransferImpl on DownloadManager {
     _slotHolders.remove(taskId);
   }
 
-  /// Download a specific task
   Future<void> _downloadTask(DownloadTask task) async {
     final totalStopwatch = Stopwatch()..start();
     var backend = 'dart_dio';
     try {
-      // Note: task.status is already set to downloading by _fillDownloadSlots()
 
-      // Create cancel token for this download
       final cancelToken = CancelToken();
       _activeDownloads[task.id] = cancelToken;
 
@@ -106,7 +102,6 @@ extension _DownloadManagerTransferImpl on DownloadManager {
         fileExtension: task.downloadFileExtension,
       );
 
-      // Ensure the songs directory exists
       final songDir = File(filePath).parent;
       await songDir.create(recursive: true);
 
@@ -303,7 +298,6 @@ extension _DownloadManagerTransferImpl on DownloadManager {
         elapsed: totalStopwatch.elapsed,
       );
 
-      // Mark as completed with actual file size
       task.status = DownloadStatus.completed;
       task.progress = 1.0;
       task.bytesDownloaded = fileSize;
@@ -322,7 +316,6 @@ extension _DownloadManagerTransferImpl on DownloadManager {
       _activeDownloads.remove(task.id);
       _activeProgress.remove(task.id); // Cleanup progress tracking
 
-      // Release the slot and fill whatever that frees up
       _releaseSlot(task.id);
       await Future.delayed(_slotRefillRest);
       _fillDownloadSlots();
@@ -469,7 +462,6 @@ extension _DownloadManagerTransferImpl on DownloadManager {
     }
   }
 
-  /// Handle download error with retry logic
   Future<void> _handleDownloadError(DownloadTask task, dynamic error) async {
     print('Download error: ${task.id} - $error');
 
@@ -515,7 +507,6 @@ extension _DownloadManagerTransferImpl on DownloadManager {
       print(
           'Retrying download: ${task.title} (attempt ${task.retryCount}/${DownloadTask.maxRetries})');
 
-      // Wait before retry, then try to fill slots (retry goes back to pending queue)
       final delay = _calculateRetryDelay(error, task.retryCount);
       await Future.delayed(delay);
       _fillDownloadSlots();
@@ -525,7 +516,6 @@ extension _DownloadManagerTransferImpl on DownloadManager {
       _queue.updateTask(task);
       print('Download failed permanently: ${task.title}');
 
-      // Continue with next download
       await Future.delayed(const Duration(milliseconds: 50));
       _fillDownloadSlots();
     }

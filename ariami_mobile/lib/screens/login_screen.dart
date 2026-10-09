@@ -9,7 +9,6 @@ import '../utils/setup_error_messages.dart';
 import '../widgets/common/auth_card.dart';
 import '../widgets/common/setup_dark_theme.dart';
 
-/// Login screen for multi-user authentication
 class LoginScreen extends StatefulWidget {
   final ServerInfo serverInfo;
 
@@ -52,7 +51,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (!mounted) return;
 
-      // Navigate to main screen on success
       Navigator.pushNamedAndRemoveUntil(context, '/main', (route) => false);
     } on ApiException catch (e) {
       // The account is signed in elsewhere. Offer to take over rather than
@@ -70,7 +68,6 @@ class _LoginScreenState extends State<LoginScreen> {
       }
 
       setState(() {
-        // Show user-friendly error messages
         if (e.code == ApiErrorCodes.invalidCredentials) {
           _errorMessage = 'Invalid username or password';
         } else {
@@ -153,7 +150,6 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           const SizedBox(height: 24),
 
-                              // Title
                               Text(
                                 'Welcome Back',
                                 style: Theme.of(context)
@@ -168,7 +164,6 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                               const SizedBox(height: 8),
 
-                              // Server name
                               Text(
                                 'Signing in to ${widget.serverInfo.name}',
                                 style: Theme.of(context)
@@ -183,7 +178,6 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                               const SizedBox(height: 32),
 
-                              // Error message
                               if (_errorMessage != null)
                                 Container(
                                   width: double.infinity,
@@ -225,7 +219,6 @@ class _LoginScreenState extends State<LoginScreen> {
                                   ),
                                 ),
 
-                              // Username field
                               TextFormField(
                                 controller: _usernameController,
                                 style: const TextStyle(
@@ -250,7 +243,6 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                               const SizedBox(height: 16),
 
-                              // Password field
                               TextFormField(
                                 controller: _passwordController,
                                 style: const TextStyle(
@@ -288,7 +280,6 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                               const SizedBox(height: 32),
 
-                              // Login button
                               SizedBox(
                                 width: double.infinity,
                                 height: 56,
@@ -330,7 +321,6 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                               const SizedBox(height: 24),
 
-                              // Register link
                               if (widget.serverInfo.canRegister)
                                 Wrap(
                                   alignment: WrapAlignment.center,

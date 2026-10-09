@@ -169,7 +169,6 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
         '${retryNeeded ? ' (will retry after reconnect)' : ''}');
   }
 
-  /// Get file path for a downloaded song
   String _getSongFilePath(String songId, {String? fileExtension}) {
     var extension = fileExtension ?? 'mp3';
     if (fileExtension == null) {
@@ -498,7 +497,6 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
     return baseName;
   }
 
-  /// Format bytes to human readable format
   String _formatFileSize(int bytes) {
     if (bytes <= 0) return '0 B';
     const suffixes = ['B', 'KB', 'MB', 'GB'];
@@ -582,7 +580,6 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
     _queue.beginBatch();
     try {
       for (final task in tasksToRemove) {
-        // Cancel active downloads and remove from queue
         cancelDownload(task.id);
       }
     } finally {
@@ -970,7 +967,6 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
   Future<void> _clearAllDownloadsImpl() async {
     await _ensureInitialized();
 
-    // Cancel all active downloads
     for (final token in _activeDownloads.values) {
       token.cancel();
     }
@@ -980,7 +976,6 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
 
     final deletedFileCount = await _clearAllDownloadFilesFromDisk();
 
-    // Clear queue and database
     _queue.clear();
     await _database.clearAllDownloads();
     _persistedTaskSignatures.clear();
@@ -993,7 +988,6 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
   Future<void> _deleteAlbumDownloadsImpl(String? albumId) async {
     await _ensureInitialized();
 
-    // Find all tasks matching the albumId
     final tasksToDelete =
         _getScopedQueue().where((task) => task.albumId == albumId).toList();
     if (tasksToDelete.isEmpty) {
@@ -1001,7 +995,6 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
       return;
     }
 
-    // Cancel/delete each task
     _queue.beginBatch();
     try {
       for (final task in tasksToDelete) {

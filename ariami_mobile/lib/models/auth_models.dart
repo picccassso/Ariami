@@ -1,11 +1,5 @@
-/// Authentication models for multi-user support (mobile client)
 library;
 
-// ============================================================================
-// AUTHENTICATION REQUEST/RESPONSE MODELS
-// ============================================================================
-
-/// Request for user registration
 class RegisterRequest {
   final String username;
   final String password;
@@ -26,7 +20,6 @@ class RegisterRequest {
   }
 }
 
-/// Response for successful registration
 class RegisterResponse {
   final String userId;
   final String username;
@@ -47,7 +40,6 @@ class RegisterResponse {
   }
 }
 
-/// Request for user login
 class LoginRequest {
   final String username;
   final String password;
@@ -78,7 +70,6 @@ class LoginRequest {
   }
 }
 
-/// Response for successful login
 class LoginResponse {
   final String userId;
   final String username;
@@ -102,7 +93,6 @@ class LoginResponse {
   }
 }
 
-/// Response for logout
 class LogoutResponse {
   final bool success;
 
@@ -114,10 +104,6 @@ class LogoutResponse {
     );
   }
 }
-
-// ============================================================================
-// STREAM TICKET MODELS
-// ============================================================================
 
 /// Request for a stream ticket (short-lived token for audio streaming)
 class StreamTicketRequest {
@@ -137,7 +123,6 @@ class StreamTicketRequest {
   }
 }
 
-/// Response with stream ticket
 class StreamTicketResponse {
   final String streamToken;
   final String expiresAt;
@@ -154,10 +139,6 @@ class StreamTicketResponse {
     );
   }
 }
-
-// ============================================================================
-// DOWNLOAD TICKET MODELS
-// ============================================================================
 
 /// Request for a download ticket (long-lived token for offline downloads).
 class DownloadTicketRequest {
@@ -180,7 +161,6 @@ class DownloadTicketRequest {
   }
 }
 
-/// Response with download ticket.
 class DownloadTicketResponse {
   final String downloadToken;
   final String expiresAt;

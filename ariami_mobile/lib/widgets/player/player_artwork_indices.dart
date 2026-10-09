@@ -8,7 +8,6 @@ bool playerArtworkWrapEnabled({
   return repeatMode == RepeatMode.all && queueLength > 1;
 }
 
-/// Number of pages in the artwork [PageView].
 int playerArtworkPageCount({
   required bool wrapEnabled,
   required int queueLength,
@@ -19,7 +18,6 @@ int playerArtworkPageCount({
   return wrapEnabled ? queueLength + 2 : queueLength;
 }
 
-/// Maps a queue index to the corresponding carousel page index.
 int playerArtworkQueueIndexToPageIndex({
   required int queueIndex,
   required bool wrapEnabled,
@@ -32,7 +30,6 @@ int playerArtworkQueueIndexToPageIndex({
   return wrapEnabled ? clampedIndex + 1 : clampedIndex;
 }
 
-/// Maps a carousel page index to the corresponding queue index.
 int playerArtworkPageIndexToQueueIndex({
   required int pageIndex,
   required bool wrapEnabled,

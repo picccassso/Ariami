@@ -9,27 +9,19 @@ import '../../../widgets/common/swipe_to_queue.dart';
 import '../utils/playlist_helpers.dart';
 import 'album_art_with_badge.dart';
 
-/// Normal song list item with dismissible action to remove
 class SongListItem extends StatefulWidget {
-  /// The song to display
   final SongModel song;
 
-  /// Index in the list
   final int index;
 
-  /// Whether the song is available for playback
   final bool isAvailable;
 
-  /// Whether the song is downloaded
   final bool isDownloaded;
 
-  /// Connection service for artwork
   final ConnectionService connectionService;
 
-  /// Callback when song is tapped
   final VoidCallback? onTap;
 
-  /// Callback when song is dismissed/removed
   final VoidCallback? onRemove;
 
   /// Album metadata for per-track download

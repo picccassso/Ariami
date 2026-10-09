@@ -41,13 +41,8 @@ import 'connection/endpoint_switch_handler.dart';
 /// All public methods and getters maintain 100% backward compatibility
 /// with the original monolithic implementation.
 class ConnectionService {
-  // Singleton pattern
   static final ConnectionService _instance = ConnectionService._internal();
   factory ConnectionService() => _instance;
-
-  // ============================================================================
-  // MODULES
-  // ============================================================================
 
   late final ConnectionStateManager _stateManager;
   late final AuthManager _authManager;
@@ -72,15 +67,9 @@ class ConnectionService {
   Timer? _serverInfoRefreshTimer;
   bool _isRefreshingServerInfo = false;
 
-  // ============================================================================
-  // CONSTRUCTOR
-  // ============================================================================
-
   ConnectionService._internal() {
-    // Initialize persistence first (needed by other modules)
     _persistenceManager = ConnectionPersistenceManager();
 
-    // Initialize state managers
     _stateManager = ConnectionStateManager();
     _authManager = AuthManager(
       persistence: _persistenceManager,
@@ -88,7 +77,6 @@ class ConnectionService {
     _serverInfoManager = ServerInfoManager();
     _deviceInfoManager = DeviceInfoManager();
 
-    // Initialize lifecycle manager
     _lifecycleManager = ConnectionLifecycleManager(
       stateManager: _stateManager,
       serverInfoManager: _serverInfoManager,
@@ -98,7 +86,6 @@ class ConnectionService {
       onDownloadLimitsChanged: _applyDownloadLimits,
     );
 
-    // Initialize heartbeat manager
     _heartbeatManager = HeartbeatManager(
       stateManager: _stateManager,
       apiClientProvider: () async => _lifecycleManager.apiClient,
@@ -109,7 +96,6 @@ class ConnectionService {
       onConnectionLoss: _handleConnectionLoss,
     );
 
-    // Initialize WebSocket handler
     _webSocketHandler = WebSocketHandler(
       webSocketService: _webSocketService,
       onReconnect: _handleWebSocketReconnect,
@@ -123,7 +109,6 @@ class ConnectionService {
     );
     _webSocketHandler.messages.listen(forwardWebSocketMessage);
 
-    // Initialize endpoint switch handler
     _endpointSwitchHandler = EndpointSwitchHandler(
       endpointResolver: _serverInfoManager.endpointResolver,
       isServerReachable: (serverInfo) async {
@@ -137,7 +122,6 @@ class ConnectionService {
       onRestoreAfterFailedSwitch: _restoreAfterFailedEndpointSwitch,
     );
 
-    // Initialize library services
     _librarySyncEngine = LibrarySyncEngine(
       apiClientProvider: _requireApiClient,
       libraryRepository: _libraryRepository,
@@ -150,41 +134,27 @@ class ConnectionService {
     );
   }
 
-  // ============================================================================
-  // PUBLIC GETTERS - Connection State
-  // ============================================================================
-
-  /// Check if connected to server
   bool get isConnected => _stateManager.isConnected;
 
-  /// Get current API client
   ApiClient? get apiClient => _lifecycleManager.apiClient;
 
-  /// Get current server info
   ServerInfo? get serverInfo => _stateManager.serverInfo;
 
-  /// Get current session ID
   String? get sessionId => _lifecycleManager.sessionId;
 
-  /// Get current session token (for authenticated requests)
   String? get sessionToken => _authManager.sessionToken;
 
-  /// Get Authorization header map for authenticated requests
   Map<String, String>? get authHeaders => _authManager.authHeaders;
 
-  /// Get current user ID
   String? get userId => _authManager.userId;
 
-  /// Get current username
   String? get username => _authManager.username;
 
-  /// Check if user is authenticated
   bool get isAuthenticated => _authManager.isAuthenticated;
 
-  /// Get WebSocket and local sync message stream.
   Stream<WsMessage> get webSocketMessages => _messageController.stream;
 
-  /// Unified library read facade for deterministic v1/v2 source selection
+  /// Read facade over the locally synced (v2) library store.
   LibraryReadFacade get libraryReadFacade => _libraryReadFacade;
 
   /// V2 library sync engine for explicit refresh and health queries.
@@ -199,14 +169,11 @@ class ConnectionService {
   /// Stream that emits when session expires (401 from server)
   Stream<void> get sessionExpiredStream => _authManager.sessionExpiredStream;
 
-  /// Most recent reconnect failure code from [tryRestoreConnection], if any
   String? get lastRestoreFailureCode => _stateManager.lastRestoreFailureCode;
 
-  /// Most recent reconnect failure message from [tryRestoreConnection], if any
   String? get lastRestoreFailureMessage =>
       _stateManager.lastRestoreFailureMessage;
 
-  /// Most recent reconnect failure details from [tryRestoreConnection], if any
   Map<String, dynamic>? get lastRestoreFailureDetails =>
       _stateManager.lastRestoreFailureDetails;
 
@@ -216,7 +183,6 @@ class ConnectionService {
   /// Check if we have saved server info (even if not currently connected)
   bool get hasServerInfo => _stateManager.hasServerInfo;
 
-  /// Resolve the current device display name used for server connections
   Future<String> getCurrentDeviceName() => _deviceInfoManager.getDeviceName();
 
   /// Stable identity used by the dedicated Ariami Connect socket.
@@ -242,11 +208,6 @@ class ConnectionService {
     return baseUri.resolve(url).toString();
   }
 
-  // ============================================================================
-  // AUTHENTICATION
-  // ============================================================================
-
-  /// Register a new user account and connect to server
   Future<void> register({
     required String username,
     required String password,
@@ -255,11 +216,9 @@ class ConnectionService {
     final deviceId = await _deviceInfoManager.getDeviceId();
     final deviceName = await _deviceInfoManager.getDeviceName();
 
-    // Resolve preferred server endpoint
     final resolvedServerInfo =
         await _serverInfoManager.resolvePreferredServerInfo(serverInfo);
 
-    // Create API client
     final apiClient = ApiClient(
       serverInfo: resolvedServerInfo,
       deviceId: deviceId,
@@ -267,11 +226,9 @@ class ConnectionService {
       onSessionExpired: handleSessionExpired,
     );
 
-    // Update state
     _stateManager.setServerInfo(resolvedServerInfo);
     _applyDownloadLimits(resolvedServerInfo);
 
-    // Test connection
     try {
       await apiClient.ping();
     } catch (e) {
@@ -279,7 +236,6 @@ class ConnectionService {
       throw Exception('Cannot reach server: $e');
     }
 
-    // Register user
     try {
       await apiClient.register(RegisterRequest(
         username: username,
@@ -287,7 +243,6 @@ class ConnectionService {
         registrationToken: resolvedServerInfo.registrationToken,
       ));
 
-      // Login immediately
       final loginResponse = await apiClient.login(LoginRequest(
         username: username,
         password: password,
@@ -295,17 +250,14 @@ class ConnectionService {
         deviceName: deviceName,
       ));
 
-      // Store auth info
       await _authManager.setAuthInfo(
         sessionToken: loginResponse.sessionToken,
         userId: loginResponse.userId,
         username: loginResponse.username,
       );
 
-      // Set token on API client
       apiClient.sessionToken = loginResponse.sessionToken;
 
-      // Complete connection
       await _completeAuthConnection(apiClient, resolvedServerInfo);
     } catch (e) {
       apiClient.close();
@@ -314,7 +266,6 @@ class ConnectionService {
     }
   }
 
-  /// Login with username and password
   Future<void> login({
     required String username,
     required String password,
@@ -324,11 +275,9 @@ class ConnectionService {
     final deviceId = await _deviceInfoManager.getDeviceId();
     final deviceName = await _deviceInfoManager.getDeviceName();
 
-    // Resolve preferred server endpoint
     final resolvedServerInfo =
         await _serverInfoManager.resolvePreferredServerInfo(serverInfo);
 
-    // Create API client
     final apiClient = ApiClient(
       serverInfo: resolvedServerInfo,
       deviceId: deviceId,
@@ -336,11 +285,9 @@ class ConnectionService {
       onSessionExpired: handleSessionExpired,
     );
 
-    // Update state
     _stateManager.setServerInfo(resolvedServerInfo);
     _applyDownloadLimits(resolvedServerInfo);
 
-    // Test connection
     try {
       await apiClient.ping();
     } catch (e) {
@@ -348,7 +295,6 @@ class ConnectionService {
       throw Exception('Cannot reach server: $e');
     }
 
-    // Login
     try {
       final response = await apiClient.login(LoginRequest(
         username: username,
@@ -358,17 +304,14 @@ class ConnectionService {
         allowOtherDeviceTakeover: allowOtherDeviceTakeover,
       ));
 
-      // Store auth info
       await _authManager.setAuthInfo(
         sessionToken: response.sessionToken,
         userId: response.userId,
         username: response.username,
       );
 
-      // Set token on API client
       apiClient.sessionToken = response.sessionToken;
 
-      // Complete connection
       await _completeAuthConnection(apiClient, resolvedServerInfo);
     } catch (e) {
       apiClient.close();
@@ -377,7 +320,6 @@ class ConnectionService {
     }
   }
 
-  /// Logout and clear auth state
   Future<void> logout() async {
     final apiClient = _lifecycleManager.apiClient;
     final sessionToken = _authManager.sessionToken;
@@ -401,32 +343,23 @@ class ConnectionService {
     await disconnect(isManual: true);
   }
 
-  /// Handle session expiry (called when server returns 401)
   Future<void> handleSessionExpired() async {
     await _authManager.handleSessionExpired();
 
-    // Stop all services
     _endpointSwitchHandler.stopMonitoring();
     _librarySyncEngine.stop();
     _heartbeatManager.stop();
     _webSocketService.disconnect();
     _lifecycleManager.clearActiveConnection();
 
-    // Update state
     _stateManager.resetConnectionState();
     _stateManager.setConnected(false);
   }
 
-  /// Load stored auth info on app start
   Future<void> loadAuthInfo() async {
     await _authManager.loadAuthInfo();
   }
 
-  // ============================================================================
-  // CONNECTION MANAGEMENT
-  // ============================================================================
-
-  /// Connect to server using QR code data
   Future<void> connectFromQr(String qrData) async {
     await _lifecycleManager.connectFromQr(
       qrData,
@@ -436,7 +369,6 @@ class ConnectionService {
     await _onConnected();
   }
 
-  /// Connect to server with ServerInfo
   Future<void> connectToServer(ServerInfo serverInfo) async {
     await _lifecycleManager.connectToServer(
       serverInfo,
@@ -446,7 +378,6 @@ class ConnectionService {
     await _onConnected();
   }
 
-  /// Disconnect from server
   Future<void> disconnect({bool isManual = false}) async {
     await _lifecycleManager.disconnect(isManual: isManual);
     await _onDisconnected();
@@ -482,7 +413,6 @@ class ConnectionService {
     _stateManager.clearRestoreFailure();
   }
 
-  /// Try to restore previous connection
   Future<bool> tryRestoreConnection() async {
     final inFlight = _restoreConnectionInFlight;
     if (inFlight != null) {
@@ -521,7 +451,6 @@ class ConnectionService {
     return restored;
   }
 
-  /// Load server info from storage without attempting connection
   Future<void> loadServerInfoFromStorage() async {
     await _lifecycleManager.loadServerInfoFromStorage();
   }
@@ -586,10 +515,6 @@ class ConnectionService {
     }
   }
 
-  // ============================================================================
-  // PRIVATE METHODS - Connection Lifecycle
-  // ============================================================================
-
   Future<void> _completeAuthConnection(
     ApiClient apiClient,
     ServerInfo serverInfo,
@@ -597,7 +522,6 @@ class ConnectionService {
     final deviceId = await _deviceInfoManager.getDeviceId();
     final deviceName = await _deviceInfoManager.getDeviceName();
 
-    // Send connect request
     final response = await apiClient.connect(ConnectRequest(
       deviceId: deviceId,
       deviceName: deviceName,
@@ -605,12 +529,10 @@ class ConnectionService {
       platform: Platform.isAndroid ? 'android' : 'ios',
     ));
 
-    // Apply device ID from server
     if (response.deviceId != null && response.deviceId != deviceId) {
       await _deviceInfoManager.saveDeviceId(response.deviceId!);
     }
 
-    // Hydrate server metadata
     final hydratedServerInfo =
         await _serverInfoManager.hydrateServerInfoMetadata(
       apiClient,
@@ -629,13 +551,11 @@ class ConnectionService {
       response.sessionId,
     );
 
-    // Update state
     _stateManager.setServerInfo(hydratedServerInfo);
     _stateManager.setConnected(true);
     _stateManager.setManuallyDisconnected(false);
     _stateManager.clearRestoreFailure();
 
-    // Start services
     await _onConnected();
   }
 
@@ -643,23 +563,18 @@ class ConnectionService {
     final serverInfo = _stateManager.serverInfo;
     if (serverInfo == null) return;
 
-    // Notify offline service
     await OfflinePlaybackService().notifyConnectionRestored();
 
     // The download scope (server + user) just became fully resolved. Re-broadcast
     // the scoped queue so offline-availability views reflect the settled scope.
     DownloadManager().refreshScopedQueueBroadcast();
 
-    // Start heartbeat
     _heartbeatManager.start();
 
-    // Connect WebSocket
     await _webSocketHandler.connect(serverInfo);
 
-    // Start library sync
     _librarySyncEngine.start();
 
-    // Start endpoint monitoring
     _endpointSwitchHandler.configureMonitoring(serverInfo);
     _startServerInfoRefreshTimer();
   }
@@ -727,7 +642,6 @@ class ConnectionService {
     _heartbeatManager.stop();
     _webSocketService.disconnect();
 
-    // Notify offline service
     await OfflinePlaybackService().notifyConnectionLost();
 
     // A reconnect attempt can transiently set the API client (and therefore the
@@ -736,10 +650,6 @@ class ConnectionService {
     // computed mid-attempt doesn't leave downloads stuck looking unavailable.
     DownloadManager().refreshScopedQueueBroadcast();
   }
-
-  // ============================================================================
-  // PRIVATE METHODS - Event Handlers
-  // ============================================================================
 
   void _onApiClientCreated(ApiClient apiClient) {
     musicAvailability.value = apiClient.musicAvailability;
@@ -754,16 +664,13 @@ class ConnectionService {
   }
 
   Future<void> _handleWebSocketReconnect() async {
-    // Ensure identified
     await _webSocketHandler.sendIdentify();
 
-    // If already connected, just sync
     if (_stateManager.isConnected) {
       unawaited(_librarySyncEngine.syncNow());
       return;
     }
 
-    // Try to restore full connection
     await tryRestoreConnection();
   }
 
@@ -821,12 +728,10 @@ class ConnectionService {
   }
 
   Future<void> _performEndpointSwitch(ServerInfo newServerInfo) async {
-    // Stop current services
     _librarySyncEngine.stop();
     _webSocketService.disconnect();
     _heartbeatManager.stop();
 
-    // Create new API client with new endpoint
     final deviceId = await _deviceInfoManager.getDeviceId();
     final deviceName = await _deviceInfoManager.getDeviceName();
 
@@ -874,7 +779,6 @@ class ConnectionService {
         response.sessionId,
       );
 
-      // Restart services
       _heartbeatManager.start();
       await _webSocketHandler.connect(hydratedServerInfo);
       _librarySyncEngine.start();
@@ -901,7 +805,6 @@ class ConnectionService {
     return client;
   }
 
-  /// Update display aliases for LAN and Tailscale endpoints on the server.
   Future<Map<String, dynamic>> updateEndpointAliases({
     String? lanAlias,
     String? tailscaleAlias,

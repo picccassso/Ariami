@@ -30,18 +30,15 @@ void main() {
     expect(find.text('Search Mode'), findsOneWidget);
     expect(find.text('Spotify Mode'), findsOneWidget);
 
-    // Tap Search Mode tile to open bottom sheet
     await tester.tap(find.text('Search Mode'));
     await tester.pumpAndSettle();
 
     expect(find.text('Standard'), findsOneWidget);
     expect(find.text('Spotify Mode'), findsWidgets);
 
-    // Select Standard mode
     await tester.tap(find.text('Standard'));
     await tester.pumpAndSettle();
 
-    // Sheet should be dismissed and subtitle updated to Standard
     expect(find.text('Standard'), findsOneWidget);
     expect(searchSettings.mode, SearchMode.standard);
   });
@@ -64,7 +61,6 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // Tap Recent Searches Limit tile to open bottom sheet
     await tester.tap(find.text('Recent Searches Limit'));
     await tester.pumpAndSettle();
 
@@ -72,11 +68,9 @@ void main() {
     expect(find.text('Standard (30)'), findsWidgets);
     expect(find.text('Custom'), findsOneWidget);
 
-    // Tap Custom option
     await tester.tap(find.text('Custom'));
     await tester.pumpAndSettle();
 
-    // Custom limit text field is displayed
     final textField = find.byType(TextField);
     expect(textField, findsOneWidget);
 
@@ -90,21 +84,17 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Enter a number between 5 and 500'), findsOneWidget);
 
-    // Enter valid value in range (e.g. 50)
     await tester.enterText(textField, '50');
     await tester.pumpAndSettle();
     expect(find.text('Enter a number between 5 and 500'), findsNothing);
 
-    // Tap Save
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
 
-    // Dialog is dismissed and tile subtitle updated to Custom (50)
     expect(find.text('Custom (50)'), findsOneWidget);
     expect(searchSettings.isCustomRecentLimit, isTrue);
     expect(searchSettings.recentSearchesLimit, 50);
 
-    // Reopen sheet and switch back to Standard (30)
     await tester.tap(find.text('Recent Searches Limit'));
     await tester.pumpAndSettle();
 
@@ -135,11 +125,9 @@ void main() {
     await tester.enterText(find.byType(TextField), '75');
     await tester.pumpAndSettle();
 
-    // Tap Cancel
     await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
 
-    // Still Standard (30)
     expect(find.text('Standard (30)'), findsOneWidget);
     expect(searchSettings.isCustomRecentLimit, isFalse);
     expect(searchSettings.recentSearchesLimit, 30);
@@ -177,11 +165,9 @@ void main() {
     await tester.enterText(find.byType(TextField), '25');
     await tester.pumpAndSettle();
 
-    // Toggle back to Standard
     await tester.tap(standardOption);
     await tester.pumpAndSettle();
 
-    // Save while Standard is selected
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
 

@@ -2,7 +2,6 @@ part of '../playlist_detail_screen.dart';
 
 /// Resolves playlist ids into display/playback metadata without owning UI.
 abstract class _PlaylistSongResolutionState extends _PlaylistDetailState {
-  /// Resolve song IDs to SongModel objects
   @override
   Future<List<SongModel>> _resolveSongs(List<String> songIds) async {
     if (songIds.isEmpty) {
@@ -19,7 +18,6 @@ abstract class _PlaylistSongResolutionState extends _PlaylistDetailState {
     return songs;
   }
 
-  /// Fetch album info from server in background
   void _fetchAlbumInfoInBackground() {
     unawaited(() async {
       try {
@@ -239,7 +237,6 @@ abstract class _PlaylistSongResolutionState extends _PlaylistDetailState {
             : 'Missing from library';
         final artist = _playlist?.songArtists[id] ?? 'Unknown Artist';
         var duration = _playlist?.songDurations[id] ?? 0;
-        // Fallback to library duration if playlist duration is 0 or missing
         if (duration == 0 && libraryDurations.containsKey(id)) {
           duration = libraryDurations[id]!;
         }

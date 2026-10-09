@@ -29,34 +29,24 @@ enum ArtworkSizeHint {
 /// 3. If not cached, loads from network and caches for future use
 /// 4. Shows fallback when offline and not cached
 class CachedArtwork extends StatefulWidget {
-  /// The album ID used for caching
   final String albumId;
 
-  /// The network URL to fetch artwork from
   final String? artworkUrl;
 
-  /// Width of the image
   final double? width;
 
-  /// Height of the image
   final double? height;
 
-  /// How to fit the image within its bounds
   final BoxFit fit;
 
-  /// Border radius for the image
   final BorderRadius? borderRadius;
 
-  /// Custom fallback widget when image is unavailable
   final Widget? fallback;
 
-  /// Fallback color when no image available
   final Color? fallbackColor;
 
-  /// Fallback icon when no image available
   final IconData fallbackIcon;
 
-  /// Fallback icon size
   final double fallbackIconSize;
 
   /// Size hint for loading optimization.
@@ -161,7 +151,6 @@ class _CachedArtworkState extends State<CachedArtwork> {
     return null;
   }
 
-  /// Get the effective URL with size parameter appended
   String? get _effectiveUrl {
     if (widget.artworkUrl == null || widget.artworkUrl!.isEmpty) {
       return null;
@@ -199,7 +188,6 @@ class _CachedArtworkState extends State<CachedArtwork> {
       return;
     }
 
-    // Not in memory, need async lookup - show loading state
     setState(() {
       _isLoading = true;
       _localPath = null;
@@ -215,7 +203,6 @@ class _CachedArtworkState extends State<CachedArtwork> {
       );
 
       if (cachedPath != null && await File(cachedPath).exists()) {
-        // Use cached version (either primary or fallback)
         if (mounted &&
             _requestCancellationToken == requestToken &&
             !requestToken.isCancelled) {
@@ -245,9 +232,7 @@ class _CachedArtworkState extends State<CachedArtwork> {
         return;
       }
 
-      // Check if offline - don't fetch from network in offline mode.
       if (_offlineService.isOffline) {
-        // Offline, not cached, and no extractable local artwork - show fallback
         if (mounted &&
             _requestCancellationToken == requestToken &&
             !requestToken.isCancelled) {
@@ -259,9 +244,7 @@ class _CachedArtworkState extends State<CachedArtwork> {
         return;
       }
 
-      // No cached version (neither primary nor fallback) - check if we have a URL to fetch from
       if (effectiveUrl == null) {
-        // No URL and no cache - show fallback
         if (mounted &&
             _requestCancellationToken == requestToken &&
             !requestToken.isCancelled) {
@@ -464,18 +447,15 @@ class _CachedArtworkState extends State<CachedArtwork> {
     Widget imageWidget;
 
     if (_isLoading) {
-      // Show loading placeholder
       imageWidget = _buildPlaceholder(showLoading: true);
     } else if (_localPath != null) {
       imageWidget = _buildDiskImage();
     } else if (_networkFallbackUrl != null && !_offlineService.isOffline) {
       imageWidget = _buildNetworkImageWidget();
     } else {
-      // Show fallback
       imageWidget = _buildFallback();
     }
 
-    // Apply border radius if specified
     if (widget.borderRadius != null) {
       return ClipRRect(
         borderRadius: widget.borderRadius!,
@@ -660,7 +640,6 @@ class _CachedArtworkState extends State<CachedArtwork> {
       return widget.fallbackColor!;
     }
 
-    // Generate a color based on album ID for variety
     final colorIndex = widget.albumId.hashCode % 5;
     final colors = [
       Colors.blue[300]!,

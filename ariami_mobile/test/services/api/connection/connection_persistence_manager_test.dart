@@ -9,7 +9,6 @@ void main() {
     late SharedPreferences prefs;
 
     setUp(() async {
-      // Set up SharedPreferences mock
       SharedPreferences.setMockInitialValues({});
       prefs = await SharedPreferences.getInstance();
 
@@ -166,10 +165,8 @@ void main() {
         await manager.saveConnectionInfo(
             _createTestServerInfo(), 'session-456');
 
-        // Clear device ID
         await manager.clearDeviceId();
 
-        // Connection info should still exist
         expect(await manager.loadServerInfo(), isNotNull);
         expect(await manager.loadSessionId(), equals('session-456'));
       });
@@ -177,14 +174,12 @@ void main() {
 
     group('End-to-End Scenarios', () {
       test('full connection save and load cycle', () async {
-        // Save connection
         final serverInfo = _createTestServerInfo();
         const sessionId = 'session-abc';
 
         await manager.saveConnectionInfo(serverInfo, sessionId);
         await manager.saveDeviceId('device-xyz');
 
-        // Verify all data can be loaded
         final loadedServer = await manager.loadServerInfo();
         final loadedSessionId = await manager.loadSessionId();
         final loadedDeviceId = await manager.loadDeviceId();
@@ -207,14 +202,11 @@ void main() {
       });
 
       test('clear operations should be independent', () async {
-        // Save all data
         await manager.saveConnectionInfo(_createTestServerInfo(), 'session');
         await manager.saveDeviceId('device');
 
-        // Clear only connection info
         await manager.clearConnectionInfo();
 
-        // Device should still exist
         expect(await manager.loadDeviceId(), equals('device'));
       });
     });

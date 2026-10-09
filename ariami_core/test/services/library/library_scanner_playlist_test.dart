@@ -374,7 +374,6 @@ $one
       expect(playlistBefore.songIds,
           [defaultGenerateSongId(two), defaultGenerateSongId(one)]);
 
-      // Watcher removes one.mp3.
       final update = LibraryUpdate(
         addedSongIds: {},
         removedSongIds: {defaultGenerateSongId(one)},

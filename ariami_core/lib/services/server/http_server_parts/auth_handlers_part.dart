@@ -17,7 +17,6 @@ class _AvatarRecord {
 }
 
 extension AriamiHttpServerAuthHandlersMethods on AriamiHttpServer {
-  /// Handle user registration
   Future<Response> _handleAuthRegister(Request request) async {
     try {
       final body = await request.readAsString();
@@ -163,7 +162,6 @@ extension AriamiHttpServerAuthHandlersMethods on AriamiHttpServer {
     return _avatarImageResponseForUser(user.userId) ?? Response.notFound('');
   }
 
-  /// Handle user login
   Future<Response> _handleAuthLogin(Request request) async {
     try {
       final body = await request.readAsString();
@@ -206,7 +204,6 @@ extension AriamiHttpServerAuthHandlersMethods on AriamiHttpServer {
         allowOtherDeviceTakeover: allowOtherDeviceTakeover,
       );
 
-      // Register client connection
       final presenceClientType = AuthService.isDashboardControlDevice(
               deviceId: deviceId, deviceName: deviceName)
           ? 'dashboard'
@@ -218,7 +215,6 @@ extension AriamiHttpServerAuthHandlersMethods on AriamiHttpServer {
         clientType: presenceClientType,
       );
 
-      // Broadcast client connection
       broadcastWebSocketMessage(ClientConnectedMessage(
         clientCount: _connectionManager.clientCount,
         deviceName: effectiveDeviceName,
@@ -242,7 +238,6 @@ extension AriamiHttpServerAuthHandlersMethods on AriamiHttpServer {
     }
   }
 
-  /// Map a login [AuthException] code to its HTTP status.
   int _statusForAuthException(String code) {
     switch (code) {
       case AuthErrorCodes.rateLimited:
@@ -257,9 +252,7 @@ extension AriamiHttpServerAuthHandlersMethods on AriamiHttpServer {
     }
   }
 
-  /// Handle user logout
   Future<Response> _handleAuthLogout(Request request) async {
-    // Session is attached by auth middleware
     final session = request.context['session'] as Session?;
     if (session == null) {
       return Response.unauthorized(
@@ -273,17 +266,13 @@ extension AriamiHttpServerAuthHandlersMethods on AriamiHttpServer {
       );
     }
 
-    // Revoke session
     final response = await _authService.logout(session.sessionToken);
 
-    // Revoke any stream tickets for this session
     _streamTracker.revokeSessionTickets(session.sessionToken);
 
-    // Unregister client connection
     final client = _connectionManager.getClient(session.deviceId);
     _connectionManager.unregisterClient(session.deviceId);
 
-    // Broadcast client disconnection
     broadcastWebSocketMessage(ClientDisconnectedMessage(
       clientCount: _connectionManager.clientCount,
       deviceName: client?.deviceName,
@@ -295,7 +284,6 @@ extension AriamiHttpServerAuthHandlersMethods on AriamiHttpServer {
     );
   }
 
-  /// Handle get current user info
   Response _handleGetMe(Request request) {
     final session = request.context['session'] as Session?;
     if (session == null) {

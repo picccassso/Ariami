@@ -1,10 +1,6 @@
 /// WebSocket message models for real-time communication
 library;
 
-// ============================================================================
-// MESSAGE TYPES
-// ============================================================================
-
 class WsMessageType {
   static const String identify = 'identify';
   static const String libraryUpdated = 'library_updated';
@@ -24,11 +20,6 @@ class WsMessageType {
   static const String endpointAliasesChanged = 'endpoint_aliases_changed';
 }
 
-// ============================================================================
-// BASE MESSAGE
-// ============================================================================
-
-/// Base WebSocket message
 class WsMessage {
   final String type;
   final Map<String, dynamic>? data;
@@ -57,11 +48,6 @@ class WsMessage {
   }
 }
 
-// ============================================================================
-// SPECIFIC MESSAGE TYPES
-// ============================================================================
-
-/// Library updated notification
 class LibraryUpdatedMessage extends WsMessage {
   LibraryUpdatedMessage({
     super.data,
@@ -77,7 +63,6 @@ class LibraryUpdatedMessage extends WsMessage {
   int? get songCount => data?['songCount'] as int?;
 }
 
-/// Sync token advanced notification
 class SyncTokenAdvancedMessage extends WsMessage {
   SyncTokenAdvancedMessage({
     required int latestToken,
@@ -133,17 +118,14 @@ class IdentifyMessage extends WsMessage {
   String? get clientType => data?['clientType'] as String?;
 }
 
-/// Ping message
 class PingMessage extends WsMessage {
   PingMessage() : super(type: WsMessageType.ping);
 }
 
-/// Pong message
 class PongMessage extends WsMessage {
   PongMessage() : super(type: WsMessageType.pong);
 }
 
-/// Client connected notification
 class ClientConnectedMessage extends WsMessage {
   ClientConnectedMessage({
     required int clientCount,
@@ -166,7 +148,6 @@ class ClientConnectedMessage extends WsMessage {
   String? get deviceName => data?['deviceName'] as String?;
 }
 
-/// Client disconnected notification
 class ClientDisconnectedMessage extends WsMessage {
   ClientDisconnectedMessage({
     required int clientCount,

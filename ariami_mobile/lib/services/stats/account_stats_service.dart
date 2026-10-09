@@ -110,7 +110,6 @@ class AccountStatsService extends ChangeNotifier {
       onSynced: () => unawaited(refreshSummary()),
     );
 
-    // Every credited play / segment flows into the outbox.
     _stats.onListeningEvent = _onLocalEvent;
 
     // Sync opportunities: reconnects and stats pushes from other devices.
@@ -160,10 +159,6 @@ class AccountStatsService extends ChangeNotifier {
     await _syncer?.syncNow();
   }
 
-  // ---------------------------------------------------------------------------
-  // Event flow
-  // ---------------------------------------------------------------------------
-
   void _onLocalEvent(ListeningEvent event) {
     final outbox = _outbox;
     if (outbox == null) return;
@@ -172,10 +167,8 @@ class AccountStatsService extends ChangeNotifier {
     // Notify + overlay recompute come solely from [_onOutboxChanged].
   }
 
-  /// Outbox membership changed (local add, successful upload drain, clear).
   void _onOutboxChanged() {
     _pruneAckedInFlight();
-    // Period views recompute their overlay immediately from pending events.
     notifyListeners();
     // All-time overlay: debounce local churn; also recompute eventually when
     // events drain so the account view doesn't stay inflated after upload.
@@ -234,11 +227,6 @@ class AccountStatsService extends ChangeNotifier {
     await refreshSummary();
   }
 
-  // ---------------------------------------------------------------------------
-  // Summary / overlay
-  // ---------------------------------------------------------------------------
-
-  /// Fetches the merged account summary and refreshes the overlay.
   Future<void> refreshSummary() async {
     if (!_canSync || _fetchingSummary) return;
     final client = _connection.apiClient;
@@ -355,10 +343,6 @@ class AccountStatsService extends ChangeNotifier {
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // Baseline import
-  // ---------------------------------------------------------------------------
-
   /// One-time import of this device's pre-sync local history into the
   /// account. Deterministic eventIds (`baseline:<deviceId>:<songId>`) make it
   /// idempotent even if the "done" flag is lost.
@@ -463,10 +447,6 @@ class AccountStatsService extends ChangeNotifier {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // Reset / account changes
-  // ---------------------------------------------------------------------------
-
   /// Runs a remembered account reset. Returns true when there is nothing
   /// (left) to do, false when the reset is still pending.
   Future<bool> _completePendingResetIfAny() async {
@@ -529,7 +509,6 @@ class AccountStatsService extends ChangeNotifier {
     await _prefs?.setString(_lastUserKey, userId);
   }
 
-  /// Flushes pending state, e.g. when the app is backgrounded.
   Future<void> flush() async {
     await _outbox?.persistNow();
   }

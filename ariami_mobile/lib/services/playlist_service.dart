@@ -65,7 +65,6 @@ class PlaylistService extends ChangeNotifier {
   List<PlaylistModel> _playlists = [];
   bool _isLoaded = false;
 
-  // Server playlists (from API)
   List<ServerPlaylist> _serverPlaylists = [];
   Map<String, ServerPlaylistEdit> _serverPlaylistEdits = {};
   Future<void>? _serverPlaylistEditsLoad;
@@ -85,17 +84,13 @@ class PlaylistService extends ChangeNotifier {
   Map<String, int> _syncedPlaylistImageVersions = {};
   Map<String, String> _pendingPlaylistImagePushes = {};
   bool _isReplayingPendingImagePushes = false;
-  // Track recently imported playlists for temporary UI indicator.
   final Set<String> _recentlyImportedIds = {};
 
-  /// Get all local playlists.
   List<PlaylistModel> get playlists => List.unmodifiable(_playlists);
 
-  /// Get all server playlists.
   List<ServerPlaylist> get serverPlaylists =>
       List.unmodifiable(_serverPlaylists);
 
-  /// Current edit overlays for server playlists.
   Map<String, ServerPlaylistEdit> get serverPlaylistEdits =>
       Map.unmodifiable(_serverPlaylistEdits);
 
@@ -110,26 +105,20 @@ class PlaylistService extends ChangeNotifier {
             _effectiveServerPlaylist(playlist),
       ];
 
-  /// Get hidden server playlists (for recovery).
   List<ServerPlaylist> get hiddenServerPlaylists => _serverPlaylists
       .where((playlist) => _hiddenServerPlaylistIds.contains(playlist.id))
       .toList();
 
-  /// Check if there are any visible server playlists.
   bool get hasVisibleServerPlaylists => visibleServerPlaylists.isNotEmpty;
 
-  /// Check if there are any server playlists at all.
   bool get hasServerPlaylists => _serverPlaylists.isNotEmpty;
 
-  /// Check if a local playlist was imported from server.
   bool isImportedFromServer(String localPlaylistId) =>
       _importedFromServer.containsKey(localPlaylistId);
 
-  /// Check if a playlist was recently imported (for temporary UI indicator).
   bool isRecentlyImported(String localPlaylistId) =>
       _recentlyImportedIds.contains(localPlaylistId);
 
-  /// Get the server playlist ID that a local playlist was imported from.
   String? getServerPlaylistId(String localPlaylistId) =>
       _importedFromServer[localPlaylistId];
 
@@ -152,15 +141,12 @@ class PlaylistService extends ChangeNotifier {
   Set<String> get pendingImportedEditPushIds =>
       Set.unmodifiable(_pendingImportedEditPushes);
 
-  /// Check if service has loaded data.
   bool get isLoaded => _isLoaded;
 
   void _notifyListeners() => notifyListeners();
 
-  /// Load playlists from SharedPreferences.
   Future<void> loadPlaylists() => _loadPlaylistsImpl();
 
-  /// Restore server-import tracking from a backup file.
   Future<void> applyServerImportState({
     required Set<String> hiddenServerPlaylistIds,
     required Map<String, String> importedFromServer,
@@ -172,9 +158,6 @@ class PlaylistService extends ChangeNotifier {
         replace: replace,
       );
 
-  /// Update server playlists from API response.
-  ///
-  /// Called when library is fetched from server.
   void updateServerPlaylists(List<ServerPlaylist> playlists) =>
       _updateServerPlaylistsImpl(playlists);
 
@@ -187,19 +170,14 @@ class PlaylistService extends ChangeNotifier {
   }) =>
       _importServerPlaylistImpl(serverPlaylist, allSongs: allSongs);
 
-  /// Import all server playlists as local playlists.
-  ///
-  /// Returns the number of playlists imported.
   Future<int> importAllServerPlaylists(
     List<ServerPlaylist> serverPlaylists, {
     required List<SongModel> allSongs,
   }) =>
       _importAllServerPlaylistsImpl(serverPlaylists, allSongs: allSongs);
 
-  /// Get a server playlist by ID.
   ServerPlaylist? getServerPlaylist(String id) => _getServerPlaylistImpl(id);
 
-  /// Load account-level edit overlays for server playlists.
   Future<void> loadServerPlaylistEdits() {
     final inFlight = _serverPlaylistEditsLoad;
     if (inFlight != null) return inFlight;
@@ -224,7 +202,6 @@ class PlaylistService extends ChangeNotifier {
         revertedServerPlaylistIds: revertedServerPlaylistIds,
       );
 
-  /// Resolve a server playlist with the account edit overlay applied.
   ServerPlaylistEffectiveState? resolveServerPlaylist(
     String id, {
     Set<String>? liveSongIds,
@@ -249,7 +226,6 @@ class PlaylistService extends ChangeNotifier {
     };
   }
 
-  /// Reorder songs in a server playlist edit overlay.
   Future<void> reorderServerPlaylist({
     required String playlistId,
     required int oldIndex,
@@ -261,28 +237,24 @@ class PlaylistService extends ChangeNotifier {
         newIndex: newIndex,
       );
 
-  /// Add a song to a server playlist edit overlay.
   Future<void> addSongToServerPlaylist({
     required String playlistId,
     required String songId,
   }) =>
       _addSongToServerPlaylistImpl(playlistId: playlistId, songId: songId);
 
-  /// Remove a song from a server playlist edit overlay.
   Future<void> removeSongFromServerPlaylist({
     required String playlistId,
     required String songId,
   }) =>
       _removeSongFromServerPlaylistImpl(playlistId: playlistId, songId: songId);
 
-  /// Rename a server playlist through its edit overlay.
   Future<void> renameServerPlaylist({
     required String playlistId,
     required String name,
   }) =>
       _renameServerPlaylistImpl(playlistId: playlistId, name: name);
 
-  /// Delete a server playlist edit overlay and return to the base playlist.
   Future<void> resetServerPlaylistEdit(String playlistId) =>
       _resetServerPlaylistEditImpl(playlistId);
 
@@ -291,14 +263,12 @@ class PlaylistService extends ChangeNotifier {
   Future<void> restoreServerPlaylist(ServerPlaylistEffectiveState snapshot) =>
       _restoreServerPlaylistImpl(snapshot);
 
-  /// Create a new playlist.
   Future<PlaylistModel> createPlaylist({
     required String name,
     String? description,
   }) =>
       _createPlaylistImpl(name: name, description: description);
 
-  /// Get a playlist by ID.
   PlaylistModel? getPlaylist(String id) => _getPlaylistImpl(id);
 
   /// Update playlist name, description, and/or custom image.
@@ -335,9 +305,6 @@ class PlaylistService extends ChangeNotifier {
         restoreServerVersion: restoreServerVersion,
       );
 
-  /// Add a song to a playlist.
-  ///
-  /// Stores song metadata for offline display.
   Future<void> addSongToPlaylist({
     required String playlistId,
     required String songId,
@@ -355,7 +322,6 @@ class PlaylistService extends ChangeNotifier {
         duration: duration,
       );
 
-  /// Remove a song from a playlist.
   Future<void> removeSongFromPlaylist({
     required String playlistId,
     required String songId,
@@ -366,7 +332,6 @@ class PlaylistService extends ChangeNotifier {
   Future<void> restorePlaylistSongs(String playlistId, List<String> songIds) =>
       _setPlaylistSongIdsImpl(playlistId, songIds);
 
-  /// Reorder songs in a playlist.
   Future<void> reorderSongs({
     required String playlistId,
     required int oldIndex,
@@ -378,10 +343,8 @@ class PlaylistService extends ChangeNotifier {
         newIndex: newIndex,
       );
 
-  /// Get or create the Liked Songs playlist.
   Future<PlaylistModel> getLikedSongsPlaylist() => _getLikedSongsPlaylistImpl();
 
-  /// Check if a song is liked (in Liked Songs playlist).
   bool isLikedSong(String songId) => _isLikedSongImpl(songId);
 
   /// Toggle a song's liked status.
@@ -405,7 +368,6 @@ class PlaylistService extends ChangeNotifier {
   /// Clear all playlists (for testing).
   Future<void> clearAll() => _clearAllImpl();
 
-  /// Clear all local and server-derived playlist state.
   Future<void> clearAllPlaylistData() => _clearAllPlaylistDataImpl();
 
   /// Import playlists in merge mode, skipping existing IDs.
@@ -424,9 +386,6 @@ class PlaylistService extends ChangeNotifier {
   Future<void> replaceAllPlaylists(List<PlaylistModel> playlists) =>
       _replaceAllPlaylistsImpl(playlists);
 
-  /// Rehydrate cached playlist song metadata using current library data.
-  ///
-  /// Returns the number of playlists updated.
   Future<int> rehydrateSongMetadataFromLibrary(List<SongModel> librarySongs) =>
       _rehydrateSongMetadataFromLibraryImpl(librarySongs);
 
@@ -464,7 +423,6 @@ class PlaylistService extends ChangeNotifier {
       );
 }
 
-/// Result of an unavailable-song cleanup pass (preview or removal).
 class UnavailableSongCleanupReport {
   final int playlistCount;
   final int songCount;

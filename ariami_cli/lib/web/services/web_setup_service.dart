@@ -4,8 +4,6 @@ import '../../models/music_folder_validation_result.dart';
 import 'web_api_client.dart';
 import 'web_auth_service.dart';
 
-/// Web service for setup operations
-/// Communicates with backend API for music folder configuration and library scanning
 class WebSetupService {
   WebSetupService()
       : _apiClient = WebApiClient(
@@ -206,7 +204,6 @@ class WebSetupService {
     }
   }
 
-  /// Mark setup as complete on the server
   Future<bool> markSetupComplete() async {
     try {
       final response = await _apiClient.post(

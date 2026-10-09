@@ -249,7 +249,6 @@ void main() {
     });
 
     test('endStream does nothing for invalid token', () {
-      // Should not throw
       tracker.endStream('invalid_token');
       expect(tracker.activeStreamCount, equals(0));
     });
@@ -288,7 +287,6 @@ void main() {
     });
 
     test('counts distinct users with active streams', () {
-      // User 1 has two active streams
       final ticket1a = tracker.issueTicket(
         userId: 'user_1',
         sessionToken: 'session_1a',
@@ -302,7 +300,6 @@ void main() {
         durationSeconds: 180,
       );
 
-      // User 2 has one active stream
       final ticket2 = tracker.issueTicket(
         userId: 'user_2',
         sessionToken: 'session_2',
@@ -361,7 +358,6 @@ void main() {
     });
 
     test('revokes all tickets for a session', () {
-      // Create tickets for session_1
       final ticket1a = tracker.issueTicket(
         userId: 'user_1',
         sessionToken: 'session_1',
@@ -375,7 +371,6 @@ void main() {
         durationSeconds: 180,
       );
 
-      // Create ticket for session_2
       final ticket2 = tracker.issueTicket(
         userId: 'user_2',
         sessionToken: 'session_2',
@@ -383,7 +378,6 @@ void main() {
         durationSeconds: 180,
       );
 
-      // Start all streams
       tracker.startStream(ticket1a.token);
       tracker.startStream(ticket1b.token);
       tracker.startStream(ticket2.token);
@@ -391,7 +385,6 @@ void main() {
       expect(tracker.ticketCount, equals(3));
       expect(tracker.activeStreamCount, equals(3));
 
-      // Revoke session_1
       tracker.revokeSessionTickets('session_1');
 
       expect(tracker.ticketCount, equals(1));

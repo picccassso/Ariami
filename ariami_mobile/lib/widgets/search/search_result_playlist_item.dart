@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../../models/api_models.dart';
 import '../../screens/playlist/widgets/playlist_cover_art.dart';
 
-/// Search result item for playlists
 class SearchResultPlaylistItem extends StatelessWidget {
   final PlaylistModel playlist;
   final VoidCallback onTap;

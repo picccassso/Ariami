@@ -34,7 +34,6 @@ import '../song_id_remapping_service.dart';
 /// - Stats are flushed immediately when the app is backgrounded or killed.
 class StreamingStatsService extends ChangeNotifier
     implements WidgetsBindingObserver {
-  // Singleton pattern
   static final StreamingStatsService _instance =
       StreamingStatsService._internal();
 
@@ -42,12 +41,10 @@ class StreamingStatsService extends ChangeNotifier
 
   StreamingStatsService._internal();
 
-  // Dependencies
   late StatsDatabase _database;
   bool _isInitialized = false;
   Future<void>? _initializationFuture;
 
-  // In-memory cache for instant UI updates
   final Map<String, SongStats> _statsCache = {};
 
   /// Account-wide stats overlay (server rollups merged with this device's
@@ -67,11 +64,6 @@ class StreamingStatsService extends ChangeNotifier
   /// queued for idempotent upload to the server.
   void Function(ListeningEvent event)? onListeningEvent;
 
-  // ============================================================================
-  // SESSION STATE
-  // ============================================================================
-
-  /// The song currently being tracked (actively playing).
   Song? _currentSong;
 
   /// Uncommitted listening is committed to the stats this often, so a killed
@@ -96,17 +88,11 @@ class StreamingStatsService extends ChangeNotifier
         clientKind: 'mobile',
       );
 
-  // ============================================================================
-  // DEBOUNCED PERSISTENCE
-  // ============================================================================
   Timer? _dbFlushTimer;
   static const Duration _dbFlushInterval = Duration(seconds: 5);
   final Map<String, SongStats> _dirtyStats = {};
   bool _isFlushing = false;
 
-  // ============================================================================
-  // STREAMS FOR UI UPDATES
-  // ============================================================================
   late StreamController<List<SongStats>> _topSongsStreamController;
   late StreamController<List<ArtistStats>> _topArtistsStreamController;
   late StreamController<List<AlbumStats>> _topAlbumsStreamController;
@@ -118,7 +104,6 @@ class StreamingStatsService extends ChangeNotifier
   Stream<List<AlbumStats>> get topAlbumsStream =>
       _topAlbumsStreamController.stream;
 
-  /// Initialize the service
   Future<void> initialize() {
     if (_isInitialized) return Future<void>.value();
     final inFlight = _initializationFuture;
@@ -151,7 +136,6 @@ class StreamingStatsService extends ChangeNotifier
 
     _database = await StatsDatabase.create();
 
-    // Load all stats from SQLite into memory cache
     _statsCache.clear();
     final allStats = await _database.getAllStats();
     for (final stat in allStats) {
@@ -167,10 +151,6 @@ class StreamingStatsService extends ChangeNotifier
     print(
         '[StreamingStatsService] Initialized with ${_statsCache.length} cached songs');
   }
-
-  // ============================================================================
-  // PLAYBACK LIFECYCLE
-  // ============================================================================
 
   /// Called when a song starts playing.
   ///
@@ -227,10 +207,6 @@ class StreamingStatsService extends ChangeNotifier
     await _flushPendingStats();
   }
 
-  // ============================================================================
-  // POSITION-BASED TIME TRACKING
-  // ============================================================================
-
   /// Receive position updates from the audio player.
   ///
   /// Call this on every position tick. The engine credits genuine forward
@@ -251,14 +227,9 @@ class StreamingStatsService extends ChangeNotifier
     }
   }
 
-  /// Reset the stats baseline after a seek or other explicit position jump.
   void markPositionDiscontinuity() {
     _engine.onSeek();
   }
-
-  // ============================================================================
-  // ENGINE EVENTS → LOCAL STATS + ACCOUNT PIPELINE
-  // ============================================================================
 
   /// Consumes each honest event from the shared engine: applied to the local
   /// per-device stats and mirrored to the account pipeline (a no-op until
@@ -300,17 +271,11 @@ class StreamingStatsService extends ChangeNotifier
     }
   }
 
-  // ============================================================================
-  // DEBOUNCED DATABASE WRITES
-  // ============================================================================
-
-  /// Queue a stats update for debounced database write.
   void _queueDbWrite(String songId, SongStats stats) {
     _dirtyStats[songId] = stats;
     _scheduleDbFlush();
   }
 
-  /// Schedule a debounced flush to the database.
   void _scheduleDbFlush() {
     _dbFlushTimer?.cancel();
     _dbFlushTimer = Timer(_dbFlushInterval, () async {
@@ -318,7 +283,6 @@ class StreamingStatsService extends ChangeNotifier
     });
   }
 
-  /// Flush all pending stats to the database immediately.
   Future<void> _flushPendingStats() async {
     if (_isFlushing) return;
     _isFlushing = true;
@@ -339,10 +303,6 @@ class StreamingStatsService extends ChangeNotifier
     }
   }
 
-  // ============================================================================
-  // APP LIFECYCLE OBSERVER
-  // ============================================================================
-
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     print('[StreamingStatsService] App lifecycle: $state');
@@ -357,7 +317,6 @@ class StreamingStatsService extends ChangeNotifier
       if (_currentSong != null) {
         _engine.flush();
       }
-      // Also flush any already-queued dirty stats.
       unawaited(_flushPendingStats());
     }
   }
@@ -410,10 +369,6 @@ class StreamingStatsService extends ChangeNotifier
 
   @override
   void handleUpdateBackGestureProgress(PredictiveBackEvent backEvent) {}
-
-  // ============================================================================
-  // QUERIES & AGGREGATION
-  // ============================================================================
 
   /// Get all stats for display. When the account overlay is active this is
   /// the whole account across devices; otherwise this device's local stats.
@@ -481,7 +436,6 @@ class StreamingStatsService extends ChangeNotifier
         final newRandomAlbumId = existing.randomAlbumId ?? songStat.albumId;
         final newRandomSongId = existing.randomSongId ??
             (songStat.albumId == null ? songStat.songId : null);
-        // Prefer the name variant with the most plays for display.
         final keepName = songStat.playCount > (displayNamePlayCount[key] ?? 0)
             ? rawName
             : existing.artistName;
@@ -541,7 +495,6 @@ class StreamingStatsService extends ChangeNotifier
     // Map unicode hyphen/dash variants (hyphen, non-breaking hyphen, figure
     // dash, en/em dash, minus sign) to a plain ASCII hyphen.
     s = s.replaceAll(RegExp('[\u2010-\u2015\u2212]'), '-');
-    // Collapse any run of whitespace to a single space.
     s = s.replaceAll(RegExp(r'\s+'), ' ');
     return s;
   }
@@ -590,21 +543,18 @@ class StreamingStatsService extends ChangeNotifier
     return limit == null ? albumList : albumList.take(limit).toList();
   }
 
-  /// Helper: Return the later of two dates
   DateTime? _laterDate(DateTime? a, DateTime? b) {
     if (a == null) return b;
     if (b == null) return a;
     return a.isAfter(b) ? a : b;
   }
 
-  /// Helper: Return the earlier of two dates
   DateTime? _earlierDate(DateTime? a, DateTime? b) {
     if (a == null) return b;
     if (b == null) return a;
     return a.isBefore(b) ? a : b;
   }
 
-  /// Get total statistics from in-memory cache
   ({int totalSongsPlayed, Duration totalTimeStreamed}) getTotalStats() {
     final allStats = getAllStats();
     int totalSongs = allStats.length;
@@ -617,7 +567,6 @@ class StreamingStatsService extends ChangeNotifier
     return (totalSongsPlayed: totalSongs, totalTimeStreamed: totalTime);
   }
 
-  /// Get average daily listening time
   ({Duration perCalendarDay, Duration perActiveDay, int activeDays})
       getAverageDailyTime() {
     final stats = getTotalStats();
@@ -694,7 +643,6 @@ class StreamingStatsService extends ChangeNotifier
     );
   }
 
-  /// Reset all statistics
   Future<void> resetAllStats() async {
     print('[StreamingStatsService] Resetting all stats');
     _statsCache.clear();
@@ -707,23 +655,16 @@ class StreamingStatsService extends ChangeNotifier
   /// Remap stale song IDs and optionally repair album metadata in persisted
   /// stats using current library data.
   ///
-  /// SongStats are keyed by songId, which is MD5(filePath) on the server. When
-  /// the music library is moved to a different folder, every songId changes,
-  /// leaving the stats database with rows that no longer correspond to any
-  /// song in the library. Those stale rows still display in the per-track view
-  /// (each shows its own correct count), but artist/album aggregations sum
-  /// every row keyed by artist/album name, double-counting plays for songs
+  /// SongStats are keyed by songId, which is the first 12 hex chars of
+  /// md5(filePath) on the server. When the music library is moved to a different
+  /// folder, every songId changes, leaving rows that no longer match any library
+  /// song. Those stale rows still display per-track, but artist/album
+  /// aggregations sum every row keyed by name, double-counting plays for songs
   /// that ended up with multiple ids across library moves or imports.
   ///
-  /// This method:
-  ///   1. Walks the in-memory stats cache and asks
-  ///      [SongIdRemappingService.remapStats] to match stale songIds to the
-  ///      current library by title + artist.
-  ///   2. Merges any stats that collapse onto the same songId — including the
-  ///      common case where a stale entry from a prior path co-exists with a
-  ///      fresh entry recorded under the new path.
-  ///   3. Persists the remapped/merged set, replacing the previous DB
-  ///      contents so stale rows are removed rather than left behind.
+  /// Matches stale ids to the current library by title + artist via
+  /// [SongIdRemappingService.remapStats], merges stats that collapse onto the
+  /// same songId, and persists the result, replacing the previous DB contents.
   ///
   /// Returns the number of stat rows that were dropped (remapped onto an
   /// existing entry); metadata-only repairs return 0.
@@ -819,7 +760,6 @@ class StreamingStatsService extends ChangeNotifier
     return repaired ?? stats;
   }
 
-  /// Reload stats from database into memory cache (after import)
   Future<void> reloadFromDatabase() async {
     print('[StreamingStatsService] Reloading stats from database');
     _statsCache.clear();
@@ -836,12 +776,10 @@ class StreamingStatsService extends ChangeNotifier
         '[StreamingStatsService] Reloaded ${_statsCache.length} songs from database');
   }
 
-  /// Get stats for a specific song (account-wide when the overlay is active)
   SongStats? getSongStats(String songId) {
     return _accountOverlay?[songId] ?? _statsCache[songId];
   }
 
-  /// Emit updated top songs to stream
   void _emitTopSongs() {
     if (_topSongsStreamController.isClosed) return;
     final topSongs = getTopSongs();
@@ -857,28 +795,21 @@ class StreamingStatsService extends ChangeNotifier
     notifyListeners();
   }
 
-  /// Emit updated top artists to stream
   void _emitTopArtists() {
     if (_topArtistsStreamController.isClosed) return;
     final topArtists = getTopArtists();
     _topArtistsStreamController.add(topArtists);
   }
 
-  /// Emit updated top albums to stream
   void _emitTopAlbums() {
     if (_topAlbumsStreamController.isClosed) return;
     final topAlbums = getTopAlbums();
     _topAlbumsStreamController.add(topAlbums);
   }
 
-  /// Public refresh method for UI to request updated stats
   void refreshTopSongs() {
     _emitTopSongs();
   }
-
-  // ============================================================================
-  // TEST HELPERS
-  // ============================================================================
 
   /// Reset internal state for unit tests. Do not use in production code.
   @visibleForTesting
@@ -893,7 +824,6 @@ class StreamingStatsService extends ChangeNotifier
     onListeningEvent = null;
   }
 
-  /// Flush pending stats immediately for unit tests.
   @visibleForTesting
   Future<void> flushForTests() async {
     await _flushPendingStats();

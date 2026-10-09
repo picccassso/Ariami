@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-/// A collapsible section header with animated expand/collapse icon.
 class SectionHeader extends StatelessWidget {
   final String title;
   final bool isExpanded;

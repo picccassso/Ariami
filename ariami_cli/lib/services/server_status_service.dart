@@ -186,7 +186,6 @@ class ServerStatusService {
   final StringLookup _getTranscodedCacheDirPath;
   final DateTimeLookup _now;
 
-  /// Collect a status snapshot from local state and the running server.
   Future<StatusSnapshot> collectSnapshot() async {
     final running = await _isRunning();
     final serverState = await _getServerState();

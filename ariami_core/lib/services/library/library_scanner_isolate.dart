@@ -20,14 +20,12 @@ import 'package:ariami_core/services/library/duplicate_detector.dart';
 import 'package:ariami_core/services/library/natural_path_order.dart';
 import 'package:ariami_core/services/library/playlist_folder_classifier.dart';
 
-/// Message types for isolate communication
 enum ScanMessageType {
   progress,
   complete,
   error,
 }
 
-/// Progress message sent from isolate to main thread
 class ScanProgressMessage {
   final ScanMessageType type;
   final String stage;
@@ -46,7 +44,6 @@ class ScanProgressMessage {
   });
 }
 
-/// Result message containing the scanned library
 class ScanResultMessage {
   final ScanMessageType type;
   final LibraryStructure? library;
@@ -56,7 +53,6 @@ class ScanResultMessage {
   /// Updated cache data to save (filePath -> {mtime, size, metadata})
   final Map<String, Map<String, dynamic>>? updatedCache;
 
-  /// Statistics about cache usage
   final int cacheHits;
   final int cacheMisses;
 
@@ -91,7 +87,6 @@ class ScanResultMessage {
   });
 }
 
-/// Parameters passed to the isolate entry point
 class ScanParams {
   final String folderPath;
   final SendPort sendPort;
@@ -181,7 +176,6 @@ class LibraryScannerIsolate {
         onExit: exitPort.sendPort,
       );
 
-      // Listen for messages from the isolate
       LibraryStructure? result;
       Map<String, Map<String, dynamic>>? updatedCache;
       int cacheHits = 0;
@@ -279,11 +273,9 @@ class LibraryScannerIsolate {
     final folderPath = params.folderPath;
     final existingCache = params.cacheData ?? {};
 
-    // Track cache statistics
     int cacheHits = 0;
     int cacheMisses = 0;
 
-    // Build updated cache as we go
     final updatedCache = <String, Map<String, dynamic>>{};
     final failedFiles = <ScanFailedFile>[];
     var skippedFileCount = 0;
@@ -296,7 +288,6 @@ class LibraryScannerIsolate {
     }
 
     try {
-      // Step 1: Collect audio files and detect [PLAYLIST] folders
       _sendProgress(
           sendPort, 'collecting', 0, 0, 0.0, 'Scanning for audio files...');
 
@@ -324,7 +315,6 @@ class LibraryScannerIsolate {
           'Found $totalFiles audio files$playlistInfo');
 
       if (totalFiles == 0) {
-        // No files found - return empty library
         final emptyLibrary = const LibraryStructure(
           albums: {},
           standaloneSongs: [],
@@ -343,7 +333,6 @@ class LibraryScannerIsolate {
         return;
       }
 
-      // Step 2: Extract metadata (with cache support)
       _sendProgress(
           sendPort, 'metadata', 0, totalFiles, 10.0, 'Extracting metadata...');
 
@@ -357,7 +346,6 @@ class LibraryScannerIsolate {
             (i + batchSize < totalFiles) ? i + batchSize : totalFiles;
         final batch = audioFiles.sublist(i, batchEnd);
 
-        // Process batch in parallel (with cache check)
         final results = await Future.wait(
           batch.map((filePath) => _extractOrUseCached(
                 extractor,
@@ -366,12 +354,10 @@ class LibraryScannerIsolate {
               )),
         );
 
-        // Collect successful results and update cache
         for (var i = 0; i < results.length; i++) {
           final result = results[i];
           if (result != null) {
             songs.add(result.metadata);
-            // Store in updated cache
             final cacheEntry = <String, dynamic>{
               'mtime': result.mtime,
               'size': result.size,
@@ -413,7 +399,6 @@ class LibraryScannerIsolate {
 
       await extractor.dispose();
 
-      // Step 3: Detect duplicates
       _sendProgress(sendPort, 'duplicates', 0, songs.length, 70.0,
           'Detecting duplicates...');
 
@@ -450,7 +435,6 @@ class LibraryScannerIsolate {
       final uniqueSongs =
           duplicateDetector.filterDuplicates(songs, duplicateGroups);
 
-      // Store computed hashes back in cache for future scans
       for (final entry in duplicateDetector.computedHashes.entries) {
         final cached = updatedCache[entry.key];
         if (cached != null) {
@@ -553,7 +537,6 @@ class LibraryScannerIsolate {
         final folderPath = entry.key;
         final filePaths = entry.value;
 
-        // Skip empty playlist folders
         if (filePaths.isEmpty) continue;
 
         // Canonical playlist order: natural path order (numeric-aware, so
@@ -562,9 +545,7 @@ class LibraryScannerIsolate {
         final sortedPaths = List<String>.from(filePaths)
           ..sort(compareNaturalPath);
 
-        // Convert file paths to song IDs, mapping duplicates to their originals
         final songIds = sortedPaths.map((fp) {
-          // If this file is a duplicate, use the original's path for ID generation
           final originalPath = duplicateToOriginalPath[fp] ?? fp;
           return _generateSongId(originalPath);
         }).toList();
@@ -594,7 +575,6 @@ class LibraryScannerIsolate {
       // Step 7: Medium-confidence suggestions were classified in step 3.5
       // (advisory only — surfaced in scan diagnostics for the approval UI).
 
-      // Create final library with playlists
       final library = LibraryStructure(
         albums: baseLibrary.albums,
         standaloneSongs: <SongMetadata>[
@@ -619,7 +599,6 @@ class LibraryScannerIsolate {
           100.0,
           'Scan complete: ${library.totalAlbums} albums, ${library.totalSongs} songs$playlistStats$cacheStats');
 
-      // Send the result with updated cache
       sendPort.send(ScanResultMessage(
         type: ScanMessageType.complete,
         library: library,
@@ -645,7 +624,6 @@ class LibraryScannerIsolate {
     }
   }
 
-  /// Result from cache-aware metadata extraction
   static Future<({SongMetadata metadata, int mtime, int size, bool fromCache})?>
       _extractOrUseCached(
     MetadataExtractor extractor,
@@ -658,7 +636,6 @@ class LibraryScannerIsolate {
       final currentMtime = stat.modified.millisecondsSinceEpoch;
       final currentSize = stat.size;
 
-      // Check cache
       final cached = cache[filePath];
       if (cached != null) {
         final cachedMtime = cached['mtime'] as int?;
@@ -706,7 +683,6 @@ class LibraryScannerIsolate {
     }
   }
 
-  /// Helper to send progress message
   static void _sendProgress(
     SendPort sendPort,
     String stage,
@@ -790,7 +766,6 @@ class LibraryScannerIsolate {
           if (FolderPlaylist.isPlaylistFolder(folderName) ||
               approvedPlaylistFolderPaths
                   .contains(path.normalize(entity.path))) {
-            // Check this isn't nested inside another playlist folder
             final isNested = playlistPaths
                 .any((p) => entity.path.startsWith('$p${path.separator}'));
             if (!isNested) {
@@ -804,7 +779,6 @@ class LibraryScannerIsolate {
           if (FileScanner.supportedExtensions.contains(ext)) {
             files.add(entity.path);
 
-            // Check if this file belongs to a playlist folder
             for (final playlistPath in playlistPaths) {
               if (entity.path.startsWith('$playlistPath${path.separator}')) {
                 playlistFolders[playlistPath]!.add(entity.path);
@@ -894,7 +868,6 @@ class LibraryScannerIsolate {
     return hash.toString().substring(0, 12);
   }
 
-  /// Infer track number from common numeric filename prefixes.
   static int? _inferTrackNumberFromPath(String filePath) {
     final fileName = path.basenameWithoutExtension(filePath).trim();
     final match =

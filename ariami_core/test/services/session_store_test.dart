@@ -147,7 +147,6 @@ void main() {
     test('returns null for expired session', () async {
       final sessionsFilePath = '${testDir.path}/sessions.json';
 
-      // Create a sessions file with an expired session
       final expiredJson = '''
 {
   "sessions": [
@@ -168,7 +167,6 @@ void main() {
       final sessionStore = SessionStore();
       await sessionStore.initialize(sessionsFilePath);
 
-      // Expired session should not be loaded
       final session = sessionStore.getSession('expired_token_abc123');
       expect(session, isNull);
       expect(sessionStore.sessionCount, equals(0));
@@ -179,7 +177,6 @@ void main() {
     test('filters out expired sessions on load', () async {
       final sessionsFilePath = '${testDir.path}/sessions.json';
 
-      // Create a file with mixed valid and expired sessions
       final now = DateTime.now().toUtc();
       final validExpiry = now.add(const Duration(days: 30)).toIso8601String();
       final expiredExpiry =
@@ -278,7 +275,6 @@ void main() {
     });
 
     test('does nothing for invalid token', () async {
-      // Should not throw
       await sessionStore.refreshSession('invalid_token_xyz');
       expect(sessionStore.sessionCount, equals(1));
     });
@@ -344,12 +340,10 @@ void main() {
     });
 
     test('removes all sessions for a user', () async {
-      // Create multiple sessions for user_1
       await sessionStore.createSession('user_1', 'device_1a', 'Device 1A');
       await sessionStore.createSession('user_1', 'device_1b', 'Device 1B');
       await sessionStore.createSession('user_1', 'device_1c', 'Device 1C');
 
-      // Create session for user_2
       final user2Session =
           await sessionStore.createSession('user_2', 'device_2', 'Device 2');
 
@@ -430,7 +424,6 @@ void main() {
           'user_123', 'device_abc', 'Test Device');
       sessionStore.dispose();
 
-      // Load in a new store instance
       final newStore = SessionStore();
       await newStore.initialize(sessionsFilePath);
 

@@ -8,7 +8,6 @@ import '../../services/playlist_service.dart';
 import '../common/mini_player_aware_bottom_sheet.dart';
 import '../../utils/image_decode.dart';
 
-/// Result returned when the user successfully adds the album to a playlist.
 class AlbumPlaylistAddResult {
   final String playlistId;
   final String playlistName;

@@ -7,7 +7,6 @@ import '../../../../models/song_stats.dart';
 import '../../../../services/stats/stats_artwork_resolver.dart';
 import '../../../../widgets/common/cached_artwork.dart';
 
-/// A single top song item.
 class TopSongTile extends StatelessWidget {
   const TopSongTile({
     super.key,
@@ -30,7 +29,6 @@ class TopSongTile extends StatelessWidget {
         children: [
           _RankNumber(rank: rank),
 
-          // Album artwork
           ClipRRect(
             borderRadius: BorderRadius.circular(12),
             child: CachedArtwork(
@@ -45,7 +43,6 @@ class TopSongTile extends StatelessWidget {
           ),
           const SizedBox(width: 16),
 
-          // Song info
           Expanded(
             child: _TileInfo(
               title: stat.songTitle ?? 'Unknown Track',
@@ -60,7 +57,6 @@ class TopSongTile extends StatelessWidget {
   }
 }
 
-/// A single top artist item.
 class TopArtistTile extends StatelessWidget {
   const TopArtistTile({
     super.key,
@@ -88,7 +84,6 @@ class TopArtistTile extends StatelessWidget {
         children: [
           _RankNumber(rank: rank),
 
-          // Artist artwork
           ClipRRect(
             borderRadius: BorderRadius.circular(12),
             child: CachedArtwork(
@@ -104,7 +99,6 @@ class TopArtistTile extends StatelessWidget {
           ),
           const SizedBox(width: 16),
 
-          // Artist info
           Expanded(
             child: _TileInfo(
               title: stat.artistName,
@@ -150,7 +144,6 @@ class TopAlbumTile extends StatelessWidget {
         children: [
           _RankNumber(rank: rank),
 
-          // Album artwork
           ClipRRect(
             borderRadius: BorderRadius.circular(12),
             child: CachedArtwork(
@@ -165,7 +158,6 @@ class TopAlbumTile extends StatelessWidget {
           ),
           const SizedBox(width: 16),
 
-          // Album info
           Expanded(
             child: _TileInfo(
               title: stat.albumName ??
@@ -183,7 +175,6 @@ class TopAlbumTile extends StatelessWidget {
   }
 }
 
-/// The greyed rank number in the tile's left gutter.
 class _RankNumber extends StatelessWidget {
   const _RankNumber({required this.rank});
 

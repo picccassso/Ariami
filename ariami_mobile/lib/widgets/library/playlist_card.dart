@@ -8,8 +8,6 @@ import '../common/cached_artwork.dart';
 import 'playing_collection_builder.dart';
 import '../../utils/image_decode.dart';
 
-/// Playlist card widget
-/// Displays playlist with premium styling and dynamic artwork
 class PlaylistCard extends StatefulWidget {
   final PlaylistModel playlist;
   final VoidCallback onTap;
@@ -89,7 +87,6 @@ class _PlaylistCardState extends State<PlaylistCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Playlist Artwork
           AspectRatio(
             aspectRatio: 1.0,
             child: Stack(
@@ -208,7 +205,6 @@ class _PlaylistCardState extends State<PlaylistCard> {
           ),
           const SizedBox(height: 12),
 
-          // Details
           Expanded(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 4.0),
@@ -266,7 +262,6 @@ class _PlaylistCardState extends State<PlaylistCard> {
     );
   }
 
-  /// Build playlist artwork - custom image, collage, or fallback
   Widget _buildPlaylistArt() {
     if (widget.playlist.customImagePath != null && _customImageExists == true) {
       return LayoutBuilder(
@@ -286,7 +281,6 @@ class _PlaylistCardState extends State<PlaylistCard> {
     return _buildArtworkCollage();
   }
 
-  /// Build album artwork collage
   Widget _buildArtworkCollage() {
     if (widget.albumIds.isEmpty) return _buildFallbackArt();
 
@@ -472,7 +466,6 @@ class _PlaylistArtworkRequest {
   final String? fallbackUrl;
 }
 
-/// Create New Playlist Card
 class CreatePlaylistCard extends StatelessWidget {
   final VoidCallback onTap;
 
@@ -529,7 +522,6 @@ class CreatePlaylistCard extends StatelessWidget {
   }
 }
 
-/// Import from Server Card
 class ImportFromServerCard extends StatelessWidget {
   final int serverPlaylistCount;
   final VoidCallback onTap;

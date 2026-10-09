@@ -13,8 +13,8 @@ import 'mini_player_aware_bottom_sheet.dart';
 import 'queue_action_confirmation.dart';
 import 'song_artwork.dart';
 
-/// Per-track overflow menu (Play, Like, Play Next, Add to Queue, Add to
-/// Playlist, Download).
+/// Per-track overflow menu (Play, Like, Play Next, Add to End of Queue, Add to
+/// Playlist, Remove from Playlist, Download).
 class SongOverflowMenu extends StatelessWidget {
   final SongModel song;
   final bool enabled;
@@ -23,7 +23,6 @@ class SongOverflowMenu extends StatelessWidget {
   final String? albumName;
   final String? albumArtist;
 
-  /// When provided, shows a "Remove from Playlist" action.
   final VoidCallback? onRemoveFromPlaylist;
 
   const SongOverflowMenu({

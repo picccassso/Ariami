@@ -63,7 +63,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       });
     }
 
-    // Listen for offline state changes
     _offlineSubscription = _offlineService.offlineModeStream.listen((_) {
       if (mounted) {
         setState(() {
@@ -213,7 +212,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  /// Get subtitle text based on current offline mode state
   String _getOfflineModeSubtitle() {
     final mode = _offlineService.offlineMode;
     switch (mode) {
@@ -226,7 +224,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  /// Handle offline mode toggle - attempts to reconnect when turning off
   Future<void> _handleOfflineModeToggle(bool enabled) async {
     if (enabled) {
       // Turning ON offline mode - set manual offline mode FIRST, then disconnect
@@ -238,7 +235,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _isOfflineModeEnabled = true;
       });
     } else {
-      // Turning OFF offline mode - disable manual offline and attempt to reconnect
       setState(() {
         _isReconnecting = true;
       });
@@ -386,7 +382,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ],
               ),
 
-              // Connection section
               SettingsSection(
                 title: 'CONNECTION',
                 tiles: [
@@ -458,7 +453,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ],
               ),
 
-              // Downloads section
               SettingsSection(
                 title: 'DOWNLOADS',
                 tiles: [
@@ -487,7 +481,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ],
               ),
 
-              // Statistics section
               SettingsSection(
                 title: 'STREAMING STATS',
                 tiles: [
@@ -536,7 +529,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ],
                 ),
 
-              // About section
               SettingsSection(
                 title: 'ABOUT',
                 tiles: [

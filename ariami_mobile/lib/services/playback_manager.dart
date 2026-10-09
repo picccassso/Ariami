@@ -45,14 +45,10 @@ part 'playback_manager_lifecycle_impl.dart';
 part 'playback_manager_streaming_impl.dart';
 part 'playback_manager_persistence_impl.dart';
 
-/// Central playback manager that integrates Phase 6 audio services
-/// with Phase 7 UI components. Provides a single source of truth for
-/// playback state and controls across the entire app.
 class PlaybackManager extends ChangeNotifier {
   static const Set<String> connectSupportedCommands =
       AriamiConnectCommand.supportedWithoutVolume;
 
-  // Singleton pattern
   static final PlaybackManager _instance = PlaybackManager._internal();
   factory PlaybackManager() => _instance;
   PlaybackManager._internal() {
@@ -61,7 +57,6 @@ class PlaybackManager extends ChangeNotifier {
     );
   }
 
-  // Dependencies
   final AudioPlayerService _audioPlayer = AudioPlayerService();
   final GaplessPlaybackService _gaplessPlayback = GaplessPlaybackService();
   final ShuffleService<Song> _shuffleService = ShuffleService<Song>();
@@ -75,7 +70,6 @@ class PlaybackManager extends ChangeNotifier {
   final QualitySettingsService _qualityService = QualitySettingsService();
   final ChromeCastService _castService = ChromeCastService();
 
-  // State
   PlaybackQueue _queue = PlaybackQueue();
   PlaybackQueue? _connectQueueCacheOwner;
   int _connectQueueCacheRevision = -1;
@@ -100,7 +94,6 @@ class PlaybackManager extends ChangeNotifier {
   /// search, say).
   String? _sourceId;
 
-  // Stream subscriptions
   StreamSubscription<Duration>? _positionSubscription;
   StreamSubscription<Duration?>? _durationSubscription;
   StreamSubscription? _playerStateSubscription;
@@ -118,7 +111,6 @@ class PlaybackManager extends ChangeNotifier {
   // is raised again, and only then — a manual pause must not auto-resume.
   bool _pausedBySilence = false;
 
-  // Persistence
   Timer? _saveTimer;
   static const Duration _saveDebounceDuration = Duration(seconds: 5);
   Duration? _restoredPosition; // Position to seek to after restoring state
@@ -270,10 +262,8 @@ class PlaybackManager extends ChangeNotifier {
   /// format, since they compare the value published over Connect.
   static String albumSource(String albumId) => 'album:$albumId';
 
-  /// Builds the [sourceId] key for a playlist.
   static String playlistSource(String playlistId) => 'playlist:$playlistId';
 
-  /// Builds the [sourceId] key for an artist page.
   static String artistSource(String name) => 'artist:$name';
 
   Song? get _localCurrentSong => _queue.currentSong;
@@ -412,7 +402,6 @@ class PlaybackManager extends ChangeNotifier {
   Future<void> applyConnectSnapshot(AriamiPlaybackSnapshot snapshot) =>
       _applyConnectSnapshotImpl(snapshot);
 
-  /// Initialize the playback manager and set up listeners.
   void initialize() => _initializeImpl();
 
   /// Play a single song immediately (clears queue and starts fresh).
@@ -431,7 +420,6 @@ class PlaybackManager extends ChangeNotifier {
     return _playSongImpl(song);
   }
 
-  /// Plays a one-song context that wraps back to the same song.
   Future<void> playSingleRepeated(Song song) {
     if (_keepsQueueForTap([song], null)) return _playNowKeepingQueueImpl(song);
     _offerQueueReplacementUndo([song], null);
@@ -486,7 +474,6 @@ class PlaybackManager extends ChangeNotifier {
     return playSongs(songs, startIndex: index, sourceId: sourceId);
   }
 
-  /// Play all songs and shuffle if requested
   Future<void> playShuffled(List<Song> songs, {String? sourceId}) {
     _offerQueueReplacementUndo(songs, sourceId);
     if (_connectRemote != null) {
@@ -505,7 +492,6 @@ class PlaybackManager extends ChangeNotifier {
     return _playShuffledImpl(songs);
   }
 
-  /// Add song to end of queue
   void addToQueue(Song song) {
     final remote = _connectRemote;
     if (remote != null) {
@@ -515,7 +501,6 @@ class PlaybackManager extends ChangeNotifier {
     _addToQueueImpl(song);
   }
 
-  /// Add multiple songs to queue
   void addAllToQueue(List<Song> songs) {
     if (songs.isEmpty) return;
     final remote = _connectRemote;
@@ -537,7 +522,6 @@ class PlaybackManager extends ChangeNotifier {
     _playNextImpl(song);
   }
 
-  /// Toggle play/pause
   Future<void> togglePlayPause() async {
     final remote = _connectRemote;
     if (remote != null) {
@@ -548,7 +532,6 @@ class PlaybackManager extends ChangeNotifier {
     await _togglePlayPauseImpl();
   }
 
-  /// Skip to next song
   Future<void> skipNext() async {
     if (_connectRemote != null) {
       _sendConnect(AriamiConnectCommand.next);
@@ -558,7 +541,6 @@ class PlaybackManager extends ChangeNotifier {
     await _skipNextImpl(completedNaturally: false);
   }
 
-  /// Skip to previous song
   Future<void> skipPrevious() async {
     if (_connectRemote != null) {
       _sendConnect(AriamiConnectCommand.previous);
@@ -568,7 +550,6 @@ class PlaybackManager extends ChangeNotifier {
     await _skipPreviousImpl();
   }
 
-  /// Skip to a specific queue item
   Future<void> skipToQueueItem(int index) async {
     if (_connectRemote != null) {
       // The mirrored queue mirrors the active device's published order, so
@@ -602,7 +583,6 @@ class PlaybackManager extends ChangeNotifier {
     await _undoRemoveQueueItemImpl(removal);
   }
 
-  /// Seek to position
   Future<void> seek(Duration position) async {
     if (_connectRemote != null) {
       _sendConnect(AriamiConnectCommand.seek, <String, dynamic>{
@@ -619,7 +599,6 @@ class PlaybackManager extends ChangeNotifier {
 
   Future<void> stopCastingAndResumeLocal() => _stopCastingAndResumeLocalImpl();
 
-  /// Toggle shuffle mode
   void toggleShuffle() {
     if (_connectRemote != null) {
       _sendConnect(AriamiConnectCommand.toggleShuffle);
@@ -662,7 +641,6 @@ class PlaybackManager extends ChangeNotifier {
     await _clearQueueImpl();
   }
 
-  /// Internal: Play the current song in the queue
   Future<void> _playCurrentSong({
     bool autoPlay = true,
     bool restartStatsTracking = true,
@@ -684,7 +662,6 @@ class PlaybackManager extends ChangeNotifier {
           _PlaybackHandoffState snapshot) =>
       _reloadLocalPlaybackFromSnapshotImpl(snapshot);
 
-  /// Internal: Cache a song in the background for future offline playback
   void _cacheSongInBackground(Song song) => _cacheSongInBackgroundImpl(song);
 
   void _warmNextStreamInBackground(StreamingQuality quality) =>
@@ -699,22 +676,15 @@ class PlaybackManager extends ChangeNotifier {
 
   String? _extractStreamToken(String url) => _extractStreamTokenImpl(url);
 
-  /// Internal: Find the next available song in the queue (starting from current index + 1)
-  /// Returns the index of the next available song, or null if none found
   Future<int?> _findNextAvailableSongIndex() =>
       _findNextAvailableSongIndexImpl();
 
-  /// Internal: Find the next available song starting from a specific index
-  /// Used when wrapping around in repeat-all mode
   Future<int?> _findNextAvailableSongIndexFrom(int startIndex) =>
       _findNextAvailableSongIndexFromImpl(startIndex);
 
-  /// Internal: Find the previous available song in the queue (starting from current index - 1)
-  /// Returns the index of the previous available song, or null if none found
   Future<int?> _findPreviousAvailableSongIndex() =>
       _findPreviousAvailableSongIndexImpl();
 
-  /// Internal: Handle song completion
   Future<void> _onSongCompleted() => _onSongCompletedImpl();
 
   Future<void> _recoverFromCastFailure() => _recoverFromCastFailureImpl();
@@ -730,13 +700,11 @@ class PlaybackManager extends ChangeNotifier {
   ) =>
       _handleGaplessTransitionImpl(transition);
 
-  /// Save current playback state to device storage
   Future<void> _saveState() => _saveStateImpl();
 
   /// Public helper for callers that need to guarantee the state is flushed
   Future<void> saveStateImmediately() => _saveStateImmediatelyImpl();
 
-  /// Restore saved playback state from device storage
   Future<void> _restoreState() => _restoreStateImpl();
 
   void _invalidatePendingRestore(String reason) =>

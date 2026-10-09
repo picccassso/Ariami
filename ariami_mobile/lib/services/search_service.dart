@@ -24,7 +24,6 @@ class SearchService {
     return _settingsService.recentSearchesLimit;
   }
 
-  /// Search songs, albums and playlists with the shared ranking engine.
   SearchResults search(
     String query,
     List<SongModel> songs,
@@ -236,11 +235,6 @@ class SearchService {
     return score;
   }
 
-  // ============================================================================
-  // RECENT SONGS
-  // ============================================================================
-
-  /// Get recent songs (capped by current [maxRecentSongs] limit)
   Future<List<SongModel>> getRecentSongs() async {
     final prefs = await SharedPreferences.getInstance();
     final jsonList = prefs.getStringList(_recentSongsKey) ?? [];
@@ -264,12 +258,10 @@ class SearchService {
     return songs;
   }
 
-  /// Add song to recent songs (capped by [maxRecentSongs])
   Future<void> addRecentSong(SongModel song) async {
     final prefs = await SharedPreferences.getInstance();
     final jsonList = prefs.getStringList(_recentSongsKey) ?? [];
 
-    // Convert to SongModel list safely
     final recentSongs = <SongModel>[];
     for (final jsonStr in jsonList) {
       try {
@@ -278,25 +270,20 @@ class SearchService {
       } catch (_) {}
     }
 
-    // Remove if already exists (to move it to front)
     recentSongs.removeWhere((s) => s.id == song.id);
 
-    // Add to front
     recentSongs.insert(0, song);
 
-    // Keep only up to maxRecentSongs
     final limit = maxRecentSongs;
     if (recentSongs.length > limit) {
       recentSongs.removeRange(limit, recentSongs.length);
     }
 
-    // Convert back to JSON strings
     final updatedJsonList =
         recentSongs.map((s) => jsonEncode(s.toJson())).toList();
     await prefs.setStringList(_recentSongsKey, updatedJsonList);
   }
 
-  /// Clear all recent songs
   Future<void> clearRecentSongs() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_recentSongsKey);
@@ -311,7 +298,6 @@ class SearchService {
     );
   }
 
-  /// Remove a specific recent song
   Future<void> removeRecentSong(String songId) async {
     final prefs = await SharedPreferences.getInstance();
     final jsonList = prefs.getStringList(_recentSongsKey) ?? [];
@@ -331,7 +317,6 @@ class SearchService {
     await prefs.setStringList(_recentSongsKey, updatedJsonList);
   }
 
-  /// Insert a song at a specific index in recent songs (capped by [maxRecentSongs])
   Future<void> insertRecentSongAt(SongModel song, int index) async {
     final prefs = await SharedPreferences.getInstance();
     final jsonList = prefs.getStringList(_recentSongsKey) ?? [];
@@ -344,20 +329,16 @@ class SearchService {
       } catch (_) {}
     }
 
-    // Remove if already exists
     recentSongs.removeWhere((s) => s.id == song.id);
 
-    // Insert at the specified index (clamped to valid range)
     final insertIndex = index.clamp(0, recentSongs.length).toInt();
     recentSongs.insert(insertIndex, song);
 
-    // Keep only up to maxRecentSongs
     final limit = maxRecentSongs;
     if (recentSongs.length > limit) {
       recentSongs.removeRange(limit, recentSongs.length);
     }
 
-    // Convert back to JSON strings
     final updatedJsonList =
         recentSongs.map((s) => jsonEncode(s.toJson())).toList();
     await prefs.setStringList(_recentSongsKey, updatedJsonList);
@@ -391,7 +372,6 @@ class SearchService {
   }
 }
 
-/// Search results container
 class SearchResults {
   final List<SongModel> songs;
   final List<AlbumModel> albums;
@@ -407,20 +387,17 @@ class SearchResults {
   bool get isNotEmpty => !isEmpty;
 }
 
-/// Debounced search helper
 class DebouncedSearch {
   final Duration delay;
   Timer? _timer;
 
   DebouncedSearch({this.delay = const Duration(milliseconds: 300)});
 
-  /// Execute callback after delay, cancelling previous pending callbacks
   void run(void Function() callback) {
     _timer?.cancel();
     _timer = Timer(delay, callback);
   }
 
-  /// Cancel pending callback
   void cancel() {
     _timer?.cancel();
   }

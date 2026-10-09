@@ -67,7 +67,6 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
   /// - ?quality=medium - 128 kbps AAC
   /// - ?quality=low - 64 kbps AAC
   Future<Response> _handleStream(Request request, String path) async {
-    // Validate path is provided
     if (path.isEmpty) {
       return _songIdRequiredResponse();
     }
@@ -77,7 +76,6 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
       return _authRequiredResponse();
     }
 
-    // Validate stream token when users are registered.
     String? streamToken;
     streamToken = request.url.queryParameters['streamToken'];
     if (streamToken == null || streamToken.isEmpty) {
@@ -89,7 +87,6 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
       return _streamTokenForbiddenResponse('Stream token expired or invalid');
     }
 
-    // Verify the token is for the requested song
     if (ticket.songId != path) {
       return _streamTokenForbiddenResponse(
         'Stream token does not match requested song',
@@ -108,7 +105,6 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
       );
     }
 
-    // Mark stream as active for stats tracking
     _streamTracker.startStream(streamToken);
 
     void endStreamTracker() {
@@ -117,7 +113,6 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
       }
     }
 
-    // Look up file path from library by song ID
     final filePath = _libraryManager.getSongFilePath(path);
     if (filePath == null) {
       endStreamTracker();
@@ -127,22 +122,18 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
 
     final File originalFile = File(filePath);
 
-    // Check if file exists
     if (!await originalFile.exists()) {
       endStreamTracker();
       return _audioFileNotFoundResponse(path);
     }
 
-    // Check if file is in allowed music folder (security check)
     if (!_isPathInsideMusicFolder(originalFile)) {
       endStreamTracker();
       return _fileOutsideLibraryResponse();
     }
 
-    // Determine which file to stream
     File fileToStream = originalFile;
 
-    // If transcoding is requested and service is available
     if (quality.requiresTranscoding && _transcodingService != null) {
       final transcodeRequestedAt = DateTime.now();
       final transcodeFuture = _transcodingService!.getTranscodedFile(
@@ -178,12 +169,10 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
 
       if (transcodedFile != null) {
         fileToStream = transcodedFile;
-        // Mark as in-use to prevent eviction during streaming
         _transcodingService!.markInUse(path, quality);
         print(
             '[HttpServer] Streaming transcoded file at ${quality.name} quality');
 
-        // Stream the file and release in-use when done
         return await _streamingService.streamFile(
           fileToStream,
           request,
@@ -202,7 +191,6 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
           '[HttpServer] Transcoding requested but service not configured, using original');
     }
 
-    // Stream the file (original or non-transcoded)
     return await _streamingService.streamFile(
       fileToStream,
       request,
@@ -274,12 +262,10 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
   /// - ?quality=high&format=opus - 192 kbps Ogg Opus
   /// - ?quality=high&format=m4a - 192 kbps AAC in M4A
   Future<Response> _handleDownload(Request request, String path) async {
-    // Validate path is provided
     if (path.isEmpty) {
       return _songIdRequiredResponse();
     }
 
-    // Parse quality parameter
     final qualityParam = request.url.queryParameters['quality'];
     final quality = QualityPreset.fromString(qualityParam);
     final requestedFormat = request.url.queryParameters['format'];
@@ -301,7 +287,6 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
       return _authRequiredResponse();
     }
 
-    // Validate stream/download token when users are registered.
     late final String userId;
     final streamToken = request.url.queryParameters['streamToken'];
     final downloadToken = request.url.queryParameters['downloadToken'];
@@ -349,7 +334,6 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
         );
       }
 
-      // Verify the token is for the requested song
       if (ticket.songId != path) {
         return _streamTokenForbiddenResponse(
           'Stream token does not match requested song',
@@ -359,7 +343,6 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
       userId = ticket.userId;
     }
 
-    // Look up file path from library by song ID
     final filePath = _libraryManager.getSongFilePath(path);
     if (filePath == null) {
       return _songNotFoundResponse(path);
@@ -367,17 +350,14 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
 
     final File originalFile = File(filePath);
 
-    // Check if file exists
     if (!await originalFile.exists()) {
       return _audioFileNotFoundResponse(path);
     }
 
-    // Check if file is in allowed music folder (security check)
     if (!_isPathInsideMusicFolder(originalFile)) {
       return _fileOutsideLibraryResponse();
     }
 
-    // Enforce weighted-fair download limits across users.
     final userKey = userId;
     final acquireResult = await _downloadLimiter.acquire(userKey);
     if (acquireResult == FairAcquireResult.userQuotaExceeded) {
@@ -403,12 +383,10 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
     bool releaseOnError = true;
 
     try {
-      // Determine which file to download
       File fileToDownload = originalFile;
       String mimeType = _streamingService.getAudioMimeType(originalFile.path);
       DownloadTranscodeResult? downloadTranscodeResult;
 
-      // If transcoding is requested and service is available
       final shouldTranscode =
           quality.requiresTranscoding || outputFormat != null;
       final effectiveFormat = outputFormat ?? TranscodeOutputFormat.aac;
@@ -461,15 +439,12 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
         }
       }
 
-      // Get file info
       final fileSize = await fileToDownload.length();
       final originalFileName =
           originalFile.path.split(Platform.pathSeparator).last;
 
-      // Adjust filename extension if transcoded
       String downloadFileName = originalFileName;
       if (downloadTranscodeResult != null) {
-        // Replace extension with transcoded format extension
         final lastDot = originalFileName.lastIndexOf('.');
         if (lastDot > 0) {
           downloadFileName =
@@ -524,10 +499,8 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
           await fileToDownload.open(mode: FileMode.read);
       await raf.setPosition(start);
 
-      // Capture the result for cleanup in the stream's finally block
       final tempResult = downloadTranscodeResult;
 
-      // Create stream that properly closes the file handle and cleans up temp files when done
       Stream<List<int>> createFileStream() async* {
         const int chunkSize = 64 * 1024; // 64 KB chunks
         var remaining = contentLength;
@@ -571,7 +544,6 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
         } finally {
           stallTimer?.cancel();
           await raf.close();
-          // Clean up temp file after download completes
           if (tempResult != null) {
             await tempResult.cleanup();
             print('[HttpServer] Cleaned up temp transcode file');
@@ -580,7 +552,6 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
         }
       }
 
-      // Return the file as a download with appropriate headers
       releaseOnError = false;
       final responseHeaders = <String, String>{
         'Content-Type': mimeType,
@@ -628,13 +599,11 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
   /// Provides ASCII-safe fallback and UTF-8 encoded filename for proper
   /// handling of non-ASCII characters (accents, Korean, Chinese, etc.)
   String _encodeContentDisposition(String filename) {
-    // ASCII-safe fallback: replace non-ASCII chars with underscore
     final asciiFallback = filename.runes
         .map((r) => r < 128 ? String.fromCharCode(r) : '_')
         .join()
         .replaceAll('"', "'");
 
-    // RFC 5987 percent-encode the UTF-8 filename
     final utf8Encoded = Uri.encodeComponent(filename);
 
     return 'attachment; filename="$asciiFallback"; filename*=UTF-8\'\'$utf8Encoded';

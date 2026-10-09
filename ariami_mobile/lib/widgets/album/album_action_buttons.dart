@@ -3,7 +3,6 @@ import '../../services/playback_manager.dart';
 import '../collection_play_buttons.dart';
 import '../download/collection_download_button.dart';
 
-/// Row of album-level actions (download, queue, shuffle, play).
 class AlbumActionButtons extends StatelessWidget {
   /// Identifies this album as a playback source, so its Play button can show
   /// what's playing when the user has asked for that.

@@ -71,7 +71,6 @@ void main() {
       final port = server.getServerInfo()['port'] as int;
       final adminToken = await _registerAndLogin(port);
 
-      // Unauthenticated request fails
       final url = Uri.parse('http://127.0.0.1:$port/api/server-info/aliases');
       final (anonStatus, _) = await _httpPost(
         url,
@@ -79,7 +78,6 @@ void main() {
       );
       expect(anonStatus, anyOf(401, 403));
 
-      // Authenticated admin request succeeds
       String? callbackLan;
       String? callbackTailscale;
       server.setOnEndpointAliasesChanged(
@@ -107,7 +105,6 @@ void main() {
       expect(callbackLan, 'Home Studio');
       expect(callbackTailscale, 'My Tailscale');
 
-      // Check /api/server-info reflects the new aliases
       final infoUrl = Uri.parse('http://127.0.0.1:$port/api/server-info');
       final (_, infoBody) = await _httpGet(infoUrl);
       final info = jsonDecode(infoBody) as Map<String, dynamic>;

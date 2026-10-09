@@ -1,4 +1,3 @@
-/// API request and response models for Ariami communication protocol
 library;
 
 import '../utils/encoding_utils.dart';

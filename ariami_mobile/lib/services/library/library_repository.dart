@@ -19,7 +19,6 @@ class LibraryRepositoryBundle {
   final LibraryGenreIndex genreIndex;
 }
 
-/// Repository for normalized local library sync storage.
 class LibraryRepository {
   LibraryRepository({LibrarySyncDatabase? database})
       : _databaseFuture = database == null

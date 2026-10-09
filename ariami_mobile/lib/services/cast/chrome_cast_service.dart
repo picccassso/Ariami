@@ -13,7 +13,6 @@ import '../offline/offline_playback_service.dart';
 import '../quality/network_monitor_service.dart';
 import '../quality/quality_settings_service.dart';
 
-/// Provides a modular Chromecast integration layer for Ariami mobile.
 class ChromeCastService extends ChangeNotifier {
   static final ChromeCastService _instance = ChromeCastService._internal();
   factory ChromeCastService() => _instance;
@@ -55,7 +54,6 @@ class ChromeCastService extends ChangeNotifier {
   double? _requestedVolume;
   double? _reportedVolumeAtRequest;
 
-  /// Metadata from the most recent successful cast media load.
   CastSyncPayload? get lastSyncPayload => _lastSyncPayload;
 
   bool get isSupportedPlatform =>
@@ -742,7 +740,6 @@ class ChromeCastService extends ChangeNotifier {
   }
 }
 
-/// Payload from a successful cast media load, for notification sync.
 class CastSyncPayload {
   final String streamUrl;
   final Uri? artworkUri;

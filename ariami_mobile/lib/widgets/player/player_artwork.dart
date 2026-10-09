@@ -54,7 +54,6 @@ class PlayerArtworkController {
   }
 }
 
-/// Large album artwork with swipe gestures for track skipping and output volume.
 class PlayerArtwork extends StatefulWidget {
   final PlaybackQueue queue;
   final int currentIndex;
@@ -597,7 +596,6 @@ class _PlayerArtworkState extends State<PlayerArtwork> {
     );
   }
 
-  /// Build artwork image or placeholder using CachedArtwork.
   Widget _buildArtwork(BuildContext context, Song song) {
     final connectionService = ConnectionService();
 
@@ -631,7 +629,6 @@ class _PlayerArtworkState extends State<PlayerArtwork> {
     );
   }
 
-  /// Build placeholder artwork.
   Widget _buildPlaceholder(BuildContext context) {
     return Container(
       width: 350,

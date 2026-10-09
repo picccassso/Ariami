@@ -32,13 +32,12 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
 
-    // Initially 5 clutter icons in AppBar actions should NOT exist
-    // (Note: some of these icons might exist elsewhere in the body/tabs, but let's check AppBar actions)
+    // Initially none of the old clutter icons should exist in the AppBar actions
+    // (some may exist elsewhere in the body/tabs; only AppBar actions are checked)
     final optionsButton = find.byTooltip('Library Options');
     expect(optionsButton, findsOneWidget);
     expect(find.byIcon(Icons.more_vert_rounded), findsOneWidget);
 
-    // Old AppBar action tooltips should not exist
     expect(find.byTooltip('Select Multiple'), findsNothing);
     expect(find.byTooltip('Show Downloaded Only'), findsNothing);
     expect(find.byTooltip('Show All Songs'), findsNothing);
@@ -47,7 +46,6 @@ void main() {
     expect(find.byTooltip('Separate Playlists & Albums'), findsNothing);
     expect(find.byTooltip('Mix Playlists & Albums'), findsNothing);
 
-    // Downloaded chip should not be visible initially in AppBar
     final appBar = find.byType(AppBar);
     expect(
       find.descendant(of: appBar, matching: find.text('Downloaded')),
@@ -58,17 +56,14 @@ void main() {
       findsNothing,
     );
 
-    // Open options sheet via 3-dots button
     await tester.tap(optionsButton);
     for (var i = 0; i < 10; i++) {
       await tester.pump(const Duration(milliseconds: 50));
     }
 
-    // Verify sheet opened
     expect(find.text('Library Options'), findsOneWidget);
     expect(find.text('Downloaded Only'), findsOneWidget);
 
-    // Toggle Downloaded Only on
     await tester.tap(find.text('Downloaded Only'));
     await tester.pump(const Duration(milliseconds: 100));
 
@@ -78,23 +73,19 @@ void main() {
       await tester.pump(const Duration(milliseconds: 50));
     }
 
-    // Downloaded chip should now be visible in AppBar title
     expect(
       find.descendant(of: appBar, matching: find.text('Downloaded')),
       findsOneWidget,
     );
-    // Badge on 3-dots button should be visible
     expect(
       find.descendant(of: appBar, matching: find.byType(Badge)),
       findsOneWidget,
     );
 
-    // Tap the Downloaded chip to clear filter
     await tester
         .tap(find.descendant(of: appBar, matching: find.text('Downloaded')));
     await tester.pump();
 
-    // Downloaded chip and badge should now be gone from AppBar
     expect(
       find.descendant(of: appBar, matching: find.text('Downloaded')),
       findsNothing,
@@ -133,17 +124,14 @@ void main() {
       await tester.pump(const Duration(milliseconds: 50));
     }
 
-    // Now selection mode AppBar should be active
     expect(find.byTooltip('Cancel Selection'), findsOneWidget);
     expect(find.byTooltip('Select All'), findsOneWidget);
     expect(find.byTooltip('Deselect All'), findsOneWidget);
     expect(find.byTooltip('Library Options'), findsNothing);
 
-    // Cancel selection mode
     await tester.tap(find.byTooltip('Cancel Selection'));
     await tester.pump();
 
-    // Normal AppBar restored
     expect(find.byTooltip('Library Options'), findsOneWidget);
     expect(find.byTooltip('Cancel Selection'), findsNothing);
   });

@@ -130,7 +130,6 @@ extension _MetadataExtractorProbesPart on MetadataExtractor {
     }
   }
 
-  /// Check if ffprobe is available on the system
   Future<bool> _isFFprobeAvailable() async {
     if (!_externalToolsEnabled) return false;
     if (_ffprobeAvailable != null) return _ffprobeAvailable!;

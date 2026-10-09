@@ -16,10 +16,8 @@ import 'song_id_remapping_service.dart';
 import 'stats/account_stats_service.dart';
 import 'stats/streaming_stats_service.dart';
 
-/// Mode for importing data
 enum ImportMode { merge, replace }
 
-/// Result of an export operation
 class ExportResult {
   final bool success;
   final String? filePath;
@@ -36,7 +34,6 @@ class ExportResult {
   });
 }
 
-/// Result of an import operation
 class ImportResult {
   final bool success;
   final String? error;
@@ -51,7 +48,6 @@ class ImportResult {
   });
 }
 
-/// Service for exporting and importing playlists and streaming stats
 class ImportExportService {
   static final ImportExportService _instance = ImportExportService._internal();
   factory ImportExportService() => _instance;
@@ -70,23 +66,19 @@ class ImportExportService {
   /// v4 moves pins to the authenticated account on the server.
   static const int _dataVersion = 4;
 
-  /// Keys for SharedPreferences
   static const String _lastExportKey = 'import_export_last_export';
   static const String _lastImportKey = 'import_export_last_import';
 
-  /// Last export/import timestamps
   DateTime? _lastExportTime;
   DateTime? _lastImportTime;
 
   DateTime? get lastExportTime => _lastExportTime;
   DateTime? get lastImportTime => _lastImportTime;
 
-  /// Initialize the service
   Future<void> initialize() async {
     if (_initialized) return;
     _statsDatabase = await StatsDatabase.create();
 
-    // Load timestamps from SharedPreferences
     final prefs = await SharedPreferences.getInstance();
     final exportTimeStr = prefs.getString(_lastExportKey);
     final importTimeStr = prefs.getString(_lastImportKey);
@@ -101,23 +93,19 @@ class ImportExportService {
     _initialized = true;
   }
 
-  /// Export playlists and stats to a JSON file with the system document saver.
   Future<ExportResult> exportData() async {
     try {
       await initialize();
 
-      // Ensure playlists are loaded
       await _playlistService.loadPlaylists();
 
       final exportData = await buildBackupData();
 
-      // Generate filename with timestamp
       final now = DateTime.now();
       final timestamp =
           '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}-${now.minute.toString().padLeft(2, '0')}-${now.second.toString().padLeft(2, '0')}';
       final filename = 'ariami_backup_$timestamp.json';
 
-      // Convert to JSON string
       final jsonString = const JsonEncoder.withIndent('  ').convert(exportData);
       final bytes = utf8.encode(jsonString);
 
@@ -132,7 +120,6 @@ class ImportExportService {
         );
       }
 
-      // Save export timestamp
       _lastExportTime = DateTime.now();
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_lastExportKey, _lastExportTime!.toIso8601String());
@@ -155,12 +142,10 @@ class ImportExportService {
     }
   }
 
-  /// Import data from a JSON file
   Future<ImportResult> importData(ImportMode mode) async {
     try {
       await initialize();
 
-      // Pick a JSON file
       final result = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['json'],
@@ -235,7 +220,6 @@ class ImportExportService {
     );
   }
 
-  /// Build backup payload for export or testing.
   @visibleForTesting
   Future<Map<String, dynamic>> buildBackupData() async {
     await initialize();
@@ -265,7 +249,6 @@ class ImportExportService {
     };
   }
 
-  /// Import backup data from a parsed JSON map (used by tests and [importData]).
   @visibleForTesting
   Future<ImportResult> importBackupData(
     Map<String, dynamic> data,
@@ -275,7 +258,6 @@ class ImportExportService {
       await initialize();
       await _playlistService.loadPlaylists();
 
-      // Validate structure
       if (!data.containsKey('playlists') || !data.containsKey('stats')) {
         return ImportResult(
           success: false,
@@ -283,7 +265,6 @@ class ImportExportService {
         );
       }
 
-      // Check data version for future compatibility
       final dataVersion = data['dataVersion'] as int? ?? 1;
       if (dataVersion > _dataVersion) {
         return ImportResult(
@@ -292,13 +273,11 @@ class ImportExportService {
         );
       }
 
-      // Parse playlists
       final playlistsJson = data['playlists'] as List<dynamic>;
       final playlists = playlistsJson
           .map((p) => PlaylistModel.fromJson(p as Map<String, dynamic>))
           .toList();
 
-      // Parse stats
       final statsJson = data['stats'] as List<dynamic>;
       final stats = statsJson
           .map((s) => SongStats.fromJson(s as Map<String, dynamic>))
@@ -339,9 +318,6 @@ class ImportExportService {
               (key, value) => MapEntry(key, value as String),
             );
 
-      // -----------------------------------------------------------------------
-      // Remap stale song IDs using current library data
-      // -----------------------------------------------------------------------
       List<SongModel> librarySongs = [];
       try {
         final libraryRepo = LibraryRepository();
@@ -365,9 +341,6 @@ class ImportExportService {
           remappingService.remapPlaylists(playlists, librarySongs);
       final remappedStats = remappingService.remapStats(stats, librarySongs);
 
-      // -----------------------------------------------------------------------
-      // Import based on mode
-      // -----------------------------------------------------------------------
       int playlistsImported = 0;
       int statsImported = 0;
 
@@ -383,7 +356,6 @@ class ImportExportService {
         }
         statsImported = remappedStats.length;
 
-        // Replace pinned items
         await LibraryPinStorage.saveForUser(
           _connectionService.userId,
           importedPinnedItems,
@@ -397,7 +369,6 @@ class ImportExportService {
         }
         statsImported = remappedStats.length;
 
-        // Merge pinned items (union with existing)
         if (importedPinnedItems.isNotEmpty) {
           final existing =
               await LibraryPinStorage.loadForUser(_connectionService.userId);
@@ -431,7 +402,6 @@ class ImportExportService {
         );
       }
 
-      // Refresh stats service cache
       await _statsService.reloadFromDatabase();
 
       // Stats from a backup made under a different library path arrive with
@@ -450,7 +420,6 @@ class ImportExportService {
       // stack). Offline imports upload on the next connection.
       await AccountStatsService().resyncBaselineAfterImport();
 
-      // Save import timestamp
       _lastImportTime = DateTime.now();
       await prefs.setString(_lastImportKey, _lastImportTime!.toIso8601String());
 

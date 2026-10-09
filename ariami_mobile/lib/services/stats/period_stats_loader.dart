@@ -166,7 +166,6 @@ ListeningPeriodStats _hideUncountedRankings(ListeningPeriodStats stats) {
   );
 }
 
-/// Adapts server song rollups to the mobile display model.
 List<SongStats> songStatsFromRollups(Iterable<ListeningSongRollup> rollups) {
   return [
     for (final rollup in rollups)

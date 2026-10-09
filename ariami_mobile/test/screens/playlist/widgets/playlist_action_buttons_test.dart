@@ -154,7 +154,6 @@ void main() {
       expect(playButton.onPressed, isNull);
       expect(shuffleButton.onPressed, isNull);
 
-      // Callbacks should not be called since buttons are disabled
       expect(playCalled, false);
       expect(shuffleCalled, false);
     });
@@ -194,7 +193,6 @@ void main() {
 
       expect(reorderButton.onPressed, isNull);
 
-      // Callback should not be called since button is disabled
       expect(reorderCalled, false);
     });
 

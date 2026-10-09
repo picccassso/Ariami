@@ -81,7 +81,7 @@ class ServerRunner {
 
   /// Run the Ariami server.
   ///
-  /// - [port]: Preferred server port (default: 8080)
+  /// - [port]: Server port (required, no default)
   /// - [allowPortFallback]: When true, scan 8080-8099 if preferred port is busy
   /// - [isSetupMode]: If true, server runs for setup without library scanning
   /// - [isServerMode]: If true, running as background daemon (write own PID)

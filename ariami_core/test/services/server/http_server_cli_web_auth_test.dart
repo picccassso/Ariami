@@ -1813,7 +1813,6 @@ void main() {
         () async {
       final port = await startHttpTestServer(server);
 
-      // Register and login
       final registerResponse = await _sendJsonRequest(
         method: 'POST',
         url: Uri.parse('http://127.0.0.1:$port/api/auth/register'),
@@ -1837,7 +1836,6 @@ void main() {
       expect(loginResponse.statusCode, 200);
       final token = loginResponse.jsonBody['sessionToken'] as String;
 
-      // Connect
       final connectResponse = await _sendJsonRequest(
         method: 'POST',
         url: Uri.parse('http://127.0.0.1:$port/api/connect'),
@@ -1869,7 +1867,6 @@ void main() {
       expect(meResponse.statusCode, 200);
       expect(meResponse.jsonBody['username'], equals('offline-user'));
 
-      // Should be able to reconnect with same token
       final reconnectResponse = await _sendJsonRequest(
         method: 'POST',
         url: Uri.parse('http://127.0.0.1:$port/api/connect'),
@@ -1887,7 +1884,6 @@ void main() {
     test('admin kick still revokes session after disconnect change', () async {
       final port = await startHttpTestServer(server);
 
-      // Register admin
       final registerAdmin = await _sendJsonRequest(
         method: 'POST',
         url: Uri.parse('http://127.0.0.1:$port/api/auth/register'),
@@ -1911,7 +1907,6 @@ void main() {
       expect(loginAdmin.statusCode, 200);
       final adminToken = loginAdmin.jsonBody['sessionToken'] as String;
 
-      // Register and login target user
       final registerTarget = await _sendJsonRequest(
         method: 'POST',
         url: Uri.parse('http://127.0.0.1:$port/api/admin/create-user'),
@@ -1963,7 +1958,6 @@ void main() {
       );
       expect(meAfterDisconnect.statusCode, 200);
 
-      // Admin kick revokes the session
       final kickResponse = await _sendJsonRequest(
         method: 'POST',
         url: Uri.parse('http://127.0.0.1:$port/api/admin/kick-client'),
@@ -1972,7 +1966,6 @@ void main() {
       );
       expect(kickResponse.statusCode, 200);
 
-      // Token should now be invalid after admin kick
       final meAfterKick = await _sendJsonRequest(
         method: 'GET',
         url: Uri.parse('http://127.0.0.1:$port/api/me'),

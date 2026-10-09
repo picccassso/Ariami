@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 
-/// A reusable settings tile widget
-/// Supports icon, title, optional subtitle, optional trailing widget, and onTap callback
 class SettingsTile extends StatelessWidget {
   final IconData icon;
   final String title;
@@ -32,7 +30,6 @@ class SettingsTile extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
           child: Row(
             children: [
-              // Icon container
               Container(
                 padding: const EdgeInsets.all(8),
                 child: Icon(

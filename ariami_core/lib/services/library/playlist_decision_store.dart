@@ -3,12 +3,10 @@ import 'dart:io';
 
 import 'package:path/path.dart' as path;
 
-/// A user's decision about a suggested playlist folder.
 enum PlaylistFolderDecision {
   /// Treat the folder exactly like a `[PLAYLIST]` folder on every scan.
   import,
 
-  /// Never suggest the folder again.
   ignore,
 }
 
@@ -111,12 +109,10 @@ class PlaylistDecisionStore {
     return records;
   }
 
-  /// Normalized paths the user chose to import as playlists.
   Set<String> get importedFolderPaths => _pathsFor(
         PlaylistFolderDecision.import,
       );
 
-  /// Normalized paths the user chose to never suggest again.
   Set<String> get ignoredFolderPaths => _pathsFor(
         PlaylistFolderDecision.ignore,
       );
@@ -124,7 +120,6 @@ class PlaylistDecisionStore {
   PlaylistFolderDecisionRecord? decisionFor(String folderPath) =>
       _recordsByPath[_normalizePath(_validateFolderPath(folderPath))];
 
-  /// Records [decision] for [folderPath] and persists it.
   Future<PlaylistFolderDecisionRecord> setDecision(
     String folderPath,
     PlaylistFolderDecision decision,

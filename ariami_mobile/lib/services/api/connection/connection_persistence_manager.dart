@@ -31,11 +31,6 @@ class ConnectionPersistenceManager {
   })  : _prefs = prefs,
         _secureStorage = secureStorage;
 
-  // ============================================================================
-  // Server Info Persistence
-  // ============================================================================
-
-  /// Save server info and session ID to SharedPreferences.
   Future<void> saveConnectionInfo(
     ServerInfo serverInfo,
     String sessionId,
@@ -74,26 +69,17 @@ class ConnectionPersistenceManager {
     }
   }
 
-  /// Load session ID from SharedPreferences.
-  ///
-  /// Returns null if no session ID is stored.
   Future<String?> loadSessionId() async {
     final prefs = _prefs ?? await SharedPreferences.getInstance();
     return prefs.getString(_sessionIdKey);
   }
 
-  /// Clear connection info from SharedPreferences.
   Future<void> clearConnectionInfo() async {
     final prefs = _prefs ?? await SharedPreferences.getInstance();
     await prefs.remove(_serverInfoKey);
     await prefs.remove(_sessionIdKey);
   }
 
-  // ============================================================================
-  // Auth Persistence (Secure Storage)
-  // ============================================================================
-
-  /// Save auth info to secure storage.
   Future<void> saveAuthInfo({
     required String sessionToken,
     required String userId,
@@ -118,7 +104,6 @@ class ConnectionPersistenceManager {
     };
   }
 
-  /// Clear all auth info from secure storage.
   Future<void> clearAuthInfo() async {
     final storage = _secureStorage ?? const FlutterSecureStorage();
     await storage.delete(key: _sessionTokenKey);
@@ -126,37 +111,26 @@ class ConnectionPersistenceManager {
     await storage.delete(key: _usernameKey);
   }
 
-  /// Save only the session token.
   Future<void> saveSessionToken(String token) async {
     final storage = _secureStorage ?? const FlutterSecureStorage();
     await storage.write(key: _sessionTokenKey, value: token);
   }
 
-  /// Load only the session token.
   Future<String?> loadSessionToken() async {
     final storage = _secureStorage ?? const FlutterSecureStorage();
     return storage.read(key: _sessionTokenKey);
   }
 
-  // ============================================================================
-  // Device ID Persistence
-  // ============================================================================
-
-  /// Save device ID to SharedPreferences.
   Future<void> saveDeviceId(String deviceId) async {
     final prefs = _prefs ?? await SharedPreferences.getInstance();
     await prefs.setString(_deviceIdKey, deviceId);
   }
 
-  /// Load device ID from SharedPreferences.
-  ///
-  /// Returns null if no device ID is stored.
   Future<String?> loadDeviceId() async {
     final prefs = _prefs ?? await SharedPreferences.getInstance();
     return prefs.getString(_deviceIdKey);
   }
 
-  /// Clear device ID from SharedPreferences.
   Future<void> clearDeviceId() async {
     final prefs = _prefs ?? await SharedPreferences.getInstance();
     await prefs.remove(_deviceIdKey);

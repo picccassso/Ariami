@@ -6,8 +6,6 @@ import '../common/artist_link.dart';
 import '../common/cached_artwork.dart';
 import 'playing_collection_builder.dart';
 
-/// Album list item widget
-/// Displays album artwork, title, and artist in a list layout
 class AlbumListItem extends StatelessWidget {
   final AlbumModel album;
   final VoidCallback? onTap;
@@ -36,7 +34,6 @@ class AlbumListItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Dim unavailable items
     final opacity = isAvailable ? 1.0 : 0.4;
 
     return Opacity(
@@ -55,7 +52,6 @@ class AlbumListItem extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Row(
                 children: [
-                  // Selection Checkbox
                   if (isSelectionMode) ...[
                     AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
@@ -87,7 +83,6 @@ class AlbumListItem extends StatelessWidget {
                     const SizedBox(width: 16),
                   ],
 
-                  // Album Artwork
                   Container(
                     width: 56,
                     height: 56,
@@ -108,7 +103,6 @@ class AlbumListItem extends StatelessWidget {
                           child: _buildAlbumArt(context),
                         ),
 
-                        // Download Indicator
                         if (hasDownloadedSongs)
                           Positioned(
                             bottom: -2,
@@ -140,7 +134,6 @@ class AlbumListItem extends StatelessWidget {
 
                   const SizedBox(width: 16),
 
-                  // Text Details
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -210,7 +203,6 @@ class AlbumListItem extends StatelessWidget {
                     ),
                   ),
 
-                  // Info (Song Count)
                   Padding(
                     padding: const EdgeInsets.only(left: 8.0),
                     child: Text(
@@ -259,7 +251,6 @@ class AlbumListItem extends StatelessWidget {
         );
   }
 
-  /// Build album artwork with loading and fallback
   Widget _buildAlbumArt(BuildContext context) {
     return CachedArtwork(
       albumId: album.id,

@@ -2,12 +2,9 @@ import 'album.dart';
 import 'folder_playlist.dart';
 import 'song_metadata.dart';
 
-/// Represents the complete library structure with albums and standalone songs
 class LibraryStructure {
-  /// Map of album ID to Album
   final Map<String, Album> albums;
 
-  /// List of standalone songs (not part of any album)
   final List<SongMetadata> standaloneSongs;
 
   /// List of folder-based playlists (from [PLAYLIST] folders)
@@ -26,7 +23,6 @@ class LibraryStructure {
     this.duplicateToOriginalPath = const {},
   });
 
-  /// Total number of songs across all albums and standalone
   int get totalSongs {
     int count = standaloneSongs.length;
     for (final album in albums.values) {
@@ -38,16 +34,13 @@ class LibraryStructure {
   /// Total number of valid albums (2+ songs)
   int get totalAlbums => albums.values.where((a) => a.isValid).length;
 
-  /// Total duration of all songs in the library
   Duration get totalDuration {
     int totalSeconds = 0;
 
-    // Add album durations
     for (final album in albums.values) {
       totalSeconds += album.totalDuration.inSeconds;
     }
 
-    // Add standalone song durations
     for (final song in standaloneSongs) {
       if (song.duration != null) {
         totalSeconds += song.duration!;
@@ -57,7 +50,6 @@ class LibraryStructure {
     return Duration(seconds: totalSeconds);
   }
 
-  /// Total number of folder playlists
   int get totalPlaylists => folderPlaylists.length;
 
   @override

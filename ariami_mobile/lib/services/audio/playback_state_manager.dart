@@ -4,7 +4,6 @@ import '../../models/playback_queue.dart';
 import '../../models/repeat_mode.dart';
 import '../../models/song.dart';
 
-/// Manages playback state persistence across app restarts
 class PlaybackStateManager {
   // Legacy keys (kept for backward compatibility)
   static const String _keyCurrentSongId = 'playback_current_song_id';
@@ -14,7 +13,6 @@ class PlaybackStateManager {
   static const String _keyVolume = 'playback_volume';
   static const String _keySpeed = 'playback_speed';
 
-  // New complete state keys
   static const String _keyQueue = 'playback_queue';
   static const String _keyShuffle = 'playback_shuffle';
   static const String _keyRepeat = 'playback_repeat';
@@ -31,7 +29,6 @@ class PlaybackStateManager {
     return '${key}_$normalized';
   }
 
-  /// Clear saved state
   Future<void> clearState() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_keyCurrentSongId);
@@ -42,7 +39,6 @@ class PlaybackStateManager {
     await prefs.remove(_keySpeed);
   }
 
-  /// Save complete playback state (queue, shuffle, repeat, position)
   Future<void> saveCompletePlaybackState({
     required PlaybackQueue queue,
     required bool isShuffleEnabled,
@@ -62,10 +58,8 @@ class PlaybackStateManager {
       final originalQueueKey = _scopedKey(_keyOriginalQueue, userId);
       final sourceIdKey = _scopedKey(_keySourceId, userId);
 
-      // Save version
       await prefs.setInt(stateVersionKey, _currentVersion);
 
-      // Save queue as JSON
       if (queue.isNotEmpty) {
         final queueJson = jsonEncode(queue.toJson());
         await prefs.setString(queueKey, queueJson);
@@ -73,16 +67,12 @@ class PlaybackStateManager {
         await prefs.remove(queueKey);
       }
 
-      // Save shuffle state
       await prefs.setBool(shuffleKey, isShuffleEnabled);
 
-      // Save repeat mode
       await prefs.setString(repeatKey, repeatMode.toStorageString());
 
-      // Save position
       await prefs.setInt(positionKey, position.inMilliseconds);
 
-      // Save original queue if shuffled
       if (originalQueue != null &&
           originalQueue.isNotEmpty &&
           isShuffleEnabled) {
@@ -106,7 +96,6 @@ class PlaybackStateManager {
     }
   }
 
-  /// Load complete playback state
   Future<CompletePlaybackState?> loadCompletePlaybackState({
     String? userId,
   }) async {
@@ -120,40 +109,31 @@ class PlaybackStateManager {
       final originalQueueKey = _scopedKey(_keyOriginalQueue, userId);
       final sourceIdKey = _scopedKey(_keySourceId, userId);
 
-      // Check version (for future migrations)
       final version = prefs.getInt(stateVersionKey);
       if (version == null) {
-        // No saved state
         return null;
       }
 
-      // Load queue
       final queueJsonString = prefs.getString(queueKey);
       if (queueJsonString == null) {
-        // No queue saved
         return null;
       }
 
       final queueJson = jsonDecode(queueJsonString) as Map<String, dynamic>;
       final queue = PlaybackQueue.fromJson(queueJson);
 
-      // If queue is empty, return null
       if (queue.isEmpty) {
         return null;
       }
 
-      // Load shuffle state
       final isShuffleEnabled = prefs.getBool(shuffleKey) ?? false;
 
-      // Load repeat mode
       final repeatModeString = prefs.getString(repeatKey) ?? 'none';
       final repeatMode = RepeatMode.fromStorageString(repeatModeString);
 
-      // Load position
       final positionMs = prefs.getInt(positionKey) ?? 0;
       final position = Duration(milliseconds: positionMs);
 
-      // Load original queue if it exists
       List<Song>? originalQueue;
       final originalQueueJsonString = prefs.getString(originalQueueKey);
       if (originalQueueJsonString != null) {
@@ -174,13 +154,11 @@ class PlaybackStateManager {
       );
     } catch (e) {
       print('[PlaybackStateManager] Error loading complete state: $e');
-      // Clear corrupted state
       await clearCompletePlaybackState(userId: userId);
       return null;
     }
   }
 
-  /// Clear all complete playback state
   Future<void> clearCompletePlaybackState({String? userId}) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_scopedKey(_keyStateVersion, userId));
@@ -241,7 +219,6 @@ class PlaybackStateManager {
   }
 }
 
-/// Represents complete playback state including queue, shuffle, and repeat
 class CompletePlaybackState {
   final PlaybackQueue queue;
   final bool isShuffleEnabled;

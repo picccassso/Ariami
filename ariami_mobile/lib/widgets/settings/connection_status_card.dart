@@ -71,7 +71,6 @@ class ConnectionStatusCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Status indicator row
           Row(
             children: [
               Container(
@@ -104,7 +103,6 @@ class ConnectionStatusCard extends StatelessWidget {
           ),
           const SizedBox(height: 24),
 
-          // Server info
           if (serverInfo != null) ...[
             Text(
               serverInfo!.name.toUpperCase(),
@@ -153,7 +151,6 @@ class ConnectionStatusCard extends StatelessWidget {
             const SizedBox(height: 20),
           ],
 
-          // Last sync time
           Row(
             children: [
               Icon(
@@ -174,7 +171,6 @@ class ConnectionStatusCard extends StatelessWidget {
             ],
           ),
 
-          // Error message if present
           if (status == ConnectionStatus.error && errorMessage != null) ...[
             const SizedBox(height: 20),
             Container(
@@ -198,7 +194,6 @@ class ConnectionStatusCard extends StatelessWidget {
             ),
           ],
 
-          // Retry button if error or offline
           if ((status == ConnectionStatus.error ||
                   status == ConnectionStatus.offline) &&
               onRetry != null) ...[

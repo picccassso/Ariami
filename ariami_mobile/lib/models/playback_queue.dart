@@ -22,7 +22,6 @@ class QueueItemRemoval {
   });
 }
 
-/// Manages the playback queue
 class PlaybackQueue {
   final List<Song> _songs = <Song>[];
   int _currentIndex = 0;
@@ -37,10 +36,8 @@ class PlaybackQueue {
         _songs.isEmpty ? 0 : currentIndex.clamp(0, _songs.length - 1);
   }
 
-  /// Get all songs in queue
   List<Song> get songs => List.unmodifiable(_songs);
 
-  /// Get current index
   int get currentIndex => _currentIndex;
 
   /// Changes only when the serialized queue/order changes. Playback progress
@@ -48,7 +45,6 @@ class PlaybackQueue {
   /// its cached queue payload between progress ticks.
   int get revision => _revision;
 
-  /// Get current song
   Song? get currentSong {
     if (_songs.isEmpty || _currentIndex < 0 || _currentIndex >= _songs.length) {
       return null;
@@ -56,40 +52,31 @@ class PlaybackQueue {
     return _songs[_currentIndex];
   }
 
-  /// Get next song
   Song? get nextSong {
     if (!hasNext) return null;
     return _songs[_currentIndex + 1];
   }
 
-  /// Get previous song
   Song? get previousSong {
     if (!hasPrevious) return null;
     return _songs[_currentIndex - 1];
   }
 
-  /// Check if there's a next song
   bool get hasNext => _currentIndex < _songs.length - 1;
 
-  /// Check if there's a previous song
   bool get hasPrevious => _currentIndex > 0;
 
-  /// Get queue length
   int get length => _songs.length;
 
-  /// Check if queue is empty
   bool get isEmpty => _songs.isEmpty;
 
-  /// Check if queue is not empty
   bool get isNotEmpty => _songs.isNotEmpty;
 
-  /// Add a song to the end of the queue
   void addSong(Song song) {
     _songs.add(song);
     _revision++;
   }
 
-  /// Insert a song at a specific index
   void insertSong(int index, Song song) {
     if (index < 0 || index > _songs.length) return;
     _songs.insert(index, song);
@@ -101,7 +88,6 @@ class PlaybackQueue {
     }
   }
 
-  /// Remove a song at a specific index
   void removeSong(int index) {
     if (index < 0 || index >= _songs.length) return;
 
@@ -116,7 +102,6 @@ class PlaybackQueue {
     }
   }
 
-  /// Clear the entire queue
   void clear() {
     if (_songs.isEmpty) return;
     _songs.clear();
@@ -124,7 +109,6 @@ class PlaybackQueue {
     _revision++;
   }
 
-  /// Set the queue to a new list of songs
   void setQueue(List<Song> songs, {int currentIndex = 0}) {
     final replacement = List<Song>.of(songs);
     _songs
@@ -135,14 +119,12 @@ class PlaybackQueue {
     _revision++;
   }
 
-  /// Jump to a specific index
   bool jumpToIndex(int index) {
     if (index < 0 || index >= _songs.length) return false;
     _currentIndex = index;
     return true;
   }
 
-  /// Convert to JSON for persistence
   Map<String, dynamic> toJson() {
     return {
       'songs': _songs.map((s) => s.toJson()).toList(),
@@ -150,7 +132,6 @@ class PlaybackQueue {
     };
   }
 
-  /// Create from JSON
   factory PlaybackQueue.fromJson(Map<String, dynamic> json) {
     final songsList = (json['songs'] as List<dynamic>)
         .map((s) => Song.fromJson(s as Map<String, dynamic>))

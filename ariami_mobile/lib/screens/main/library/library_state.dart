@@ -3,16 +3,12 @@ import '../../../models/api_models.dart';
 import '../../../models/song.dart';
 import '../../../services/library/library_genre_index.dart';
 
-/// Immutable state class for the library screen.
-/// Contains all the data needed to render the library UI.
 @immutable
 class LibraryState {
-  /// Online mode state from server API
   final List<AlbumModel> albums;
   final List<SongModel> songs;
   final List<SongModel> offlineCopySongs;
 
-  /// Offline mode state built from downloads
   final List<Song> offlineSongs;
 
   /// Every downloaded track, album tracks included (offline artist lookups).
@@ -21,19 +17,16 @@ class LibraryState {
   final LibraryGenreIndex genreIndex;
   final String? genreFilter;
 
-  /// Loading and error states
   final bool isLoading;
   final bool isRefreshing;
   final String? errorMessage;
   final String? syncWarningMessage;
 
-  /// UI preferences
   final bool isGridView;
   final bool albumsExpanded;
   final bool songsExpanded;
   final bool isMixedMode;
 
-  /// Download/cache tracking
   final bool showDownloadedOnly;
   final Set<String> downloadedSongIds;
   final Set<String> cachedSongIds;
@@ -76,7 +69,6 @@ class LibraryState {
     this.pinnedItemIds = const {},
   });
 
-  /// Creates a copy of this state with the given fields replaced
   LibraryState copyWith({
     List<AlbumModel>? albums,
     List<SongModel>? songs,
@@ -143,13 +135,11 @@ class LibraryState {
     );
   }
 
-  /// Returns true if the library is empty (no playlists, albums, or songs)
   bool get isLibraryEmpty {
     final songsEmpty = isOfflineMode ? offlineSongs.isEmpty : songs.isEmpty;
     return albums.isEmpty && songsEmpty && offlineCopySongs.isEmpty;
   }
 
-  /// Returns the list of albums to show based on download filter
   List<AlbumModel> get albumsToShow {
     final genreAlbumIds =
         genreFilter == null ? null : genreIndex.genreAlbums[genreFilter!];
@@ -173,7 +163,6 @@ class LibraryState {
       offlineCopyPlaylistIds.isNotEmpty ||
       offlineCopySongs.isNotEmpty;
 
-  /// Returns the list of online songs to show based on download filter
   List<SongModel> get onlineSongsToShow {
     final visibleSongs = [...songs];
     final visibleSongIds = songs.map((song) => song.id).toSet();
@@ -186,21 +175,16 @@ class LibraryState {
         .toList();
   }
 
-  /// Returns true if the given album has downloaded songs
   bool hasAlbumDownloads(String albumId) =>
       albumsWithDownloads.contains(albumId);
 
-  /// Returns true if the given album is fully downloaded
   bool isAlbumFullyDownloaded(String albumId) =>
       fullyDownloadedAlbumIds.contains(albumId);
 
-  /// Returns true if the given song is downloaded
   bool isSongDownloaded(String songId) => downloadedSongIds.contains(songId);
 
-  /// Returns true if the given song is cached
   bool isSongCached(String songId) => cachedSongIds.contains(songId);
 
-  /// Returns true if the given playlist has downloaded songs
   bool hasPlaylistDownloads(String playlistId) =>
       playlistsWithDownloads.contains(playlistId);
 
@@ -304,7 +288,6 @@ class LibraryState {
   }
 }
 
-/// Extension methods for Set comparison
 bool setEquals<T>(Set<T>? a, Set<T>? b) {
   if (a == null) return b == null;
   if (b == null) return false;

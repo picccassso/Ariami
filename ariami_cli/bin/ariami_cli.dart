@@ -50,7 +50,6 @@ Never _reportFatal(Object error, StackTrace stackTrace,
 }
 
 Future<void> _run(List<String> arguments) async {
-  // Normal CLI mode - parse commands
   final parser = ArgParser(allowTrailingOptions: false)
     ..addFlag('help', abbr: 'h', negatable: false, help: 'Show help message')
     ..addFlag('version', abbr: 'v', negatable: false, help: 'Show version')
@@ -73,7 +72,6 @@ Future<void> _run(List<String> arguments) async {
         abbr: 'y', negatable: false, help: 'reset: skip confirmation prompt');
 
   try {
-    // Parse arguments
     final results = parser.parse(arguments);
 
     if (results['server-mode'] as bool) {
@@ -81,25 +79,21 @@ Future<void> _run(List<String> arguments) async {
       return;
     }
 
-    // Show help
     if (results['help'] as bool) {
       _showHelp(parser);
       return;
     }
 
-    // Show version
     if (results['version'] as bool) {
       print('Ariami CLI version $kAriamiVersion');
       return;
     }
 
-    // Get command
     if (results.rest.isEmpty) {
       _usageError(parser, 'No command specified.');
     }
 
     final command = results.rest[0];
-    // Execute command
     switch (command) {
       case 'start':
         await _executeStartCommand(results);

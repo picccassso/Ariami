@@ -1,9 +1,7 @@
-/// Models for file system change detection
 library;
 
 import 'package:ariami_core/models/song_metadata.dart';
 
-/// Types of file system changes
 enum FileChangeType {
   added,
   removed,
@@ -11,7 +9,6 @@ enum FileChangeType {
   renamed,
 }
 
-/// Represents a single file system change event
 class FileChange {
   final String path;
   final FileChangeType type;

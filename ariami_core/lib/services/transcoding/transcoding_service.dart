@@ -71,72 +71,54 @@ enum TranscodeOutputFormat {
 /// - Streaming transcode for immediate playback
 /// - ffprobe-based fast-path to skip unnecessary transcodes
 class TranscodingService {
-  /// Base directory for transcoded file cache
   final String cacheDirectory;
 
-  /// Maximum cache size in bytes
   final int maxCacheSizeBytes;
 
-  /// Maximum concurrent transcodes allowed
   final int maxConcurrency;
 
-  /// Maximum concurrent transcodes allowed for download requests
   final int maxDownloadConcurrency;
 
-  /// Timeout for each transcode operation
   final Duration transcodeTimeout;
 
   /// How long to skip retries after a failure
   final Duration failureBackoffDuration;
 
-  /// Interval between cache index persist operations
   final Duration indexPersistInterval;
 
   /// Optional explicit path to Sonic's dynamic library.
   final String? sonicLibraryPath;
 
-  /// Loaded Sonic FFI adapter (initialized lazily).
   _SonicFfiAdapter? _sonicFfiAdapter;
 
-  /// Whether ffprobe is available on this system
   bool? _ffprobeAvailable;
 
   /// Lock to prevent concurrent transcoding of the same file
   final Map<String, Completer<File?>> _transcodingLocks = {};
 
-  /// Currently running streaming transcode count
   int _runningStreamingCount = 0;
 
-  /// Currently running download transcode count
   int _runningDownloadCount = 0;
 
-  /// Queue of pending streaming transcode tasks
   final Queue<_TranscodeTask> _streamingQueue = Queue();
 
-  /// Queue of pending download transcode tasks
   final Queue<_TranscodeTask> _downloadQueue = Queue();
 
-  /// Queue of low-priority cache warmup tasks.
   final Queue<_TranscodeTask> _warmupQueue = Queue();
   final Set<String> _queuedWarmups = {};
   int _runningWarmupCount = 0;
 
-  /// Cache index: key -> entry
   final Map<String, _CacheIndexEntry> _cacheIndex = {};
 
   /// Total cached bytes (tracked in memory)
   int _cachedTotalSize = 0;
 
-  /// Whether index needs to be persisted
   bool _indexDirty = false;
 
-  /// Whether index has been loaded
   bool _indexLoaded = false;
 
-  /// Timer for periodic index persistence
   Timer? _persistTimer;
 
-  /// Failure records: lockKey -> record
   final Map<String, _FailureRecord> _failures = {};
 
   /// In-use cache entries (prevents eviction while streaming)
@@ -166,7 +148,6 @@ class TranscodingService {
     _startPersistTimer();
   }
 
-  /// Dispose resources. Call when shutting down.
   void dispose() {
     _persistTimer?.cancel();
     if (_indexDirty) {
@@ -174,7 +155,6 @@ class TranscodingService {
     }
   }
 
-  /// Start periodic index persistence timer.
   void _startPersistTimer() {
     _persistTimer?.cancel();
     _persistTimer = Timer.periodic(indexPersistInterval, (_) {
@@ -184,7 +164,6 @@ class TranscodingService {
     });
   }
 
-  /// Check if Sonic is available on the system.
   Future<bool> isSonicAvailable() => _isSonicAvailable();
 
   /// Get a transcoded file for the given source and quality.
@@ -210,12 +189,10 @@ class TranscodingService {
     if (requestType == TranscodeRequestType.download) {
       // No-op: cached transcodes are streaming-only.
     }
-    // No transcoding needed for high quality
     if (!quality.requiresTranscoding) {
       return null;
     }
 
-    // Check Sonic availability
     if (!await isSonicAvailable()) {
       print('TranscodingService: Cannot transcode - Sonic not available');
       return null;
@@ -223,7 +200,6 @@ class TranscodingService {
 
     final lockKey = '${songId}_${quality.name}';
 
-    // Check failure backoff
     if (_shouldSkipDueToFailure(lockKey)) {
       final record = _failures[lockKey]!;
       print(
@@ -232,18 +208,14 @@ class TranscodingService {
       return null;
     }
 
-    // Ensure cache index is loaded
     await _ensureIndexLoaded();
 
-    // Check cache first
     final cachedFile = _getCachedFile(songId, quality);
     if (await cachedFile.exists()) {
       print('TranscodingService: Cache hit for $songId at ${quality.name}');
-      // Update access time in memory (no disk write)
       _recordAccess(lockKey);
       return cachedFile;
     } else {
-      // File missing but was in index - remove from index
       if (_cacheIndex.containsKey(lockKey)) {
         _removeFromIndex(lockKey);
       }
@@ -267,7 +239,6 @@ class TranscodingService {
       }
     }
 
-    // Check if already transcoding this specific file
     if (_transcodingLocks.containsKey(lockKey)) {
       print('TranscodingService: Waiting for existing transcode of $songId');
       return await _transcodingLocks[lockKey]!.future;
@@ -279,7 +250,6 @@ class TranscodingService {
     final taskQueue = _streamingQueue;
     final typeLabel = 'streaming';
 
-    // Check concurrency for this request type - queue if at limit
     if (runningCount >= maxForType) {
       print('TranscodingService: Queuing $songId for $typeLabel '
           '(running: $runningCount, max: $maxForType)');
@@ -294,7 +264,6 @@ class TranscodingService {
       return await task.completer.future;
     }
 
-    // Start transcoding with lock
     final completer = Completer<File?>();
     _transcodingLocks[lockKey] = completer;
     _runningStreamingCount++;
@@ -306,15 +275,12 @@ class TranscodingService {
       final result = await _transcodeFile(sourcePath, cachedFile.path, quality);
 
       if (result != null) {
-        // Add to cache index
         final size = await result.length();
         _addToIndex(
             lockKey, '${quality.name}/$songId.${quality.fileExtension}', size);
 
-        // Clear any previous failure
         _clearFailure(lockKey);
 
-        // Cleanup cache if needed (async, don't wait)
         _cleanupCacheIfNeeded();
       } else {
         _recordFailure(lockKey, 'Transcode returned null');
@@ -348,14 +314,12 @@ class TranscodingService {
   File streamingPartialFile(String songId, QualityPreset quality) =>
       File('${_getCachedFile(songId, quality).path}.partial');
 
-  /// Process next streaming task in queue if capacity available.
   void _processNextStreamingQueue() {
     if (_streamingQueue.isEmpty || _runningStreamingCount >= maxConcurrency) {
       return;
     }
 
     final task = _streamingQueue.removeFirst();
-    // Re-invoke getTranscodedFile for the queued task (streaming cache)
     getTranscodedFile(
       task.sourcePath,
       task.songId,
@@ -368,7 +332,6 @@ class TranscodingService {
     });
   }
 
-  /// Process next download task in queue if capacity available.
   void _processNextDownloadQueue() {
     if (_downloadQueue.isEmpty ||
         _runningDownloadCount >= maxDownloadConcurrency) {
@@ -484,7 +447,6 @@ class TranscodingService {
     QualityPreset quality, {
     TranscodeOutputFormat outputFormat = TranscodeOutputFormat.aac,
   }) async {
-    // Check Sonic availability
     if (!await isSonicAvailable()) {
       print(
           'TranscodingService: Cannot transcode for download - Sonic not available');
@@ -493,7 +455,6 @@ class TranscodingService {
 
     final lockKey = '${songId}_${quality.name}_${outputFormat.name}_download';
 
-    // Check failure backoff
     if (_shouldSkipDueToFailure(lockKey)) {
       print(
           'TranscodingService: Skipping download transcode $lockKey - in backoff');
@@ -503,7 +464,6 @@ class TranscodingService {
     // Download requests should produce the requested quality deterministically
     // and avoid per-file ffprobe process overhead in bulk jobs.
 
-    // Check download concurrency - queue if at limit
     if (_runningDownloadCount >= maxDownloadConcurrency) {
       print('TranscodingService: Queuing download transcode $songId '
           '(running: $_runningDownloadCount, max: $maxDownloadConcurrency)');
@@ -543,28 +503,17 @@ class TranscodingService {
     }
   }
 
-  /// Mark a cache entry as in-use to prevent eviction during streaming.
-  ///
-  /// Call [releaseInUse] when streaming is complete.
   void markInUse(String songId, QualityPreset quality) {
     _markInUse(songId, quality);
   }
 
-  /// Release a cache entry from in-use status.
-  ///
-  /// Should be called after streaming completes.
   void releaseInUse(String songId, QualityPreset quality) {
     _releaseInUse(songId, quality);
   }
 
-  /// Get current cache size in bytes (from index, no disk scan).
   Future<int> getCacheSize() => _getCacheSize();
 
-  /// Clear the entire transcoding cache.
   Future<void> clearCache() => _clearCache();
 
-  /// Delete cached transcodes for a specific song.
-  ///
-  /// Useful when the source file changes.
   Future<void> invalidateSong(String songId) => _invalidateSong(songId);
 }

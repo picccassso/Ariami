@@ -3,7 +3,6 @@
 /// client.
 library;
 
-/// Which slice of listening history a stats view is showing.
 enum StatsRangeKind { all, today, day, week, month, year }
 
 /// A user-selectable stats range. All-time keeps a client's local/summary
@@ -36,11 +35,9 @@ class StatsRange {
   factory StatsRange.weekOf(DateTime day) =>
       StatsRange._(StatsRangeKind.week, _dateOnly(day));
 
-  /// The calendar month containing [day].
   factory StatsRange.monthOf(DateTime day) =>
       StatsRange._(StatsRangeKind.month, _dateOnly(day));
 
-  /// The calendar year containing [day].
   factory StatsRange.yearOf(DateTime day) =>
       StatsRange._(StatsRangeKind.year, _dateOnly(day));
 
@@ -87,7 +84,6 @@ class StatsRange {
   bool get isSingleDay =>
       kind == StatsRangeKind.today || kind == StatsRangeKind.day;
 
-  /// Whether ‹ › paging applies (everything except all-time).
   bool get isSteppable => kind != StatsRangeKind.all;
 
   /// Whether this range contains the complete recorded history between
@@ -219,7 +215,6 @@ class StatsRange {
     return start == null ? kind.name : '${kind.name}:$start';
   }
 
-  /// Parses a [token] produced by [token]; null when absent or malformed.
   static StatsRange? tryParse(String? token) {
     if (token == null || token.isEmpty) return null;
     final separator = token.indexOf(':');

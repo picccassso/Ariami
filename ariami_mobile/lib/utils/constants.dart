@@ -195,7 +195,6 @@ extension PlayerColorsContext on BuildContext {
 }
 
 class AppTheme {
-  // Modern Shape
   static const double panelRadius = 20.0;
   static const double cardRadius = 14.0;
   static const double tileRadius = 10.0;
@@ -323,7 +322,6 @@ class AppTheme {
       extensions: <ThemeExtension<dynamic>>[colors],
       colorScheme: colorScheme,
 
-      // Typography
       textTheme: baseTypography
           .apply(
             bodyColor: colors.textPrimary,
@@ -347,7 +345,6 @@ class AppTheme {
             displayColor: colors.textPrimary,
           ),
 
-      // Component Themes
       actionIconTheme: ActionIconThemeData(
         backButtonIconBuilder: (BuildContext context) =>
             const Icon(LucideIcons.chevronLeft, size: 20),

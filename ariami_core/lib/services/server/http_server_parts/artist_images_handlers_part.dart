@@ -38,7 +38,6 @@ extension AriamiHttpServerArtistImagesMethods on AriamiHttpServer {
         },
       });
 
-  /// Lists all custom artist images for the authenticated user.
   Future<Response> _handleArtistImagesGet(Request request) async {
     final session = request.context['session'] as Session?;
     if (session == null) return _authRequiredResponse();
@@ -51,7 +50,6 @@ extension AriamiHttpServerArtistImagesMethods on AriamiHttpServer {
     });
   }
 
-  /// Serves the raw image bytes for an artist's custom image.
   Future<Response> _handleArtistImageGet(
     Request request,
     String artistName,
@@ -92,7 +90,6 @@ extension AriamiHttpServerArtistImagesMethods on AriamiHttpServer {
     );
   }
 
-  /// Stores or replaces the custom image for an artist.
   Future<Response> _handleArtistImagePut(
     Request request,
     String artistName,
@@ -159,7 +156,6 @@ extension AriamiHttpServerArtistImagesMethods on AriamiHttpServer {
     }
   }
 
-  /// Deletes a custom artist image.
   Future<Response> _handleArtistImageDelete(
     Request request,
     String artistName,

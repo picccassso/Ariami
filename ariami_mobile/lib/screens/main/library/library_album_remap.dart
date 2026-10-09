@@ -1,4 +1,3 @@
-/// Result of remapping album-keyed library state to new album IDs.
 class AlbumKeyRemapResult {
   final Set<String> pins;
   final Map<String, DateTime> recents;

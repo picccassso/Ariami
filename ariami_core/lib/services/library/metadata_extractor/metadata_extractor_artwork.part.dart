@@ -1,7 +1,6 @@
 part of '../metadata_extractor.dart';
 
 extension _MetadataExtractorArtworkPart on MetadataExtractor {
-  /// Cheap check for embedded cover art without reading image bytes.
   Future<bool> _hasEmbeddedArtworkImpl(String filePath) async {
     try {
       final file = File(filePath);

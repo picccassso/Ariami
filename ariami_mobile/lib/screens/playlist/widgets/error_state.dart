@@ -1,11 +1,8 @@
 import 'package:flutter/material.dart';
 
-/// Error state widget with retry button
 class ErrorState extends StatelessWidget {
-  /// The error message to display
   final String message;
 
-  /// Callback when retry button is pressed
   final VoidCallback? onRetry;
 
   const ErrorState({

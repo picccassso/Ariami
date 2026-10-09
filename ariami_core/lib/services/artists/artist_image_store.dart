@@ -59,7 +59,6 @@ class ArtistImageStore {
     }
   }
 
-  /// Lists image metadata (no bytes) for every artist image belonging to [userId].
   List<ArtistImageInfo> list(String userId) {
     final rows = _db.select('''
       SELECT artist_key, artist_name, content_type, updated_at
@@ -98,7 +97,6 @@ class ArtistImageStore {
     );
   }
 
-  /// Stores or updates an artist's custom image.
   ArtistImageInfo put(
     String userId,
     String artistName, {
@@ -192,7 +190,6 @@ class ArtistImageStore {
     return shrunkCount;
   }
 
-  /// Removes an artist's custom image.
   bool delete(String userId, String artistNameOrKey) {
     final artistKey = _validateAndNormalizeKey(artistNameOrKey);
     _db.execute(

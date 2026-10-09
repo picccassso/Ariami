@@ -47,12 +47,10 @@ void main() {
   final validJpegBytes = <int>[0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46];
 
   test('list, put, get, and delete custom artist image', () async {
-    // 1. Initial list should be empty
     final initialList = await _get(port, '/api/v2/artists/images', userAToken);
     expect(initialList.statusCode, 200);
     expect((initialList.json['images'] as List), isEmpty);
 
-    // 2. Put custom artist image
     final putRes = await _putBytes(
       port,
       '/api/artists/Daft%20Punk/image',
@@ -67,7 +65,6 @@ void main() {
     expect(imageMap['contentType'], 'image/jpeg');
     expect(imageMap['updatedAt'], isA<int>());
 
-    // 3. List should have 1 item
     final listAfterPut =
         await _get(port, '/api/v2/artists/images', userAToken);
     expect(listAfterPut.statusCode, 200);
@@ -75,7 +72,6 @@ void main() {
     expect(images, hasLength(1));
     expect(images[0]['artistKey'], 'daft punk');
 
-    // 4. Get raw image bytes
     final getRes =
         await _getBytes(port, '/api/artists/Daft%20Punk/image', userAToken);
     expect(getRes.statusCode, 200);
@@ -83,20 +79,17 @@ void main() {
     expect(getRes.headers.value('cache-control'), contains('immutable'));
     expect(getRes.bodyBytes, validJpegBytes);
 
-    // 5. Delete custom artist image
     final delRes =
         await _delete(port, '/api/artists/Daft%20Punk/image', userAToken);
     expect(delRes.statusCode, 200);
     expect(delRes.json['removed'], isTrue);
 
-    // 6. Get raw image should now 404
     final getAfterDel =
         await _getBytes(port, '/api/artists/Daft%20Punk/image', userAToken);
     expect(getAfterDel.statusCode, 404);
   });
 
   test('artist images are isolated per user', () async {
-    // User A uploads
     await _putBytes(
       port,
       '/api/artists/Radiohead/image',
@@ -105,12 +98,10 @@ void main() {
       'image/jpeg',
     );
 
-    // User B list should still be empty
     final listB = await _get(port, '/api/v2/artists/images', userBToken);
     expect(listB.statusCode, 200);
     expect((listB.json['images'] as List), isEmpty);
 
-    // User B get should 404
     final getB =
         await _getBytes(port, '/api/artists/Radiohead/image', userBToken);
     expect(getB.statusCode, 404);

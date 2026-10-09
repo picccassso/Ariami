@@ -1,9 +1,5 @@
 part of '../api_models.dart';
 
-// ============================================================================
-// V2 SYNC MODELS
-// ============================================================================
-
 class V2PageInfo {
   final String? cursor;
   final String? nextCursor;

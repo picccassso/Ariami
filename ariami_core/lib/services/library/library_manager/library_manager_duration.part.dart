@@ -51,25 +51,21 @@ extension _LibraryManagerDurationPart on LibraryManager {
   }
 
   Future<int?> _getSongDurationImpl(String songId) async {
-    // Check cache first
     if (_durationCache.containsKey(songId)) {
       return _durationCache[songId];
     }
 
-    // Check library metadata
     final existingMetadata = _findSongMetadataById(songId);
     if (existingMetadata?.duration != null && existingMetadata!.duration! > 0) {
       _durationCache[songId] = existingMetadata.duration;
       return existingMetadata.duration;
     }
 
-    // Find the song file path
     final filePath = existingMetadata?.filePath ?? getSongFilePath(songId);
     if (filePath == null) {
       return null;
     }
 
-    // Extract duration
     final duration = await _metadataExtractor.extractDuration(filePath);
     _durationCache[songId] = duration;
 
@@ -159,18 +155,15 @@ extension _LibraryManagerDurationPart on LibraryManager {
   }
 
   Future<List<int>?> _getSongArtworkImpl(String songId) async {
-    // Check cache first
     if (_songArtworkCache.containsKey(songId)) {
       return _songArtworkCache[songId];
     }
 
-    // Find the song file path
     final filePath = getSongFilePath(songId);
     if (filePath == null) {
       return null;
     }
 
-    // Extract artwork from the song file
     final artwork = await _metadataExtractor.extractArtwork(filePath);
 
     // Cache and return (including null to avoid repeated extraction attempts)

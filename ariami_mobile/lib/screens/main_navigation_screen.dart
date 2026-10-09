@@ -97,7 +97,6 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
     WidgetsBinding.instance.addObserver(this);
     ArtistPageOpener().register(_openArtistPage);
     AlbumPageOpener().register(_openAlbumPage);
-    // Initialize playback manager and listen to changes
     _playbackManager.initialize();
     unawaited(_connect.start(_playbackManager));
     _playbackManager.addListener(_onPlaybackStateChanged);
@@ -128,7 +127,6 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
   }
 
   void _onPlaybackStateChanged() {
-    // Rebuild UI when playback state changes
     setState(() {});
   }
 
@@ -172,7 +170,6 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
 
   void _onTabTapped(int index) {
     if (index == _currentIndex) {
-      // Tapping the current tab - pop nested navigator to root
       switch (index) {
         case 0:
           libraryNavigatorKey.currentState?.popUntil((route) => route.isFirst);
@@ -190,7 +187,6 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
           break;
       }
     } else {
-      // Switching to a different tab
       setState(() {
         _currentIndex = index;
       });
@@ -236,7 +232,6 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
         .hashCode;
     final content = Stack(
       children: [
-        // Main content area - can scroll behind nav bar
         Column(
           children: [
             const MusicAvailabilityBanner(),

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-/// Error state widget shown when library loading fails.
 class LibraryErrorState extends StatelessWidget {
   final String errorMessage;
   final VoidCallback onRetry;

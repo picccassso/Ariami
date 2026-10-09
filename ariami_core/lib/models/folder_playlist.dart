@@ -9,7 +9,6 @@ class FolderPlaylist {
   /// Display name (folder name without [PLAYLIST] prefix)
   final String name;
 
-  /// Full path to the folder on the server
   final String folderPath;
 
   /// List of song IDs in this playlist (order matches folder order)
@@ -22,16 +21,12 @@ class FolderPlaylist {
     required this.songIds,
   });
 
-  /// Number of songs in the playlist
   int get songCount => songIds.length;
 
-  /// Whether this playlist has any songs
   bool get isEmpty => songIds.isEmpty;
 
-  /// Whether this playlist has songs (non-empty)
   bool get isNotEmpty => songIds.isNotEmpty;
 
-  /// Generate a unique playlist ID from folder path
   static String generateId(String folderPath) {
     final bytes = utf8.encode(folderPath);
     final hash = md5.convert(bytes);
@@ -51,11 +46,9 @@ class FolderPlaylist {
     return folderName;
   }
 
-  /// Check if a folder name indicates a playlist folder
   static bool isPlaylistFolder(String folderName) =>
       folderName.toUpperCase().startsWith(_markerPrefix);
 
-  /// Convert to JSON for API response
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -65,7 +58,6 @@ class FolderPlaylist {
     };
   }
 
-  /// Create from JSON (for potential future use)
   factory FolderPlaylist.fromJson(Map<String, dynamic> json) {
     return FolderPlaylist(
       id: json['id'] as String,

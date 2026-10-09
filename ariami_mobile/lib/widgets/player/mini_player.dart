@@ -8,7 +8,6 @@ import '../common/adaptive_marquee_text.dart';
 import '../common/cached_artwork.dart';
 import 'player_output_button.dart';
 
-/// Mini player widget that appears at the bottom during playback
 class MiniPlayer extends StatefulWidget {
   final Song? currentSong;
   final bool isPlaying;
@@ -101,12 +100,10 @@ class _MiniPlayerState extends State<MiniPlayer> {
     }
 
     if (_horizontalSwipeDelta < 0) {
-      // Swipe left -> Next
       if (widget.hasNext) {
         _animateSkipTransition(toNext: true);
       }
     } else if (_horizontalSwipeDelta > 0) {
-      // Swipe right -> Previous
       if (widget.hasPrevious) {
         _animateSkipTransition(toNext: false);
       }
@@ -164,7 +161,6 @@ class _MiniPlayerState extends State<MiniPlayer> {
 
     final colors = _colorService.currentColors;
 
-    // Flush style
     return Theme(
       data: AppTheme.buildTheme(
         brightness: Brightness.dark,
@@ -232,7 +228,6 @@ class _MiniPlayerState extends State<MiniPlayer> {
                   onTap: widget.onTap,
                   child: Column(
                 children: [
-                  // Content Row
                   Expanded(
                     child: AnimatedSlide(
                       offset: Offset(_skipOffsetX, 0),
@@ -257,12 +252,10 @@ class _MiniPlayerState extends State<MiniPlayer> {
                                       _onHorizontalSwipeCancel,
                                   child: Row(
                                     children: [
-                                      // Album artwork with rotation or shadow? Keep simple for mini.
                                       _buildAlbumArt(context),
 
                                       const SizedBox(width: 12),
 
-                                      // Song info
                                       Expanded(
                                         child: Column(
                                           mainAxisAlignment:
@@ -308,7 +301,6 @@ class _MiniPlayerState extends State<MiniPlayer> {
                                 ),
                               ),
 
-                              // Controls
                               Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
@@ -320,7 +312,6 @@ class _MiniPlayerState extends State<MiniPlayer> {
                                         Colors.white.withValues(alpha: 0.54),
                                     iconSize: 22,
                                   ),
-                                  // Play/Pause
                                   Container(
                                     decoration: BoxDecoration(
                                       shape: BoxShape.circle,
@@ -356,7 +347,6 @@ class _MiniPlayerState extends State<MiniPlayer> {
                     ),
                   ),
 
-                  // Progress Indicator at bottom edge
                   LinearProgressIndicator(
                     value: widget.duration.inMilliseconds > 0
                         ? widget.position.inMilliseconds /
@@ -379,7 +369,6 @@ class _MiniPlayerState extends State<MiniPlayer> {
 );
   }
 
-  /// Build album artwork widget using CachedArtwork
   Widget _buildAlbumArt(BuildContext context) {
     final connectionService = ConnectionService();
 
@@ -387,18 +376,15 @@ class _MiniPlayerState extends State<MiniPlayer> {
       return _buildPlaceholder(context);
     }
 
-    // Determine artwork URL based on whether song has albumId
     String? artworkUrl;
     String cacheId;
 
     if (widget.currentSong!.albumId != null) {
-      // Song belongs to an album - use album artwork endpoint
       artworkUrl = connectionService.apiClient != null
           ? '${connectionService.apiClient!.baseUrl}/artwork/${widget.currentSong!.albumId}'
           : null;
       cacheId = widget.currentSong!.albumId!;
     } else {
-      // Standalone song - use song artwork endpoint
       artworkUrl = connectionService.apiClient != null
           ? '${connectionService.apiClient!.baseUrl}/song-artwork/${widget.currentSong!.id}'
           : null;
@@ -418,7 +404,6 @@ class _MiniPlayerState extends State<MiniPlayer> {
     );
   }
 
-  /// Build placeholder artwork
   Widget _buildPlaceholder(BuildContext context) {
     return Container(
       width: 45,

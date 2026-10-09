@@ -8,22 +8,16 @@ import '../../utils/secure_file_permissions.dart';
 /// Stores and persists user sessions to JSON file.
 /// Uses in-memory map for O(1) lookups, with sliding TTL expiry.
 class SessionStore {
-  /// Map of sessionToken → Session for quick lookups
   final Map<String, Session> _sessions = {};
 
-  /// Default session TTL: 30 days
   static const Duration defaultTtl = Duration(days: 30);
 
-  /// Cleanup interval: every 5 minutes
   static const Duration cleanupInterval = Duration(minutes: 5);
 
-  /// Path to the JSON file for persistence
   String? _filePath;
 
-  /// Whether the store has been initialized
   bool _initialized = false;
 
-  /// Timer for periodic cleanup of expired sessions
   Timer? _cleanupTimer;
 
   /// Serialize persist operations to avoid temp-file rename collisions
@@ -33,11 +27,8 @@ class SessionStore {
   static const Duration refreshPersistInterval = Duration(minutes: 10);
   final Map<String, DateTime> _lastRefreshPersistAt = {};
 
-  /// Random number generator for token generation
   final Random _random = Random.secure();
 
-  /// Initialize the store by loading sessions from the JSON file.
-  /// Automatically prunes expired sessions on load.
   Future<void> initialize(String filePath) async {
     if (_initialized) return;
 
@@ -60,7 +51,6 @@ class SessionStore {
             for (final sessionJson in sessionsList) {
               final session =
                   Session.fromJson(sessionJson as Map<String, dynamic>);
-              // Only load non-expired sessions
               final expiresAt = DateTime.parse(session.expiresAt);
               if (expiresAt.isAfter(now)) {
                 _sessions[session.sessionToken] = session;
@@ -84,8 +74,6 @@ class SessionStore {
     }
   }
 
-  /// Create a new session for a user on a specific device.
-  /// Returns the created Session with a secure random token.
   Future<Session> createSession(
     String userId,
     String deviceId,
@@ -112,18 +100,14 @@ class SessionStore {
     return session;
   }
 
-  /// Get a session by token.
-  /// Returns null if not found or expired.
   Session? getSession(String sessionToken) {
     _ensureInitialized();
 
     final session = _sessions[sessionToken];
     if (session == null) return null;
 
-    // Check if expired
     final expiresAt = DateTime.parse(session.expiresAt);
     if (expiresAt.isBefore(DateTime.now().toUtc())) {
-      // Session expired - remove it
       _sessions.remove(sessionToken);
       // Don't persist here to avoid blocking - cleanup timer will handle it
       return null;
@@ -132,8 +116,6 @@ class SessionStore {
     return session;
   }
 
-  /// Refresh a session's expiry time (sliding TTL).
-  /// Call this on successful activity to extend the session.
   Future<void> refreshSession(String sessionToken) async {
     _ensureInitialized();
 
@@ -147,7 +129,6 @@ class SessionStore {
       return;
     }
 
-    // Check if expired first
     final expiresAt = DateTime.parse(session.expiresAt);
     if (expiresAt.isBefore(now)) {
       _sessions.remove(sessionToken);
@@ -155,7 +136,6 @@ class SessionStore {
       return;
     }
 
-    // Create new session with extended expiry
     final newExpiresAt = now.add(defaultTtl);
     final refreshedSession = Session(
       sessionToken: session.sessionToken,
@@ -171,7 +151,6 @@ class SessionStore {
     await _persist();
   }
 
-  /// Revoke a specific session (logout).
   Future<void> revokeSession(String sessionToken) async {
     _ensureInitialized();
 
@@ -181,12 +160,10 @@ class SessionStore {
     }
   }
 
-  /// Revoke all sessions for a user (logout all devices).
   Future<void> revokeAllForUser(String userId) async {
     await revokeAllForUserWithDetails(userId);
   }
 
-  /// Revoke all sessions for a user and return revoked sessions.
   Future<List<Session>> revokeAllForUserWithDetails(String userId) async {
     _ensureInitialized();
 
@@ -203,7 +180,6 @@ class SessionStore {
     return sessionsToRemove;
   }
 
-  /// Get all active sessions for a user.
   List<Session> getSessionsForUser(String userId) {
     _ensureInitialized();
 
@@ -214,7 +190,6 @@ class SessionStore {
         .toList();
   }
 
-  /// Revoke all active sessions for a user on a specific device.
   Future<void> revokeSessionsForUserOnDevice(
       String userId, String deviceId) async {
     _ensureInitialized();
@@ -261,7 +236,6 @@ class SessionStore {
     }
   }
 
-  /// Get all active sessions for a device.
   List<Session> getSessionsForDevice(String deviceId) {
     _ensureInitialized();
 
@@ -272,7 +246,6 @@ class SessionStore {
         .toList();
   }
 
-  /// Revoke all active sessions for a device and return revoked sessions.
   Future<List<Session>> revokeSessionsForDevice(String deviceId) async {
     _ensureInitialized();
 
@@ -288,20 +261,16 @@ class SessionStore {
     return sessionsToRemove;
   }
 
-  /// Get the count of active sessions.
   int get sessionCount {
     _ensureInitialized();
     return _sessions.length;
   }
 
-  /// Clean up resources. Call when shutting down.
   void dispose() {
     _cleanupTimer?.cancel();
     _cleanupTimer = null;
   }
 
-  /// Persist the current state to the JSON file.
-  /// Uses atomic write (write to temp, then rename) for safety.
   Future<void> _persist() async {
     if (_filePath == null) return;
 
@@ -334,13 +303,11 @@ class SessionStore {
     return _persistQueue;
   }
 
-  /// Start the periodic cleanup timer.
   void _startCleanupTimer() {
     _cleanupTimer?.cancel();
     _cleanupTimer = Timer.periodic(cleanupInterval, (_) => _cleanupExpired());
   }
 
-  /// Remove expired sessions from memory and persist.
   Future<void> _cleanupExpired() async {
     if (!_initialized) return;
 
@@ -373,7 +340,6 @@ class SessionStore {
     return bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
   }
 
-  /// Ensure the store has been initialized.
   void _ensureInitialized() {
     if (!_initialized) {
       throw StateError(

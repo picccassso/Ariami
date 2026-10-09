@@ -7,8 +7,6 @@ import '../common/cached_artwork.dart';
 import '../common/song_overflow_menu.dart';
 import '../common/swipe_to_queue.dart';
 
-/// Track list item for album detail view
-/// Shows album artwork, title, duration, and overflow menu
 class TrackListItem extends StatelessWidget {
   final SongModel track;
   final VoidCallback? onTap;
@@ -126,7 +124,6 @@ class TrackListItem extends StatelessWidget {
     );
   }
 
-  /// Build leading widget with download/cache indicator
   Widget _buildLeading(BuildContext context) {
     return Stack(
       children: [
@@ -169,7 +166,6 @@ class TrackListItem extends StatelessWidget {
     );
   }
 
-  /// Build album artwork or placeholder using CachedArtwork
   Widget _buildAlbumArt(BuildContext context) {
     final connectionService = ConnectionService();
 
@@ -194,7 +190,6 @@ class TrackListItem extends StatelessWidget {
     return _buildPlaceholder();
   }
 
-  /// Build placeholder for missing artwork
   Widget _buildPlaceholder() {
     return Container(
       width: 48,
@@ -224,7 +219,6 @@ class TrackListItem extends StatelessWidget {
     );
   }
 
-  /// Format duration in seconds to mm:ss
   String _formatDuration(int seconds) {
     final minutes = seconds ~/ 60;
     final remainingSeconds = seconds % 60;

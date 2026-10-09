@@ -6,7 +6,6 @@ extension _DownloadManagerInitializationImpl on DownloadManager {
 
     if (_initialized) return;
 
-    // Setup database
     _database = await DownloadDatabase.create();
     _coolerDownloadsEnabled = _database.getCoolerDownloads();
 
@@ -16,7 +15,6 @@ extension _DownloadManagerInitializationImpl on DownloadManager {
     _downloadPath = '${appDir.path}/downloads';
     await Directory(_downloadPath!).create(recursive: true);
 
-    // Load queue from storage into the already-initialized _queue
     final savedQueue = await _database.loadDownloadQueue();
     if (savedQueue.isNotEmpty) {
       for (final task in savedQueue) {
@@ -69,10 +67,8 @@ extension _DownloadManagerInitializationImpl on DownloadManager {
       receiveTimeout: const Duration(minutes: 5),
     ));
 
-    // Load quality settings (for download quality/original)
     await _qualityService.initialize();
 
-    // Listen to queue changes and persist
     _queue.queueStream.listen((tasks) {
       _invalidateScopedQueueCache();
       _ensureServerScope(tasks);
@@ -171,7 +167,6 @@ extension _DownloadManagerInitializationImpl on DownloadManager {
     }
   }
 
-  /// Ensure initialization
   Future<void> _ensureInitialized() async {
     if (!_initialized) {
       await initialize();

@@ -1,14 +1,11 @@
 import '../../../models/api_models.dart';
 import '../../../models/song.dart';
 
-/// Helper to convert SongModel to Song with album info lookup
-/// Uses album info map to populate album name and artist
 Song songModelToSong(
     SongModel s, Map<String, ({String name, String artist})> albumInfoMap) {
   String? albumName;
   String? albumArtist;
 
-  // Lookup album info if song has albumId
   if (s.albumId != null && albumInfoMap.containsKey(s.albumId)) {
     final albumInfo = albumInfoMap[s.albumId]!;
     albumName = albumInfo.name;
@@ -30,7 +27,6 @@ Song songModelToSong(
   );
 }
 
-/// Format duration in seconds to MM:SS format
 String formatDuration(int seconds) {
   final minutes = seconds ~/ 60;
   final secs = seconds % 60;

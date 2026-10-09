@@ -43,7 +43,6 @@ extension AriamiHttpServerSetupAndStatsHandlersMethods on AriamiHttpServer {
   /// Handle ping request
   /// Optionally accepts deviceId query parameter to update heartbeat
   Response _handlePing(Request request) {
-    // Update heartbeat if deviceId is provided
     final deviceId = request.url.queryParameters['deviceId'];
     if (deviceId != null && deviceId.isNotEmpty) {
       _connectionManager.refreshHeartbeatIfRegistered(deviceId);
@@ -58,7 +57,6 @@ extension AriamiHttpServerSetupAndStatsHandlersMethods on AriamiHttpServer {
     });
   }
 
-  /// Handle Tailscale status request
   Future<Response> _handleTailscaleStatus(Request request) async {
     if (_tailscaleStatusCallback != null) {
       try {
@@ -69,7 +67,7 @@ extension AriamiHttpServerSetupAndStatsHandlersMethods on AriamiHttpServer {
       }
     }
 
-    // Tailscale not configured (e.g., desktop app)
+    // Tailscale callback not configured by the host
     return _jsonOk({
       'isInstalled': false,
       'isRunning': false,
@@ -77,7 +75,6 @@ extension AriamiHttpServerSetupAndStatsHandlersMethods on AriamiHttpServer {
     });
   }
 
-  /// Handle set music folder request
   Future<Response> _handleSetMusicFolder(Request request) async {
     final authResponse = await _authorizeSetupRequest(request);
     if (authResponse != null) return authResponse;
@@ -129,7 +126,6 @@ extension AriamiHttpServerSetupAndStatsHandlersMethods on AriamiHttpServer {
     }
   }
 
-  /// Handle validate music folder request (no save)
   Future<Response> _handleValidateMusicFolder(Request request) async {
     try {
       final body = await request.readAsString();
@@ -153,7 +149,6 @@ extension AriamiHttpServerSetupAndStatsHandlersMethods on AriamiHttpServer {
     }
   }
 
-  /// Handle music folder path suggestions for setup UI
   Future<Response> _handleGetMusicFolderSuggestions(Request request) async {
     try {
       String? configuredPath;
@@ -173,7 +168,6 @@ extension AriamiHttpServerSetupAndStatsHandlersMethods on AriamiHttpServer {
     }
   }
 
-  /// Handle start scan request
   Future<Response> _handleStartScan(Request request) async {
     final authResponse = await _authorizeSetupRequest(request);
     if (authResponse != null) return authResponse;
@@ -193,7 +187,6 @@ extension AriamiHttpServerSetupAndStatsHandlersMethods on AriamiHttpServer {
     }
   }
 
-  /// Handle get scan status request
   Future<Response> _handleGetScanStatus(Request request) async {
     if (_getScanStatusCallback != null) {
       try {
@@ -216,7 +209,6 @@ extension AriamiHttpServerSetupAndStatsHandlersMethods on AriamiHttpServer {
       }
     }
 
-    // Return default status if not configured
     final diagnostics = _libraryManager.latestScanDiagnostics;
     return _jsonOk({
       'isScanning': false,
@@ -231,7 +223,6 @@ extension AriamiHttpServerSetupAndStatsHandlersMethods on AriamiHttpServer {
     });
   }
 
-  /// Handle mark setup complete request
   Future<Response> _handleMarkSetupComplete(Request request) async {
     final authResponse = await _authorizeSetupRequest(request);
     if (authResponse != null) return authResponse;
@@ -248,7 +239,6 @@ extension AriamiHttpServerSetupAndStatsHandlersMethods on AriamiHttpServer {
     }
   }
 
-  /// Handle get setup status request (check if setup is complete)
   Future<Response> _handleGetSetupStatus(Request request) async {
     if (_getSetupStatusCallback != null) {
       try {
@@ -280,7 +270,6 @@ extension AriamiHttpServerSetupAndStatsHandlersMethods on AriamiHttpServer {
     }
   }
 
-  /// Handle get stats request (for dashboard)
   Response _handleGetStats(Request request) {
     final library = _libraryManager.library;
     final isScanning = _libraryManager.isScanning;
@@ -298,7 +287,6 @@ extension AriamiHttpServerSetupAndStatsHandlersMethods on AriamiHttpServer {
         'lastScanTime': lastScanTime?.toIso8601String(),
         'serverRunning': true,
         'musicAvailability': _libraryManager.musicAvailability.toJson(),
-        // Multi-user auth stats
         'connectedUsers': _connectionManager.uniqueUserCount,
         'connectedDevices': connectedClients,
         'activeSessions': _authService.sessionCount,
@@ -312,7 +300,6 @@ extension AriamiHttpServerSetupAndStatsHandlersMethods on AriamiHttpServer {
     );
   }
 
-  /// Handle get server info request (for QR code generation)
   Response _handleGetServerInfo(Request request) {
     final serverInfo = getServerInfo();
     return _jsonOk(serverInfo);

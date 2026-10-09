@@ -1,7 +1,6 @@
 part of '../http_server.dart';
 
 extension AriamiHttpServerRouterMethods on AriamiHttpServer {
-  /// Build the router with all API routes.
   Router _buildRouter() {
     final router = Router();
     final v2Handlers = AriamiV2Handlers(
@@ -326,10 +325,8 @@ extension AriamiHttpServerRouterMethods on AriamiHttpServer {
   }
 
   void _registerMediaRoutes(Router router) {
-    // Streaming endpoint - captures everything after /api/stream/
     router.get('/api/stream/<path|.*>', _handleStream);
 
-    // Download endpoint - for downloading full audio files
     router.get('/api/download/<path|.*>', _handleDownload);
   }
 

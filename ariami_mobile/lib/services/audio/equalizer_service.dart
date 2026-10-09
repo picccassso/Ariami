@@ -117,7 +117,6 @@ class EqualizerService extends ChangeNotifier {
   List<double> get currentBandGains =>
       List<double>.unmodifiable(_currentBandGains);
 
-  /// Load persisted state and apply it to the platform equalizer.
   Future<void> initialize() {
     if (_initialized) return Future<void>.value();
     return _initializeFuture ??= _initialize();

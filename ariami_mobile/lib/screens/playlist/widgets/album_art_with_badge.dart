@@ -3,15 +3,11 @@ import '../../../models/api_models.dart';
 import '../../../services/api/connection_service.dart';
 import '../../../widgets/common/cached_artwork.dart';
 
-/// Album artwork with optional download badge
 class AlbumArtWithBadge extends StatelessWidget {
-  /// The song to display artwork for
   final SongModel song;
 
-  /// Whether the song is downloaded
   final bool isDownloaded;
 
-  /// Connection service for artwork URL
   final ConnectionService connectionService;
 
   const AlbumArtWithBadge({
@@ -51,21 +47,16 @@ class AlbumArtWithBadge extends StatelessWidget {
     );
   }
 
-  /// Build album artwork or placeholder using CachedArtwork
-  /// Handles both album songs and standalone songs
   Widget _buildAlbumArt() {
-    // Determine artwork URL and cache ID based on whether song has albumId
     String? artworkUrl;
     String cacheId;
 
     if (song.albumId != null) {
-      // Song belongs to an album - use album artwork endpoint
       artworkUrl = connectionService.apiClient != null
           ? '${connectionService.apiClient!.baseUrl}/artwork/${song.albumId}'
           : null;
       cacheId = song.albumId!;
     } else {
-      // Standalone song - use song artwork endpoint
       artworkUrl = connectionService.apiClient != null
           ? '${connectionService.apiClient!.baseUrl}/song-artwork/${song.id}'
           : null;
@@ -87,7 +78,6 @@ class AlbumArtWithBadge extends StatelessWidget {
     );
   }
 
-  /// Placeholder for missing artwork
   Widget _buildPlaceholder() {
     return Container(
       width: 48,

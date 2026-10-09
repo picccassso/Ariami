@@ -1,4 +1,3 @@
-/// Result of validating or saving a music folder path via the setup API.
 class MusicFolderValidationResult {
   const MusicFolderValidationResult({
     required this.isValid,

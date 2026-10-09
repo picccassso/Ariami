@@ -310,20 +310,16 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // With aliases present and not revealed, aliases should be displayed
     expect(find.text('Home Network'), findsWidgets); // Active Address & LAN Address
     expect(find.text('Tailscale VPN'), findsOneWidget);
     expect(find.text('100.101.102.103'), findsNothing);
 
-    // Eye buttons should exist
     final eyeButtons = find.byTooltip('Reveal address');
     expect(eyeButtons, findsWidgets);
 
-    // Tap reveal on LAN address / Tailscale
     await tester.tap(eyeButtons.first);
     await tester.pumpAndSettle();
 
-    // Now raw IP is visible
     expect(find.text('192.168.68.64'), findsWidgets);
   });
 

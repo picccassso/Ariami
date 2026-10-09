@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../common/artist_link.dart';
 
-/// Album information section shown above the track list.
 class AlbumInfoSection extends StatelessWidget {
   final String albumTitle;
   final String albumArtist;

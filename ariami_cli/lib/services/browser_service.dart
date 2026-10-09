@@ -7,7 +7,6 @@ typedef ProcessRunner = Future<ProcessResult> Function(
 
 typedef HasDisplaySession = bool Function();
 
-/// Service for launching the web browser
 class BrowserService {
   BrowserService._({
     ProcessRunner? processRunner,
@@ -34,7 +33,6 @@ class BrowserService {
   final ProcessRunner _processRunner;
   final HasDisplaySession _hasDisplaySession;
 
-  /// Open URL in default browser
   Future<bool> openUrl(String url) async {
     try {
       if (Platform.isLinux && !_hasDisplaySession()) {
@@ -58,7 +56,6 @@ class BrowserService {
     }
   }
 
-  /// Open the Ariami web interface
   Future<bool> openAriamiInterface(
       {String? tailscaleIp, int port = 8080}) async {
     final url = tailscaleIp != null

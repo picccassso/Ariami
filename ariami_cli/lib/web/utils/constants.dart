@@ -7,8 +7,6 @@ import 'package:flutter/material.dart';
 /// meaning. Type is sentence case at a small number of sizes — the dashboard
 /// is read at a glance, not shouted at.
 class AppTheme {
-  // ---------------------------------------------------------------- surfaces
-  /// Page canvas.
   static const Color pureBlack = Color(0xFF050505);
 
   /// Default card / panel fill.
@@ -23,7 +21,6 @@ class AppTheme {
   static const Color borderGrey = Color(0xFF262626);
   static const Color borderStrong = Color(0xFF3A3A3A);
 
-  // ------------------------------------------------------------------- text
   static const Color textPrimary = Color(0xFFFAFAFA);
 
   /// Labels and supporting copy. Deliberately lighter than the old
@@ -33,19 +30,16 @@ class AppTheme {
   /// Lowest-emphasis text: placeholders, disabled values.
   static const Color textTertiary = Color(0xFF6F6F6F);
 
-  // ----------------------------------------------------------------- status
   static const Color success = Color(0xFF4ADE80);
   static const Color warning = Color(0xFFFBBF24);
   static const Color danger = Color(0xFFF87171);
 
-  // ---------------------------------------------------------------- shapes
   static const double radiusSmall = 10;
   static const double radiusMedium = 14;
   static const double radiusLarge = 18;
 
   static final BorderRadius cardRadius = BorderRadius.circular(radiusLarge);
 
-  /// Card surface used across the dashboard.
   static BoxDecoration cardDecoration({bool hovered = false}) => BoxDecoration(
         color: hovered ? surfaceHover : surfaceBlack,
         borderRadius: cardRadius,

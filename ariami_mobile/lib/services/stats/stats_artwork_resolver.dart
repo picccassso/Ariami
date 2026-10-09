@@ -8,7 +8,6 @@ import '../../utils/artwork_url.dart';
 import '../api/connection_service.dart';
 import '../artist_image_service.dart';
 
-/// A stable cache identity plus the best available server artwork URL.
 class StatsArtworkIdentity {
   const StatsArtworkIdentity({
     required this.cacheId,

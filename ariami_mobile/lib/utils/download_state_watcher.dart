@@ -19,7 +19,6 @@ class DownloadStateWatcher {
   Timer? _refreshTimer;
   String _lastCompletedDownloadsSignature = '';
 
-  /// Subscribe to queue updates and emit the current completed song IDs.
   void start() {
     _subscription?.cancel();
     _subscription = _downloadManager.queueStream.listen(_scheduleRefresh);
@@ -49,7 +48,6 @@ class DownloadStateWatcher {
     _onChanged(completedSongIds(queue));
   }
 
-  /// Returns song IDs for all completed download tasks in [queue].
   static Set<String> completedSongIds(List<DownloadTask> queue) {
     final downloadedIds = <String>{};
     for (final task in queue) {

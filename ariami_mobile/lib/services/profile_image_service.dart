@@ -26,7 +26,6 @@ class ProfileImageService extends ChangeNotifier {
   /// re-read from the device each time.
   ImageProvider? _cachedProvider;
 
-  /// Get the current profile image as an ImageProvider, or null if no image is set
   ImageProvider? get imageProvider {
     if (_imagePath == null) return null;
     final file = File(_imagePath!);
@@ -67,13 +66,10 @@ class ProfileImageService extends ChangeNotifier {
     stream.addListener(listener);
   }
 
-  /// Get the current image path, or null if no image is set
   String? get imagePath => _imagePath;
 
-  /// Check if a profile image is set
   bool get hasImage => _imagePath != null && File(_imagePath!).existsSync();
 
-  /// Initialize the service by loading any existing profile image
   Future<void> initialize() async {
     if (_initialized) return;
     _initialized = true;
@@ -85,7 +81,6 @@ class ProfileImageService extends ChangeNotifier {
       return;
     }
 
-    // Look for existing profile image (any extension)
     final files = await profileDir.list().toList();
     for (final file in files) {
       if (file is File && path.basenameWithoutExtension(file.path) == _profileImageFileName) {
@@ -96,7 +91,6 @@ class ProfileImageService extends ChangeNotifier {
     }
   }
 
-  /// Delete existing profile image files
   Future<void> _deleteExistingImage(Directory profileDir) async {
     if (!await profileDir.exists()) return;
 
@@ -128,7 +122,6 @@ class ProfileImageService extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Remove the current profile image
   Future<void> removeImage() async {
     if (_imagePath == null) return;
 
@@ -141,7 +134,6 @@ class ProfileImageService extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Clear the profile image (called on logout)
   Future<void> clear() async {
     final appDir = await getApplicationDocumentsDirectory();
     final profileDir = Directory('${appDir.path}/profile');

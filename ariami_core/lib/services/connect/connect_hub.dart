@@ -1354,7 +1354,7 @@ class AriamiConnectHub {
 
   Set<String> _readSupportedCommands(Map<String, dynamic>? hello) {
     if (hello == null || !hello.containsKey('supportedCommands')) {
-      // A peer without a capability offer predates slice 6. Preserve the
+      // A peer without a capability offer predates capability negotiation. Preserve the
       // established rolling-upgrade behaviour and let the protocol allowlist
       // describe it until that device upgrades.
       return AriamiConnectCommand.supported;

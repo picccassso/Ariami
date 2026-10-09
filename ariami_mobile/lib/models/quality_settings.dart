@@ -1,4 +1,3 @@
-/// Audio quality preset for streaming/downloads
 enum StreamingQuality {
   /// Original file quality (no transcoding)
   high,
@@ -9,10 +8,8 @@ enum StreamingQuality {
   /// 64 kbps AAC
   low;
 
-  /// Convert to server API parameter value
   String toApiParam() => name;
 
-  /// Parse from stored string value
   static StreamingQuality fromString(String? value) {
     switch (value?.toLowerCase()) {
       case 'low':
@@ -25,7 +22,6 @@ enum StreamingQuality {
     }
   }
 
-  /// Human-readable display name
   String get displayName {
     switch (this) {
       case StreamingQuality.high:
@@ -37,7 +33,6 @@ enum StreamingQuality {
     }
   }
 
-  /// Description for UI
   String get description {
     switch (this) {
       case StreamingQuality.high:
@@ -60,7 +55,6 @@ enum DownloadQuality {
   medium,
   low;
 
-  /// Human-readable display name
   String get displayName {
     switch (this) {
       case DownloadQuality.original:
@@ -74,7 +68,6 @@ enum DownloadQuality {
     }
   }
 
-  /// Description for UI
   String get description {
     switch (this) {
       case DownloadQuality.original:
@@ -125,12 +118,9 @@ enum DownloadQuality {
   }
 }
 
-/// User's quality preferences for different network conditions
 class QualitySettings {
-  /// Quality to use when on WiFi
   final StreamingQuality wifiQuality;
 
-  /// Quality to use when on mobile data
   final StreamingQuality mobileDataQuality;
 
   /// Quality for downloads (always uses this regardless of network)
@@ -157,7 +147,6 @@ class QualitySettings {
     this.downloadOriginal = false,
   });
 
-  /// Create from JSON (for persistence)
   factory QualitySettings.fromJson(Map<String, dynamic> json) {
     final rawDownloadQuality = json['downloadQuality'] as String?;
     final rawEffectiveQuality = json['effectiveDownloadQuality'] as String?;
@@ -181,7 +170,6 @@ class QualitySettings {
     );
   }
 
-  /// Convert to JSON for persistence
   Map<String, dynamic> toJson() {
     return {
       'wifiQuality': wifiQuality.name,
@@ -193,7 +181,6 @@ class QualitySettings {
     };
   }
 
-  /// Create a copy with updated fields
   QualitySettings copyWith({
     StreamingQuality? wifiQuality,
     StreamingQuality? mobileDataQuality,

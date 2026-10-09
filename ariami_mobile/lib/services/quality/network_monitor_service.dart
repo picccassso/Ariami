@@ -2,15 +2,11 @@ import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 
-/// Types of network connection
 enum NetworkType {
-  /// Connected via WiFi
   wifi,
 
-  /// Connected via mobile data (cellular)
   mobile,
 
-  /// No network connection
   none,
 }
 
@@ -19,7 +15,6 @@ enum NetworkType {
 /// Detects whether the device is on WiFi, mobile data, or offline.
 /// Used by QualitySettingsService to determine streaming quality.
 class NetworkMonitorService {
-  // Singleton pattern
   static final NetworkMonitorService _instance =
       NetworkMonitorService._internal();
   factory NetworkMonitorService() => _instance;
@@ -32,10 +27,8 @@ class NetworkMonitorService {
   final _networkTypeController = StreamController<NetworkType>.broadcast();
   Future<void>? _initFuture;
 
-  /// Stream of network type changes
   Stream<NetworkType> get networkTypeStream => _networkTypeController.stream;
 
-  /// Current network type
   NetworkType get currentNetworkType => _currentNetworkType;
 
   /// Initialize the service and start monitoring.
@@ -53,11 +46,9 @@ class NetworkMonitorService {
   }
 
   Future<void> _initialize() async {
-    // Get initial connectivity state
     final results = await _connectivity.checkConnectivity();
     _updateNetworkType(results);
 
-    // Listen for changes
     _subscription = _connectivity.onConnectivityChanged.listen((results) {
       _updateNetworkType(results);
     });
@@ -65,7 +56,6 @@ class NetworkMonitorService {
     print('[NetworkMonitorService] Initialized: $_currentNetworkType');
   }
 
-  /// Update network type from connectivity results
   void _updateNetworkType(List<ConnectivityResult> results) {
     final previousType = _currentNetworkType;
 
@@ -89,16 +79,12 @@ class NetworkMonitorService {
     }
   }
 
-  /// Check if currently on WiFi
   bool get isOnWifi => _currentNetworkType == NetworkType.wifi;
 
-  /// Check if currently on mobile data
   bool get isOnMobileData => _currentNetworkType == NetworkType.mobile;
 
-  /// Check if currently offline
   bool get isOffline => _currentNetworkType == NetworkType.none;
 
-  /// Dispose resources
   void dispose() {
     _subscription?.cancel();
     _networkTypeController.close();

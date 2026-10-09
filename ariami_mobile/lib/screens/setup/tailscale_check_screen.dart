@@ -114,11 +114,9 @@ class _TailscaleCheckScreenState extends State<TailscaleCheckScreen> {
                       ),
                     ),
                     const SizedBox(height: 32),
-                    // Status Icon
                     _buildStatusIcon(),
                     const SizedBox(height: 32),
 
-                    // Status Title
                     Text(
                       _getStatusTitle(),
                       style: const TextStyle(
@@ -129,7 +127,6 @@ class _TailscaleCheckScreenState extends State<TailscaleCheckScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // Status Description
                     Text(
                       _getStatusDescription(),
                       style: const TextStyle(
@@ -141,14 +138,12 @@ class _TailscaleCheckScreenState extends State<TailscaleCheckScreen> {
                     ),
                     const SizedBox(height: 32),
 
-                    // Instructions (if needed)
                     if (_status != TailscaleStatus.connected &&
                         _status != TailscaleStatus.checking)
                       _buildInstructions(),
 
                     const SizedBox(height: 32),
 
-                    // Action Buttons
                     _buildActionButtons(),
                   ],
                 ),

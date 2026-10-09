@@ -41,9 +41,10 @@ Color? selectDynamicThemeSeed(
 /// ambient backdrop, so cover-art themes carry the artwork's whole palette
 /// rather than a single hue.
 ///
-/// Swatches are ranked like [selectDynamicThemeSeed], but each pick must be
-/// visibly different (hue or lightness) from the colours already chosen, so a
-/// cover dominated by one hue doesn't repeat it three times.
+/// Swatches are ranked by population and saturation (with no lightness term,
+/// unlike [selectDynamicThemeSeed]), and each pick must be visibly different
+/// (hue or lightness) from the colours already chosen, so a cover dominated by
+/// one hue doesn't repeat it three times.
 List<Color> selectAmbientColors(
   Iterable<({Color color, int population})> swatches,
   Color seed,

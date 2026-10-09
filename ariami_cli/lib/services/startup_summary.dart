@@ -1,9 +1,7 @@
-/// Formats the Ariami server startup summary.
 class StartupSummary {
   static const _line =
       '──────────────────────────────────────────────────────────';
 
-  /// Build the startup banner as printable lines.
   static List<String> buildBanner({
     required String version,
     required String modeLabel,

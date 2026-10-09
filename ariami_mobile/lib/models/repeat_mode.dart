@@ -1,4 +1,3 @@
-/// Repeat modes for playback
 enum RepeatMode {
   /// Play through queue once, then stop
   none,
@@ -9,7 +8,6 @@ enum RepeatMode {
   /// Repeat current song indefinitely
   one;
 
-  /// Get the next repeat mode (for cycling through modes)
   RepeatMode get next {
     switch (this) {
       case RepeatMode.none:
@@ -34,7 +32,6 @@ enum RepeatMode {
 
   bool get allowsBoundaryRestart => this != RepeatMode.none;
 
-  /// Get display name for UI
   String get displayName {
     switch (this) {
       case RepeatMode.none:
@@ -46,12 +43,10 @@ enum RepeatMode {
     }
   }
 
-  /// Convert to string for persistence
   String toStorageString() {
     return name;
   }
 
-  /// Parse from storage string
   static RepeatMode fromStorageString(String? value) {
     if (value == null) return RepeatMode.none;
 

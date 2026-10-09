@@ -40,10 +40,8 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
 
-    // Initially selection mode is inactive
     expect(controller.isSelectionModeActive, isFalse);
 
-    // Enter selection mode and select items
     controller.enterSelectionMode();
     controller.toggleSongSelection('test-song-1');
     await tester.pump();
@@ -53,13 +51,11 @@ void main() {
     expect(controller.selectedSongIds, contains('test-song-1'));
     expect(find.text('1 selected'), findsOneWidget);
 
-    // Simulate Android system back gesture (swipe back)
     final dynamic widgetsAppState = tester.state(find.byType(WidgetsApp));
     final handled = await widgetsAppState.didPopRoute();
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
 
-    // Selection mode should be cancelled, songs cleared, and app should NOT have exited
     expect(handled, isTrue);
     expect(controller.isSelectionModeActive, isFalse);
     expect(controller.selectedSongIds, isEmpty);

@@ -79,7 +79,6 @@ class ListeningStatsStore {
   ) =>
       _applyEvents(userId, deviceId, events);
 
-  /// Account-wide summary for [userId], one rollup per song.
   ListeningStatsSummary getSummary(String userId) => _getSummary(userId);
 
   /// Listened milliseconds per local day (`yyyy-mm-dd`) over the last [days]
@@ -143,7 +142,6 @@ class ListeningStatsStore {
   SpotifyImportStatus getSpotifyImportStatus(String userId) =>
       _getSpotifyImportStatus(userId);
 
-  /// Deletes all listening data for [userId].
   void resetUser(String userId) => _resetUser(userId);
 
   /// Deletes only the events whose eventId starts with [sourcePrefix] (e.g.

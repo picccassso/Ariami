@@ -14,7 +14,6 @@ bool allowsSpeculativeMediaDownloadsFor(NetworkType networkType) =>
 /// Handles persistence and provides the appropriate streaming quality
 /// based on current network conditions (WiFi vs mobile data).
 class QualitySettingsService {
-  // Singleton pattern
   static final QualitySettingsService _instance =
       QualitySettingsService._internal();
   factory QualitySettingsService() => _instance;
@@ -27,10 +26,8 @@ class QualitySettingsService {
 
   final _settingsController = StreamController<QualitySettings>.broadcast();
 
-  /// Stream of settings changes
   Stream<QualitySettings> get settingsStream => _settingsController.stream;
 
-  /// Current quality settings
   QualitySettings get settings => _settings;
 
   /// Initialize the service and load saved settings.
@@ -46,7 +43,6 @@ class QualitySettingsService {
     print('[QualitySettingsService] Initialized with settings: $_settings');
   }
 
-  /// Load settings from persistent storage
   Future<bool> _loadSettings() async {
     var normalizedLegacySettings = false;
     try {
@@ -62,13 +58,11 @@ class QualitySettingsService {
       }
     } catch (e) {
       print('[QualitySettingsService] Error loading settings: $e');
-      // Keep default settings on error
       _settings = const QualitySettings();
     }
     return normalizedLegacySettings;
   }
 
-  /// Save settings to persistent storage
   Future<void> _saveSettings() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -79,7 +73,6 @@ class QualitySettingsService {
     }
   }
 
-  /// Update quality settings
   Future<void> updateSettings(QualitySettings newSettings) async {
     final normalizedSettings = _normalizeSettings(newSettings);
     if (_settings == normalizedSettings) return;
@@ -90,17 +83,14 @@ class QualitySettingsService {
     print('[QualitySettingsService] Settings updated: $_settings');
   }
 
-  /// Update WiFi streaming quality
   Future<void> setWifiQuality(StreamingQuality quality) async {
     await updateSettings(_settings.copyWith(wifiQuality: quality));
   }
 
-  /// Update mobile data streaming quality
   Future<void> setMobileDataQuality(StreamingQuality quality) async {
     await updateSettings(_settings.copyWith(mobileDataQuality: quality));
   }
 
-  /// Update download quality
   Future<void> setDownloadQuality(StreamingQuality quality) async {
     await updateSettings(
       _settings.copyWith(
@@ -110,7 +100,6 @@ class QualitySettingsService {
     );
   }
 
-  /// Update download mode (original vs transcoded)
   Future<void> setDownloadOriginal(bool downloadOriginal) async {
     await updateSettings(
       _settings.copyWith(
@@ -122,18 +111,15 @@ class QualitySettingsService {
     );
   }
 
-  /// Update download quality using [DownloadQuality] (Original, High, Medium, Low)
   Future<void> setDownloadQualityOption(DownloadQuality quality) async {
     await updateSettings(_settings.copyWith(effectiveDownloadQuality: quality));
   }
 
-  /// Update preference for local playback when online
   Future<void> setPreferLocalWhenOnline(bool preferLocal) async {
     await updateSettings(
         _settings.copyWith(preferLocalWhenOnline: preferLocal));
   }
 
-  /// Whether to prefer local playback when online
   bool getPreferLocalWhenOnline() {
     return _settings.preferLocalWhenOnline;
   }
@@ -156,24 +142,18 @@ class QualitySettingsService {
     }
   }
 
-  /// Get the download quality setting
   StreamingQuality getDownloadQuality() {
     return _settings.downloadQuality;
   }
 
-  /// Whether downloads should use the original file
   bool getDownloadOriginal() {
     return _settings.downloadOriginal;
   }
 
-  /// Get the effective download quality (Original, High, Medium, Low)
   DownloadQuality getEffectiveDownloadQuality() {
     return _settings.effectiveDownloadQuality;
   }
 
-  /// Get stream URL with quality parameter
-  ///
-  /// Appends the appropriate quality parameter based on current network.
   String getStreamUrlWithQuality(String baseStreamUrl) {
     final quality = getCurrentStreamingQuality();
 
@@ -182,12 +162,10 @@ class QualitySettingsService {
       return baseStreamUrl;
     }
 
-    // Add quality parameter
     final separator = baseStreamUrl.contains('?') ? '&' : '?';
     return '$baseStreamUrl${separator}quality=${quality.toApiParam()}';
   }
 
-  /// Get download URL with quality parameter
   String getDownloadUrlWithQuality(String baseDownloadUrl) {
     if (_settings.downloadOriginal) {
       return baseDownloadUrl;
@@ -200,16 +178,13 @@ class QualitySettingsService {
       return baseDownloadUrl;
     }
 
-    // Add quality parameter
     final separator = baseDownloadUrl.contains('?') ? '&' : '?';
     return '$baseDownloadUrl${separator}quality=${quality.toApiParam()}';
   }
 
-  /// Stream of current network type changes
   Stream<NetworkType> get networkTypeStream =>
       _networkMonitor.networkTypeStream;
 
-  /// Current network type
   NetworkType get currentNetworkType => _networkMonitor.currentNetworkType;
 
   /// Whether non-essential whole-file transfers may run alongside playback.
@@ -221,13 +196,11 @@ class QualitySettingsService {
   bool get allowsSpeculativeMediaDownloads =>
       allowsSpeculativeMediaDownloadsFor(currentNetworkType);
 
-  /// Reset in-memory quality settings to factory defaults.
   void resetToDefaults() {
     _settings = const QualitySettings();
     _settingsController.add(_settings);
   }
 
-  /// Dispose resources
   void dispose() {
     _settingsController.close();
     _networkMonitor.dispose();

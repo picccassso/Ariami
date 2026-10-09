@@ -3,8 +3,6 @@ import 'package:flutter/foundation.dart';
 
 import 'api/connection_service.dart';
 
-/// Service managing custom artist photos on mobile and keeping them synced with
-/// the server across all devices.
 class ArtistImageService extends ChangeNotifier {
   static final ArtistImageService _instance = ArtistImageService._internal();
   factory ArtistImageService() => _instance;
@@ -18,7 +16,6 @@ class ArtistImageService extends ChangeNotifier {
   int? artistImageVersion(String artistName) =>
       _artistImageVersions[normalizeArtistKey(artistName)];
 
-  /// Fetches the user's custom artist image versions from the server.
   Future<void> loadArtistImages() async {
     final client = ConnectionService().apiClient;
     if (client == null || !ConnectionService().isConnected) return;
@@ -33,7 +30,6 @@ class ArtistImageService extends ChangeNotifier {
     }
   }
 
-  /// Uploads or updates a custom photo for [artistName].
   Future<void> putArtistPhoto(
     String artistName,
     Uint8List bytes,
@@ -52,7 +48,6 @@ class ArtistImageService extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Removes the custom photo for [artistName].
   Future<void> deleteArtistPhoto(String artistName) async {
     final client = ConnectionService().apiClient;
     if (client == null) throw StateError('Not connected to a server.');

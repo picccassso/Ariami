@@ -1,10 +1,5 @@
 part of '../api_models.dart';
 
-// ============================================================================
-// CONNECTION MODELS
-// ============================================================================
-
-/// Request for connecting a mobile device
 class ConnectRequest {
   final String deviceId;
   final String deviceName;
@@ -37,7 +32,6 @@ class ConnectRequest {
   }
 }
 
-/// Response when device successfully connects
 class ConnectResponse {
   final String status;
   final String sessionId;
@@ -74,7 +68,6 @@ class ConnectResponse {
   }
 }
 
-/// Request for disconnecting a device
 class DisconnectRequest {
   final String? deviceId;
 
@@ -93,7 +86,6 @@ class DisconnectRequest {
   }
 }
 
-/// Response for disconnect request
 class DisconnectResponse {
   final String status;
 

@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:ariami_core/services/catalog/catalog_migrations.dart';
 import 'package:sqlite3/sqlite3.dart';
 
-/// Catalog database lifecycle wrapper.
 class CatalogDatabase {
   CatalogDatabase({required this.databasePath});
 

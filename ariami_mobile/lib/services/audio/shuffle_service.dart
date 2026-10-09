@@ -1,7 +1,5 @@
 import 'dart:math';
 
-/// Service for managing shuffle functionality
-/// Implements true random shuffle using Fisher-Yates algorithm
 class ShuffleService<T> {
   final Random _random = Random();
 
@@ -9,16 +7,12 @@ class ShuffleService<T> {
   List<T> _shuffledQueue = [];
   bool _isShuffled = false;
 
-  /// Check if shuffle is enabled
   bool get isShuffled => _isShuffled;
 
-  /// Get original queue (unshuffled order)
   List<T> get originalQueue => List.unmodifiable(_originalQueue);
 
-  /// Get shuffled queue
   List<T> get shuffledQueue => List.unmodifiable(_shuffledQueue);
 
-  /// Get current queue (shuffled or original)
   List<T> get currentQueue => _isShuffled ? _shuffledQueue : _originalQueue;
 
   /// Positional permutation into [activeQueue] that reconstructs the stored
@@ -76,23 +70,18 @@ class ShuffleService<T> {
       return [];
     }
 
-    // Store original queue
     _originalQueue = List.from(queue);
     _isShuffled = true;
 
-    // Create a copy for shuffling
     final queueCopy = List<T>.from(queue);
 
-    // If there's a current item, find and remove it
     if (currentItem != null) {
       final currentIndex = _indexOfOccurrence(queueCopy, currentItem);
       if (currentIndex != -1) queueCopy.removeAt(currentIndex);
     }
 
-    // Shuffle using Fisher-Yates algorithm
     _fisherYatesShuffle(queueCopy);
 
-    // Create shuffled queue with current item at the start
     if (currentItem != null) {
       _shuffledQueue = [currentItem, ...queueCopy];
     } else {
@@ -111,7 +100,6 @@ class ShuffleService<T> {
       return _originalQueue;
     }
 
-    // Find index of current item in original queue
     final currentIndex = _indexOfOccurrence(_originalQueue, currentItem);
 
     if (currentIndex == -1) {
@@ -119,7 +107,6 @@ class ShuffleService<T> {
       return _originalQueue;
     }
 
-    // Return original queue
     return _originalQueue;
   }
 
@@ -170,7 +157,6 @@ class ShuffleService<T> {
     _shuffledQueue = List<T>.from(activeQueue);
   }
 
-  /// Toggle shuffle on/off
   List<T> toggleShuffle(List<T> queue, T? currentItem) {
     if (_isShuffled) {
       return disableShuffle(currentItem);
@@ -179,8 +165,6 @@ class ShuffleService<T> {
     }
   }
 
-  /// Fisher-Yates shuffle algorithm
-  /// Guarantees uniform distribution of permutations
   void _fisherYatesShuffle(List<T> list) {
     for (int i = list.length - 1; i > 0; i--) {
       final j = _random.nextInt(i + 1);
@@ -190,7 +174,6 @@ class ShuffleService<T> {
     }
   }
 
-  /// Reset the shuffle service
   void reset() {
     _originalQueue = [];
     _shuffledQueue = [];

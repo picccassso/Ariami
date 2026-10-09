@@ -11,10 +11,8 @@ class _ServerInfoAuthSnapshot {
 }
 
 extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
-  /// Check if server is running
   bool get isRunning => _server != null;
 
-  /// Set the path where web assets are located (for serving web UI)
   void setWebAssetsPath(String path) {
     _webAssetsPath = path;
   }
@@ -35,7 +33,7 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
     _artworkService = service;
   }
 
-  /// Set callback for getting Tailscale status (optional, for CLI use)
+  /// Set callback for getting Tailscale status (optional).
   void setTailscaleStatusCallback(
       Future<Map<String, dynamic>> Function() callback) {
     _tailscaleStatusCallback = callback;
@@ -60,7 +58,6 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
     _endpointMonitor = null;
   }
 
-  /// Stream of updated server-info payloads when advertised endpoints change.
   Stream<Map<String, dynamic>> get onEndpointsChanged =>
       _endpointsChangedController.stream;
 
@@ -137,7 +134,7 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
     _endpointMonitor?.stop();
   }
 
-  /// Set setup operation callbacks (optional, for CLI use)
+  /// Set setup operation callbacks (optional).
   void setSetupCallbacks({
     Future<String?> Function()? getConfiguredMusicFolderPath,
     Future<bool> Function(String)? setMusicFolder,
@@ -215,7 +212,6 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
       _userAvatarsDirectoryPath = null;
     }
 
-    // Initialize AuthService with storage paths
     await _authService.initialize(usersFilePath, sessionsFilePath);
     _userAvatarsDirectoryPath =
         p.join(File(usersFilePath).parent.path, 'user_avatars');
@@ -341,10 +337,8 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
     // in the background so it never delays startup.
     unawaited(_normalizeStoredImages());
 
-    // Initialize StreamTracker (starts cleanup timer)
     _streamTracker.initialize();
 
-    // Set initial auth mode based on whether users exist
     updateAuthMode();
 
     print(
@@ -364,9 +358,7 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
     String bindAddress = '0.0.0.0',
     int port = 8080,
   }) async {
-    // If already running, don't start again
     if (_server != null) {
-      // Update stored IP/port even if server is already running
       _advertisedIp = advertisedIp;
       _tailscaleIp = tailscaleIp;
       _lanIp = lanIp;
@@ -386,7 +378,6 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
 
     final router = _buildRouter();
 
-    // Build handler with Cascade to support both API and static files
     final Handler cascadeHandler = Cascade()
         .add(router.call) // API routes have priority
         .add(_webAssetsPath != null
@@ -426,7 +417,6 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
         _tailscalePathDiagnostics.start();
       }
 
-      // Start cleanup timer for stale connections
       _startCleanupTimer();
       _libraryManager.resumeMusicAvailabilityMonitoring();
       _ensureEndpointMonitor();
@@ -554,7 +544,6 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
     }
   }
 
-  /// Stop the HTTP server
   Future<void> stop() async {
     _libraryManager.stopMusicAvailabilityMonitoring();
     _stopEndpointMonitor();
@@ -566,7 +555,6 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
     await _server?.close(force: true);
     _server = null;
 
-    // Clear all connected clients since server is stopping
     _connectionManager.clearAll();
     // The hub owns a periodic sweep and per-session timers; without this they
     // outlive the server instance and keep firing against a dead hub when the
@@ -845,22 +833,16 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
         '[HttpServer] Auth mode updated - authRequired: $_authRequired, legacyMode: $_legacyMode');
   }
 
-  /// Get connection manager
   ConnectionManager get connectionManager => _connectionManager;
 
-  /// Get library manager
   LibraryManager get libraryManager => _libraryManager;
 
-  /// Get number of connected users (unique user accounts)
   int get connectedUsers => _connectionManager.uniqueUserCount;
 
-  /// Get number of active sessions
   int get activeSessions => _authService.sessionCount;
 
-  /// Check if authentication is required
   bool get authRequired => _authRequired;
 
-  /// Check if in legacy mode (no users registered)
   bool get legacyMode => _legacyMode;
 
   void _incrementInFlightDownloadTranscode(String userId) {

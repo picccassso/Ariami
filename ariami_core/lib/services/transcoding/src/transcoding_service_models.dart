@@ -1,8 +1,5 @@
 part of 'package:ariami_core/services/transcoding/transcoding_service.dart';
 
-// ==================== Internal Classes ====================
-
-/// Internal class for queued transcode tasks.
 class _TranscodeTask {
   final String sourcePath;
   final String songId;
@@ -21,7 +18,6 @@ class _TranscodeTask {
   });
 }
 
-/// Internal class for cache index entries.
 class _CacheIndexEntry {
   final String path;
   final int size;
@@ -47,7 +43,6 @@ class _CacheIndexEntry {
       );
 }
 
-/// Internal class for failure tracking.
 class _FailureRecord {
   final DateTime lastFailure;
   final int failureCount;
@@ -60,7 +55,6 @@ class _FailureRecord {
   });
 }
 
-/// Internal class for audio file properties.
 class _AudioProperties {
   final String? codec;
   final int? bitrate; // bits per second
@@ -72,7 +66,6 @@ class _AudioProperties {
     this.sampleRate,
   });
 
-  /// Returns true if source bitrate is at or below target.
   bool shouldSkipTranscode(QualityPreset quality) {
     if (bitrate == null) return false;
     final targetBps = (quality.bitrate ?? 0) * 1000; // kbps to bps
@@ -85,7 +78,6 @@ class _AudioProperties {
 /// Contains a temporary file that should be deleted by the caller
 /// after the download completes.
 class DownloadTranscodeResult {
-  /// The temporary transcoded file.
   final File tempFile;
 
   /// Whether the caller should delete this file after use.

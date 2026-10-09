@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'container_environment.dart';
 
-/// Service for managing Tailscale detection and IP address resolution on CLI (cross-platform)
 class CliTailscaleService {
   CliTailscaleService({ContainerEnvironment? environment})
       : _environment = environment ?? ContainerEnvironment();
@@ -20,18 +19,14 @@ class CliTailscaleService {
       );
 
       for (final interface in interfaces) {
-        // Skip loopback interfaces
         if (interface.name == 'lo' || interface.name == 'lo0') continue;
         // Skip Tailscale interfaces (already handled by getTailscaleIp)
         if (_isTailscaleInterface(interface.name)) continue;
 
         for (final addr in interface.addresses) {
           final ip = addr.address;
-          // Skip loopback addresses
           if (ip.startsWith('127.')) continue;
-          // Skip Tailscale CGNAT addresses
           if (_isTailscaleCgnatIp(ip)) continue;
-          // Prefer private network addresses
           if (ip.startsWith('192.168.') ||
               ip.startsWith('10.') ||
               _isPrivate172(ip)) {
@@ -55,7 +50,6 @@ class CliTailscaleService {
     return secondOctet >= 16 && secondOctet <= 31;
   }
 
-  /// Check if interface name is a Tailscale interface (cross-platform)
   bool _isTailscaleInterface(String name) {
     final lower = name.toLowerCase();
     return lower.startsWith('utun') || // macOS
@@ -136,21 +130,17 @@ class CliTailscaleService {
     return secondOctet >= 64 && secondOctet <= 127;
   }
 
-  /// Check if Tailscale is installed
   Future<bool> isTailscaleInstalled() async {
     final path = await _findTailscalePath();
     return path != null;
   }
 
-  /// Check if Tailscale is running
   Future<bool> isTailscaleRunning() async {
     final ip = await getTailscaleIp();
     return ip != null;
   }
 
-  /// Find the Tailscale binary path (cross-platform)
   Future<String?> _findTailscalePath() async {
-    // Common Tailscale installation paths
     final possiblePaths = [
       '/opt/homebrew/bin/tailscale', // macOS Homebrew ARM
       '/usr/local/bin/tailscale', // macOS Homebrew Intel
@@ -160,14 +150,12 @@ class CliTailscaleService {
       r'C:\Program Files (x86)\Tailscale\tailscale.exe', // Windows 32-bit
     ];
 
-    // Check each path
     for (final path in possiblePaths) {
       if (await File(path).exists()) {
         return path;
       }
     }
 
-    // Try using 'which' on Unix-like systems
     if (!Platform.isWindows) {
       try {
         final result = await Process.run('which', ['tailscale']);
@@ -182,7 +170,6 @@ class CliTailscaleService {
       }
     }
 
-    // Try using 'where' on Windows
     if (Platform.isWindows) {
       try {
         final result = await Process.run('where', ['tailscale']);

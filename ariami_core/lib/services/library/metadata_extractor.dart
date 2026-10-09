@@ -45,7 +45,6 @@ void _defaultMetadataDiagnosticLogger(String message) {
   developer.log(message, name: 'MetadataExtractor');
 }
 
-/// Service for extracting metadata from audio files
 class MetadataExtractor {
   MetadataExtractor({
     TagProcessor? tagProcessor,
@@ -90,23 +89,19 @@ class MetadataExtractor {
   Future<SongMetadata> extractMetadataWithDuration(String filePath) =>
       _extractMetadataWithDurationImpl(filePath);
 
-  /// Cache for ffprobe availability check
   bool? _ffprobeAvailable;
 
-  /// Extract audio duration from file.
   Future<int?> extractDuration(String filePath) =>
       _extractDurationImpl(filePath);
 
   /// Cleanup method - no longer needed but kept for API compatibility
   Future<void> dispose() async {
-    // No resources to clean up - duration extraction now uses fresh players
   }
 
   /// Cheap check for embedded cover art without reading image bytes.
   Future<bool> hasEmbeddedArtwork(String filePath) =>
       _hasEmbeddedArtworkImpl(filePath);
 
-  /// Extracts album artwork from a single audio file (lazy extraction).
   Future<List<int>?> extractArtwork(String filePath) =>
       _extractArtworkImpl(filePath);
 }

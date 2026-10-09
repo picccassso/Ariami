@@ -7,23 +7,19 @@ import '../../utils/secure_file_permissions.dart';
 /// Stores and persists user accounts to JSON file.
 /// Uses in-memory maps for O(1) lookups, with atomic writes to disk.
 class UserStore {
-  /// Map of userId → User for quick ID lookups
   final Map<String, User> _users = {};
 
   /// Map of lowercase username → userId for case-insensitive username lookups
   final Map<String, String> _usernameIndex = {};
 
-  /// Path to the JSON file for persistence
   String? _filePath;
 
-  /// Whether the store has been initialized
   bool _initialized = false;
 
   /// Serialize persist operations to avoid temp-file rename collisions
   Future<void> _persistQueue = Future.value();
 
   /// Initialize the store by loading users from the JSON file.
-  /// Creates an empty file if it doesn't exist.
   Future<void> initialize(String filePath) async {
     if (_initialized) return;
 
@@ -65,12 +61,10 @@ class UserStore {
   Future<User> createUser(String username, String passwordHash) async {
     _ensureInitialized();
 
-    // Check for existing username (case-insensitive)
     if (_usernameIndex.containsKey(username.toLowerCase())) {
       throw UserExistsException(username);
     }
 
-    // Generate a unique user ID
     final userId = _generateUserId();
     final now = DateTime.now().toUtc().toIso8601String();
 
@@ -88,8 +82,6 @@ class UserStore {
     return user;
   }
 
-  /// Get a user by their user ID.
-  /// Returns null if not found.
   User? getUserById(String userId) {
     _ensureInitialized();
     return _users[userId];
@@ -111,13 +103,11 @@ class UserStore {
     return _users.isNotEmpty;
   }
 
-  /// Get the count of registered users.
   int get userCount {
     _ensureInitialized();
     return _users.length;
   }
 
-  /// Get all registered users ordered by creation time.
   List<User> getUsers() {
     _ensureInitialized();
     return _users.values.toList()
@@ -138,15 +128,12 @@ class UserStore {
     return users.first.userId;
   }
 
-  /// Check whether the provided user ID is the admin user.
   bool isAdminUser(String userId) {
     _ensureInitialized();
     final adminUserId = getAdminUserId();
     return adminUserId != null && adminUserId == userId;
   }
 
-  /// Update password hash for an existing user.
-  /// Returns the updated user, or null if no matching user exists.
   Future<User?> updatePasswordHash(String userId, String passwordHash) async {
     _ensureInitialized();
 
@@ -165,8 +152,6 @@ class UserStore {
     return updatedUser;
   }
 
-  /// Delete an existing user by ID.
-  /// Returns deleted user, or null when user does not exist.
   Future<User?> deleteUser(String userId) async {
     _ensureInitialized();
 
@@ -178,8 +163,6 @@ class UserStore {
     return existingUser;
   }
 
-  /// Persist the current state to the JSON file.
-  /// Uses atomic write (write to temp, then rename) for safety.
   Future<void> _persist() async {
     if (_filePath == null) return;
 
@@ -220,7 +203,6 @@ class UserStore {
     return 'user_${hash.substring(0, 16)}';
   }
 
-  /// Ensure the store has been initialized.
   void _ensureInitialized() {
     if (!_initialized) {
       throw StateError('UserStore not initialized. Call initialize() first.');
@@ -237,7 +219,6 @@ class UserStore {
   }
 }
 
-/// Exception thrown when attempting to create a user with an existing username.
 class UserExistsException implements Exception {
   final String username;
   UserExistsException(this.username);

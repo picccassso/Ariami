@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../models/repeat_mode.dart' as playback_repeat;
 
-/// Playback controls widget with play/pause, skip, shuffle, and repeat buttons
 class PlaybackControls extends StatelessWidget {
   final bool isPlaying;
   final bool isLoading;
@@ -35,7 +34,6 @@ class PlaybackControls extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
-        // Shuffle button
         IconButton(
           icon: const Icon(Icons.shuffle),
           iconSize: 28,
@@ -50,7 +48,6 @@ class PlaybackControls extends StatelessWidget {
               : null,
         ),
 
-        // Previous button
         IconButton(
           icon: const Icon(Icons.skip_previous),
           iconSize: 36,
@@ -58,7 +55,6 @@ class PlaybackControls extends StatelessWidget {
           tooltip: 'Previous',
         ),
 
-        // Play/Pause button (larger, prominent)
         Container(
           width: 64,
           height: 64,
@@ -90,7 +86,6 @@ class PlaybackControls extends StatelessWidget {
                 ),
         ),
 
-        // Next button
         IconButton(
           icon: const Icon(Icons.skip_next),
           iconSize: 36,
@@ -98,7 +93,6 @@ class PlaybackControls extends StatelessWidget {
           tooltip: 'Next',
         ),
 
-        // Repeat button
         IconButton(
           icon: Icon(
             repeatMode == playback_repeat.RepeatMode.one

@@ -4,7 +4,6 @@ import 'dart:typed_data';
 
 import 'package:sqlite3/sqlite3.dart';
 
-/// Metadata for a stored playlist image, without the bytes.
 class PlaylistImageInfo {
   const PlaylistImageInfo({
     required this.playlistId,
@@ -26,7 +25,6 @@ class PlaylistImageInfo {
       };
 }
 
-/// A stored playlist image, including its bytes.
 class PlaylistImageRecord extends PlaylistImageInfo {
   const PlaylistImageRecord({
     required super.playlistId,
@@ -94,7 +92,6 @@ class PlaylistImageStore {
     }
   }
 
-  /// Lists image metadata (no bytes) for every playlist image of [userId].
   List<PlaylistImageInfo> list(String userId) {
     final rows = _db.select('''
       SELECT playlist_id, content_type, updated_at

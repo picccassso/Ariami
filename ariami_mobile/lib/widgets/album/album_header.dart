@@ -6,8 +6,6 @@ import '../../utils/responsive.dart';
 import '../common/cached_artwork.dart';
 import '../../utils/image_decode.dart';
 
-/// Album artwork header with parallax effect
-/// Used in album detail screen's SliverAppBar
 class AlbumArtworkHeader extends StatelessWidget {
   final String? coverArt;
   final String albumTitle;
@@ -26,12 +24,10 @@ class AlbumArtworkHeader extends StatelessWidget {
       background: Stack(
         fit: StackFit.expand,
         children: [
-          // Blurred background artwork
           Positioned.fill(
             child: _buildArtwork(fit: BoxFit.cover),
           ),
 
-          // Blur effect and gradient overlay
           Positioned.fill(
             child: BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
@@ -50,7 +46,6 @@ class AlbumArtworkHeader extends StatelessWidget {
             ),
           ),
 
-          // Centered clear artwork with shadow
           Center(
             child: Padding(
               padding: const EdgeInsets.only(top: 40.0, bottom: 20.0),
@@ -85,7 +80,6 @@ class AlbumArtworkHeader extends StatelessWidget {
     );
   }
 
-  /// Build album artwork with fallback
   Widget _buildArtwork({BoxFit fit = BoxFit.cover}) {
     final connectionService = ConnectionService();
     final authHeaders = connectionService.authHeaders;
@@ -109,7 +103,6 @@ class AlbumArtworkHeader extends StatelessWidget {
           );
         }
 
-        // Fallback for when no albumId is available
         if (resolvedCoverArt != null && resolvedCoverArt.isNotEmpty) {
           return Image(
             image: resizedForDisplay(
@@ -135,9 +128,7 @@ class AlbumArtworkHeader extends StatelessWidget {
     );
   }
 
-  /// Fallback artwork when no cover art is available
   Widget _buildFallbackArt() {
-    // Generate a color based on album title
     final colorIndex = albumTitle.hashCode % 5;
     final colors = [
       Colors.grey[900]!,

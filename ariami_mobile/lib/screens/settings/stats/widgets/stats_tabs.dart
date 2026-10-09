@@ -47,7 +47,6 @@ Widget _statusListView(String title, Widget status) {
   );
 }
 
-/// The all-time tracks tab.
 class StatsTracksTab extends StatelessWidget {
   const StatsTracksTab({
     super.key,
@@ -170,7 +169,6 @@ class StatsArtistsTab extends StatelessWidget {
   }
 }
 
-/// The all-time albums tab.
 class StatsAlbumsTab extends StatelessWidget {
   const StatsAlbumsTab({
     super.key,
@@ -331,7 +329,6 @@ class _StatsPeriodTabState extends State<StatsPeriodTab> {
   }
 }
 
-/// The "TOP SONGS" / "TOP ARTISTS" / "TOP ALBUMS" list header.
 class _SectionTitle extends StatelessWidget {
   const _SectionTitle(this.title);
 

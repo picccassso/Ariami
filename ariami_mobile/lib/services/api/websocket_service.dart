@@ -5,7 +5,6 @@ import '../../models/websocket_models.dart';
 import '../../models/server_info.dart';
 import '../offline/offline_playback_service.dart';
 
-/// WebSocket service for real-time updates
 class WebSocketService {
   // Use lazy getter to avoid circular dependency during construction
   OfflinePlaybackService get _offlineService => OfflinePlaybackService();
@@ -30,24 +29,15 @@ class WebSocketService {
   Future<void> Function(int? closeCode, String? closeReason)?
       onSessionInvalidated;
 
-  /// Callback for each parsed incoming message
   void Function(WsMessage message)? onMessage;
 
-  /// Stream controller for incoming messages
   final StreamController<WsMessage> _messageController =
       StreamController<WsMessage>.broadcast();
 
-  /// Stream of incoming WebSocket messages
   Stream<WsMessage> get messages => _messageController.stream;
 
-  /// Check if WebSocket is connected
   bool get isConnected => _isConnected;
 
-  // ============================================================================
-  // CONNECTION MANAGEMENT
-  // ============================================================================
-
-  /// Connect to WebSocket server
   Future<void> connect(ServerInfo serverInfo) async {
     if (_isConnected) {
       print('WebSocket already connected');
@@ -62,7 +52,6 @@ class WebSocketService {
 
       _channel = WebSocketChannel.connect(wsUrl);
 
-      // Listen to messages
       _subscription = _channel!.stream.listen(
         _handleMessage,
         onError: _handleError,
@@ -79,7 +68,6 @@ class WebSocketService {
     }
   }
 
-  /// Disconnect from WebSocket
   void disconnect() {
     print('Disconnecting WebSocket');
 
@@ -96,11 +84,6 @@ class WebSocketService {
     _serverInfo = null;
   }
 
-  // ============================================================================
-  // MESSAGE HANDLING
-  // ============================================================================
-
-  /// Handle incoming message
   void _handleMessage(dynamic rawMessage) {
     try {
       final jsonMessage =
@@ -109,13 +92,10 @@ class WebSocketService {
 
       print('WebSocket received: ${message.type}');
 
-      // Handle pong
       if (message.type == WsMessageType.pong) {
-        // Pong received, connection is alive
         return;
       }
 
-      // Emit message to stream
       _messageController.add(message);
       if (onMessage != null) {
         onMessage!(message);
@@ -125,7 +105,6 @@ class WebSocketService {
     }
   }
 
-  /// Handle WebSocket error
   void _handleError(dynamic error) {
     print('WebSocket error: $error');
     _isConnected = false;
@@ -138,7 +117,6 @@ class WebSocketService {
     }
   }
 
-  /// Handle WebSocket disconnect
   void _handleDisconnect() {
     final closeCode = _channel?.closeCode;
     final closeReason = _channel?.closeReason;
@@ -165,11 +143,6 @@ class WebSocketService {
     _scheduleReconnect();
   }
 
-  // ============================================================================
-  // SENDING MESSAGES
-  // ============================================================================
-
-  /// Send message to server
   void sendMessage(WsMessage message) {
     if (!_isConnected || _channel == null) {
       print('Cannot send message: WebSocket not connected');
@@ -184,16 +157,10 @@ class WebSocketService {
     }
   }
 
-  /// Send ping to server
   void _sendPing() {
     sendMessage(PingMessage());
   }
 
-  // ============================================================================
-  // PING/PONG MECHANISM
-  // ============================================================================
-
-  /// Start ping timer
   void _startPingTimer() {
     _stopPingTimer();
 
@@ -203,17 +170,11 @@ class WebSocketService {
     );
   }
 
-  /// Stop ping timer
   void _stopPingTimer() {
     _pingTimer?.cancel();
     _pingTimer = null;
   }
 
-  // ============================================================================
-  // RECONNECTION
-  // ============================================================================
-
-  /// Schedule reconnection attempt
   void _scheduleReconnect() {
     if (_serverInfo == null) return;
 
@@ -234,7 +195,6 @@ class WebSocketService {
     );
   }
 
-  /// Attempt to reconnect
   Future<void> _attemptReconnect() async {
     if (_serverInfo == null) return;
 
@@ -250,14 +210,12 @@ class WebSocketService {
     final wasConnected = _isConnected;
     await connect(_serverInfo!);
 
-    // If we successfully reconnected, notify ConnectionService
     if (_isConnected && !wasConnected && onReconnected != null) {
       print('WebSocket reconnected - notifying ConnectionService');
       onReconnected!();
     }
   }
 
-  /// Stop reconnect timer
   void _stopReconnectTimer() {
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
@@ -267,11 +225,6 @@ class WebSocketService {
     return closeCode == 4001 || closeCode == 4002;
   }
 
-  // ============================================================================
-  // CLEANUP
-  // ============================================================================
-
-  /// Dispose resources
   void dispose() {
     disconnect();
     _messageController.close();

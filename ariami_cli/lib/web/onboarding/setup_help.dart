@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../utils/constants.dart';
 
-/// A small, reusable explanation for one setup step.
 class SetupHelpTopic {
   const SetupHelpTopic({required this.title, required this.sections});
 

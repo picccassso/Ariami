@@ -52,7 +52,6 @@ class DeviceInfoManager {
   /// - 'iOS Device' on iOS
   /// - 'Mobile Device' on other platforms
   Future<String> getDeviceName() async {
-    // Get device model/name based on platform
     if (Platform.isAndroid) {
       return 'Android Device';
     } else if (Platform.isIOS) {
@@ -62,9 +61,6 @@ class DeviceInfoManager {
     }
   }
 
-  /// Get the platform identifier string.
-  ///
-  /// Returns 'android', 'ios', or 'unknown' based on the platform.
   String get platform {
     if (Platform.isAndroid) {
       return 'android';

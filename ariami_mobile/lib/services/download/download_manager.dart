@@ -32,9 +32,7 @@ const int coolerModeMaxConcurrentDownloads = 2;
 /// downloads mode is enabled.
 const Duration coolerModeSlotRefillRest = Duration(milliseconds: 1500);
 
-/// Manages all download operations
 class DownloadManager {
-  // Singleton pattern
   static final DownloadManager _instance = DownloadManager._internal();
   factory DownloadManager() => _instance;
   DownloadManager._internal();
@@ -91,13 +89,10 @@ class DownloadManager {
   String get _preferredDownloadFormat =>
       Platform.isIOS || Platform.isMacOS ? 'm4a' : 'opus';
 
-  /// Stream of download progress updates
   Stream<DownloadProgress> get progressStream => _progressController.stream;
 
-  /// Stream of queue updates
   Stream<List<DownloadTask>> get queueStream => _queueController.stream;
 
-  /// Get current queue
   List<DownloadTask> get queue => _getScopedQueue();
 
   /// Re-compute and re-broadcast the scoped queue on [queueStream].
@@ -142,12 +137,7 @@ class DownloadManager {
     sessionExpectedTaskCount = sessionTaskIds.length;
   }
 
-  /// Check if initialized
   bool get isInitialized => _initialized;
-
-  // ============================================================================
-  // INITIALIZATION
-  // ============================================================================
 
   /// Initialize the download manager.
   ///
@@ -156,17 +146,12 @@ class DownloadManager {
   /// database and queue are never loaded more than once.
   Future<void> initialize() => _initFuture ??= _initializeImpl();
 
-  /// Update the maximum number of concurrent downloads (per device)
   void setMaxConcurrentDownloads(int maxConcurrent) =>
       _setMaxConcurrentDownloadsImpl(maxConcurrent);
 
   /// Update app foreground state so Android can choose the fastest safe backend.
   void setAppInForeground(bool isForeground) =>
       _setAppInForegroundImpl(isForeground);
-
-  // ============================================================================
-  // DOWNLOAD OPERATIONS
-  // ============================================================================
 
   /// Create a server-managed download job and enqueue its items page-by-page.
   ///
@@ -186,7 +171,6 @@ class DownloadManager {
         downloadOriginal: downloadOriginal,
       );
 
-  /// Download a single song
   Future<void> downloadSong({
     required String songId,
     required String title,
@@ -218,7 +202,6 @@ class DownloadManager {
         totalBytes: totalBytes,
       );
 
-  /// Download entire album
   Future<void> downloadAlbum({
     required List<Map<String, dynamic>> songs,
     String? albumId,
@@ -236,23 +219,18 @@ class DownloadManager {
         downloadOriginal: downloadOriginal,
       );
 
-  /// Pause a download
   void pauseDownload(String taskId) => _pauseDownloadImpl(taskId);
 
-  /// Resume a paused download
   Future<void> resumeDownload(String taskId) => _resumeDownloadImpl(taskId);
 
-  /// Resume all interrupted (auto-paused) downloads in the current scope.
   Future<int> resumeInterruptedDownloads() => _resumeInterruptedDownloadsImpl();
 
   /// Resume downloads paused by a foreground lifecycle interruption.
   Future<int> resumeLifecycleInterruptedDownloads() =>
       _resumeLifecycleInterruptedDownloadsImpl();
 
-  /// Cancel all interrupted (auto-paused) downloads in the current scope.
   Future<int> cancelInterruptedDownloads() => _cancelInterruptedDownloadsImpl();
 
-  /// Number of interrupted (auto-paused) downloads in the current scope.
   int getInterruptedDownloadCount() => _getInterruptedDownloadCountImpl();
 
   /// Hand active downloads to the native background backend (Android) so
@@ -262,7 +240,6 @@ class DownloadManager {
   Future<int> continueDownloadsInBackground() =>
       _continueDownloadsInBackgroundImpl();
 
-  /// Whether any task in the current scope is downloading or queued.
   bool get hasActiveOrPendingDownloads {
     if (!_initialized) return false;
     return _getScopedQueue().any((task) =>
@@ -278,20 +255,12 @@ class DownloadManager {
   Future<void> pauseDownloadsForLifecycleInterruption() =>
       _pauseDownloadsForLifecycleInterruptionImpl();
 
-  /// Retry a failed download
   Future<void> retryDownload(String taskId) => _retryDownloadImpl(taskId);
 
-  /// Cancel a download
   void cancelDownload(String taskId) => _cancelDownloadImpl(taskId);
 
-  // ============================================================================
-  // UTILITY METHODS
-  // ============================================================================
-
-  /// Check if a song is downloaded
   Future<bool> isSongDownloaded(String songId) => _isSongDownloadedImpl(songId);
 
-  /// Get downloaded song file path
   String? getDownloadedSongPath(String songId) =>
       _getDownloadedSongPathImpl(songId);
 
@@ -300,13 +269,10 @@ class DownloadManager {
   String? getAnyDownloadedSongPathForAlbum(String albumId) =>
       _getAnyDownloadedSongPathForAlbumImpl(albumId);
 
-  /// Get total downloaded size in MB
   double getTotalDownloadedSizeMB() => _getTotalDownloadedSizeMBImpl();
 
-  /// Get number of completed downloads
   int getCompletedDownloadCount() => _getCompletedDownloadCountImpl();
 
-  /// Get queue statistics
   QueueStats getQueueStats() => _getQueueStatsImpl();
 
   /// Remove downloads that no longer exist in the current library
@@ -368,7 +334,6 @@ class DownloadManager {
         librarySongs: librarySongs,
       );
 
-  /// Clear all downloads
   Future<void> clearAllDownloads() => _clearAllDownloadsImpl();
 
   /// Delete all downloads for a specific album
@@ -380,7 +345,6 @@ class DownloadManager {
   Future<void> deleteSongDownloads(Iterable<String> songIds) =>
       _deleteSongDownloadsImpl(songIds);
 
-  /// Get download settings
   bool getWifiOnly() => _database.getWifiOnly();
 
   bool getAutoDownloadFavorites() => _database.getAutoDownloadFavorites();
@@ -390,7 +354,6 @@ class DownloadManager {
   bool getAutoResumeInterruptedOnLaunch() =>
       _database.getAutoResumeInterruptedOnLaunch();
 
-  /// Set download settings
   Future<void> setWifiOnly(bool wifiOnly) => _database.setWifiOnly(wifiOnly);
 
   Future<void> setAutoDownloadFavorites(bool auto) =>
@@ -464,7 +427,6 @@ class DownloadManager {
         fileExtension: task.downloadFileExtension,
       );
 
-  /// Dispose resources
   void dispose() {
     _connectionStateSubscription?.cancel();
     _progressController.close();
@@ -473,7 +435,6 @@ class DownloadManager {
   }
 }
 
-/// Download progress information
 class DownloadProgress {
   final String taskId;
   final double progress; // 0.0 to 1.0

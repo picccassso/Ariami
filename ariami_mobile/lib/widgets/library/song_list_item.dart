@@ -12,8 +12,6 @@ import '../common/song_artwork.dart';
 import '../common/song_overflow_menu.dart';
 import '../common/swipe_to_queue.dart';
 
-/// Song list item widget
-/// Displays song title, artist, and duration with premium styling
 class SongListItem extends StatelessWidget {
   final SongModel song;
   final VoidCallback? onTap;
@@ -49,7 +47,6 @@ class SongListItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Apply opacity when song is not available
     final opacity = isAvailable ? 1.0 : 0.5;
 
     return SwipeToQueue(
@@ -73,7 +70,6 @@ class SongListItem extends StatelessWidget {
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: Row(
                   children: [
-                    // Selection Checkbox
                     if (isSelectionMode) ...[
                       AnimatedContainer(
                         duration: const Duration(milliseconds: 200),
@@ -105,12 +101,10 @@ class SongListItem extends StatelessWidget {
                       const SizedBox(width: 16),
                     ],
 
-                    // Artwork
                     _buildLeading(context),
 
                     const SizedBox(width: 16),
 
-                    // Title and Artist
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -176,7 +170,6 @@ class SongListItem extends StatelessWidget {
                       ),
                     ),
 
-                    // Duration & Menu
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -219,7 +212,6 @@ class SongListItem extends StatelessWidget {
     );
   }
 
-  /// Build premium leading widget with artwork
   Widget _buildLeading(BuildContext context) {
     return Container(
       width: 56, // Larger size
@@ -287,22 +279,18 @@ class SongListItem extends StatelessWidget {
     );
   }
 
-  /// Build album artwork or placeholder using CachedArtwork
   Widget _buildAlbumArt(BuildContext context) {
     final connectionService = ConnectionService();
 
-    // Determine artwork URL based on whether song has albumId
     String? artworkUrl;
     String cacheId;
 
     if (song.albumId != null) {
-      // Song belongs to an album - use album artwork endpoint
       artworkUrl = connectionService.apiClient != null
           ? '${connectionService.apiClient!.baseUrl}/artwork/${song.albumId}'
           : null;
       cacheId = song.albumId!;
     } else {
-      // Standalone song - use song artwork endpoint
       artworkUrl = connectionService.apiClient != null
           ? '${connectionService.apiClient!.baseUrl}/song-artwork/${song.id}'
           : null;
@@ -327,7 +315,6 @@ class SongListItem extends StatelessWidget {
     );
   }
 
-  /// Build placeholder for missing artwork
   Widget _buildPlaceholder() {
     return Container(
       width: 48,
@@ -340,14 +327,12 @@ class SongListItem extends StatelessWidget {
     );
   }
 
-  /// Format duration in seconds to mm:ss
   String _formatDuration(int durationInSeconds) {
     final minutes = durationInSeconds ~/ 60;
     final seconds = durationInSeconds % 60;
     return '$minutes:${seconds.toString().padLeft(2, '0')}';
   }
 
-  /// Show song overflow menu
   void _showSongMenu(BuildContext context) {
     showAriamiSheet<void>(
       context: context,
@@ -416,11 +401,9 @@ class SongListItem extends StatelessWidget {
     );
   }
 
-  /// Handle play next action
   void _handlePlayNext(BuildContext context) {
     final playbackManager = PlaybackManager();
 
-    // Convert SongModel to Song object
     final convertedSong = Song(
       id: song.id,
       title: song.title,
@@ -438,11 +421,9 @@ class SongListItem extends StatelessWidget {
     playbackManager.playNext(convertedSong);
   }
 
-  /// Handle add to queue action
   void _handleAddToQueue(BuildContext context) {
     final playbackManager = PlaybackManager();
 
-    // Convert SongModel to Song object
     final convertedSong = Song(
       id: song.id,
       title: song.title,
@@ -459,7 +440,6 @@ class SongListItem extends StatelessWidget {
     playbackManager.addToQueue(convertedSong);
   }
 
-  /// Handle download action
   void _handleDownload(BuildContext context) {
     if (isDownloaded) {
       return;

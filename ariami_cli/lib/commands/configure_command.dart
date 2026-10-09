@@ -6,7 +6,6 @@ import '../services/cli_state_service.dart';
 class ConfigureCommand {
   final CliStateService _stateService = CliStateService();
 
-  /// Execute the configure command.
   Future<void> execute({String? musicFolder}) async {
     if (musicFolder == null || musicFolder.trim().isEmpty) {
       print('Error: --music-folder requires a path.');

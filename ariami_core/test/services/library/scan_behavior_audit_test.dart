@@ -94,7 +94,6 @@ void main() {
           'Summer Vibes');
       expect(FolderPlaylist.extractName('[Playlist] Gym'), 'Gym');
       expect(FolderPlaylist.extractName('[PLAYLIST]Gym'), 'Gym');
-      // Non-marker names pass through unchanged.
       expect(FolderPlaylist.extractName('Road Trip'), 'Road Trip');
     });
   });
@@ -110,7 +109,6 @@ void main() {
         detectPlaylistFolderPath('/music/[PLAYLIST] Gym/sub/deeper/song.mp3'),
         '/music/[PLAYLIST] Gym',
       );
-      // Lowercase marker works too.
       expect(
         detectPlaylistFolderPath('/music/[playlist] Gym/song.mp3'),
         '/music/[playlist] Gym',

@@ -87,10 +87,6 @@ class DiscoveryResponder {
     _records = null;
   }
 
-  // ---------------------------------------------------------------------
-  // UDP beacon
-  // ---------------------------------------------------------------------
-
   Future<void> _startBeacon() async {
     try {
       final socket = await _bindShared(InternetAddress.anyIPv4, _beaconPort);
@@ -123,10 +119,6 @@ class DiscoveryResponder {
       print('[Discovery] Beacon responder unavailable: $e');
     }
   }
-
-  // ---------------------------------------------------------------------
-  // mDNS advertising
-  // ---------------------------------------------------------------------
 
   Future<void> _startMdns() async {
     try {
@@ -210,10 +202,6 @@ class DiscoveryResponder {
       DiscoveryProtocol.mdnsPort,
     );
   }
-
-  // ---------------------------------------------------------------------
-  // Socket plumbing
-  // ---------------------------------------------------------------------
 
   /// Binds with address/port sharing so we can coexist with a system mDNS
   /// responder (avahi, Bonjour) or a second Ariami server on the host.

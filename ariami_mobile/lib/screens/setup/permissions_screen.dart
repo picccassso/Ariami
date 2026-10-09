@@ -88,21 +88,18 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
         _finishSetup();
       }
     } else {
-      // From storage to finish
       _finishSetup();
     }
   }
 
   void _skipCurrentStep() {
     if (_currentStep == 0) {
-      // Skipping notifications
       _showSkipWarning(
         'Limited Functionality',
         'Without notifications, you won\'t see playback controls in your notification panel.',
         () => _moveToNextStep(),
       );
     } else {
-      // Skipping storage
       _showSkipWarning(
         'No Offline Playback',
         'Without storage access, you won\'t be able to download music for offline playback.',
@@ -135,7 +132,6 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
   }
 
   void _finishSetup() {
-    // Navigate to main app
     Navigator.pushReplacementNamed(context, '/main');
   }
 
@@ -157,11 +153,9 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
               maxWidth: kSetupContentMaxWidth,
               child: Column(
                 children: [
-                  // Progress indicator
                   _buildProgressIndicator(),
                   const SizedBox(height: 32),
 
-                  // Content
                   Expanded(
                     child: _currentStep == 0
                         ? _buildNotificationPermissionScreen()
@@ -198,7 +192,6 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
       child: Column(
         children: [
           const SizedBox(height: 16),
-          // Icon
           Icon(
             Icons.notifications_active,
             size: 100,
@@ -206,7 +199,6 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
           ),
           const SizedBox(height: 24),
 
-          // Title
           const Text(
             'Notification Permission',
             style: TextStyle(
@@ -218,7 +210,6 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
           ),
           const SizedBox(height: 12),
 
-          // Description
           const Text(
             'Show playback controls in notification panel',
             style: TextStyle(
@@ -230,7 +221,6 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
           ),
           const SizedBox(height: 24),
 
-          // Why we need this
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -267,7 +257,6 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
           ),
           const SizedBox(height: 32),
 
-          // Buttons
           _buildActionButtons(
             onAllow: _requestNotificationPermission,
             onSkip: _skipCurrentStep,
@@ -283,7 +272,6 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
       child: Column(
         children: [
           const SizedBox(height: 16),
-          // Icon
           Icon(
             Icons.download_for_offline,
             size: 100,
@@ -291,7 +279,6 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
           ),
           const SizedBox(height: 24),
 
-          // Title
           const Text(
             'Storage Permission',
             style: TextStyle(
@@ -303,7 +290,6 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
           ),
           const SizedBox(height: 12),
 
-          // Description
           const Text(
             'Download music for offline playback',
             style: TextStyle(
@@ -315,7 +301,6 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
           ),
           const SizedBox(height: 24),
 
-          // Why we need this
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -352,7 +337,6 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
           ),
           const SizedBox(height: 32),
 
-          // Buttons
           _buildActionButtons(
             onAllow: _requestStoragePermission,
             onSkip: _skipCurrentStep,
@@ -370,7 +354,6 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
   }) {
     return Column(
       children: [
-        // Allow button
         SizedBox(
           width: double.infinity,
           height: 56,
@@ -403,7 +386,6 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
         ),
         const SizedBox(height: 16),
 
-        // Skip button
         TextButton(
           onPressed: _isProcessing ? null : onSkip,
           style: TextButton.styleFrom(

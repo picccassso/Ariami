@@ -1,10 +1,5 @@
 part of '../api_models.dart';
 
-// ============================================================================
-// ERROR MODELS
-// ============================================================================
-
-/// Error response format
 class ApiError {
   final String code;
   final String message;
@@ -33,7 +28,6 @@ class ApiError {
   }
 }
 
-/// Error response wrapper
 class ErrorResponse {
   final ApiError error;
 
@@ -52,10 +46,6 @@ class ErrorResponse {
   }
 }
 
-// ============================================================================
-// ERROR CODES
-// ============================================================================
-
 class ApiErrorCodes {
   static const String invalidSession = 'INVALID_SESSION';
   static const String songNotFound = 'SONG_NOT_FOUND';
@@ -65,7 +55,6 @@ class ApiErrorCodes {
   static const String invalidRequest = 'INVALID_REQUEST';
   static const String unauthorized = 'UNAUTHORIZED';
 
-  // Auth error codes
   static const String invalidCredentials = 'INVALID_CREDENTIALS';
   static const String userExists = 'USER_EXISTS';
   static const String sessionExpired = 'SESSION_EXPIRED';

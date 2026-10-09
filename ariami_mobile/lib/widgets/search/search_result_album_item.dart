@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../../models/api_models.dart';
 import '../common/cached_artwork.dart';
 
-/// Search result item for albums
 class SearchResultAlbumItem extends StatelessWidget {
   final AlbumModel album;
   final VoidCallback onTap;
@@ -25,7 +24,6 @@ class SearchResultAlbumItem extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
           child: Row(
             children: [
-              // Large Album Art
               SizedBox(
                 width: 60,
                 height: 60,
@@ -40,7 +38,6 @@ class SearchResultAlbumItem extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 16),
-              // Info
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

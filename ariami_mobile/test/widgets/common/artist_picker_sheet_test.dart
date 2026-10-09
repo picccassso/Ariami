@@ -101,13 +101,11 @@ void main() {
       await tester.tap(find.text('Open'));
       await _pumpFrames(tester);
 
-      // Verify bottom sheet is shown with "Artists" header and both options
       expect(find.text('Artists'), findsOneWidget);
       expect(find.text('Necazuri si suparari'), findsOneWidget);
       expect(find.text('Costi'), findsOneWidget);
       expect(find.text('Alina'), findsOneWidget);
 
-      // Tap "Alina"
       await tester.tap(find.text('Alina'));
       await _pumpFrames(tester);
 
@@ -183,7 +181,6 @@ void main() {
       expect(find.text('Bob'), findsOneWidget);
       expect(pushedArguments, isNull);
 
-      // Tap Bob
       await tester.tap(find.text('Bob'));
       await _pumpFrames(tester);
 
@@ -218,7 +215,6 @@ void main() {
 
       expect(find.text('Artists'), findsOneWidget);
 
-      // Dismiss barrier
       await tester.tapAt(const Offset(20, 20));
       await _pumpFrames(tester);
 

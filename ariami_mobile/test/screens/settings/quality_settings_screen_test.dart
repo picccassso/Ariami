@@ -66,21 +66,17 @@ void main() {
     expect(find.text('Downloads'), findsOneWidget);
     expect(find.text('High (192 kbps)'), findsOneWidget);
 
-    // Tap Downloads tile to open bottom sheet
     await tester.tap(find.text('Downloads'));
     await tester.pumpAndSettle();
 
-    // Verify all 4 options are present in the sheet
     expect(find.widgetWithText(ListTile, 'Original'), findsOneWidget);
     expect(find.widgetWithText(ListTile, 'High (192 kbps)'), findsOneWidget);
     expect(find.widgetWithText(ListTile, 'Medium (128 kbps)'), findsOneWidget);
     expect(find.widgetWithText(ListTile, 'Low (64 kbps)'), findsOneWidget);
 
-    // Select Original
     await tester.tap(find.widgetWithText(ListTile, 'Original'));
     await tester.pumpAndSettle();
 
-    // Sheet should be dismissed and Downloads tile now shows Original
     expect(find.text('Original'), findsOneWidget);
     final service = QualitySettingsService();
     expect(service.getEffectiveDownloadQuality(), DownloadQuality.original);

@@ -2,7 +2,6 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Persists library pinned items with per-user isolation.
 class LibraryPinStorage {
   static const String legacyKey = 'library_pinned_items';
 

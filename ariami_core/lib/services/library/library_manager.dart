@@ -44,10 +44,8 @@ class LruCache<K, V> {
 
   LruCache(this.maxSize);
 
-  /// Get a value from the cache, updating its access order
   V? operator [](K key) {
     if (!_cache.containsKey(key)) return null;
-    // Move to end (most recently used) by removing and re-adding
     final value = _cache.remove(key);
     if (value != null) {
       _cache[key] = value;
@@ -55,14 +53,11 @@ class LruCache<K, V> {
     return value;
   }
 
-  /// Put a value in the cache, evicting oldest if necessary
   void operator []=(K key, V value) {
-    // If key exists, remove it first (will be re-added at end)
     if (_cache.containsKey(key)) {
       _cache.remove(key);
     }
     _cache[key] = value;
-    // Evict oldest entries if over capacity
     while (_cache.length > maxSize) {
       _cache.remove(_cache.keys.first);
     }
@@ -71,17 +66,14 @@ class LruCache<K, V> {
   /// Check if key exists without updating access order
   bool containsKey(K key) => _cache.containsKey(key);
 
-  /// Clear all entries
   void clear() => _cache.clear();
 
-  /// Current number of entries
   int get length => _cache.length;
 }
 
 /// Singleton service that manages the music library
 /// Scans the music folder and provides library data to HTTP server
 class LibraryManager {
-  // Singleton pattern
   static final LibraryManager _instance = LibraryManager._internal();
   factory LibraryManager() => _instance;
   LibraryManager._internal();
@@ -114,7 +106,6 @@ class LibraryManager {
     if (folderPath != null) _monitorMusicFolder(folderPath);
   }
 
-  /// Persistent metadata cache for fast re-scans
   MetadataCache? _metadataCache;
 
   /// Persistent catalog database for v2 incremental sync.
@@ -122,7 +113,6 @@ class LibraryManager {
   CatalogWriter? _catalogWriter;
   int _latestCatalogToken = 0;
 
-  /// Real-time file watcher change pipeline.
   final FolderWatcher _folderWatcher = FolderWatcher();
   final ChangeProcessor _changeProcessor = ChangeProcessor();
   StreamSubscription<List<FileChange>>? _folderChangeSubscription;
@@ -143,25 +133,19 @@ class LibraryManager {
   /// Cache for lazily extracted song artwork for standalone songs (LRU, max 100 ~50MB)
   final LruCache<String, List<int>?> _songArtworkCache = LruCache(100);
 
-  /// Metadata extractor instance for lazy extraction
   final MetadataExtractor _metadataExtractor = MetadataExtractor();
 
-  /// Artwork service for precomputing and caching resized variants at scan time.
   ArtworkService? _artworkPrecomputeService;
 
-  /// Callbacks to notify when library scan completes
   final List<void Function()> _onScanCompleteCallbacks = [];
 
-  /// Callbacks to notify when duration warm-up completes
   final List<void Function()> _onDurationsReadyCallbacks = [];
 
-  /// Whether durations are ready for the current library snapshot
   bool _durationsReady = true;
 
   /// Feature flags controlling catalog writes and artwork precompute.
   AriamiFeatureFlags _featureFlags = const AriamiFeatureFlags();
 
-  /// Diagnostics from the most recent full library scan.
   ScanDiagnostics _latestScanDiagnostics = const ScanDiagnostics();
 
   /// Total audio files discovered and attempted by the latest full scan.
@@ -174,7 +158,6 @@ class LibraryManager {
   /// triggered outside the setup callbacks, e.g. suggestion imports).
   String? _lastScannedFolderPath;
 
-  /// Get the current library structure
   LibraryStructure? get library => _library;
 
   /// Replaces the in-memory library in tests and rebuilds derived indexes.
@@ -183,41 +166,32 @@ class LibraryManager {
     _rebuildSongIndexes();
   }
 
-  /// Register a callback to be notified when scan completes
   void addScanCompleteListener(void Function() callback) {
     _onScanCompleteCallbacks.add(callback);
   }
 
-  /// Remove a scan complete listener
   void removeScanCompleteListener(void Function() callback) {
     _onScanCompleteCallbacks.remove(callback);
   }
 
-  /// Notify all listeners that scan is complete
   void _notifyScanComplete() {
     for (final callback in _onScanCompleteCallbacks) {
       callback();
     }
   }
 
-  /// Register a callback to be notified when duration warm-up completes
   void addDurationsReadyListener(void Function() callback) {
     _onDurationsReadyCallbacks.add(callback);
   }
 
-  /// Get the last scan timestamp
   DateTime? get lastScanTime => _lastScanTime;
 
-  /// Check if currently scanning
   bool get isScanning => _isScanning;
 
-  /// Whether durations are ready for the current library snapshot
   bool get durationsReady => _durationsReady;
 
-  /// Diagnostics from the most recent full library scan.
   ScanDiagnostics get latestScanDiagnostics => _latestScanDiagnostics;
 
-  /// Total audio files discovered and attempted by the latest full scan.
   int get latestScannedFileCount => _latestScannedFileCount;
 
   /// Playlist-suggestion decision store (null until [setCachePath]).
@@ -243,13 +217,11 @@ class LibraryManager {
         .toList(growable: false);
   }
 
-  /// Folder path of the most recent successful full scan.
   String? get lastScannedFolderPath => _lastScannedFolderPath;
 
   /// Latest token written to `library_changes`.
   int get latestToken => _latestCatalogToken;
 
-  /// Configure feature flags for catalog and artwork behavior.
   void setFeatureFlags(AriamiFeatureFlags flags) {
     _featureFlags = flags;
   }
@@ -354,15 +326,12 @@ class LibraryManager {
   }) =>
       _scanMusicFolderImpl(folderPath, onProgress: onProgress);
 
-  /// Convert library to API JSON format for mobile app
   Map<String, dynamic> toApiJson(String baseUrl) => _toApiJsonImpl(baseUrl);
 
-  /// Get detailed album information with songs
   Future<Map<String, dynamic>?> getAlbumDetail(
           String albumId, String baseUrl) =>
       _getAlbumDetailImpl(albumId, baseUrl);
 
-  /// Get song file path by song ID
   String? getSongFilePath(String songId) => _getSongFilePathImpl(songId);
 
   /// Get album ID for a song by song ID.
@@ -372,11 +341,9 @@ class LibraryManager {
   /// - null for standalone songs or if song is not found
   String? getSongAlbumId(String songId) => _getSongAlbumIdImpl(songId);
 
-  /// Get album artwork by album ID (lazy extraction with caching)
   Future<List<int>?> getAlbumArtwork(String albumId) =>
       _getAlbumArtworkImpl(albumId);
 
-  /// Get song duration by song ID (lazy extraction with caching)
   Future<int?> getSongDuration(String songId) => _getSongDurationImpl(songId);
 
   /// Get known song duration by song ID without triggering extraction.
@@ -392,6 +359,5 @@ class LibraryManager {
   Future<List<int>?> getSongArtwork(String songId) =>
       _getSongArtworkImpl(songId);
 
-  /// Clear library data
   void clear() => _clearImpl();
 }

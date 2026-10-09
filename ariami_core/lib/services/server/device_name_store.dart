@@ -57,7 +57,6 @@ class DeviceNameStore {
   /// its client-reported default.
   String? nameFor(String deviceId) => _names[deviceId];
 
-  /// Set (or replace) the custom display name for [deviceId].
   Future<void> setName(String deviceId, String name) async {
     _ensureInitialized();
     if (_names[deviceId] == name) return;
@@ -65,8 +64,6 @@ class DeviceNameStore {
     await _persist();
   }
 
-  /// Persist the current state to the JSON file.
-  /// Uses atomic write (write to temp, then rename) for safety.
   Future<void> _persist() async {
     if (_filePath == null) return;
 

@@ -1,7 +1,6 @@
 part of 'playback_manager.dart';
 
 extension _PlaybackManagerLifecycleImpl on PlaybackManager {
-  /// Initialize the playback manager and set up listeners
   void _initializeImpl() {
     if (_isInitialized) {
       return;
@@ -47,7 +46,6 @@ extension _PlaybackManagerLifecycleImpl on PlaybackManager {
       unawaited(_refreshGaplessQueue());
     });
 
-    // Listen to position updates
     _positionSubscription = _audioPlayer.positionStream.listen((pos) {
       if (_connectRemote != null || _localPlaybackGuard.isSuspended) return;
       if (_pendingUiPosition != null && pos >= _pendingUiPosition!) {
@@ -57,7 +55,6 @@ extension _PlaybackManagerLifecycleImpl on PlaybackManager {
       positionNotifier.value = pos;
     });
 
-    // Listen to duration updates
     _durationSubscription = _audioPlayer.durationStream.listen((duration) {
       if (duration != null &&
           duration > Duration.zero &&
@@ -67,7 +64,6 @@ extension _PlaybackManagerLifecycleImpl on PlaybackManager {
       _notifyStateChanged();
     });
 
-    // Listen to player state changes
     _playerStateSubscription = _audioPlayer.playerStateStream.listen((state) {
       if (!_castService.isConnected) {
         _statsService.setPlaybackActive(
@@ -101,13 +97,11 @@ extension _PlaybackManagerLifecycleImpl on PlaybackManager {
       }
     });
 
-    // Listen to skip next button from notification
     _skipNextSubscription = audioHandler?.onSkipNext.listen((_) {
       print('[PlaybackManager] Skip Next pressed from notification');
       skipNext();
     });
 
-    // Listen to skip previous button from notification
     _skipPreviousSubscription = audioHandler?.onSkipPrevious.listen((_) {
       print('[PlaybackManager] Skip Previous pressed from notification');
       skipPrevious();
@@ -140,7 +134,6 @@ extension _PlaybackManagerLifecycleImpl on PlaybackManager {
       category: AudioSessionCategory.playback,
     );
 
-    // Set up periodic save timer for position updates
     _saveTimer = Timer.periodic(
       PlaybackManager._saveDebounceDuration,
       (_) async {
@@ -150,7 +143,6 @@ extension _PlaybackManagerLifecycleImpl on PlaybackManager {
       },
     );
 
-    // Restore saved state
     _restoreState();
   }
 
@@ -253,7 +245,6 @@ extension _PlaybackManagerLifecycleImpl on PlaybackManager {
       isBuffering: _castService.isRemoteBuffering,
     );
 
-    // Forward cast position updates to stats service
     _castStatsForwardTimer ??= Timer.periodic(
       const Duration(seconds: 1),
       (_) {

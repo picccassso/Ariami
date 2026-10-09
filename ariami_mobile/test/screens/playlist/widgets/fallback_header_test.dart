@@ -25,7 +25,6 @@ void main() {
         ),
       );
 
-      // Check that a Container with BoxDecoration is rendered
       final container = tester.widget<Container>(
         find.descendant(
           of: find.byType(FallbackHeader),
@@ -38,7 +37,6 @@ void main() {
 
     testWidgets('should use consistent colors for same playlist name',
         (tester) async {
-      // Pump twice with same name
       await tester.pumpWidget(
         const MaterialApp(
           home: Scaffold(
@@ -69,7 +67,6 @@ void main() {
         ),
       );
 
-      // Both should have BoxDecoration
       expect(container1.decoration, isA<BoxDecoration>());
       expect(container2.decoration, isA<BoxDecoration>());
     });

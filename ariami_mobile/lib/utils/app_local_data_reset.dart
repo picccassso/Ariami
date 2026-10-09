@@ -20,7 +20,6 @@ import '../services/stats/streaming_stats_service.dart';
 import '../services/theme_service.dart';
 import 'shared_preferences_cache.dart';
 
-/// Clears all local user data for a full disconnect / app reset.
 Future<void> clearAllLocalUserData({String? userId}) async {
   Object? firstError;
   StackTrace? firstStackTrace;

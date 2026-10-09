@@ -1,15 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../../models/api_models.dart';
 
-/// Reorder mode list item with drag handle
 class ReorderListItem extends StatelessWidget {
-  /// The song to display
   final SongModel song;
 
-  /// Index in the list (for display number)
   final int index;
 
-  /// Callback when remove button is pressed
   final VoidCallback? onRemove;
 
   const ReorderListItem({

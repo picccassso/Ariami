@@ -21,7 +21,6 @@ class WebSocketHandler {
   final Future<String> Function() _deviceNameProvider;
   final Future<String?> Function() _sessionTokenProvider;
 
-  /// Creates a WebSocketHandler.
   WebSocketHandler({
     required WebSocketService webSocketService,
     required Future<void> Function() onReconnect,
@@ -43,13 +42,10 @@ class WebSocketHandler {
         _deviceNameProvider = deviceNameProvider,
         _sessionTokenProvider = sessionTokenProvider;
 
-  /// Get the WebSocket message stream
   Stream<WsMessage> get messages => _webSocketService.messages;
 
-  /// Whether the WebSocket is currently connected
   bool get isConnected => _webSocketService.isConnected;
 
-  /// Connect to the WebSocket server
   Future<void> connect(dynamic serverInfo) async {
     _webSocketService.onReconnected = _handleReconnect;
     _webSocketService.onDisconnected = _handleDisconnect;
@@ -59,12 +55,10 @@ class WebSocketHandler {
     await sendIdentify();
   }
 
-  /// Disconnect from the WebSocket server
   void disconnect() {
     _webSocketService.disconnect();
   }
 
-  /// Send an identify message to the server
   Future<void> sendIdentify() async {
     if (!_webSocketService.isConnected) return;
 
@@ -81,14 +75,11 @@ class WebSocketHandler {
     );
   }
 
-  /// Handle WebSocket reconnect event
   Future<void> _handleReconnect() async {
-    // Ensure this socket is identified on the server
     await sendIdentify();
     await _onReconnect();
   }
 
-  /// Handle WebSocket disconnect event
   Future<void> _handleDisconnect() async {
     await _onDisconnect();
   }
@@ -105,7 +96,6 @@ class WebSocketHandler {
     await _onDisconnect();
   }
 
-  /// Handle incoming WebSocket messages
   void _handleMessage(WsMessage message) {
     if (message.type == WsMessageType.endpointAliasesChanged) {
       final onEndpointAliasesChanged = _onEndpointAliasesChanged;
@@ -126,7 +116,6 @@ class WebSocketHandler {
     }
   }
 
-  /// Parse the latest token from various possible formats
   int _parseLatestToken(dynamic value) {
     if (value is int) {
       return value;

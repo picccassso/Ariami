@@ -136,11 +136,9 @@ void main() {
       );
       await tester.pump();
 
-      // Two copies for seamless loop
       expect(find.text(longText), findsNWidgets(2));
       expect(find.byType(Text), findsNWidgets(2));
 
-      // After initial pause completes, scrolling should begin
       await tester.pump(const Duration(milliseconds: 1600));
       await tester.pump(const Duration(milliseconds: 100));
       final transform = tester.widget<Transform>(findMarqueeTransform());
@@ -171,7 +169,6 @@ void main() {
 
       final transform = tester.widget<Transform>(findMarqueeTransform());
       expect(transform.transform.getTranslation().x, 0);
-      // Two copies for seamless loop
       expect(find.text(secondText), findsNWidgets(2));
 
       await disposeTree(tester);
@@ -205,10 +202,8 @@ void main() {
       );
       await tester.pump();
 
-      // Wait for initial pause
       await tester.pump(const Duration(milliseconds: 150));
 
-      // Animation should now be running. Sample at a point partway through.
       await tester.pump(const Duration(milliseconds: 500));
 
       final translationX = tester
@@ -252,7 +247,6 @@ void main() {
       );
       await tester.pump();
 
-      // Let the initial 1.5s pause complete and the scroll get going.
       await tester.pump(const Duration(milliseconds: 1600));
       await tester.pump(const Duration(milliseconds: 400));
 
@@ -307,14 +301,11 @@ void main() {
       );
       await tester.pump();
 
-      // Two copies should be rendered
       expect(find.text(longText), findsNWidgets(2));
 
-      // Wait for pause and then let animation run through multiple cycles
       await tester.pump(const Duration(milliseconds: 100));
       await tester.pump(const Duration(seconds: 5));
 
-      // Animation should still be running (continuous repeat)
       final transform = tester.widget<Transform>(findMarqueeTransform());
       final translationX = transform.transform.getTranslation().x;
 

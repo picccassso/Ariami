@@ -6,7 +6,6 @@ part 'library_sync_database_reads.dart';
 part 'library_sync_database_schema.dart';
 part 'library_sync_database_writes.dart';
 
-/// SQLite database for normalized library sync state.
 class LibrarySyncDatabase {
   static const String _databaseName = 'library_sync.db';
   static const int _databaseVersion = 6;

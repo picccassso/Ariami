@@ -246,7 +246,6 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
         ),
         body: Stack(
           children: [
-            // Camera preview
             MobileScanner(
               controller: _cameraController,
               errorBuilder: _buildCameraError,
@@ -262,7 +261,6 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
               },
             ),
 
-            // Scanning frame overlay
             Center(
               child: Container(
                 width: 300,
@@ -277,7 +275,6 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
               ),
             ),
 
-            // Status: connecting spinner, error, or instructions
             Positioned(
               bottom: 100,
               left: 20,
@@ -362,7 +359,6 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
               ),
             ),
 
-            // Manual entry fallback (for when a QR code isn't available)
             Positioned(
               bottom: 24,
               left: 20,

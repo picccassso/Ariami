@@ -4,7 +4,6 @@ import 'app_local_data_reset.dart';
 import '../screens/welcome_screen.dart';
 import '../services/api/connection_service.dart';
 
-/// Shows the confirmation dialog for disconnecting from the server.
 void showDisconnectServerDialog(BuildContext context) {
   final isDark = Theme.of(context).brightness == Brightness.dark;
   showDialog(
@@ -65,7 +64,6 @@ void showDisconnectServerDialog(BuildContext context) {
   );
 }
 
-/// Replaces the entire navigation stack with the welcome/setup screen.
 void navigateToWelcomeScreen(BuildContext context) {
   Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
     MaterialPageRoute(builder: (_) => const WelcomeScreen()),
@@ -93,7 +91,6 @@ Future<void> disconnectServerAndClearData(NavigatorState rootNavigator) async {
   }
 }
 
-/// Styling for the disconnect server button used across auth and settings screens.
 ButtonStyle disconnectServerButtonStyle() {
   return ElevatedButton.styleFrom(
     backgroundColor: const Color(0xFF1A1A1A),

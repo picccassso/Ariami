@@ -14,7 +14,6 @@ export 'ffmpeg_probe.dart' show ArtworkProcessRunner;
 /// Uses FFmpeg for image resizing and maintains a cache of processed images
 /// to avoid re-processing on subsequent requests.
 class ArtworkService {
-  /// Base directory for artwork cache
   final String cacheDirectory;
 
   /// Maximum cache size in bytes (default 256MB)
@@ -46,7 +45,6 @@ class ArtworkService {
         _processRunner = processRunner ??
             ((executable, arguments) => Process.run(executable, arguments));
 
-  /// Check if FFmpeg is available on the system.
   Future<bool> isFFmpegAvailable() => _ffmpeg.isAvailable();
 
   /// Get artwork at the specified size.
@@ -68,12 +66,10 @@ class ArtworkService {
         ? originalArtwork
         : Uint8List.fromList(originalArtwork);
 
-    // No processing needed for full size
     if (!size.requiresProcessing) {
       return originalBytes;
     }
 
-    // Check cache first
     final cachedFile = _getCachedFile(albumId, size);
     if (await cachedFile.exists()) {
       try {
@@ -94,18 +90,15 @@ class ArtworkService {
         if (await digestFile.exists()) await digestFile.delete();
       } catch (e) {
         print('[ArtworkService] Error reading cached file: $e');
-        // Fall through to regenerate
       }
     }
 
-    // Check FFmpeg availability
     if (!await isFFmpegAvailable()) {
       print(
           '[ArtworkService] Cannot resize - FFmpeg not available, returning original');
       return originalBytes;
     }
 
-    // Check if already processing
     final lockKey = '${albumId}_${size.name}';
     if (_processingLocks.containsKey(lockKey)) {
       print('[ArtworkService] Waiting for existing processing of $albumId');
@@ -113,7 +106,6 @@ class ArtworkService {
       return result ?? originalBytes;
     }
 
-    // Start processing with lock
     final completer = Completer<Uint8List?>();
     _processingLocks[lockKey] = completer;
 
@@ -166,9 +158,7 @@ class ArtworkService {
     return _getCachedFile(artworkKey, size).path;
   }
 
-  /// Get the cached file path for artwork at a specific size.
   File _getCachedFile(String albumId, ArtworkSize size) {
-    // Sanitize albumId for use in filename
     final safeId = albumId.replaceAll(RegExp(r'[^\w\-]'), '_');
     final sizeDir = Directory('$cacheDirectory/${size.name}');
     return File('${sizeDir.path}/$safeId.jpg');
@@ -180,7 +170,6 @@ class ArtworkService {
 
   String _sourceDigest(List<int> bytes) => md5.convert(bytes).toString();
 
-  /// Update file access time for LRU tracking.
   Future<void> _touchFile(File file) async {
     if (!touchOnCacheHit) return;
 
@@ -196,30 +185,25 @@ class ArtworkService {
     }
   }
 
-  /// Process artwork using FFmpeg to resize to target size.
   Future<Uint8List?> _processArtwork(
     String albumId,
     Uint8List originalArtwork,
     ArtworkSize size,
   ) async {
-    // Ensure output directory exists
     final outputFile = _getCachedFile(albumId, size);
     final outputDir = outputFile.parent;
     if (!await outputDir.exists()) {
       await outputDir.create(recursive: true);
     }
 
-    // Write original to temp file
     final tempDir = Directory.systemTemp;
     final tempInput = File('${tempDir.path}/ariami_artwork_input_$albumId');
     final tempOutput =
         File('${tempDir.path}/ariami_artwork_output_$albumId.jpg');
 
     try {
-      // Write input
       await tempInput.writeAsBytes(originalArtwork);
 
-      // Build FFmpeg command for resizing
       final maxDim = size.maxDimension!;
       final args = [
         '-y', // Overwrite output
@@ -249,7 +233,6 @@ class ArtworkService {
             '${(originalSize / 1024).round()} KB -> ${(newSize / 1024).round()} KB '
             '(${((1 - newSize / originalSize) * 100).round()}% reduction)');
 
-        // Save to cache
         await outputFile.writeAsBytes(thumbnailBytes);
         await _getSourceDigestFile(outputFile).writeAsString(
           _sourceDigest(originalArtwork),
@@ -269,7 +252,6 @@ class ArtworkService {
       print('[ArtworkService] Processing error - $e');
       return null;
     } finally {
-      // Cleanup temp files
       try {
         if (await tempInput.exists()) await tempInput.delete();
       } catch (_) {}
@@ -287,7 +269,6 @@ class ArtworkService {
       final cacheDir = Directory(cacheDirectory);
       if (!await cacheDir.exists()) return;
 
-      // Collect all cached files with their stats
       final files = <_CachedArtworkInfo>[];
 
       await for (final entity in cacheDir.list(recursive: true)) {
@@ -301,7 +282,6 @@ class ArtworkService {
         }
       }
 
-      // Calculate total size
       int totalSize = files.fold(0, (sum, f) => sum + f.size);
 
       if (totalSize <= maxCacheSizeBytes) {
@@ -312,10 +292,8 @@ class ArtworkService {
           '(${(totalSize / 1024 / 1024).round()} MB / '
           '${(maxCacheSizeBytes / 1024 / 1024).round()} MB)');
 
-      // Sort by last accessed (oldest first)
       files.sort((a, b) => a.lastAccessed.compareTo(b.lastAccessed));
 
-      // Delete oldest files until under limit
       for (final fileInfo in files) {
         if (totalSize <= maxCacheSizeBytes) break;
 
@@ -337,7 +315,6 @@ class ArtworkService {
     }
   }
 
-  /// Clear the entire artwork cache.
   Future<void> clearCache() async {
     try {
       final cacheDir = Directory(cacheDirectory);
@@ -351,7 +328,6 @@ class ArtworkService {
   }
 }
 
-/// Internal class for tracking cached file info during cleanup.
 class _CachedArtworkInfo {
   final File file;
   final int size;

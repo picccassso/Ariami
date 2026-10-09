@@ -37,8 +37,6 @@ Future<String?> openArtistOrPicker(
   );
 }
 
-/// Displays an "Artists" bottom sheet allowing the user to select which
-/// collaborator to view.
 Future<String?> showArtistPickerSheet({
   required BuildContext context,
   required String artistName,
@@ -144,7 +142,6 @@ class _ArtistAvatarState extends State<_ArtistAvatar> {
     final library = LibraryController();
     final candidates = <_ArtworkSource>[];
 
-    // Check albums the artist owns or appears on
     final albums = [
       ...library.artistAlbums(widget.artistName),
       ...library.artistAppearsOn(widget.artistName),
@@ -158,7 +155,6 @@ class _ArtistAvatarState extends State<_ArtistAvatar> {
       }
     }
 
-    // Check all tracks credited to the artist
     final tracks = library.artistTracks(widget.artistName);
     final albumsById = {for (final a in library.state.albums) a.id: a};
     for (final track in tracks) {

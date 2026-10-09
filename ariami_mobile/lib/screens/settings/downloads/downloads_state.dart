@@ -84,7 +84,6 @@ class AlbumGroup {
   int get totalCount => songs.length;
 }
 
-/// Immutable state for the downloads screen UI.
 @immutable
 class DownloadsState {
   const DownloadsState({

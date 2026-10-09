@@ -332,8 +332,6 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                         if (value != null) {
                           _themeService.setThemeSource(value);
                           if (_playbackManager.currentSong != null) {
-                            // Optionally update to current song's color if set for the first time
-                            // But for now, just let them use the "Set to Current Song" button
                           }
                         }
                       },

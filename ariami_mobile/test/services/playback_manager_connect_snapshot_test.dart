@@ -303,16 +303,13 @@ void main() {
       // Platform channel is not mocked for Google Cast socket connection
     }
 
-    // Remote was paused
     expect(commands, contains(AriamiConnectCommand.pause));
-    // Local queue adopted remote queue
     expect(manager.queue.songs.map((s) => s.id), ['remote-song-1', 'remote-song-2']);
     expect(manager.sourceId, 'album:al-remote');
   });
 
   test('pauseLocal pauses and disconnects cast during Connect transfer', () async {
     final manager = PlaybackManager();
-    // Invoking pauseLocal should safely execute without error
     await expectLater(manager.pauseLocal(), completes);
   });
 }

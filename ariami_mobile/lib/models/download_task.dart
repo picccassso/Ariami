@@ -1,4 +1,3 @@
-/// Download task model for tracking song downloads
 library;
 
 import '../utils/encoding_utils.dart';
@@ -81,7 +80,6 @@ class DownloadTask {
   }) : downloadFileExtension =
             downloadFileExtension ?? _inferFileExtension(downloadUrl);
 
-  /// Convert to JSON for storage
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -113,7 +111,6 @@ class DownloadTask {
     };
   }
 
-  /// Create from JSON
   factory DownloadTask.fromJson(Map<String, dynamic> json) {
     final downloadUrl = json['downloadUrl'] as String? ?? '';
     final qualityString = json['downloadQuality'] as String?;
@@ -153,7 +150,6 @@ class DownloadTask {
     );
   }
 
-  /// Parse status string to enum
   static DownloadStatus _parseStatus(String statusString) {
     return DownloadStatus.values.firstWhere(
       (status) => status.toString() == statusString,
@@ -178,18 +174,14 @@ class DownloadTask {
     return 'mp3';
   }
 
-  /// Check if download can be retried
   bool canRetry() => retryCount < maxRetries && status == DownloadStatus.failed;
 
-  /// Get percentage for UI display
   int getPercentage() => (progress * 100).toInt();
 
-  /// Get formatted bytes downloaded
   String getFormattedBytes() {
     return _formatBytes(bytesDownloaded);
   }
 
-  /// Get formatted total bytes
   String getFormattedTotalBytes() {
     // For completed downloads, use actual downloaded size
     if (status == DownloadStatus.completed) {
@@ -198,7 +190,6 @@ class DownloadTask {
     return _formatBytes(totalBytes);
   }
 
-  /// Format bytes to human-readable string
   static String _formatBytes(int bytes) {
     if (bytes < 1024) return '$bytes B';
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';

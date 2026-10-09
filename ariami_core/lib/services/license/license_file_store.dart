@@ -109,7 +109,6 @@ class LicenseFileStore {
     return _persist();
   }
 
-  /// Removes all stored license files.
   Future<void> clear() async {
     _ensureInitialized();
     _licenseFiles.clear();

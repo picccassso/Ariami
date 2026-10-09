@@ -1,7 +1,6 @@
 part of 'package:ariami_core/services/transcoding/transcoding_service.dart';
 
 extension _TranscodingServiceEnvironment on TranscodingService {
-  /// Check if Sonic FFI library is available on this system.
   Future<bool> _isSonicAvailable() async {
     if (_sonicFfiAdapter != null) {
       return true;
@@ -109,7 +108,6 @@ extension _TranscodingServiceEnvironment on TranscodingService {
     return adapter.presetForQuality(quality);
   }
 
-  /// Check if ffprobe is available on the system.
   Future<bool> _isFFprobeAvailable() async {
     if (_ffprobeAvailable != null) return _ffprobeAvailable!;
 

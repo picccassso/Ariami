@@ -13,7 +13,8 @@ import 'genre_filter_bar.dart';
 import 'section_header.dart';
 
 /// Combined widget that displays playlists and albums mixed together.
-/// Items are sorted by modifiedAt date (newest first).
+/// Pinned items come first, then items sorted by sortAt (last played, falling
+/// back to modifiedAt), newest first.
 /// Uses SectionHeader for expand/collapse functionality.
 class MixedSection extends StatefulWidget {
   final LibraryState state;
@@ -251,7 +252,6 @@ class _MixedSectionState extends State<MixedSection> {
   }
 }
 
-/// Union type for mixed playlist/album items
 class _MixedItem {
   final PlaylistModel? playlist;
   final AlbumModel? album;

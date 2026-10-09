@@ -61,7 +61,6 @@ void main() {
     expect(service.mode, SearchMode.standard);
     expect(service.isSpotifyMode, isFalse);
 
-    // Switch back to spotify
     await service.setMode(SearchMode.spotify);
     expect(service.mode, SearchMode.spotify);
     expect(service.isSpotifyMode, isTrue);
@@ -177,7 +176,6 @@ void main() {
     });
 
     test('setRecentSearchesLimit trims stored recent songs if limit is reduced', () async {
-      // Store 10 songs in SharedPreferences
       final fakeSongs = List.generate(10, (i) => '{"id":"s$i","title":"Song $i","artist":"A","duration":100}');
       SharedPreferences.setMockInitialValues({
         SearchSettingsService.recentSongsKey: fakeSongs,
@@ -186,7 +184,6 @@ void main() {
       service.resetForTesting();
       service.initialize();
 
-      // Reduce limit to 5
       await service.setRecentSearchesLimit(isCustom: true, customLimit: 5);
 
       final trimmed = sharedPrefs.getStringList(SearchSettingsService.recentSongsKey);

@@ -64,7 +64,6 @@ void main() {
       final icon = tester.widget<Icon>(find.byIcon(Icons.dns_rounded));
       expect(icon.color, equals(Colors.white));
 
-      // Title should be white
       final title = tester.widget<Text>(find.text('Connect manually'));
       expect(title.style?.color, equals(Colors.white));
 
@@ -187,7 +186,6 @@ void main() {
         );
       }
 
-      // Light mode
       await tester.pumpWidget(
         MaterialApp(
           theme: AppTheme.lightTheme,
@@ -199,7 +197,6 @@ void main() {
       final lightText = tester.widget<Text>(find.text('OFFLINE'));
       expect(lightText.style?.color, equals(Colors.black));
 
-      // Dark mode
       await tester.pumpWidget(
         MaterialApp(
           theme: AppTheme.darkTheme,

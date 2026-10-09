@@ -15,8 +15,6 @@ import 'playlists_section.dart';
 import 'section_header.dart';
 import 'songs_section.dart';
 
-/// Main body widget for the library screen.
-/// Coordinates all sections and handles loading/empty/error states.
 class LibraryBody extends StatelessWidget {
   final LibraryState state;
   final bool isOffline;
@@ -155,7 +153,6 @@ class LibraryBody extends StatelessWidget {
         bottomPadding + (isBatchBarVisible ? kBatchDownloadBarScrollInset : 0);
 
     return [
-      // Mixed Playlists + Albums Section
       MixedSection(
         state: state,
         isOffline: isOffline,
@@ -173,7 +170,6 @@ class LibraryBody extends StatelessWidget {
         onGenreFilterChanged: onGenreFilterChanged,
       ),
 
-      // Songs Section
       SectionHeader(
         title: 'Songs',
         isExpanded: state.songsExpanded,
@@ -191,7 +187,6 @@ class LibraryBody extends StatelessWidget {
           selectedSongIds: selectedSongIds,
         ),
 
-      // Bottom padding for mini player and batch-download bar
       SliverPadding(
         padding: EdgeInsets.only(bottom: effectiveBottomPadding),
       ),
@@ -203,7 +198,6 @@ class LibraryBody extends StatelessWidget {
         bottomPadding + (isBatchBarVisible ? kBatchDownloadBarScrollInset : 0);
 
     return [
-      // Playlists Section
       SliverToBoxAdapter(
         child: CollapsibleSection(
           title: 'Playlists',
@@ -223,7 +217,6 @@ class LibraryBody extends StatelessWidget {
         ),
       ),
 
-      // Albums Section
       SectionHeader(
         title: 'Albums',
         isExpanded: state.albumsExpanded,
@@ -246,7 +239,6 @@ class LibraryBody extends StatelessWidget {
           selectedAlbumIds: selectedAlbumIds,
         ),
 
-      // Songs Section
       SectionHeader(
         title: 'Songs',
         isExpanded: state.songsExpanded,
@@ -264,7 +256,6 @@ class LibraryBody extends StatelessWidget {
           selectedSongIds: selectedSongIds,
         ),
 
-      // Bottom padding for mini player and batch-download bar
       SliverPadding(
         padding: EdgeInsets.only(bottom: effectiveBottomPadding),
       ),

@@ -4,15 +4,11 @@ import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 import 'package:ariami_core/models/song_metadata.dart';
 
-/// Represents a group of duplicate songs
 class DuplicateGroup {
-  /// The original/preferred file
   final SongMetadata original;
 
-  /// List of duplicate files
   final List<SongMetadata> duplicates;
 
-  /// The type of match that identified these as duplicates
   final DuplicateMatchType matchType;
 
   /// Confidence level (0.0 to 1.0)
@@ -25,23 +21,18 @@ class DuplicateGroup {
     required this.confidence,
   });
 
-  /// Total number of files in this duplicate group
   int get totalFiles => duplicates.length + 1;
 }
 
-/// Types of duplicate matches
 enum DuplicateMatchType {
   exactHash, // Exact file hash match
   fileSize, // Same file size
   metadata, // Matching metadata (artist, title, album, duration)
 }
 
-/// Service for detecting duplicate songs in the library
 class DuplicateDetector {
-  /// Stores computed hashes during detection for caching
   final Map<String, String> _computedHashes = {};
 
-  /// Get the hashes computed during the last detectDuplicates call
   Map<String, String> get computedHashes => Map.unmodifiable(_computedHashes);
 
   /// Detects all duplicates in a list of songs
@@ -60,7 +51,6 @@ class DuplicateDetector {
     _computedHashes.clear();
     final duplicateGroups = <DuplicateGroup>[];
 
-    // Level 1: Exact hash matching
     if (useHashMatching) {
       final hashGroups = await _findHashDuplicates(
         songs,
@@ -70,7 +60,6 @@ class DuplicateDetector {
       duplicateGroups.addAll(hashGroups);
     }
 
-    // Level 2: Metadata matching (for remaining songs)
     if (useMetadataMatching) {
       final processedPaths = _getProcessedPaths(duplicateGroups);
       final remainingSongs =
@@ -106,14 +95,12 @@ class DuplicateDetector {
       }
     }
 
-    // Step 2: Only hash groups with 2+ files (potential duplicates)
     final groups = <DuplicateGroup>[];
     for (final candidates in sizeGroups.values) {
       if (candidates.length < 2) {
         continue; // Skip unique sizes - no duplicates possible
       }
 
-      // Hash only this small group
       final hashGroups = await _hashGroupAndFindDuplicates(
         candidates,
         cachedHashes,
@@ -134,7 +121,6 @@ class DuplicateDetector {
   ) async {
     final hashMap = <String, List<SongMetadata>>{};
 
-    // Calculate hashes in parallel batches
     const batchSize = 20;
     for (var i = 0; i < songs.length; i += batchSize) {
       final batch = songs.sublist(
@@ -142,10 +128,8 @@ class DuplicateDetector {
         i + batchSize > songs.length ? songs.length : i + batchSize,
       );
 
-      // Calculate hashes for this batch in parallel (using cache when available)
       final hashFutures = batch.map((song) async {
         try {
-          // Check cache first
           final cachedHash = cachedHashes[song.filePath];
           if (cachedHash != null) {
             return (
@@ -155,9 +139,7 @@ class DuplicateDetector {
               fromCache: true
             );
           }
-          // Compute hash
           final hash = await _calculateFileHash(song.filePath);
-          // Store for caching
           _computedHashes[song.filePath] = hash;
           return (song: song, hash: hash, error: false, fromCache: false);
         } catch (e) {
@@ -167,7 +149,6 @@ class DuplicateDetector {
 
       final results = await Future.wait(hashFutures);
 
-      // Group songs by hash
       for (final result in results) {
         if (result.error) continue; // Skip files that couldn't be hashed
         hashMap.putIfAbsent(result.hash, () => []);
@@ -175,7 +156,6 @@ class DuplicateDetector {
       }
     }
 
-    // Create duplicate groups for files with same hash
     final groups = <DuplicateGroup>[];
     for (final entry in hashMap.entries) {
       if (entry.value.length > 1) {
@@ -233,7 +213,6 @@ class DuplicateDetector {
   ) {
     final groups = <DuplicateGroup>[];
 
-    // Step 1: Group songs by normalized artist+title key (O(n))
     final candidateGroups = <String, List<SongMetadata>>{};
     for (final song in songs) {
       if (!_isMetadataDuplicateCandidate(song)) continue;
@@ -242,7 +221,6 @@ class DuplicateDetector {
       candidateGroups[key]!.add(song);
     }
 
-    // Step 2: Process only groups with potential duplicates (O(k²) per small group)
     final processed = <String>{};
     for (final unsortedCandidates in candidateGroups.values) {
       // Canonical files must be considered before generated copies. Otherwise
@@ -257,7 +235,6 @@ class DuplicateDetector {
         });
       if (candidates.length < 2) continue; // No duplicates possible
 
-      // Within this small group, do detailed matching (album + duration tolerance)
       for (var i = 0; i < candidates.length; i++) {
         if (processed.contains(candidates[i].filePath)) continue;
 
@@ -316,9 +293,6 @@ class DuplicateDetector {
     return _isDetailedMetadataMatch(candidate, original, preferredPaths);
   }
 
-  /// Generates a normalized key for grouping potential duplicates
-  ///
-  /// Key is based on normalized artist + title for initial grouping
   String _generateMetadataKey(SongMetadata song) {
     final title = _normalizeString(song.title ?? '');
     final artist = _normalizeString(song.artist ?? '');
@@ -395,7 +369,6 @@ class DuplicateDetector {
     return album != null && album.isNotEmpty;
   }
 
-  /// Normalizes a string for comparison
   String _normalizeString(String input) {
     return input
         .toLowerCase()
@@ -424,18 +397,15 @@ class DuplicateDetector {
       if (aPreferred && !bPreferred) return -1;
       if (!aPreferred && bPreferred) return 1;
 
-      // Check for lossless format
       final aLossless = _isLosslessFormat(a.filePath);
       final bLossless = _isLosslessFormat(b.filePath);
       if (aLossless && !bLossless) return -1;
       if (!aLossless && bLossless) return 1;
 
-      // Check metadata completeness
       final aComplete = a.isComplete ? 1 : 0;
       final bComplete = b.isComplete ? 1 : 0;
       if (aComplete != bComplete) return bComplete.compareTo(aComplete);
 
-      // Compare file size (larger is usually better quality)
       final aSize = a.fileSize ?? 0;
       final bSize = b.fileSize ?? 0;
       final sizeCompare = bSize.compareTo(aSize);
@@ -451,7 +421,6 @@ class DuplicateDetector {
     return sorted;
   }
 
-  /// Checks if a file is a lossless format
   bool _isLosslessFormat(String filePath) {
     final ext = filePath.substring(filePath.lastIndexOf('.')).toLowerCase();
     return ['.flac', '.wav', '.aiff', '.alac'].contains(ext);
@@ -465,21 +434,17 @@ class DuplicateDetector {
     final file = File(filePath);
     final size = await file.length();
 
-    // For very small files, just hash the whole thing
     if (size <= 131072) {
       final bytes = await file.readAsBytes();
       final digest = md5.convert(bytes);
       return digest.toString();
     }
 
-    // For larger files, use partial hashing
     final raf = await file.open(mode: FileMode.read);
 
     try {
-      // Read first 64KB
       final firstChunk = await raf.read(min(65536, size).toInt());
 
-      // Read last 64KB
       await raf.setPosition(size - 65536);
       final lastChunk = await raf.read(65536);
 
@@ -506,7 +471,6 @@ class DuplicateDetector {
     return digest.toString();
   }
 
-  /// Gets all file paths that have been processed in duplicate groups
   Set<String> _getProcessedPaths(List<DuplicateGroup> groups) {
     final paths = <String>{};
     for (final group in groups) {
@@ -527,14 +491,12 @@ class DuplicateDetector {
   ) {
     final duplicatePaths = <String>{};
 
-    // Collect all duplicate paths
     for (final group in duplicateGroups) {
       for (final dup in group.duplicates) {
         duplicatePaths.add(dup.filePath);
       }
     }
 
-    // Return songs that are not duplicates
     return songs
         .where((song) => !duplicatePaths.contains(song.filePath))
         .toList();

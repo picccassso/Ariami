@@ -131,7 +131,6 @@ extension _LibraryManagerScanningPart on LibraryManager {
         '[LibraryManager] Starting library scan (background isolate): $folderPath');
 
     try {
-      // Load existing metadata cache if available
       Map<String, Map<String, dynamic>>? cacheData;
       if (_metadataCache != null) {
         await _metadataCache!.load();
@@ -168,12 +167,10 @@ extension _LibraryManagerScanningPart on LibraryManager {
             decisionStore.ignoredFolderPaths.toList(growable: false);
       }
 
-      // Run the scan in a background isolate
       final result = await LibraryScannerIsolate.scan(
         folderPath,
         onProgress: (progress) {
           final message = progress.message ?? 'Scanning media library...';
-          // Log progress updates from the isolate
           print('[LibraryManager] [${progress.stage}] $message '
               '(${progress.percentage.toStringAsFixed(1)}%)');
           onProgress?.call(progress.stage, message, progress.percentage);
@@ -248,7 +245,6 @@ extension _LibraryManagerScanningPart on LibraryManager {
         _lastScanTime = DateTime.now();
         _resetDurationsForRescan();
 
-        // Save updated cache
         if (_metadataCache != null && result.updatedCache != null) {
           _metadataCache!.importFromIsolate(result.updatedCache!);
           await _metadataCache!.save();
@@ -268,7 +264,6 @@ extension _LibraryManagerScanningPart on LibraryManager {
               '${autoImported.map((s) => s.name).join(', ')}');
         }
 
-        // Persist deterministic catalog rows + change log for v2 sync.
         await _writeCatalogSnapshot();
 
         _musicAvailability = _library!.totalSongs == 0
@@ -278,7 +273,6 @@ extension _LibraryManagerScanningPart on LibraryManager {
         _stopWatchingFolder();
         _startWatchingFolder(folderPath);
 
-        // Notify listeners that scan is complete
         _notifyScanComplete();
       } else {
         _musicAvailability = MusicAvailability.scanFailed;

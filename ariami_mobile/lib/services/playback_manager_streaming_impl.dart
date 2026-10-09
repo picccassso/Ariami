@@ -85,7 +85,6 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
     }
 
     try {
-      // Determine playback source (local file or stream)
       final playbackSource = forceOfflineSource
           ? await _offlineService.getOfflineFallbackSource(song.id)
           : await _offlineService.getPlaybackSource(song.id);
@@ -103,7 +102,6 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
 
       switch (playbackSource) {
         case PlaybackSource.local:
-          // Use local downloaded file (protected)
           final localPath = _offlineService.getLocalFilePath(song.id);
           if (localPath == null) {
             throw Exception('Local file path not found for downloaded song');
@@ -111,7 +109,6 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
           audioUrl = 'file://$localPath';
           print('[PlaybackManager] Playing from downloaded file: $audioUrl');
 
-          // Get cached artwork for offline playback (with thumbnail fallback)
           final localPrimaryKey = song.albumId ?? 'song_${song.id}';
           final localFallbackKey =
               song.albumId != null ? '${song.albumId}_thumb' : null;
@@ -124,7 +121,6 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
           break;
 
         case PlaybackSource.cached:
-          // Use cached file (auto-cached from previous playback)
           final cachedPath = await _offlineService.getCachedFilePath(song.id);
           if (!isCurrent()) return;
           if (cachedPath == null) {
@@ -133,7 +129,6 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
           audioUrl = 'file://$cachedPath';
           print('[PlaybackManager] Playing from cached file: $audioUrl');
 
-          // Get cached artwork for offline playback (with thumbnail fallback)
           final cachedPrimaryKey = song.albumId ?? 'song_${song.id}';
           final cachedFallbackKey =
               song.albumId != null ? '${song.albumId}_thumb' : null;
@@ -146,7 +141,6 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
           break;
 
         case PlaybackSource.stream:
-          // Stream from server
           print('[PlaybackManager] Checking connection...');
           if (_connectionService.apiClient == null) {
             print(
@@ -156,7 +150,6 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
           print(
               '[PlaybackManager] Connected! Base URL: ${_connectionService.apiClient!.baseUrl}');
 
-          // Get streaming quality based on current network (WiFi vs mobile data)
           final streamingQuality = _qualityService.getCurrentStreamingQuality();
 
           if (await _offlineService.getOfflineFallbackSource(song.id) !=
@@ -203,12 +196,10 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
           print(
               '[PlaybackManager] Streaming from server: $audioUrl (quality: ${streamingQuality.name})');
 
-          // Use server URL for artwork when streaming
           if (song.albumId != null) {
             artworkUri = Uri.parse(
                 '${_connectionService.apiClient!.baseUrl}/artwork/${song.albumId}');
           } else {
-            // Standalone song - use song artwork endpoint
             artworkUri = Uri.parse(
                 '${_connectionService.apiClient!.baseUrl}/song-artwork/${song.id}');
           }
@@ -238,7 +229,6 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
         case PlaybackSource.unavailable:
           print(
               '[PlaybackManager] Song not available offline, searching for next available song...');
-          // Try to find and play the next available song
           final nextAvailableIndex = await _findNextAvailableSongIndex();
           if (!isCurrent()) return;
           if (nextAvailableIndex != null) {
@@ -247,7 +237,6 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
             _queue.jumpToIndex(nextAvailableIndex);
             await _playCurrentSong(); // Recursive call to play the available song
           } else {
-            // No songs available, stop playback
             print(
                 '[PlaybackManager] No available songs in queue, stopping playback');
             await _audioPlayer.stop();
@@ -279,7 +268,6 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
         if (!isCurrent()) return;
 
         if (_restoredPosition != null) {
-          // Load the song WITHOUT starting playback
           await _capByOfflineFallbackDeadline(
             _audioPlayer.loadSong(
               song,
@@ -295,14 +283,11 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
           await Future.delayed(const Duration(milliseconds: 500));
           if (!isCurrent()) return;
 
-          // Seek to the restored position BEFORE starting playback
           await _audioPlayer.seekLocal(_restoredPosition!);
           if (!isCurrent()) return;
 
-          // Notify listeners so UI updates with the new position
           _notifyStateChanged();
 
-          // NOW start playback from the seeked position
           if (autoPlay) {
             await _audioPlayer.resumeLocal();
             if (!isCurrent()) return;
@@ -311,7 +296,6 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
           _restoredPosition = null; // Clear so it doesn't affect next song
         } else {
           if (autoPlay) {
-            // No restored position - play normally from the beginning
             await _capByOfflineFallbackDeadline(
               _audioPlayer.playSong(
                 song,
@@ -353,7 +337,6 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
 
       _unplayableSkipStreak = 0;
 
-      // Track stats for this song playback
       if (restartStatsTracking) {
         print(
             '[PlaybackManager] About to call onSongStarted for: ${song.title}');
@@ -361,7 +344,6 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
         print('[PlaybackManager] onSongStarted called successfully');
       }
 
-      // Extract colors from artwork for player gradient background
       ColorExtractionService().extractColorsForSong(song);
     } catch (e, stackTrace) {
       if (!isCurrent()) return;
@@ -705,10 +687,8 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
 
     String downloadUrl;
 
-    // Use authenticated download URL if authenticated, otherwise use legacy URL
     if (_connectionService.isAuthenticated) {
       try {
-        // Request a stream ticket for the download
         final qualityParam = downloadQuality != StreamingQuality.high
             ? downloadQuality.toApiParam()
             : null;
@@ -726,12 +706,10 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
         return;
       }
     } else {
-      // Legacy mode - use direct download URL
       final baseDownloadUrl = apiClient.getDownloadUrl(song.id);
       downloadUrl = _qualityService.getDownloadUrlWithQuality(baseDownloadUrl);
     }
 
-    // Trigger background cache (non-blocking)
     unawaited(() async {
       try {
         final started = await _cacheManager.cacheSong(song.id, downloadUrl);
@@ -774,12 +752,10 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
   ) async {
     final apiClient = _connectionService.apiClient!;
 
-    // Legacy mode - direct stream URL (no token needed)
     if (!_connectionService.isAuthenticated) {
       return apiClient.getStreamUrlWithQuality(song.id, quality);
     }
 
-    // Authenticated mode - request stream ticket with retry logic
     final qualityParam =
         quality != StreamingQuality.high ? quality.toApiParam() : null;
 
@@ -797,7 +773,6 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
         quality: quality,
       );
     } on ApiException catch (e) {
-      // Check if token expired - retry once
       if (e.isCode(ApiErrorCodes.streamTokenExpired)) {
         print('[PlaybackManager] Stream token expired, retrying once...');
         final retryTicketResponse = await apiClient.getStreamTicket(
@@ -811,7 +786,6 @@ extension _PlaybackManagerStreamingImpl on PlaybackManager {
           quality: quality,
         );
       }
-      // Re-throw other errors
       rethrow;
     }
   }

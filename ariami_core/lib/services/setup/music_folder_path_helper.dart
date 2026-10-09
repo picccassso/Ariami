@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
-/// Error codes returned when validating a music folder path.
 enum MusicFolderPathError {
   empty,
   missing,
@@ -10,7 +9,6 @@ enum MusicFolderPathError {
   notDirectory,
 }
 
-/// Result of validating a single music folder candidate path.
 class MusicFolderPathValidation {
   const MusicFolderPathValidation({
     required this.path,
@@ -53,7 +51,6 @@ class MusicFolderPathValidation {
       };
 }
 
-/// Builds common music-folder candidates and validates directory access.
 class MusicFolderPathHelper {
   MusicFolderPathHelper._();
 
@@ -98,7 +95,6 @@ class MusicFolderPathHelper {
     return candidates;
   }
 
-  /// Validate that [path] exists, is a directory, and is readable.
   static Future<MusicFolderPathValidation> validate(String path) async {
     final trimmed = path.trim();
     if (trimmed.isEmpty) {

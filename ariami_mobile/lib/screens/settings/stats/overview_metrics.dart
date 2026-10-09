@@ -4,7 +4,6 @@ import '../../../models/artist_stats.dart';
 import '../../../services/stats/streaming_stats_service.dart';
 import 'playtime_format.dart';
 
-/// One label/value pair on the overview card.
 typedef OverviewMetric = ({String label, String value});
 
 /// The three overview-card metrics for the current tab and range. The middle

@@ -19,34 +19,24 @@ class AuthService {
   static const String _desktopPlayerDeviceName = 'Ariami Desktop';
   static const String _desktopPlayerDeviceIdPrefix = 'desktop_client_';
 
-  // Singleton pattern
   static final AuthService _instance = AuthService._internal();
   factory AuthService() => _instance;
   AuthService._internal();
 
-  /// User storage
   final UserStore _userStore = UserStore();
 
-  /// Session storage
   final SessionStore _sessionStore = SessionStore();
 
   /// bcrypt cost factor (10 is recommended for balance of security and performance)
   static const int bcryptCost = 10;
 
-  /// Whether the service has been initialized
   bool _initialized = false;
-
-  // ============================================================================
-  // RATE LIMITING
-  // ============================================================================
 
   /// Track failed login attempts per server-derived identifier.
   final Map<String, _LoginAttemptTracker> _loginAttempts = {};
 
-  /// Maximum failed login attempts before rate limiting
   static const int maxLoginAttempts = 5;
 
-  /// Cooldown period after max attempts reached
   static const Duration rateLimitCooldown = Duration(minutes: 15);
 
   /// Upper bound on tracked login-attempt buckets so the map cannot grow
@@ -89,7 +79,6 @@ class AuthService {
   Future<RegisterResponse> register(String username, String password) async {
     _ensureInitialized();
 
-    // Validate input
     if (username.trim().isEmpty) {
       throw AuthException(
           AuthErrorCodes.invalidCredentials, 'Username cannot be empty');
@@ -107,7 +96,6 @@ class AuthService {
           'Password must be at least $minPasswordLength characters');
     }
 
-    // Hash password with bcrypt
     final passwordHash =
         BCrypt.hashpw(password, BCrypt.gensalt(logRounds: bcryptCost));
 
@@ -154,7 +142,6 @@ class AuthService {
       );
     }
 
-    // Find user by username
     final user = _userStore.getUserByUsername(username);
     if (user == null) {
       tracker.recordFailure(maxLoginAttempts, rateLimitCooldown);
@@ -162,14 +149,12 @@ class AuthService {
           AuthErrorCodes.invalidCredentials, 'Invalid username or password');
     }
 
-    // Verify password
     if (!BCrypt.checkpw(password, user.passwordHash)) {
       tracker.recordFailure(maxLoginAttempts, rateLimitCooldown);
       throw AuthException(
           AuthErrorCodes.invalidCredentials, 'Invalid username or password');
     }
 
-    // Success - reset rate limit tracker for this login bucket.
     tracker.reset();
 
     // Accounts are ecosystem identities, not single-device leases. Every
@@ -181,7 +166,6 @@ class AuthService {
     // older clients, but no longer revokes sessions belonging to other devices.
     await _sessionStore.revokeSessionsForUserOnDevice(user.userId, deviceId);
 
-    // Create a new session
     final session = await _sessionStore.createSession(
       user.userId,
       deviceId,
@@ -196,8 +180,6 @@ class AuthService {
     );
   }
 
-  /// Logout by revoking the session token.
-  /// Returns LogoutResponse.
   Future<LogoutResponse> logout(String sessionToken) async {
     _ensureInitialized();
 
@@ -226,13 +208,11 @@ class AuthService {
     return _sessionStore.getSession(sessionToken);
   }
 
-  /// Get user by ID.
   User? getUserById(String userId) {
     _ensureInitialized();
     return _userStore.getUserById(userId);
   }
 
-  /// Get user by username.
   User? getUserByUsername(String username) {
     _ensureInitialized();
     return _userStore.getUserByUsername(username);
@@ -252,31 +232,26 @@ class AuthService {
     return _userStore.hasUsers();
   }
 
-  /// Get count of registered users.
   int get userCount {
     _ensureInitialized();
     return _userStore.userCount;
   }
 
-  /// Get all registered users ordered by creation time.
   List<User> getUsers() {
     _ensureInitialized();
     return _userStore.getUsers();
   }
 
-  /// Get count of active sessions.
   int get sessionCount {
     _ensureInitialized();
     return _sessionStore.sessionCount;
   }
 
-  /// Get all active sessions for a user.
   List<Session> getSessionsForUser(String userId) {
     _ensureInitialized();
     return _sessionStore.getSessionsForUser(userId);
   }
 
-  /// Get all active sessions for a device.
   List<Session> getSessionsForDevice(String deviceId) {
     _ensureInitialized();
     return _sessionStore.getSessionsForDevice(deviceId);
@@ -312,14 +287,12 @@ class AuthService {
     return deviceName == _desktopPlayerDeviceName;
   }
 
-  /// Revoke all sessions for a user and return the revoked sessions.
   Future<List<Session>> revokeAllSessionsForUserWithDetails(
       String userId) async {
     _ensureInitialized();
     return _sessionStore.revokeAllForUserWithDetails(userId);
   }
 
-  /// Revoke all active sessions for a device and return revoked sessions.
   Future<List<Session>> revokeSessionsForDevice(String deviceId) async {
     _ensureInitialized();
     return _sessionStore.revokeSessionsForDevice(deviceId);
@@ -364,7 +337,6 @@ class AuthService {
     return _userStore.deleteUser(userId);
   }
 
-  /// Clean up resources. Call when shutting down.
   void dispose() {
     _sessionStore.dispose();
   }
@@ -378,7 +350,6 @@ class AuthService {
     _initialized = false;
   }
 
-  /// Ensure the service has been initialized.
   void _ensureInitialized() {
     if (!_initialized) {
       throw StateError('AuthService not initialized. Call initialize() first.');
@@ -408,7 +379,6 @@ class AuthService {
   }
 }
 
-/// Exception thrown for authentication errors.
 class AuthException implements Exception {
   final String code;
   final String message;
@@ -419,7 +389,6 @@ class AuthException implements Exception {
   String toString() => 'AuthException($code): $message';
 }
 
-/// Tracks login attempts for rate limiting
 class _LoginAttemptTracker {
   int failedAttempts = 0;
   DateTime? lockedUntil;
@@ -430,25 +399,21 @@ class _LoginAttemptTracker {
     lastAttemptAt = DateTime.now();
   }
 
-  /// Check if currently rate limited
   bool get isLocked {
     if (lockedUntil == null) return false;
     if (DateTime.now().isAfter(lockedUntil!)) {
-      // Lock expired, reset
       reset();
       return false;
     }
     return true;
   }
 
-  /// Get remaining lockout time
   Duration get remainingLockTime {
     if (lockedUntil == null) return Duration.zero;
     final remaining = lockedUntil!.difference(DateTime.now());
     return remaining.isNegative ? Duration.zero : remaining;
   }
 
-  /// Record a failed attempt
   void recordFailure(int maxAttempts, Duration cooldown) {
     failedAttempts++;
     if (failedAttempts >= maxAttempts) {
@@ -456,7 +421,6 @@ class _LoginAttemptTracker {
     }
   }
 
-  /// Reset tracker (on successful login)
   void reset() {
     failedAttempts = 0;
     lockedUntil = null;

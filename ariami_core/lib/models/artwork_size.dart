@@ -20,10 +20,8 @@ enum ArtworkSize {
     }
   }
 
-  /// Whether this size requires processing (resizing).
   bool get requiresProcessing => this == ArtworkSize.thumbnail;
 
-  /// Human-readable display name.
   String get displayName {
     switch (this) {
       case ArtworkSize.thumbnail:
@@ -50,6 +48,5 @@ enum ArtworkSize {
     }
   }
 
-  /// Convert to query parameter string.
   String toQueryParam() => name;
 }

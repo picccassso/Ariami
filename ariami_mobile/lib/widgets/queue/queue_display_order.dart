@@ -4,14 +4,12 @@ import '../../models/song.dart';
 class QueueDisplayOrder {
   QueueDisplayOrder._();
 
-  /// Songs as shown in the queue UI: current + upcoming.
   static List<Song> songsInDisplayOrder(List<Song> songs, int currentIndex) {
     if (songs.isEmpty) return [];
     final c = currentIndex.clamp(0, songs.length - 1);
     return songs.sublist(c);
   }
 
-  /// Convert a row index in [songsInDisplayOrder] to a storage index in [PlaybackQueue.songs].
   static int displayIndexToReal(
       int displayIndex, int length, int currentIndex) {
     if (length <= 0) return 0;

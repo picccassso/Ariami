@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../../../widgets/common/mini_player_aware_bottom_sheet.dart';
 import '../library_controller.dart';
 
-/// Bottom sheet content displaying view options and actions for the library.
 class LibraryOptionsSheet extends StatelessWidget {
   final LibraryController controller;
   final bool isOffline;
@@ -70,7 +69,6 @@ class LibraryOptionsSheet extends StatelessWidget {
   }
 }
 
-/// Shows the library options bottom sheet.
 Future<void> showLibraryOptionsSheet({
   required BuildContext context,
   required LibraryController controller,

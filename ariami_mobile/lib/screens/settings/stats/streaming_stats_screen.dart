@@ -412,10 +412,8 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
             },
             child: Column(
               children: [
-                // Overview card with totals (dynamic based on tab and range)
                 _buildOverviewCard(),
 
-                // Tab content
                 Expanded(
                   child: ListenableBuilder(
                     listenable: _statsService,

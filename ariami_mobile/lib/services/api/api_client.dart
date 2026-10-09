@@ -8,7 +8,6 @@ import '../../models/auth_models.dart';
 import '../../models/server_info.dart';
 import '../../models/quality_settings.dart';
 
-/// HTTP API client for Ariami server communication
 class ApiClient {
   MusicAvailability musicAvailability = MusicAvailability.unknown;
   void Function(MusicAvailability)? onMusicAvailabilityChanged;
@@ -42,14 +41,8 @@ class ApiClient {
     _client.close();
   }
 
-  /// Base URL for API requests
   String get baseUrl => '${serverInfo.baseUrl}/api';
 
-  // ============================================================================
-  // CONNECTION ENDPOINTS
-  // ============================================================================
-
-  /// Ping server to check connectivity
   Future<Map<String, dynamic>> ping({String? deviceId}) async {
     final endpoint = deviceId == null
         ? '/ping'
@@ -61,13 +54,11 @@ class ApiClient {
     return response;
   }
 
-  /// Connect to server with device information
   Future<ConnectResponse> connect(ConnectRequest request) async {
     final response = await _post('/connect', request.toJson());
     return ConnectResponse.fromJson(response);
   }
 
-  /// Disconnect from server
   Future<DisconnectResponse> disconnect(DisconnectRequest request) async {
     final response = await _post('/disconnect', request.toJson());
     return DisconnectResponse.fromJson(response);
@@ -88,29 +79,21 @@ class ApiClient {
     return _post('/server-info/aliases', payload);
   }
 
-  // ============================================================================
-  // AUTHENTICATION ENDPOINTS
-  // ============================================================================
-
-  /// Register a new user account
   Future<RegisterResponse> register(RegisterRequest request) async {
     final response = await _post('/auth/register', request.toJson());
     return RegisterResponse.fromJson(response);
   }
 
-  /// Login with username and password
   Future<LoginResponse> login(LoginRequest request) async {
     final response = await _post('/auth/login', request.toJson());
     return LoginResponse.fromJson(response);
   }
 
-  /// Logout (invalidate session)
   Future<LogoutResponse> logout(String sessionToken) async {
     final response = await _postWithAuth('/auth/logout', {}, sessionToken);
     return LogoutResponse.fromJson(response);
   }
 
-  /// Get current user info (validates session)
   Future<Map<String, dynamic>> getCurrentUser(String sessionToken) async {
     final response = await _getWithAuth('/me', sessionToken);
     return response;
@@ -137,7 +120,6 @@ class ApiClient {
     }
   }
 
-  /// Upload/replace the current user's avatar.
   Future<Map<String, dynamic>> uploadCurrentUserAvatar(
     String sessionToken, {
     required Uint8List bytes,
@@ -166,7 +148,6 @@ class ApiClient {
     }
   }
 
-  /// Remove the current user's avatar.
   Future<void> deleteCurrentUserAvatar(String sessionToken) async {
     try {
       final uri = _withDeviceParams(Uri.parse('$baseUrl/me/avatar'));
@@ -185,17 +166,11 @@ class ApiClient {
     }
   }
 
-  /// Get server metadata, including all advertised endpoints.
   Future<ServerInfo> getServerInfo() async {
     final response = await _get('/server-info');
     return ServerInfo.fromJson(response);
   }
 
-  // ============================================================================
-  // LIBRARY ENDPOINTS
-  // ============================================================================
-
-  /// Get all albums
   Future<List<AlbumModel>> getAlbums() async {
     final response = await _get('/albums');
     final albums = (response['albums'] as List<dynamic>? ?? [])
@@ -204,13 +179,11 @@ class ApiClient {
     return albums;
   }
 
-  /// Get album details with songs
   Future<AlbumDetailResponse> getAlbumDetail(String albumId) async {
     final response = await _get('/albums/$albumId');
     return AlbumDetailResponse.fromJson(response);
   }
 
-  /// Get all songs
   Future<List<SongModel>> getSongs() async {
     final response = await _get('/songs');
     final songs = (response['songs'] as List<dynamic>? ?? [])
@@ -219,7 +192,6 @@ class ApiClient {
     return songs;
   }
 
-  /// Get a V2 bootstrap page
   Future<V2BootstrapResponse> getV2BootstrapPage(
       String? cursor, int limit) async {
     final endpoint = _buildEndpointWithQuery(
@@ -233,7 +205,6 @@ class ApiClient {
     return V2BootstrapResponse.fromJson(response);
   }
 
-  /// Get V2 changes since a token
   Future<V2ChangesResponse> getV2Changes(int since, int limit) async {
     final endpoint = _buildEndpointWithQuery(
       '/v2/changes',
@@ -246,7 +217,6 @@ class ApiClient {
     return V2ChangesResponse.fromJson(response);
   }
 
-  /// Create a server-managed v2 download job.
   Future<DownloadJobCreateResponse> createV2DownloadJob(
     DownloadJobCreateRequest request,
   ) async {
@@ -254,14 +224,12 @@ class ApiClient {
     return DownloadJobCreateResponse.fromJson(response);
   }
 
-  /// Get v2 download job status.
   Future<DownloadJobStatusResponse> getV2DownloadJobStatus(String jobId) async {
     final encodedJobId = Uri.encodeComponent(jobId);
     final response = await _get('/v2/download-jobs/$encodedJobId');
     return DownloadJobStatusResponse.fromJson(response);
   }
 
-  /// Get paged v2 download job items.
   Future<DownloadJobItemsResponse> getV2DownloadJobItems(
     String jobId, {
     String? cursor,
@@ -279,16 +247,11 @@ class ApiClient {
     return DownloadJobItemsResponse.fromJson(response);
   }
 
-  /// Cancel a v2 download job.
   Future<DownloadJobCancelResponse> cancelV2DownloadJob(String jobId) async {
     final encodedJobId = Uri.encodeComponent(jobId);
     final response = await _post('/v2/download-jobs/$encodedJobId/cancel', {});
     return DownloadJobCancelResponse.fromJson(response);
   }
-
-  // ============================================================================
-  // LISTENING STATS ENDPOINTS
-  // ============================================================================
 
   /// Upload a batch of listening events (idempotent by eventId).
   Future<Map<String, dynamic>> postListeningEvents(
@@ -297,7 +260,6 @@ class ApiClient {
     return _post('/v2/listening/events', {'events': events});
   }
 
-  /// Fetch the account-wide listening summary (per-song rollups).
   Future<Map<String, dynamic>> getListeningSummary() async {
     return _get('/v2/listening/summary');
   }
@@ -346,14 +308,9 @@ class ApiClient {
     return _get(endpoint);
   }
 
-  /// Wipe the account's listening history on the server.
   Future<Map<String, dynamic>> postListeningReset() async {
     return _post('/v2/listening/reset', {});
   }
-
-  // ============================================================================
-  // ACCOUNT PINS
-  // ============================================================================
 
   Future<List<Map<String, dynamic>>> getPins() async {
     final response = await _get('/pins');
@@ -389,10 +346,6 @@ class ApiClient {
         .map((item) => Map<String, dynamic>.from(item))
         .toList(growable: false);
   }
-
-  // ============================================================================
-  // PLAYLIST EDITS
-  // ============================================================================
 
   /// Fetch playlist edits together with the custom cover-image manifest the
   /// server returns on the same endpoint.
@@ -466,7 +419,6 @@ class ApiClient {
     }
   }
 
-  /// Fetch a playlist's custom cover image bytes, or null if none is set.
   Future<Uint8List?> getPlaylistImage(String playlistId) async {
     try {
       final uri = _withDeviceParams(Uri.parse(
@@ -490,7 +442,6 @@ class ApiClient {
     }
   }
 
-  /// Remove a playlist's custom cover image.
   Future<void> deletePlaylistImage(String playlistId) async {
     await _delete('/playlists/${Uri.encodeComponent(playlistId)}/image');
   }
@@ -559,14 +510,9 @@ class ApiClient {
     }
   }
 
-  /// Remove an artist's custom image.
   Future<void> deleteArtistImage(String artistName) async {
     await _delete('/artists/${Uri.encodeComponent(artistName)}/image');
   }
-
-  // ============================================================================
-  // LICENSE RELAY
-  // ============================================================================
 
   /// Stores an opaque license file on the server so other household
   /// devices (TVs) can fetch and verify it themselves. Admin/owner
@@ -574,10 +520,6 @@ class ApiClient {
   Future<void> putLicenseFile(String licenseFile) async {
     await _put('/license', <String, dynamic>{'licenseFile': licenseFile});
   }
-
-  // ============================================================================
-  // HOUSEHOLD MUSIC-DISCOVERY CONFIGURATION
-  // ============================================================================
 
   /// Fetches the Last.fm application key shared by this Ariami household.
   Future<MusicDiscoveryApiKeyConfig> getMusicDiscoveryApiKeyConfig() async {
@@ -603,10 +545,6 @@ class ApiClient {
       await _delete('/music-discovery/config'),
     );
   }
-
-  // ============================================================================
-  // STREAMING ENDPOINTS
-  // ============================================================================
 
   /// Request a stream ticket for authenticated streaming
   /// Returns a short-lived token that can be passed as a query parameter
@@ -671,10 +609,6 @@ class ApiClient {
     return uri.toString();
   }
 
-  // ============================================================================
-  // DOWNLOAD ENDPOINTS
-  // ============================================================================
-
   /// Get download URL for a song (original quality)
   /// For legacy (non-auth) mode only
   String getDownloadUrl(String songId) {
@@ -735,10 +669,6 @@ class ApiClient {
         Uri.parse('$baseUrl/download/$songId').replace(queryParameters: params);
     return uri.toString();
   }
-
-  // ============================================================================
-  // PRIVATE HELPER METHODS
-  // ============================================================================
 
   /// Perform GET request (includes Authorization header if sessionToken is set)
   Future<Map<String, dynamic>> _get(String endpoint) async {
@@ -842,7 +772,6 @@ class ApiClient {
     }
   }
 
-  /// Perform GET request with Authorization header
   Future<Map<String, dynamic>> _getWithAuth(
     String endpoint,
     String sessionToken,
@@ -864,7 +793,6 @@ class ApiClient {
     }
   }
 
-  /// Perform POST request with Authorization header
   Future<Map<String, dynamic>> _postWithAuth(
     String endpoint,
     Map<String, dynamic> body,
@@ -920,16 +848,13 @@ class ApiClient {
     return '$endpoint?$query';
   }
 
-  /// Handle HTTP response
   Map<String, dynamic> _handleResponse(http.Response response) {
     // Explicitly decode as UTF-8 to handle non-ASCII characters correctly
     final body = utf8.decode(response.bodyBytes);
 
     if (response.statusCode >= 200 && response.statusCode < 300) {
-      // Success
       return jsonDecode(body) as Map<String, dynamic>;
     } else {
-      // Error response
       try {
         final errorJson = jsonDecode(body) as Map<String, dynamic>;
         if (errorJson.containsKey('musicAvailability')) {
@@ -939,11 +864,9 @@ class ApiClient {
         }
         final errorResponse = ErrorResponse.fromJson(errorJson);
 
-        // Check for session expiry errors and notify callback
         if (response.statusCode == 401 &&
             (errorResponse.error.code == ApiErrorCodes.sessionExpired ||
                 errorResponse.error.code == ApiErrorCodes.authRequired)) {
-          // Notify session expired (if callback is set and we had a session)
           if (onSessionExpired != null && sessionToken != null) {
             onSessionExpired!();
           }
@@ -955,10 +878,8 @@ class ApiClient {
           details: errorResponse.error.details,
         );
       } catch (e) {
-        // Re-throw if it's already an ApiException
         if (e is ApiException) rethrow;
 
-        // Fallback if error parsing fails
         throw ApiException(
           code: ApiErrorCodes.serverError,
           message: 'HTTP ${response.statusCode}: ${response.reasonPhrase}',
@@ -1001,7 +922,6 @@ class ApiClient {
   }
 }
 
-/// Exception thrown when API call fails
 class ApiException implements Exception {
   final String code;
   final String message;
@@ -1016,6 +936,5 @@ class ApiException implements Exception {
   @override
   String toString() => 'ApiException($code): $message';
 
-  /// Check if error is a specific type
   bool isCode(String errorCode) => code == errorCode;
 }

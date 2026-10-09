@@ -17,7 +17,6 @@ import '../settings/profile_screen.dart';
 import '../settings/tv_license_screen.dart';
 import 'nested_tab_navigator.dart';
 
-/// A navigator key for the settings tab's nested navigation
 final GlobalKey<NavigatorState> settingsNavigatorKey =
     GlobalKey<NavigatorState>();
 
@@ -27,7 +26,6 @@ final GlobalKey<NavigatorState> settingsNavigatorKey =
 class SettingsNavigator extends StatelessWidget {
   const SettingsNavigator({super.key, this.onBackAtRoot});
 
-  /// Called when user presses back at the root of this navigator
   final VoidCallback? onBackAtRoot;
 
   @override
@@ -86,7 +84,6 @@ class SettingsNavigator extends StatelessWidget {
             final artistName = settings.arguments as String;
             page = ArtistDetailScreen(artistName: artistName);
             break;
-          // Add more routes here as settings sub-screens are added
           default:
             page = const SettingsScreen();
         }

@@ -8,7 +8,6 @@ import '../../services/api/connection_service.dart';
 import '../../services/offline/offline_playback_service.dart';
 import '../common/cached_artwork.dart';
 
-/// Reorderable list widget for the playback queue
 class ReorderableQueueList extends StatefulWidget {
   final List<Song> songs;
   final int currentIndex;
@@ -44,7 +43,6 @@ class _ReorderableQueueListState extends State<ReorderableQueueList> {
     super.initState();
     _checkSongAvailability();
 
-    // Listen to offline state changes to rebuild availability
     _offlineStateSubscription = _offlineService.offlineModeStream.listen((_) {
       _checkSongAvailability(force: true);
     });
@@ -67,7 +65,6 @@ class _ReorderableQueueListState extends State<ReorderableQueueList> {
     super.dispose();
   }
 
-  /// Check availability for all songs in the queue
   Future<void> _checkSongAvailability({bool force = false}) async {
     final signature = _availabilitySignatureFor(widget.songs);
     if (!force &&
@@ -82,12 +79,10 @@ class _ReorderableQueueListState extends State<ReorderableQueueList> {
 
     for (final song in widget.songs) {
       if (isOffline) {
-        // When offline, check if song is downloaded or cached
         final isAvailable =
             await _offlineService.isSongAvailableOffline(song.id);
         newAvailability[song.id] = isAvailable;
       } else {
-        // When online, all songs are available
         newAvailability[song.id] = true;
       }
     }
@@ -201,7 +196,6 @@ class _ReorderableQueueListState extends State<ReorderableQueueList> {
   }
 }
 
-/// Individual queue item widget
 class QueueItem extends StatelessWidget {
   final Key rowKey;
   final Song song;
@@ -319,7 +313,6 @@ class QueueItem extends StatelessWidget {
     );
   }
 
-  /// Build drag handle - disabled when currently playing or unavailable
   Widget _buildDragHandle(BuildContext context) {
     final iconColor = isCurrentlyPlaying ? Colors.white38 : Colors.grey[800];
 

@@ -11,7 +11,6 @@ class LocalArtworkExtractor {
 
   static final TagProcessor _tagProcessor = TagProcessor();
 
-  /// Returns embedded picture bytes, or null if none found.
   static Future<List<int>?> extractArtwork(String filePath) async {
     try {
       final file = File(filePath);

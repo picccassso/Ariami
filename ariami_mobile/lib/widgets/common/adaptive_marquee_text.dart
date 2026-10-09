@@ -195,13 +195,11 @@ class _AdaptiveMarqueeTextState extends State<AdaptiveMarqueeText>
   Future<void> _runLoop(int generation) async {
     if (!mounted || generation != _generation) return;
 
-    // Initial pause before scrolling starts
     await Future<void>.delayed(widget.startPause);
     if (!mounted || generation != _generation) return;
 
     _initialPauseComplete = true;
 
-    // Start continuous repeating animation
     _controller.repeat();
   }
 
@@ -261,7 +259,6 @@ class _AdaptiveMarqueeTextState extends State<AdaptiveMarqueeText>
                     width: totalRowWidth,
                     child: Row(
                       children: [
-                        // First copy of the text
                         SizedBox(
                           width: textWidth,
                           child: OverflowBox(
@@ -278,9 +275,7 @@ class _AdaptiveMarqueeTextState extends State<AdaptiveMarqueeText>
                             ),
                           ),
                         ),
-                        // Gap between copies
                         SizedBox(width: widget.gapWidth),
-                        // Second copy of the text (for seamless loop)
                         SizedBox(
                           width: textWidth,
                           child: OverflowBox(

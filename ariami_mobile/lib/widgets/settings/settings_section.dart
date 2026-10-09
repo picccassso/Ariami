@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 
-/// A reusable settings section widget
-/// Groups multiple settings tiles under a title with consistent styling
 class SettingsSection extends StatelessWidget {
   final String title;
   final List<Widget> tiles;

@@ -606,8 +606,6 @@ void main() {
       ];
       manager.enqueueTasksForTesting(testTasks);
 
-      // Populate files on disk:
-      // Valid files to keep:
       final opusFile = File(p.join(songsDir.path, 'song-opus-ok.opus'));
       await opusFile.writeAsBytes(List<int>.filled(64, 1));
 
@@ -651,7 +649,6 @@ void main() {
       final removedCount = await manager.cleanupStaleDownloadFiles();
       expect(removedCount, 1);
 
-      // Verify legitimate files were preserved
       expect(opusFile.existsSync(), isTrue);
       expect(m4aFile.existsSync(), isTrue);
       expect(flacFile.existsSync(), isTrue);
@@ -667,7 +664,6 @@ void main() {
       expect(staleUnreferencedPartial.existsSync(), isTrue);
       expect(dsStore.existsSync(), isTrue);
 
-      // Verify path resolution respects task extension
       expect(
         manager.getDownloadedSongPath('song-opus-ok'),
         endsWith('/downloads/songs/song-opus-ok.opus'),
@@ -681,7 +677,6 @@ void main() {
         endsWith('/downloads/songs/song-flac-ok.flac'),
       );
 
-      // Verify deletion of non-mp3 downloads
       await manager.deleteSongDownloads(['song-opus-ok']);
       expect(opusFile.existsSync(), isFalse);
 

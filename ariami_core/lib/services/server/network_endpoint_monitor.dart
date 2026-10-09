@@ -1,6 +1,5 @@
 import 'dart:async';
 
-/// Discovered network endpoints for server advertisement.
 class NetworkEndpoints {
   final String? advertisedIp;
   final String? tailscaleIp;

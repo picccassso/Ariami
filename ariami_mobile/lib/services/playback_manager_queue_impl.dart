@@ -27,7 +27,6 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
     }
 
     try {
-      // Create new queue with just this song
       print('[PlaybackManager] Creating new queue...');
       _queue = PlaybackQueue();
       _oneShotQueuedSongs.clear();
@@ -67,14 +66,12 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
       _shuffleService.reset();
       _useRepeatAllForNewSongSelection();
 
-      // Create new queue with all songs
       _queue = PlaybackQueue();
       _oneShotQueuedSongs.clear();
       for (final song in songs) {
         _queue.addSong(song);
       }
 
-      // Jump to start index
       if (startIndex > 0 && startIndex < songs.length) {
         _queue.jumpToIndex(startIndex);
       }
@@ -99,11 +96,9 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
       _restoredPosition = null;
       _pendingUiPosition = null;
 
-      // Shuffle the list using shuffle service
       final shuffled = _shuffleService.enableShuffle(songs, null);
       _useRepeatAllForNewSongSelection();
 
-      // Create queue with shuffled songs
       _queue = PlaybackQueue();
       _oneShotQueuedSongs.clear();
       for (final song in shuffled) {
@@ -194,7 +189,6 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
       }
 
       if (isPlaying) {
-        // Pausing - stop stats tracking
         await _statsService.onSongStopped();
         if (!_localPlaybackGuard.isCurrent(generation)) return;
         await _audioPlayer.pauseLocal();
@@ -212,7 +206,6 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
         if (loadedSong?.id != currentSong!.id || _restoredPosition != null) {
           await _playCurrentSong(isResume: true);
         } else {
-          // Resuming - restart stats tracking
           _statsService.onSongStarted(currentSong!, isResume: true);
           await _audioPlayer.resumeLocal();
         }
@@ -241,9 +234,7 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
       final previousSong = _queue.currentSong;
 
       if (!_queue.hasNext) {
-        // Check repeat mode
         if (_repeatMode == RepeatMode.all && _queue.songs.isNotEmpty) {
-          // Find first available song from beginning when wrapping
           final nextIndex = await _findNextAvailableSongIndexFrom(0);
           if (!_localPlaybackGuard.isCurrent(generation)) return;
           if (nextIndex != null) {
@@ -266,7 +257,6 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
             await _saveState();
           }
         } else if (_repeatMode == RepeatMode.one) {
-          // Replay current song - finalize current session first
           await _statsService.onSongStopped(
               completedNaturally: completedNaturally);
           if (!_localPlaybackGuard.isCurrent(generation)) return;
@@ -282,7 +272,6 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
         return;
       }
 
-      // Find next available song
       final nextIndex = await _findNextAvailableSongIndex();
       if (!_localPlaybackGuard.isCurrent(generation)) return;
       if (nextIndex == null) {
@@ -291,7 +280,6 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
       }
       final nextSong = _queue.songs[nextIndex];
 
-      // Stop tracking current song
       await _statsService.onSongStopped(completedNaturally: completedNaturally);
 
       if (!_localPlaybackGuard.isCurrent(generation)) return;
@@ -365,7 +353,6 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
         return;
       }
 
-      // Find previous available song when offline
       final previousIndex = await _findPreviousAvailableSongIndex();
       if (!_localPlaybackGuard.isCurrent(generation)) return;
       if (previousIndex == null) {
@@ -373,7 +360,6 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
         return;
       }
 
-      // Stop tracking current song
       await _statsService.onSongStopped();
       if (!_localPlaybackGuard.isCurrent(generation)) return;
 
@@ -406,7 +392,6 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
       final previousIndex = _queue.currentIndex;
       final previousSong = _queue.currentSong;
 
-      // Stop tracking current song
       await _statsService.onSongStopped();
       if (!_localPlaybackGuard.isCurrent(generation)) return;
 
@@ -715,7 +700,6 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
         _statsService.markPositionDiscontinuity();
         await _castService.seek(position, playAfterSeek: isPlaying);
         if (!_localPlaybackGuard.isCurrent(generation)) return;
-        // Clear restored position after successful cast seek
         _restoredPosition = null;
         _pendingUiPosition = null;
         _notifyStateChanged();
@@ -740,17 +724,13 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
     _isShuffleEnabled = !_isShuffleEnabled;
 
     if (_isShuffleEnabled && _queue.isNotEmpty) {
-      // Shuffle remaining songs in queue (keeping current song at position 0)
       final shuffled =
           _shuffleService.enableShuffle(_queue.songs, _queue.currentSong);
 
-      // Rebuild queue with shuffled songs, current song is at index 0
       _queue.setQueue(shuffled, currentIndex: 0);
     } else if (!_isShuffleEnabled && _shuffleService.isShuffled) {
-      // Restore original order
       final original = _shuffleService.disableShuffle(_queue.currentSong);
 
-      // Find where the current song is in the original queue
       final currentSong = _queue.currentSong;
       int newIndex = 0;
       if (currentSong != null) {
@@ -763,7 +743,6 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
         }
       }
 
-      // Rebuild queue with original order, maintaining current song position
       _queue.setQueue(original, currentIndex: newIndex);
     }
 
@@ -831,7 +810,6 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
   }
 
   Future<void> _clearQueueImpl() async {
-    // Stop tracking current song
     await _statsService.onSongStopped();
     if (_castService.isConnected) {
       await _castService.stopForAppTermination(reason: 'queue-clear');
@@ -876,12 +854,10 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
     final songs = _queue.songs;
     final currentIndex = _queue.currentIndex;
 
-    // If online, just return the next index
     if (!_offlineService.isOffline) {
       return currentIndex < songs.length - 1 ? currentIndex + 1 : null;
     }
 
-    // Search forward from current position
     for (int i = currentIndex + 1; i < songs.length; i++) {
       final isAvailable =
           await _offlineService.isSongAvailableOffline(songs[i].id);
@@ -890,7 +866,6 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
       }
     }
 
-    // If repeat all is enabled, wrap around and search from beginning
     if (_repeatMode == RepeatMode.all) {
       for (int i = 0; i < currentIndex; i++) {
         final isAvailable =
@@ -907,12 +882,10 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
   Future<int?> _findNextAvailableSongIndexFromImpl(int startIndex) async {
     final songs = _queue.songs;
 
-    // If online, just return the start index
     if (!_offlineService.isOffline) {
       return startIndex < songs.length ? startIndex : null;
     }
 
-    // Search from start index
     for (int i = startIndex; i < songs.length; i++) {
       final isAvailable =
           await _offlineService.isSongAvailableOffline(songs[i].id);
@@ -928,7 +901,6 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
     final songs = _queue.songs;
     final currentIndex = _queue.currentIndex;
 
-    // If online, just return the previous index
     if (!_offlineService.isOffline) {
       if (currentIndex > 0) {
         return currentIndex - 1;
@@ -939,7 +911,6 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
       return null;
     }
 
-    // Search backward from current position
     for (int i = currentIndex - 1; i >= 0; i--) {
       final isAvailable =
           await _offlineService.isSongAvailableOffline(songs[i].id);
@@ -948,7 +919,6 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
       }
     }
 
-    // If repeat all is enabled, wrap around and search from end
     if (_repeatMode == RepeatMode.all) {
       for (int i = songs.length - 1; i > currentIndex; i--) {
         final isAvailable =
@@ -968,7 +938,6 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
     print('[PlaybackManager] Song completed');
 
     if (_repeatMode == RepeatMode.one) {
-      // Replay the same song - finalize current first
       await _statsService.onSongStopped(completedNaturally: true);
       if (!_localPlaybackGuard.isCurrent(generation)) return;
       await _playCurrentSong();
@@ -979,14 +948,12 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
       final previousIndex = _queue.currentIndex;
       final previousSong = _queue.currentSong;
 
-      // Restart from beginning - finalize current first
       await _statsService.onSongStopped(completedNaturally: true);
       if (!_localPlaybackGuard.isCurrent(generation)) return;
       _queue.jumpToIndex(0);
       _consumeOneShotQueueItem(previousIndex, previousSong);
       await _playCurrentSong();
     } else {
-      // Queue finished, stop - finalize current first
       await _statsService.onSongStopped(completedNaturally: true);
       if (!_localPlaybackGuard.isCurrent(generation)) return;
       _audioPlayer.stop();

@@ -1,9 +1,7 @@
 part of '../http_server.dart';
 
 extension AriamiHttpServerMediaTicketHandlersMethods on AriamiHttpServer {
-  /// Handle stream ticket request (for authenticated streaming)
   Future<Response> _handleStreamTicket(Request request) async {
-    // Session is attached by auth middleware
     final session = request.context['session'] as Session?;
     if (session == null) {
       return Response.unauthorized(
@@ -68,7 +66,6 @@ extension AriamiHttpServerMediaTicketHandlersMethods on AriamiHttpServer {
       // duration values here (no on-demand file metadata extraction).
       final durationSeconds = _libraryManager.getKnownSongDuration(songId) ?? 0;
 
-      // Issue stream ticket
       final ticket = _streamTracker.issueTicket(
         userId: session.userId,
         sessionToken: session.sessionToken,
@@ -177,9 +174,7 @@ extension AriamiHttpServerMediaTicketHandlersMethods on AriamiHttpServer {
     }
   }
 
-  /// Handle download ticket request (for authenticated offline downloads).
   Future<Response> _handleDownloadTicket(Request request) async {
-    // Session is attached by auth middleware.
     final session = request.context['session'] as Session?;
     if (session == null) {
       return Response.unauthorized(

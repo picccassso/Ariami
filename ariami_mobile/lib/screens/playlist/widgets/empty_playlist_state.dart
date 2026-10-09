@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-/// Empty state displayed when playlist has no songs
 class EmptyPlaylistState extends StatelessWidget {
   const EmptyPlaylistState({super.key});
 

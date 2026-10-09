@@ -10,7 +10,7 @@ void main() {
   tearDownAll(uninstallSqfliteTestMocks);
 
   group('PlaylistsSection', () {
-    // Create a simple mock by using the actual service and overriding properties
+    // Uses the real PlaylistService with no overrides; isolation comes from installSqfliteTestMocks()
     late PlaylistService playlistService;
 
     setUp(() {
@@ -47,7 +47,6 @@ void main() {
       ));
       await tester.pump();
 
-      // Should render without errors
       expect(find.byType(GridView), findsOneWidget);
     });
 
@@ -73,7 +72,6 @@ void main() {
       ));
       await tester.pump();
 
-      // Should show create playlist card
       expect(find.byType(GridView), findsOneWidget);
       expect(find.text('Create Playlist'), findsOneWidget);
     });
@@ -89,7 +87,6 @@ void main() {
       ));
       await tester.pump();
 
-      // Tap the empty-state create action.
       await tester.tap(find.text('Create Playlist'));
       await tester.pump();
 

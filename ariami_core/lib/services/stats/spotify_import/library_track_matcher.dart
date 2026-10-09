@@ -15,7 +15,6 @@ import '../../search/search_normalizer.dart';
 import '../credited_artist_splitter.dart';
 import 'spotify_import_models.dart';
 
-/// Concrete [TrackMatcher] over an in-memory library catalog.
 class LibraryTrackMatcher implements TrackMatcher {
   /// Builds all indexes once; [match] is then O(1)-ish per key.
   LibraryTrackMatcher(List<LibraryCatalogEntry> catalog) {
@@ -578,7 +577,6 @@ class LibraryTrackMatcher implements TrackMatcher {
   String _stripFeatSuffix(String title) =>
       title.replaceAll(_featSuffixRe, '').trim();
 
-  /// The "X" of a trailing "(feat. X)"/"[ft. X]" title suffix, or null.
   String? _featArtists(String title) =>
       _featArtistsRe.firstMatch(title)?.group(1)?.trim();
 

@@ -1,4 +1,3 @@
-/// Server information model for connection
 library;
 
 import 'package:ariami_core/models/server_origin.dart';
@@ -79,10 +78,8 @@ class ServerInfo {
     };
   }
 
-  /// Get the base URL for API requests
   String get baseUrl => publicOrigin ?? 'http://$server:$port';
 
-  /// Get the WebSocket URL
   String get wsUrl => websocketOriginFor(baseUrl);
 
   bool get isSecurePublicConnection => publicOrigin != null;
@@ -103,7 +100,6 @@ class ServerInfo {
       ? 'Secure Internet'
       : (isUsingLocalNetworkRoute ? 'Local Network' : 'Tailscale');
 
-  /// Active route's display alias, if configured.
   String? get activeAddressAlias => isUsingLanRoute
       ? lanServerAlias
       : (hasTailscaleEndpoint && tailscaleServer == server

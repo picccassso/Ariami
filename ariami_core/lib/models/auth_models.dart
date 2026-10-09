@@ -1,11 +1,6 @@
 /// Authentication and stream ticket models for multi-user support
 library;
 
-// ============================================================================
-// AUTHENTICATION REQUEST/RESPONSE MODELS
-// ============================================================================
-
-/// Request for user registration
 class RegisterRequest {
   final String username;
   final String password;
@@ -34,7 +29,6 @@ class RegisterRequest {
   }
 }
 
-/// Response for successful registration
 class RegisterResponse {
   final String userId;
   final String username;
@@ -63,7 +57,6 @@ class RegisterResponse {
   }
 }
 
-/// Request for user login
 class LoginRequest {
   final String username;
   final String password;
@@ -96,7 +89,6 @@ class LoginRequest {
   }
 }
 
-/// Response for successful login
 class LoginResponse {
   final String userId;
   final String username;
@@ -129,7 +121,6 @@ class LoginResponse {
   }
 }
 
-/// Request for user logout
 class LogoutRequest {
   final String sessionToken;
 
@@ -148,7 +139,6 @@ class LogoutRequest {
   }
 }
 
-/// Response for logout
 class LogoutResponse {
   final bool success;
 
@@ -166,10 +156,6 @@ class LogoutResponse {
     };
   }
 }
-
-// ============================================================================
-// STREAM TICKET MODELS
-// ============================================================================
 
 /// Request for a stream ticket (short-lived token for audio streaming)
 /// Session token is passed via Authorization header, not in the body
@@ -197,7 +183,6 @@ class StreamTicketRequest {
   }
 }
 
-/// Response with stream ticket
 class StreamTicketResponse {
   final String streamToken;
   final String expiresAt;
@@ -221,10 +206,6 @@ class StreamTicketResponse {
     };
   }
 }
-
-// ============================================================================
-// DOWNLOAD TICKET MODELS
-// ============================================================================
 
 /// Request for a download ticket (long-lived token for offline downloads).
 /// Session token is passed via Authorization header, not in the body.
@@ -256,7 +237,6 @@ class DownloadTicketRequest {
   }
 }
 
-/// Response with download ticket.
 class DownloadTicketResponse {
   final String downloadToken;
   final String expiresAt;
@@ -281,11 +261,6 @@ class DownloadTicketResponse {
   }
 }
 
-// ============================================================================
-// USER AND SESSION STORAGE MODELS
-// ============================================================================
-
-/// User account stored on server
 class User {
   final String userId;
   final String username;
@@ -318,7 +293,6 @@ class User {
   }
 }
 
-/// Active session stored on server
 class Session {
   final String sessionToken;
   final String userId;
@@ -358,10 +332,6 @@ class Session {
     };
   }
 }
-
-// ============================================================================
-// AUTH ERROR CODES
-// ============================================================================
 
 class AuthErrorCodes {
   static const String invalidCredentials = 'INVALID_CREDENTIALS';

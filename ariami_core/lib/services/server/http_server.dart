@@ -89,9 +89,7 @@ part 'http_server_parts/music_discovery_config_handlers_part.dart';
 part 'http_server_parts/playlist_suggestions_handlers_part.dart';
 part 'http_server_parts/song_attributes_handlers_part.dart';
 
-/// HTTP server for Ariami desktop application (Singleton)
 class AriamiHttpServer {
-  // Singleton instance
   static final AriamiHttpServer _instance = AriamiHttpServer._internal();
   factory AriamiHttpServer() => _instance;
   AriamiHttpServer._internal() {
@@ -215,10 +213,8 @@ class AriamiHttpServer {
   void Function()? _scanCompleteListener;
   void Function()? _durationsReadyListener;
 
-  // Store music folder path (set from desktop state)
   String? _musicFolderPath;
 
-  // Auth flags for server info (multi-user support)
   bool _authRequired = false;
   bool _legacyMode = true;
   AriamiFeatureFlags _featureFlags = const AriamiFeatureFlags();
@@ -291,10 +287,8 @@ class AriamiHttpServer {
     _advertisedPortOverride = value;
   }
 
-  /// The user-configured display alias for the LAN IP, if any.
   String? get lanServerAlias => _lanServerAlias;
 
-  /// The user-configured display alias for the Tailscale IP, if any.
   String? get tailscaleServerAlias => _tailscaleServerAlias;
 
   /// Normalizes a user-supplied endpoint display alias.
@@ -314,7 +308,6 @@ class AriamiHttpServer {
     return trimmed;
   }
 
-  /// Sets user-configured display aliases for LAN and Tailscale endpoints.
   void setEndpointAliases({String? lanAlias, String? tailscaleAlias}) {
     _lanServerAlias = normalizeEndpointAlias(lanAlias);
     _tailscaleServerAlias = normalizeEndpointAlias(tailscaleAlias);
@@ -341,13 +334,10 @@ class AriamiHttpServer {
   final Map<WebSocketChannel, _PendingWebSocketState> _pendingWebSockets = {};
   final Map<String, int> _pendingWebSocketCountByIp = <String, int>{};
 
-  /// Whether the unauthenticated sign-in account picker is enabled.
   bool get publicUserPickerEnabled => _publicUserPickerEnabled;
 
-  /// In-process read of [userId]'s Spotify import status, for host apps that
-  /// display it beside the server (the Desktop dashboard). The HTTP
-  /// equivalent is `GET /api/v2/listening/import-status`; hosts use this so
-  /// a passive status line never has to prompt for owner credentials.
+  /// In-process read of [userId]'s Spotify import status. The HTTP equivalent is
+  /// `GET /api/v2/listening/import-status`.
   /// Null while the stats database is not ready.
   SpotifyImportStatus? getSpotifyImportStatus(String userId) {
     final store = _listeningStatsStore;
@@ -375,13 +365,11 @@ class AriamiHttpServer {
     _publicUserPickerPersistCallback = callback;
   }
 
-  // Store web assets path for serving static files
   String? _webAssetsPath;
 
-  // Callback for getting Tailscale status (optional, for CLI use)
+  // Callback for getting Tailscale status (optional)
   Future<Map<String, dynamic>> Function()? _tailscaleStatusCallback;
 
-  // Network endpoint discovery and change notifications
   Future<NetworkEndpoints> Function()? _endpointDiscoveryCallback;
   NetworkEndpointMonitor? _endpointMonitor;
 
@@ -394,7 +382,7 @@ class AriamiHttpServer {
   final StreamController<Map<String, dynamic>> _endpointsChangedController =
       StreamController<Map<String, dynamic>>.broadcast();
 
-  // Callbacks for setup operations (optional, for CLI use)
+  // Callbacks for setup operations (optional)
   Future<String?> Function()? _getConfiguredMusicFolderPathCallback;
   Future<bool> Function(String path)? _setMusicFolderCallback;
   Future<bool> Function()? _startScanCallback;
@@ -403,7 +391,7 @@ class AriamiHttpServer {
   Future<bool> Function()? _getSetupStatusCallback;
   Future<Map<String, dynamic>> Function()? _transitionToBackgroundCallback;
 
-  // Callbacks for transcode slot configuration (optional, for CLI use)
+  // Callbacks for transcode slot configuration (optional)
   Future<TranscodeSlotsSnapshot> Function()? _getTranscodeSlotsSnapshotCallback;
   Future<TranscodeSlotsSnapshot> Function(int? slots)?
       _setTranscodeSlotsOverrideCallback;

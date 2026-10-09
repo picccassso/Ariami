@@ -100,7 +100,6 @@ class _ManualServerEntryScreenState extends State<ManualServerEntryScreen> {
       if (!mounted) return;
 
       if (hasInviteCode) {
-        // Go straight to account creation with the invite code.
         Navigator.pushReplacementNamed(
           context,
           '/auth/register',
@@ -178,7 +177,6 @@ class _ManualServerEntryScreenState extends State<ManualServerEntryScreen> {
                       ),
                       const SizedBox(height: 32),
 
-                      // Error message
                       if (_errorMessage != null)
                         Container(
                           width: double.infinity,
@@ -217,7 +215,6 @@ class _ManualServerEntryScreenState extends State<ManualServerEntryScreen> {
                           ),
                         ),
 
-                      // Address field
                       TextFormField(
                         controller: _addressController,
                         style:
@@ -285,7 +282,6 @@ class _ManualServerEntryScreenState extends State<ManualServerEntryScreen> {
                       ],
                       const SizedBox(height: 32),
 
-                      // Connect button
                       SizedBox(
                         width: double.infinity,
                         height: 56,

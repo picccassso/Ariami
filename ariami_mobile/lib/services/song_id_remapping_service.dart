@@ -44,7 +44,6 @@ class SongIdRemappingService {
     var anyIdChanged = false;
 
     for (final oldId in playlist.songIds) {
-      // If the ID is still valid in the current library, keep it.
       final existingSong = librarySongsById[oldId];
       if (existingSong != null) {
         newSongIds.add(oldId);
@@ -57,7 +56,6 @@ class SongIdRemappingService {
         continue;
       }
 
-      // Stale ID — try to find a match by metadata.
       final oldTitle = playlist.songTitles[oldId] ?? '';
       final oldArtist = playlist.songArtists[oldId] ?? '';
       final oldDuration = playlist.songDurations[oldId] ?? 0;
@@ -127,7 +125,6 @@ class SongIdRemappingService {
     final librarySongsById = {for (final s in librarySongs) s.id: s};
 
     final remapped = stats.map((stat) {
-      // If the ID is still valid, keep it.
       if (librarySongsById.containsKey(stat.songId)) {
         return stat;
       }
@@ -232,7 +229,6 @@ class _SongLookupIndex {
       }
     }
 
-    // No duration match; fall back to the first candidate.
     return candidates.first.id;
   }
 

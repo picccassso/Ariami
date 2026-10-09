@@ -7,9 +7,7 @@ import '../../../models/api_models.dart';
 import '../../../utils/image_decode.dart';
 import '../../../utils/image_upload.dart';
 
-/// Dialog for editing playlist name, description, and image
 class EditPlaylistDialog extends StatefulWidget {
-  /// The playlist being edited
   final PlaylistModel playlist;
 
   const EditPlaylistDialog({
@@ -50,7 +48,6 @@ class _EditPlaylistDialogState extends State<EditPlaylistDialog> {
     if (result != null && result.files.isNotEmpty) {
       final pickedPath = result.files.first.path;
       if (pickedPath != null) {
-        // Copy to app documents directory
         final appDir = await getApplicationDocumentsDirectory();
         final playlistImagesDir = Directory('${appDir.path}/playlist_images');
         if (!await playlistImagesDir.exists()) {
@@ -75,7 +72,6 @@ class _EditPlaylistDialogState extends State<EditPlaylistDialog> {
   }
 
   Widget _buildImageWidget() {
-    // Determine what image to show
     final currentImagePath = _removeImage
         ? null
         : (_newImagePath ?? widget.playlist.customImagePath);
@@ -95,7 +91,6 @@ class _EditPlaylistDialogState extends State<EditPlaylistDialog> {
         ),
       );
     } else {
-      // Show placeholder
       return Container(
         width: 120,
         height: 120,
@@ -124,19 +119,16 @@ class _EditPlaylistDialogState extends State<EditPlaylistDialog> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Image preview and actions
             GestureDetector(
               onTap: _pickImage,
               child: _buildImageWidget(),
             ),
             const SizedBox(height: 8),
-            // Change Photo button
             TextButton.icon(
               onPressed: _pickImage,
               icon: const Icon(Icons.camera_alt, size: 18),
               label: const Text('Change Photo'),
             ),
-            // Remove image button (only show if there's an image)
             if (hasImage)
               TextButton.icon(
                 onPressed: () {
@@ -195,7 +187,6 @@ class _EditPlaylistDialogState extends State<EditPlaylistDialog> {
   }
 }
 
-/// Result data from edit dialog
 class _EditResult {
   final String name;
   final String? description;
@@ -210,7 +201,6 @@ class _EditResult {
   });
 }
 
-/// Shows the edit playlist dialog and returns the result
 Future<EditPlaylistResult?> showEditPlaylistDialog(
   BuildContext context,
   PlaylistModel playlist,
@@ -230,7 +220,6 @@ Future<EditPlaylistResult?> showEditPlaylistDialog(
   );
 }
 
-/// Result data class for edit dialog
 class EditPlaylistResult {
   final String name;
   final String? description;

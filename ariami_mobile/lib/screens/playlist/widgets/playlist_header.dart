@@ -8,15 +8,11 @@ import 'artwork_collage.dart';
 import 'fallback_header.dart';
 import '../../../utils/image_decode.dart';
 
-/// Playlist header that displays custom image, artwork collage, or fallback
 class PlaylistHeader extends StatelessWidget {
-  /// The playlist model containing metadata
   final PlaylistModel? playlist;
 
-  /// List of songs to extract artwork IDs from
   final List<SongModel> songs;
 
-  /// Base URL for artwork images (from connection service)
   final String? baseUrl;
 
   const PlaylistHeader({
@@ -30,7 +26,6 @@ class PlaylistHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     Widget artworkWidget;
 
-    // Priority 1: Custom user-selected image
     if (playlist?.customImagePath != null &&
         File(playlist!.customImagePath!).existsSync()) {
       // Sits behind a heavy blur, so a modest decode (~600px) is plenty.
@@ -48,19 +43,16 @@ class PlaylistHeader extends StatelessWidget {
         },
       );
     } else {
-      // Priority 2: Album artwork collage or fallback
       artworkWidget = _buildArtworkFromSongs();
     }
 
     return Stack(
       fit: StackFit.expand,
       children: [
-        // Blurred background artwork
         Positioned.fill(
           child: artworkWidget,
         ),
 
-        // Blur effect and gradient overlay
         Positioned.fill(
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
@@ -79,7 +71,6 @@ class PlaylistHeader extends StatelessWidget {
           ),
         ),
 
-        // Centered clear artwork with shadow
         Center(
           child: Padding(
             padding: const EdgeInsets.only(top: 40.0, bottom: 20.0),
@@ -113,7 +104,6 @@ class PlaylistHeader extends StatelessWidget {
     );
   }
 
-  /// Build artwork from songs (collage or fallback)
   Widget _buildArtworkFromSongs() {
     // Get unique artwork IDs from songs for artwork collage
     // - Album songs: use albumId
@@ -121,12 +111,10 @@ class PlaylistHeader extends StatelessWidget {
     final artworkIds = <String>[];
     for (final song in songs) {
       if (song.albumId != null) {
-        // Song belongs to an album
         if (!artworkIds.contains(song.albumId)) {
           artworkIds.add(song.albumId!);
         }
       } else {
-        // Standalone song - use song ID with prefix
         final songArtworkId = 'song_${song.id}';
         if (!artworkIds.contains(songArtworkId)) {
           artworkIds.add(songArtworkId);
@@ -135,7 +123,6 @@ class PlaylistHeader extends StatelessWidget {
       if (artworkIds.length >= 4) break;
     }
 
-    // If we have artwork IDs, show collage (CachedArtwork handles offline)
     if (artworkIds.isNotEmpty) {
       return ArtworkCollage(
         artworkIds: artworkIds,
@@ -143,7 +130,6 @@ class PlaylistHeader extends StatelessWidget {
       );
     }
 
-    // Fallback to gradient with icon
     return FallbackHeader(playlistName: playlist?.name);
   }
 }

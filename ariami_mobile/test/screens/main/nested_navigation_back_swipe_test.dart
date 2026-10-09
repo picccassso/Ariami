@@ -137,16 +137,13 @@ void main() {
 
       expect(find.text('Search: /'), findsOneWidget);
 
-      // Open artist page
       ArtistPageOpener().open('Daft Punk');
       await tester.pump();
       await tester.pump();
 
-      // Artist page is shown within the Search tab navigator
       expect(find.text('Search: /artist'), findsOneWidget);
       expect(searchNavigatorKey.currentState?.canPop(), isTrue);
 
-      // Simulate system back gesture (swipe back)
       final dynamic widgetsAppState = tester.state(find.byType(WidgetsApp));
       final handled = await widgetsAppState.didPopRoute();
       await tester.pump();
@@ -172,7 +169,6 @@ void main() {
 
       expect(find.text('Search: /'), findsOneWidget);
 
-      // Open album page
       AlbumPageOpener().open(_testAlbum());
       await tester.pump();
       await tester.pump();
@@ -180,7 +176,6 @@ void main() {
       expect(find.text('Search: /album'), findsOneWidget);
       expect(searchNavigatorKey.currentState?.canPop(), isTrue);
 
-      // Simulate system back gesture
       final dynamic widgetsAppState = tester.state(find.byType(WidgetsApp));
       final handled = await widgetsAppState.didPopRoute();
       await tester.pump();
@@ -246,7 +241,6 @@ void main() {
 
       expect(find.text('Route: /'), findsOneWidget);
 
-      // Push nested route
       navKey.currentState!.pushNamed('/artist');
       await tester.pump();
 
@@ -259,7 +253,6 @@ void main() {
       );
       await tester.pump();
 
-      // Attempt to pop via system back gesture
       final dynamic widgetsAppState = tester.state(find.byType(WidgetsApp));
       await widgetsAppState.didPopRoute();
       await tester.pump();

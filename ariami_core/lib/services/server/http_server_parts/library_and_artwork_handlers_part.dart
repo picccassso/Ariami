@@ -1,7 +1,6 @@
 part of '../http_server.dart';
 
 extension AriamiHttpServerLibraryAndArtworkHandlersMethods on AriamiHttpServer {
-  /// Handle get albums request (placeholder for Phase 5)
   Response _handleGetAlbums(Request request) {
     return _jsonOk({
       'albums': [],
@@ -9,7 +8,6 @@ extension AriamiHttpServerLibraryAndArtworkHandlersMethods on AriamiHttpServer {
     });
   }
 
-  /// Handle get songs request (placeholder for Phase 5)
   Response _handleGetSongs(Request request) {
     return _jsonOk({
       'songs': [],
@@ -17,7 +15,6 @@ extension AriamiHttpServerLibraryAndArtworkHandlersMethods on AriamiHttpServer {
     });
   }
 
-  /// Handle get album detail request
   Future<Response> _handleGetAlbumDetail(
       Request request, String albumId) async {
     final baseUrl = _publicOrigin ??
@@ -93,7 +90,6 @@ extension AriamiHttpServerLibraryAndArtworkHandlersMethods on AriamiHttpServer {
 
     List<int> responseData = artworkData;
     try {
-      // Process artwork if size requested and service available
       if (size.requiresProcessing && _artworkService != null) {
         responseData =
             await _artworkService!.getArtwork(albumId, artworkData, size);
@@ -125,7 +121,6 @@ extension AriamiHttpServerLibraryAndArtworkHandlersMethods on AriamiHttpServer {
       );
     }
 
-    // Return the image data (usually JPEG or PNG)
     return Response.ok(
       responseData,
       headers: {
@@ -196,7 +191,6 @@ extension AriamiHttpServerLibraryAndArtworkHandlersMethods on AriamiHttpServer {
     // Use songId as the cache key for song artwork
     List<int> responseData = artworkData;
     try {
-      // Process artwork if size requested and service available
       if (size.requiresProcessing && _artworkService != null) {
         responseData = await _artworkService!.getArtwork(
           'song_$songId',
@@ -231,7 +225,6 @@ extension AriamiHttpServerLibraryAndArtworkHandlersMethods on AriamiHttpServer {
       );
     }
 
-    // Return the image data (usually JPEG or PNG)
     return Response.ok(
       responseData,
       headers: {

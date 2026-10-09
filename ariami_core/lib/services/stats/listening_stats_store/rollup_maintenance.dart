@@ -39,7 +39,6 @@ extension _ListeningStatsRollupMaintenance on ListeningStatsStore {
     ]);
   }
 
-  /// Recomputes one (user, song) rollup row from the raw event log.
   void _recomputeSongRollup(Database db, String userId, String songId) {
     db.execute(
       'DELETE FROM listening_song_rollups WHERE user_id = ? AND song_id = ?',
@@ -61,7 +60,6 @@ extension _ListeningStatsRollupMaintenance on ListeningStatsStore {
     ''', [userId, songId]);
   }
 
-  /// Applies one event to credits, artist/album rollups, and daily rollups.
   void _applyEventToDerived(
     Database db,
     String userId,
@@ -216,7 +214,6 @@ extension _ListeningStatsRollupMaintenance on ListeningStatsStore {
     ]);
   }
 
-  /// Keeps the (user, song) credit list matching the latest artist string.
   void _syncSongCredits(
     Database db,
     String userId,
@@ -254,7 +251,6 @@ extension _ListeningStatsRollupMaintenance on ListeningStatsStore {
     }
   }
 
-  /// Rebuilds every derived table for [userId] from the raw event log.
   void _rebuildDerivedForUser(Database db, String userId) {
     db.execute('DELETE FROM song_artist_credits WHERE user_id = ?', [userId]);
     db.execute(

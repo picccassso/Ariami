@@ -9,7 +9,6 @@ extension _MetadataExtractorMetadataPart on MetadataExtractor {
     try {
       final file = File(filePath);
 
-      // Get file stats
       final fileStat = await file.stat();
       final fileSize = fileStat.size;
       final modifiedTime = fileStat.modified;
@@ -210,7 +209,6 @@ extension _MetadataExtractorMetadataPart on MetadataExtractor {
       // Example: "01 - Song Title.mp3" => 1
       trackNumber ??= _inferTrackNumberFromFilename(filePath);
 
-      // Create metadata object
       var songMetadata = SongMetadata(
         filePath: filePath,
         title: title,
@@ -229,7 +227,6 @@ extension _MetadataExtractorMetadataPart on MetadataExtractor {
         modifiedTime: modifiedTime,
       );
 
-      // If title is missing, try to parse from filename
       if (songMetadata.title == null || songMetadata.title!.isEmpty) {
         songMetadata = _parseFromFilename(songMetadata);
       }
@@ -240,7 +237,6 @@ extension _MetadataExtractorMetadataPart on MetadataExtractor {
         'metadata_parse_failed format=${_safeFormat(filePath)} '
         'error=${e.runtimeType}',
       );
-      // If metadata extraction fails, create metadata from filename only
       final file = File(filePath);
       final fileStat = await file.stat();
 
@@ -254,7 +250,6 @@ extension _MetadataExtractorMetadataPart on MetadataExtractor {
     }
   }
 
-  /// Helper to get tag value by trying multiple key names
   dynamic _getTagValue(Map<String, dynamic> tagMap, List<String> keys) {
     for (final key in keys) {
       if (tagMap.containsKey(key)) {
@@ -532,11 +527,9 @@ extension _MetadataExtractorMetadataPart on MetadataExtractor {
       );
     }
 
-    // Default: use filename as title
     return metadata.copyWith(title: fileName.replaceAll('_', ' '));
   }
 
-  /// Gets the filename without extension
   String _getFileNameWithoutExtension(String path) {
     final fileName = path.split(Platform.pathSeparator).last;
     final lastDot = fileName.lastIndexOf('.');

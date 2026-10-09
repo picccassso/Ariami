@@ -1,10 +1,5 @@
 part of '../api_models.dart';
 
-// ============================================================================
-// LIBRARY MODELS
-// ============================================================================
-
-/// Album information
 class AlbumModel {
   final String id;
   final String title;
@@ -81,7 +76,6 @@ class AlbumModel {
   }
 }
 
-/// Song information
 class SongModel {
   final String id;
   final String title;
@@ -128,13 +122,11 @@ class SongModel {
   }
 }
 
-/// Playlist information (full model for local storage)
 class PlaylistModel {
   final String id;
   final String name;
   final String? description;
 
-  /// Custom cover image path (user-selected photo)
   final String? customImagePath;
   final List<String> songIds;
 
@@ -166,7 +158,6 @@ class PlaylistModel {
     required this.modifiedAt,
   });
 
-  /// Computed property: number of songs
   int get songCount => songIds.length;
 
   factory PlaylistModel.fromJson(Map<String, dynamic> json) {
@@ -342,7 +333,6 @@ class ServerPlaylistImage {
   }
 }
 
-/// Detailed album response with songs
 class AlbumDetailResponse {
   final String id;
   final String title;

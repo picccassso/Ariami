@@ -43,7 +43,6 @@ void main() {
       expect(newState.isRefreshing, true);
       expect(newState.isGridView, false);
       expect(newState.albumsExpanded, false);
-      // Unchanged values should remain
       expect(newState.songsExpanded, state.songsExpanded);
       expect(newState.isOfflineMode, state.isOfflineMode);
     });

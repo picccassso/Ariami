@@ -44,7 +44,6 @@ class AuthCard extends StatelessWidget {
   }
 }
 
-/// The glowing icon disc that heads an [AuthCard].
 class AuthBadge extends StatelessWidget {
   const AuthBadge({super.key, required this.icon});
 

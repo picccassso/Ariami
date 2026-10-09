@@ -132,7 +132,6 @@ void main() {
       await tester.pump();
       expect(searchField().controller?.text, 'Test query');
 
-      // Tap Cancel
       await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
       await tester.pump();
 
@@ -158,7 +157,6 @@ void main() {
 
       expect(searchField().focusNode?.hasFocus, isTrue);
 
-      // Tap the empty space below search bar
       await tester.tapAt(const Offset(200, 400));
       await tester.pump();
 

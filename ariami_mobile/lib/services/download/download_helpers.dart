@@ -115,7 +115,6 @@ double? computeSessionDownloadProgress({
       .clamp(0.0, 1.0);
 }
 
-/// Returns true when a task was auto-paused due to interruption handling.
 bool isInterruptedDownloadTask(DownloadTask task) {
   if (task.status != DownloadStatus.paused) {
     return false;

@@ -7,7 +7,6 @@ import '../../services/quality/quality_settings_service.dart';
 import '../../services/quality/network_monitor_service.dart';
 import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
 
-/// Screen for configuring streaming and download quality settings
 class QualitySettingsScreen extends StatefulWidget {
   const QualitySettingsScreen({super.key});
 
@@ -133,12 +132,10 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
                   getMiniPlayerScrollBottomPadding(context) + 20,
                 ),
                 children: [
-                  // Current network indicator
                   _buildCurrentNetworkCard(),
 
                   const SizedBox(height: 12),
 
-                  // Streaming quality section
                   _buildSectionHeader('STREAMING QUALITY'),
                   _buildQualityCard(
                     context,
@@ -169,7 +166,6 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
 
                   const SizedBox(height: 12),
 
-                  // Download quality section
                   _buildSectionHeader('DOWNLOAD QUALITY'),
                   _buildDownloadQualityCard(
                     context,
@@ -179,7 +175,6 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
 
                   const SizedBox(height: 24),
 
-                  // Info section
                   _buildInfoSection(),
                 ],
               ),

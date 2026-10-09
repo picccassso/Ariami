@@ -4,7 +4,6 @@ import '../../../../services/playlist_service.dart';
 import '../../../../utils/responsive.dart';
 import '../../../../widgets/common/mini_player_aware_bottom_sheet.dart';
 
-/// Bottom sheet widget for importing playlists from the server.
 class ServerPlaylistsSheet extends StatelessWidget {
   final PlaylistService playlistService;
   final List<ServerPlaylist> visiblePlaylists;
@@ -35,7 +34,6 @@ class ServerPlaylistsSheet extends StatelessWidget {
           ),
           child: Column(
             children: [
-              // Handle bar
               Container(
                 margin: const EdgeInsets.symmetric(vertical: 12),
                 width: 40,
@@ -45,7 +43,6 @@ class ServerPlaylistsSheet extends StatelessWidget {
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
-              // Header
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Row(
@@ -83,7 +80,6 @@ class ServerPlaylistsSheet extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               const Divider(height: 1),
-              // Playlist list
               Expanded(
                 child: visiblePlaylists.isEmpty
                     ? Center(
@@ -146,7 +142,6 @@ class ServerPlaylistsSheet extends StatelessWidget {
   }
 }
 
-/// Shows the server playlists import bottom sheet.
 Future<void> showServerPlaylistsSheet({
   required BuildContext context,
   required PlaylistService playlistService,

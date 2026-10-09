@@ -40,7 +40,6 @@ Future<void> routeForServerInfo(
     return;
   }
 
-  // Server doesn't require auth - connect directly.
   await connectionService.connectToServer(serverInfo);
 
   if (context.mounted) {

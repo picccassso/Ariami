@@ -125,10 +125,6 @@ extension AriamiHttpServerPlaylistEditsMethods on AriamiHttpServer {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // Playlist cover images
-  // ---------------------------------------------------------------------------
-
   static const Map<String, String> _playlistImageContentTypes =
       <String, String>{
     'image/jpeg': 'image/jpeg',

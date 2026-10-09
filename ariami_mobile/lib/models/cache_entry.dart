@@ -1,13 +1,10 @@
-/// Cache entry model for tracking cached files (artwork and songs)
 library;
 
-/// Type of cached content
 enum CacheType {
   artwork,
   song,
 }
 
-/// Represents a cached file entry
 class CacheEntry {
   final String id;
   final CacheType type;
@@ -27,7 +24,6 @@ class CacheEntry {
     this.etag,
   }) : createdAt = createdAt ?? DateTime.now();
 
-  /// Convert to JSON for storage
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -40,7 +36,6 @@ class CacheEntry {
     };
   }
 
-  /// Create from JSON
   factory CacheEntry.fromJson(Map<String, dynamic> json) {
     return CacheEntry(
       id: json['id'] as String,
@@ -55,7 +50,6 @@ class CacheEntry {
     );
   }
 
-  /// Parse type string to enum
   static CacheType _parseType(String typeString) {
     return CacheType.values.firstWhere(
       (type) => type.toString() == typeString,
@@ -63,7 +57,6 @@ class CacheEntry {
     );
   }
 
-  /// Create a copy with updated fields
   CacheEntry copyWith({
     String? id,
     CacheType? type,
@@ -84,7 +77,6 @@ class CacheEntry {
     );
   }
 
-  /// Get formatted size string
   String getFormattedSize() {
     if (size < 1024) return '$size B';
     if (size < 1024 * 1024) return '${(size / 1024).toStringAsFixed(1)} KB';

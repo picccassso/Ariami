@@ -6,14 +6,12 @@ import '../cache/cache_manager.dart';
 import '../quality/quality_settings_service.dart';
 import 'offline_copy_service.dart';
 
-/// Offline mode types
 enum OfflineMode {
   online, // Connected to server, streaming available
   manualOffline, // User explicitly disabled connection (no auto-reconnect)
   autoOffline, // Connection lost, auto-reconnect attempts ongoing
 }
 
-/// Playback source options
 enum PlaybackSource {
   stream, // Stream from server
   local, // Play from explicitly downloaded file (protected)
@@ -21,9 +19,7 @@ enum PlaybackSource {
   unavailable, // Song not available (offline and not downloaded/cached)
 }
 
-/// Service for managing offline playback functionality
 class OfflinePlaybackService {
-  // Singleton pattern
   static final OfflinePlaybackService _instance =
       OfflinePlaybackService._internal();
   factory OfflinePlaybackService() => _instance;
@@ -35,41 +31,28 @@ class OfflinePlaybackService {
   final QualitySettingsService _qualityService = QualitySettingsService();
   final OfflineCopyService _offlineCopyService = OfflineCopyService();
 
-  // Offline mode state
   OfflineMode _offlineMode = OfflineMode.online;
   bool _preferDownloaded = true;
   bool _isInitialized = false;
 
-  // Stream controller for offline state changes
   final StreamController<OfflineMode> _offlineStateController =
       StreamController<OfflineMode>.broadcast();
 
-  /// Stream of offline mode changes
   Stream<OfflineMode> get offlineModeStream => _offlineStateController.stream;
 
-  /// Current offline mode
   OfflineMode get offlineMode => _offlineMode;
 
-  /// Whether offline mode is currently enabled (manual or auto)
   bool get isOfflineModeEnabled => _offlineMode != OfflineMode.online;
 
   /// Whether manual offline mode is enabled (user choice, no auto-reconnect)
   bool get isManualOfflineModeEnabled =>
       _offlineMode == OfflineMode.manualOffline;
 
-  /// Whether to prefer downloaded files over streaming
   bool get preferDownloaded => _preferDownloaded;
 
-  /// Check if currently offline (manual or auto)
   bool get isOffline => _offlineMode != OfflineMode.online;
 
-  // ============================================================================
-  // INITIALIZATION
-  // ============================================================================
-
-  /// Initialize the service and load saved settings
   Future<void> initialize() async {
-    // Only initialize once - subsequent calls are no-ops
     if (_isInitialized) {
       print('[OfflinePlaybackService] Already initialized - skipping');
       return;
@@ -79,7 +62,6 @@ class OfflinePlaybackService {
     final prefs = await SharedPreferences.getInstance();
     await _offlineCopyService.initialize();
 
-    // Load persisted manual offline mode preference
     final wasManualOffline = prefs.getBool('manual_offline_mode') ?? false;
     if (wasManualOffline) {
       _offlineMode = OfflineMode.manualOffline;
@@ -91,15 +73,11 @@ class OfflinePlaybackService {
 
     _preferDownloaded = prefs.getBool('prefer_downloaded') ?? true;
 
-    // Listen to connection state changes (auto offline handling)
     _connectionService.connectionStateStream.listen((isConnected) {
-      // Only auto-transition if not in manual offline mode
       if (_offlineMode != OfflineMode.manualOffline) {
         if (!isConnected && _offlineMode == OfflineMode.online) {
-          // Connection lost - auto offline
           _setMode(OfflineMode.autoOffline);
         } else if (isConnected && _offlineMode == OfflineMode.autoOffline) {
-          // Connection restored - back to online
           _setMode(OfflineMode.online);
         }
       }
@@ -110,22 +88,16 @@ class OfflinePlaybackService {
     print('[OfflinePlaybackService] Initialized - Mode: $_offlineMode');
   }
 
-  // ============================================================================
-  // OFFLINE MODE CONTROL
-  // ============================================================================
-
   /// Enable manual offline mode (user toggle)
   /// Tells ConnectionService to disconnect fully
   Future<void> setManualOfflineMode(bool enabled) async {
     final prefs = await SharedPreferences.getInstance();
 
     if (enabled) {
-      // User wants to go offline manually - persist preference
       await prefs.setBool('manual_offline_mode', true);
       _setMode(OfflineMode.manualOffline);
       print('[OfflinePlaybackService] Manual offline mode enabled (persisted)');
     } else {
-      // User wants to go back online - clear persisted preference
       await prefs.remove('manual_offline_mode');
       print(
           '[OfflinePlaybackService] Manual offline mode disabled - attempting reconnect');
@@ -135,7 +107,6 @@ class OfflinePlaybackService {
     }
   }
 
-  /// Internal method to set mode and broadcast
   void _setMode(OfflineMode mode) {
     _offlineMode = mode;
     _offlineStateController.add(mode);
@@ -161,7 +132,6 @@ class OfflinePlaybackService {
     }
   }
 
-  /// Set preference for downloaded files
   Future<void> setPreferDownloaded(bool prefer) async {
     _preferDownloaded = prefer;
 
@@ -171,11 +141,6 @@ class OfflinePlaybackService {
     print('[OfflinePlaybackService] Prefer downloaded: $prefer');
   }
 
-  // ============================================================================
-  // PLAYBACK SOURCE SELECTION
-  // ============================================================================
-
-  /// Determine the playback source for a song
   Future<PlaybackSource> getPlaybackSource(String songId) async {
     final isDownloaded = await _downloadManager.isSongDownloaded(songId);
     final isCached = await _cacheManager.isSongCached(songId);
@@ -219,27 +184,22 @@ class OfflinePlaybackService {
     return PlaybackSource.unavailable;
   }
 
-  /// Get local file path for a downloaded song
   String? getLocalFilePath(String songId) {
     return _downloadManager.getDownloadedSongPath(songId);
   }
 
-  /// Get cached file path for a cached song
   Future<String?> getCachedFilePath(String songId) async {
     return await _cacheManager.getCachedSongPath(songId);
   }
 
-  /// Check if a song is downloaded (explicitly)
   Future<bool> isSongDownloaded(String songId) async {
     return await _downloadManager.isSongDownloaded(songId);
   }
 
-  /// Check if a song is cached (auto-cached from playback)
   Future<bool> isSongCached(String songId) async {
     return await _cacheManager.isSongCached(songId);
   }
 
-  /// Check if a song is available offline (downloaded OR cached)
   Future<bool> isSongAvailableOffline(String songId) async {
     final isDownloaded = await _downloadManager.isSongDownloaded(songId);
     if (isDownloaded) return true;
@@ -247,31 +207,19 @@ class OfflinePlaybackService {
     return isCached;
   }
 
-  // ============================================================================
-  // CONNECTIVITY CHECK
-  // ============================================================================
-
-  /// Check current connectivity status
   bool checkConnectivity() {
     return _connectionService.isConnected;
   }
 
-  /// Get the connection state stream
   Stream<bool> get connectionStateStream =>
       _connectionService.connectionStateStream;
 
-  /// Reset in-memory offline state to factory defaults.
   void resetToDefaults() {
     _offlineMode = OfflineMode.online;
     _preferDownloaded = true;
     _offlineStateController.add(_offlineMode);
   }
 
-  // ============================================================================
-  // CLEANUP
-  // ============================================================================
-
-  /// Dispose resources
   void dispose() {
     _offlineStateController.close();
   }

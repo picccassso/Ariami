@@ -142,7 +142,7 @@ extension AriamiHttpServerMiddlewareAndMetricsMethods on AriamiHttpServer {
         (originPort ?? _port) == (requestPort ?? _port);
   }
 
-  /// Auth middleware - validates session tokens for protected endpoints
+  /// Rate-limits login and registration attempts.
   Middleware _authRateLimitMiddleware() {
     return (Handler handler) {
       return (Request request) async {
@@ -319,7 +319,6 @@ extension AriamiHttpServerMiddlewareAndMetricsMethods on AriamiHttpServer {
           return await handler(request);
         }
 
-        // Extract session token from Authorization header
         if (authHeader == null || !authHeader.startsWith('Bearer ')) {
           return _authRequiredResponse();
         }
@@ -331,7 +330,6 @@ extension AriamiHttpServerMiddlewareAndMetricsMethods on AriamiHttpServer {
           return _sessionExpiredResponse();
         }
 
-        // Attach session to request context for use by handlers
         final updatedRequest = request.change(context: {
           ...request.context,
           'session': session,
@@ -425,13 +423,11 @@ extension AriamiHttpServerMiddlewareAndMetricsMethods on AriamiHttpServer {
       return _authRequiredResponse();
     }
 
-    // Session-authenticated request is already authorized.
     final session = request.context['session'] as Session?;
     if (session != null) {
       return null;
     }
 
-    // No session: require a valid stream token.
     final streamToken = request.url.queryParameters['streamToken'];
     if (streamToken == null || streamToken.isEmpty) {
       return _forbiddenStreamTokenResponse('Stream token required');

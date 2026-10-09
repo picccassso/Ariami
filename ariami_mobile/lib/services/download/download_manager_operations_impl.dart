@@ -264,7 +264,6 @@ extension _DownloadManagerOperationsImpl on DownloadManager {
       return;
     }
 
-    // Create download task with download URL
     final task = DownloadTask(
       id: taskId,
       songId: songId,
@@ -378,7 +377,6 @@ extension _DownloadManagerOperationsImpl on DownloadManager {
     final task = _getScopedTask(taskId);
     if (task == null) return;
 
-    // Cancel the HTTP request
     _activeDownloads[taskId]?.cancel();
     _activeDownloads.remove(taskId);
     _activeProgress.remove(taskId); // Cleanup progress tracking
@@ -529,7 +527,6 @@ extension _DownloadManagerOperationsImpl on DownloadManager {
     final serverId = _getCurrentServerId();
     final userId = _getCurrentUserId();
 
-    // Cancel HTTP request
     _activeDownloads[taskId]?.cancel();
     _activeDownloads.remove(taskId);
     _activeProgress.remove(taskId); // Cleanup progress tracking
@@ -541,7 +538,6 @@ extension _DownloadManagerOperationsImpl on DownloadManager {
       ));
     }
 
-    // Remove from queue (scoped to current server when available)
     _queue.dequeueWhere((task) {
       if (task.id != taskId) return false;
       if (serverId != null && !_serverIdInCurrentScope(task.serverId)) {

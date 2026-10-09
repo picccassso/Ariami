@@ -1,30 +1,21 @@
-/// Represents metadata extracted from an audio file
 class SongMetadata {
-  /// The file path of the audio file
   final String filePath;
 
-  /// Song title
   final String? title;
 
-  /// Primary artist
   final String? artist;
 
   /// Album artist (may differ from artist for compilation albums)
   final String? albumArtist;
 
-  /// Album name
   final String? album;
 
-  /// Release year
   final int? year;
 
-  /// Track number within the album
   final int? trackNumber;
 
-  /// Disc number for multi-disc albums
   final int? discNumber;
 
-  /// Music genre
   final String? genre;
 
   /// Duration in seconds
@@ -33,7 +24,6 @@ class SongMetadata {
   /// Bitrate in kbps
   final int? bitrate;
 
-  /// Comment or notes
   final String? comment;
 
   /// Binary image data for album artwork (JPEG or PNG)
@@ -42,7 +32,6 @@ class SongMetadata {
   /// File size in bytes
   final int? fileSize;
 
-  /// Last modified time
   final DateTime? modifiedTime;
 
   const SongMetadata({
@@ -63,7 +52,6 @@ class SongMetadata {
     this.modifiedTime,
   });
 
-  /// Creates a copy with updated fields
   SongMetadata copyWith({
     String? filePath,
     String? title,
@@ -128,7 +116,6 @@ class SongMetadata {
     };
   }
 
-  /// Create from JSON map
   factory SongMetadata.fromJson(Map<String, dynamic> json) {
     return SongMetadata(
       filePath: json['filePath'] as String,

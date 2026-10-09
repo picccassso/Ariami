@@ -25,7 +25,6 @@ bool hasSpeculativeGaplessHeadroom({
   return bufferedPosition - position >= requiredHeadroom;
 }
 
-/// Persists and publishes the user's gapless-playback preference.
 class GaplessPlaybackService extends ChangeNotifier {
   static final GaplessPlaybackService _instance =
       GaplessPlaybackService._internal();

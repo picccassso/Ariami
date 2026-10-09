@@ -2,7 +2,6 @@ import 'package:permission_handler/permission_handler.dart';
 import 'dart:io';
 
 class PermissionsService {
-  /// Request notification permission
   Future<PermissionStatus> requestNotificationPermission() async {
     if (Platform.isAndroid) {
       // Android 13+ requires notification permission
@@ -14,10 +13,8 @@ class PermissionsService {
     return PermissionStatus.granted;
   }
 
-  /// Request storage permission (Android only)
   Future<PermissionStatus> requestStoragePermission() async {
     if (Platform.isAndroid) {
-      // Check Android version and request appropriate permission
       if (await _isAndroid13OrHigher()) {
         // Android 13+ uses granular media permissions
         // Request all media permissions at once
@@ -27,7 +24,6 @@ class PermissionsService {
           Permission.videos,
         ].request();
 
-        // Return audio permission status (primary for music app)
         return statuses[Permission.audio] ?? PermissionStatus.denied;
       } else {
         // Android 12 and below use storage permission
@@ -38,24 +34,20 @@ class PermissionsService {
     return PermissionStatus.granted;
   }
 
-  /// Check if permission is permanently denied
   bool isPermanentlyDenied(PermissionStatus status) {
     return status.isPermanentlyDenied;
   }
 
-  /// Open app settings for re-enabling permissions
   Future<bool> openAppSettings() async {
     return await openAppSettings();
   }
 
-  /// Check if Android 13 or higher
   Future<bool> _isAndroid13OrHigher() async {
     if (!Platform.isAndroid) return false;
     // This is a simplified check - in production you'd check actual SDK version
     return true; // Assume modern Android for now
   }
 
-  /// Check if storage permission is needed for this platform
   bool isStoragePermissionNeeded() {
     return Platform.isAndroid;
   }

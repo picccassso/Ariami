@@ -6,7 +6,6 @@ import 'package:sqflite/sqflite.dart';
 
 import '../models/download_task.dart';
 
-/// Database layer for managing downloads persistence
 class DownloadDatabase {
   static const String _downloadQueueKey = 'download_queue';
   static const String _autoResumeInterruptedOnLaunchKey =
@@ -21,7 +20,6 @@ class DownloadDatabase {
 
   DownloadDatabase._(this._prefs);
 
-  /// Create instance from platform.
   static Future<DownloadDatabase> create() async {
     final prefs = await SharedPreferences.getInstance();
     final database = DownloadDatabase._(prefs);
@@ -212,18 +210,12 @@ class DownloadDatabase {
     });
   }
 
-  // ============================================================================
-  // QUEUE MANAGEMENT
-  // ============================================================================
-
-  /// Load all download tasks from storage.
   Future<List<DownloadTask>> loadDownloadQueue() async {
     final db = await _ensureDatabase();
     final rows = await db.query(_tasksTable, orderBy: 'id ASC');
     return rows.map(_taskFromRow).toList();
   }
 
-  /// Insert or update a single task.
   Future<void> upsertTask(DownloadTask task) async {
     final db = await _ensureDatabase();
     await db.insert(
@@ -254,7 +246,6 @@ class DownloadDatabase {
     await batch.commit(noResult: true);
   }
 
-  /// Clear all downloads from queue.
   Future<void> clearDownloadQueue() async {
     final db = await _ensureDatabase();
     await db.delete(_tasksTable);
@@ -266,26 +257,18 @@ class DownloadDatabase {
     await clearDownloadQueue();
   }
 
-  // ============================================================================
-  // DOWNLOAD SETTINGS
-  // ============================================================================
-
-  /// Set WiFi-only download toggle
   Future<void> setWifiOnly(bool wifiOnly) async {
     await _prefs.setBool('download_wifi_only', wifiOnly);
   }
 
-  /// Get WiFi-only setting
   bool getWifiOnly() {
     return _prefs.getBool('download_wifi_only') ?? true;
   }
 
-  /// Set auto-download favorites toggle
   Future<void> setAutoDownloadFavorites(bool auto) async {
     await _prefs.setBool('download_auto_favorites', auto);
   }
 
-  /// Get auto-download setting
   bool getAutoDownloadFavorites() {
     return _prefs.getBool('download_auto_favorites') ?? false;
   }
@@ -299,7 +282,6 @@ class DownloadDatabase {
     }
   }
 
-  /// Get storage limit in MB
   int? getStorageLimit() {
     return _prefs.getInt('download_storage_limit');
   }
@@ -310,17 +292,14 @@ class DownloadDatabase {
     await _prefs.setBool('download_cooler_mode', enabled);
   }
 
-  /// Get cooler downloads mode setting.
   bool getCoolerDownloads() {
     return _prefs.getBool('download_cooler_mode') ?? false;
   }
 
-  /// Set whether interrupted downloads should auto-resume on app launch.
   Future<void> setAutoResumeInterruptedOnLaunch(bool enabled) async {
     await _prefs.setBool(_autoResumeInterruptedOnLaunchKey, enabled);
   }
 
-  /// Get whether interrupted downloads auto-resume on launch.
   bool getAutoResumeInterruptedOnLaunch() {
     return _prefs.getBool(_autoResumeInterruptedOnLaunchKey) ?? false;
   }

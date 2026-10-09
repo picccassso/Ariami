@@ -6,11 +6,9 @@ import 'dart:typed_data';
 /// Parses MP3 file headers to calculate duration without external dependencies.
 /// Supports both CBR (Constant Bit Rate) and VBR (Variable Bit Rate) files.
 class Mp3DurationParser {
-  // MPEG Audio version ID
   static const int _mpegVersionReserved = 1;
   static const int _mpegVersion1 = 3; // MPEG 1
 
-  // Layer description
   static const int _layerReserved = 0;
   static const int _layer1 = 3; // Layer I
 
@@ -166,31 +164,24 @@ class Mp3DurationParser {
       final fileSize = await file.length();
       if (fileSize < 10) return null;
 
-      // Open file once for all reads
       raf = await file.open(mode: FileMode.read);
 
-      // Step 1: Read ID3v2 header (10 bytes) to determine tag size
       final headerBytes = await raf.read(10);
       final audioDataOffset = _skipId3v2Header(headerBytes);
 
-      // Step 2: Calculate audio data size and validate
       final audioDataSize = fileSize - audioDataOffset;
       if (audioDataSize < 10) return null; // No audio data
 
-      // Step 3: Seek to audio data and read (up to 64KB)
       await raf.setPosition(audioDataOffset);
       final readSize = audioDataSize < 65536 ? audioDataSize : 65536;
       final bytes = await raf.read(readSize.toInt());
 
-      // Step 4: Find first valid frame header (searching from offset 0 in audio buffer)
       final frameHeader = _findFirstFrameHeader(bytes, 0);
       if (frameHeader == null) return null;
 
-      // Try to find XING/VBRI header for VBR files
       final vbrInfo = _parseVbrHeader(bytes, frameHeader);
 
       if (vbrInfo != null && vbrInfo.totalFrames > 0) {
-        // VBR: Calculate from total frames
         final samplesPerFrame =
             _getSamplesPerFrame(frameHeader.version, frameHeader.layer);
         final totalSamples = vbrInfo.totalFrames * samplesPerFrame;
@@ -213,12 +204,10 @@ class Mp3DurationParser {
       // Silently fail - duration is optional
       return null;
     } finally {
-      // Always close file handle
       await raf?.close();
     }
   }
 
-  /// Parse an MP3 file and return the first valid frame bitrate in kbps.
   Future<int?> getBitrate(String filePath) async {
     RandomAccessFile? raf;
     try {
@@ -246,11 +235,9 @@ class Mp3DurationParser {
     }
   }
 
-  /// Skip ID3v2 header and return offset to audio data
   int _skipId3v2Header(Uint8List bytes) {
     if (bytes.length < 10) return 0;
 
-    // Check for ID3v2 header: "ID3"
     if (bytes[0] == 0x49 && bytes[1] == 0x44 && bytes[2] == 0x33) {
       // ID3v2 size is stored as syncsafe integer (7 bits per byte)
       final size = ((bytes[6] & 0x7F) << 21) |
@@ -263,9 +250,7 @@ class Mp3DurationParser {
     return 0;
   }
 
-  /// Find the first valid MP3 frame header
   _Mp3FrameHeader? _findFirstFrameHeader(Uint8List bytes, int startOffset) {
-    // Search for sync word (0xFF followed by 0xE0 or higher)
     for (var i = startOffset; i < bytes.length - 4; i++) {
       if (bytes[i] == 0xFF && (bytes[i + 1] & 0xE0) == 0xE0) {
         final header = _parseFrameHeader(bytes, i);
@@ -277,7 +262,6 @@ class Mp3DurationParser {
     return null;
   }
 
-  /// Parse a frame header at the given offset
   _Mp3FrameHeader? _parseFrameHeader(Uint8List bytes, int offset) {
     if (offset + 4 > bytes.length) return null;
 
@@ -285,23 +269,19 @@ class Mp3DurationParser {
     final b2 = bytes[offset + 1];
     final b3 = bytes[offset + 2];
 
-    // Verify sync word
     if (b1 != 0xFF || (b2 & 0xE0) != 0xE0) return null;
 
-    // Extract header fields
     final version = (b2 >> 3) & 0x03;
     final layer = (b2 >> 1) & 0x03;
     final bitrateIndex = (b3 >> 4) & 0x0F;
     final sampleRateIndex = (b3 >> 2) & 0x03;
     final padding = (b3 >> 1) & 0x01;
 
-    // Validate
     if (version == _mpegVersionReserved) return null;
     if (layer == _layerReserved) return null;
     if (bitrateIndex == 0 || bitrateIndex == 15) return null;
     if (sampleRateIndex == 3) return null;
 
-    // Look up values
     final versionIndex = (version == _mpegVersion1) ? 1 : 0;
     final layerIndex = 3 - layer; // Convert to 0=I, 1=II, 2=III
 
@@ -310,7 +290,6 @@ class Mp3DurationParser {
 
     if (bitrate == 0 || sampleRate == 0) return null;
 
-    // Calculate frame size
     int frameSize;
     if (layer == _layer1) {
       frameSize = ((12 * bitrate * 1000) ~/ sampleRate + padding) * 4;
@@ -330,13 +309,11 @@ class Mp3DurationParser {
     );
   }
 
-  /// Get samples per frame for the given version and layer
   int _getSamplesPerFrame(int version, int layer) {
     final layerIndex = 3 - layer; // Convert to 0=I, 1=II, 2=III
     return _samplesPerFrame[version][layerIndex];
   }
 
-  /// Parse XING or VBRI header for VBR info
   _VbrInfo? _parseVbrHeader(Uint8List bytes, _Mp3FrameHeader frameHeader) {
     // XING/Info header is located after the frame header
     // Position depends on MPEG version and channel mode
@@ -355,7 +332,6 @@ class Mp3DurationParser {
     for (final offset in possibleOffsets) {
       if (offset + 12 > bytes.length) continue;
 
-      // Check for "Xing" or "Info" header
       if (_matchesTag(bytes, offset, 'Xing') ||
           _matchesTag(bytes, offset, 'Info')) {
         return _parseXingHeader(bytes, offset);
@@ -372,7 +348,6 @@ class Mp3DurationParser {
     return null;
   }
 
-  /// Check if bytes at offset match a tag string
   bool _matchesTag(Uint8List bytes, int offset, String tag) {
     if (offset + tag.length > bytes.length) return false;
     for (var i = 0; i < tag.length; i++) {
@@ -381,7 +356,6 @@ class Mp3DurationParser {
     return true;
   }
 
-  /// Parse XING header
   _VbrInfo? _parseXingHeader(Uint8List bytes, int offset) {
     if (offset + 8 > bytes.length) return null;
 
@@ -437,7 +411,6 @@ class Mp3DurationParser {
   }
 }
 
-/// Parsed MP3 frame header data
 class _Mp3FrameHeader {
   final int offset;
   final int version;
@@ -458,7 +431,6 @@ class _Mp3FrameHeader {
   });
 }
 
-/// VBR (Variable Bit Rate) info from XING or VBRI header
 class _VbrInfo {
   final int totalFrames;
   final int? totalBytes;

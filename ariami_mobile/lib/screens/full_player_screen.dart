@@ -147,7 +147,6 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
     setState(() {});
   }
 
-  /// Check if current song is liked
   bool get _isFavorite {
     final currentSong = _playbackManager.currentSong;
     if (currentSong == null) return false;
@@ -596,14 +595,12 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
     );
   }
 
-  /// Build main playback controls (Shuffle, Previous, Play/Pause, Next, Repeat)
   Widget _buildMainControls(BuildContext themedContext) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // Shuffle button
           IconButton(
             icon: const Icon(Icons.shuffle_rounded),
             onPressed: _playbackManager.toggleShuffle,
@@ -619,7 +616,6 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
                     .withValues(alpha: 0.9),
           ),
 
-          // Previous button
           IconButton(
             icon: const Icon(LucideIcons.skipBack),
             iconSize: 48,
@@ -629,7 +625,6 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
             tooltip: 'Previous',
           ),
 
-          // Play/Pause button (large, prominent)
           Container(
             width: 72,
             height: 72,
@@ -676,7 +671,6 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
                   ),
           ),
 
-          // Next button
           IconButton(
             icon: const Icon(LucideIcons.skipForward),
             iconSize: 48,
@@ -685,7 +679,6 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
             tooltip: 'Next',
           ),
 
-          // Repeat button
           IconButton(
             icon: Icon(_getRepeatIcon(_playbackManager.repeatMode)),
             onPressed: _playbackManager.toggleRepeat,
@@ -704,7 +697,6 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
     );
   }
 
-  /// Get repeat mode icon
   IconData _getRepeatIcon(playback_repeat.RepeatMode mode) {
     switch (mode) {
       case playback_repeat.RepeatMode.none:
@@ -716,7 +708,6 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
     }
   }
 
-  /// Get repeat mode tooltip
   String _getRepeatTooltip(playback_repeat.RepeatMode mode) {
     switch (mode) {
       case playback_repeat.RepeatMode.none:

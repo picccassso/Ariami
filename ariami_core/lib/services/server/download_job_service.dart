@@ -204,7 +204,6 @@ class DownloadJobService {
       itemOrder += 1;
     }
 
-    // Check again if empty after skipping missing playlist songs
     if (items.isEmpty) {
       throw const DownloadJobServiceException(
         statusCode: 400,
@@ -412,7 +411,6 @@ class DownloadJobService {
     final now = _nowProvider();
     final expiredDate = now.subtract(_cancelledJobRetention);
 
-    // First, remove old cancelled jobs
     _jobs.removeWhere((id, job) =>
         job.status == DownloadJobStatus.cancelled &&
         job.updatedAt.isBefore(expiredDate));
@@ -431,7 +429,6 @@ class DownloadJobService {
     if (_jobs.length > _maxTotalJobs) {
       final sortedJobs = _jobs.values.toList()
         ..sort((a, b) {
-          // Prioritize removing cancelled jobs over ready ones
           if (a.status != b.status) {
             if (a.status == DownloadJobStatus.cancelled) return -1;
             if (b.status == DownloadJobStatus.cancelled) return 1;

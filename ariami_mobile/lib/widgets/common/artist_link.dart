@@ -8,7 +8,7 @@ import 'artist_picker_sheet.dart';
 /// picker bottom sheet so the user can choose which artist to view.
 ///
 /// When [enabled] is false the name is a plain [Text], so screens without an
-/// `/artist` route (settings tab, selection mode) can show it safely. Callers
+/// `/artist` route (e.g. selection mode) can show it safely. Callers
 /// can wrap this in `Flexible`/`Expanded`; the text stays single-line and
 /// ellipsized. No hover styling — mobile only.
 class ArtistLink extends StatelessWidget {

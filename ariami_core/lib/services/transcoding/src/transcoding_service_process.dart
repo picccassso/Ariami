@@ -9,13 +9,11 @@ extension _TranscodingServiceProcess on TranscodingService {
     TranscodeOutputFormat outputFormat,
   ) async {
     try {
-      // Create temp directory if needed
       final tempDir = Directory('$cacheDirectory/tmp');
       if (!await tempDir.exists()) {
         await tempDir.create(recursive: true);
       }
 
-      // Generate unique temp filename
       final random = Random();
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final randomSuffix = random.nextInt(999999).toString().padLeft(6, '0');
@@ -46,20 +44,17 @@ extension _TranscodingServiceProcess on TranscodingService {
     }
   }
 
-  /// Get the cached file path for a song at a specific quality.
   File _getCachedFile(String songId, QualityPreset quality) {
     final qualityDir = Directory('$cacheDirectory/${quality.name}');
     return File('${qualityDir.path}/$songId.${quality.fileExtension}');
   }
 
-  /// Transcode a file using Sonic.
   Future<File?> _transcodeFile(
     String sourcePath,
     String outputPath,
     QualityPreset quality, {
     TranscodeOutputFormat outputFormat = TranscodeOutputFormat.aac,
   }) async {
-    // Ensure output directory exists
     final outputDir = Directory(outputPath).parent;
     if (!await outputDir.exists()) {
       await outputDir.create(recursive: true);

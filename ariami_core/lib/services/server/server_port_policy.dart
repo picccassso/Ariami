@@ -1,6 +1,5 @@
 import 'dart:io';
 
-/// Thrown when Ariami cannot bind any candidate port.
 class PortBindingException implements Exception {
   PortBindingException({
     required this.preferredPort,
@@ -22,7 +21,6 @@ class PortBindingException implements Exception {
   String toString() => message;
 }
 
-/// Builds ordered port candidates and formats fallback messaging.
 class ServerPortPolicy {
   static const int defaultPort = 8080;
   static const int fallbackRangeStart = 8080;

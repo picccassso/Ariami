@@ -2,15 +2,12 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:ariami_core/models/song_metadata.dart';
 
-/// Cached metadata entry with file validation info
 class CachedMetadataEntry {
   /// File modification time (milliseconds since epoch)
   final int mtime;
 
-  /// File size in bytes
   final int size;
 
-  /// The cached metadata
   final SongMetadata metadata;
 
   /// Cached partial hash for duplicate detection (optional, computed lazily)
@@ -23,7 +20,6 @@ class CachedMetadataEntry {
     this.partialHash,
   });
 
-  /// Create from JSON map
   factory CachedMetadataEntry.fromJson(Map<String, dynamic> json) {
     return CachedMetadataEntry(
       mtime: json['mtime'] as int,
@@ -33,7 +29,6 @@ class CachedMetadataEntry {
     );
   }
 
-  /// Convert to JSON map
   Map<String, dynamic> toJson() {
     return {
       'mtime': mtime,
@@ -70,18 +65,14 @@ class MetadataCache {
   /// Maximum number of entries (sanity limit ~50MB)
   static const int maxEntries = 100000;
 
-  /// Path to the cache file
   final String cachePath;
 
-  /// In-memory cache entries (filePath -> entry)
   final Map<String, CachedMetadataEntry> _entries = {};
 
-  /// Whether the cache has been modified since last save
   bool _isDirty = false;
 
   MetadataCache(this.cachePath);
 
-  /// Number of cached entries
   int get length => _entries.length;
 
   /// Load cache from disk
@@ -99,7 +90,6 @@ class MetadataCache {
       final contents = await file.readAsString();
       final json = jsonDecode(contents) as Map<String, dynamic>;
 
-      // Check schema version
       final version = json['version'] as int?;
       if (version != schemaVersion) {
         print(
@@ -108,7 +98,6 @@ class MetadataCache {
         return false;
       }
 
-      // Load entries
       final entriesJson = json['entries'] as Map<String, dynamic>?;
       if (entriesJson == null) {
         print('[MetadataCache] No entries in cache file');
@@ -122,7 +111,6 @@ class MetadataCache {
             entry.value as Map<String, dynamic>,
           );
         } catch (e) {
-          // Skip corrupted entries
           print('[MetadataCache] Skipping corrupted entry: ${entry.key}');
         }
       }
@@ -136,7 +124,6 @@ class MetadataCache {
     }
   }
 
-  /// Save cache to disk
   Future<bool> save() async {
     if (!_isDirty) {
       print('[MetadataCache] Cache not dirty, skipping save');
@@ -153,7 +140,6 @@ class MetadataCache {
       final file = File(cachePath);
       final tempFile = File('$cachePath.tmp');
 
-      // Ensure parent directory exists
       final parent = file.parent;
       if (!await parent.exists()) {
         await parent.create(recursive: true);
@@ -186,7 +172,6 @@ class MetadataCache {
       final file = File(filePath);
       final stat = await file.stat();
 
-      // Validate mtime and size
       final currentMtime = stat.modified.millisecondsSinceEpoch;
       final currentSize = stat.size;
 
@@ -194,12 +179,10 @@ class MetadataCache {
         return entry.metadata;
       }
 
-      // File changed - remove stale entry
       _entries.remove(filePath);
       _isDirty = true;
       return null;
     } catch (e) {
-      // File doesn't exist or can't be accessed - remove entry
       _entries.remove(filePath);
       _isDirty = true;
       return null;
@@ -239,15 +222,12 @@ class MetadataCache {
       );
       _isDirty = true;
 
-      // Enforce max entries limit - remove oldest entries
       _enforceLimit();
     } catch (e) {
-      // Can't stat file - don't cache
       print('[MetadataCache] Failed to cache $filePath: $e');
     }
   }
 
-  /// Store metadata with known mtime and size (for batch operations)
   void putWithStats(
       String filePath, SongMetadata metadata, int mtime, int size) {
     _entries[filePath] = CachedMetadataEntry(
@@ -299,19 +279,16 @@ class MetadataCache {
     }
   }
 
-  /// Remove entry for a file
   void remove(String filePath) {
     if (_entries.remove(filePath) != null) {
       _isDirty = true;
     }
   }
 
-  /// Clear all cached entries
   Future<void> clear() async {
     _entries.clear();
     _isDirty = true;
 
-    // Also delete the cache file
     try {
       final file = File(cachePath);
       if (await file.exists()) {
@@ -337,7 +314,6 @@ class MetadataCache {
     return data;
   }
 
-  /// Import cache data from isolate results
   void importFromIsolate(Map<String, Map<String, dynamic>> data) {
     _entries.clear();
     for (final entry in data.entries) {
@@ -353,11 +329,9 @@ class MetadataCache {
     _enforceLimit();
   }
 
-  /// Enforce maximum entries limit
   void _enforceLimit() {
     if (_entries.length <= maxEntries) return;
 
-    // Remove oldest entries (first entries in map)
     final keysToRemove =
         _entries.keys.take(_entries.length - maxEntries).toList();
 

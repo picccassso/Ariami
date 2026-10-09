@@ -71,7 +71,6 @@ void main() {
     expect(summary.totalListenedMs, 45000);
     expect(summary.totalPlays, 1);
 
-    // Another user's stats are isolated.
     expect(store.getSummary('user-b').songs, isEmpty);
   });
 
@@ -1087,7 +1086,6 @@ void main() {
       upgraded.initialize();
       addTearDown(upgraded.close);
 
-      // Existing data is intact.
       final summary = upgraded.getSummary('user-a');
       expect(summary.totalPlays, 13);
       expect(summary.totalListenedMs, 560000);

@@ -26,7 +26,6 @@ part 'playlist_detail/playlist_detail_actions.dart';
 part 'playlist_detail/playlist_detail_state.dart';
 part 'playlist_detail/playlist_song_resolution.dart';
 
-/// Playlist detail screen with editable header, reorderable songs, and playback actions
 class PlaylistDetailScreen extends StatefulWidget {
   final String playlistId;
 
@@ -65,7 +64,6 @@ class _PlaylistDetailScreenState extends _PlaylistDetailActionsState {
 
     return CustomScrollView(
       slivers: [
-        // App bar with playlist icon
         SliverAppBar(
           expandedHeight: expandedArtHeight,
           pinned: true,
@@ -78,7 +76,6 @@ class _PlaylistDetailScreenState extends _PlaylistDetailActionsState {
           ),
         ),
 
-        // Playlist info section
         SliverToBoxAdapter(
           child: PlaylistInfoSection(
             playlist: _playlist!,
@@ -91,7 +88,6 @@ class _PlaylistDetailScreenState extends _PlaylistDetailActionsState {
             child: PlaylistOfflineCopyBanner(),
           ),
 
-        // Action buttons
         SliverToBoxAdapter(
           child: PlaylistActionButtons(
             sourceId: _playbackSourceId,
@@ -115,7 +111,6 @@ class _PlaylistDetailScreenState extends _PlaylistDetailActionsState {
           ),
         ),
 
-        // Songs list
         if (_isSongsLoading && _songs.isEmpty)
           const SliverToBoxAdapter(
             child: Padding(

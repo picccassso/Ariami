@@ -1,20 +1,16 @@
 part of 'package:ariami_core/services/transcoding/transcoding_service.dart';
 
 extension _TranscodingServiceCache on TranscodingService {
-  // ==================== Cache Index Methods ====================
 
-  /// Ensure cache index is loaded.
   Future<void> _ensureIndexLoaded() async {
     if (_indexLoaded) return;
     await _loadCacheIndex();
     _indexLoaded = true;
   }
 
-  /// Load cache index from disk.
   Future<void> _loadCacheIndex() async {
     final indexFile = File('$cacheDirectory/cache_index.json');
     if (!await indexFile.exists()) {
-      // First run or index lost - rebuild from disk
       await _rebuildCacheIndex();
       return;
     }
@@ -42,7 +38,6 @@ extension _TranscodingServiceCache on TranscodingService {
     }
   }
 
-  /// Rebuild index by scanning disk (fallback).
   Future<void> _rebuildCacheIndex() async {
     _cacheIndex.clear();
     _cachedTotalSize = 0;
@@ -80,7 +75,6 @@ extension _TranscodingServiceCache on TranscodingService {
     }
   }
 
-  /// Convert relative path to cache key.
   String _pathToKey(String relPath) {
     // "medium/songId.aac" -> "songId_medium"
     final parts = relPath.split('/');
@@ -93,7 +87,6 @@ extension _TranscodingServiceCache on TranscodingService {
     return relPath;
   }
 
-  /// Persist cache index to disk.
   Future<void> _persistCacheIndex() async {
     try {
       final indexFile = File('$cacheDirectory/cache_index.json');
@@ -115,7 +108,6 @@ extension _TranscodingServiceCache on TranscodingService {
     }
   }
 
-  /// Synchronously persist cache index (for dispose).
   void _persistCacheIndexSync() {
     try {
       final indexFile = File('$cacheDirectory/cache_index.json');
@@ -134,7 +126,6 @@ extension _TranscodingServiceCache on TranscodingService {
     }
   }
 
-  /// Add entry to cache index.
   void _addToIndex(String key, String path, int size) {
     _cacheIndex[key] = _CacheIndexEntry(
       path: path,
@@ -145,7 +136,6 @@ extension _TranscodingServiceCache on TranscodingService {
     _indexDirty = true;
   }
 
-  /// Update access time in index (no disk write).
   void _recordAccess(String key) {
     final entry = _cacheIndex[key];
     if (entry != null) {
@@ -154,23 +144,16 @@ extension _TranscodingServiceCache on TranscodingService {
     }
   }
 
-  /// Mark a cache entry as in-use to prevent eviction during streaming.
-  ///
-  /// Call [releaseInUse] when streaming is complete.
   void _markInUse(String songId, QualityPreset quality) {
     final lockKey = '${songId}_${quality.name}';
     _inUse.add(lockKey);
   }
 
-  /// Release a cache entry from in-use status.
-  ///
-  /// Should be called after streaming completes.
   void _releaseInUse(String songId, QualityPreset quality) {
     final lockKey = '${songId}_${quality.name}';
     _inUse.remove(lockKey);
   }
 
-  /// Remove entry from cache index.
   void _removeFromIndex(String key) {
     final entry = _cacheIndex.remove(key);
     if (entry != null) {
@@ -179,16 +162,12 @@ extension _TranscodingServiceCache on TranscodingService {
     }
   }
 
-  // ==================== Failure Backoff Methods ====================
-
-  /// Check if we should skip due to recent failure.
   bool _shouldSkipDueToFailure(String key) {
     final record = _failures[key];
     if (record == null) return false;
 
     final elapsed = DateTime.now().difference(record.lastFailure);
     if (elapsed > failureBackoffDuration) {
-      // Backoff expired, allow retry
       _failures.remove(key);
       return false;
     }
@@ -196,7 +175,6 @@ extension _TranscodingServiceCache on TranscodingService {
     return true;
   }
 
-  /// Record a failure.
   void _recordFailure(String key, String? errorMessage) {
     final existing = _failures[key];
     _failures[key] = _FailureRecord(
@@ -208,12 +186,9 @@ extension _TranscodingServiceCache on TranscodingService {
         'TranscodingService: Recorded failure for $key (count: ${_failures[key]!.failureCount})');
   }
 
-  /// Clear failure record (on success).
   void _clearFailure(String key) {
     _failures.remove(key);
   }
-
-  // ==================== Cache Cleanup Methods ====================
 
   /// Cleanup cache if it exceeds the maximum size.
   ///
@@ -234,7 +209,6 @@ extension _TranscodingServiceCache on TranscodingService {
     for (final entry in entries) {
       if (_cachedTotalSize <= maxCacheSizeBytes) break;
 
-      // Skip entries that are currently being streamed
       if (_inUse.contains(entry.key)) {
         skippedInUse++;
         continue;
@@ -260,7 +234,6 @@ extension _TranscodingServiceCache on TranscodingService {
     print('TranscodingService: Cache size now '
         '${(_cachedTotalSize / 1024 / 1024).round()} MB');
 
-    // Persist index after cleanup
     await _persistCacheIndex();
   }
 
@@ -270,7 +243,6 @@ extension _TranscodingServiceCache on TranscodingService {
     return _cachedTotalSize;
   }
 
-  /// Clear the entire transcoding cache.
   Future<void> _clearCache() async {
     try {
       final cacheDir = Directory(cacheDirectory);
@@ -286,9 +258,6 @@ extension _TranscodingServiceCache on TranscodingService {
     }
   }
 
-  /// Delete cached transcodes for a specific song.
-  ///
-  /// Useful when the source file changes.
   Future<void> _invalidateSong(String songId) async {
     for (final quality in QualityPreset.values) {
       if (!quality.requiresTranscoding) continue;

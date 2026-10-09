@@ -1,4 +1,3 @@
-/// Statistics for an artist's playback (aggregated from songs)
 class ArtistStats {
   final String artistName;
   final int playCount;
@@ -32,7 +31,6 @@ class ArtistStats {
     }
   }
 
-  /// Create a copy with updated fields
   ArtistStats copyWith({
     String? artistName,
     int? playCount,

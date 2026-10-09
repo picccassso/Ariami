@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import '../../models/download_task.dart';
 import '../../services/download/download_manager.dart';
 
-/// Live download state for an album or playlist.
 class CollectionDownloadState {
   const CollectionDownloadState({
     required this.completed,
@@ -67,7 +66,6 @@ CollectionDownloadState calculateCollectionDownloadState({
   );
 }
 
-/// Album/playlist download button with live collection-wide progress.
 class CollectionDownloadButton extends StatefulWidget {
   const CollectionDownloadButton({
     super.key,

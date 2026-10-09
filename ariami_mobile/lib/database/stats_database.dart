@@ -2,7 +2,6 @@ import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/song_stats.dart';
 
-/// SQLite database layer for managing streaming statistics persistence
 class StatsDatabase {
   static const String _databaseName = 'streaming_stats.db';
   static const int _databaseVersion = 2;
@@ -10,14 +9,12 @@ class StatsDatabase {
 
   Database? _database;
 
-  /// Get database instance (lazy initialization)
   Future<Database> get database async {
     if (_database != null) return _database!;
     _database = await _initDatabase();
     return _database!;
   }
 
-  /// Initialize database
   Future<Database> _initDatabase() async {
     final databasesPath = await getDatabasesPath();
     final path = join(databasesPath, _databaseName);
@@ -30,7 +27,6 @@ class StatsDatabase {
     );
   }
 
-  /// Create database schema
   Future<void> _onCreate(Database db, int version) async {
     await db.execute('''
       CREATE TABLE $_tableName (
@@ -47,13 +43,11 @@ class StatsDatabase {
       )
     ''');
 
-    // Create index for sorting by play count
     await db.execute('''
       CREATE INDEX idx_play_count ON $_tableName (play_count DESC)
     ''');
   }
 
-  /// Handle database upgrades
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
       // Add album columns for version 2
@@ -64,18 +58,12 @@ class StatsDatabase {
     }
   }
 
-  /// Create instance from platform
   static Future<StatsDatabase> create() async {
     final db = StatsDatabase();
     await db.database; // Initialize database
     return db;
   }
 
-  // ============================================================================
-  // SONG STATS MANAGEMENT
-  // ============================================================================
-
-  /// Save multiple stats at once (batch operation with transaction)
   Future<void> saveAllStats(List<SongStats> statsList) async {
     final db = await database;
 
@@ -109,7 +97,6 @@ class StatsDatabase {
     }
   }
 
-  /// Get stats for a single song (returns null if not found)
   Future<SongStats?> getSongStats(String songId) async {
     final db = await database;
 
@@ -147,7 +134,6 @@ class StatsDatabase {
     }
   }
 
-  /// Get top songs by play count (limited to top N)
   Future<List<SongStats>> getTopSongs({int limit = 20}) async {
     final db = await database;
 
@@ -166,7 +152,6 @@ class StatsDatabase {
     }
   }
 
-  /// Get total stats across all songs (aggregate query)
   Future<({int totalSongsPlayed, Duration totalTimeStreamed})> getTotalStats() async {
     final db = await database;
 
@@ -197,7 +182,6 @@ class StatsDatabase {
     }
   }
 
-  /// Reset all statistics (delete all records)
   Future<void> resetAllStats() async {
     final db = await database;
 
@@ -208,7 +192,6 @@ class StatsDatabase {
     }
   }
 
-  /// Close database connection
   Future<void> close() async {
     if (_database != null) {
       await _database!.close();
@@ -216,11 +199,6 @@ class StatsDatabase {
     }
   }
 
-  // ============================================================================
-  // HELPER METHODS
-  // ============================================================================
-
-  /// Convert database map to SongStats object
   SongStats _songStatsFromMap(Map<String, dynamic> map) {
     return SongStats(
       songId: map['song_id'] as String,

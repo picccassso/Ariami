@@ -1,6 +1,5 @@
 import 'dart:convert';
 
-/// Utility functions for fixing text encoding issues
 class EncodingUtils {
   /// Fixes mojibake (UTF-8 bytes misread as Latin-1)
   ///
@@ -23,8 +22,6 @@ class EncodingUtils {
       final latin1Bytes = latin1.encode(value);
       final fixedStr = utf8.decode(latin1Bytes, allowMalformed: true);
 
-      // Only use the fixed version if it's different and appears to be valid
-      // Check if the fix actually changed something and produced valid UTF-8
       if (fixedStr != value && fixedStr.isNotEmpty) {
         // Verify the fixed string doesn't contain replacement characters
         // which would indicate invalid UTF-8
@@ -35,7 +32,6 @@ class EncodingUtils {
 
       return value;
     } catch (e) {
-      // If conversion fails, return original
       return value;
     }
   }

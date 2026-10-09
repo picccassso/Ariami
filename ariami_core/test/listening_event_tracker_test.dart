@@ -341,7 +341,6 @@ void main() {
     final segments = events.where((e) => e.listenedMs > 0).toList();
     expect(segments.length, greaterThanOrEqualTo(3));
     expect(listenedTotal(), 95000);
-    // All events carry unique ids.
     expect(events.map((e) => e.eventId).toSet(), hasLength(events.length));
   });
 }

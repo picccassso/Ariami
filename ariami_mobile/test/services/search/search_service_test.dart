@@ -312,9 +312,7 @@ void main() {
 
       final recent = await service.getRecentSongs();
       expect(recent.length, 30);
-      // Newest song should be at index 0
       expect(recent.first.id, 's34');
-      // Oldest retained should be s5
       expect(recent.last.id, 's5');
     });
 
@@ -339,25 +337,21 @@ void main() {
         await service.addRecentSong(testSong('s$i', 'Song $i'));
       }
 
-      // Insert at index 1
       await service.insertRecentSongAt(testSong('inserted', 'Inserted'), 1);
 
       final recent = await service.getRecentSongs();
       expect(recent.length, 5);
       expect(recent[0].id, 's4');
       expect(recent[1].id, 'inserted');
-      // The last one pushed out
       expect(recent.any((s) => s.id == 's0'), isFalse);
     });
 
     test('getRecentSongs trims stored songs if limit is reduced', () async {
-      // Add 20 songs under default limit
       for (var i = 0; i < 20; i++) {
         await service.addRecentSong(testSong('s$i', 'Song $i'));
       }
       expect((await service.getRecentSongs()).length, 20);
 
-      // Change limit to 8
       await settingsService.setRecentSearchesLimit(isCustom: true, customLimit: 8);
 
       final recent = await service.getRecentSongs();
@@ -371,7 +365,6 @@ void main() {
         await service.addRecentSong(testSong('s$i', 'Song $i'));
       }
 
-      // Explicit limit of 6
       final trimmed = await service.trimRecentSongs(6);
       expect(trimmed.length, 6);
       expect((await service.getRecentSongs()).length, 6);

@@ -15,7 +15,6 @@ extension AriamiHttpServerConnectionHandlersMethods on AriamiHttpServer {
     return buffer.toString();
   }
 
-  /// Handle client connection
   Future<Response> _handleConnect(Request request) async {
     try {
       if (!_hasRegisteredUsers()) {
@@ -56,13 +55,11 @@ extension AriamiHttpServerConnectionHandlersMethods on AriamiHttpServer {
         clientType: presenceClientType,
       );
 
-      // Broadcast client connection to all WebSocket clients
       broadcastWebSocketMessage(ClientConnectedMessage(
         clientCount: _connectionManager.clientCount,
         deviceName: deviceName,
       ));
 
-      // Generate session ID
       final sessionId =
           'session_${DateTime.now().millisecondsSinceEpoch}_$deviceId';
 
@@ -81,7 +78,6 @@ extension AriamiHttpServerConnectionHandlersMethods on AriamiHttpServer {
     }
   }
 
-  /// Handle client disconnection using bearer session context.
   Future<Response> _handleDisconnect(Request request) async {
     try {
       final session = request.context['session'] as Session?;
@@ -98,12 +94,10 @@ extension AriamiHttpServerConnectionHandlersMethods on AriamiHttpServer {
       // or stream tickets. Session remains valid for reconnection.
       // Explicit logout (/api/auth/logout) and admin actions still revoke.
 
-      // Get client name before unregistering
       final client = _connectionManager.getClient(resolvedDeviceId);
       deviceName = client?.deviceName;
       _connectionManager.unregisterClient(resolvedDeviceId);
 
-      // Broadcast client disconnection to all WebSocket clients
       broadcastWebSocketMessage(ClientDisconnectedMessage(
         clientCount: _connectionManager.clientCount,
         deviceName: deviceName,

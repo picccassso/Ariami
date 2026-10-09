@@ -349,7 +349,6 @@ class _EqualizerScreenState extends State<EqualizerScreen> {
           padding: const EdgeInsets.fromLTRB(12, 16, 12, 14),
           child: Column(
             children: [
-              // Live frequency-response curve for the current gains.
               SizedBox(
                 height: 96,
                 width: double.infinity,
@@ -764,7 +763,6 @@ class _FrequencyResponsePainter extends CustomPainter {
     final logMin = math.log(frequencies.first) - math.ln2 / 2;
     final logMax = math.log(frequencies.last) + math.ln2 / 2;
 
-    // Dashed 0 dB reference line.
     final zeroY = _yForGain(0, size);
     final gridPaint = Paint()
       ..color = gridColor
@@ -781,7 +779,6 @@ class _FrequencyResponsePainter extends CustomPainter {
       x += dashWidth + dashGap;
     }
 
-    // Response curve.
     final curvePath = Path();
     for (var i = 0; i <= _samples; i++) {
       final logHz = logMin + (logMax - logMin) * i / _samples;
@@ -796,7 +793,6 @@ class _FrequencyResponsePainter extends CustomPainter {
       }
     }
 
-    // Soft fill between the curve and the 0 dB line.
     final fillPath = Path.from(curvePath)
       ..lineTo(size.width, zeroY)
       ..lineTo(0, zeroY)
@@ -816,7 +812,6 @@ class _FrequencyResponsePainter extends CustomPainter {
         ..strokeJoin = StrokeJoin.round,
     );
 
-    // Dots at band centers.
     final dotPaint = Paint()..color = curveColor;
     for (var i = 0; i < frequencies.length; i++) {
       final center = Offset(

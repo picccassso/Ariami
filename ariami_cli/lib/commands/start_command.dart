@@ -12,7 +12,6 @@ import '../services/startup_summary.dart';
 import '../server_runner.dart';
 import 'package:ariami_core/ariami_core.dart';
 
-/// Command to start the Ariami CLI server
 class StartCommand {
   final DaemonService _daemonService = DaemonService();
   final CliStateService _stateService = CliStateService();
@@ -21,7 +20,6 @@ class StartCommand {
   final CliTailscaleService _tailscaleService = CliTailscaleService();
   final AutostartService _autostartService = AutostartService();
 
-  /// Execute the start command
   Future<void> execute({
     int port = 8080,
     bool portExplicitlyRequested = false,
@@ -34,7 +32,6 @@ class StartCommand {
       await _stateService.setBindHost(bindHost);
     }
 
-    // Check if already running
     if (await _daemonService.isRunning()) {
       print('Ariami CLI server is already running.');
       print(
@@ -49,7 +46,6 @@ class StartCommand {
       return;
     }
 
-    // Check if this is first-time setup
     final isSetupComplete = await _stateService.isSetupComplete();
     final savedPort = await _stateService.getServerPort();
     final preferredPort = portExplicitlyRequested ? port : (savedPort ?? port);
@@ -66,7 +62,6 @@ class StartCommand {
       }
       _writeSetupLine('');
 
-      // Run server in foreground (setup mode)
       final runner = ServerRunner();
       try {
         await runZoned(
@@ -104,7 +99,6 @@ class StartCommand {
 
       final daemonPort = savedPort ?? preferredPort;
 
-      // Start server in background with --server-mode flag
       final pid = await _daemonService.startServerInBackground([
         '--server-mode',
         '--port',
@@ -120,7 +114,6 @@ class StartCommand {
         exit(1);
       }
 
-      // Save server state
       await _daemonService.saveServerState({
         'port': daemonPort,
         'pid': pid,
@@ -185,7 +178,6 @@ class StartCommand {
             : 'Could not configure start-on-boot. Continuing setup.',
       );
     } else {
-      // Make sure any previous autostart entry is removed.
       await _autostartService.disable();
       _writeSetupLine('Ariami will not start automatically on boot.');
     }

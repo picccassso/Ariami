@@ -8,7 +8,6 @@ import '../utils/setup_error_messages.dart';
 import '../widgets/common/auth_card.dart';
 import '../widgets/common/setup_dark_theme.dart';
 
-/// Registration screen for multi-user authentication
 class RegisterScreen extends StatefulWidget {
   final ServerInfo serverInfo;
 
@@ -53,11 +52,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       if (!mounted) return;
 
-      // Navigate to main screen on success
       Navigator.pushNamedAndRemoveUntil(context, '/main', (route) => false);
     } on ApiException catch (e) {
       setState(() {
-        // Show user-friendly error messages
         if (e.code == ApiErrorCodes.userExists) {
           _errorMessage = 'Username already taken';
         } else if (_isRegistrationClosed(e)) {
@@ -119,7 +116,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
                     const SizedBox(height: 24),
 
-                        // Title
                         Text(
                           'Create Account',
                           style: Theme.of(context)
@@ -132,7 +128,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ),
                         const SizedBox(height: 8),
 
-                        // Server name
                         Text(
                           'Register on ${widget.serverInfo.name}',
                           style:
@@ -145,7 +140,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ),
                         const SizedBox(height: 32),
 
-                        // Error message
                         if (_errorMessage != null)
                           Container(
                             width: double.infinity,
@@ -185,7 +179,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             ),
                           ),
 
-                        // Username field
                         TextFormField(
                           controller: _usernameController,
                           style: const TextStyle(
@@ -217,7 +210,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ),
                         const SizedBox(height: 16),
 
-                        // Password field
                         TextFormField(
                           controller: _passwordController,
                           style: const TextStyle(
@@ -257,7 +249,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ),
                         const SizedBox(height: 16),
 
-                        // Confirm password field
                         TextFormField(
                           controller: _confirmPasswordController,
                           style: const TextStyle(
@@ -299,7 +290,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ),
                         const SizedBox(height: 32),
 
-                        // Register button
                         SizedBox(
                           width: double.infinity,
                           height: 56,
@@ -341,7 +331,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ),
                         const SizedBox(height: 24),
 
-                        // Login link
                         Wrap(
                           alignment: WrapAlignment.center,
                           crossAxisAlignment: WrapCrossAlignment.center,

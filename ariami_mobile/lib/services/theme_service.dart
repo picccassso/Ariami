@@ -152,7 +152,6 @@ class ThemeService extends ChangeNotifier {
     _colorService.addListener(_onColorsChanged);
     _playbackManager.addListener(_onPlaybackChanged);
 
-    // Extract colors for the initial song if there is one
     if (_playbackManager.currentSong != null) {
       _colorService.extractColorsForSong(_playbackManager.currentSong);
       _syncDynamicColor();
@@ -181,7 +180,6 @@ class ThemeService extends ChangeNotifier {
     _staticSongAlbumId = sharedPrefs.getString(_staticSongAlbumIdKey);
     _movingBackdrop = sharedPrefs.getBool(_movingBackdropKey) ?? false;
 
-    // First try the new unified appearance source model.
     final sourceIndex = sharedPrefs.getInt(_appearanceSourceKey);
     if (sourceIndex != null &&
         sourceIndex >= 0 &&
@@ -292,7 +290,6 @@ class ThemeService extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Reset in-memory theme customization to factory defaults.
   void resetToDefaults() {
     _presetColor = const Color(0xFFFFFFFF);
     _customColor = const Color(0xFFFFFFFF);

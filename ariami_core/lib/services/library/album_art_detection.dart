@@ -15,7 +15,6 @@ const albumSidecarArtworkNames = <String>[
   'albumart.png',
 ];
 
-/// Returns the path to a sidecar artwork file in [albumDirectory], if present.
 String? findAlbumSidecarArtworkPath(String albumDirectory) {
   final dir = Directory(albumDirectory);
   if (!dir.existsSync()) {

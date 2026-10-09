@@ -133,7 +133,6 @@ class PlaylistCoverArt extends StatelessWidget {
     );
   }
 
-  /// First unique artwork cache ids for the playlist's songs.
   List<String> _artworkIds() {
     final explicit = artworkIds;
     if (explicit != null) return explicit.take(4).toList();

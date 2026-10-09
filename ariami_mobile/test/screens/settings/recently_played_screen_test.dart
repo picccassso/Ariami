@@ -254,12 +254,10 @@ void main() {
     await _pumpFrames(tester);
 
     expect(find.byType(BottomSheet), findsOneWidget);
-    // Header styling: track artwork, title, artist
     expect(find.byIcon(Icons.music_note), findsOneWidget);
     expect(find.text('History Song'), findsWidgets);
     expect(find.text('Artist'), findsWidgets);
 
-    // Bottom sheet actions
     expect(find.widgetWithText(ListTile, 'Play'), findsOneWidget);
     expect(find.widgetWithText(ListTile, 'Like song'), findsOneWidget);
     expect(find.widgetWithText(ListTile, 'Play Next'), findsOneWidget);
@@ -660,7 +658,6 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: RecentlyPlayedScreen()));
     await _waitForCatalog(tester);
 
-    // Quick add button on tile
     await tester.tap(find.byTooltip('Add to end of queue'));
     await _pumpFrames(tester);
 
@@ -668,7 +665,6 @@ void main() {
     expect(find.byType(BottomSheet), findsNothing);
     expect(find.text('Play Next'), findsNothing);
 
-    // Queue action executed and confirmation displayed
     expect(commands.single.$1, AriamiConnectCommand.insertQueueTrack);
     expect(find.text('Added to end of queue'), findsOneWidget);
 

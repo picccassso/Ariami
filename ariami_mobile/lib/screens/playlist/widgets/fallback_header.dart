@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-/// Fallback gradient header with icon for when no artwork is available
 class FallbackHeader extends StatelessWidget {
   /// The playlist name used to generate a consistent color
   final String? playlistName;

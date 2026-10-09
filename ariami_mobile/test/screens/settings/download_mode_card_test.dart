@@ -31,7 +31,6 @@ void main() {
     expect(find.text('Download Quality'), findsOneWidget);
     expect(find.text('High (192 kbps)'), findsOneWidget);
 
-    // Tap to open sheet
     await tester.tap(find.text('Download Quality'));
     await tester.pumpAndSettle();
 
@@ -41,7 +40,6 @@ void main() {
     expect(find.widgetWithText(ListTile, 'Medium (128 kbps)'), findsOneWidget);
     expect(find.widgetWithText(ListTile, 'Low (64 kbps)'), findsOneWidget);
 
-    // Tap Low (64 kbps)
     await tester.tap(find.widgetWithText(ListTile, 'Low (64 kbps)'));
     await tester.pumpAndSettle();
 
@@ -72,11 +70,9 @@ void main() {
     expect(find.text('Download Quality'), findsOneWidget);
     expect(find.text('Original'), findsOneWidget);
 
-    // Tap to open sheet
     await tester.tap(find.text('Download Quality'));
     await tester.pumpAndSettle();
 
-    // Select Original
     await tester.tap(find.widgetWithText(ListTile, 'Original'));
     await tester.pumpAndSettle();
 

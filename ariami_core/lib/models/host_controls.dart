@@ -22,7 +22,6 @@ class HostControlsSnapshot {
   /// platforms with no supported mechanism (e.g. inside a container).
   final bool autostartSupported;
 
-  /// Whether start-at-boot is currently enabled.
   final bool autostartEnabled;
 
   /// Whether this host can reset its own Ariami data.

@@ -1,19 +1,15 @@
 import 'package:flutter/material.dart';
 import '../../../models/api_models.dart';
 
-/// Result type for delete playlist dialog
 enum DeletePlaylistAction {
   cancel,
   restore,
   permanent,
 }
 
-/// Dialog for deleting a playlist with import awareness
 class DeletePlaylistDialog extends StatelessWidget {
-  /// The playlist to delete
   final PlaylistModel playlist;
 
-  /// Whether the playlist was imported from server
   final bool isImported;
 
   const DeletePlaylistDialog({
@@ -25,7 +21,6 @@ class DeletePlaylistDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (isImported) {
-      // Special dialog for imported playlists
       return AlertDialog(
         title: const Text('Delete Imported Playlist'),
         content: Column(
@@ -64,7 +59,6 @@ class DeletePlaylistDialog extends StatelessWidget {
         ],
       );
     } else {
-      // Standard delete for regular playlists
       return AlertDialog(
         title: const Text('Delete Playlist'),
         content: Text('Are you sure you want to delete "${playlist.name}"?'),
@@ -88,7 +82,6 @@ class DeletePlaylistDialog extends StatelessWidget {
   }
 }
 
-/// Shows the delete playlist dialog
 Future<DeletePlaylistAction> showDeletePlaylistDialog(
   BuildContext context,
   PlaylistModel playlist, {

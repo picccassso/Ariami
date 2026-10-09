@@ -2,7 +2,6 @@ import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
 
-/// Holds the extracted colors for player gradient backgrounds
 class GradientColors {
   /// Primary dominant color (used at gradient center/start)
   final Color primary;
@@ -31,7 +30,6 @@ class GradientColors {
     this.ambientColors,
   });
 
-  /// Default fallback gradient colors (grey tones)
   static const GradientColors fallback = GradientColors(
     primary: Color(0xFF2A2A2A),
     secondary: Color(0xFF1A1A1A),

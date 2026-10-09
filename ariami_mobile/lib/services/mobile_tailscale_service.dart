@@ -8,10 +8,8 @@ enum TailscaleStatus {
 }
 
 class MobileTailscaleService {
-  /// Check if Tailscale is installed and connected
   Future<TailscaleStatus> checkTailscaleStatus() async {
     try {
-      // Check VPN connection status
       final isVpnConnected = await _checkVpnConnection();
 
       if (isVpnConnected) {
@@ -19,7 +17,6 @@ class MobileTailscaleService {
         return TailscaleStatus.connected;
       }
 
-      // Check if Tailscale app is installed
       final isTailscaleInstalled = await _isTailscaleInstalled();
 
       if (isTailscaleInstalled) {
@@ -32,7 +29,6 @@ class MobileTailscaleService {
     }
   }
 
-  /// Check if VPN is connected (platform-specific)
   Future<bool> _checkVpnConnection() async {
     try {
       if (Platform.isAndroid) {
@@ -46,10 +42,8 @@ class MobileTailscaleService {
     }
   }
 
-  /// Check VPN connection on Android
   Future<bool> _checkAndroidVpn() async {
     try {
-      // Check for active network interfaces
       final interfaces = await NetworkInterface.list();
 
       // Look for tun0 interface (typical VPN interface)
@@ -65,10 +59,8 @@ class MobileTailscaleService {
     }
   }
 
-  /// Check VPN connection on iOS
   Future<bool> _checkIOSVpn() async {
     try {
-      // Check for utun interfaces (iOS VPN)
       final interfaces = await NetworkInterface.list();
 
       for (var interface in interfaces) {
@@ -82,7 +74,6 @@ class MobileTailscaleService {
     }
   }
 
-  /// Check if Tailscale app is installed
   Future<bool> _isTailscaleInstalled() async {
     try {
       if (Platform.isAndroid) {
@@ -96,21 +87,18 @@ class MobileTailscaleService {
     }
   }
 
-  /// Check if Tailscale is installed on Android
   Future<bool> _isAndroidAppInstalled() async {
     // Note: This would require a platform channel to properly check
     // For now, we'll rely on VPN connection check
     return false;
   }
 
-  /// Check if Tailscale is installed on iOS
   Future<bool> _isIOSAppInstalled() async {
     // Note: This would require a platform channel to properly check
     // For now, we'll rely on VPN connection check
     return false;
   }
 
-  /// Get platform-specific installation URL
   String getInstallUrl() {
     if (Platform.isAndroid) {
       return 'https://play.google.com/store/apps/details?id=com.tailscale.ipn';
@@ -120,7 +108,6 @@ class MobileTailscaleService {
     return '';
   }
 
-  /// Get platform-specific instructions
   List<String> getSetupInstructions() {
     if (Platform.isAndroid) {
       return [

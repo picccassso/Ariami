@@ -37,7 +37,6 @@ class WelcomeScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 40),
 
-                        // App Name
                         Text(
                           'Ariami',
                           style: Theme.of(context)
@@ -51,7 +50,6 @@ class WelcomeScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 12),
 
-                        // Tagline
                         Text(
                           'Stream your music anywhere',
                           style:
@@ -66,7 +64,6 @@ class WelcomeScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 48),
 
-                        // Description
                         Text(
                           'Secure, private streaming from your desktop to your mobile device.',
                           style:
@@ -81,7 +78,6 @@ class WelcomeScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 64),
 
-                        // Connect Button
                         SizedBox(
                           width: double.infinity,
                           height: 64, // Taller button

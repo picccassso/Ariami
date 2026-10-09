@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-/// Reusable error state.
 class StatsErrorState extends StatelessWidget {
   const StatsErrorState({super.key});
 
@@ -28,7 +27,6 @@ class StatsErrorState extends StatelessWidget {
   }
 }
 
-/// Reusable loading state.
 class StatsLoadingState extends StatelessWidget {
   const StatsLoadingState({super.key});
 
@@ -44,7 +42,6 @@ class StatsLoadingState extends StatelessWidget {
   }
 }
 
-/// Reusable empty state.
 class StatsEmptyState extends StatelessWidget {
   const StatsEmptyState(this.message, {super.key, this.icon});
 

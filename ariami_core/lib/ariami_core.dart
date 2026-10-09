@@ -4,7 +4,6 @@ library;
 export 'app_version.dart';
 export 'utils/play_next_position.dart';
 
-// Models
 export 'models/album.dart';
 export 'models/api_models.dart';
 export 'models/artist_image_info.dart';
@@ -25,7 +24,6 @@ export 'models/sync_models.dart';
 export 'models/user_activity_row.dart';
 export 'models/websocket_models.dart';
 
-// Library Services
 export 'services/library/album_builder.dart';
 export 'services/library/album_identity.dart';
 export 'services/library/change_processor.dart';
@@ -38,19 +36,15 @@ export 'services/library/library_scanner_isolate.dart';
 export 'services/library/metadata_cache.dart';
 export 'services/library/metadata_extractor.dart';
 
-// Reset Services
 export 'services/reset/reset_service.dart';
 
-// Setup Services
 export 'services/setup/music_folder_path_helper.dart';
 
-// Discovery Services
 export 'services/discovery/discovery_browser.dart';
 export 'services/discovery/discovery_protocol.dart';
 export 'services/discovery/discovery_responder.dart';
 export 'services/discovery/dns_wire.dart';
 
-// Server Services
 export 'services/server/connection_manager.dart';
 export 'services/server/http_server.dart';
 export 'services/server/network_endpoint_monitor.dart';
@@ -61,14 +55,11 @@ export 'services/connect/connect_hub.dart';
 export 'services/connect/connect_client.dart';
 export 'services/connect/remote_playback.dart';
 
-// Transcoding Services
 export 'services/transcoding/transcode_slots_policy.dart';
 export 'services/transcoding/transcoding_service.dart';
 
-// Artwork Services
 export 'services/artwork/artwork_service.dart';
 
-// Listening Stats Services
 export 'services/stats/listening_event_outbox.dart';
 export 'services/stats/listening_event_tracker.dart';
 export 'services/stats/listening_stats_store.dart';
@@ -76,7 +67,6 @@ export 'services/stats/listening_stats_syncer.dart';
 export 'services/stats/period_stats_overlay.dart';
 export 'services/stats/stats_local_day.dart';
 export 'services/stats/stats_range.dart';
-// Privacy-conscious music recommendations
 export 'services/recommendations/lastfm_recommendation_client.dart';
 export 'services/recommendations/music_recommendation_models.dart';
 export 'services/recommendations/music_recommendation_seeds.dart';
@@ -85,7 +75,6 @@ export 'services/recommendations/musicbrainz_identity_client.dart';
 export 'services/recommendations/music_discovery_api_key_config.dart';
 export 'services/recommendations/music_discovery_api_key_sync.dart';
 export 'services/recommendations/household_music_discovery_store.dart';
-// Spotify Extended Streaming History import
 export 'services/stats/spotify_import/spotify_import_models.dart';
 export 'services/stats/spotify_import/library_track_matcher.dart';
 export 'services/stats/spotify_import/spotify_history_parser.dart';
@@ -97,7 +86,6 @@ export 'services/artists/artist_image_store.dart';
 export 'services/license/license_file_store.dart';
 export 'services/license/license_key_activator.dart';
 
-// Auth Services
 export 'services/auth/auth_service.dart';
 export 'services/auth/session_store.dart';
 export 'services/auth/user_store.dart';

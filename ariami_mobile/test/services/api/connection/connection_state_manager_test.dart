@@ -117,7 +117,6 @@ void main() {
       });
 
       test('updateServerIp should do nothing if serverInfo is null', () {
-        // Should not throw
         manager.updateServerIp('10.0.0.1');
         expect(manager.serverInfo, isNull);
       });
@@ -201,7 +200,6 @@ void main() {
         manager.setConnected(false);
         manager.setConnected(true);
 
-        // Wait for events to propagate
         await Future<void>.delayed(Duration.zero);
 
         expect(events, equals([true, false, true]));
@@ -289,11 +287,9 @@ void main() {
             manager.connectionStateStream.listen(connectionEvents.add);
         final serverSub = manager.serverInfoStream.listen(serverEvents.add);
 
-        // Initial state
         expect(manager.isConnected, isFalse);
         expect(manager.hasServerInfo, isFalse);
 
-        // Connect
         final serverInfo = _createTestServerInfo();
         manager.setServerInfo(serverInfo);
         manager.setConnected(true);
@@ -305,7 +301,6 @@ void main() {
         expect(connectionEvents, equals([true]));
         expect(serverEvents.length, equals(1));
 
-        // Disconnect
         manager.setConnected(false);
         manager.setManuallyDisconnected(true);
 
@@ -315,7 +310,6 @@ void main() {
         expect(manager.isManuallyDisconnected, isTrue);
         expect(connectionEvents, equals([true, false]));
 
-        // Server info should be preserved
         expect(manager.serverInfo, equals(serverInfo));
 
         await connSub.cancel();
@@ -323,18 +317,15 @@ void main() {
       });
 
       test('failed reconnection attempt flow', () {
-        // Simulate a failed reconnect
         manager.setRestoreFailure(
           code: 'SERVER_ERROR',
           message: 'Server unreachable',
         );
         expect(manager.lastRestoreFailureCode, equals('SERVER_ERROR'));
 
-        // Clear and try again
         manager.clearRestoreFailure();
         expect(manager.lastRestoreFailureCode, isNull);
 
-        // Auth failure
         manager.setRestoreFailure(
           code: 'SESSION_EXPIRED',
           message: 'Session expired',

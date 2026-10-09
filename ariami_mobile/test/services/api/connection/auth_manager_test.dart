@@ -2,7 +2,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ariami_mobile/services/api/connection/auth_manager.dart';
 import 'package:ariami_mobile/services/api/connection/connection_persistence_manager.dart';
 
-// Simple mock for ConnectionPersistenceManager
 class MockPersistenceManager implements ConnectionPersistenceManager {
   final Map<String, String> _authData = {};
 
@@ -41,7 +40,6 @@ class MockPersistenceManager implements ConnectionPersistenceManager {
     return _authData['session_token'];
   }
 
-  // Stub implementations for other methods
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

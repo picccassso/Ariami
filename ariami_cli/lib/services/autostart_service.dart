@@ -23,7 +23,6 @@ class AutostartService {
   /// macOS LaunchAgent label / plist filename.
   static const String _launchAgentLabel = 'com.ariami.cli';
 
-  /// Whether the current platform is supported.
   bool get isSupported =>
       Platform.isLinux || Platform.isMacOS || Platform.isWindows;
 
@@ -63,7 +62,6 @@ class AutostartService {
     return false;
   }
 
-  /// Whether start-at-boot is currently configured.
   Future<bool> isEnabled() async {
     try {
       if (Platform.isLinux) return await _isEnabledLinux();
@@ -74,10 +72,6 @@ class AutostartService {
     }
     return false;
   }
-
-  // ==========================================================================
-  // Linux (crontab @reboot)
-  // ==========================================================================
 
   String _shellQuote(String value) => "'${value.replaceAll("'", r"'\''")}'";
 
@@ -134,10 +128,6 @@ class AutostartService {
     final existing = await _readCrontab();
     return existing.contains(_marker);
   }
-
-  // ==========================================================================
-  // macOS (LaunchAgent)
-  // ==========================================================================
 
   String _launchAgentPath() {
     final home = Platform.environment['HOME'] ?? '';
@@ -200,10 +190,6 @@ $programArgs
   bool _isEnabledMacOS() {
     return File(_launchAgentPath()).existsSync();
   }
-
-  // ==========================================================================
-  // Windows (HKCU Run registry key)
-  // ==========================================================================
 
   static const String _windowsRunKey =
       r'HKCU\Software\Microsoft\Windows\CurrentVersion\Run';

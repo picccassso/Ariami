@@ -161,7 +161,6 @@ class StatsPeriodSelector extends StatelessWidget {
   }
 }
 
-/// A small pill for the granularity row.
 class _RangeChip extends StatelessWidget {
   const _RangeChip({
     required this.label,

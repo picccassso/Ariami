@@ -1,4 +1,3 @@
-/// Statistics for a song's playback
 class SongStats {
   final String songId;
   final int playCount;
@@ -36,7 +35,6 @@ class SongStats {
     }
   }
 
-  /// Create from JSON
   factory SongStats.fromJson(Map<String, dynamic> json) {
     return SongStats(
       songId: json['songId'] as String,
@@ -56,7 +54,6 @@ class SongStats {
     );
   }
 
-  /// Convert to JSON
   Map<String, dynamic> toJson() {
     return {
       'songId': songId,
@@ -72,7 +69,6 @@ class SongStats {
     };
   }
 
-  /// Create a copy with updated fields
   SongStats copyWith({
     String? songId,
     int? playCount,

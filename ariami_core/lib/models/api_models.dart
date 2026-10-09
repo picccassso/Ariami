@@ -3,11 +3,6 @@ library;
 
 export 'sync_models.dart';
 
-// ============================================================================
-// CONNECTION MODELS
-// ============================================================================
-
-/// Request for connecting a mobile device
 class ConnectRequest {
   final String deviceId;
   final String deviceName;
@@ -40,7 +35,6 @@ class ConnectRequest {
   }
 }
 
-/// Response when device successfully connects
 class ConnectResponse {
   final String status;
   final String sessionId;
@@ -77,7 +71,6 @@ class ConnectResponse {
   }
 }
 
-/// Request for disconnecting a device
 class DisconnectRequest {
   final String sessionId;
 
@@ -96,7 +89,6 @@ class DisconnectRequest {
   }
 }
 
-/// Response for disconnect request
 class DisconnectResponse {
   final String status;
 
@@ -115,11 +107,6 @@ class DisconnectResponse {
   }
 }
 
-// ============================================================================
-// LIBRARY MODELS
-// ============================================================================
-
-/// Album information
 class AlbumModel {
   final String id;
   final String title;
@@ -160,7 +147,6 @@ class AlbumModel {
   }
 }
 
-/// Song information
 class SongModel {
   final String id;
   final String title;
@@ -205,7 +191,6 @@ class SongModel {
   }
 }
 
-/// Playlist information
 class PlaylistModel {
   final String id;
   final String name;
@@ -243,7 +228,6 @@ class PlaylistModel {
   }
 }
 
-/// Complete library response
 class LibraryResponse {
   final List<AlbumModel> albums;
   final List<SongModel> songs;
@@ -286,7 +270,6 @@ class LibraryResponse {
   }
 }
 
-/// Detailed album response with songs
 class AlbumDetailResponse {
   final String id;
   final String title;
@@ -325,11 +308,6 @@ class AlbumDetailResponse {
   }
 }
 
-// ============================================================================
-// ERROR MODELS
-// ============================================================================
-
-/// Error response format
 class ApiError {
   final String code;
   final String message;
@@ -358,7 +336,6 @@ class ApiError {
   }
 }
 
-/// Error response wrapper
 class ErrorResponse {
   final ApiError error;
 
@@ -377,10 +354,6 @@ class ErrorResponse {
   }
 }
 
-// ============================================================================
-// ERROR CODES
-// ============================================================================
-
 class ApiErrorCodes {
   static const String invalidSession = 'INVALID_SESSION';
   static const String songNotFound = 'SONG_NOT_FOUND';
@@ -390,7 +363,6 @@ class ApiErrorCodes {
   static const String invalidRequest = 'INVALID_REQUEST';
   static const String unauthorized = 'UNAUTHORIZED';
 
-  // Auth error codes
   static const String invalidCredentials = 'INVALID_CREDENTIALS';
   static const String userExists = 'USER_EXISTS';
   static const String sessionExpired = 'SESSION_EXPIRED';

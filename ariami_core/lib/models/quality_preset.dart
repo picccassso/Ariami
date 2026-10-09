@@ -49,7 +49,6 @@ enum QualityPreset {
     }
   }
 
-  /// Human-readable display name
   String get displayName {
     switch (this) {
       case QualityPreset.high:
@@ -61,7 +60,6 @@ enum QualityPreset {
     }
   }
 
-  /// Whether this preset requires transcoding
   bool get requiresTranscoding => this != QualityPreset.high;
 
   /// Parse from string (e.g., from query parameter)
@@ -81,6 +79,5 @@ enum QualityPreset {
     }
   }
 
-  /// Convert to string for query parameters
   String toQueryParam() => name;
 }
