@@ -1,8 +1,10 @@
 import 'package:ariami_mobile/models/playback_queue.dart';
 import 'package:ariami_mobile/models/song.dart';
+import 'package:ariami_mobile/utils/shared_preferences_cache.dart';
 import 'package:ariami_mobile/widgets/player/player_artwork.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../test_support/sqflite_mock.dart';
 
@@ -17,7 +19,9 @@ void main() {
   late List<int> pages;
   late StateSetter rebuild;
 
-  setUp(() {
+  setUp(() async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    await initializeSharedPrefs();
     queue = PlaybackQueue(songs: [
       for (var i = 0; i < 3; i++)
         Song(
@@ -155,7 +159,7 @@ void main() {
     expect(finishes, 0);
     expect(volume, 0.2);
     expect(find.byKey(const ValueKey('cast-volume-hud')), findsNothing);
-    expect(find.byKey(const ValueKey('cast-volume-hint')), findsOneWidget);
+    expect(find.byKey(const ValueKey('cast-volume-hint')), findsNothing);
   });
 
   testWidgets('unavailable outputs have no vertical volume controls',
@@ -180,5 +184,48 @@ void main() {
     expect(pages, contains(1));
     expect(changes, isEmpty);
     expect(finishes, 0);
+  });
+
+  testWidgets('does not show hint if already seen in preferences',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({
+      PlayerArtwork.volumeHintSeenKey: true,
+    });
+    await initializeSharedPrefs();
+    await pumpArtwork(tester);
+    expect(find.byKey(const ValueKey('cast-volume-hint')), findsNothing);
+  });
+
+  testWidgets('marks hint seen in preferences when shown', (tester) async {
+    await pumpArtwork(tester);
+    expect(find.byKey(const ValueKey('cast-volume-hint')), findsOneWidget);
+    expect(sharedPrefs.getBool(PlayerArtwork.volumeHintSeenKey), isTrue);
+  });
+
+  testWidgets('marks hint seen in preferences when user performs volume drag',
+      (tester) async {
+    await pumpArtwork(tester);
+    final gesture = await startSwipe(tester);
+    await gesture.moveBy(const Offset(0, -28));
+    await gesture.up();
+    await tester.pump();
+    expect(sharedPrefs.getBool(PlayerArtwork.volumeHintSeenKey), isTrue);
+  });
+
+  testWidgets('reopening or updating widget does not show hint again after seen',
+      (tester) async {
+    await pumpArtwork(tester);
+    expect(find.byKey(const ValueKey('cast-volume-hint')), findsOneWidget);
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(find.byKey(const ValueKey('cast-volume-hint')), findsNothing);
+
+    // Rebuild with a different output - should NOT show hint again
+    rebuild(() {
+      outputId = 'desktop-b';
+      volume = 0.5;
+    });
+    await tester.pump();
+    expect(find.byKey(const ValueKey('cast-volume-hint')), findsNothing);
   });
 }

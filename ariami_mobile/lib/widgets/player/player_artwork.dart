@@ -8,6 +8,7 @@ import '../../models/song.dart';
 import 'player_artwork_indices.dart';
 import '../../utils/artwork_url.dart';
 import '../../utils/responsive.dart';
+import '../../utils/shared_preferences_cache.dart';
 import '../common/cached_artwork.dart';
 
 /// Page-turn duration for cover art (swipe, prev/next).
@@ -55,6 +56,8 @@ class PlayerArtworkController {
 }
 
 class PlayerArtwork extends StatefulWidget {
+  static const String volumeHintSeenKey = 'player_artwork_volume_hint_seen';
+
   final PlaybackQueue queue;
   final int currentIndex;
   final playback_repeat.RepeatMode repeatMode;
@@ -109,6 +112,20 @@ class _PlayerArtworkState extends State<PlayerArtwork> {
   bool get _canControlVolume =>
       widget.volumeOutputId != null && widget.onVolumeChanged != null;
 
+  bool _isVolumeHintSeen() {
+    try {
+      return sharedPrefs.getBool(PlayerArtwork.volumeHintSeenKey) ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  void _markVolumeHintSeen() {
+    try {
+      unawaited(sharedPrefs.setBool(PlayerArtwork.volumeHintSeenKey, true));
+    } catch (_) {}
+  }
+
   bool get _wrapEnabledForWidget => playerArtworkWrapEnabled(
         repeatMode: widget.repeatMode,
         queueLength: widget.queue.length,
@@ -153,7 +170,7 @@ class _PlayerArtworkState extends State<PlayerArtwork> {
     _pageController = _createPageController(initialPage);
     _songIds = widget.queue.songs.map((s) => s.id).toList();
     widget.controller?._attach(this);
-    if (_canControlVolume) _showHint();
+    if (_canControlVolume && !_isVolumeHintSeen()) _showHint();
   }
 
   @override
@@ -167,7 +184,7 @@ class _PlayerArtworkState extends State<PlayerArtwork> {
       _volumeDragOutputId = null;
       _showVolumeHint = false;
       _showVolumeHud = false;
-      if (_canControlVolume) _showHint();
+      if (_canControlVolume && !_isVolumeHintSeen()) _showHint();
     } else if (_volumeDragOutputId == null) {
       _volumeHudValue = widget.volume;
     }
@@ -461,6 +478,8 @@ class _PlayerArtworkState extends State<PlayerArtwork> {
       return;
     }
 
+    _markVolumeHintSeen();
+
     setState(() {
       _showVolumeHint = true;
       _showVolumeHud = false;
@@ -479,6 +498,7 @@ class _PlayerArtworkState extends State<PlayerArtwork> {
 
   void _handleVolumeDragStart(DragStartDetails details) {
     if (!_canControlVolume) return;
+    _markVolumeHintSeen();
     _hintTimer?.cancel();
     _hudTimer?.cancel();
     _volumeDragOutputId = widget.volumeOutputId;
