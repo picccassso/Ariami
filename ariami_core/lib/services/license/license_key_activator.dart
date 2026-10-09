@@ -122,6 +122,36 @@ class LicenseKeyActivator {
   }
 }
 
+/// User-facing message for an activation-service error [code].
+///
+/// [productName] fills the wrong-product message; the optional hints are
+/// appended (including their leading space) to the key-disabled and
+/// wrong-product messages for apps that give more guidance.
+String licenseActivationMessageForCode(
+  String code, {
+  required String productName,
+  String keyDisabledHint = '',
+  String wrongProductHint = '',
+}) {
+  switch (LicenseKeyActivator._errorForCode(code)) {
+    case LicenseKeyActivationError.invalidKey:
+      return 'That license key wasn\'t recognized. Check it for typos '
+          'and try again.';
+    case LicenseKeyActivationError.activationLimit:
+      return 'This key has reached its activation limit. Contact support '
+          'and we\'ll raise it for you.';
+    case LicenseKeyActivationError.keyDisabled:
+      return 'This license key is no longer active.$keyDisabledHint';
+    case LicenseKeyActivationError.wrongProduct:
+      return 'This key isn\'t for $productName.$wrongProductHint';
+    case LicenseKeyActivationError.rateLimited:
+      return 'Too many attempts. Wait a minute and try again.';
+    default:
+      return 'The activation service is temporarily unavailable. Try '
+          'again shortly.';
+  }
+}
+
 sealed class LicenseKeyActivationResult {
   const LicenseKeyActivationResult();
 }

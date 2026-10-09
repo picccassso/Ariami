@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:ariami_core/utils/format.dart';
 import '../../utils/artwork_url.dart';
 import '../common/mini_player_aware_bottom_sheet.dart';
 import '../../models/api_models.dart';
@@ -171,7 +172,7 @@ class SongListItem extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          _formatDuration(song.duration),
+                          formatMinSec(song.duration),
                           style:
                               Theme.of(context).textTheme.bodySmall?.copyWith(
                                     color: Theme.of(context)
@@ -307,12 +308,6 @@ class SongListItem extends StatelessWidget {
       ),
       child: const Icon(Icons.music_note, color: Colors.grey),
     );
-  }
-
-  String _formatDuration(int durationInSeconds) {
-    final minutes = durationInSeconds ~/ 60;
-    final seconds = durationInSeconds % 60;
-    return '$minutes:${seconds.toString().padLeft(2, '0')}';
   }
 
   void _showSongMenu(BuildContext context) {

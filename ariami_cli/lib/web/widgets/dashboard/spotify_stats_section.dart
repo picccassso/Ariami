@@ -1,5 +1,6 @@
 import 'package:ariami_core/models/listening_stats_models.dart';
 import 'package:flutter/material.dart';
+import 'package:ariami_core/utils/format.dart';
 
 import '../../utils/constants.dart';
 import '../ui/info_row.dart';
@@ -42,7 +43,7 @@ class SpotifyStatsSection extends StatelessWidget {
               value: status == null
                   ? 'Checking…'
                   : hasImport
-                      ? '${formatPlayCount(status.plays)} '
+                      ? '${formatCountWithCommas(status.plays)} '
                           '${status.plays == 1 ? 'play' : 'plays'}'
                       : 'None imported',
               subtitle: status != null && hasImport
@@ -83,17 +84,6 @@ class SpotifyStatsSection extends StatelessWidget {
       ),
     );
   }
-}
-
-/// `1234567` → `1,234,567`, so six-figure imports stay readable.
-String formatPlayCount(int plays) {
-  final digits = plays.toString();
-  final buffer = StringBuffer();
-  for (var i = 0; i < digits.length; i++) {
-    if (i > 0 && (digits.length - i) % 3 == 0) buffer.write(',');
-    buffer.write(digits[i]);
-  }
-  return buffer.toString();
 }
 
 /// Local `d/m/yyyy`; em dash when the timestamp is missing.

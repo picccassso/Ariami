@@ -3,28 +3,6 @@ import 'package:ariami_mobile/screens/playlist/utils/playlist_helpers.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  group('formatDuration', () {
-    test('should format 0 seconds as 0:00', () {
-      expect(formatDuration(0), '0:00');
-    });
-
-    test('should format 30 seconds as 0:30', () {
-      expect(formatDuration(30), '0:30');
-    });
-
-    test('should format 60 seconds as 1:00', () {
-      expect(formatDuration(60), '1:00');
-    });
-
-    test('should format 90 seconds as 1:30', () {
-      expect(formatDuration(90), '1:30');
-    });
-
-    test('should format 180 seconds as 3:00', () {
-      expect(formatDuration(180), '3:00');
-    });
-  });
-
   group('songModelToSong', () {
     test('should convert SongModel to Song with basic fields', () {
       final songModel = SongModel(

@@ -1,5 +1,6 @@
 import 'package:bcrypt/bcrypt.dart';
 import '../../models/auth_models.dart';
+import '../../models/credential_policy.dart';
 import 'user_store.dart';
 import 'session_store.dart';
 
@@ -46,7 +47,7 @@ class AuthService {
   /// Minimum password length for new passwords. Existing shorter passwords
   /// keep working for login; only registration and password changes enforce
   /// this.
-  static const int minPasswordLength = 10;
+  static const int minPasswordLength = CredentialPolicy.minPasswordLength;
 
   /// Build a rate-limit bucket from request metadata controlled by the server.
   static String buildLoginRateLimitKey({
@@ -87,7 +88,7 @@ class AuthService {
       throw AuthException(
           AuthErrorCodes.invalidCredentials, 'Password cannot be empty');
     }
-    if (username.length < 3) {
+    if (username.length < CredentialPolicy.minUsernameLength) {
       throw AuthException(AuthErrorCodes.invalidCredentials,
           'Username must be at least 3 characters');
     }

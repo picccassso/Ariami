@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:ariami_core/utils/format.dart';
 import '../../models/api_models.dart';
 import '../../models/song.dart';
 import '../../screens/playlist/add_to_playlist_screen.dart';
@@ -120,7 +121,7 @@ class _SearchResultSongItemState extends State<SearchResultSongItem> {
                 ),
                 const SizedBox(width: 16),
                 Text(
-                  _formatDuration(widget.song.duration),
+                  formatMinSec(widget.song.duration),
                   style: TextStyle(
                     fontSize: 13,
                     color: Theme.of(context)
@@ -366,11 +367,5 @@ class _SearchResultSongItemState extends State<SearchResultSongItem> {
         color: Theme.of(context).primaryColor,
       ),
     );
-  }
-
-  String _formatDuration(int durationInSeconds) {
-    final minutes = durationInSeconds ~/ 60;
-    final seconds = durationInSeconds % 60;
-    return '$minutes:${seconds.toString().padLeft(2, '0')}';
   }
 }

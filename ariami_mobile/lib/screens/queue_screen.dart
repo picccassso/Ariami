@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/playback_queue.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:ariami_core/utils/format.dart';
 import '../models/song.dart';
 import '../services/color_extraction_service.dart';
 import '../utils/constants.dart';
@@ -106,7 +107,7 @@ class _QueueScreenState extends State<QueueScreen> {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              'Total duration: ${_formatDuration(totalDuration)}',
+                              'Total duration: ${formatClockDuration(totalDuration)}',
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
@@ -170,18 +171,6 @@ class _QueueScreenState extends State<QueueScreen> {
       Duration.zero,
       (total, song) => total + song.duration,
     );
-  }
-
-  String _formatDuration(Duration duration) {
-    final hours = duration.inHours;
-    final minutes = duration.inMinutes.remainder(60);
-    final seconds = duration.inSeconds.remainder(60);
-
-    if (hours > 0) {
-      return '$hours:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
-    } else {
-      return '$minutes:${seconds.toString().padLeft(2, '0')}';
-    }
   }
 
   void _showClearDialog(BuildContext context) {

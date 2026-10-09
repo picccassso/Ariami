@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:ariami_core/utils/format.dart';
 
 import '../common/artist_link.dart';
 
@@ -47,7 +48,7 @@ class AlbumInfoSection extends StatelessWidget {
             [
               if (year != null) year!,
               '$songCount ${songCount == 1 ? 'song' : 'songs'}',
-              _formatDuration(totalDurationSeconds),
+              formatHoursMinutes(totalDurationSeconds),
               if (genre != null) genre!,
             ].join(' • '),
             style: TextStyle(
@@ -58,15 +59,5 @@ class AlbumInfoSection extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  String _formatDuration(int seconds) {
-    final hours = seconds ~/ 3600;
-    final minutes = (seconds % 3600) ~/ 60;
-
-    if (hours > 0) {
-      return '$hours hr $minutes min';
-    }
-    return '$minutes min';
   }
 }

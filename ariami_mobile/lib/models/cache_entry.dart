@@ -1,5 +1,7 @@
 library;
 
+import 'package:ariami_core/utils/format.dart';
+
 enum CacheType {
   artwork,
   song,
@@ -77,14 +79,7 @@ class CacheEntry {
     );
   }
 
-  String getFormattedSize() {
-    if (size < 1024) return '$size B';
-    if (size < 1024 * 1024) return '${(size / 1024).toStringAsFixed(1)} KB';
-    if (size < 1024 * 1024 * 1024) {
-      return '${(size / (1024 * 1024)).toStringAsFixed(1)} MB';
-    }
-    return '${(size / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
-  }
+  String getFormattedSize() => formatBytes(size);
 
   @override
   bool operator ==(Object other) {

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:ariami_core/utils/format.dart';
 import '../../database/cache_database.dart';
 import '../../models/cache_entry.dart';
 import '../api/connection_service.dart';
@@ -750,7 +751,7 @@ class CacheManager {
     }
 
     print(
-        '[CacheManager] Song cache limit exceeded: ${_formatBytes(_cachedSongSize + incomingBytes)} / ${_formatBytes(limitBytes)}');
+        '[CacheManager] Song cache limit exceeded: ${formatBytes(_cachedSongSize + incomingBytes)} / ${formatBytes(limitBytes)}');
     print('[CacheManager] Starting song-cache LRU eviction...');
 
     final entries = await _database.getEntriesByType(CacheType.song);
@@ -791,7 +792,7 @@ class CacheManager {
     final fits = _cachedSongSize + incomingBytes <= limitBytes;
     if (!fits) {
       print(
-          '[CacheManager] Unable to free enough song cache space (needed ${_formatBytes(incomingBytes)})');
+          '[CacheManager] Unable to free enough song cache space (needed ${formatBytes(incomingBytes)})');
     }
     return fits;
   }
@@ -1016,15 +1017,6 @@ class CacheManager {
   Future<int> getSongCacheCount() async {
     await _ensureInitialized();
     return await _database.getCacheCountByType(CacheType.song);
-  }
-
-  String _formatBytes(int bytes) {
-    if (bytes < 1024) return '$bytes B';
-    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    if (bytes < 1024 * 1024 * 1024) {
-      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
-    }
-    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
   }
 
   void dispose() {

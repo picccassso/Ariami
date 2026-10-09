@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:ariami_core/models/credential_policy.dart';
 
 import '../services/web_api_client.dart';
 import '../services/web_auth_service.dart';
@@ -307,8 +308,8 @@ class _OwnerSetupScreenState extends State<OwnerSetupScreen> {
                     validator: (value) {
                       final v = (value ?? '').trim();
                       if (v.isEmpty) return 'Username is required.';
-                      if (v.length < 3) {
-                        return 'Username must be at least 3 characters.';
+                      if (v.length < CredentialPolicy.minUsernameLength) {
+                        return 'Username must be at least ${CredentialPolicy.minUsernameLength} characters.';
                       }
                       return null;
                     },
@@ -322,8 +323,8 @@ class _OwnerSetupScreenState extends State<OwnerSetupScreen> {
                     validator: (value) {
                       final v = value ?? '';
                       if (v.isEmpty) return 'Password is required.';
-                      if (v.length < 10) {
-                        return 'Password must be at least 10 characters.';
+                      if (v.length < CredentialPolicy.minPasswordLength) {
+                        return 'Password must be at least ${CredentialPolicy.minPasswordLength} characters.';
                       }
                       return null;
                     },

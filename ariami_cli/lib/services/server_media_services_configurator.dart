@@ -1,5 +1,4 @@
 import 'package:ariami_core/ariami_core.dart';
-import 'package:path/path.dart' as p;
 
 import 'cli_state_service.dart';
 import 'server_runtime_policy.dart';
@@ -16,8 +15,7 @@ class ServerMediaServicesConfigurator {
     required CachePolicy cachePolicy,
     required TranscodeSlotsSnapshot transcodeSlotsSnapshot,
   }) async {
-    final transcodingCachePath =
-        p.join(CliStateService.getConfigDir(), 'transcoded_cache');
+    final transcodingCachePath = CliStateService.getTranscodedCacheDirPath();
     final maxConcurrency = transcodeSlotsSnapshot.effective;
     final maxDownloadConcurrency = transcodeSlotsSnapshot.effective;
     final maxCacheSizeMB = cachePolicy.transcodeCacheSizeMB;
@@ -40,8 +38,7 @@ class ServerMediaServicesConfigurator {
     print('Transcoding cache policy: maxCacheSizeMB=$maxCacheSizeMB, '
         'indexPersistInterval=${cachePolicy.transcodeIndexPersistInterval.inSeconds}s');
 
-    final artworkCachePath =
-        p.join(CliStateService.getConfigDir(), 'artwork_cache');
+    final artworkCachePath = CliStateService.getArtworkCacheDirPath();
     final artworkService = ArtworkService(
       cacheDirectory: artworkCachePath,
       maxCacheSizeMB: cachePolicy.artworkCacheSizeMB,

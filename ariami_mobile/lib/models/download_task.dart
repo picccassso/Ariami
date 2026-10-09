@@ -1,6 +1,7 @@
 library;
 
 import 'package:ariami_core/utils/encoding_utils.dart';
+import 'package:ariami_core/utils/format.dart';
 import 'quality_settings.dart';
 
 enum DownloadStatus {
@@ -179,23 +180,14 @@ class DownloadTask {
   int getPercentage() => (progress * 100).toInt();
 
   String getFormattedBytes() {
-    return _formatBytes(bytesDownloaded);
+    return formatBytes(bytesDownloaded);
   }
 
   String getFormattedTotalBytes() {
     // For completed downloads, use actual downloaded size
     if (status == DownloadStatus.completed) {
-      return _formatBytes(bytesDownloaded);
+      return formatBytes(bytesDownloaded);
     }
-    return _formatBytes(totalBytes);
-  }
-
-  static String _formatBytes(int bytes) {
-    if (bytes < 1024) return '$bytes B';
-    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    if (bytes < 1024 * 1024 * 1024) {
-      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
-    }
-    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
+    return formatBytes(totalBytes);
   }
 }

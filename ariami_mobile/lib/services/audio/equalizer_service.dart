@@ -1,27 +1,13 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:math' as math;
 
+import 'package:ariami_core/models/equalizer_presets.dart';
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Unified view of the device equalizer's capabilities, independent of
-/// whether the platform effect is [AndroidEqualizer] or [DarwinEqualizer].
-class EqParameters {
-  final double minDecibels;
-  final double maxDecibels;
-  final List<double> bandFrequencies;
-
-  const EqParameters({
-    required this.minDecibels,
-    required this.maxDecibels,
-    required this.bandFrequencies,
-  });
-
-  int get bandCount => bandFrequencies.length;
-}
+export 'package:ariami_core/models/equalizer_presets.dart' show EqParameters;
 
 /// Service for managing the graphic equalizer on Android and iOS.
 ///
@@ -43,32 +29,12 @@ class EqualizerService extends ChangeNotifier {
 
   static const Duration _persistDebounce = Duration(milliseconds: 400);
 
-  static const List<double> _canonicalFrequencies = [
-    60,
-    230,
-    910,
-    3600,
-    14000,
-  ];
-
-  static const Map<String, List<double>> _builtInPresetGains = {
-    'Flat': [0, 0, 0, 0, 0],
-    'Bass Boost': [5, 4, 1.5, 0, 0],
-    'Treble Boost': [0, 0, 1, 3.5, 5],
-    'Rock': [4, 2, -1, 2.5, 4],
-    'Pop': [-1, 2.5, 4, 2, -0.5],
-    'Jazz': [2.5, 1.5, 0, 2, 3],
-    'Classical': [2, 1, 0, 1.5, 2.5],
-    'Vocal': [-2, -1, 3.5, 3, 1],
-    'Electronic': [4.5, 2, 0, 2.5, 4.5],
-  };
-
   // Both effects are created eagerly so the audio handler can build its
   // AudioPipeline before initialize() runs; only the current platform's
   // effect is ever activated by just_audio.
   final AndroidEqualizer androidEqualizer = AndroidEqualizer();
   final DarwinEqualizer darwinEqualizer = DarwinEqualizer(
-    frequencies: _canonicalFrequencies,
+    frequencies: equalizerCanonicalFrequencies,
   );
 
   AndroidEqualizerParameters? _androidParameters;
@@ -77,10 +43,10 @@ class EqualizerService extends ChangeNotifier {
   bool _initialized = false;
   bool _isEnabled = false;
   String _selectedPresetName = _flatPresetName;
-  List<_EqualizerPoint> _customCurve = _canonicalCurve(
-    _builtInPresetGains[_flatPresetName]!,
+  List<EqualizerPoint> _customCurve = canonicalEqualizerCurve(
+    equalizerBuiltInPresetGains[_flatPresetName]!,
   );
-  List<_UserEqualizerPreset> _userPresets = [];
+  List<UserEqualizerPreset> _userPresets = [];
   List<double> _currentBandGains = [];
   Timer? _persistTimer;
 
@@ -107,7 +73,7 @@ class EqualizerService extends ChangeNotifier {
   bool get isEnabled => _isEnabled;
   String get selectedPresetName => _selectedPresetName;
   List<String> get builtInPresetNames =>
-      _builtInPresetGains.keys.toList(growable: false);
+      equalizerBuiltInPresetGains.keys.toList(growable: false);
   List<String> get userPresetNames =>
       _userPresets.map((preset) => preset.name).toList(growable: false);
 
@@ -186,7 +152,7 @@ class EqualizerService extends ChangeNotifier {
     final params = _parameters;
     if (params == null) return;
 
-    final preset = _UserEqualizerPreset(
+    final preset = UserEqualizerPreset(
       normalizedName,
       _currentDeviceCurve(params),
     );
@@ -214,7 +180,7 @@ class EqualizerService extends ChangeNotifier {
   bool isReservedPresetName(String name) {
     final lowerName = name.trim().toLowerCase();
     if (lowerName == customPresetName.toLowerCase()) return true;
-    return _builtInPresetGains.keys.any(
+    return equalizerBuiltInPresetGains.keys.any(
       (presetName) => presetName.toLowerCase() == lowerName,
     );
   }
@@ -306,9 +272,9 @@ class EqualizerService extends ChangeNotifier {
       _isEnabled = prefs.getBool(_enabledKey) ?? false;
       _selectedPresetName =
           prefs.getString(_selectedPresetKey) ?? _flatPresetName;
-      _customCurve = _decodeCurve(prefs.getString(_customGainsKey)) ??
-          _canonicalCurve(_builtInPresetGains[_flatPresetName]!);
-      _userPresets = _decodeUserPresets(prefs.getString(_userPresetsKey)) ?? [];
+      _customCurve = decodeEqualizerCurve(prefs.getString(_customGainsKey)) ??
+          canonicalEqualizerCurve(equalizerBuiltInPresetGains[_flatPresetName]!);
+      _userPresets = decodeUserEqualizerPresets(prefs.getString(_userPresetsKey)) ?? [];
 
       if (_curveForPreset(_selectedPresetName) == null) {
         _selectedPresetName = customPresetName;
@@ -317,7 +283,7 @@ class EqualizerService extends ChangeNotifier {
       debugPrint('[EqualizerService] Error loading settings: $e');
       _isEnabled = false;
       _selectedPresetName = _flatPresetName;
-      _customCurve = _canonicalCurve(_builtInPresetGains[_flatPresetName]!);
+      _customCurve = canonicalEqualizerCurve(equalizerBuiltInPresetGains[_flatPresetName]!);
       _userPresets = [];
     }
   }
@@ -345,7 +311,7 @@ class EqualizerService extends ChangeNotifier {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(
         _customGainsKey,
-        jsonEncode(_encodeCurve(_customCurve)),
+        jsonEncode(encodeEqualizerCurve(_customCurve)),
       );
     } catch (e) {
       debugPrint('[EqualizerService] Error saving custom gains: $e');
@@ -385,14 +351,14 @@ class EqualizerService extends ChangeNotifier {
   /// No-op until the device parameters are known; on Android
   /// [_watchAndroidParameters] re-applies the active curve as soon as they
   /// arrive.
-  Future<void> _applyCurveToDevice(List<_EqualizerPoint> curve) async {
+  Future<void> _applyCurveToDevice(List<EqualizerPoint> curve) async {
     final params = _parameters;
     if (params == null) return;
 
     final gains = <double>[];
     for (var i = 0; i < params.bandCount; i++) {
       final gain = _clampGain(
-        _interpolateGain(curve, params.bandFrequencies[i]),
+        interpolateEqualizerGain(curve, params.bandFrequencies[i]),
         params,
       );
       await _setDeviceBandGain(i, gain);
@@ -401,15 +367,15 @@ class EqualizerService extends ChangeNotifier {
     _currentBandGains = gains;
   }
 
-  List<_EqualizerPoint> get _activeCurve =>
+  List<EqualizerPoint> get _activeCurve =>
       _curveForPreset(_selectedPresetName) ?? _customCurve;
 
-  List<_EqualizerPoint>? _curveForPreset(String name) {
+  List<EqualizerPoint>? _curveForPreset(String name) {
     if (name == customPresetName) return _customCurve;
 
-    final builtInGains = _builtInPresetGains[name];
+    final builtInGains = equalizerBuiltInPresetGains[name];
     if (builtInGains != null) {
-      return _canonicalCurve(builtInGains);
+      return canonicalEqualizerCurve(builtInGains);
     }
 
     for (final userPreset in _userPresets) {
@@ -422,139 +388,13 @@ class EqualizerService extends ChangeNotifier {
     return gain.clamp(params.minDecibels, params.maxDecibels).toDouble();
   }
 
-  List<_EqualizerPoint> _currentDeviceCurve(EqParameters params) {
+  List<EqualizerPoint> _currentDeviceCurve(EqParameters params) {
     return [
       for (var i = 0; i < params.bandCount; i++)
-        _EqualizerPoint(
+        EqualizerPoint(
           params.bandFrequencies[i],
           i < _currentBandGains.length ? _currentBandGains[i] : 0,
         ),
     ];
-  }
-
-  static List<_EqualizerPoint> _canonicalCurve(List<double> gains) {
-    return [
-      for (var i = 0; i < _canonicalFrequencies.length; i++)
-        _EqualizerPoint(_canonicalFrequencies[i], gains[i]),
-    ];
-  }
-
-  static double _interpolateGain(List<_EqualizerPoint> curve, double hz) {
-    final points = _normalizeCurve(curve);
-    if (points.isEmpty) return 0;
-    if (points.length == 1 || hz <= points.first.hz) return points.first.db;
-    if (hz >= points.last.hz) return points.last.db;
-
-    final target = math.log(hz);
-    for (var i = 0; i < points.length - 1; i++) {
-      final lower = points[i];
-      final upper = points[i + 1];
-      if (hz < lower.hz || hz > upper.hz) continue;
-
-      final lowerLog = math.log(lower.hz);
-      final upperLog = math.log(upper.hz);
-      if (lowerLog == upperLog) return lower.db;
-
-      final ratio = (target - lowerLog) / (upperLog - lowerLog);
-      return lower.db + ((upper.db - lower.db) * ratio);
-    }
-
-    return points.last.db;
-  }
-
-  static List<_EqualizerPoint> _normalizeCurve(List<_EqualizerPoint> curve) {
-    final pointsByFrequency = <double, double>{};
-    for (final point in curve) {
-      if (point.hz.isFinite && point.hz > 0 && point.db.isFinite) {
-        pointsByFrequency[point.hz] = point.db;
-      }
-    }
-
-    final points = pointsByFrequency.entries
-        .map((entry) => _EqualizerPoint(entry.key, entry.value))
-        .toList()
-      ..sort((a, b) => a.hz.compareTo(b.hz));
-    return points;
-  }
-
-  static List<Map<String, double>> _encodeCurve(
-    List<_EqualizerPoint> curve,
-  ) {
-    return [
-      for (final point in _normalizeCurve(curve))
-        {
-          'hz': point.hz,
-          'db': point.db,
-        },
-    ];
-  }
-
-  static List<_EqualizerPoint>? _decodeCurve(String? jsonString) {
-    if (jsonString == null || jsonString.isEmpty) return null;
-
-    try {
-      final decoded = jsonDecode(jsonString);
-      if (decoded is! List) return null;
-
-      final points = <_EqualizerPoint>[];
-      for (final item in decoded) {
-        if (item is! Map) continue;
-        final hz = item['hz'];
-        final db = item['db'];
-        if (hz is num && db is num) {
-          points.add(_EqualizerPoint(hz.toDouble(), db.toDouble()));
-        }
-      }
-
-      final normalized = _normalizeCurve(points);
-      return normalized.isEmpty ? null : normalized;
-    } catch (_) {
-      return null;
-    }
-  }
-
-  static List<_UserEqualizerPreset>? _decodeUserPresets(String? jsonString) {
-    if (jsonString == null || jsonString.isEmpty) return null;
-
-    try {
-      final decoded = jsonDecode(jsonString);
-      if (decoded is! List) return null;
-
-      final presets = <_UserEqualizerPreset>[];
-      for (final item in decoded) {
-        if (item is! Map) continue;
-        final name = item['name'];
-        final gains = item['gains'];
-        if (name is! String || gains == null) continue;
-
-        final curve = _decodeCurve(jsonEncode(gains));
-        if (curve == null) continue;
-        presets.add(_UserEqualizerPreset(name, curve));
-      }
-      return presets;
-    } catch (_) {
-      return null;
-    }
-  }
-}
-
-class _EqualizerPoint {
-  const _EqualizerPoint(this.hz, this.db);
-
-  final double hz;
-  final double db;
-}
-
-class _UserEqualizerPreset {
-  const _UserEqualizerPreset(this.name, this.curve);
-
-  final String name;
-  final List<_EqualizerPoint> curve;
-
-  Map<String, dynamic> toJson() {
-    return {
-      'name': name,
-      'gains': EqualizerService._encodeCurve(curve),
-    };
   }
 }

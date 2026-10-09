@@ -16,12 +16,6 @@ Song songModelToSong(
   return songFromModel(s, album: albumName, albumArtist: albumArtist);
 }
 
-String formatDuration(int seconds) {
-  final minutes = seconds ~/ 60;
-  final secs = seconds % 60;
-  return '$minutes:${secs.toString().padLeft(2, '0')}';
-}
-
 /// Format playlist total duration in a human-readable form.
 ///
 /// Examples:

@@ -1,11 +1,11 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:ariami_core/utils/format.dart';
 
 import '../../../../models/download_task.dart';
 import '../../../../services/download/download_manager.dart';
 import '../../../../widgets/common/cached_artwork.dart';
 import '../downloads_state.dart';
-import '../utils/download_helpers.dart';
 
 /// Collapsible album row for the In Progress section. The header subscribes
 /// to a per-album [AlbumProgressSnapshot] notifier so byte ticks update the

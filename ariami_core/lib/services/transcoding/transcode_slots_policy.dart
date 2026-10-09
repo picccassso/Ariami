@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import '../../utils/device_model.dart';
+
 class TranscodeSlotsSnapshot {
   const TranscodeSlotsSnapshot({
     required this.effective,
@@ -69,20 +71,20 @@ class TranscodeSlotsPolicy {
       return desktopDefaultSlots;
     }
 
-    final onPi = isRaspberryPi ?? await _isRaspberryPi(readFile: readFile);
+    final onPi = isRaspberryPi ?? DeviceModel.isRaspberryPi();
     if (onPi) {
-      final onPi5 =
-          isRaspberryPi5 ?? await _isRaspberryPi5(readFile: readFile);
+      final onPi5 = isRaspberryPi5 ??
+          await DeviceModel.isRaspberryPiGeneration(5, readFile: readFile);
       if (onPi5) {
         return 5;
       }
-      final onPi4 =
-          isRaspberryPi4 ?? await _isRaspberryPi4(readFile: readFile);
+      final onPi4 = isRaspberryPi4 ??
+          await DeviceModel.isRaspberryPiGeneration(4, readFile: readFile);
       if (onPi4) {
         return 4;
       }
-      final onPi3 =
-          isRaspberryPi3 ?? await _isRaspberryPi3(readFile: readFile);
+      final onPi3 = isRaspberryPi3 ??
+          await DeviceModel.isRaspberryPiGeneration(3, readFile: readFile);
       if (onPi3) {
         return 3;
       }
@@ -138,92 +140,6 @@ class TranscodeSlotsPolicy {
         'slots',
         'must be an integer >= $minSlots',
       );
-    }
-  }
-
-  static Future<bool> _isRaspberryPi({
-    Future<String?> Function(String path)? readFile,
-  }) async {
-    if (!(Platform.isLinux)) {
-      return false;
-    }
-
-    final arch = Platform.version.toLowerCase();
-    final isArm = arch.contains('arm') || arch.contains('aarch64');
-    if (!isArm) {
-      return false;
-    }
-
-    final model = await _getRaspberryPiModel(readFile: readFile);
-    if (model != null) {
-      return true;
-    }
-
-    return true;
-  }
-
-  static Future<bool> _isRaspberryPi5({
-    Future<String?> Function(String path)? readFile,
-  }) async {
-    final model = await _getRaspberryPiModel(readFile: readFile);
-    return model != null && model.contains('raspberry pi 5');
-  }
-
-  static Future<bool> _isRaspberryPi4({
-    Future<String?> Function(String path)? readFile,
-  }) async {
-    final model = await _getRaspberryPiModel(readFile: readFile);
-    return model != null && model.contains('raspberry pi 4');
-  }
-
-  static Future<bool> _isRaspberryPi3({
-    Future<String?> Function(String path)? readFile,
-  }) async {
-    final model = await _getRaspberryPiModel(readFile: readFile);
-    return model != null && model.contains('raspberry pi 3');
-  }
-
-  static Future<String?> _getRaspberryPiModel({
-    Future<String?> Function(String path)? readFile,
-  }) async {
-    if (!Platform.isLinux) {
-      return null;
-    }
-
-    final reader = readFile ?? _readFileOrNull;
-    final candidates = <String>[
-      '/proc/device-tree/model',
-      '/sys/firmware/devicetree/base/model',
-      '/proc/cpuinfo',
-    ];
-
-    for (final path in candidates) {
-      final content = await reader(path);
-      if (content == null || content.isEmpty) {
-        continue;
-      }
-      final normalized = content.toLowerCase();
-      if (normalized.contains('raspberry')) {
-        return normalized;
-      }
-      if (path.contains('cpuinfo') &&
-          (normalized.contains('bcm') || normalized.contains('raspberry'))) {
-        return normalized;
-      }
-    }
-
-    return null;
-  }
-
-  static Future<String?> _readFileOrNull(String path) async {
-    try {
-      final file = File(path);
-      if (!await file.exists()) {
-        return null;
-      }
-      return await file.readAsString();
-    } catch (_) {
-      return null;
     }
   }
 }

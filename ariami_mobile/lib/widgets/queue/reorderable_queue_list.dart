@@ -4,6 +4,7 @@ import '../common/mini_player_aware_bottom_sheet.dart';
 import '../../models/song.dart';
 import 'queue_display_order.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:ariami_core/utils/format.dart';
 import '../../utils/artwork_url.dart';
 import '../../services/offline/offline_playback_service.dart';
 import '../common/cached_artwork.dart';
@@ -290,7 +291,7 @@ class QueueItem extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    _formatDuration(song.duration),
+                    formatDurationMinSec(song.duration),
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
@@ -409,11 +410,5 @@ class QueueItem extends StatelessWidget {
         size: 24,
       ),
     );
-  }
-
-  String _formatDuration(Duration duration) {
-    final minutes = duration.inMinutes.toString().padLeft(1, '0');
-    final seconds = (duration.inSeconds % 60).toString().padLeft(2, '0');
-    return '$minutes:$seconds';
   }
 }

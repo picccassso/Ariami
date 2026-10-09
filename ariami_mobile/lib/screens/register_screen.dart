@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:ariami_core/models/credential_policy.dart';
 import '../models/api_models.dart';
 import '../models/server_info.dart';
 import '../services/api/api_client.dart';
@@ -198,8 +199,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             if (value == null || value.trim().isEmpty) {
                               return 'Please enter a username';
                             }
-                            if (value.trim().length < 3) {
-                              return 'Username must be at least 3 characters';
+                            if (value.trim().length < CredentialPolicy.minUsernameLength) {
+                              return 'Username must be at least ${CredentialPolicy.minUsernameLength} characters';
                             }
                             if (!RegExp(r'^[a-zA-Z0-9_]+$')
                                 .hasMatch(value.trim())) {
@@ -241,8 +242,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             if (value == null || value.isEmpty) {
                               return 'Please enter a password';
                             }
-                            if (value.length < 10) {
-                              return 'Password must be at least 10 characters';
+                            if (value.length < CredentialPolicy.minPasswordLength) {
+                              return 'Password must be at least ${CredentialPolicy.minPasswordLength} characters';
                             }
                             return null;
                           },

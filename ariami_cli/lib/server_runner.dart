@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:ariami_core/ariami_core.dart';
 import 'package:ariami_core/models/feature_flags.dart';
-import 'package:path/path.dart' as p;
 
 import 'services/cli_state_service.dart';
 import 'services/cli_status_info.dart';
@@ -138,7 +137,7 @@ class ServerRunner {
       _configureMetadataCache(featureFlags);
 
       final isPi = _runtimePolicy.isRaspberryPi();
-      final isPi5 = isPi && _runtimePolicy.isRaspberryPi5();
+      final isPi5 = isPi && await _runtimePolicy.isRaspberryPi5();
 
       _lifecycleService.setupSignalHandlers();
 
@@ -228,8 +227,7 @@ class ServerRunner {
   }
 
   void _configureMetadataCache(AriamiFeatureFlags featureFlags) {
-    final cachePath =
-        p.join(CliStateService.getConfigDir(), 'metadata_cache.json');
+    final cachePath = CliStateService.getMetadataCacheFilePath();
     _httpServer.libraryManager.setCachePath(cachePath);
 
     if (featureFlags.enableV2Api &&

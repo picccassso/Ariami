@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:ariami_core/utils/format.dart';
+
 import '../../../utils/shared_preferences_cache.dart';
 
 /// How PLAYTIME (and AVG DAILY) render their durations. Tapping the metric
@@ -55,9 +57,7 @@ class PlaytimeFormat {
   static String _formatMinutesCompact(Duration duration) {
     final minutes = duration.inMinutes;
     if (minutes < 1000) return '${minutes}m';
-    var text = (minutes / 1000).toStringAsFixed(1);
-    if (text.endsWith('.0')) text = text.substring(0, text.length - 2);
-    return '${text}k';
+    return formatThousandsCompact(minutes);
   }
 
   /// The next unit in the cycle, skipping compact minutes when it would render

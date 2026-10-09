@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:ariami_core/utils/format.dart';
 import '../../../models/api_models.dart';
 import '../../../services/api/connection_service.dart';
 import '../../../services/playback_manager.dart';
 import '../../../widgets/common/queue_action_confirmation.dart';
 import '../../../widgets/common/song_overflow_menu.dart';
 import '../../../widgets/common/swipe_to_queue.dart';
-import '../utils/playlist_helpers.dart';
 import 'album_art_with_badge.dart';
 import '../../../utils/song_from_model.dart';
 
@@ -114,7 +114,7 @@ class _SongListItemState extends State<SongListItem> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      formatDuration(widget.song.duration),
+                      formatMinSec(widget.song.duration),
                       style: TextStyle(color: Colors.grey[600]),
                     ),
                     if (widget.isAvailable) ...[

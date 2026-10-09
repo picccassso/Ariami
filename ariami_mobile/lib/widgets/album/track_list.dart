@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:ariami_core/utils/format.dart';
 import '../../models/api_models.dart';
 import '../../models/song.dart';
 import '../../services/api/connection_service.dart';
@@ -94,7 +95,7 @@ class TrackListItem extends StatelessWidget {
                   ),
                   const SizedBox(width: 16),
                   Text(
-                    _formatDuration(track.duration),
+                    formatMinSec(track.duration),
                     style: TextStyle(
                       fontSize: 13,
                       color: Theme.of(context)
@@ -217,11 +218,5 @@ class TrackListItem extends StatelessWidget {
         trackNumber: track.trackNumber,
       ),
     );
-  }
-
-  String _formatDuration(int seconds) {
-    final minutes = seconds ~/ 60;
-    final remainingSeconds = seconds % 60;
-    return '$minutes:${remainingSeconds.toString().padLeft(2, '0')}';
   }
 }

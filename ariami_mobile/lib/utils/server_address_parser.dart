@@ -14,7 +14,7 @@
 /// [defaultPort]). A trailing slash is allowed; other URL paths are rejected.
 library;
 
-import 'package:ariami_core/models/server_origin.dart';
+import 'package:ariami_core/models/server_address.dart';
 
 class ParsedServerAddress {
   static const int defaultPort = 8080;
@@ -34,44 +34,13 @@ class ParsedServerAddress {
   bool get isSecure => publicOrigin != null;
 
   static ParsedServerAddress? tryParse(String input) {
-    final trimmed = input.trim();
-    if (trimmed.isEmpty) return null;
-
-    // Prepend a scheme so Uri.parse populates host/port consistently. Without a
-    // scheme, "192.168.1.50:8080" is parsed with the host in `scheme`.
-    final lower = trimmed.toLowerCase();
-    final hasScheme =
-        lower.startsWith('http://') || lower.startsWith('https://');
-    final normalized = hasScheme ? trimmed : 'http://$trimmed';
-
-    final Uri uri;
-    try {
-      uri = Uri.parse(normalized);
-    } catch (_) {
-      return null;
-    }
-
-    final host = uri.host;
-    if (host.isEmpty) return null;
-
-    final scheme = uri.scheme.toLowerCase();
-    if (scheme != 'http' && scheme != 'https') return null;
-    if (uri.userInfo.isNotEmpty || uri.hasQuery || uri.hasFragment) return null;
-    if (uri.path.isNotEmpty && uri.path != '/') return null;
-
-    final port =
-        uri.hasPort ? uri.port : (scheme == 'https' ? 443 : defaultPort);
-    if (port < 1 || port > 65535) return null;
-
-    final publicOrigin =
-        scheme == 'https' ? normalizeSecurePublicOrigin(uri.origin) : null;
-    if (scheme == 'https' && publicOrigin == null) return null;
-
+    final parts = parseServerAddress(input, defaultPort: defaultPort);
+    if (parts == null) return null;
     return ParsedServerAddress(
-      host: host,
-      port: port,
-      scheme: scheme,
-      publicOrigin: publicOrigin,
+      host: parts.host,
+      port: parts.port,
+      scheme: parts.scheme,
+      publicOrigin: parts.publicOrigin,
     );
   }
 

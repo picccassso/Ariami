@@ -1,5 +1,8 @@
 import 'dart:io';
 
+import 'package:ariami_core/services/server/download_limits.dart';
+import 'package:ariami_core/utils/device_model.dart';
+
 enum StorageType { microSd, fastExternal, unknown }
 
 enum StorageProfile { microSd, externalFast, unknown }
@@ -20,42 +23,16 @@ class CachePolicy {
   });
 }
 
-class DownloadLimits {
-  final int maxConcurrent;
-  final int maxQueue;
-  final int maxConcurrentPerUser;
-  final int maxQueuePerUser;
-
-  const DownloadLimits({
-    required this.maxConcurrent,
-    required this.maxQueue,
-    required this.maxConcurrentPerUser,
-    required this.maxQueuePerUser,
-  });
-}
-
 /// Detects host capabilities and chooses platform-sensitive server limits.
 class ServerRuntimePolicy {
-  bool isRaspberryPi() {
-    if (!Platform.isLinux) return false;
+  static const _modelPaths = ['/proc/device-tree/model', '/proc/cpuinfo'];
 
-    final arch = Platform.version.toLowerCase();
-    final isArm = arch.contains('arm') || arch.contains('aarch64');
-    if (!isArm) return false;
+  bool isRaspberryPi() => DeviceModel.isRaspberryPi();
 
-    final model = _getRaspberryPiModel();
-    if (model != null) {
-      return true;
-    }
-
-    // Conservatively treat unrecognized Linux ARM devices as low-power hosts.
-    return true;
-  }
-
-  bool isRaspberryPi5() {
-    final model = _getRaspberryPiModel();
-    return model != null && model.contains('raspberry pi 5');
-  }
+  Future<bool> isRaspberryPi5() => DeviceModel.isRaspberryPiGeneration(
+        5,
+        paths: _modelPaths,
+      );
 
   Future<StorageType> detectStorageType(String? targetPath) async {
     if (!Platform.isLinux || targetPath == null || targetPath.isEmpty) {
@@ -110,23 +87,7 @@ class ServerRuntimePolicy {
     required bool isPi5,
     required StorageType storageType,
   }) {
-    if (!isPi && Platform.isMacOS) {
-      return const DownloadLimits(
-        maxConcurrent: 30,
-        maxQueue: 400,
-        maxConcurrentPerUser: 10,
-        maxQueuePerUser: 200,
-      );
-    }
-
-    if (!isPi) {
-      return const DownloadLimits(
-        maxConcurrent: 10,
-        maxQueue: 120,
-        maxConcurrentPerUser: 3,
-        maxQueuePerUser: 50,
-      );
-    }
+    if (!isPi) return DownloadLimits.forDesktopPlatform();
 
     if (storageType == StorageType.fastExternal) {
       return const DownloadLimits(
@@ -153,32 +114,6 @@ class ServerRuntimePolicy {
       maxConcurrentPerUser: 4,
       maxQueuePerUser: 20,
     );
-  }
-
-  String? _getRaspberryPiModel() {
-    if (!Platform.isLinux) return null;
-
-    try {
-      final modelFile = File('/proc/device-tree/model');
-      if (modelFile.existsSync()) {
-        final model = modelFile.readAsStringSync().toLowerCase();
-        if (model.contains('raspberry')) {
-          return model;
-        }
-      }
-
-      final cpuInfo = File('/proc/cpuinfo');
-      if (cpuInfo.existsSync()) {
-        final content = cpuInfo.readAsStringSync().toLowerCase();
-        if (content.contains('raspberry') || content.contains('bcm')) {
-          return content;
-        }
-      }
-    } catch (_) {
-      // Ignore file read errors.
-    }
-
-    return null;
   }
 }
 

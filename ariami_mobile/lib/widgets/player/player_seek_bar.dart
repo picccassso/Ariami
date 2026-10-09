@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:ariami_core/utils/format.dart';
 
 class PlayerSeekBar extends StatefulWidget {
   final Duration position;
@@ -61,7 +62,7 @@ class _PlayerSeekBarState extends State<PlayerSeekBar> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                _formatDuration(
+                formatDurationMinSec(
                   _dragValue != null
                       ? Duration(milliseconds: _dragValue!.round())
                       : widget.position,
@@ -71,7 +72,7 @@ class _PlayerSeekBarState extends State<PlayerSeekBar> {
                     ),
               ),
               Text(
-                _formatDuration(widget.duration),
+                formatDurationMinSec(widget.duration),
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
@@ -81,11 +82,5 @@ class _PlayerSeekBarState extends State<PlayerSeekBar> {
         ),
       ],
     );
-  }
-
-  String _formatDuration(Duration duration) {
-    final minutes = duration.inMinutes;
-    final seconds = duration.inSeconds % 60;
-    return '$minutes:${seconds.toString().padLeft(2, '0')}';
   }
 }

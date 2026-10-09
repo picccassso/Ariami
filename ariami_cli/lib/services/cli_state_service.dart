@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:ariami_core/services/server/server_data_layout.dart';
 import 'package:path/path.dart' as path;
 
 /// Service for managing CLI configuration and state.
@@ -39,32 +40,32 @@ class CliStateService {
   }
 
   static String getUsersFilePath() {
-    return path.join(getConfigDir(), 'users.json');
+    return ServerDataLayout(getConfigDir()).usersFile;
   }
 
   static String getSessionsFilePath() {
-    return path.join(getConfigDir(), 'sessions.json');
+    return ServerDataLayout(getConfigDir()).sessionsFile;
   }
 
   static String getMusicDiscoveryConfigFilePath() {
-    return path.join(getConfigDir(), 'music_discovery.json');
+    return ServerDataLayout(getConfigDir()).musicDiscoveryFile;
   }
 
   static String getMetadataCacheFilePath() {
-    return path.join(getConfigDir(), 'metadata_cache.json');
+    return ServerDataLayout(getConfigDir()).metadataCacheFile;
   }
 
   /// Get the catalog database file path (mirrors LibraryManager derivation).
   static String getCatalogDbFilePath() {
-    return path.join(getConfigDir(), 'catalog.db');
+    return ServerDataLayout(getConfigDir()).catalogDbFile;
   }
 
   static String getArtworkCacheDirPath() {
-    return path.join(getConfigDir(), 'artwork_cache');
+    return ServerDataLayout(getConfigDir()).artworkCacheDir;
   }
 
   static String getTranscodedCacheDirPath() {
-    return path.join(getConfigDir(), 'transcoded_cache');
+    return ServerDataLayout(getConfigDir()).transcodedCacheDir;
   }
 
   static String getAutostartLogFilePath() {
