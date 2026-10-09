@@ -136,13 +136,6 @@ class FolderWatcher {
         fileName.endsWith('.download');
   }
 
-  /// Manually triggers a refresh (useful for "Refresh Library" button)
-  Future<void> manualRefresh(String path) async {
-    // This would trigger a full rescan
-    // Implementation depends on how you want to integrate with existing scanner
-    print('Manual refresh requested for: $path');
-  }
-
   /// Cleans up resources
   void dispose() {
     stopWatching();

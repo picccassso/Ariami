@@ -16,9 +16,6 @@ class DownloadJobCreateRequest {
   final String quality;
   final bool downloadOriginal;
 
-  bool get hasTargets =>
-      songIds.isNotEmpty || albumIds.isNotEmpty || playlistIds.isNotEmpty;
-
   factory DownloadJobCreateRequest.fromJson(Map<String, dynamic> json) {
     List<String> parseIds(dynamic value) {
       if (value is! List) return const <String>[];

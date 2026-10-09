@@ -5,7 +5,6 @@ import 'dart:typed_data';
 import 'package:path/path.dart' as p;
 import 'package:dart_tags/dart_tags.dart';
 import 'package:ariami_core/models/song_metadata.dart';
-import 'package:ariami_core/services/library/album_art_detection.dart';
 import 'package:ariami_core/services/library/mp3_duration_parser.dart';
 import 'package:ariami_core/utils/mojibake_repair.dart';
 import 'package:ariami_core/utils/text_sanitizer.dart';
@@ -91,13 +90,6 @@ class MetadataExtractor {
   Future<SongMetadata> extractMetadataWithDuration(String filePath) =>
       _extractMetadataWithDurationImpl(filePath);
 
-  /// Extracts metadata from multiple files in batches.
-  Stream<List<SongMetadata>> extractMetadataBatch(
-    List<String> filePaths, {
-    int batchSize = 50,
-  }) =>
-      _extractMetadataBatchImpl(filePaths, batchSize: batchSize);
-
   /// Cache for ffprobe availability check
   bool? _ffprobeAvailable;
 
@@ -113,10 +105,6 @@ class MetadataExtractor {
   /// Cheap check for embedded cover art without reading image bytes.
   Future<bool> hasEmbeddedArtwork(String filePath) =>
       _hasEmbeddedArtworkImpl(filePath);
-
-  /// Returns a sidecar artwork path in the album directory of [songFilePath].
-  String? findSidecarArtworkForSong(String songFilePath) =>
-      _findSidecarArtworkForSongImpl(songFilePath);
 
   /// Extracts album artwork from a single audio file (lazy extraction).
   Future<List<int>?> extractArtwork(String filePath) =>

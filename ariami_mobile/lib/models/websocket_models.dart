@@ -127,46 +127,7 @@ class IdentifyMessage extends WsMessage {
   String? get sessionToken => data?['sessionToken'] as String?;
 }
 
-/// Song added notification
-class SongAddedMessage extends WsMessage {
-  SongAddedMessage({
-    required Map<String, dynamic> songData,
-  }) : super(
-          type: WsMessageType.songAdded,
-          data: songData,
-        );
-
-  factory SongAddedMessage.fromWsMessage(WsMessage message) {
-    return SongAddedMessage(songData: message.data ?? {});
-  }
-
-  String? get songId => data?['id'] as String?;
-  String? get title => data?['title'] as String?;
-}
-
-/// Album added notification
-class AlbumAddedMessage extends WsMessage {
-  AlbumAddedMessage({
-    required Map<String, dynamic> albumData,
-  }) : super(
-          type: WsMessageType.albumAdded,
-          data: albumData,
-        );
-
-  factory AlbumAddedMessage.fromWsMessage(WsMessage message) {
-    return AlbumAddedMessage(albumData: message.data ?? {});
-  }
-
-  String? get albumId => data?['id'] as String?;
-  String? get title => data?['title'] as String?;
-}
-
 /// Ping message
 class PingMessage extends WsMessage {
   PingMessage() : super(type: WsMessageType.ping);
-}
-
-/// Pong message
-class PongMessage extends WsMessage {
-  PongMessage() : super(type: WsMessageType.pong);
 }

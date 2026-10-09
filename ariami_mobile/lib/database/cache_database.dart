@@ -229,16 +229,6 @@ class CacheDatabase {
     );
   }
 
-  /// Get entries sorted by last accessed time (oldest first) for LRU eviction
-  Future<List<CacheEntry>> getEntriesForEviction() async {
-    final db = await _ensureDatabase();
-    final rows = await db.query(
-      _entriesTable,
-      orderBy: 'last_accessed ASC',
-    );
-    return rows.map(_entryFromRow).toList();
-  }
-
   /// Get all entries of a specific type
   Future<List<CacheEntry>> getEntriesByType(CacheType type) async {
     final db = await _ensureDatabase();

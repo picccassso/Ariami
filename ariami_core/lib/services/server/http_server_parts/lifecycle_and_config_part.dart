@@ -27,9 +27,6 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
     _transcodingService = service;
   }
 
-  /// Get the transcoding service (if configured)
-  TranscodingService? get transcodingService => _transcodingService;
-
   /// Set the artwork service for thumbnail generation.
   ///
   /// Must be called before requesting thumbnails.
@@ -37,9 +34,6 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
   void setArtworkService(ArtworkService service) {
     _artworkService = service;
   }
-
-  /// Get the artwork service (if configured)
-  ArtworkService? get artworkService => _artworkService;
 
   /// Set callback for getting Tailscale status (optional, for CLI use)
   void setTailscaleStatusCallback(
@@ -796,12 +790,6 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
     _musicFolderPath = path;
   }
 
-  /// Set auth flags for multi-user support
-  void setAuthFlags({required bool authRequired, required bool legacyMode}) {
-    _authRequired = authRequired;
-    _legacyMode = legacyMode;
-  }
-
   /// Set feature flags used for phased rollout.
   void setFeatureFlags(AriamiFeatureFlags flags) {
     if (flags.enableDownloadJobs && !flags.enableV2Api) {
@@ -821,9 +809,6 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
     _connectHub.protocolV3Enabled = flags.enableConnectProtocolV3;
     print('[HttpServer] Feature flags set: ${flags.toJson()}');
   }
-
-  /// Get current feature flags.
-  AriamiFeatureFlags get featureFlags => _featureFlags;
 
   void _validateFeatureFlagInvariantsOrThrow() {
     if (_featureFlags.enableDownloadJobs && !_featureFlags.enableV2Api) {

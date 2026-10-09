@@ -344,20 +344,6 @@ class LibraryRepository {
     );
   }
 
-  Future<List<V2PlaylistModel>> getPlaylists() async {
-    final rows = await (await _database).listPlaylists();
-    return rows
-        .map(
-          (row) => V2PlaylistModel(
-            id: row.id,
-            name: row.name,
-            songCount: row.songCount,
-            duration: row.duration,
-          ),
-        )
-        .toList();
-  }
-
   Future<List<ServerPlaylist>> getServerPlaylists() async {
     final db = await _database;
     final playlistRows = await db.listPlaylists();

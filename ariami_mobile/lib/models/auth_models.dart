@@ -102,19 +102,6 @@ class LoginResponse {
   }
 }
 
-/// Request for user logout
-class LogoutRequest {
-  final String sessionToken;
-
-  LogoutRequest({required this.sessionToken});
-
-  Map<String, dynamic> toJson() {
-    return {
-      'sessionToken': sessionToken,
-    };
-  }
-}
-
 /// Response for logout
 class LogoutResponse {
   final bool success;

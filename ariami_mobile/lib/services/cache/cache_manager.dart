@@ -895,22 +895,6 @@ class CacheManager {
     print('[CacheManager] All cache cleared');
   }
 
-  /// Clear artwork cache only
-  Future<void> clearArtworkCache() async {
-    await _ensureInitialized();
-
-    await _clearDirectory(_artworkCachePath!);
-    await _database.clearEntriesByType(CacheType.artwork);
-
-    // Clear memory cache
-    _artworkPathCache.clear();
-
-    _cacheUpdateController.add(
-      const CacheUpdateEvent(type: CacheType.artwork),
-    );
-    print('[CacheManager] Artwork cache cleared');
-  }
-
   /// Clear song cache only
   Future<void> clearSongCache() async {
     await _ensureInitialized();
@@ -1105,12 +1089,6 @@ class CacheManager {
   Future<int> getTotalCacheSize() async {
     await _ensureInitialized();
     return await _database.getTotalCacheSize();
-  }
-
-  /// Get artwork cache size in bytes
-  Future<int> getArtworkCacheSize() async {
-    await _ensureInitialized();
-    return await _database.getCacheSizeByType(CacheType.artwork);
   }
 
   /// Get song cache size in bytes

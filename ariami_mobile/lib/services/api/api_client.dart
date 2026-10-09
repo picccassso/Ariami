@@ -137,17 +137,6 @@ class ApiClient {
     }
   }
 
-  /// URL and headers for authenticated avatar image requests.
-  ({String url, Map<String, String> headers}) getCurrentUserAvatarRequest(
-    String sessionToken,
-  ) {
-    final uri = _withDeviceParams(Uri.parse('$baseUrl/me/avatar'));
-    return (
-      url: uri.toString(),
-      headers: {'Authorization': 'Bearer $sessionToken'},
-    );
-  }
-
   /// Upload/replace the current user's avatar.
   Future<Map<String, dynamic>> uploadCurrentUserAvatar(
     String sessionToken, {
@@ -230,12 +219,6 @@ class ApiClient {
     return songs;
   }
 
-  /// Get song details
-  Future<SongModel> getSong(String songId) async {
-    final response = await _get('/songs/$songId');
-    return SongModel.fromJson(response);
-  }
-
   /// Get a V2 bootstrap page
   Future<V2BootstrapResponse> getV2BootstrapPage(
       String? cursor, int limit) async {
@@ -248,54 +231,6 @@ class ApiClient {
     );
     final response = await _get(endpoint);
     return V2BootstrapResponse.fromJson(response);
-  }
-
-  /// Get a V2 albums page
-  Future<V2AlbumsPageResponse> getV2AlbumsPage(
-      String? cursor, int limit) async {
-    final endpoint = _buildEndpointWithQuery(
-      '/v2/albums',
-      <String, String?>{
-        if (cursor != null && cursor.isNotEmpty) 'cursor': cursor,
-        'limit': '$limit',
-      },
-    );
-    final response = await _get(endpoint);
-    return V2AlbumsPageResponse.fromJson(response);
-  }
-
-  /// Get a V2 songs page
-  Future<V2SongsPageResponse> getV2SongsPage(
-    String? cursor,
-    int limit,
-    String? albumId,
-  ) async {
-    final endpoint = _buildEndpointWithQuery(
-      '/v2/songs',
-      <String, String?>{
-        if (cursor != null && cursor.isNotEmpty) 'cursor': cursor,
-        'limit': '$limit',
-        if (albumId != null && albumId.isNotEmpty) 'albumId': albumId,
-      },
-    );
-    final response = await _get(endpoint);
-    return V2SongsPageResponse.fromJson(response);
-  }
-
-  /// Get a V2 playlists page
-  Future<V2PlaylistsPageResponse> getV2PlaylistsPage(
-    String? cursor,
-    int limit,
-  ) async {
-    final endpoint = _buildEndpointWithQuery(
-      '/v2/playlists',
-      <String, String?>{
-        if (cursor != null && cursor.isNotEmpty) 'cursor': cursor,
-        'limit': '$limit',
-      },
-    );
-    final response = await _get(endpoint);
-    return V2PlaylistsPageResponse.fromJson(response);
   }
 
   /// Get V2 changes since a token
@@ -411,18 +346,6 @@ class ApiClient {
     return _get(endpoint);
   }
 
-  /// Fetch top albums, all-time when [days] is null.
-  Future<Map<String, dynamic>> getListeningAlbums({
-    int? days,
-    int limit = 50,
-  }) async {
-    final endpoint = _buildEndpointWithQuery(
-      '/v2/listening/albums',
-      <String, String?>{if (days != null) 'days': '$days', 'limit': '$limit'},
-    );
-    return _get(endpoint);
-  }
-
   /// Wipe the account's listening history on the server.
   Future<Map<String, dynamic>> postListeningReset() async {
     return _post('/v2/listening/reset', {});
@@ -470,11 +393,6 @@ class ApiClient {
   // ============================================================================
   // PLAYLIST EDITS
   // ============================================================================
-
-  Future<List<Map<String, dynamic>>> getPlaylistEdits() async {
-    final response = await _get('/playlists/edits');
-    return _mapList(response['edits']);
-  }
 
   /// Fetch playlist edits together with the custom cover-image manifest the
   /// server returns on the same endpoint.
@@ -718,12 +636,6 @@ class ApiClient {
     );
     final response = await _post('/download-ticket', request.toJson());
     return DownloadTicketResponse.fromJson(response);
-  }
-
-  /// Get stream URL for a song (original quality)
-  /// For legacy (non-auth) mode only
-  String getStreamUrl(String songId) {
-    return '$baseUrl/stream/$songId';
   }
 
   /// Get stream URL for a song with specific quality

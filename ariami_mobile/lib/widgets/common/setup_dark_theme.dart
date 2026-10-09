@@ -40,29 +40,3 @@ class SetupDarkTheme extends StatelessWidget {
     );
   }
 }
-
-/// Paints the navy setup glow behind a setup screen, whose own Scaffold must
-/// then be transparent.
-class SetupBackdrop extends StatelessWidget {
-  const SetupBackdrop({super.key, required this.child});
-
-  final Widget child;
-
-  static final ThemeData _setupTheme = AppTheme.setup();
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        Positioned.fill(
-          child: Theme(
-            data: _setupTheme,
-            child: const AmbientBackdrop(layoutSeed: 0x5E70),
-          ),
-        ),
-        child,
-      ],
-    );
-  }
-}

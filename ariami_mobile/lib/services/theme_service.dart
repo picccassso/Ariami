@@ -279,10 +279,6 @@ class ThemeService extends ChangeNotifier {
     if (_themeSource == ThemeSource.dynamicCoverArt) notifyListeners();
   }
 
-  Future<void> setThemeMode(ThemeMode mode) async {
-    await setThemeSource(_neutralSourceFromMode(mode));
-  }
-
   Future<void> setThemeSource(ThemeSource source) async {
     if (_themeSource == source) return;
     _themeSource = source;
@@ -332,15 +328,6 @@ class ThemeService extends ChangeNotifier {
     _customColor = color;
     await sharedPrefs.setInt(_customColorKey, color.toARGB32());
     if (_themeSource == ThemeSource.custom) {
-      notifyListeners();
-    }
-  }
-
-  Future<void> setStaticCoverArtColor(Color color) async {
-    if (_staticCoverArtColor == color) return;
-    _staticCoverArtColor = color;
-    await sharedPrefs.setInt(_staticCoverArtColorKey, color.toARGB32());
-    if (_themeSource == ThemeSource.staticCoverArt) {
       notifyListeners();
     }
   }

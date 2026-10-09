@@ -15,8 +15,6 @@ class MusicDiscoveryApiKeyConfig {
   final String? lastFmApiKey;
   final bool canManage;
 
-  bool get isConfigured => lastFmApiKey?.isNotEmpty ?? false;
-
   factory MusicDiscoveryApiKeyConfig.fromJson(Map<String, dynamic> json) {
     final rawKey = json['lastFmApiKey'];
     final normalizedKey = rawKey is String ? rawKey.trim() : '';

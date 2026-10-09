@@ -38,23 +38,6 @@ class PermissionsService {
     return PermissionStatus.granted;
   }
 
-  /// Check notification permission status
-  Future<PermissionStatus> getNotificationPermissionStatus() async {
-    return await Permission.notification.status;
-  }
-
-  /// Check storage permission status
-  Future<PermissionStatus> getStoragePermissionStatus() async {
-    if (Platform.isAndroid) {
-      if (await _isAndroid13OrHigher()) {
-        return await Permission.audio.status;
-      } else {
-        return await Permission.storage.status;
-      }
-    }
-    return PermissionStatus.granted;
-  }
-
   /// Check if permission is permanently denied
   bool isPermanentlyDenied(PermissionStatus status) {
     return status.isPermanentlyDenied;
@@ -70,11 +53,6 @@ class PermissionsService {
     if (!Platform.isAndroid) return false;
     // This is a simplified check - in production you'd check actual SDK version
     return true; // Assume modern Android for now
-  }
-
-  /// Check if notification permission is needed for this platform
-  bool isNotificationPermissionNeeded() {
-    return Platform.isAndroid || Platform.isIOS;
   }
 
   /// Check if storage permission is needed for this platform

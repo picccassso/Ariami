@@ -75,33 +75,6 @@ class StatsDatabase {
   // SONG STATS MANAGEMENT
   // ============================================================================
 
-  /// Save or update stats for a single song (upsert with transaction)
-  Future<void> saveSongStats(SongStats stats) async {
-    final db = await database;
-
-    try {
-      await db.insert(
-        _tableName,
-        {
-          'song_id': stats.songId,
-          'song_title': stats.songTitle,
-          'song_artist': stats.songArtist,
-          'play_count': stats.playCount,
-          'total_seconds': stats.totalTime.inSeconds,
-          'first_played': stats.firstPlayed?.millisecondsSinceEpoch,
-          'last_played': stats.lastPlayed?.millisecondsSinceEpoch,
-          'album_id': stats.albumId,
-          'album': stats.album,
-          'album_artist': stats.albumArtist,
-        },
-        conflictAlgorithm: ConflictAlgorithm.replace,
-      );
-    } catch (e) {
-      // Log error but don't throw - graceful degradation
-      print('Error saving song stats: $e');
-    }
-  }
-
   /// Save multiple stats at once (batch operation with transaction)
   Future<void> saveAllStats(List<SongStats> statsList) async {
     final db = await database;
@@ -233,27 +206,6 @@ class StatsDatabase {
     } catch (e) {
       print('Error resetting all stats: $e');
     }
-  }
-
-  /// Delete stats for a single song
-  Future<void> deleteSongStats(String songId) async {
-    final db = await database;
-
-    try {
-      await db.delete(
-        _tableName,
-        where: 'song_id = ?',
-        whereArgs: [songId],
-      );
-    } catch (e) {
-      print('Error deleting song stats: $e');
-    }
-  }
-
-  /// Check if a song has been played
-  Future<bool> hasBeenPlayed(String songId) async {
-    final stats = await getSongStats(songId);
-    return stats != null && stats.playCount > 0;
   }
 
   /// Close database connection

@@ -31,12 +31,6 @@ extension _MetadataExtractorArtworkPart on MetadataExtractor {
     }
   }
 
-  /// Returns a sidecar artwork path in the album directory of [songFilePath].
-  String? _findSidecarArtworkForSongImpl(String songFilePath) {
-    final albumDir = p.dirname(songFilePath);
-    return findAlbumSidecarArtworkPath(albumDir);
-  }
-
   /// Extracts album artwork from a single audio file (lazy extraction)
   ///
   /// This is called on-demand when artwork is requested, not during scan.

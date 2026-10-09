@@ -342,49 +342,6 @@ class ServerPlaylistImage {
   }
 }
 
-/// Complete library response
-class LibraryResponse {
-  final List<AlbumModel> albums;
-  final List<SongModel> songs;
-  final List<ServerPlaylist> serverPlaylists;
-  final String lastUpdated;
-  final bool durationsReady;
-
-  LibraryResponse({
-    required this.albums,
-    required this.songs,
-    required this.serverPlaylists,
-    required this.lastUpdated,
-    required this.durationsReady,
-  });
-
-  factory LibraryResponse.fromJson(Map<String, dynamic> json) {
-    return LibraryResponse(
-      albums: (json['albums'] as List<dynamic>? ?? [])
-          .map((e) => AlbumModel.fromJson(e as Map<String, dynamic>))
-          .toList(),
-      songs: (json['songs'] as List<dynamic>? ?? [])
-          .map((e) => SongModel.fromJson(e as Map<String, dynamic>))
-          .toList(),
-      serverPlaylists: (json['playlists'] as List<dynamic>? ?? [])
-          .map((e) => ServerPlaylist.fromJson(e as Map<String, dynamic>))
-          .toList(),
-      lastUpdated: json['lastUpdated'] as String? ?? '',
-      durationsReady: json['durationsReady'] as bool? ?? true,
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'albums': albums.map((e) => e.toJson()).toList(),
-      'songs': songs.map((e) => e.toJson()).toList(),
-      'playlists': serverPlaylists.map((e) => e.toJson()).toList(),
-      'lastUpdated': lastUpdated,
-      'durationsReady': durationsReady,
-    };
-  }
-}
-
 /// Detailed album response with songs
 class AlbumDetailResponse {
   final String id;

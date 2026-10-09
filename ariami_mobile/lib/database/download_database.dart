@@ -233,12 +233,6 @@ class DownloadDatabase {
     );
   }
 
-  /// Delete a task by id.
-  Future<void> deleteTask(String id) async {
-    final db = await _ensureDatabase();
-    await db.delete(_tasksTable, where: 'id = ?', whereArgs: [id]);
-  }
-
   /// Apply a set of upserts and deletes in a single atomic batch.
   Future<void> applyTaskChanges({
     required List<DownloadTask> upserts,

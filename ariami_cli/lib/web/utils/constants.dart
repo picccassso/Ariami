@@ -52,13 +52,6 @@ class AppTheme {
         border: Border.all(color: hovered ? borderStrong : borderGrey),
       );
 
-  /// Retained for the onboarding hero panels.
-  static BoxDecoration glassDecoration = BoxDecoration(
-    color: Colors.white.withValues(alpha: 0.04),
-    borderRadius: BorderRadius.circular(radiusLarge),
-    border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-  );
-
   static LinearGradient backgroundGradient = const LinearGradient(
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,

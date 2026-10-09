@@ -467,38 +467,6 @@ class AccountStatsService extends ChangeNotifier {
   // Reset / account changes
   // ---------------------------------------------------------------------------
 
-  /// Wipes listening stats locally and across the whole account. When the
-  /// server can't be reached the reset is remembered and completes on the
-  /// next connection (before any further uploads).
-  Future<void> resetEverywhere() async {
-    await PeriodStatsCache().clearScope(PeriodStatsCache.scopeFor(
-      userId: _connection.userId,
-      serverInfo: _connection.serverInfo,
-    ));
-    await _stats.resetAllStats();
-    await _outbox?.clear();
-    _clearAckedInFlight();
-    _summary = ListeningStatsSummary.empty;
-    _hasFetchedSummary = false;
-    try {
-      final file = File('${await _fileDir()}/$_summaryFileName');
-      if (file.existsSync()) await file.delete();
-    } catch (_) {}
-    _stats.setAccountStatsOverlay(null);
-    notifyListeners();
-
-    // The local history is gone; a later "baseline import" would only upload
-    // an empty set, but mark it done for clarity.
-    final userId = _connection.userId;
-    final deviceId = _connection.apiClient?.deviceId;
-    if (userId != null && deviceId != null) {
-      await _prefs?.setBool('$_baselineDoneKeyPrefix${userId}_$deviceId', true);
-    }
-
-    await _prefs?.setBool(_pendingResetKey, true);
-    await _completePendingResetIfAny();
-  }
-
   /// Runs a remembered account reset. Returns true when there is nothing
   /// (left) to do, false when the reset is still pending.
   Future<bool> _completePendingResetIfAny() async {

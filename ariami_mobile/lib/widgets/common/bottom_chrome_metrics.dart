@@ -7,9 +7,6 @@ const double kMiniPlayerHeight = 64.0;
 /// Maximum visible height of the global download progress bar.
 const double kDownloadBarHeight = 4.0;
 
-/// Total height of mini player + download bar overlay.
-const double kMiniPlayerOverlayHeight = kMiniPlayerHeight + kDownloadBarHeight;
-
 /// Content height of the library batch-download floating bar.
 const double kBatchDownloadBarContentHeight = 76.0;
 

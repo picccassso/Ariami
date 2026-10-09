@@ -489,47 +489,6 @@ extension _MetadataExtractorMetadataPart on MetadataExtractor {
     return metadata;
   }
 
-  /// Extracts metadata from multiple files in batches
-  ///
-  /// Yields batches of [SongMetadata] as they are processed
-  /// Batch size is configurable (default: 50)
-  Stream<List<SongMetadata>> _extractMetadataBatchImpl(
-    List<String> filePaths, {
-    int batchSize = 50,
-  }) async* {
-    final batches = <List<String>>[];
-
-    // Split into batches
-    for (var i = 0; i < filePaths.length; i += batchSize) {
-      final end =
-          (i + batchSize < filePaths.length) ? i + batchSize : filePaths.length;
-      batches.add(filePaths.sublist(i, end));
-    }
-
-    // Process each batch
-    for (final batch in batches) {
-      final metadataList = <SongMetadata>[];
-
-      // Process files sequentially to handle errors gracefully
-      for (final path in batch) {
-        try {
-          final metadata = await extractMetadata(path);
-          metadataList.add(metadata);
-        } catch (e) {
-          // Skip files that can't be processed
-          _diagnose(
-            'batch_item_failed format=${_safeFormat(path)} '
-            'error=${e.runtimeType}',
-          );
-        }
-      }
-
-      if (metadataList.isNotEmpty) {
-        yield metadataList;
-      }
-    }
-  }
-
   /// Parses song information from filename when metadata is missing
   ///
   /// Supports common patterns:

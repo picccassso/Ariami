@@ -12,8 +12,6 @@ import 'settings/search_settings_service.dart';
 class SearchService {
   static const String recentSongsKey = SearchSettingsService.recentSongsKey;
   static const String _recentSongsKey = recentSongsKey;
-  static const int defaultMaxRecentSongs =
-      SearchSettingsService.standardRecentSearchesLimit;
 
   final SearchSettingsService _settingsService;
 

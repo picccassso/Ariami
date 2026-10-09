@@ -46,18 +46,6 @@ enum RepeatMode {
     }
   }
 
-  /// Get icon name for UI (Material Icons)
-  String get iconName {
-    switch (this) {
-      case RepeatMode.none:
-        return 'repeat'; // repeat icon (inactive)
-      case RepeatMode.all:
-        return 'repeat'; // repeat icon (active)
-      case RepeatMode.one:
-        return 'repeat_one'; // repeat one icon
-    }
-  }
-
   /// Convert to string for persistence
   String toStorageString() {
     return name;

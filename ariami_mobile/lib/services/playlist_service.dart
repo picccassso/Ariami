@@ -196,10 +196,6 @@ class PlaylistService extends ChangeNotifier {
   }) =>
       _importAllServerPlaylistsImpl(serverPlaylists, allSongs: allSongs);
 
-  /// Unhide a server playlist (make it visible again).
-  Future<void> unhideServerPlaylist(String serverPlaylistId) =>
-      _unhideServerPlaylistImpl(serverPlaylistId);
-
   /// Get a server playlist by ID.
   ServerPlaylist? getServerPlaylist(String id) => _getServerPlaylistImpl(id);
 
@@ -227,10 +223,6 @@ class PlaylistService extends ChangeNotifier {
       _syncImportedPlaylistsFromServerImpl(
         revertedServerPlaylistIds: revertedServerPlaylistIds,
       );
-
-  /// Get an edit overlay for a server playlist, if present.
-  ServerPlaylistEdit? getServerPlaylistEdit(String id) =>
-      _serverPlaylistEdits[id];
 
   /// Resolve a server playlist with the account edit overlay applied.
   ServerPlaylistEffectiveState? resolveServerPlaylist(
@@ -431,12 +423,6 @@ class PlaylistService extends ChangeNotifier {
   /// Server-import tracking is restored separately via [applyServerImportState].
   Future<void> replaceAllPlaylists(List<PlaylistModel> playlists) =>
       _replaceAllPlaylistsImpl(playlists);
-
-  /// Rehydrate missing album IDs for playlist songs using current library data.
-  ///
-  /// Returns the number of playlists updated.
-  Future<int> rehydrateAlbumIdsFromLibrary(List<SongModel> librarySongs) =>
-      _rehydrateAlbumIdsFromLibraryImpl(librarySongs);
 
   /// Rehydrate cached playlist song metadata using current library data.
   ///

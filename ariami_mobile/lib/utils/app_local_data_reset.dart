@@ -11,7 +11,6 @@ import '../services/color_extraction_service.dart';
 import '../services/download/download_manager.dart';
 import '../services/offline/offline_playback_service.dart';
 import '../services/offline/offline_copy_service.dart';
-import '../services/offline/sync_service.dart';
 import '../services/playback_manager.dart';
 import '../services/playlist_service.dart';
 import '../services/profile_image_service.dart';
@@ -47,7 +46,6 @@ Future<void> clearAllLocalUserData({String? userId}) async {
     await libraryDatabase.clearAllData();
   });
   await clearStep(() => PlaylistService().clearAllPlaylistData());
-  await clearStep(() => SyncService().clearPendingActions());
   await clearStep(() => StreamingStatsService().resetAllStats());
   // Local wipe only: the account's stats stay on the server for other devices.
   await clearStep(() => AccountStatsService().clearLocalOnly());

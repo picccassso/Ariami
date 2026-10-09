@@ -57,62 +57,6 @@ class LibraryStructure {
     return Duration(seconds: totalSeconds);
   }
 
-  /// Get all albums sorted by artist, then year
-  List<Album> get sortedAlbums {
-    final albumList = albums.values.where((a) => a.isValid).toList();
-    albumList.sort((a, b) {
-      // First sort by artist
-      final artistCompare = a.artist.compareTo(b.artist);
-      if (artistCompare != 0) return artistCompare;
-
-      // Then sort by year (newer first, nulls last)
-      if (a.year == null && b.year == null) return 0;
-      if (a.year == null) return 1;
-      if (b.year == null) return -1;
-      return b.year!.compareTo(a.year!);
-    });
-    return albumList;
-  }
-
-  /// Get standalone songs sorted by artist, then title
-  List<SongMetadata> get sortedStandaloneSongs {
-    final sorted = List<SongMetadata>.from(standaloneSongs);
-    sorted.sort((a, b) {
-      // First sort by artist
-      final artistA = a.artist ?? '';
-      final artistB = b.artist ?? '';
-      final artistCompare = artistA.compareTo(artistB);
-      if (artistCompare != 0) return artistCompare;
-
-      // Then sort by title
-      final titleA = a.title ?? '';
-      final titleB = b.title ?? '';
-      return titleA.compareTo(titleB);
-    });
-    return sorted;
-  }
-
-  /// Get all artists in the library
-  Set<String> get allArtists {
-    final artists = <String>{};
-
-    // Add artists from albums
-    for (final album in albums.values) {
-      if (album.artist.isNotEmpty) {
-        artists.add(album.artist);
-      }
-    }
-
-    // Add artists from standalone songs
-    for (final song in standaloneSongs) {
-      if (song.artist != null && song.artist!.isNotEmpty) {
-        artists.add(song.artist!);
-      }
-    }
-
-    return artists;
-  }
-
   /// Total number of folder playlists
   int get totalPlaylists => folderPlaylists.length;
 

@@ -9,8 +9,6 @@ class WsMessageType {
   static const String identify = 'identify';
   static const String libraryUpdated = 'library_updated';
   static const String syncTokenAdvanced = 'sync_token_advanced';
-  static const String songAdded = 'song_added';
-  static const String albumAdded = 'album_added';
   static const String songRemoved = 'song_removed';
   static const String albumRemoved = 'album_removed';
   static const String serverShutdown = 'server_shutdown';
@@ -133,40 +131,6 @@ class IdentifyMessage extends WsMessage {
   String? get deviceName => data?['deviceName'] as String?;
   String? get sessionToken => data?['sessionToken'] as String?;
   String? get clientType => data?['clientType'] as String?;
-}
-
-/// Song added notification
-class SongAddedMessage extends WsMessage {
-  SongAddedMessage({
-    required Map<String, dynamic> songData,
-  }) : super(
-          type: WsMessageType.songAdded,
-          data: songData,
-        );
-
-  factory SongAddedMessage.fromWsMessage(WsMessage message) {
-    return SongAddedMessage(songData: message.data ?? {});
-  }
-
-  String? get songId => data?['id'] as String?;
-  String? get title => data?['title'] as String?;
-}
-
-/// Album added notification
-class AlbumAddedMessage extends WsMessage {
-  AlbumAddedMessage({
-    required Map<String, dynamic> albumData,
-  }) : super(
-          type: WsMessageType.albumAdded,
-          data: albumData,
-        );
-
-  factory AlbumAddedMessage.fromWsMessage(WsMessage message) {
-    return AlbumAddedMessage(albumData: message.data ?? {});
-  }
-
-  String? get albumId => data?['id'] as String?;
-  String? get title => data?['title'] as String?;
 }
 
 /// Ping message

@@ -48,10 +48,6 @@ extension _LibraryControllerSync on LibraryController {
       unawaited(_handleSyncTokenAdvanced(latestToken));
       return;
     }
-
-    if (message.type == WsMessageType.libraryUpdated) {
-      unawaited(_handleLibraryUpdatedMessage());
-    }
   }
 
   Future<void> _loadServerPlaylistEditsIfConnected() async {
@@ -72,7 +68,6 @@ extension _LibraryControllerSync on LibraryController {
   }
 
   Future<void> _handleSyncTokenAdvanced(int latestToken) async {
-    if (!await _isUsingV2LibrarySource()) return;
     if (latestToken > 0 && latestToken <= _lastHandledSyncToken) {
       return;
     }
@@ -80,24 +75,6 @@ extension _LibraryControllerSync on LibraryController {
     if (refreshed && latestToken > 0) {
       _lastHandledSyncToken = latestToken;
     }
-  }
-
-  Future<void> _handleLibraryUpdatedMessage() async {
-    if (await _isUsingV2LibrarySource()) {
-      return;
-    }
-
-    if (!_durationsPending) return;
-    if (_isLibraryLoadInFlight) return;
-    if (_durationRetryCount >= LibraryController._maxDurationRetries) return;
-
-    _durationRetryCount++;
-    await _loadLibrary(background: true);
-  }
-
-  Future<bool> _isUsingV2LibrarySource() async {
-    final decision = await _connectionService.libraryReadFacade.resolveSource();
-    return decision.source == LibraryReadSource.v2LocalStore;
   }
 
   int _parseLatestToken(dynamic value) {
@@ -112,7 +89,6 @@ extension _LibraryControllerSync on LibraryController {
       _pendingBackgroundReload = true;
       return false;
     }
-    if (!await _isUsingV2LibrarySource()) return false;
 
     if (latestToken <= 0) {
       await _loadLibrary(background: true);

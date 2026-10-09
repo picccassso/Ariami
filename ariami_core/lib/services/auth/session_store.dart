@@ -181,24 +181,6 @@ class SessionStore {
     }
   }
 
-  /// Revoke a specific set of sessions by token in a single batch.
-  /// Persists once if at least one token was present.
-  Future<void> revokeSessionTokens(Iterable<String> sessionTokens) async {
-    _ensureInitialized();
-
-    var removedAny = false;
-    for (final token in sessionTokens) {
-      if (_sessions.remove(token) != null) {
-        _lastRefreshPersistAt.remove(token);
-        removedAny = true;
-      }
-    }
-
-    if (removedAny) {
-      await _persist();
-    }
-  }
-
   /// Revoke all sessions for a user (logout all devices).
   Future<void> revokeAllForUser(String userId) async {
     await revokeAllForUserWithDetails(userId);
@@ -230,17 +212,6 @@ class SessionStore {
         .where((s) => s.userId == userId)
         .where((s) => DateTime.parse(s.expiresAt).isAfter(now))
         .toList();
-  }
-
-  /// Returns true if user has an active session on a different device.
-  bool hasActiveSessionOnDifferentDevice(String userId, String deviceId) {
-    _ensureInitialized();
-
-    final now = DateTime.now().toUtc();
-    return _sessions.values
-        .where((s) => s.userId == userId)
-        .where((s) => DateTime.parse(s.expiresAt).isAfter(now))
-        .any((s) => s.deviceId != deviceId);
   }
 
   /// Revoke all active sessions for a user on a specific device.

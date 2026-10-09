@@ -37,29 +37,6 @@ enum StreamingQuality {
     }
   }
 
-  /// Human-readable name when this preset is used for an offline transcode.
-  String get downloadDisplayName {
-    switch (this) {
-      case StreamingQuality.high:
-        return 'High (192 kbps)';
-      case StreamingQuality.medium:
-        return 'Medium (128 kbps)';
-      case StreamingQuality.low:
-        return 'Low (64 kbps)';
-    }
-  }
-
-  String get downloadDescription {
-    switch (this) {
-      case StreamingQuality.high:
-        return 'Best compressed quality';
-      case StreamingQuality.medium:
-        return 'Balanced quality and storage';
-      case StreamingQuality.low:
-        return 'Smallest downloads';
-    }
-  }
-
   /// Description for UI
   String get description {
     switch (this) {
@@ -69,18 +46,6 @@ enum StreamingQuality {
         return 'Balanced quality and data usage';
       case StreamingQuality.low:
         return 'Saves data, lower quality';
-    }
-  }
-
-  /// Approximate bitrate for display
-  String get bitrateLabel {
-    switch (this) {
-      case StreamingQuality.high:
-        return 'Original';
-      case StreamingQuality.medium:
-        return '128 kbps';
-      case StreamingQuality.low:
-        return '64 kbps';
     }
   }
 }

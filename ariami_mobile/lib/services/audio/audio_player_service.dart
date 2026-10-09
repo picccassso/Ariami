@@ -92,26 +92,6 @@ class AudioPlayerService {
     }
   }
 
-  /// Play audio from URL (legacy method for backwards compatibility)
-  /// NOTE: This method is deprecated - use playSong() instead to get proper notifications
-  @Deprecated(
-      'Use playSong() instead to provide song metadata for notifications')
-  Future<void> play(String streamUrl) async {
-    try {
-      print(
-          '[AudioPlayerService] WARNING: play() called without song metadata');
-      print('[AudioPlayerService] Notification will not show proper song info');
-      // We can't call audioHandler.playSong() without a Song object
-      // This is intentionally left unimplemented to force migration to playSong()
-      throw UnimplementedError(
-        'play() is deprecated. Use playSong() with Song metadata instead.',
-      );
-    } catch (e) {
-      print('[AudioPlayerService] Error: $e');
-      rethrow;
-    }
-  }
-
   /// Pause playback
   Future<void> pause() async {
     if (audioHandler == null) return;
@@ -256,13 +236,6 @@ class AudioPlayerService {
     final handler = audioHandler;
     return handler?.isLoading ?? false;
   }
-
-  /// Get the underlying audio player instance (for backwards compatibility)
-  /// WARNING: Direct access to the player bypasses the foreground service!
-  @Deprecated(
-      'Direct player access bypasses foreground service - use service methods instead')
-  AudioPlayer? get player =>
-      null; // Intentionally return null to prevent direct access
 
   /// Dispose the player
   Future<void> dispose() async {

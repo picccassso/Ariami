@@ -100,17 +100,6 @@ extension _PlaylistServiceMetadataImpl on PlaylistService {
     return error.toString().contains('database has already been closed');
   }
 
-  Future<int> _rehydrateAlbumIdsFromLibraryImpl(
-    List<SongModel> librarySongs,
-  ) async {
-    return _rehydrateSongMetadataFromLibrary(
-      librarySongs,
-      updateTitles: false,
-      updateArtists: false,
-      updateDurations: false,
-    );
-  }
-
   Future<int> _rehydrateSongMetadataFromLibraryImpl(
     List<SongModel> librarySongs,
   ) async {

@@ -132,12 +132,6 @@ extension _PlaylistServiceServerImpl on PlaylistService {
     return true;
   }
 
-  Future<void> _unhideServerPlaylistImpl(String serverPlaylistId) async {
-    _hiddenServerPlaylistIds.remove(serverPlaylistId);
-    await _saveHiddenServerPlaylists();
-    _notifyListeners();
-  }
-
   ServerPlaylist? _getServerPlaylistImpl(String id) {
     try {
       return _serverPlaylists.firstWhere((playlist) => playlist.id == id);

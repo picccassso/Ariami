@@ -282,12 +282,6 @@ class AuthService {
     return _sessionStore.getSessionsForDevice(deviceId);
   }
 
-  /// Revoke all sessions for a user (logout all devices).
-  Future<void> revokeAllSessionsForUser(String userId) async {
-    _ensureInitialized();
-    await _sessionStore.revokeAllForUser(userId);
-  }
-
   /// True when this device is the CLI web or desktop dashboard control surface.
   ///
   /// Used by the HTTP server to tag presence rows so they are not counted as

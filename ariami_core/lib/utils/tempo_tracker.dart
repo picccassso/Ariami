@@ -22,9 +22,6 @@ class TempoTracker {
   double _sinceEstimate = 0;
   double _bpm = 0;
 
-  /// Beats per minute, or 0 while there is no steady beat.
-  double get bpm => _bpm;
-
   /// Takes the strength (0–1) of the hit heard over the last [dt] seconds.
   double update(double hit, double dt) {
     _strongest = math.max(_strongest, hit);

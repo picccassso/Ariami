@@ -105,11 +105,6 @@ class SongMetadata {
     return title != null && artist != null && album != null && duration != null;
   }
 
-  /// Returns true if metadata was likely parsed from filename
-  bool get isParsedFromFilename {
-    return title != null && artist == null && album == null;
-  }
-
   /// Convert to JSON map for caching
   ///
   /// Note: albumArt is excluded to keep cache size manageable.

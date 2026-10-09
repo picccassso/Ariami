@@ -9,31 +9,6 @@ class CliTailscaleService {
 
   final ContainerEnvironment _environment;
 
-  /// Single advertised IP (Tailscale > LAN > localhost).
-  ///
-  /// For HTTP server startup and QR payloads, prefer [getTailscaleIp] plus [getLanIp]
-  /// and pass both into [AriamiHttpServer.start] so `/api/server-info` exposes LAN and
-  /// Tailscale for the mobile app.
-  Future<String> getBestAdvertisedIp() async {
-    // Try Tailscale first
-    final tailscaleIp = await getTailscaleIp();
-    if (tailscaleIp != null) {
-      print('Using Tailscale IP: $tailscaleIp');
-      return tailscaleIp;
-    }
-
-    // Fall back to LAN IP
-    final lanIp = await getLanIp();
-    if (lanIp != null) {
-      print('Using LAN IP: $lanIp');
-      return lanIp;
-    }
-
-    // Last resort - localhost won't work for mobile but at least won't crash
-    print('Warning: No network IP found, using localhost');
-    return 'localhost';
-  }
-
   /// Get LAN IP address (for when Tailscale isn't available)
   ///
   /// Returns the first private network IP address found (192.168.x.x, 10.x.x.x, 172.x.x.x)

@@ -63,19 +63,6 @@ class CacheEntry {
     );
   }
 
-  /// Create a copy with updated lastAccessed time
-  CacheEntry touch() {
-    return CacheEntry(
-      id: id,
-      type: type,
-      path: path,
-      size: size,
-      lastAccessed: DateTime.now(),
-      createdAt: createdAt,
-      etag: etag,
-    );
-  }
-
   /// Create a copy with updated fields
   CacheEntry copyWith({
     String? id,

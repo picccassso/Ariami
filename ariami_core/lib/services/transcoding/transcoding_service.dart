@@ -187,9 +187,6 @@ class TranscodingService {
   /// Check if Sonic is available on the system.
   Future<bool> isSonicAvailable() => _isSonicAvailable();
 
-  /// Backward-compatible alias for older callers.
-  Future<bool> isFFmpegAvailable() => isSonicAvailable();
-
   /// Get a transcoded file for the given source and quality.
   ///
   /// Returns the transcoded file if it exists in cache or after transcoding.

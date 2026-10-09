@@ -89,13 +89,6 @@ class PlaybackQueue {
     _revision++;
   }
 
-  /// Add multiple songs to the end of the queue
-  void addSongs(List<Song> songs) {
-    if (songs.isEmpty) return;
-    _songs.addAll(songs);
-    _revision++;
-  }
-
   /// Insert a song at a specific index
   void insertSong(int index, Song song) {
     if (index < 0 || index > _songs.length) return;
@@ -123,29 +116,6 @@ class PlaybackQueue {
     }
   }
 
-  /// Move a song from one position to another
-  void moveSong(int fromIndex, int toIndex) {
-    if (fromIndex < 0 || fromIndex >= _songs.length) return;
-    if (toIndex < 0 || toIndex >= _songs.length) return;
-    if (fromIndex == toIndex) return;
-
-    final song = _songs.removeAt(fromIndex);
-    _songs.insert(toIndex, song);
-    _revision++;
-
-    // Adjust current index based on the move
-    if (fromIndex == _currentIndex) {
-      // Moving the current song
-      _currentIndex = toIndex;
-    } else if (fromIndex < _currentIndex && toIndex >= _currentIndex) {
-      // Moving a song from before to after current
-      _currentIndex--;
-    } else if (fromIndex > _currentIndex && toIndex <= _currentIndex) {
-      // Moving a song from after to before current
-      _currentIndex++;
-    }
-  }
-
   /// Clear the entire queue
   void clear() {
     if (_songs.isEmpty) return;
@@ -165,31 +135,9 @@ class PlaybackQueue {
     _revision++;
   }
 
-  /// Move to next song
-  bool moveToNext() {
-    if (!hasNext) return false;
-    _currentIndex++;
-    return true;
-  }
-
-  /// Move to previous song
-  bool moveToPrevious() {
-    if (!hasPrevious) return false;
-    _currentIndex--;
-    return true;
-  }
-
   /// Jump to a specific index
   bool jumpToIndex(int index) {
     if (index < 0 || index >= _songs.length) return false;
-    _currentIndex = index;
-    return true;
-  }
-
-  /// Jump to a specific song
-  bool jumpToSong(Song song) {
-    final index = _songs.indexOf(song);
-    if (index == -1) return false;
     _currentIndex = index;
     return true;
   }
@@ -211,14 +159,6 @@ class PlaybackQueue {
     return PlaybackQueue(
       songs: songsList,
       currentIndex: json['currentIndex'] as int? ?? 0,
-    );
-  }
-
-  /// Create a copy
-  PlaybackQueue copy() {
-    return PlaybackQueue(
-      songs: List.from(_songs),
-      currentIndex: _currentIndex,
     );
   }
 }

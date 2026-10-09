@@ -190,32 +190,6 @@ class ShuffleService<T> {
     }
   }
 
-  /// Get next item in queue
-  T? getNextItem(T currentItem) {
-    final queue = currentQueue;
-    if (queue.isEmpty) return null;
-
-    final currentIndex = _indexOfOccurrence(queue, currentItem);
-    if (currentIndex == -1 || currentIndex >= queue.length - 1) {
-      return null; // No next item
-    }
-
-    return queue[currentIndex + 1];
-  }
-
-  /// Get previous item in queue
-  T? getPreviousItem(T currentItem) {
-    final queue = currentQueue;
-    if (queue.isEmpty) return null;
-
-    final currentIndex = _indexOfOccurrence(queue, currentItem);
-    if (currentIndex <= 0) {
-      return null; // No previous item
-    }
-
-    return queue[currentIndex - 1];
-  }
-
   /// Reset the shuffle service
   void reset() {
     _originalQueue = [];

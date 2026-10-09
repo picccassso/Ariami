@@ -4,32 +4,6 @@ import 'package:flutter/material.dart';
 import '../../services/ariami_connect_controller.dart';
 import '../common/mini_player_aware_bottom_sheet.dart';
 
-class AriamiConnectButton extends StatelessWidget {
-  const AriamiConnectButton({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final connect = AriamiConnectController();
-    return AnimatedBuilder(
-      animation: connect,
-      builder: (context, _) => IconButton(
-        tooltip: connect.activeDevice == null
-            ? 'Ariami Connect'
-            : 'Playing on ${connect.activeDevice!.name}',
-        onPressed: () => showAriamiConnectPicker(context),
-        icon: Icon(
-          connect.activeDevice?.type == 'tv'
-              ? Icons.tv_rounded
-              : Icons.speaker_group_rounded,
-          color: connect.devices.length > 1
-              ? Theme.of(context).colorScheme.primary
-              : null,
-        ),
-      ),
-    );
-  }
-}
-
 Future<void> showAriamiConnectPicker(BuildContext context) {
   final connect = AriamiConnectController();
   return showAriamiSheet<void>(

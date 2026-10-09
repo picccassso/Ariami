@@ -161,13 +161,6 @@ class OfflinePlaybackService {
     }
   }
 
-  /// Enable or disable offline mode
-  @Deprecated('Use setManualOfflineMode() instead')
-  Future<void> setOfflineMode(bool enabled) async {
-    // Map to new API for backward compatibility
-    await setManualOfflineMode(enabled);
-  }
-
   /// Set preference for downloaded files
   Future<void> setPreferDownloaded(bool prefer) async {
     _preferDownloaded = prefer;
@@ -234,12 +227,6 @@ class OfflinePlaybackService {
   /// Get cached file path for a cached song
   Future<String?> getCachedFilePath(String songId) async {
     return await _cacheManager.getCachedSongPath(songId);
-  }
-
-  /// Check if a song is available for playback
-  Future<bool> isSongAvailable(String songId) async {
-    final source = await getPlaybackSource(songId);
-    return source != PlaybackSource.unavailable;
   }
 
   /// Check if a song is downloaded (explicitly)

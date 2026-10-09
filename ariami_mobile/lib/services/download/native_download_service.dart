@@ -32,12 +32,6 @@ class NativeDownloadSnapshot {
   final int bytesDownloaded;
   final int totalBytes;
   final String? errorMessage;
-
-  bool get isTerminal =>
-      state == NativeDownloadState.completed ||
-      state == NativeDownloadState.failed ||
-      state == NativeDownloadState.cancelled ||
-      state == NativeDownloadState.unavailable;
 }
 
 class NativeDownloadService {

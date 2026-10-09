@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'dart:convert';
 import 'package:ariami_core/models/file_change.dart';
@@ -270,20 +269,5 @@ class ChangeProcessor {
       generateSongId: _generateSongId,
       duplicateToOriginalPath: duplicateToOriginalPath,
     );
-  }
-
-  /// Checks if a file still exists and hasn't been modified
-  Future<bool> isFileUnchanged(String path, DateTime lastModified) async {
-    try {
-      final file = File(path);
-      if (!await file.exists()) {
-        return false;
-      }
-
-      final stat = await file.stat();
-      return stat.modified == lastModified;
-    } catch (e) {
-      return false;
-    }
   }
 }

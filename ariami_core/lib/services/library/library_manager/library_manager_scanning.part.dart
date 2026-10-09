@@ -3,7 +3,6 @@ part of '../library_manager.dart';
 extension _LibraryManagerScanningPart on LibraryManager {
   void _resetDurationsForRescan() {
     _durationsReady = true;
-    _durationWarmupRunning = false;
     _durationCache.clear();
   }
 
@@ -86,7 +85,6 @@ extension _LibraryManagerScanningPart on LibraryManager {
       _rebuildSongIndexes();
       _lastScanTime = DateTime.now();
       _durationsReady = true;
-      _durationWarmupRunning = false;
       _durationCache.clear();
 
       await _writeCatalogBatchForChanges(
@@ -316,7 +314,6 @@ extension _LibraryManagerScanningPart on LibraryManager {
     _durationCache.clear();
     _songArtworkCache.clear();
     _durationsReady = false;
-    _durationWarmupRunning = false;
     print('[LibraryManager] Library cleared');
   }
 

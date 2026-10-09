@@ -125,48 +125,6 @@ class _LibrarySyncDatabaseReads {
     );
   }
 
-  Future<bool> hasPlaylistMembershipBackfillPending({
-    DatabaseExecutor? executor,
-  }) async {
-    final db = executor ?? await _owner.database;
-    final rows = await db.rawQuery('''
-      SELECT 1
-      FROM ${LibrarySyncDatabase._playlistsTable} playlists
-      LEFT JOIN (
-        SELECT playlist_id, COUNT(*) AS active_song_count
-        FROM ${LibrarySyncDatabase._playlistSongsTable}
-        WHERE is_deleted = 0
-        GROUP BY playlist_id
-      ) playlist_songs
-        ON playlist_songs.playlist_id = playlists.id
-      WHERE playlists.is_deleted = 0
-        AND playlists.song_count != COALESCE(playlist_songs.active_song_count, 0)
-      LIMIT 1
-    ''');
-    return rows.isNotEmpty;
-  }
-
-  Future<bool> hasAlbumSongCountMismatch({
-    DatabaseExecutor? executor,
-  }) async {
-    final db = executor ?? await _owner.database;
-    final rows = await db.rawQuery('''
-      SELECT 1
-      FROM ${LibrarySyncDatabase._albumsTable} albums
-      LEFT JOIN (
-        SELECT album_id, COUNT(*) AS active_song_count
-        FROM ${LibrarySyncDatabase._songsTable}
-        WHERE is_deleted = 0 AND album_id IS NOT NULL
-        GROUP BY album_id
-      ) album_songs
-        ON album_songs.album_id = albums.id
-      WHERE albums.is_deleted = 0
-        AND albums.song_count != COALESCE(album_songs.active_song_count, 0)
-      LIMIT 1
-    ''');
-    return rows.isNotEmpty;
-  }
-
   Future<List<AlbumSongCountIssue>> listAlbumSongCountIssues({
     int limit = 10,
     DatabaseExecutor? executor,

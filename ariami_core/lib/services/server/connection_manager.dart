@@ -89,21 +89,6 @@ class ConnectionManager {
     }
   }
 
-  /// Update client heartbeat timestamp
-  void updateHeartbeat(
-    String deviceId, {
-    String? userId,
-    String? deviceName,
-    String? replaceClientType,
-  }) {
-    refreshHeartbeatIfRegistered(
-      deviceId,
-      userId: userId,
-      deviceName: deviceName,
-      replaceClientType: replaceClientType,
-    );
-  }
-
   /// Update a connected client's display name (user rename), if present.
   void renameDevice(String deviceId, String deviceName) {
     final client = _clients[deviceId];
@@ -125,11 +110,6 @@ class ConnectionManager {
       _notifyListeners();
     }
     return client;
-  }
-
-  /// Check if a client is connected
-  bool isClientConnected(String deviceId) {
-    return _clients.containsKey(deviceId);
   }
 
   /// Get all connected clients

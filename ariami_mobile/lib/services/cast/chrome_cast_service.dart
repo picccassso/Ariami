@@ -111,9 +111,6 @@ class ChromeCastService extends ChangeNotifier {
     return requested;
   }
 
-  bool get isDeviceMuted =>
-      GoogleCastSessionManager.instance.currentSession?.currentDeviceMuted ??
-      false;
   GoggleCastMediaStatus? get mediaStatus =>
       GoogleCastRemoteMediaClient.instance.mediaStatus;
   Duration get rawRemotePosition =>
@@ -378,12 +375,6 @@ class ChromeCastService extends ChangeNotifier {
     _lastSyncPayload = null;
     _forceLocalPlayback = false;
     notifyListeners();
-  }
-
-  Future<void> pauseForAppTermination({
-    String reason = 'app-termination',
-  }) async {
-    await stopForAppTermination(reason: reason);
   }
 
   Future<void> seek(Duration position, {required bool playAfterSeek}) async {

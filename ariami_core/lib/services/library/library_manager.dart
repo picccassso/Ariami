@@ -27,11 +27,9 @@ import 'package:sqlite3/sqlite3.dart';
 
 part 'library_manager/library_manager_api.part.dart';
 part 'library_manager/library_manager_availability.part.dart';
-part 'library_manager/library_manager_cache.part.dart';
 part 'library_manager/library_manager_catalog.part.dart';
 part 'library_manager/library_manager_catalog_artwork.part.dart';
 part 'library_manager/library_manager_catalog_changes.part.dart';
-part 'library_manager/library_manager_catalog_duration_updates.part.dart';
 part 'library_manager/library_manager_catalog_records.part.dart';
 part 'library_manager/library_manager_duration.part.dart';
 part 'library_manager/library_manager_scanning.part.dart';
@@ -157,9 +155,6 @@ class LibraryManager {
   /// Callbacks to notify when duration warm-up completes
   final List<void Function()> _onDurationsReadyCallbacks = [];
 
-  /// Whether duration warm-up is running
-  bool _durationWarmupRunning = false;
-
   /// Whether durations are ready for the current library snapshot
   bool _durationsReady = true;
 
@@ -210,18 +205,6 @@ class LibraryManager {
     _onDurationsReadyCallbacks.add(callback);
   }
 
-  /// Remove a duration warm-up listener
-  void removeDurationsReadyListener(void Function() callback) {
-    _onDurationsReadyCallbacks.remove(callback);
-  }
-
-  /// Notify all listeners that durations are ready
-  void _notifyDurationsReady() {
-    for (final callback in _onDurationsReadyCallbacks) {
-      callback();
-    }
-  }
-
   /// Get the last scan timestamp
   DateTime? get lastScanTime => _lastScanTime;
 
@@ -230,9 +213,6 @@ class LibraryManager {
 
   /// Whether durations are ready for the current library snapshot
   bool get durationsReady => _durationsReady;
-
-  /// Whether duration warm-up is currently running
-  bool get isDurationWarmupRunning => _durationWarmupRunning;
 
   /// Diagnostics from the most recent full library scan.
   ScanDiagnostics get latestScanDiagnostics => _latestScanDiagnostics;
@@ -364,9 +344,6 @@ class LibraryManager {
     }
   }
 
-  /// Force clear the metadata cache (for "Force Rescan" feature)
-  Future<void> clearMetadataCache() => _clearMetadataCacheImpl();
-
   /// Scan the music folder and build library structure
   ///
   /// This runs in a background isolate to prevent UI blocking.
@@ -379,12 +356,6 @@ class LibraryManager {
 
   /// Convert library to API JSON format for mobile app
   Map<String, dynamic> toApiJson(String baseUrl) => _toApiJsonImpl(baseUrl);
-
-  /// Convert library to API JSON format with lazy duration extraction for songs
-  Future<Map<String, dynamic>> toApiJsonWithDurations(String baseUrl) =>
-      _toApiJsonWithDurationsImpl(baseUrl);
-
-  void ensureDurationWarmup() => _ensureDurationWarmupImpl();
 
   /// Get detailed album information with songs
   Future<Map<String, dynamic>?> getAlbumDetail(

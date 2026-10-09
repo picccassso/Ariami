@@ -19,7 +19,6 @@ export 'models/listening_stats_models.dart';
 export 'models/hidden_item.dart';
 export 'models/pinned_item.dart';
 export 'models/quality_preset.dart';
-export 'models/scan_result.dart';
 export 'models/server_origin.dart';
 export 'models/song_metadata.dart';
 export 'models/sync_models.dart';

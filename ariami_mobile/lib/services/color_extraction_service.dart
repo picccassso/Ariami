@@ -302,13 +302,4 @@ class ColorExtractionService extends ChangeNotifier {
     _currentCacheId = null;
     notifyListeners();
   }
-
-  /// Reset to fallback colors (e.g., when no song is playing)
-  void resetToFallback() {
-    _requestedCacheId = null;
-    _requestedSong = null;
-    _currentColors = GradientColors.fallback;
-    _currentCacheId = null;
-    notifyListeners();
-  }
 }

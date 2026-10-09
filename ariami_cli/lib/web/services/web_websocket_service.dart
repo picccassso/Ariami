@@ -16,9 +16,6 @@ class WebWebSocketService {
   /// Stream of incoming WebSocket messages
   Stream<WsMessage> get messages => _messageController.stream;
 
-  /// Check if WebSocket is connected
-  bool get isConnected => _isConnected;
-
   /// Connect to WebSocket server
   void connect({
     void Function()? onConnected,

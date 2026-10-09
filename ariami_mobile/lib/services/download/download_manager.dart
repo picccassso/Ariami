@@ -309,12 +309,6 @@ class DownloadManager {
   /// Get queue statistics
   QueueStats getQueueStats() => _getQueueStatsImpl();
 
-  /// Get current progress for a task (from active progress tracking)
-  /// Returns null if task is not actively downloading
-  double? getTaskProgress(String taskId) {
-    return _activeProgress[taskId];
-  }
-
   /// Remove downloads that no longer exist in the current library
   /// Returns the number of tasks removed.
   Future<int> pruneOrphanedDownloads(Set<String> validSongIds) =>

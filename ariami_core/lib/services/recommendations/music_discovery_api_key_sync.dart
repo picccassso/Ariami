@@ -29,7 +29,6 @@ class MusicDiscoveryApiKeySyncState {
   final MusicDiscoveryApiKeyConfig? remoteConfig;
 
   String? get effectiveKey => embeddedKey ?? householdKey ?? localKey;
-  bool get hasKey => effectiveKey != null;
   bool get isHouseholdManaged => embeddedKey == null && householdKey != null;
   bool get canManageHousehold => remoteConfig?.canManage ?? false;
 }

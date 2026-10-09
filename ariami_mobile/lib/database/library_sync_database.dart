@@ -232,18 +232,6 @@ class LibrarySyncDatabase {
     return _reads.getSyncState(executor: executor);
   }
 
-  Future<bool> hasPlaylistMembershipBackfillPending({
-    DatabaseExecutor? executor,
-  }) {
-    return _reads.hasPlaylistMembershipBackfillPending(executor: executor);
-  }
-
-  Future<bool> hasAlbumSongCountMismatch({
-    DatabaseExecutor? executor,
-  }) {
-    return _reads.hasAlbumSongCountMismatch(executor: executor);
-  }
-
   Future<List<AlbumSongCountIssue>> listAlbumSongCountIssues({
     int limit = 10,
     DatabaseExecutor? executor,

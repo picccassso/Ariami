@@ -189,8 +189,6 @@ class PlayerColors extends ThemeExtension<PlayerColors> {
   }
 }
 
-typedef AppColors = PlayerColors;
-
 extension PlayerColorsContext on BuildContext {
   PlayerColors get colors =>
       Theme.of(this).extension<PlayerColors>() ?? PlayerColors.dark;

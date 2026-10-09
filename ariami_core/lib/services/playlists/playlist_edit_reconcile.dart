@@ -21,9 +21,3 @@ List<String> reconcilePlaylistSongIds({
   }
   return List<String>.unmodifiable(effective);
 }
-
-String reconcilePlaylistName({
-  required String baseName,
-  String? editName,
-}) =>
-    editName ?? baseName;

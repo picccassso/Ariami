@@ -42,16 +42,6 @@ class CachedMetadataEntry {
       if (partialHash != null) 'partialHash': partialHash,
     };
   }
-
-  /// Create a copy with updated partialHash
-  CachedMetadataEntry copyWithHash(String hash) {
-    return CachedMetadataEntry(
-      mtime: mtime,
-      size: size,
-      metadata: metadata,
-      partialHash: hash,
-    );
-  }
 }
 
 /// Persistent metadata cache for fast re-scans
@@ -93,9 +83,6 @@ class MetadataCache {
 
   /// Number of cached entries
   int get length => _entries.length;
-
-  /// Check if cache has unsaved changes
-  bool get isDirty => _isDirty;
 
   /// Load cache from disk
   ///
@@ -319,29 +306,6 @@ class MetadataCache {
     }
   }
 
-  /// Remove entries for files that no longer exist
-  Future<int> pruneDeleted() async {
-    final toRemove = <String>[];
-
-    for (final path in _entries.keys) {
-      if (!await File(path).exists()) {
-        toRemove.add(path);
-      }
-    }
-
-    for (final path in toRemove) {
-      _entries.remove(path);
-    }
-
-    if (toRemove.isNotEmpty) {
-      _isDirty = true;
-      print(
-          '[MetadataCache] Pruned ${toRemove.length} deleted files from cache');
-    }
-
-    return toRemove.length;
-  }
-
   /// Clear all cached entries
   Future<void> clear() async {
     _entries.clear();
@@ -357,9 +321,6 @@ class MetadataCache {
       print('[MetadataCache] Failed to delete cache file: $e');
     }
   }
-
-  /// Get all cached file paths
-  Iterable<String> get cachedPaths => _entries.keys;
 
   /// Export cache data for passing to isolate (serializable format)
   Map<String, Map<String, dynamic>> exportForIsolate() {

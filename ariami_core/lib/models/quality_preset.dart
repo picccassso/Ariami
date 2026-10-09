@@ -61,18 +61,6 @@ enum QualityPreset {
     }
   }
 
-  /// Short display name for compact UI
-  String get shortName {
-    switch (this) {
-      case QualityPreset.high:
-        return 'High';
-      case QualityPreset.medium:
-        return 'Medium';
-      case QualityPreset.low:
-        return 'Low';
-    }
-  }
-
   /// Whether this preset requires transcoding
   bool get requiresTranscoding => this != QualityPreset.high;
 

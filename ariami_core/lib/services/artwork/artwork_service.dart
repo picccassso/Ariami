@@ -337,25 +337,6 @@ class ArtworkService {
     }
   }
 
-  /// Get current cache size in bytes.
-  Future<int> getCacheSize() async {
-    try {
-      final cacheDir = Directory(cacheDirectory);
-      if (!await cacheDir.exists()) return 0;
-
-      int totalSize = 0;
-      await for (final entity in cacheDir.list(recursive: true)) {
-        if (entity is File) {
-          totalSize += await entity.length();
-        }
-      }
-      return totalSize;
-    } catch (e) {
-      print('[ArtworkService] Error getting cache size - $e');
-      return 0;
-    }
-  }
-
   /// Clear the entire artwork cache.
   Future<void> clearCache() async {
     try {
@@ -366,27 +347,6 @@ class ArtworkService {
       }
     } catch (e) {
       print('[ArtworkService] Error clearing cache - $e');
-    }
-  }
-
-  /// Delete cached artwork for a specific album.
-  ///
-  /// Useful when the source artwork changes.
-  Future<void> invalidateAlbum(String albumId) async {
-    for (final size in ArtworkSize.values) {
-      if (!size.requiresProcessing) continue;
-
-      final cachedFile = _getCachedFile(albumId, size);
-      if (await cachedFile.exists()) {
-        try {
-          await cachedFile.delete();
-          final digestFile = _getSourceDigestFile(cachedFile);
-          if (await digestFile.exists()) await digestFile.delete();
-          print('[ArtworkService] Invalidated $albumId at ${size.name}');
-        } catch (e) {
-          print('[ArtworkService] Failed to invalidate $albumId: $e');
-        }
-      }
     }
   }
 }
