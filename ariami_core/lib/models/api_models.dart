@@ -1,6 +1,8 @@
 /// API request and response models for Ariami communication protocol
 library;
 
+import '../utils/encoding_utils.dart';
+
 export 'sync_models.dart';
 
 class ConnectRequest {
@@ -55,7 +57,7 @@ class ConnectResponse {
       status: json['status'] as String,
       sessionId: json['sessionId'] as String,
       serverVersion: json['serverVersion'] as String,
-      features: (json['features'] as List<dynamic>).cast<String>(),
+      features: (json['features'] as List<dynamic>? ?? []).cast<String>(),
       deviceId: json['deviceId'] as String?,
     );
   }
@@ -72,19 +74,19 @@ class ConnectResponse {
 }
 
 class DisconnectRequest {
-  final String sessionId;
+  final String? deviceId;
 
-  DisconnectRequest({required this.sessionId});
+  DisconnectRequest({this.deviceId});
 
   factory DisconnectRequest.fromJson(Map<String, dynamic> json) {
     return DisconnectRequest(
-      sessionId: json['sessionId'] as String,
+      deviceId: json['deviceId'] as String?,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
-      'sessionId': sessionId,
+      if (deviceId != null) 'deviceId': deviceId,
     };
   }
 }
@@ -114,6 +116,8 @@ class AlbumModel {
   final String? coverArt;
   final int songCount;
   final int duration; // in seconds
+  final DateTime? createdAt;
+  final DateTime? modifiedAt;
 
   AlbumModel({
     required this.id,
@@ -122,16 +126,26 @@ class AlbumModel {
     this.coverArt,
     required this.songCount,
     required this.duration,
+    this.createdAt,
+    this.modifiedAt,
   });
 
   factory AlbumModel.fromJson(Map<String, dynamic> json) {
     return AlbumModel(
       id: json['id'] as String,
-      title: json['title'] as String,
-      artist: json['artist'] as String,
+      title: EncodingUtils.fixEncoding(json['title'] as String) ??
+          json['title'] as String,
+      artist: EncodingUtils.fixEncoding(json['artist'] as String) ??
+          json['artist'] as String,
       coverArt: json['coverArt'] as String?,
       songCount: json['songCount'] as int,
       duration: json['duration'] as int,
+      createdAt: json['createdAt'] != null
+          ? DateTime.tryParse(json['createdAt'] as String)
+          : null,
+      modifiedAt: json['modifiedAt'] != null
+          ? DateTime.tryParse(json['modifiedAt'] as String)
+          : null,
     );
   }
 
@@ -143,7 +157,31 @@ class AlbumModel {
       'coverArt': coverArt,
       'songCount': songCount,
       'duration': duration,
+      if (createdAt != null) 'createdAt': createdAt!.toIso8601String(),
+      if (modifiedAt != null) 'modifiedAt': modifiedAt!.toIso8601String(),
     };
+  }
+
+  AlbumModel copyWith({
+    String? id,
+    String? title,
+    String? artist,
+    String? coverArt,
+    int? songCount,
+    int? duration,
+    DateTime? createdAt,
+    DateTime? modifiedAt,
+  }) {
+    return AlbumModel(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      artist: artist ?? this.artist,
+      coverArt: coverArt ?? this.coverArt,
+      songCount: songCount ?? this.songCount,
+      duration: duration ?? this.duration,
+      createdAt: createdAt ?? this.createdAt,
+      modifiedAt: modifiedAt ?? this.modifiedAt,
+    );
   }
 }
 
@@ -169,9 +207,11 @@ class SongModel {
   factory SongModel.fromJson(Map<String, dynamic> json) {
     return SongModel(
       id: json['id'] as String,
-      title: json['title'] as String,
-      artist: json['artist'] as String,
-      genre: json['genre'] as String?,
+      title: EncodingUtils.fixEncoding(json['title'] as String) ??
+          json['title'] as String,
+      artist: EncodingUtils.fixEncoding(json['artist'] as String) ??
+          json['artist'] as String,
+      genre: EncodingUtils.fixEncoding(json['genre'] as String?),
       albumId: json['albumId'] as String?,
       duration: json['duration'] as int,
       trackNumber: json['trackNumber'] as int?,
@@ -275,6 +315,7 @@ class AlbumDetailResponse {
   final String title;
   final String artist;
   final String? year;
+  final String? coverArt;
   final List<SongModel> songs;
 
   AlbumDetailResponse({
@@ -282,16 +323,20 @@ class AlbumDetailResponse {
     required this.title,
     required this.artist,
     this.year,
+    this.coverArt,
     required this.songs,
   });
 
   factory AlbumDetailResponse.fromJson(Map<String, dynamic> json) {
     return AlbumDetailResponse(
       id: json['id'] as String,
-      title: json['title'] as String,
-      artist: json['artist'] as String,
+      title: EncodingUtils.fixEncoding(json['title'] as String) ??
+          json['title'] as String,
+      artist: EncodingUtils.fixEncoding(json['artist'] as String) ??
+          json['artist'] as String,
       year: json['year'] as String?,
-      songs: (json['songs'] as List<dynamic>)
+      coverArt: json['coverArt'] as String?,
+      songs: (json['songs'] as List<dynamic>? ?? [])
           .map((e) => SongModel.fromJson(e as Map<String, dynamic>))
           .toList(),
     );
@@ -303,6 +348,7 @@ class AlbumDetailResponse {
       'title': title,
       'artist': artist,
       'year': year,
+      if (coverArt != null) 'coverArt': coverArt,
       'songs': songs.map((e) => e.toJson()).toList(),
     };
   }
@@ -368,4 +414,7 @@ class ApiErrorCodes {
   static const String sessionExpired = 'SESSION_EXPIRED';
   static const String streamTokenExpired = 'STREAM_TOKEN_EXPIRED';
   static const String authRequired = 'AUTH_REQUIRED';
+  static const String rateLimited = 'RATE_LIMITED';
+  static const String alreadyLoggedInOtherDevice =
+      'ALREADY_LOGGED_IN_OTHER_DEVICE';
 }

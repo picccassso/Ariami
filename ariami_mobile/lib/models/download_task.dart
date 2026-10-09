@@ -1,6 +1,6 @@
 library;
 
-import '../utils/encoding_utils.dart';
+import 'package:ariami_core/utils/encoding_utils.dart';
 import 'quality_settings.dart';
 
 enum DownloadStatus {

@@ -1,4 +1,4 @@
-import '../utils/encoding_utils.dart';
+import 'package:ariami_core/utils/encoding_utils.dart';
 
 class Song {
   final String id;

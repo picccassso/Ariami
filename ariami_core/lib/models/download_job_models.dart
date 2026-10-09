@@ -1,6 +1,8 @@
 /// Models for v2 server-managed download jobs.
 library;
 
+import '../utils/encoding_utils.dart';
+
 class DownloadJobCreateRequest {
   const DownloadJobCreateRequest({
     this.songIds = const <String>[],
@@ -59,6 +61,15 @@ class DownloadJobPageInfo {
   final bool hasMore;
   final int limit;
 
+  factory DownloadJobPageInfo.fromJson(Map<String, dynamic> json) {
+    return DownloadJobPageInfo(
+      cursor: json['cursor'] as String?,
+      nextCursor: json['nextCursor'] as String?,
+      hasMore: json['hasMore'] as bool? ?? false,
+      limit: json['limit'] as int? ?? 0,
+    );
+  }
+
   Map<String, dynamic> toJson() {
     return <String, dynamic>{
       'cursor': cursor,
@@ -87,6 +98,18 @@ class DownloadJobCreateResponse {
   final int itemCount;
   final String createdAt;
   final String updatedAt;
+
+  factory DownloadJobCreateResponse.fromJson(Map<String, dynamic> json) {
+    return DownloadJobCreateResponse(
+      jobId: json['jobId'] as String,
+      status: json['status'] as String? ?? '',
+      quality: json['quality'] as String? ?? 'high',
+      downloadOriginal: json['downloadOriginal'] as bool? ?? false,
+      itemCount: json['itemCount'] as int? ?? 0,
+      createdAt: json['createdAt'] as String? ?? '',
+      updatedAt: json['updatedAt'] as String? ?? '',
+    );
+  }
 
   Map<String, dynamic> toJson() {
     return <String, dynamic>{
@@ -125,6 +148,21 @@ class DownloadJobStatusResponse {
   final int cancelledCount;
   final String createdAt;
   final String updatedAt;
+
+  factory DownloadJobStatusResponse.fromJson(Map<String, dynamic> json) {
+    return DownloadJobStatusResponse(
+      jobId: json['jobId'] as String,
+      userId: json['userId'] as String? ?? '',
+      status: json['status'] as String? ?? '',
+      quality: json['quality'] as String? ?? 'high',
+      downloadOriginal: json['downloadOriginal'] as bool? ?? false,
+      itemCount: json['itemCount'] as int? ?? 0,
+      pendingCount: json['pendingCount'] as int? ?? 0,
+      cancelledCount: json['cancelledCount'] as int? ?? 0,
+      createdAt: json['createdAt'] as String? ?? '',
+      updatedAt: json['updatedAt'] as String? ?? '',
+    );
+  }
 
   Map<String, dynamic> toJson() {
     return <String, dynamic>{
@@ -173,6 +211,26 @@ class DownloadJobItemResponse {
   final String? errorCode;
   final int? retryAfterEpochMs;
 
+  factory DownloadJobItemResponse.fromJson(Map<String, dynamic> json) {
+    return DownloadJobItemResponse(
+      itemOrder: json['itemOrder'] as int? ?? 0,
+      songId: json['songId'] as String,
+      status: json['status'] as String? ?? '',
+      title: EncodingUtils.fixEncoding(json['title'] as String? ?? '') ??
+          (json['title'] as String? ?? ''),
+      artist: EncodingUtils.fixEncoding(json['artist'] as String? ?? '') ??
+          (json['artist'] as String? ?? ''),
+      albumId: json['albumId'] as String?,
+      albumName: EncodingUtils.fixEncoding(json['albumName'] as String?),
+      albumArtist: EncodingUtils.fixEncoding(json['albumArtist'] as String?),
+      trackNumber: json['trackNumber'] as int?,
+      durationSeconds: json['durationSeconds'] as int? ?? 0,
+      fileSizeBytes: json['fileSizeBytes'] as int?,
+      errorCode: json['errorCode'] as String?,
+      retryAfterEpochMs: json['retryAfterEpochMs'] as int?,
+    );
+  }
+
   Map<String, dynamic> toJson() {
     return <String, dynamic>{
       'itemOrder': itemOrder,
@@ -203,6 +261,19 @@ class DownloadJobItemsResponse {
   final List<DownloadJobItemResponse> items;
   final DownloadJobPageInfo pageInfo;
 
+  factory DownloadJobItemsResponse.fromJson(Map<String, dynamic> json) {
+    return DownloadJobItemsResponse(
+      jobId: json['jobId'] as String,
+      items: (json['items'] as List<dynamic>? ?? [])
+          .map(
+              (e) => DownloadJobItemResponse.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      pageInfo: DownloadJobPageInfo.fromJson(
+        (json['pageInfo'] as Map<String, dynamic>? ?? <String, dynamic>{}),
+      ),
+    );
+  }
+
   Map<String, dynamic> toJson() {
     return <String, dynamic>{
       'jobId': jobId,
@@ -222,6 +293,14 @@ class DownloadJobCancelResponse {
   final String jobId;
   final String status;
   final String cancelledAt;
+
+  factory DownloadJobCancelResponse.fromJson(Map<String, dynamic> json) {
+    return DownloadJobCancelResponse(
+      jobId: json['jobId'] as String,
+      status: json['status'] as String? ?? '',
+      cancelledAt: json['cancelledAt'] as String? ?? '',
+    );
+  }
 
   Map<String, dynamic> toJson() {
     return <String, dynamic>{

@@ -5,6 +5,8 @@ class WsMessageType {
   static const String identify = 'identify';
   static const String libraryUpdated = 'library_updated';
   static const String syncTokenAdvanced = 'sync_token_advanced';
+  static const String songAdded = 'song_added';
+  static const String albumAdded = 'album_added';
   static const String songRemoved = 'song_removed';
   static const String albumRemoved = 'album_removed';
   static const String serverShutdown = 'server_shutdown';

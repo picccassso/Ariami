@@ -593,7 +593,7 @@ extension _DownloadManagerOperationsImpl on DownloadManager {
 
   DownloadTask? _buildTaskFromDownloadJobItem({
     required ApiClient apiClient,
-    required DownloadJobItemModel item,
+    required DownloadJobItemResponse item,
     required StreamingQuality downloadQuality,
     required bool downloadOriginal,
     String? genre,
@@ -638,7 +638,7 @@ extension _DownloadManagerOperationsImpl on DownloadManager {
     );
   }
 
-  String _resolveDownloadTitle(DownloadJobItemModel item) {
+  String _resolveDownloadTitle(DownloadJobItemResponse item) {
     final title = item.title.trim();
     if (title.isNotEmpty) {
       return title;
@@ -653,7 +653,7 @@ extension _DownloadManagerOperationsImpl on DownloadManager {
     return item.songId;
   }
 
-  String _resolveDownloadArtist(DownloadJobItemModel item) {
+  String _resolveDownloadArtist(DownloadJobItemResponse item) {
     final artist = item.artist.trim();
     if (artist.isNotEmpty) {
       return artist;
