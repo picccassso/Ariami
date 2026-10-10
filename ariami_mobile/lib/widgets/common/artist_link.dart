@@ -32,6 +32,14 @@ class ArtistLink extends StatelessWidget {
     );
     if (selectedArtist == null || !context.mounted) return;
 
+    final currentRoute = ModalRoute.of(context);
+    if (currentRoute?.settings.name == '/artist' &&
+        currentRoute?.settings.arguments is String &&
+        (currentRoute!.settings.arguments as String).trim().toLowerCase() ==
+            selectedArtist.trim().toLowerCase()) {
+      return;
+    }
+
     Navigator.of(context).pushNamed('/artist', arguments: selectedArtist);
   }
 

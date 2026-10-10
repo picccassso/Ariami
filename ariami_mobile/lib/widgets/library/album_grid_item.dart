@@ -18,6 +18,7 @@ class AlbumGridItem extends StatelessWidget {
   final bool isSelectionMode;
   final bool isSelected;
   final String? genre;
+  final bool artistLinkEnabled;
 
   const AlbumGridItem({
     super.key,
@@ -31,6 +32,7 @@ class AlbumGridItem extends StatelessWidget {
     this.isSelectionMode = false,
     this.isSelected = false,
     this.genre,
+    this.artistLinkEnabled = true,
   });
 
   @override
@@ -192,7 +194,7 @@ class AlbumGridItem extends StatelessWidget {
                       Flexible(
                         child: ArtistLink(
                           name: album.artist,
-                          enabled: !isSelectionMode,
+                          enabled: artistLinkEnabled && !isSelectionMode,
                           style: Theme.of(context)
                               .textTheme
                               .bodyMedium

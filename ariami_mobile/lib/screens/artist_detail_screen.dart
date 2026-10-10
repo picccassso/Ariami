@@ -201,6 +201,7 @@ class ArtistDetailScreen extends StatelessWidget {
       isOfflineCopy: state.isOfflineCopySong(track.id),
       albumName: album?.title,
       albumArtist: album?.artist,
+      artistLinkEnabled: false,
     );
   }
 
@@ -215,6 +216,7 @@ class ArtistDetailScreen extends StatelessWidget {
             return AlbumGridItem(
               key: ValueKey('album-${album.id}'),
               album: album,
+              artistLinkEnabled: false,
               onTap: () =>
                   Navigator.of(context).pushNamed('/album', arguments: album),
             );

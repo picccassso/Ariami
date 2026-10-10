@@ -226,6 +226,23 @@ void main() {
       expect(find.text('Artist Mix'), findsOneWidget);
       expect(find.text('Other Mix'), findsNothing);
     });
+
+    testWidgets('top songs have artistLinkEnabled set to false', (tester) async {
+      await resetSingletons();
+
+      LibraryController().setStateForTest(
+        LibraryState(
+          albums: [album('a1', 'Album One', 'Test Artist')],
+          songs: [track('s1', 'Song 1', 'Test Artist', 'a1')],
+          isLoading: false,
+        ),
+      );
+
+      await pumpArtistPage(tester, 'Test Artist');
+
+      final songItem = tester.widget<SongListItem>(find.byType(SongListItem));
+      expect(songItem.artistLinkEnabled, isFalse);
+    });
   });
 
   group('ArtistLink', () {
@@ -266,6 +283,45 @@ void main() {
 
       expect(find.text('Artist Page'), findsNothing);
       expect(find.text('Test Artist'), findsOneWidget);
+    });
+
+    testWidgets('does not push duplicate route when already on that artist page',
+        (tester) async {
+      var pushCount = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          onGenerateRoute: (settings) {
+            if (settings.name == '/artist') {
+              pushCount++;
+              return MaterialPageRoute(
+                settings: settings,
+                builder: (_) => const Scaffold(
+                  body: ArtistLink(name: 'Test Artist'),
+                ),
+              );
+            }
+            return MaterialPageRoute(
+              settings: settings,
+              builder: (_) => const Scaffold(body: Text('Home')),
+            );
+          },
+          initialRoute: '/',
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Navigate to artist page first
+      final nav = tester.state<NavigatorState>(find.byType(Navigator));
+      nav.pushNamed('/artist', arguments: 'Test Artist');
+      await tester.pumpAndSettle();
+      expect(pushCount, 1);
+
+      // Now tap the artist link while on the artist page
+      await tester.tap(find.text('Test Artist'));
+      await tester.pumpAndSettle();
+
+      // Should not push another /artist route
+      expect(pushCount, 1);
     });
   });
 }
