@@ -227,7 +227,8 @@ void main() {
       expect(find.text('Other Mix'), findsNothing);
     });
 
-    testWidgets('top songs have artistLinkEnabled set to false', (tester) async {
+    testWidgets('top songs have artistLinkEnabled set to false',
+        (tester) async {
       await resetSingletons();
 
       LibraryController().setStateForTest(
@@ -242,6 +243,45 @@ void main() {
 
       final songItem = tester.widget<SongListItem>(find.byType(SongListItem));
       expect(songItem.artistLinkEnabled, isFalse);
+    });
+
+    testWidgets('app bar title fades in only once the header collapses',
+        (tester) async {
+      await resetSingletons();
+
+      LibraryController().setStateForTest(
+        LibraryState(
+          albums: [album('a1', 'Album One', 'Test Artist')],
+          songs: [
+            for (var i = 0; i < 30; i++)
+              track('s$i', 'Song $i', 'Test Artist', 'a1'),
+          ],
+          isLoading: false,
+        ),
+      );
+
+      await pumpArtistPage(tester, 'Test Artist', size: const Size(400, 800));
+
+      final titleOpacity = find.ancestor(
+        of: find.descendant(
+          of: find.byType(SliverAppBar),
+          matching: find.text('Test Artist'),
+        ),
+        matching: find.byType(Opacity),
+      );
+      expect(
+        find.descendant(
+          of: find.byType(SliverToBoxAdapter),
+          matching: find.text('Test Artist'),
+        ),
+        findsOneWidget,
+      );
+      expect(tester.widget<Opacity>(titleOpacity.first).opacity, 0);
+
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, -2000));
+      await tester.pump();
+
+      expect(tester.widget<Opacity>(titleOpacity.first).opacity, 1);
     });
   });
 
@@ -285,7 +325,8 @@ void main() {
       expect(find.text('Test Artist'), findsOneWidget);
     });
 
-    testWidgets('does not push duplicate route when already on that artist page',
+    testWidgets(
+        'does not push duplicate route when already on that artist page',
         (tester) async {
       var pushCount = 0;
       await tester.pumpWidget(

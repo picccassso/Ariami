@@ -78,7 +78,9 @@ class ArtistDetailScreen extends StatelessWidget {
           SliverAppBar(
             pinned: true,
             expandedHeight: detailHeaderHeight(context),
-            title: Text(artistName),
+            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+            surfaceTintColor: Colors.transparent,
+            title: _CollapsedTitle(artistName),
             flexibleSpace: FlexibleSpaceBar(
               background: _ArtistHeaderArtwork(
                 artistName: artistName,
@@ -274,7 +276,9 @@ class ArtistDetailScreen extends StatelessWidget {
   }
 
   void _playAll(List<SongModel> tracks) {
-    final songs = [for (final track in _availableTracks(tracks)) _toSong(track)];
+    final songs = [
+      for (final track in _availableTracks(tracks)) _toSong(track)
+    ];
     if (songs.isEmpty) return;
     PlaybackManager().playSongs(
       songs,
@@ -283,7 +287,9 @@ class ArtistDetailScreen extends StatelessWidget {
   }
 
   void _shuffleAll(List<SongModel> tracks) {
-    final songs = [for (final track in _availableTracks(tracks)) _toSong(track)];
+    final songs = [
+      for (final track in _availableTracks(tracks)) _toSong(track)
+    ];
     if (songs.isEmpty) return;
     PlaybackManager().playShuffled(
       songs,
@@ -355,6 +361,27 @@ List<SongModel> _topTracks(List<SongModel> tracks, List<SongStats> stats) {
 }
 
 /// Static section title matching the library's section header text style.
+/// App bar title that only fades in once the header has collapsed, so the
+/// name isn't shown twice while the big header name is still on screen.
+class _CollapsedTitle extends StatelessWidget {
+  const _CollapsedTitle(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final settings =
+        context.dependOnInheritedWidgetOfExactType<FlexibleSpaceBarSettings>();
+    var opacity = 1.0;
+    if (settings != null && settings.maxExtent > settings.minExtent) {
+      final expanded = (settings.currentExtent - settings.minExtent) /
+          (settings.maxExtent - settings.minExtent);
+      opacity = (1 - expanded * 4).clamp(0.0, 1.0);
+    }
+    return Opacity(opacity: opacity, child: Text(text));
+  }
+}
+
 class _SectionTitle extends StatelessWidget {
   const _SectionTitle(this.title);
 
